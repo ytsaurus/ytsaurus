@@ -19,55 +19,58 @@ _YT_MAX_START_RETRIES = 3
 
 DEFAULT_YT_VERSION = "18_5"
 
+def get_value(value, default):
+    if value is None:
+        return default
+    return value
+
 class YtConfig(object):
-    def __init__(self, **kwargs):
-        self.fqdn = kwargs.get("fqdn", "localhost")
-        self.yt_id = kwargs.get("yt_id")
+    def __init__(self, fqdn=None, yt_id=None, proxy_port=None, node_count=None, node_config=None,
+                 scheduler_config=None, master_config=None, proxy_config=None, yt_path=None,
+                 save_all_logs=None, enable_debug_log=None, yt_work_dir=None, keep_yt_work_dir=None,
+                 ram_drive_path=None, local_cypress_dir=None, wait_tablet_cell_initialization=None,
+                 operations_memory_limit=None, forbid_chunk_storage_in_tmpfs=None, yt_version=None):
+        self.fqdn = get_value(fqdn, "localhost")
+        self.yt_id = yt_id
 
-        self.proxy_port = kwargs.get("proxy_port")
-        self.node_count = kwargs.get("node_count")
+        self.proxy_port = proxy_port
+        self.node_count = node_count
 
-        self.node_config = kwargs.get("node_config")
+        with tempfile.NamedTemporaryFile(delete=False) as config_with_disabled_retries:
+            config_with_disabled_retries.write("""\
+                {
+                    "bus_server" = {
+                        "bind_retry_count" = 1;
+                    };
+                }""")
 
-        config_with_disabled_retries = tempfile.NamedTemporaryFile(delete=False)
-        config_with_disabled_retries.write("""
-            {
-                "bus_server" = {
-                    "bind_retry_count" = 1;
-                };
-            }"""
-        )
-        config_with_disabled_retries.close()
+        self.node_config = get_value(node_config, config_with_disabled_retries.name)
+        self.scheduler_config = get_value(scheduler_config, config_with_disabled_retries.name)
+        self.master_config = get_value(master_config, config_with_disabled_retries.name)
 
-        self.node_config = kwargs.get("node_config") or config_with_disabled_retries.name
-        self.scheduler_config = kwargs.get("scheduler_config") or config_with_disabled_retries.name
-        self.master_config = kwargs.get("master_config") or config_with_disabled_retries.name
+        with tempfile.NamedTemporaryFile(delete=False) as proxy_config_with_disabled_retries:
+            proxy_config_with_disabled_retries.write("""
+                {
+                    "bind_retry_count": 1
+                }
+                """)
 
-        proxy_config_with_disabled_retries = tempfile.NamedTemporaryFile(delete=False)
-        proxy_config_with_disabled_retries.write("""
-            {
-                "bind_retry_count": 1
-            }
-            """
-        )
-        proxy_config_with_disabled_retries.close()
+        self.proxy_config = get_value(proxy_config, proxy_config_with_disabled_retries.name)
 
-        self.proxy_config = kwargs.get("proxy_config") or proxy_config_with_disabled_retries.name
+        self.yt_path = yt_path
 
-        self.yt_path = kwargs.get("yt_path")
+        self.save_all_logs = save_all_logs
+        self.enable_debug_log = enable_debug_log
+        self.yt_work_dir = yt_work_dir
+        self.keep_yt_work_dir = keep_yt_work_dir
+        self.ram_drive_path = ram_drive_path
+        self.local_cypress_dir = local_cypress_dir
 
-        self.save_all_logs = kwargs.get("save_all_logs")
-        self.enable_debug_log = kwargs.get("enable_debug_log")
-        self.yt_work_dir = kwargs.get("yt_work_dir")
-        self.keep_yt_work_dir = kwargs.get("keep_yt_work_dir")
-        self.ram_drive_path = kwargs.get("ram_drive_path")
-        self.local_cypress_dir = kwargs.get("local_cypress_dir")
+        self.wait_tablet_cell_initialization = wait_tablet_cell_initialization
+        self.operations_memory_limit = get_value(operations_memory_limit, 25 * 1024 ** 3)
+        self.forbid_chunk_storage_in_tmpfs = forbid_chunk_storage_in_tmpfs
 
-        self.wait_tablet_cell_initialization = kwargs.get("wait_tablet_cell_initialization")
-        self.operations_memory_limit = kwargs.get("operations_memory_limit") or (25 * 1024 * 1024 * 1024)
-        self.forbid_chunk_storage_in_tmpfs = kwargs.get("forbid_chunk_storage_in_tmpfs")
-
-        self.yt_version = kwargs.get("yt_version", DEFAULT_YT_VERSION)
+        self.yt_version = get_value(yt_version, DEFAULT_YT_VERSION)
 
 class YtStuff(object):
     def __init__(self, config=None):
