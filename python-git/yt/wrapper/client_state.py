@@ -1,4 +1,3 @@
-from .common import get_value
 from .system_random import SystemRandom
 
 from copy import deepcopy
