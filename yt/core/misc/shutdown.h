@@ -2,9 +2,11 @@
 
 namespace NYT {
 
-// Register callback to be called during Shutdown(). Callback are
-// invoked from highest priority to lower. Invocation order for
-// callback with the same priority is unspecified.
+////////////////////////////////////////////////////////////////////////////////
+
+//! Registers a callback to be called during Shutdown(). Callback are
+//! invoked from highest priority to lower. Invocation order for
+//! callback with the same priority is unspecified.
 void RegisterShutdownCallback(double priority, void(*callback)());
 
 void Shutdown();
@@ -16,5 +18,7 @@ void Shutdown();
         RegisterShutdownCallback(priority, callback); \
         return 0; \
     }();
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
