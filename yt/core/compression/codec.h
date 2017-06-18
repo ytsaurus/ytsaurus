@@ -12,8 +12,7 @@ namespace NCompression {
 //! A generic interface for compression/decompression.
 struct ICodec
 {
-    virtual ~ICodec()
-    { }
+    virtual ~ICodec() = default;
 
     //! Compress a given block.
     virtual TSharedRef Compress(const TSharedRef& block) = 0;
