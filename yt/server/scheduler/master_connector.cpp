@@ -228,7 +228,7 @@ public:
     }
 
 
-    void SetSchedulerAlert(EAlertType alertType, const TError& alert)
+    void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -289,7 +289,7 @@ private:
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
 
-    TEnumIndexedVector<TError, EAlertType> Alerts;
+    TEnumIndexedVector<TError, ESchedulerAlertType> Alerts;
 
     NControllerAgent::TMasterConnectorPtr ControllerAgentMasterConnector;
 
@@ -1172,7 +1172,7 @@ private:
         YCHECK(Connected);
 
         std::vector<TError> alerts;
-        for (auto alertType : TEnumTraits<EAlertType>::GetDomainValues()) {
+        for (auto alertType : TEnumTraits<ESchedulerAlertType>::GetDomainValues()) {
             const auto& alert = Alerts[alertType];
             if (!alert.IsOK()) {
                 alerts.push_back(alert);
@@ -1258,7 +1258,7 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
     return Impl->FlushOperationNode(operation);
 }
 
-void TMasterConnector::SetSchedulerAlert(EAlertType alertType, const TError& alert)
+void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
 {
     Impl->SetSchedulerAlert(alertType, alert);
 }

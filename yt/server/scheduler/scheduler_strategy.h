@@ -38,7 +38,7 @@ struct ISchedulerStrategyHost
         const TString& user,
         NYTree::EPermission permission) const = 0;
 
-    virtual void SetSchedulerAlert(EAlertType alertType, const TError& alert) = 0;
+    virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

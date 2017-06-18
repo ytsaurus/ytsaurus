@@ -61,7 +61,7 @@ public:
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
-    void SetSchedulerAlert(EAlertType alertType, const TError& alert);
+    void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);

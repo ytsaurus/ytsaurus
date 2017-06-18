@@ -460,16 +460,16 @@ public:
         } catch (const std::exception& ex) {
             auto error = TError("Error updating pools")
                 << ex;
-            Host->SetSchedulerAlert(EAlertType::UpdatePools, error);
+            Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             return;
         }
 
         if (!errors.empty()) {
             auto combinedError = TError("Found pool configuration issues");
             combinedError.InnerErrors() = std::move(errors);
-            Host->SetSchedulerAlert(EAlertType::UpdatePools, combinedError);
+            Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, combinedError);
         } else {
-            Host->SetSchedulerAlert(EAlertType::UpdatePools, TError());
+            Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, TError());
             LOG_INFO("Pools updated");
         }
     }
@@ -650,11 +650,11 @@ public:
             const auto& rootElementAlerts = RootElement->UpdateFairShareAlerts();
             alerts.insert(alerts.end(), rootElementAlerts.begin(), rootElementAlerts.end());
             if (alerts.empty()) {
-                Host->SetSchedulerAlert(EAlertType::UpdateFairShare, TError());
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
             } else {
                 auto error = TError("Found pool configuration issues during fair share update");
                 error.InnerErrors() = std::move(alerts);
-                Host->SetSchedulerAlert(EAlertType::UpdateFairShare, error);
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, error);
             }
 
             // Update starvation flags for all operations.
@@ -1355,7 +1355,7 @@ private:
             // NB: root element is not a pool, so we should suppress warning in this special case.
             if (Config->DefaultParentPool != RootPoolName) {
                 auto error = TError("Default parent pool %Qv is not registered", Config->DefaultParentPool);
-                Host->SetSchedulerAlert(EAlertType::UpdatePools, error);
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             }
             SetPoolParent(pool, RootElement);
         } else {
