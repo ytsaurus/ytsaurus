@@ -9,6 +9,7 @@ namespace NYT {
 //! callback with the same priority is unspecified.
 void RegisterShutdownCallback(double priority, void(*callback)());
 
+//! Invokes all registered shutdown callbacks.
 void Shutdown();
 
 ////////////////////////////////////////////////////////////////////////////////
