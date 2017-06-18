@@ -165,6 +165,18 @@ TOriginal FromProto(const TSerialized& serialized, TArgs&&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#pragma pack(push, 4)
+
+struct TEnvelopeFixedHeader
+{
+    ui32 HeaderSize;
+    ui32 MessageSize;
+};
+
+#pragma pack(pop)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Serializes a protobuf message.
 //! Returns |true| iff everything went well.
 bool TrySerializeToProto(
