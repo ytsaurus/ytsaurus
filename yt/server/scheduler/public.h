@@ -79,7 +79,7 @@ using NJobTrackerClient::NProto::TJobStatus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EAlertType,
+DEFINE_ENUM(ESchedulerAlertType,
     (UpdatePools)
     (UpdateConfig)
     (UpdateFairShare)

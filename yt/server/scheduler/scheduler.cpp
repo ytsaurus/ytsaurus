@@ -412,7 +412,7 @@ public:
         return result;
     }
 
-    virtual void SetSchedulerAlert(EAlertType alertType, const TError& alert) override
+    virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1417,7 +1417,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing pools configuration")
                 << ex;
-            SetSchedulerAlert(EAlertType::UpdatePools, error);
+            SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             return;
         }
 
@@ -1515,7 +1515,7 @@ private:
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No config in Cypress, just ignore.
-            SetSchedulerAlert(EAlertType::UpdateConfig, TError());
+            SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, TError());
             return;
         }
         if (!rspOrError.IsOK()) {
@@ -1532,17 +1532,17 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError("Error updating cell scheduler configuration")
                     << ex;
-                SetSchedulerAlert(EAlertType::UpdateConfig, error);
+                SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, error);
                 return;
             }
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing updated scheduler configuration")
                 << ex;
-            SetSchedulerAlert(EAlertType::UpdateConfig, error);
+            SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, error);
             return;
         }
 
-        SetSchedulerAlert(EAlertType::UpdateConfig, TError());
+        SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, TError());
 
         auto oldConfigNode = ConvertToNode(Config_);
         auto newConfigNode = ConvertToNode(newConfig);
