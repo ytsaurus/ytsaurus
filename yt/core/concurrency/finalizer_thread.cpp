@@ -4,6 +4,8 @@
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/shutdown.h>
 
+#include <yt/core/misc/ref_counted_tracker.h>
+
 namespace NYT {
 namespace NConcurrency {
 
