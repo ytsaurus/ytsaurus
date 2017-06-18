@@ -97,6 +97,7 @@ DEFINE_ENUM(EOperationAlertType,
     (ShortJobsDuration)
     (OperationSuspended)
     (ExcessiveJobSpecThrottling)
+    (ScheduleJobTimedOut)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
