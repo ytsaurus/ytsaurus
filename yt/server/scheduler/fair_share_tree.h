@@ -244,6 +244,11 @@ protected:
         TDuration fairSharePreemptionTimeout,
         TInstant now);
 
+    void SetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert);
+
 private:
     void UpdateAttributes();
 };

@@ -3017,7 +3017,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             "iops_threshold": 50,
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
-            }
+            },
+            "schedule_job_time_limit": 3000,
         }
     }
 
@@ -3185,6 +3186,28 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             })
 
         assert "short_jobs_duration" not in get("//sys/operations/{0}/@alerts".format(op.id))
+
+    def test_schedule_job_timed_out_alert(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": "y"}])
+        create("table", "//tmp/t_out")
+
+        testing_options = {"scheduling_delay": 3500, "scheduling_delay_type": "async"}
+
+        op = map(
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "testing": testing_options,
+            },
+            dont_track=True)
+
+        time.sleep(8)
+
+        assert "schedule_job_timed_out" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+        op.abort()
 
 
 class TestMainNodesFilter(YTEnvSetup):

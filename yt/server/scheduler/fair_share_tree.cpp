@@ -396,6 +396,14 @@ void TSchedulerElement::CheckForStarvationImpl(
     }
 }
 
+void TSchedulerElement::SetOperationAlert(
+    const TOperationId& operationId,
+    EOperationAlertType alertType,
+    const TError& alert)
+{
+    Host_->SetOperationAlert(operationId, alertType, alert);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
@@ -2071,8 +2079,14 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
     if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
         auto scheduleJobResult = New<TScheduleJobResult>();
         if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
-            LOG_WARNING("Controller is scheduling for too long, aborting (OperationId: %v)",
+            auto error = TError(
+                "Scheduling job in controller of operation %v timed out; "
+                "it means that either scheduler is under heavy load or operation is too heavy",
                 OperationId_);
+
+            LOG_WARNING(error);
+            SetOperationAlert(OperationId_, EOperationAlertType::ScheduleJobTimedOut, error);
+
             ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
             // If ScheduleJob was not canceled we need to abort created job.
             scheduleJobResultFuture.Subscribe(
