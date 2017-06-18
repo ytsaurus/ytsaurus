@@ -90,7 +90,8 @@ public:
                 &TFairShareStrategy::DoScheduleJobs,
                 MakeStrong(this),
                 schedulingContext,
-                rootElementSnapshot);
+                rootElementSnapshot)
+            .AsyncVia(GetCurrentInvoker());
         return asyncGuard.Apply(jobScheduler);
     }
 
