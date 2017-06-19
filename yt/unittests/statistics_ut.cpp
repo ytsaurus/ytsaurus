@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/formats/parser.h>

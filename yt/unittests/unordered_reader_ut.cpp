@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 

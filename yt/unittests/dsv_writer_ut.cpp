@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/formats/dsv_parser.h>
 #include <yt/ytlib/formats/dsv_writer.h>

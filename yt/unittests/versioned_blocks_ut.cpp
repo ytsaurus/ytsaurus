@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 #include "table_client_helpers.h"
 
 #include <yt/ytlib/table_client/schema.h>

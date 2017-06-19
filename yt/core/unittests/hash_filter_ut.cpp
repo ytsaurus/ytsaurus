@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/misc/bloom_filter.h>
 #include <yt/core/misc/bloom_filter.pb.h>

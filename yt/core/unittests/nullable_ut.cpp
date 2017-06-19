@@ -1,5 +1,5 @@
-#include "framework.h"
-#include "probe.h"
+#include <yt/core/test_framework/framework.h>
+#include <yt/core/test_framework/probe.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>

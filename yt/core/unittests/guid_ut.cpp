@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/protobuf_helpers.h>

@@ -1,5 +1,3 @@
-SET(PROTO_NAMESPACE yt/${YT_ABI})
-
 include(Sources.txt)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)

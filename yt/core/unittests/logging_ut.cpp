@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/logging/log.h>
 #include <yt/core/logging/log_manager.h>
