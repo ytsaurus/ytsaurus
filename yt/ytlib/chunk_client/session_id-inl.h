@@ -1,3 +1,4 @@
+#pragma once
 #ifndef SESSION_ID_INL_H_
 #error "Direct inclusion of this file is not allowed, include session_id.h"
 #endif

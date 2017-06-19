@@ -1,3 +1,4 @@
+#pragma once
 #ifndef CHUNK_PROPERTIES_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunk_properties.h"
 #endif
