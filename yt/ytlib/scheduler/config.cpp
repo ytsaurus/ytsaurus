@@ -708,7 +708,7 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
     RegisterParameter("cluster_connection", ClusterConnection)
         .Default();
     RegisterParameter("max_chunk_count_per_job", MaxChunkCountPerJob)
-        .Default(1000);
+        .Default(100);
     RegisterParameter("copy_attributes", CopyAttributes)
         .Default(false);
     RegisterParameter("attribute_keys", AttributeKeys)
