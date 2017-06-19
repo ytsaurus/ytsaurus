@@ -1,9 +1,11 @@
-SET(PROTO_NAMESPACE yt/${YT_ABI})
-
 include(Sources.txt)
 
+list(APPEND YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S
+)
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-  SET(YT_SRCS ${YT_SRCS}
+  list(APPEND YT_SRCS
     ${CMAKE_CURRENT_LIST_DIR}/containers/container_manager.cpp
     ${CMAKE_CURRENT_LIST_DIR}/containers/instance.cpp
     ${CMAKE_CURRENT_LIST_DIR}/containers/porto_executor.cpp
@@ -11,11 +13,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   )
 endif()
 
-IF(NOT OS_WINDOWS)
-  SET(YT_SRCS ${YT_SRCS} ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S)
-ENDIF()
-
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
+
 add_library(yt-core ${YT_SRCS_RESOLVED})
 
 llvm_map_components_to_libraries(
@@ -62,5 +61,3 @@ if(NOT APPLE)
   target_link_libraries(yt-core -lutil)
 endif()
 
-add_subdirectory(test_framework)
-add_subdirectory(unittests)

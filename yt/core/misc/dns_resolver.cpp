@@ -137,8 +137,10 @@ TDnsResolver::TImpl::TImpl(
     mask |= ARES_OPT_FLAGS;
     Options_.timeout = static_cast<int>(ResolveTimeout_.MilliSeconds());
     mask |= ARES_OPT_TIMEOUTMS;
+#ifndef YT_IN_ARCADIA
     Options_.maxtimeout = static_cast<int>(MaxResolveTimeout_.MilliSeconds());
     mask |= ARES_OPT_MAXTIMEOUTMS;
+#endif
     Options_.tries = Retries_;
     mask |= ARES_OPT_TRIES;
     Options_.sock_state_cb = &TDnsResolver::TImpl::OnSocketStateChanged;
@@ -208,7 +210,8 @@ TFuture<TNetworkAddress> TDnsResolver::TImpl::ResolveName(
         enableIPv4,
         enableIPv6,
         NProfiling::GetCpuInstant(),
-        0}};
+        0,
+        {}}};
 
     Queue_.Push(std::move(request));
 

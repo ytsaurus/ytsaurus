@@ -79,6 +79,16 @@ def trim_for_logging(s):
         return s
 
 
+def is_treeish(s):
+    if not isinstance(s, str):
+        return False
+    if len(s) != 40:
+        return False
+    if not re.match(r"^[0-9a-f]+$", s):
+        return False
+    return True
+
+
 def make_remote_ref(name):
     if name.startswith("refs/"):
         return name
@@ -158,7 +168,7 @@ class Git(Command):
         result = self.call("rev-parse", "--quiet", "--verify", ref, raise_on_error=False).strip()
         if not result:
             return None
-        assert len(result) == 40
+        assert is_treeish(result)
         return result
 
     def has_ref(self, ref):
@@ -575,7 +585,7 @@ def action_pull(ctx, args):
         ctx.git.call("checkout", merge_branch)
 
     merge_message = """
-    |Pull yt/%s/ from Arcadia revision %s\n
+    |Pull yt/%s/ from Arcadia revision %s
     |
     |yt:git_svn_commit:%s
     |yt:svn_revision:%s
@@ -586,6 +596,62 @@ def action_pull(ctx, args):
     ctx.git.call("checkout", head_branch)
 
     logging.info("Now, run 'git merge %s'" % merge_branch)
+
+
+def action_push(ctx, args):
+    logging.info("Pushing to SVN")
+
+    git_head_commit = ctx.git.resolve_ref("HEAD")
+    svn_head_commit = ctx.git.resolve_ref(ctx.arc_git_remote_ref)
+
+    logging.debug("Git commits: local=%s, remote=%s", git_head_commit, svn_head_commit)
+
+    local_tree = ctx.git.call("write-tree", "--prefix=yt/").strip()
+    remote_tree = None
+    for line in ctx.git.call("cat-file", "-p", svn_head_commit).splitlines():
+        if line.startswith("tree"):
+            remote_tree = line.split()[1].strip()
+            break
+
+    assert is_treeish(local_tree)
+    assert is_treeish(remote_tree)
+
+    logging.debug("Git trees: local=%s, remote=%s", local_tree, remote_tree)
+
+    local_revision = translate_git_commit_to_svn_revision(ctx.git, ctx.arc_git_remote, svn_head_commit)
+    remote_revision = get_svn_last_changed_revision(ctx.svn, ctx.arc_url)
+
+    logging.debug("SVN revisions: local=%s, remote=%s", local_revision, remote_revision)
+
+    if local_revision != remote_revision:
+        raise CheckError(
+            "Local SVN history is outdated (local %s, remote %s)" %
+            (local_revision, remote_revision))
+
+    commit_message = """
+    |Push yt/%s/ to Arcadia
+    |
+    |yt:git_commit:%s
+    |yt:last_git_svn_commit:%s
+    |yt:last_svn_revision:%s
+    |""" % (ctx.abi, git_head_commit, svn_head_commit, remote_revision)
+    commit_message = strip_margin(commit_message)
+
+    if args.review and args.force:
+        raise CheckError("`--review` and `--force` conflict with each other, choose one")
+
+    if args.review:
+        commit_message += "\nREVIEW: NEW\n"
+    if args.force:
+        commit_message += "\n__FORCE_COMMIT__\n"
+    else:
+        commit_message += "\n__BYPASS_CHECKS__\n"
+
+    git_dry_run(
+        args.yes, ctx,
+        "svn", "--svn-remote", ctx.arc_git_remote, "commit-diff",
+        "-r", str(remote_revision), "-m", commit_message,
+        remote_tree, local_tree, ctx.arc_url)
 
 
 def snapshot_main(args):
@@ -609,12 +675,15 @@ def snapshot_main(args):
     git = Git(repo=PROJECT_PATH)
     svn = Svn()
 
-    check_git_version(git)
-    check_git_working_tree(git)
+    if args.check_git_version:
+        check_git_version(git)
+    if args.check_git_working_tree:
+        check_git_working_tree(git)
     abi_major, abi_minor = get_abi_major_minor_from_git_branch(git)
 
     ctx = Ctx(git, svn, abi_major, abi_minor)
-    check_svn_url(ctx.svn, ctx.arc_url)
+    if args.check_svn_url:
+        check_svn_url(ctx.svn, ctx.arc_url)
 
     args.action(ctx, args)
 
@@ -737,17 +806,16 @@ def action_submodule_fast_pull(ctx, args):
 
 def git_dry_run(flag, ctx, *args):
     if flag:
-        pass
-        #ctx.git.call(*args)
+        ctx.git.call(*args, capture=False)
     else:
         def _escape(s):
-            if re.match(r"^[a-zA-Z0-9_]*$", s):
+            if re.match(r"^[a-zA-Z0-9_-]*$", s):
                 return s
             if "'" in s:
                 return '"' + s.replace('"', '\\"') + '"'
             else:
                 return "'" + s + "'"
-        print("git", map(_escape, args))
+        print("git " + " ".join(map(_escape, args)))
 
 
 def action_submodule_fast_push(ctx, args):
@@ -874,6 +942,15 @@ util
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--skip-git-version-check", action="store_false", dest="check_git_version", default=True,
+        help="(dangerous, do not use)")
+    parser.add_argument(
+        "--skip-git-working-tree-check", action="store_false", dest="check_git_working_tree", default=True,
+        help="(dangerous, do not use)")
+    parser.add_argument(
+        "--skip-svn-url", action="store_false", dest="check_svn_url", default=True,
+        help="(dangerous, do not use)")
 
     logging_parser = parser.add_mutually_exclusive_group()
     logging_parser.add_argument(
@@ -907,6 +984,16 @@ if __name__ == "__main__":
         "pull", help="initiate merge from arcadia to github")
     pull_parser.add_argument("--revision", "-r", help="revision to merge", type=int)
     pull_parser.set_defaults(action=action_pull)
+
+    push_parser = add_parser(
+        "push", help="initiate merge from github to arcadia")
+    push_parser.add_argument("--force", "-f", action="store_true", default=False,
+                             help="force commit")
+    push_parser.add_argument("--review", "-r", action="store_true", default=False,
+                             help="review commit")
+    push_parser.add_argument("--yes", "-y", action="store_true", default=False,
+                             help="do something indeed")
+    push_parser.set_defaults(action=action_push)
 
     def add_submodule_parser(*args, **kwargs):
         parser = subparsers.add_parser(*args, **kwargs)

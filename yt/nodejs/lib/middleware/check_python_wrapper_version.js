@@ -1,6 +1,8 @@
 var YtRegistry = require("../registry").that;
 var YtError = require("../error").that;
 
+var Q = require("bluebird");
+
 var utils = require("../utils");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +24,14 @@ exports.that = function Middleware__YtCheckPythonWrapperVersion()
 
     var min_version = [ min_config.major, min_config.minor, min_config.patch ];
 
+    var parsed_banned_config = [];
+    if (banned_config) {
+        for (var i = 0, len = banned_config.length; i < len; ++i) {
+            range = banned_config[i];
+            parsed_banned_config.push([parseVersion(range[0]), parseVersion(range[1])]);
+        }
+    }
+
     return function(req, rsp, next) {
         var ua = req.headers["user-agent"] + ""; // Do not care about null or undefined.
         var re = ua.match(/^Python wrapper \b(\d+)\.(\d+)\.(\d+)\b/);
@@ -29,48 +39,54 @@ exports.that = function Middleware__YtCheckPythonWrapperVersion()
         var error;
         var range;
 
-        if (min_config.enable &&
-            version &&
-            utils.lexicographicalCompare(version, min_version) < 0)
-        {
-            error = new YtError(
-                "You are using deprecated version of `yandex-yt-python` ({} < {}); please consider upgrading"
-                    .format(printVersion(version), printVersion(min_version)));
+        try {
+            if (min_config.enable &&
+                version &&
+                utils.lexicographicalCompare(version, min_version) < 0)
+            {
+                error = new YtError(
+                    "You are using deprecated version of `yandex-yt-python` ({} < {}); please consider upgrading"
+                        .format(printVersion(version), printVersion(min_version)));
 
-            (req.logger || logger).debug(
-                "Client is using deprecated version of yandex-yt-python",
-                {
-                    version: printVersion(version),
-                    min_version: printVersion(min_version),
-                });
-            rsp.statusCode = 402;
-            return void utils.dispatchAs(rsp, error.toJson(), "application/json");
-        }
+                (req.logger || logger).debug(
+                    "Client is using deprecated version of yandex-yt-python",
+                    {
+                        version: printVersion(version),
+                        min_version: printVersion(min_version),
+                    });
+                rsp.statusCode = 402;
+                return void utils.dispatchAs(rsp, error.toJson(), "application/json");
+            }
 
-        if (banned_config && version) {
-            for (var i = 0, len = banned_config.length; i < len; ++i) {
-                range = banned_config[i];
+            if (version) {
+                for (var i = 0, len = parsed_banned_config.length; i < len; ++i) {
+                    range = parsed_banned_config[i];
 
-                if (utils.lexicographicalCompare(version, parseVersion(range[0])) >= 0 &&
-                    utils.lexicographicalCompare(version, parseVersion(range[1])) < 0)
-                {
-                    error = new YtError(
-                        ("You are using banned version of `yandex-yt-python` ({} <= {} < {}); " +
-                        "please consider upgrading")
-                            .format(range[0], printVersion(version), range[1]));
-                    (req.logger || logger).debug(
-                        "Client is using banned version of yandex-yt-python",
-                        {
-                            version: printVersion(version),
-                            banned_range: range,
-                        });
-                    rsp.statusCode = 402;
-                    return void utils.dispatchAs(rsp, error.toJson(), "application/json");
+                    if (utils.lexicographicalCompare(version, range[0]) >= 0 &&
+                        utils.lexicographicalCompare(version, range[1]) < 0)
+                    {
+                        error = new YtError(
+                            ("You are using banned version of `yandex-yt-python` ({} <= {} < {}); " +
+                            "please consider upgrading")
+                                .format(printVersion(range[0]), printVersion(version), printVersion(range[1])));
+                        (req.logger || logger).debug(
+                            "Client is using banned version of yandex-yt-python",
+                            {
+                                version: printVersion(version),
+                                banned_range: [printVersion(range[0]), printVersion(range[1])],
+                            });
+                        rsp.statusCode = 402;
+                        return void utils.dispatchAs(rsp, error.toJson(), "application/json");
+                    }
                 }
             }
-        }
 
-        next();
+            next();
+        } catch (err) {
+            rsp.statusCode = 400;
+            var error = YtError.ensureWrapped(err);
+            return utils.dispatchAs(rsp, error.toJson(), "application/json");
+        }
     };
 };
 

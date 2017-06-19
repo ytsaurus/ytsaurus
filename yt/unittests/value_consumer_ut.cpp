@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include "table_value_consumer_mock.h"
 #include "ql_helpers.h"

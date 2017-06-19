@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 #include "election_manager_mock.h"
 #include "election_service_mock.h"
 

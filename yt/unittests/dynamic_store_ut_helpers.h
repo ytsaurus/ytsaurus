@@ -1,6 +1,6 @@
 #pragma once
 
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/sorted_dynamic_store.h>

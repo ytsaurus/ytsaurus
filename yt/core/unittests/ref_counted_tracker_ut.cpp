@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #define YT_ENABLE_REF_COUNTED_TRACKING
 

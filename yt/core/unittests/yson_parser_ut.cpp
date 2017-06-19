@@ -1,5 +1,5 @@
-#include "framework.h"
-#include "yson_consumer_mock.h"
+#include <yt/core/test_framework/framework.h>
+#include <yt/core/test_framework/yson_consumer_mock.h>
 
 #include <yt/core/yson/null_consumer.h>
 #include <yt/core/yson/parser.h>

@@ -1,4 +1,4 @@
-set(YT_SRCS
+SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/any_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_rw_lock_ut.cpp

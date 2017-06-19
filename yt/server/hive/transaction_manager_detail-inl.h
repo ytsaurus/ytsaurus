@@ -1,3 +1,4 @@
+#pragma once
 #ifndef TRANSACTION_MANAGER_DETAIL_INL_H_
 #error "Direct inclusion of this file is not allowed, include transaction_manager_detail.h"
 #endif
