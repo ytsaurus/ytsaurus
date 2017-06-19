@@ -26,6 +26,16 @@ from SVN to Git.
 Examples: `HEAD`, `origin/master`, `refs/remotes/origin/master`, `branch`, `refs/heads/branch`.
 
 **(Svn) Revision**. Changeset for a repository. Identified by a natural number. Revisions are totally ordered.
+
+## How To Add New Arcadia Submodule
+
+(1) Create a Git repository on GitHub.
+(2) Add submodule to list below (search for: `SUBMODULES`)
+(3) Call `git submodule add`
+(4) Call this script with `submodule-init` and `submodule-fetch` commands
+(5) Call `git submodule add` (again!)
+(6) Create subdirectory in `cmake/` and write `CMakeLists.txt`
+(7) Add `add_subdirectory` in root `CMakeLists.txt`
 """
 
 import os
@@ -67,6 +77,16 @@ def trim_for_logging(s):
         return s[:80] + "[trimmed].."
     else:
         return s
+
+
+def is_treeish(s):
+    if not isinstance(s, str):
+        return False
+    if len(s) != 40:
+        return False
+    if not re.match(r"^[0-9a-f]+$", s):
+        return False
+    return True
 
 
 def make_remote_ref(name):
@@ -148,7 +168,7 @@ class Git(Command):
         result = self.call("rev-parse", "--quiet", "--verify", ref, raise_on_error=False).strip()
         if not result:
             return None
-        assert len(result) == 40
+        assert is_treeish(result)
         return result
 
     def has_ref(self, ref):
@@ -565,7 +585,7 @@ def action_pull(ctx, args):
         ctx.git.call("checkout", merge_branch)
 
     merge_message = """
-    |Pull yt/%s/ from Arcadia revision %s\n
+    |Pull yt/%s/ from Arcadia revision %s
     |
     |yt:git_svn_commit:%s
     |yt:svn_revision:%s
@@ -576,6 +596,62 @@ def action_pull(ctx, args):
     ctx.git.call("checkout", head_branch)
 
     logging.info("Now, run 'git merge %s'" % merge_branch)
+
+
+def action_push(ctx, args):
+    logging.info("Pushing to SVN")
+
+    git_head_commit = ctx.git.resolve_ref("HEAD")
+    svn_head_commit = ctx.git.resolve_ref(ctx.arc_git_remote_ref)
+
+    logging.debug("Git commits: local=%s, remote=%s", git_head_commit, svn_head_commit)
+
+    local_tree = ctx.git.call("write-tree", "--prefix=yt/").strip()
+    remote_tree = None
+    for line in ctx.git.call("cat-file", "-p", svn_head_commit).splitlines():
+        if line.startswith("tree"):
+            remote_tree = line.split()[1].strip()
+            break
+
+    assert is_treeish(local_tree)
+    assert is_treeish(remote_tree)
+
+    logging.debug("Git trees: local=%s, remote=%s", local_tree, remote_tree)
+
+    local_revision = translate_git_commit_to_svn_revision(ctx.git, ctx.arc_git_remote, svn_head_commit)
+    remote_revision = get_svn_last_changed_revision(ctx.svn, ctx.arc_url)
+
+    logging.debug("SVN revisions: local=%s, remote=%s", local_revision, remote_revision)
+
+    if local_revision != remote_revision:
+        raise CheckError(
+            "Local SVN history is outdated (local %s, remote %s)" %
+            (local_revision, remote_revision))
+
+    commit_message = """
+    |Push yt/%s/ to Arcadia
+    |
+    |yt:git_commit:%s
+    |yt:last_git_svn_commit:%s
+    |yt:last_svn_revision:%s
+    |""" % (ctx.abi, git_head_commit, svn_head_commit, remote_revision)
+    commit_message = strip_margin(commit_message)
+
+    if args.review and args.force:
+        raise CheckError("`--review` and `--force` conflict with each other, choose one")
+
+    if args.review:
+        commit_message += "\nREVIEW: NEW\n"
+    if args.force:
+        commit_message += "\n__FORCE_COMMIT__\n"
+    else:
+        commit_message += "\n__BYPASS_CHECKS__\n"
+
+    git_dry_run(
+        args.yes, ctx,
+        "svn", "--svn-remote", ctx.arc_git_remote, "commit-diff",
+        "-r", str(remote_revision), "-m", commit_message,
+        remote_tree, local_tree, ctx.arc_url)
 
 
 def snapshot_main(args):
@@ -599,12 +675,15 @@ def snapshot_main(args):
     git = Git(repo=PROJECT_PATH)
     svn = Svn()
 
-    check_git_version(git)
-    check_git_working_tree(git)
+    if args.check_git_version:
+        check_git_version(git)
+    if args.check_git_working_tree:
+        check_git_working_tree(git)
     abi_major, abi_minor = get_abi_major_minor_from_git_branch(git)
 
     ctx = Ctx(git, svn, abi_major, abi_minor)
-    check_svn_url(ctx.svn, ctx.arc_url)
+    if args.check_svn_url:
+        check_svn_url(ctx.svn, ctx.arc_url)
 
     args.action(ctx, args)
 
@@ -725,6 +804,20 @@ def action_submodule_fast_pull(ctx, args):
         logging.warning("Manual pull required in '%s'!", ctx.name)
 
 
+def git_dry_run(flag, ctx, *args):
+    if flag:
+        ctx.git.call(*args, capture=False)
+    else:
+        def _escape(s):
+            if re.match(r"^[a-zA-Z0-9_-]*$", s):
+                return s
+            if "'" in s:
+                return '"' + s.replace('"', '\\"') + '"'
+            else:
+                return "'" + s + "'"
+        print("git " + " ".join(map(_escape, args)))
+
+
 def action_submodule_fast_push(ctx, args):
     old_head = ctx.git.resolve_ref(ctx.gh_git_remote_ref + "/" + ctx.gh_branch)
     new_head = ctx.git.resolve_ref("HEAD")
@@ -753,7 +846,9 @@ def action_submodule_fast_push(ctx, args):
         logging.info(
             "Pushing '%s' to '%s/%s': %s -> %s",
             ctx.name, ctx.gh_git_remote, ctx.gh_branch, abbrev(old_head), abbrev(new_head))
-        ctx.git.call("push", "--force", ctx.gh_git_remote, "%s:%s" % (new_head, make_head_ref(ctx.gh_branch)))
+        git_dry_run(
+            args.yes, ctx,
+            "push", "--force", ctx.gh_git_remote, "%s:%s" % (new_head, make_head_ref(ctx.gh_branch)))
 
 
 def submodule_main(args):
@@ -799,8 +894,11 @@ def submodule_main(args):
         def gh_arc_branch(self):
             return "upstream"
 
+    if not args.submodules:
+        logging.info("No submodules specified; use `--submodule ...` or `--all`")
+
     for submodule in args.submodules:
-        logging.info("Processing submodule '%s'", submodule)
+        logging.debug("Processing submodule '%s'", submodule)
 
         ctx = Ctx(git=None, svn=None, name=submodule)
         git = Git(repo=os.path.join(PROJECT_PATH, ctx.relpath))
@@ -815,10 +913,12 @@ contrib-libs-base64
 contrib-libs-c--ares
 contrib-libs-double--conversion
 contrib-libs-gmock
+contrib-libs-grpc
 contrib-libs-gtest
 contrib-libs-libbz2
 contrib-libs-lzmasdk
 contrib-libs-minilzo
+contrib-libs-nanopb
 contrib-libs-openssl
 contrib-libs-protobuf
 contrib-libs-re2
@@ -842,6 +942,15 @@ util
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--skip-git-version-check", action="store_false", dest="check_git_version", default=True,
+        help="(dangerous, do not use)")
+    parser.add_argument(
+        "--skip-git-working-tree-check", action="store_false", dest="check_git_working_tree", default=True,
+        help="(dangerous, do not use)")
+    parser.add_argument(
+        "--skip-svn-url", action="store_false", dest="check_svn_url", default=True,
+        help="(dangerous, do not use)")
 
     logging_parser = parser.add_mutually_exclusive_group()
     logging_parser.add_argument(
@@ -876,6 +985,16 @@ if __name__ == "__main__":
     pull_parser.add_argument("--revision", "-r", help="revision to merge", type=int)
     pull_parser.set_defaults(action=action_pull)
 
+    push_parser = add_parser(
+        "push", help="initiate merge from github to arcadia")
+    push_parser.add_argument("--force", "-f", action="store_true", default=False,
+                             help="force commit")
+    push_parser.add_argument("--review", "-r", action="store_true", default=False,
+                             help="review commit")
+    push_parser.add_argument("--yes", "-y", action="store_true", default=False,
+                             help="do something indeed")
+    push_parser.set_defaults(action=action_push)
+
     def add_submodule_parser(*args, **kwargs):
         parser = subparsers.add_parser(*args, **kwargs)
         parser.set_defaults(main=submodule_main, submodules=[])
@@ -889,7 +1008,7 @@ if __name__ == "__main__":
         return parser
 
     submodule_init_parser = add_submodule_parser(
-        "submodule-init", help="prepare submodules for further operations")
+        "submodule-init", help="prepare submodule for further operations")
     submodule_init_parser.set_defaults(action=action_submodule_init)
 
     submodule_fetch_parser = add_submodule_parser(
@@ -897,21 +1016,21 @@ if __name__ == "__main__":
     submodule_fetch_parser.set_defaults(action=action_submodule_fetch)
 
     submodule_stitch_parser = add_submodule_parser(
-        "submodule-stitch", help="stitch svn revisions due to diverged git-svn history")
+        "submodule-stitch", help="(advanced) stitch svn revisions in diverged git-svn histories")
     submodule_stitch_parser.set_defaults(action=action_submodule_stitch)
 
     submodule_pin_parser = add_submodule_parser(
-        "submodule-pin", help="pin current commit in remote repository to avoid gc")
+        "submodule-pin", help="(advanced) pin current git commit in remote repository")
     submodule_pin_parser.add_argument("--commit", "-c", default="HEAD",
                                       help="commit to pin")
     submodule_pin_parser.set_defaults(action=action_submodule_pin)
 
     submodule_fast_pull_parser = add_submodule_parser(
-        "submodule-fast-pull", help="pull conflictless submodules up to upstream revision")
+        "submodule-fast-pull", help="pull submodule up to upstream revision")
     submodule_fast_pull_parser.set_defaults(action=action_submodule_fast_pull)
 
     submodule_fast_push_parser = add_submodule_parser(
-        "submodule-fast-push", help="push update to master branch if it does not break anything")
+        "submodule-fast-push", help="push submodule to master branch")
     submodule_fast_push_parser.add_argument("--yes", "-y", action="store_true", default=False,
                                             help="do something indeed")
     submodule_fast_push_parser.set_defaults(action=action_submodule_fast_push)
