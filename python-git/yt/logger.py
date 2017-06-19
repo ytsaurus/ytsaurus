@@ -2,6 +2,8 @@ from . import logger_config
 
 import logging
 
+logging.getLogger("yt.packages.requests.packages.urllib3").setLevel(logging.WARNING)
+
 LOGGER = logging.getLogger("Yt")
 LOGGER.propagate = False
 LOGGER.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL.upper()])
