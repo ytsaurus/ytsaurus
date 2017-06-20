@@ -100,7 +100,7 @@ public:
 
     ~TServiceContext()
     {
-        if (!RuntimeInfo_->Descriptor.OneWay && !Replied_ && !Canceled_.IsFired()) {
+        if (!Replied_ && !Canceled_.IsFired()) {
             Reply(TError(NRpc::EErrorCode::Unavailable, "Service is unable to complete your request"));
         }
 
@@ -162,10 +162,6 @@ public:
 
     virtual void SetComplete() override
     {
-        if (RuntimeInfo_->Descriptor.OneWay) {
-            return;
-        }
-
         DoSetComplete();
     }
 
@@ -228,29 +224,23 @@ private:
             Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, DurationToValue(now - retryStart));
         }
 
-        if (!RuntimeInfo_->Descriptor.OneWay) {
-            if (RuntimeInfo_->Descriptor.Cancelable) {
-                Service_->RegisterCancelableRequest(this);
+        if (RuntimeInfo_->Descriptor.Cancelable) {
+            Service_->RegisterCancelableRequest(this);
 
-                auto timeout = GetTimeout();
-                if (timeout) {
-                    TimeoutCookie_ = TDelayedExecutor::Submit(
-                        BIND(&TServiceBase::OnRequestTimeout, Service_, RequestId_),
-                        *timeout);
-                }
+            auto timeout = GetTimeout();
+            if (timeout) {
+                TimeoutCookie_ = TDelayedExecutor::Submit(
+                    BIND(&TServiceBase::OnRequestTimeout, Service_, RequestId_),
+                    *timeout);
             }
-
-            Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
-            ++Service_->ActiveRequestCount_;
         }
+
+        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
+        ++Service_->ActiveRequestCount_;
     }
 
     void Finalize()
     {
-        if (RuntimeInfo_->Descriptor.OneWay) {
-            return;
-        }
-
         // Finalize is called from DoReply and ~TServiceContext.
         // Clearly there could be no race between these two and thus no atomics are needed.
         if (FinalizeLatch_) {
@@ -274,9 +264,7 @@ private:
             NTracing::TTraceContextGuard guard(TraceContext_);
             DoGuardedRun(handler);
         } catch (const std::exception& ex) {
-            if (!RuntimeInfo_->Descriptor.OneWay) {
-                Reply(ex);
-            }
+            Reply(ex);
         } catch (const TFiberCanceledException&) {
             // Request canceled; cleanup and rethrow.
             DoAfterRun();
@@ -331,11 +319,6 @@ private:
     void DoAfterRun()
     {
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
-
-        if (RuntimeInfo_->Descriptor.OneWay) {
-            TotalTime_ = CpuDurationToDuration(GetCpuInstant() - ArrivalInstant_);
-            Profiler.Update(PerformanceCounters_->TotalTimeCounter, DurationToValue(TotalTime_));
-        }
     }
 
     virtual void DoReply() override
@@ -470,15 +453,12 @@ TServiceBase::TServiceBase(
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
 
-    // This logger will be extensively copied; let's pre-populate it.
-    Logger.GetCategory();
-
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetLightInvoker())
         .SetSystem(true));
 }
 
-TServiceId TServiceBase::GetServiceId() const
+const TServiceId& TServiceBase::GetServiceId() const
 {
     return ServiceId_;
 }
@@ -489,7 +469,6 @@ void TServiceBase::HandleRequest(
     IBusPtr replyBus)
 {
     const auto& method = header->method();
-    bool oneWay = header->one_way();
     auto requestId = FromProto<TRequestId>(header->request_id());
     auto requestProtocolVersion = header->protocol_version();
 
@@ -505,10 +484,8 @@ void TServiceBase::HandleRequest(
             : NLogging::ELogLevel::Warning;
         LOG_EVENT(Logger, logLevel, error);
 
-        if (!oneWay) {
-            auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None));
-        }
+        auto errorMessage = CreateErrorResponseMessage(requestId, error);
+        replyBus->Send(errorMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None));
     };
 
     if (Stopped_) {
@@ -534,15 +511,6 @@ void TServiceBase::HandleRequest(
         handleError(
             EErrorCode::NoSuchMethod,
             "Unknown method");
-        return;
-    }
-
-    if (runtimeInfo->Descriptor.OneWay != oneWay) {
-        handleError(
-            EErrorCode::ProtocolError,
-            "One-way flag mismatch: expected %v, actual %v",
-            runtimeInfo->Descriptor.OneWay,
-            oneWay);
         return;
     }
 
@@ -580,11 +548,6 @@ void TServiceBase::HandleRequest(
         ServiceId_.ServiceName,
         method,
         NTracing::ServerReceiveAnnotation);
-
-    if (oneWay) {
-        RunRequest(std::move(context));
-        return;
-    }
 
     runtimeInfo->RequestQueue.Enqueue(std::move(context));
     ScheduleRequests(runtimeInfo);

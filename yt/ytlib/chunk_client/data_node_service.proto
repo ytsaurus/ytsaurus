@@ -196,6 +196,9 @@ message TReqUpdatePeer
     required uint64 peer_expiration_time = 3;
 }
 
+message TRspUpdatePeer
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetTableSamples

@@ -19,9 +19,9 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobSpec);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobFinished);
-    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, OnJobPrepared);
-    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, OnJobProgress);
-    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, UpdateResourceUsage);
+    DEFINE_RPC_PROXY_METHOD(NProto, OnJobPrepared);
+    DEFINE_RPC_PROXY_METHOD(NProto, OnJobProgress);
+    DEFINE_RPC_PROXY_METHOD(NProto, UpdateResourceUsage);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

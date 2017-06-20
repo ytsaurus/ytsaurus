@@ -20,14 +20,13 @@ public:
     explicit TSupervisorService(NCellNode::TBootstrap* bootstrap);
 
 private:
-    NCellNode::TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* const Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec);
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobFinished);
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, OnJobPrepared);
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, OnJobProgress);
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, UpdateResourceUsage);
-
+    DECLARE_RPC_SERVICE_METHOD(NProto, OnJobPrepared);
+    DECLARE_RPC_SERVICE_METHOD(NProto, OnJobProgress);
+    DECLARE_RPC_SERVICE_METHOD(NProto, UpdateResourceUsage);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

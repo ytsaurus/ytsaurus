@@ -44,9 +44,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SlowCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SlowCanceledCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NoReply);
-
-    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
-    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, NotRegistredOneWay);
 };
 
 class TNonExistingServiceProxy
@@ -56,7 +53,6 @@ public:
     DEFINE_RPC_PROXY(TNonExistingServiceProxy, RPC_PROXY_DESC(NonExistingService));
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
-    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
 };
 
 class TMyIncorrectProtocolVersionProxy
@@ -103,9 +99,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCanceledCall)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(NoReply));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(OneWay)
-            .SetOneWay(true));
-        // Note: NotRegisteredCall and NotRegistredOneWay are not registered
+        // NB: NotRegisteredCall is not registered intentionally
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall)
@@ -172,17 +166,6 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, NoReply)
     { }
 
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay)
-    {
-        context->SetRequestInfo();
-        OneWayCalled_.Set();
-    }
-
-
-    TFuture<void> GetOneWayCalled() const
-    {
-        return OneWayCalled_;
-    }
 
     bool GetSlowCallCanceled() const
     {
@@ -190,7 +173,6 @@ public:
     }
 
 private:
-    TPromise<void> OneWayCalled_ = NewPromise<void>();
     bool SlowCallCanceled_ = false;
 
 };
@@ -423,41 +405,6 @@ TEST_F(TRpcTest, CustomErrorMessage)
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NYT::EErrorCode(42), rspOrError.GetCode());
     EXPECT_EQ("Some Error", rspOrError.GetMessage());
-}
-
-TEST_F(TRpcTest, OneWayOK)
-{
-    TMyProxy proxy(CreateChannel());
-    auto req = proxy.OneWay();
-    auto rspOrError = req->Invoke().Get();
-    EXPECT_TRUE(rspOrError.IsOK());
-    Service_->GetOneWayCalled().Get();
-}
-
-TEST_F(TRpcTest, OneWayTransportError)
-{
-    TMyProxy proxy(CreateChannel("localhost:9999"));
-    auto req = proxy.OneWay();
-    auto rspOrError = req->Invoke().Get();
-    EXPECT_EQ(NYT::NRpc::EErrorCode::TransportError, rspOrError.GetCode());
-}
-
-TEST_F(TRpcTest, OneWayNoService)
-{
-    TNonExistingServiceProxy proxy(CreateChannel());
-    auto req = proxy.OneWay();
-    auto rspOrError = req->Invoke().Get();
-    // In this case we receive OK instead of NoSuchService
-    EXPECT_TRUE(rspOrError.IsOK());
-}
-
-TEST_F(TRpcTest, OneWayNoMethod)
-{
-    TMyProxy proxy(CreateChannel());
-    auto req = proxy.NotRegistredOneWay();
-    auto rspOrError = req->Invoke().Get();
-    // In this case we receive OK instead of NoSuchMethod
-    EXPECT_TRUE(rspOrError.IsOK());
 }
 
 TEST_F(TRpcTest, ConnectionLost)

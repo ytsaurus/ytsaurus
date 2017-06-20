@@ -31,9 +31,6 @@ message TRspSlowCall { }
 message TReqSlowCanceledCall { }
 message TRspSlowCanceledCall { }
 
-message TReqOneWay { }
-message TReqNotRegistredOneWay { }
-
 message TReqNoReply { }
 message TRspNoReply { }
 

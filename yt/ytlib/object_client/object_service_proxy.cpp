@@ -18,7 +18,6 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(IChannelPtr channel)
         std::move(channel),
         TObjectServiceProxy::GetDescriptor().ServiceName,
         "Execute",
-        false,
         TObjectServiceProxy::GetDescriptor().ProtocolVersion)
 { }
 
