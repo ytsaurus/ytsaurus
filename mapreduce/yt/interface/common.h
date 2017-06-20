@@ -190,18 +190,10 @@ struct TRichYPath
     FLUENT_VECTOR_FIELD(TReadRange, Range);
 
 
-    // Recommended way of using columns.
-    // TODO: it's going to be renamed to Columns, check https://st.yandex-team.ru/YT-6512
-    //
     // Specifies columns that should be read.
     // If it's set to Nothing then all columns will be read.
     // If empty TKeyColumns is specified then each read row will be empty.
     FLUENT_FIELD_OPTION(TKeyColumns, Columns);
-
-    // TODO: DEPRECATED way of specifing columns, that is going to be removed,
-    // Specifies columns that should be read.
-    // If empty TKeyColumns is specified then all columns will be read
-    FLUENT_FIELD(TKeyColumns, ColumnsDeprecated);
 
     FLUENT_FIELD_OPTION(bool, Teleport);
     FLUENT_FIELD_OPTION(bool, Primary);
