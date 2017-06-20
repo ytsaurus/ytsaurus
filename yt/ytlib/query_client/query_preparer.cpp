@@ -2037,19 +2037,28 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     auto functions = New<TTypeInferrerMap>();
     fetchFunctions(functionNames, functions);
 
-    TDataSplit selfDataSplit;
+    const auto& table = ast.Table;
 
-    TSchemaProxyPtr schemaProxy;
+    // The first one is the primary table; the others are foreign.
+    std::vector<NYPath::TRichYPath> tablePaths;
+    tablePaths.push_back(table.Path);
+    for (const auto& join : ast.Joins) {
+        tablePaths.push_back(join.Table.Path);
+    }
 
-    auto table = ast.Table;
-    LOG_DEBUG("Getting initial data split (Path: %v)", table.Path);
+    LOG_DEBUG("Getting initial data splits (Paths: %v)", tablePaths);
 
-    selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
+    auto dataSplits = WaitFor(callbacks->GetInitialSplits(tablePaths, timestamp))
         .ValueOrThrow();
+
+    LOG_DEBUG("Initial data splits received");
+
+    const auto& selfDataSplit = dataSplits[0];
+
     auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
     query->OriginalSchema = tableSchema;
 
-    schemaProxy = New<TScanSchemaProxy>(
+    TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
         tableSchema,
         table.Alias,
         &query->SchemaMapping);
@@ -2061,15 +2070,14 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
 
-    for (const auto& join : ast.Joins) {
-        auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp))
-            .ValueOrThrow();
+    for (size_t index = 0; index < ast.Joins.size(); ++index) {
+        const auto& join = ast.Joins[index];
+        const auto& foreignDataSplit = dataSplits[index + 1];
 
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
         auto foreignKeyColumnsCount = foreignTableSchema.GetKeyColumns().size();
 
         auto joinClause = New<TJoinClause>();
-
         joinClause->OriginalSchema = foreignTableSchema;
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
