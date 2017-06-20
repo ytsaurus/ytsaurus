@@ -2,12 +2,14 @@
 
 #include <yt/server/exec_agent/config.h>
 
+#include <yt/server/containers/container_manager.h>
+#include <yt/server/containers/instance.h>
+
+#include <yt/server/misc/process.h>
+
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/core/ytree/convert.h>
-
-#include <yt/core/containers/container_manager.h>
-#include <yt/core/containers/instance.h>
 
 namespace NYT {
 namespace NJobProxy {

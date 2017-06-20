@@ -1,4 +1,3 @@
-
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/admin_server/admin_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/admin_server/private.cpp
@@ -8,6 +7,11 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/blackbox/token_authenticator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/blackbox/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/blackbox/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/containers/container_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/containers/instance.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/containers/porto_executor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/containers/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/automaton.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/bootstrap.cpp
@@ -250,11 +254,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/address_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/build_attributes.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/configure_singletons.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/fork_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_location.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/fork_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/job_table_schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/process.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/data_center.cpp
