@@ -422,6 +422,10 @@ TNode* TChunkPlacement::GetBalancingTarget(
     TChunk* chunk,
     double maxFillFactor)
 {
+    if (dataCenters && dataCenters->empty()) {
+        return nullptr;
+    }
+
     int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, Null);
     TTargetCollector collector(chunk, mediumIndex, maxReplicasPerRack, nullptr);
 
