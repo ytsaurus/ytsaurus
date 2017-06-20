@@ -6,8 +6,6 @@
 #include "server_detail.h"
 #include "service.h"
 
-#include <yt/core/compression/public.h>
-
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 
@@ -39,14 +37,11 @@ template <class TRequestMessage, class TResponseMessage>
 class TTypedServiceContext;
 
 template <class TRequestMessage>
-class TOneWayTypedServiceContext;
-
-template <class TRequestMessage>
 class TTypedServiceRequest
     : public TRequestMessage
 {
 public:
-    typedef TRequestMessage TMessage;
+    using TMessage = TRequestMessage;
 
     std::vector<TSharedRef>& Attachments()
     {
@@ -54,8 +49,8 @@ public:
     }
 
 private:
-    template <class TRequestMessage_>
-    friend class TTypedServiceContextBase;
+    template <class TRequestMessage_, class TResponseMessage_>
+    friend class TTypedServiceContext;
 
     IServiceContext* Context_ = nullptr;
 
@@ -68,7 +63,7 @@ class TTypedServiceResponse
     : public TResponseMessage
 {
 public:
-    typedef TResponseMessage TMessage;
+    using TMessage = TResponseMessage;
 
     std::vector<TSharedRef>& Attachments()
     {
@@ -98,20 +93,24 @@ struct THandlerInvocationOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Provides a common base for both one-way and two-way contexts.
-template <class TRequestMessage>
-class TTypedServiceContextBase
+template <class TRequestMessage, class TResponseMessage>
+class TTypedServiceContext
     : public TServiceContextWrapper
 {
 public:
-    typedef TTypedServiceRequest<TRequestMessage> TTypedRequest;
+    using TTypedRequest = TTypedServiceRequest<TRequestMessage>;
+    using TTypedResponse = TTypedServiceResponse<TResponseMessage>;
+    using TThis = TTypedServiceContext<TRequestMessage, TResponseMessage>;
 
-    TTypedServiceContextBase(
+    TTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
         : TServiceContextWrapper(std::move(context))
         , Options_(options)
-    { }
+    {
+        Response_ = ObjectPool<TTypedResponse>().Allocate();
+        Response_->Context_ = this->UnderlyingContext_.Get();
+    }
 
     bool DeserializeRequest()
     {
@@ -138,37 +137,6 @@ public:
         return *Request_;
     }
 
-protected:
-    THandlerInvocationOptions Options_;
-
-    typename TObjectPool<TTypedRequest>::TObjectPtr Request_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// We need this logger here but including the whole private.h looks weird.
-extern const NLogging::TLogger RpcServerLogger;
-
-//! Describes a two-way context.
-template <class TRequestMessage, class TResponseMessage>
-class TTypedServiceContext
-    : public TTypedServiceContextBase<TRequestMessage>
-{
-public:
-    typedef TTypedServiceContext<TRequestMessage, TResponseMessage> TThis;
-    typedef TTypedServiceContextBase<TRequestMessage> TBase;
-    typedef TTypedServiceResponse<TResponseMessage> TTypedResponse;
-
-    TTypedServiceContext(
-        IServiceContextPtr context,
-        const THandlerInvocationOptions& options)
-        : TBase(std::move(context), options)
-    {
-        Response_ = ObjectPool<TTypedResponse>().Allocate();
-        Response_->Context_ = this->UnderlyingContext_.Get();
-    }
-
     const TTypedResponse& Response() const
     {
         return *Response_;
@@ -178,6 +146,7 @@ public:
     {
         return *Response_;
     }
+
 
     using IServiceContext::Reply;
 
@@ -198,7 +167,11 @@ public:
         }
     }
 
-private:
+protected:
+    THandlerInvocationOptions Options_;
+    typename TObjectPool<TTypedRequest>::TObjectPtr Request_;
+    typename TObjectPool<TTypedResponse>::TObjectPtr Response_;
+
     void DoReply(const TError& error)
     {
         if (error.IsOK()) {
@@ -209,45 +182,24 @@ private:
         this->Request_.reset();
         this->Response_.reset();
     }
-
-    typename TObjectPool<TTypedResponse>::TObjectPtr Response_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Describes a one-way context.
-template <class TRequestMessage>
-class TOneWayTypedServiceContext
-    : public TTypedServiceContextBase<TRequestMessage>
-{
-public:
-    typedef TOneWayTypedServiceContext<TRequestMessage> TThis;
-    typedef TTypedServiceContextBase<TRequestMessage> TBase;
-
-    explicit TOneWayTypedServiceContext(
-        IServiceContextPtr context,
-        const THandlerInvocationOptions& options)
-        : TBase(std::move(context), options)
-    { }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
-    typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
-    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
-    typedef TCtx##method::TTypedRequest  TReq##method; \
-    typedef TCtx##method::TTypedResponse TRsp##method; \
+    using TCtx##method = ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method>; \
+    using TCtx##method##Ptr = ::NYT::TIntrusivePtr<TCtx##method>; \
+    using TReq##method = TCtx##method::TTypedRequest; \
+    using TRsp##method = TCtx##method::TTypedResponse ; \
     \
     void method##LiteThunk( \
         const ::NYT::NRpc::IServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = ::NYT::New<TCtx##method>(context, options); \
-        if (!typedContext->DeserializeRequest()) \
+        if (!typedContext->DeserializeRequest()) { \
             return; \
+        } \
         auto* request = &typedContext->Request(); \
         auto* response = &typedContext->Response(); \
         this->method(request, response, typedContext); \
@@ -294,51 +246,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_ONE_WAY_RPC_SERVICE_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TOneWayTypedServiceContext<ns::TReq##method> TCtx##method; \
-    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
-    typedef TCtx##method::TTypedRequest TReq##method; \
-    \
-    void method##LiteThunk( \
-        const ::NYT::NRpc::IServiceContextPtr& context, \
-        const ::NYT::NRpc::THandlerInvocationOptions& options) \
-    { \
-        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
-        if (!typedContext->DeserializeRequest()) \
-            return; \
-        auto* request = &typedContext->Request(); \
-        this->method(request, typedContext); \
-    } \
-    \
-    ::NYT::NRpc::TServiceBase::TLiteHandler method##HeavyThunk( \
-        const ::NYT::NRpc::IServiceContextPtr& context, \
-        const ::NYT::NRpc::THandlerInvocationOptions& options) \
-    { \
-        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
-        if (!typedContext->DeserializeRequest()) { \
-            return ::NYT::NRpc::TServiceBase::TLiteHandler(); \
-        } \
-        return \
-            BIND([=] ( \
-                const ::NYT::NRpc::IServiceContextPtr&, \
-                const ::NYT::NRpc::THandlerInvocationOptions&) \
-            { \
-                auto* request = &typedContext->Request(); \
-                this->method(request, typedContext); \
-            }); \
-    } \
-    \
-    void method( \
-        TReq##method* request, \
-        const TCtx##method##Ptr& context)
-
-#define DEFINE_ONE_WAY_RPC_SERVICE_METHOD(type, method) \
-    void type::method( \
-        TReq##method* request, \
-        const TCtx##method##Ptr& context)
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Provides a base for implementing IService.
 class TServiceBase
     : public IService
@@ -347,7 +254,7 @@ public:
     virtual void Configure(NYTree::INodePtr configNode) override;
     virtual TFuture<void> Stop() override;
 
-    virtual TServiceId GetServiceId() const override;
+    virtual const TServiceId& GetServiceId() const override;
 
     virtual void HandleRequest(
         std::unique_ptr<NProto::TRequestHeader> header,
@@ -357,11 +264,11 @@ public:
     virtual void HandleRequestCancelation(const TRequestId& requestId) override;
 
 protected:
-    typedef TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)> TLiteHandler;
-    typedef TCallback<TLiteHandler(const IServiceContextPtr&, const THandlerInvocationOptions&)> THeavyHandler;
+    using TLiteHandler = TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)>;
+    using THeavyHandler = TCallback<TLiteHandler(const IServiceContextPtr&, const THandlerInvocationOptions&)>;
 
     class TServiceContext;
-    typedef TIntrusivePtr<TServiceContext> TServiceContextPtr;
+    using TServiceContextPtr = TIntrusivePtr<TServiceContext>;
 
     //! Information needed to a register a service method.
     struct TMethodDescriptor
@@ -504,7 +411,7 @@ protected:
         NProfiling::TAggregateCounter TotalTimeCounter;
     };
 
-    typedef TIntrusivePtr<TMethodPerformanceCounters> TMethodPerformanceCountersPtr;
+    using TMethodPerformanceCountersPtr = TIntrusivePtr<TMethodPerformanceCounters>;
 
     //! Describes a service method and its runtime statistics.
     struct TRuntimeMethodInfo
@@ -528,7 +435,7 @@ protected:
         TMethodPerformanceCountersPtr RootPerformanceCounters;
     };
 
-    typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
+    using TRuntimeMethodInfoPtr = TIntrusivePtr<TRuntimeMethodInfo>;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Discover);
 

@@ -590,7 +590,7 @@ private:
 
                 requestControl = it->second;
                 requestControl->TimingCheckpoint(STRINGBUF("ack"));
-                if (!error.IsOK() || requestControl->IsOneWay()) {
+                if (!error.IsOK()) {
                     requestControl->Finalize(guard, &responseHandler);
                     ActiveRequestMap_.erase(it);
                 } else {
@@ -676,7 +676,6 @@ private:
             , RealmId_(request->GetRealmId())
             , Service_(request->GetService())
             , Method_(request->GetMethod())
-            , OneWay_(request->IsOneWay())
             , RequestId_(request->GetRequestId())
             , Timeout_(timeout)
             , ResponseHandler_(std::move(responseHandler))
@@ -706,11 +705,6 @@ private:
         const TString& GetMethod() const
         {
             return Method_;
-        }
-
-        bool IsOneWay() const
-        {
-            return OneWay_;
         }
 
         const TRequestId& GetRequestId() const
@@ -769,7 +763,6 @@ private:
         const TRealmId RealmId_;
         const TString Service_;
         const TString Method_;
-        const bool OneWay_;
         const TRequestId RequestId_;
         const TNullable<TDuration> Timeout_;
 

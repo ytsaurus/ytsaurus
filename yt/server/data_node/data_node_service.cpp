@@ -115,8 +115,7 @@ public:
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
-            .SetOneWay(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
@@ -989,7 +988,7 @@ private:
         }
     }
 
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
         auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
         auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
@@ -1005,6 +1004,8 @@ private:
             TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
             peerBlockTable->UpdatePeer(blockId, peer);
         }
+
+        context->Reply();
     }
 
 

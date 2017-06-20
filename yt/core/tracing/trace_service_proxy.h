@@ -15,7 +15,7 @@ class TTraceServiceProxy
 public:
     DEFINE_RPC_PROXY(TTraceServiceProxy, RPC_PROXY_DESC(TraceService));
 
-    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, SendBatch);
+    DEFINE_RPC_PROXY_METHOD(NProto, SendBatch);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

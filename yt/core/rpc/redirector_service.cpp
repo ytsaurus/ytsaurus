@@ -58,11 +58,6 @@ public:
         return *Header_;
     }
 
-    virtual bool IsOneWay() const override
-    {
-        return Header_->one_way();
-    }
-
     virtual bool IsHeavy() const override
     {
         return false;
@@ -280,7 +275,7 @@ public:
         requestControl->Cancel();
     }
 
-    virtual TServiceId GetServiceId() const override
+    virtual const TServiceId& GetServiceId() const override
     {
         return ServiceId_;
     }

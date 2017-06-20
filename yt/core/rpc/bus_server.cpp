@@ -18,17 +18,14 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = RpcServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBusServer
     : public TServerBase
     , public IMessageHandler
 {
 public:
     explicit TBusServer(IBusServerPtr busServer)
-        : BusServer_(std::move(busServer))
+        : TServerBase(RpcServerLogger)
+        , BusServer_(std::move(busServer))
     { }
 
 private:
@@ -87,7 +84,6 @@ private:
         const auto& serviceName = header->service();
         const auto& methodName = header->method();
         auto realmId = FromProto<TRealmId>(header->realm_id());
-        bool isOneWay = header->one_way();
         auto timeout = header->has_timeout() ? MakeNullable(FromProto<TDuration>(header->timeout())) : Null;
         auto startTime = header->has_start_time() ? MakeNullable(FromProto<TInstant>(header->start_time())) : Null;
         bool isRetry = header->retry();
@@ -99,14 +95,13 @@ private:
             return;
         }
 
-        LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, User: %v, OneWay: %v, "
+        LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, User: %v, "
             "Timeout: %v, Endpoint: %v, StartTime: %v, Retry: %v)",
             serviceName,
             methodName,
             realmId,
             requestId,
             header->has_user() ? header->user() : RootUserName,
-            isOneWay,
             timeout,
             replyBus->GetEndpointDescription(),
             startTime,
@@ -114,13 +109,9 @@ private:
 
         if (!Started_) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "Server is not started");
-
             LOG_DEBUG(error);
-
-            if (!isOneWay) {
-                auto response = CreateErrorResponseMessage(requestId, error);
-                replyBus->Send(response, TSendOptions(EDeliveryTrackingLevel::None));
-            }
+            auto response = CreateErrorResponseMessage(requestId, error);
+            replyBus->Send(response, TSendOptions(EDeliveryTrackingLevel::None));
             return;
         }
 
@@ -132,13 +123,9 @@ private:
                 "Service is not registered")
                  << TErrorAttribute("service", serviceName)
                  << TErrorAttribute("realm_id", realmId);
-
             LOG_WARNING(error);
-
-            if (!isOneWay) {
-                auto response = CreateErrorResponseMessage(requestId, error);
-                replyBus->Send(std::move(response), TSendOptions(EDeliveryTrackingLevel::None));
-            }
+            auto response = CreateErrorResponseMessage(requestId, error);
+            replyBus->Send(std::move(response), TSendOptions(EDeliveryTrackingLevel::None));
             return;
         }
 

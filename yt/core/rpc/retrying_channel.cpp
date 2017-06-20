@@ -83,8 +83,6 @@ private:
             Y_ASSERT(Request_);
             Y_ASSERT(ResponseHandler_);
 
-            YCHECK(!Request_->IsOneWay());
-
             Deadline_ = Config_->RetryTimeout
                 ? TInstant::Now() + *Config_->RetryTimeout
                 : TInstant::Max();

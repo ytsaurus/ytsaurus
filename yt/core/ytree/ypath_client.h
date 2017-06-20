@@ -27,8 +27,6 @@ public:
         const NYPath::TYPath& path,
         bool mutating);
 
-    virtual bool IsOneWay() const override;
-
     virtual NRpc::TRequestId GetRequestId() const override;
     virtual NRpc::TRealmId GetRealmId() const override;
     virtual const TString& GetMethod() const override;
