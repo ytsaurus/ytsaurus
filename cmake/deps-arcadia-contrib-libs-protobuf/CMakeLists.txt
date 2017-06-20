@@ -1,5 +1,6 @@
 set(NAME deps-arcadia-contrib-libs-protobuf)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf)
+set(GRPC_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/grpc)
 
 set(SRCS_PROTOBUF
   ${BASE}/stubs/atomicops_internals_x86_gcc.cc
@@ -66,7 +67,6 @@ set(SRCS_PROTOC
   ${BASE}/compiler/code_generator.cc
   ${BASE}/compiler/command_line_interface.cc
   ${BASE}/compiler/importer.cc
-  ${BASE}/compiler/main.cc
   ${BASE}/compiler/parser.cc
   ${BASE}/compiler/plugin.cc
   ${BASE}/compiler/plugin.pb.cc
@@ -124,6 +124,10 @@ set(SRCS_PROTOC
   ${BASE}/compiler/perlxs/perlxs_helpers.cc
 )
 
+SET(PROTO_MAIN
+  ${BASE}/compiler/main.cc
+)
+
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${BASE}
@@ -135,7 +139,11 @@ add_library(${NAME} STATIC ${SRCS_PROTOBUF})
 
 target_link_libraries(${NAME} deps-arcadia-util)
 
-add_executable(protoc ${SRCS_PROTOC})
+add_library(${NAME}-protoc STATIC ${SRCS_PROTOC})
 
-target_link_libraries(protoc ${NAME} -ldl)
+target_link_libraries(${NAME}-protoc ${NAME})
+
+add_executable(protoc ${PROTO_MAIN})
+
+target_link_libraries(protoc ${NAME}-protoc deps-arcadia-util -ldl)
 

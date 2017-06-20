@@ -308,3 +308,43 @@ function(ADD_GDB_INDEX)
     )
   endforeach()
 endfunction()
+
+function (CYTHON source)
+  get_filename_component(_basename ${source} NAME)
+
+  set(_input ${source}.pyx)
+  set(_c_source ${CMAKE_CURRENT_BINARY_DIR}/${_basename}.c)
+
+  MESSAGE("_c_source ${_c_source}")
+
+  add_custom_command(
+    OUTPUT
+      ${_c_source}
+    COMMAND
+      ${CYTHON_EXECUTABLE}
+      ${_input}
+      -o ${_c_source}
+    MAIN_DEPENDENCY
+      ${_input}
+    WORKING_DIRECTORY
+      ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT
+      "Building ${_intermediate} with cython ..."
+  )
+
+  add_library(${_basename} MODULE ${_c_source})
+
+  set_source_files_properties(
+    ${_c_source}
+    PROPERTIES
+    GENERATED TRUE
+    LANGUAGE C
+  )
+
+  set_target_properties(
+    ${_basename}
+    PROPERTIES
+    COMPILE_FLAGS "-I${PYTHON_2_7_INCLUDE_DIR} --std=c99"
+    LINK_FLAGS "-lrt"
+  )
+endfunction()

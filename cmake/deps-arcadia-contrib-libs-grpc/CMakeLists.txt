@@ -3,12 +3,17 @@ set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/grpc)
 
 set(SRCS_CORE
   ${BASE}/src/core/ext/census/base_resources.c
+  #${BASE}/src/core/ext/census/census_init.c
+  #${BASE}/src/core/ext/census/census_log.c
+  #${BASE}/src/core/ext/census/census_rpc_stats.c
+  #${BASE}/src/core/ext/census/census_tracing.c
   ${BASE}/src/core/ext/census/context.c
   ${BASE}/src/core/ext/census/gen/census.pb.c
   ${BASE}/src/core/ext/census/gen/trace_context.pb.c
   ${BASE}/src/core/ext/census/grpc_context.c
   ${BASE}/src/core/ext/census/grpc_filter.c
   ${BASE}/src/core/ext/census/grpc_plugin.c
+  #${BASE}/src/core/ext/census/hash_table.c
   ${BASE}/src/core/ext/census/initialize.c
   ${BASE}/src/core/ext/census/mlog.c
   ${BASE}/src/core/ext/census/operation.c
@@ -16,6 +21,7 @@ set(SRCS_CORE
   ${BASE}/src/core/ext/census/resource.c
   ${BASE}/src/core/ext/census/trace_context.c
   ${BASE}/src/core/ext/census/tracing.c
+  #${BASE}/src/core/ext/census/window_stats.c
 
   ${BASE}/src/core/ext/client_channel/channel_connectivity.c
   ${BASE}/src/core/ext/client_channel/client_channel.c
@@ -284,9 +290,8 @@ SET(DEPENDENCIES
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/include
-  ${PYTHON_2_7_INCLUDE_DIR}
+  ${BASE}
+  ${BASE}/include
 )
 
 
@@ -302,62 +307,45 @@ set_source_files_properties(${SRCS_CORE} PROPERTIES LANGUAGE C)
 set_target_properties(${NAME}-core PROPERTIES COMPILE_FLAGS --std=c99)
 
 
-# Python library
+# Python
 
-set(CYTHON_EXECUTABLE "cython")
+if (${YT_BUILD_ENABLE_PYTHON_2_7} AND ${YT_BUILD_HAVE_CYTHON})
 
-function (CYTHON source)
-  get_filename_component(_basename ${source} NAME)
+  cython(${BASE}/src/python/grpcio/grpc/_cython/cygrpc)
 
-  set(_input ${source}.pyx)
-  set(_c_source ${CMAKE_CURRENT_BINARY_DIR}/${_basename}.c)
-
-  MESSAGE("_c_source ${_c_source}")
-
-  add_custom_command(
-    OUTPUT
-      ${_c_source}
-    COMMAND
-      ${CYTHON_EXECUTABLE}
-      ${_input}
-      -o ${_c_source}
-    MAIN_DEPENDENCY
-      ${_input}
-    WORKING_DIRECTORY
-      ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT
-      "Building ${_intermediate} with cython ..."
+  target_link_libraries(cygrpc
+    ${NAME}-core
+    #${DEPENDENCIES}
   )
 
-  set_source_files_properties(
-    ${_c_source}
+  exec_program(
+    ${CMAKE_COMMAND} ARGS -E copy_directory
+    ${BASE}/src/python/grpcio/grpc
+    ${CMAKE_SOURCE_DIR}/python/grpc
+  )
+
+  exec_program(
+    ${CMAKE_COMMAND} ARGS -E create_symlink
+    ${LIBRARY_OUTPUT_PATH}/libcygrpc.so
+    ${CMAKE_SOURCE_DIR}/python/grpc/_cython/cygrpc.so
+  )
+
+
+  # Python protoc plugin
+
+  add_executable(grpc_python
+    ${BASE}/src/compiler/python_plugin.cc
+    ${BASE}/src/compiler/python_generator.cc
+  )
+
+  SET(PROTOBUF_DIR ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf)
+
+  set_target_properties(grpc_python
     PROPERTIES
-    GENERATED TRUE
-    LANGUAGE C
+    COMPILE_FLAGS "-I${PROTOBUF_DIR} -I${PROTOBUF_DIR}/google/protobuf"
   )
 
-  add_library(${_basename} MODULE ${_c_source} ${SRCS_CORE})
-  target_link_libraries(${_basename}
-    ${DEPENDENCIES}
+  target_link_libraries(grpc_python
+    deps-arcadia-contrib-libs-protobuf-protoc
   )
-  set_target_properties(
-    ${_basename}
-    PROPERTIES
-    COMPILE_FLAGS "--std=c99"
-    LINK_FLAGS "-lrt"
-  )
-endfunction()
-
-cython(${BASE}/src/python/grpcio/grpc/_cython/cygrpc)
-
-exec_program(
-  ${CMAKE_COMMAND} ARGS -E copy_directory
-  ${BASE}/src/python/grpcio/grpc
-  ${CMAKE_SOURCE_DIR}/python/grpc
-)
-
-exec_program(
-  ${CMAKE_COMMAND} ARGS -E create_symlink
-  ${LIBRARY_OUTPUT_PATH}/libcygrpc.so
-  ${CMAKE_SOURCE_DIR}/python/grpc/_cython/cygrpc.so
-)
+endif()
