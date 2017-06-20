@@ -1268,7 +1268,7 @@ private:
             CleanupUserProcesses(error);
         }
 
-        Host_->SetUserJobMemoryUsage(rss);
+        Host_->SetUserJobMemoryUsage(currentMemoryUsage);
     }
 
     void CheckBlockIOUsage()
