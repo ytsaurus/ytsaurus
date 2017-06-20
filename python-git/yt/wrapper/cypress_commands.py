@@ -394,7 +394,9 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     request_attributes.append("type")
     request_attributes.append("opaque")
 
-    exclude = deepcopy(flatten(get_value(exclude, ["//sys/operations"])))
+    exclude = flatten(get_value(exclude, []))
+    if root != "//sys/operations":
+        exclude = exclude + ["//sys/operations"]
 
     if enable_batch_mode is None:
         enable_batch_mode = get_config(client)["enable_batch_mode_for_search"]
