@@ -1,8 +1,6 @@
 #include "process.h"
 #include "proc.h"
 
-#include <yt/core/containers/instance.h>
-
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/error.h>
@@ -41,7 +39,6 @@ namespace NYT {
 
 using namespace NPipes;
 using namespace NConcurrency;
-using namespace NContainers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,6 +140,10 @@ bool TryResetSignals()
     return true;
 }
 
+#endif
+
+} // namespace
+
 TErrorOr<TString> ResolveBinaryPath(const TString& binary)
 {
     std::vector<TError> accumulatedErrors;
@@ -211,10 +212,6 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
 
     return done();
 }
-
-#endif
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -654,98 +651,6 @@ void TSimpleProcess::Child()
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
     Y_UNREACHABLE();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TPortoProcess::TPortoProcess(
-    const TString& path,
-    IInstancePtr containerInstance,
-    bool copyEnv,
-    TDuration pollPeriod)
-    : TProcessBase(path)
-    , ContainerInstance_(containerInstance)
-{
-    AddArgument(NFS::GetFileName(path));
-    if (copyEnv) {
-        for (char** envIt = environ; *envIt; ++envIt) {
-            Env_.push_back(Capture(*envIt));
-        }
-    }
-}
-
-void TPortoProcess::Kill(int signal)
-{
-    ContainerInstance_->Kill(signal);
-}
-
-void TPortoProcess::DoSpawn()
-{
-#ifdef _linux_
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
-    YCHECK(Args_.size());
-    if (!WorkingDirectory_.empty()) {
-        ContainerInstance_->SetCwd(WorkingDirectory_);
-    }
-    Started_ = true;
-    try {
-        // First argument must be path to binary
-        ResolvedPath_ = ResolveBinaryPath(Args_[0]).ValueOrThrow();
-        Args_[0] = ResolvedPath_.c_str();
-        ContainerInstance_->Exec(Args_, Env_).Apply(BIND([=, this_ = MakeStrong(this)](int exitCode) {
-            Finished_ = true;
-            FinishedPromise_.Set(StatusToError(exitCode));
-        }));
-        try {
-            ProcessId_ = ContainerInstance_->GetPid();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Unable to get pid of root process")
-                << ex;
-        }
-    } catch (const std::exception& ex) {
-        Finished_ = true;
-        THROW_ERROR_EXCEPTION("Failed to start child process inside porto")
-            << TErrorAttribute("path", Args_[0])
-            << TErrorAttribute("container", ContainerInstance_->GetName())
-            << ex;
-    }
-    LOG_DEBUG("Process inside porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
-        Args_[0],
-        ProcessId_,
-        ContainerInstance_->GetName());
-#else
-    THROW_ERROR_EXCEPTION("Unsupported platform");
-#endif
-}
-
-static TString CreateStdIONamedPipePath()
-{
-    const TString name = CreateGuidAsString();
-    return NFS::GetRealPath(NFS::CombinePaths("/tmp", name));
-}
-
-TAsyncWriterPtr TPortoProcess::GetStdInWriter()
-{
-    auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
-    ContainerInstance_->SetStdIn(pipe->GetPath());
-    NamedPipes_.push_back(pipe);
-    return pipe->CreateAsyncWriter();
-}
-
-TAsyncReaderPtr TPortoProcess::GetStdOutReader()
-{
-    auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
-    ContainerInstance_->SetStdOut(pipe->GetPath());
-    NamedPipes_.push_back(pipe);
-    return pipe->CreateAsyncReader();
-}
-
-TAsyncReaderPtr TPortoProcess::GetStdErrReader()
-{
-    auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
-    ContainerInstance_->SetStdErr(pipe->GetPath());
-    NamedPipes_.push_back(pipe);
-    return pipe->CreateAsyncReader();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

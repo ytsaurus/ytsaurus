@@ -4,15 +4,6 @@ list(APPEND YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S
 )
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-  list(APPEND YT_SRCS
-    ${CMAKE_CURRENT_LIST_DIR}/containers/container_manager.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/containers/instance.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/containers/porto_executor.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/containers/private.cpp
-  )
-endif()
-
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
 add_library(yt-core ${YT_SRCS_RESOLVED})

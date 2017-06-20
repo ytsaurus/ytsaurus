@@ -8,15 +8,15 @@
 
 #include <yt/core/pipes/pipe.h>
 
-#include <yt/core/containers/public.h>
-
-#include <yt/contrib/portoapi/libporto.hpp>
-
 #include <atomic>
 #include <vector>
 #include <array>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TErrorOr<TString> ResolveBinaryPath(const TString& binary);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +75,6 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TProcessBase)
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // Read this
@@ -115,28 +114,6 @@ private:
     void ValidateSpawnResult();
     void AsyncPeriodicTryWait();
     void Child();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPortoProcess
-    : public TProcessBase
-{
-public:
-    TPortoProcess(
-        const TString& path,
-        NContainers::IInstancePtr containerInstance,
-        bool copyEnv = true,
-        TDuration pollPeriod = TDuration::MilliSeconds(100));
-    virtual void Kill(int signal) override;
-    virtual NPipes::TAsyncWriterPtr GetStdInWriter() override;
-    virtual NPipes::TAsyncReaderPtr GetStdOutReader() override;
-    virtual NPipes::TAsyncReaderPtr GetStdErrReader() override;
-
-private:
-    NContainers::IInstancePtr ContainerInstance_;
-    std::vector<NPipes::TNamedPipePtr> NamedPipes_;
-    virtual void DoSpawn() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

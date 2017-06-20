@@ -9,12 +9,14 @@
 
 #include <yt/server/program/names.h>
 
+#include <yt/server/containers/container_manager.h>
+#include <yt/server/containers/instance.h>
+
+#include <yt/server/misc/process.h>
+
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/core/concurrency/scheduler.h>
-
-#include <yt/core/containers/container_manager.h>
-#include <yt/core/containers/instance.h>
 
 #include <yt/core/tools/tools.h>
 
