@@ -89,17 +89,14 @@ public:
     using IReaderImpl = typename TRowTraits<T>::IReaderImpl;
 
     TTableReaderBase()
-        : Lock_(MakeAtomicShared<TMutex>())
     { }
 
     explicit TTableReaderBase(::TIntrusivePtr<IReaderImpl> reader)
         : Reader_(reader)
-        , Lock_(MakeAtomicShared<TMutex>())
     { }
 
     const T& GetRow() const
     {
-        auto guard = Guard(*Lock_);
         return Reader_->GetRow();
     }
 
@@ -110,7 +107,6 @@ public:
 
     void Next()
     {
-        auto guard = Guard(*Lock_);
         Reader_->Next();
     }
 
@@ -126,7 +122,6 @@ public:
 
 private:
     ::TIntrusivePtr<IReaderImpl> Reader_;
-    TAtomicSharedPtr<TMutex> Lock_;
 };
 
 template <>
@@ -167,7 +162,6 @@ public:
     template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
     const U& GetRow() const
     {
-        auto guard = Guard(Lock_);
         if (CachedRow_) {
             return *dynamic_cast<U*>(CachedRow_.Get());
         }
@@ -185,7 +179,6 @@ public:
 
     void Next()
     {
-        auto guard = Guard(Lock_);
         Reader_->Next();
         CachedRow_.Reset(nullptr);
     }
@@ -203,7 +196,6 @@ public:
 private:
     ::TIntrusivePtr<IProtoReaderImpl> Reader_;
     mutable THolder<Message> CachedRow_;
-    TMutex Lock_;
 };
 
 template <class T>
