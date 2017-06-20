@@ -269,6 +269,10 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const TNullable<TString>& preferredHostName)
 {
+    if (dataCenters && dataCenters->empty()) {
+        return TNodeList();
+    }
+
     int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, replicationFactorOverride);
     TTargetCollector collector(chunk, mediumIndex, maxReplicasPerRack, forbiddenNodes);
 
@@ -472,6 +476,10 @@ bool TChunkPlacement::IsValidWriteTarget(
     TTargetCollector* collector,
     bool enableRackAwareness)
 {
+    if (dataCenters && dataCenters->count(node->GetDataCenter()) == 0) {
+        return false;
+    }
+
     // Check node first.
     if (!IsValidWriteTarget(mediumIndex, node)) {
         return false;
@@ -479,10 +487,6 @@ bool TChunkPlacement::IsValidWriteTarget(
 
     if (!IsAcceptedChunkType(mediumIndex, node, chunkType)) {
         // Do not write anything to nodes not accepting this type of chunks.
-        return false;
-    }
-
-    if (dataCenters && dataCenters->count(node->GetDataCenter()) == 0) {
         return false;
     }
 
