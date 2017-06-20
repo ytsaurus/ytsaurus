@@ -109,12 +109,7 @@ TTableSchema GetSampleTableSchema()
     return tableSchema;
 }
 
-TFuture<void> WrapVoidInFuture()
-{
-    return MakeFuture(TErrorOr<void>());
-}
-
-TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter)
+TDataSplit MakeSimpleSplit(const TRichYPath& /*path*/, ui64 counter)
 {
     TDataSplit dataSplit;
 
@@ -125,6 +120,15 @@ TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter)
     SetTableSchema(&dataSplit, GetSampleTableSchema());
 
     return dataSplit;
+}
+
+std::vector<TDataSplit> MakeSimpleSplits(const std::vector<TRichYPath>& paths, ui64 counter)
+{
+    std::vector<TDataSplit> splits;
+    for (const auto& path : paths) {
+        splits.push_back(MakeSimpleSplit(path, counter));
+    }
+    return splits;
 }
 
 TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter)
@@ -139,15 +143,6 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter)
     SetTableSchema(&dataSplit, tableSchema);
 
     return dataSplit;
-}
-
-TFuture<TDataSplit> RaiseTableNotFound(
-    const TRichYPath& path,
-    TTimestamp)
-{
-    return MakeFuture(TErrorOr<TDataSplit>(TError(Format(
-        "Could not find table %v",
-        path.GetPath()))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
