@@ -2,26 +2,21 @@ set(NAME deps-arcadia-contrib-libs-grpc)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/grpc)
 
 set(SRCS_CORE
-  #${BASE}/src/core/ext/census/base_resources.c
-  #${BASE}/src/core/ext/census/census_init.c
-  #${BASE}/src/core/ext/census/census_log.c
-  #${BASE}/src/core/ext/census/census_rpc_stats.c
-  #${BASE}/src/core/ext/census/census_tracing.c
-  #${BASE}/src/core/ext/census/context.c
-  #${BASE}/src/core/ext/census/gen/census.pb.c
-  #${BASE}/src/core/ext/census/gen/trace_context.pb.c
-  #${BASE}/src/core/ext/census/grpc_context.c
-  #${BASE}/src/core/ext/census/grpc_filter.c
-  #${BASE}/src/core/ext/census/grpc_plugin.c
-  #${BASE}/src/core/ext/census/hash_table.c
-  #${BASE}/src/core/ext/census/initialize.c
-  #${BASE}/src/core/ext/census/mlog.c
-  #${BASE}/src/core/ext/census/operation.c
-  #${BASE}/src/core/ext/census/placeholders.c
-  #${BASE}/src/core/ext/census/resource.c
-  #${BASE}/src/core/ext/census/trace_context.c
-  #${BASE}/src/core/ext/census/tracing.c
-  #${BASE}/src/core/ext/census/window_stats.c
+  ${BASE}/src/core/ext/census/base_resources.c
+  ${BASE}/src/core/ext/census/context.c
+  ${BASE}/src/core/ext/census/gen/census.pb.c
+  ${BASE}/src/core/ext/census/gen/trace_context.pb.c
+  ${BASE}/src/core/ext/census/grpc_context.c
+  ${BASE}/src/core/ext/census/grpc_filter.c
+  ${BASE}/src/core/ext/census/grpc_plugin.c
+  ${BASE}/src/core/ext/census/initialize.c
+  ${BASE}/src/core/ext/census/mlog.c
+  ${BASE}/src/core/ext/census/operation.c
+  ${BASE}/src/core/ext/census/placeholders.c
+  ${BASE}/src/core/ext/census/resource.c
+  ${BASE}/src/core/ext/census/trace_context.c
+  ${BASE}/src/core/ext/census/tracing.c
+
   ${BASE}/src/core/ext/client_channel/channel_connectivity.c
   ${BASE}/src/core/ext/client_channel/client_channel.c
   ${BASE}/src/core/ext/client_channel/client_channel_factory.c
@@ -40,15 +35,19 @@ set(SRCS_CORE
   ${BASE}/src/core/ext/client_channel/subchannel.c
   ${BASE}/src/core/ext/client_channel/subchannel_index.c
   ${BASE}/src/core/ext/client_channel/uri_parser.c
+
   ${BASE}/src/core/ext/lb_policy/grpclb/grpclb.c
   ${BASE}/src/core/ext/lb_policy/grpclb/load_balancer_api.c
   ${BASE}/src/core/ext/lb_policy/grpclb/proto/grpc/lb/v1/load_balancer.pb.c
   ${BASE}/src/core/ext/lb_policy/pick_first/pick_first.c
   ${BASE}/src/core/ext/lb_policy/round_robin/round_robin.c
+
   ${BASE}/src/core/ext/load_reporting/load_reporting.c
   ${BASE}/src/core/ext/load_reporting/load_reporting_filter.c
+
   ${BASE}/src/core/ext/resolver/dns/native/dns_resolver.c
   ${BASE}/src/core/ext/resolver/sockaddr/sockaddr_resolver.c
+
   ${BASE}/src/core/ext/transport/chttp2/alpn/alpn.c
   ${BASE}/src/core/ext/transport/chttp2/client/chttp2_connector.c
   ${BASE}/src/core/ext/transport/chttp2/client/insecure/channel_create.c
@@ -82,6 +81,7 @@ set(SRCS_CORE
   #${BASE}/src/core/ext/transport/cronet/client/secure/cronet_channel_create.c
   #${BASE}/src/core/ext/transport/cronet/transport/cronet_api_dummy.c
   #${BASE}/src/core/ext/transport/cronet/transport/cronet_transport.c
+
   ${BASE}/src/core/lib/channel/channel_args.c
   ${BASE}/src/core/lib/channel/channel_stack_builder.c
   ${BASE}/src/core/lib/channel/channel_stack.c
@@ -248,7 +248,7 @@ set(SRCS_CORE
   ${BASE}/src/core/lib/surface/completion_queue.c
   ${BASE}/src/core/lib/surface/event_string.c
   ${BASE}/src/core/lib/surface/init.c
-  ${BASE}/src/core/lib/surface/init_secure.c
+  #${BASE}/src/core/lib/surface/init_secure.c
   ${BASE}/src/core/lib/surface/init_unsecure.c
   ${BASE}/src/core/lib/surface/lame_client.c
   ${BASE}/src/core/lib/surface/metadata_array.c
@@ -270,19 +270,94 @@ set(SRCS_CORE
   ${BASE}/src/core/lib/tsi/fake_transport_security.c
   ${BASE}/src/core/lib/tsi/ssl_transport_security.c
   ${BASE}/src/core/lib/tsi/transport_security.c
-  ${BASE}/src/core/plugin_registry/grpc_cronet_plugin_registry.c
-  ${BASE}/src/core/plugin_registry/grpc_plugin_registry.c
+
+  #${BASE}/src/core/plugin_registry/grpc_cronet_plugin_registry.c
+  #${BASE}/src/core/plugin_registry/grpc_plugin_registry.c
   ${BASE}/src/core/plugin_registry/grpc_unsecure_plugin_registry.c
+)
+
+SET(DEPENDENCIES
+  deps-arcadia-contrib-libs-nanopb
+  deps-arcadia-contrib-libs-openssl
+  deps-arcadia-contrib-libs-zlib
 )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
   ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/include
+  ${PYTHON_2_7_INCLUDE_DIR}
 )
 
+
+# Static library
+
 add_library(${NAME}-core STATIC ${SRCS_CORE})
+
+target_link_libraries(${NAME}-core
+  ${DEPENDENCIES}
+)
 
 set_source_files_properties(${SRCS_CORE} PROPERTIES LANGUAGE C)
 set_target_properties(${NAME}-core PROPERTIES COMPILE_FLAGS --std=c99)
 
+
+# Python library
+
+set(CYTHON_EXECUTABLE "cython")
+
+function (CYTHON source)
+  get_filename_component(_basename ${source} NAME)
+
+  set(_input ${source}.pyx)
+  set(_c_source ${CMAKE_CURRENT_BINARY_DIR}/${_basename}.c)
+
+  MESSAGE("_c_source ${_c_source}")
+
+  add_custom_command(
+    OUTPUT
+      ${_c_source}
+    COMMAND
+      ${CYTHON_EXECUTABLE}
+      ${_input}
+      -o ${_c_source}
+    MAIN_DEPENDENCY
+      ${_input}
+    WORKING_DIRECTORY
+      ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT
+      "Building ${_intermediate} with cython ..."
+  )
+
+  set_source_files_properties(
+    ${_c_source}
+    PROPERTIES
+    GENERATED TRUE
+    LANGUAGE C
+  )
+
+  add_library(${_basename} MODULE ${_c_source} ${SRCS_CORE})
+  target_link_libraries(${_basename}
+    ${DEPENDENCIES}
+  )
+  set_target_properties(
+    ${_basename}
+    PROPERTIES
+    COMPILE_FLAGS "--std=c99"
+    LINK_FLAGS "-lrt"
+  )
+endfunction()
+
+cython(${BASE}/src/python/grpcio/grpc/_cython/cygrpc)
+
+exec_program(
+  ${CMAKE_COMMAND} ARGS -E copy_directory
+  ${BASE}/src/python/grpcio/grpc
+  ${CMAKE_SOURCE_DIR}/python/grpc
+)
+
+exec_program(
+  ${CMAKE_COMMAND} ARGS -E create_symlink
+  ${LIBRARY_OUTPUT_PATH}/libcygrpc.so
+  ${CMAKE_SOURCE_DIR}/python/grpc/_cython/cygrpc.so
+)
