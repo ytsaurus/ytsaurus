@@ -18,7 +18,7 @@ def which(file):
 def test_grpc():
     sandbox_dir = os.path.join(SANDBOX_ROOTDIR, "test_grpc")
     if not os.path.exists(sandbox_dir):
-        os.path.mkdir(sandbox_dir)
+        os.makedirs(sandbox_dir)
 
     protos_dir = os.path.join(TEST_DIR, "test_grpc_protos")
 
