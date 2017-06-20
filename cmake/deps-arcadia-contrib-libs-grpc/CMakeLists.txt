@@ -310,12 +310,9 @@ set_target_properties(${NAME}-core PROPERTIES COMPILE_FLAGS --std=c99)
 # Python
 
 if (${YT_BUILD_ENABLE_PYTHON_2_7} AND ${YT_BUILD_HAVE_CYTHON})
-
   cython(${BASE}/src/python/grpcio/grpc/_cython/cygrpc)
-
   target_link_libraries(cygrpc
     ${NAME}-core
-    #${DEPENDENCIES}
   )
 
   exec_program(
@@ -323,7 +320,6 @@ if (${YT_BUILD_ENABLE_PYTHON_2_7} AND ${YT_BUILD_HAVE_CYTHON})
     ${BASE}/src/python/grpcio/grpc
     ${CMAKE_SOURCE_DIR}/python/grpc
   )
-
   exec_program(
     ${CMAKE_COMMAND} ARGS -E create_symlink
     ${LIBRARY_OUTPUT_PATH}/libcygrpc.so
@@ -339,12 +335,10 @@ if (${YT_BUILD_ENABLE_PYTHON_2_7} AND ${YT_BUILD_HAVE_CYTHON})
   )
 
   SET(PROTOBUF_DIR ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf)
-
   set_target_properties(grpc_python
     PROPERTIES
     COMPILE_FLAGS "-I${PROTOBUF_DIR} -I${PROTOBUF_DIR}/google/protobuf"
   )
-
   target_link_libraries(grpc_python
     deps-arcadia-contrib-libs-protobuf-protoc
   )
