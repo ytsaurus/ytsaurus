@@ -23,6 +23,7 @@ TGrpcMetadataArray::~TGrpcMetadataArray()
 {
     grpc_metadata_array_destroy(&Native_);
 }
+
 grpc_metadata_array* TGrpcMetadataArray::Unwrap()
 {
     return &Native_;
