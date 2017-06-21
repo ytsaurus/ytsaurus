@@ -314,8 +314,6 @@ void ExecuteVerb(
     private:
         const IServiceContextPtr UnderlyingContext_;
 
-        bool Replied_ = false;
-
 
         virtual void LogRequest() override
         { }
@@ -325,7 +323,6 @@ void ExecuteVerb(
 
         virtual void DoReply() override
         {
-            Replied_ = true;
             UnderlyingContext_->Reply(GetResponseMessage());
         }
     };
