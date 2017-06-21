@@ -26,7 +26,8 @@ struct TTypeTraits;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-struct TVariantTypeTag {};
+struct TVariantTypeTag
+{ };
 
 //! |boost::variant|-like discriminated union with C++ 11 features.
 template <class... Ts>
