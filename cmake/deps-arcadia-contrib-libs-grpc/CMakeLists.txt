@@ -292,6 +292,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}
   ${BASE}
   ${BASE}/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include
 )
 
 
