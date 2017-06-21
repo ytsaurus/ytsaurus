@@ -20,6 +20,12 @@ def do_remove(tablet_cells):
         logging.info("Removing tablet cell %s", tablet_cell)
         yt.remove("//sys/tablet_cells/%s" % tablet_cell)
 
+def execute_batch(reqs):
+    rsps = []
+    step = 100
+    for i in xrange(0, len(reqs), step):
+        rsps += yt.execute_batch(reqs[i:i+step])
+    return rsps
 
 def main():
     parser = argparse.ArgumentParser()
@@ -74,6 +80,21 @@ def main():
             threads.append(thread)
     elif args.action == "remove":
         tablet_cells = yt.list("//sys/tablet_cells")
+
+        if args.bundle:
+            reqs = []
+            for cell in tablet_cells:
+                reqs.append({"command": "get", "parameters": {"path": "#" + cell + "/@tablet_cell_bundle"}})
+            rsps = execute_batch(reqs)
+            filtered = []
+            for index in xrange(len(reqs)):
+                rsp = rsps[index]
+                if "error" in rsp:
+                    logging.error("%r", rsp)
+                else:
+                    if rsp["output"] == args.bundle:
+                        filtered.append(tablet_cells[index])
+            tablet_cells = filtered
 
         logging.info("Will remove %s tablet cells; sleeping for 5 seconds...", len(tablet_cells))
         time.sleep(5)
