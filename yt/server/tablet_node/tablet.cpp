@@ -166,7 +166,7 @@ void TTableReplicaInfo::Save(TSaveContext& context) const
     Save(context, StartReplicationTimestamp_);
     Save(context, PreparedReplicationTransactionId_);
     Save(context, State_);
-    Save(context, Mode_);
+    Save(context, RuntimeData_->Mode);
     Save(context, RuntimeData_->CurrentReplicationRowIndex);
     Save(context, RuntimeData_->CurrentReplicationTimestamp);
     Save(context, RuntimeData_->PreparedReplicationRowIndex);
@@ -181,10 +181,20 @@ void TTableReplicaInfo::Load(TLoadContext& context)
     Load(context, StartReplicationTimestamp_);
     Load(context, PreparedReplicationTransactionId_);
     Load(context, State_);
-    Load(context, Mode_);
+    Load(context, RuntimeData_->Mode);
     Load(context, RuntimeData_->CurrentReplicationRowIndex);
     Load(context, RuntimeData_->CurrentReplicationTimestamp);
     Load(context, RuntimeData_->PreparedReplicationRowIndex);
+}
+
+ETableReplicaMode TTableReplicaInfo::GetMode() const
+{
+    return RuntimeData_->Mode;
+}
+
+void TTableReplicaInfo::SetMode(ETableReplicaMode value)
+{
+    RuntimeData_->Mode = value;
 }
 
 i64 TTableReplicaInfo::GetCurrentReplicationRowIndex() const

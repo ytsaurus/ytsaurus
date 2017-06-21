@@ -1633,7 +1633,9 @@ private:
             for (const auto& response : responses) {
                 for (const auto& protoTabletInfo : response->tablet_info()) {
                     for (const auto& protoReplicaInfo : protoTabletInfo.replica_info()) {
-                        if (protoReplicaInfo.last_replication_timestamp() >= options.Timestamp) {
+                        if (protoReplicaInfo.last_replication_timestamp() >= options.Timestamp ||
+                            ETableReplicaMode(protoReplicaInfo.mode()) == ETableReplicaMode::Sync)
+                        {
                             ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
                         }
                     }

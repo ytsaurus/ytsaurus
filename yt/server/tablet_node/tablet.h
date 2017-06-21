@@ -31,6 +31,7 @@ namespace NTabletNode {
 struct TRuntimeTableReplicaData
     : public TIntrinsicRefCounted
 {
+    std::atomic<ETableReplicaMode> Mode = {ETableReplicaMode::Async};
     std::atomic<i64> CurrentReplicationRowIndex = {0};
     std::atomic<TTimestamp> CurrentReplicationTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> LastReplicationTimestamp = {NullTimestamp};
@@ -190,7 +191,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTransactionId, PreparedReplicationTransactionId);
 
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
-    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaMode, Mode, ETableReplicaMode::Async);
 
     DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
 
@@ -200,6 +200,9 @@ public:
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    ETableReplicaMode GetMode() const;
+    void SetMode(ETableReplicaMode value);
 
     i64 GetCurrentReplicationRowIndex() const;
     void SetCurrentReplicationRowIndex(i64 value);
