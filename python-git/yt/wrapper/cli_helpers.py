@@ -38,12 +38,9 @@ def write_silently(strings, force_use_text_stdout=False):
             sys.stdout.flush()
         finally:
             try:
-                sys.stdout.close()
+                sys.stderr.flush()
             finally:
-                try:
-                    sys.stderr.flush()
-                finally:
-                    sys.stderr.close()
+                pass
 
 def die(message=None, return_code=1):
     if message is not None:
