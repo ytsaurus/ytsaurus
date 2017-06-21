@@ -105,6 +105,7 @@ private:
         {
             return CompletionQueue_.Unwrap();
         }
+
         void Shutdown()
         {
             grpc_completion_queue_shutdown(CompletionQueue_.Unwrap());
