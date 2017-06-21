@@ -342,6 +342,12 @@ const T* TEnumIndexedVector<T, E, Min, Max>::end() const
     return begin() + N;
 }
 
+template <class T, class E, E Min, E Max>
+bool TEnumIndexedVector<T, E, Min, Max>::IsDomainValue(E value)
+{
+    return value >= Min && value <= Max;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define ENUM__BINARY_BITWISE_OPERATOR(assignOp, op) \
