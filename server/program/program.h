@@ -45,21 +45,16 @@ private:
     void AfterRun();
 };
 
-//! Simpliest exception possible.
+//! The simplest exception possible.
 //! Here we refrain from using TErrorException, as it relies on proper configuration of singleton subsystems,
 //! which might not be the case during startup.
 class TProgramException
     : public std::exception
 {
 public:
-    TProgramException(TString what)
-        : What_(std::move(what))
-    { }
+    explicit TProgramException(TString what);
 
-    virtual const char* what() const noexcept override
-    {
-        return What_.c_str();
-    }
+    virtual const char* what() const noexcept override;
 
 private:
     const TString What_;

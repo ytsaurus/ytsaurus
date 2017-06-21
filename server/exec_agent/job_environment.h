@@ -32,6 +32,8 @@ struct IJobEnvironment
     virtual int GetUserId(int slotIndex) const = 0;
 
     virtual bool IsEnabled() const = 0;
+
+    virtual IMounterPtr CreateMounter(int slotIndex) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobEnvironment)

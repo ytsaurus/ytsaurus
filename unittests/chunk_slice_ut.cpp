@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
@@ -36,7 +36,7 @@ using NChunkClient::TReadLimit;
 
 using testing::PrintToString;
 
-//////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 MATCHER_P(HasRowCount, rowCount, "has row count " + std::string(negation ? "not " : "") + PrintToString(rowCount))
 {
@@ -455,7 +455,7 @@ TEST_F(TChunkSliceTest, Chunk2WithLimitLargeSlice)
     EXPECT_THAT(rowSlices[1], HasRowCount(3));
 }
 
-//////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NChunkServer

@@ -1,11 +1,8 @@
 #include "file_commands.h"
 #include "config.h"
-#include "driver.h"
 
 #include <yt/ytlib/api/file_reader.h>
 #include <yt/ytlib/api/file_writer.h>
-
-#include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -55,7 +52,7 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
     }
 }
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TWriteFileCommand::TWriteFileCommand()
 {

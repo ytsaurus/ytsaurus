@@ -25,6 +25,7 @@ public:
     NBus::TTcpBusServerConfigPtr SatelliteRpcServerConfig;
     //Job -> JobSatellite -> JobProxy synchronization.
     NBus::TTcpBusClientConfigPtr JobProxyRpcClientConfig;
+    bool UseContainer;
 
     TJobSatelliteConnectionConfig()
     {
@@ -32,6 +33,8 @@ public:
             .DefaultNew();
         RegisterParameter("job_proxy_rpc_client", JobProxyRpcClientConfig)
             .DefaultNew();
+        RegisterParameter("use_container_managment", UseContainer)
+            .Default(false);
     }
 };
 
@@ -44,8 +47,8 @@ class TJobSatelliteConnection
 public:
     TJobSatelliteConnection(
         const NJobTrackerClient::TJobId& jobId,
-        NBus::TTcpBusServerConfigPtr jobProxyRpcServerConfig);
-
+        NBus::TTcpBusServerConfigPtr jobProxyRpcServerConfig,
+        bool useContainer);
     TString GetConfigPath() const;
     NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
     const NJobTrackerClient::TJobId& GetJobId() const;
@@ -56,7 +59,7 @@ private:
     const NJobTrackerClient::TJobId JobId_;
 
     TString ConfigFile_;
-    TJobSatelliteConnectionConfigPtr ConnectionConfigPtr_;
+    TJobSatelliteConnectionConfigPtr ConnectionConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,7 @@ static NLogging::TLogger Logger("Subprocess");
 ////////////////////////////////////////////////////////////////////////////////
 
 TSubprocess::TSubprocess(const TString& path)
-    : Process_(New<TProcess>(path))
+    : Process_(New<TSimpleProcess>(path))
 { }
 
 TSubprocess TSubprocess::CreateCurrentProcessSpawner()

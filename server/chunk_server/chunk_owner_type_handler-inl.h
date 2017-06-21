@@ -75,13 +75,10 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetChunk
 {
     NSecurityServer::TClusterResources result;
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        int replicationFactor = chunkOwner.Properties()[mediumIndex].GetReplicationFactor();
-        // NB: replicationFactor == 0 for unused media.
-        if (replicationFactor > 0) {
-            result.DiskSpace[mediumIndex] =
-                statistics.regular_disk_space() * replicationFactor +
-                statistics.erasure_disk_space();
-        }
+        result.DiskSpace[mediumIndex] = CalculateDiskSpaceUsage(
+            chunkOwner.Properties()[mediumIndex].GetReplicationFactor(),
+            statistics.regular_disk_space(),
+            statistics.erasure_disk_space());
     }
     result.ChunkCount = statistics.chunk_count();
     return result;
@@ -104,7 +101,9 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
     const NCypressServer::TVersionedNodeId& id,
     NObjectClient::TCellTag externalCellTag,
     NTransactionServer::TTransaction* transaction,
-    NYTree::IAttributeDictionary* attributes)
+    NYTree::IAttributeDictionary* attributes,
+    NSecurityServer::TAccount* account,
+    bool enableAccounting)
 {
     const auto& chunkManager = this->Bootstrap_->GetChunkManager();
     const auto& objectManager = this->Bootstrap_->GetObjectManager();
@@ -113,7 +112,9 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
         id,
         externalCellTag,
         transaction,
-        attributes);
+        attributes,
+        account,
+        enableAccounting);
     auto* node = nodeHolder.get();
 
     if (!node->IsExternal()) {
@@ -344,9 +345,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     TChunkOwner* sourceNode,
     TChunkOwner* clonedNode,
     NCypressServer::ICypressNodeFactory* factory,
-    NCypressServer::ENodeCloneMode mode)
+    NCypressServer::ENodeCloneMode mode,
+    NSecurityServer::TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory, mode);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
     if (!sourceNode->IsExternal()) {
         const auto& objectManager = TBase::Bootstrap_->GetObjectManager();

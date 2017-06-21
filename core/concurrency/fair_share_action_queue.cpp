@@ -1,6 +1,6 @@
 #include "fair_share_action_queue.h"
 #include "fair_share_queue_scheduler_thread.h"
-#include "profiler_utils.h"
+#include "profiling_helpers.h"
 
 #include <yt/core/actions/invoker_detail.h>
 
@@ -15,7 +15,7 @@ using namespace NProfiling;
 using namespace NYPath;
 using namespace NYTree;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareActionQueue::TImpl
     : public TRefCounted
@@ -129,7 +129,7 @@ void TFairShareActionQueue::Shutdown()
     return Impl_->Shutdown();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency
 } // namespace NYT

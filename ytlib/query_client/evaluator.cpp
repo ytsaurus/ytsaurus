@@ -122,6 +122,7 @@ public:
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
 
+                fragmentParams.Clear();
             } catch (const std::exception& ex) {
                 LOG_DEBUG("Query evaluation failed");
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
@@ -176,7 +177,7 @@ private:
         if (enableCodeCache) {
             auto cookie = BeginInsert(id);
             if (cookie.IsActive()) {
-                LOG_DEBUG("Codegen cache miss");
+                LOG_DEBUG("Codegen cache miss: generating query evaluator");
 
                 try {
                     cookie.EndInsert(compileWithLogging());

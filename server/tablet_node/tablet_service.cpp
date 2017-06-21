@@ -79,16 +79,18 @@ private:
         auto signature = request->signature();
         auto rowCount = request->row_count();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
-        auto lockless = request->lockless();
+        auto versioned = request->versioned();
+        auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
+        auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
 
         ValidateTabletTransactionId(transactionId);
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
         auto durability = EDurability(request->durability());
 
-        context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
+        context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %llx, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, "
-            "RequestCodec: %v, Lockless: %v",
+            "RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, UpstreamReplicaId: %v",
             tabletId,
             transactionId,
             transactionStartTimestamp,
@@ -98,7 +100,9 @@ private:
             signature,
             rowCount,
             requestCodecId,
-            lockless);
+            versioned,
+            syncReplicaIds,
+            upstreamReplicaId);
 
         // NB: Must serve the whole request within a single epoch.
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
@@ -113,6 +117,23 @@ private:
             THROW_ERROR_EXCEPTION("Invalid atomicity mode: %Qlv instead of %Qlv",
                 atomicity,
                 tabletSnapshot->Atomicity);
+        }
+
+        if (versioned && user != NSecurityClient::ReplicatorUserName) {
+            THROW_ERROR_EXCEPTION("Versioned writes are only allowed for %Qv user",
+                NSecurityClient::ReplicatorUserName);
+        }
+
+        if (upstreamReplicaId && !tabletSnapshot->UpstreamReplicaId) {
+            THROW_ERROR_EXCEPTION("Table is not bound to any upstream replica but replica %v was given",
+                upstreamReplicaId);
+        } else if (!upstreamReplicaId && tabletSnapshot->UpstreamReplicaId) {
+            THROW_ERROR_EXCEPTION("Table is bound to upstream replica %v; direct modifications are forbidden",
+                tabletSnapshot->UpstreamReplicaId);
+        } else if (upstreamReplicaId != tabletSnapshot->UpstreamReplicaId) {
+            THROW_ERROR_EXCEPTION("Mismatched upstream replica: expected %v, got %v",
+                tabletSnapshot->UpstreamReplicaId,
+                upstreamReplicaId);
         }
 
         securityManager->ValidateResourceLimits(
@@ -140,7 +161,8 @@ private:
                 transactionTimeout,
                 signature,
                 rowCount,
-                lockless,
+                versioned,
+                syncReplicaIds,
                 &reader,
                 &commitResult);
         }
@@ -161,7 +183,7 @@ private:
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
 
-        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %v, TransactionTimeout: %v, "
+        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %llx, TransactionTimeout: %v, "
             "ActionCount: %v, Signature: %x",
             transactionId,
             transactionStartTimestamp,
@@ -223,7 +245,7 @@ private:
     {
         return Slot_->GetHydraManager();
     }
-
+    
 };
 
 IServicePtr CreateTabletService(TTabletSlotPtr slot, NCellNode::TBootstrap* bootstrap)

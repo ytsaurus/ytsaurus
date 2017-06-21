@@ -15,7 +15,7 @@ namespace NHydra {
 class TFileWrapper
 {
 public:
-    TFileWrapper(const TString& fileName, ui32 oMode);
+    TFileWrapper(const TString& fileName, EOpenMode oMode);
 
     i64 Seek(i64 offset, SeekDir origin);
     void Flush();

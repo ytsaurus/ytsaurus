@@ -543,7 +543,7 @@ public:
                 connection->GetTimestampProvider(),
                 std::vector<ITransactionParticipantProviderPtr>{
                     CreateTransactionParticipantProvider(connection),
-                    CreateTransactionParticipantProvider(Bootstrap_->GetClusterDirectory())
+                    CreateTransactionParticipantProvider(connection->GetClusterDirectory())
                 });
 
             TabletService_ = CreateTabletService(
@@ -601,6 +601,13 @@ public:
         return TagIdList_;
     }
 
+    const TRuntimeTabletCellDataPtr& GetRuntimeData() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return RuntimeData_;
+    }
+
 private:
     TTabletSlot* const Owner_;
     const int SlotIndex_;
@@ -642,6 +649,8 @@ private:
     TSpinLock InvokersSpinLock_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
+
+    const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
 
     bool Initialized_ = false;
     bool Finalizing_ = false;
@@ -950,6 +959,12 @@ const NProfiling::TTagIdList& TTabletSlot::GetTagIdList()
 {
     return Impl_->GetTagIdList();
 }
+
+const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const
+{
+    return Impl_->GetRuntimeData();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

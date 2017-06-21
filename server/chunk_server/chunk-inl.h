@@ -8,6 +8,21 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline const TChunk::TCachedReplicas& TChunk::CachedReplicas() const
+{
+    return CachedReplicas_ ? *CachedReplicas_ : EmptyCachedReplicas;
+}
+
+inline const TChunk::TStoredReplicas& TChunk::StoredReplicas() const
+{
+    return StoredReplicas_ ? *StoredReplicas_ : EmptyStoredReplicas;
+}
+
+inline const TChunk::TLastSeenReplicas& TChunk::LastSeenReplicas() const
+{
+    return LastSeenReplicas_;
+}
+
 inline TChunkDynamicData* TChunk::GetDynamicData() const
 {
     return GetTypedDynamicData<TChunkDynamicData>();
@@ -28,7 +43,6 @@ inline void TChunk::SetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch
     }
     data->ScanFlags |= kind;
 }
-
 
 inline void TChunk::ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch)
 {

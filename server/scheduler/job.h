@@ -68,6 +68,9 @@ class TJob
     //! Flag that marks job as preempted by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
+    //! Job fail was requested by scheduler.
+    DEFINE_BYVAL_RW_PROPERTY(bool, FailRequested, false);
+
     //! String describing preemption reason.
     DEFINE_BYVAL_RW_PROPERTY(TString, PreemptionReason);
 
@@ -77,8 +80,8 @@ class TJob
     //! Deadline for job to be interrupted.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, InterruptDeadline, 0);
 
-    //! Last time when statistics and resource usage from running job was updated.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastRunningJobUpdateTime);
+    //! Deadline for running job.
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningJobUpdateDeadline, 0);
 
 public:
     TJob(
@@ -103,7 +106,7 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 struct TJobSummary
 {
-    TJobSummary();
+    TJobSummary() = default;
     TJobSummary(const TJobPtr& job, TJobStatus* status);
     TJobSummary(const TJobId& id, EJobState state);
 
@@ -176,7 +179,7 @@ struct TJobStartRequest
         const TJobResources& resourceLimits,
         bool interruptible,
         TJobSpecBuilder specBuilder);
-    
+
     const TJobId Id;
     const EJobType Type;
     const TJobResources ResourceLimits;

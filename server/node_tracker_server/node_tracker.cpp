@@ -511,7 +511,7 @@ public:
                 name);
         }
 
-        if (RackMap_.GetSize() >= MaxRackCount) {
+        if (RackCount_ >= MaxRackCount) {
             THROW_ERROR_EXCEPTION("Rack count limit %v is reached",
                 MaxRackCount);
         }
@@ -763,6 +763,10 @@ private:
     TCpuInstant TotalNodeStatisticsUpdateDeadline_ = 0;
     TTotalNodeStatistics TotalNodeStatistics_;
 
+    // Cf. YT-7009.
+    // Maintain a dedicated counter of alive racks since RackMap_ may contain zombies.
+    // This is exactly the number of 1-bits in UsedRackIndexes_.
+    int RackCount_ = 0;
     TRackSet UsedRackIndexes_;
 
     yhash<TString, TNode*> AddressToNodeMap_;
@@ -1109,6 +1113,8 @@ private:
 
         NameToRackMap_.clear();
         NameToDataCenterMap_.clear();
+        UsedRackIndexes_.reset();
+        RackCount_ = 0;
 
         AggregatedOnlineNodeCount_ = 0;
         LocalRegisteredNodeCount_ = 0;
@@ -1139,6 +1145,7 @@ private:
         }
 
         UsedRackIndexes_.reset();
+        RackCount_ = 0;
         for (const auto& pair : RackMap_) {
             auto* rack = pair.second;
 
@@ -1147,6 +1154,7 @@ private:
             auto rackIndex = rack->GetIndex();
             YCHECK(!UsedRackIndexes_.test(rackIndex));
             UsedRackIndexes_.set(rackIndex);
+            ++RackCount_;
         }
 
         for (const auto& pair : DataCenterMap_) {
@@ -1476,6 +1484,7 @@ private:
             }
             if (!UsedRackIndexes_.test(index)) {
                 UsedRackIndexes_.set(index);
+                ++RackCount_;
                 return index;
             }
         }
@@ -1486,6 +1495,7 @@ private:
     {
         YCHECK(UsedRackIndexes_.test(index));
         UsedRackIndexes_.reset(index);
+        --RackCount_;
     }
 
     void OnValidateSecondaryMasterRegistration(TCellTag cellTag)
@@ -1611,7 +1621,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, NodeMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Rack, TRack, RackMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, DataCenter, TDataCenter, DataCenterMap_)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TNodeTracker(
     TNodeTrackerConfigPtr config,
@@ -1789,7 +1799,7 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeLocationChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqFullHeartbeat*), FullHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqIncrementalHeartbeat*, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TClusterNodeTypeHandler::TClusterNodeTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->NodeMap_)
@@ -1811,7 +1821,7 @@ void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
     Owner_->DestroyNode(node);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->RackMap_)
@@ -1840,7 +1850,7 @@ void TNodeTracker::TRackTypeHandler::DoZombifyObject(TRack* rack)
     Owner_->DestroyRack(rack);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->DataCenterMap_)
@@ -1870,7 +1880,7 @@ void TNodeTracker::TDataCenterTypeHandler::DoZombifyObject(TDataCenter* dc)
     Owner_->DestroyDataCenter(dc);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeTrackerServer
 } // namespace NYT

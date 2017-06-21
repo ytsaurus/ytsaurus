@@ -13,13 +13,7 @@
 namespace NYT {
 namespace NApi {
 
-///////////////////////////////////////////////////////////////////////////////
-
-struct TWriteRowsOptions
-{ };
-
-struct TDeleteRowsOptions
-{ };
+////////////////////////////////////////////////////////////////////////////////
 
 struct TTransactionFlushResult
 {
@@ -37,9 +31,17 @@ struct TRowModification
 };
 
 struct TModifyRowsOptions
-{ };
+{
+    //! If this happens to be a modification of a replicated table,
+    //! controls if at least one sync replica is required.
+    bool RequireSyncReplica = true;
 
-///////////////////////////////////////////////////////////////////////////////
+
+    //! For writes to replicas, this is the id of the replica at the upstream cluster.
+    NTabletClient::TTableReplicaId UpstreamReplicaId;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Represents a client-controlled transaction.
 /*
@@ -78,19 +80,19 @@ struct ITransaction
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TUnversionedRow> rows,
-        const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
+        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
 
     virtual void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TVersionedRow> rows,
-        const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
+        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
 
     virtual void DeleteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TKey> keys,
-        const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
+        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
 
     virtual void ModifyRows(
         const NYPath::TYPath& path,
@@ -101,7 +103,7 @@ struct ITransaction
 
 DEFINE_REFCOUNTED_TYPE(ITransaction)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NApi
 } // namespace NYT

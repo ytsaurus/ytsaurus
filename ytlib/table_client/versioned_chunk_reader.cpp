@@ -1,16 +1,17 @@
-#include "versioned_chunk_reader.h"
-#include "private.h"
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader_base.h"
+#include "chunk_state.h"
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
+#include "private.h"
 #include "schema.h"
+#include "schemaful_reader_adapter.h"
 #include "schemaless_chunk_reader.h"
 #include "unversioned_row.h"
 #include "versioned_block_reader.h"
+#include "versioned_chunk_reader.h"
 #include "versioned_reader.h"
-#include "schemaful_reader_adapter.h"
 #include "versioned_reader_adapter.h"
 
 #include <yt/ytlib/chunk_client/block_cache.h>
@@ -361,7 +362,7 @@ private:
 
         YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
         BlockReader_.reset(new TSimpleVersionedBlockReader(
-            CurrentBlock_.Get().ValueOrThrow(),
+            CurrentBlock_.Get().ValueOrThrow().Data,
             ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
@@ -549,7 +550,7 @@ private:
     {
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         BlockReader_.reset(new TSimpleVersionedBlockReader(
-            CurrentBlock_.Get().ValueOrThrow(),
+            CurrentBlock_.Get().ValueOrThrow().Data,
             ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
@@ -1355,24 +1356,26 @@ private:
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
-    IBlockCachePtr blockCache,
-    TCachedVersionedChunkMetaPtr chunkMeta,
+    const TChunkStatePtr& chunkState,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp,
     bool produceAllVersions)
 {
+    const auto& chunkMeta = chunkState->ChunkMeta;
+    const auto& blockCache = chunkState->BlockCache;
+    const auto& performanceCounters = chunkState->PerformanceCounters;
+
     switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleVersionedRangeChunkReader>(
                 std::move(config),
-                std::move(chunkMeta),
+                chunkMeta,
                 std::move(chunkReader),
-                std::move(blockCache),
+                blockCache,
                 std::move(ranges),
                 columnFilter,
-                std::move(performanceCounters),
+                performanceCounters,
                 timestamp,
                 produceAllVersions);
 
@@ -1387,22 +1390,22 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             if (timestamp == AllCommittedTimestamp) {
                 reader = New<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>(
                     std::move(config),
-                    std::move(chunkMeta),
+                    chunkMeta,
                     std::move(chunkReader),
-                    std::move(blockCache),
+                    blockCache,
                     MakeSharedRange(std::move(cappedBounds), ranges.GetHolder()),
                     columnFilter,
-                    std::move(performanceCounters),
+                    performanceCounters,
                     timestamp);
             } else {
                 reader = New<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>(
                     std::move(config),
-                    std::move(chunkMeta),
+                    chunkMeta,
                     std::move(chunkReader),
-                    std::move(blockCache),
+                    blockCache,
                     MakeSharedRange(std::move(cappedBounds), ranges.GetHolder()),
                     columnFilter,
-                    std::move(performanceCounters),
+                    performanceCounters,
                     timestamp);
             }
             return New<TFilteringReader>(reader, ranges);
@@ -1426,10 +1429,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 auto* protoMeta = chunkSpec.mutable_chunk_meta();
                 protoMeta->set_type(static_cast<int>(chunkMeta->GetChunkType()));
                 protoMeta->set_version(static_cast<int>(chunkMeta->GetChunkFormat()));
-                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->Misc());
-                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->BlockMeta());
-                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->ColumnMeta());
-                SetProtoExtension(protoMeta->mutable_extensions(), ToProto<TTableSchemaExt>(chunkMeta->ChunkSchema()));
 
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
@@ -1438,13 +1437,20 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     TReadLimit(TOwningKey(ranges.Front().first)),
                     TReadLimit(TOwningKey(ranges.Back().second)));
 
-                return CreateSchemalessChunkReader(
+                auto chunkState = New<TChunkState>(
+                    blockCache,
                     chunkSpec,
+                    chunkMeta,
+                    nullptr,
+                    nullptr,
+                    nullptr);
+
+                return CreateSchemalessChunkReader(
+                    std::move(chunkState),
                     config,
                     options,
                     chunkReader,
                     nameTable,
-                    blockCache,
                     chunkMeta->Schema().GetKeyColumns(),
                     columnFilter,
                     readRange);
@@ -1469,23 +1475,19 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
-    IBlockCachePtr blockCache,
-    TCachedVersionedChunkMetaPtr chunkMeta,
+    const TChunkStatePtr& chunkState,
     TOwningKey lowerLimit,
     TOwningKey upperLimit,
     const TColumnFilter& columnFilter,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp,
     bool produceAllVersions)
 {
     return CreateVersionedChunkReader(
         config,
         chunkReader,
-        blockCache,
-        chunkMeta,
+        chunkState,
         MakeSingletonRowRange(lowerLimit, upperLimit),
         columnFilter,
-        performanceCounters,
         timestamp,
         produceAllVersions);
 }
@@ -1495,26 +1497,28 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr blockCache,
-    TCachedVersionedChunkMetaPtr chunkMeta,
+    const TChunkStatePtr& chunkState,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
-    TKeyComparer keyComparer,
     TTimestamp timestamp,
     bool produceAllVersions)
 {
+    const auto& chunkMeta = chunkState->ChunkMeta;
+    const auto& blockCache = chunkState->BlockCache;
+    const auto& performanceCounters = chunkState->PerformanceCounters;
+    const auto& keyComparer = chunkState->KeyComparer;
+
     switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleVersionedLookupChunkReader>(
                 std::move(config),
-                std::move(chunkMeta),
+                chunkMeta,
                 std::move(chunkReader),
-                std::move(blockCache),
+                blockCache,
                 keys,
                 columnFilter,
-                std::move(performanceCounters),
-                std::move(keyComparer),
+                performanceCounters,
+                keyComparer,
                 timestamp,
                 produceAllVersions);
 
@@ -1525,12 +1529,12 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             }
             return New<TColumnarVersionedLookupChunkReader>(
                 std::move(config),
-                std::move(chunkMeta),
+                chunkMeta,
                 std::move(chunkReader),
-                std::move(blockCache),
+                blockCache,
                 keys,
                 columnFilter,
-                std::move(performanceCounters),
+                performanceCounters,
                 timestamp);
         }
 
@@ -1551,21 +1555,24 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 auto* protoMeta = chunkSpec.mutable_chunk_meta();
                 protoMeta->set_type(static_cast<int>(chunkMeta->GetChunkType()));
                 protoMeta->set_version(static_cast<int>(chunkMeta->GetChunkFormat()));
-                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->Misc());
-                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->BlockMeta());
-                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->ColumnMeta());
-                SetProtoExtension(protoMeta->mutable_extensions(), ToProto<TTableSchemaExt>(chunkMeta->ChunkSchema()));
 
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
 
-                return CreateSchemalessChunkReader(
+                auto chunkState = New<TChunkState>(
+                    blockCache,
                     chunkSpec,
+                    chunkMeta,
+                    nullptr,
+                    nullptr,
+                    nullptr);
+
+                return CreateSchemalessChunkReader(
+                    std::move(chunkState),
                     config,
                     options,
                     chunkReader,
                     nameTable,
-                    blockCache,
                     chunkMeta->Schema().GetKeyColumns(),
                     columnFilter,
                     keys);

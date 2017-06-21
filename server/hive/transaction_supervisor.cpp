@@ -346,7 +346,7 @@ private:
                 if (underlying->IsValid()) {
                     promise.SetFrom(func(underlying));
                 } else if (succeedOnInvalid) {
-                    LOG_DEBUG("Transaction participant is no longer, assuming sucessful response");
+                    LOG_DEBUG("Transaction participant is no longer valid; assuming success");
                     promise.Set(TError());
                 } else {
                     promise.Set(TError("Participant cell %v is no longer valid", CellId_));
@@ -555,7 +555,7 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto prepareTimestamp = request->prepare_timestamp();
 
-            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %v",
+            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %llx",
                 transactionId,
                 prepareTimestamp);
 
@@ -575,7 +575,7 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto commitTimestamp = request->commit_timestamp();
 
-            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %v",
+            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %llx",
                 transactionId,
                 commitTimestamp);
 
@@ -1209,10 +1209,10 @@ private:
     {
         const auto& transactionId = commit->GetTransactionId();
 
+        TFuture<TTimestamp> asyncCoordinatorTimestamp;
         std::vector<TFuture<std::pair<TCellTag, TTimestamp>>> asyncTimestamps;
         yhash_set<TCellTag> timestampProviderCellTags;
-
-        auto generateAtCell = [&] (const TCellId& cellId) {
+        auto generateFor = [&] (const TCellId& cellId) {
             try {
                 auto cellTag = CellTagFromId(cellId);
                 if (!timestampProviderCellTags.insert(cellTag).second) {
@@ -1222,22 +1222,33 @@ private:
                 auto participant = GetParticipant(cellId);
                 auto timestampProvider = participant->GetTimestampProviderOrThrow();
 
-                LOG_DEBUG("Generating commit timestamp (TransactionId: %v, TimestampProviderCellTag: %v)",
-                    transactionId,
-                    cellTag);
-
-                auto asyncTimestamp = timestampProvider->GenerateTimestamps(1);
+                TFuture<TTimestamp> asyncTimestamp;
+                if (commit->GetInheritCommitTimestamp() && cellId != SelfCellId_) {
+                    LOG_DEBUG("Inheriting commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
+                        transactionId,
+                        cellId);
+                    YCHECK(asyncCoordinatorTimestamp);
+                    asyncTimestamp = asyncCoordinatorTimestamp;
+                } else {
+                    LOG_DEBUG("Generating commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
+                        transactionId,
+                        cellId);
+                    asyncTimestamp = timestampProvider->GenerateTimestamps(1);
+                }
                 asyncTimestamps.push_back(asyncTimestamp.Apply(BIND([=] (TTimestamp timestamp) {
                     return std::make_pair(cellTag, timestamp);
                 })));
+                if (cellId == SelfCellId_ && !asyncCoordinatorTimestamp) {
+                    asyncCoordinatorTimestamp = asyncTimestamp;
+                }
             } catch (const std::exception& ex) {
                 asyncTimestamps.push_back(MakeFuture<std::pair<TCellTag, TTimestamp>>(ex));
             }
         };
 
-        generateAtCell(SelfCellId_);
+        generateFor(SelfCellId_);
         for (const auto& cellId : commit->ParticipantCellIds()) {
-            generateAtCell(cellId);
+            generateFor(cellId);
         }
 
         Combine(asyncTimestamps)

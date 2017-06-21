@@ -15,7 +15,7 @@ using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TJobTrackerService
     : public TServiceBase
@@ -31,8 +31,7 @@ public:
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(Heartbeat)
                 .SetHeavy(true)
-                .SetResponseCodec(NCompression::ECodec::Lz4)
-                .SetInvoker(bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
+                .SetResponseCodec(NCompression::ECodec::Lz4));
     }
 
 private:
@@ -53,7 +52,7 @@ IServicePtr CreateJobTrackerService(TBootstrap* bootstrap)
     return New<TJobTrackerService>(bootstrap);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

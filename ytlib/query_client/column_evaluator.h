@@ -66,12 +66,14 @@ private:
         std::vector<int> ReferenceIds;
         TConstExpressionPtr Expression;
         TCGAggregateCallbacks Aggregate;
-        bool IsAggregate = false;
     };
 
     std::vector<TColumn> Columns_;
+    std::vector<bool> IsAggregate_;
 
-    explicit TColumnEvaluator(std::vector<TColumn> columns);
+    TColumnEvaluator(
+        std::vector<TColumn> columns,
+        std::vector<bool> isAggregate);
 
     DECLARE_NEW_FRIEND();
 };
@@ -107,3 +109,6 @@ DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCache)
 } // namespace NQueryClient
 } // namespace NYT
 
+#define COLUMN_EVALUATOR_INL_H_
+#include "column_evaluator-inl.h"
+#undef COLUMN_EVALUATOR_INL_H_

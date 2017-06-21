@@ -39,7 +39,7 @@ public:
             .Default(65536)
             .GreaterThan(0);
         RegisterParameter("shard_count", ShardCount)
-            .Default(1)
+            .Default(16)
             .GreaterThan(0);
     }
 };
@@ -51,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TSlruCacheConfig)
 //! Cache which removes entries after a while.
 /*!
  * TExpiringCache acts like a proxy between a client and a remote service:
- * reuests are sent to the service and responses are saved in the cache as entries.
+ * requests are sent to the service and responses are saved in the cache as entries.
  * Next time the client makes a request, the response can be taken from the cache
  * unless it is expired.
  *

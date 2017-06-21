@@ -103,6 +103,17 @@ void TSingleShotCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& call
 }
 
 template <class TResult, class... TArgs>
+bool TSingleShotCallbackList<TResult(TArgs...)>::TrySubscribe(const TCallback& callback)
+{
+    NConcurrency::TWriterGuard guard(SpinLock_);
+    if (Fired_) {
+        return false;
+    }
+    Callbacks_.push_back(callback);
+    return true;
+}
+
+template <class TResult, class... TArgs>
 void TSingleShotCallbackList<TResult(TArgs...)>::Unsubscribe(const TCallback& callback)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);

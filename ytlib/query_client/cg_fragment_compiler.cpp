@@ -1210,19 +1210,6 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
                 EValueType::Uint64,
                 "reference.streamIndex");
 
-            auto headerPtr = builder->CreateExtractValue(
-                row,
-                TypeBuilder<TRow, false>::Fields::Header,
-                Twine("row.headerPtr"));
-
-            auto countPtr = builder->CreateStructGEP(
-                nullptr,
-                headerPtr,
-                TypeBuilder<TRowHeader, false>::Fields::Count,
-                Twine("headerPtr.count"));
-
-            builder->CreateStore(builder->getInt32(streamIndex), countPtr);
-
             auto switcher = builder->CreateSwitch(streamIndexValue.GetData(), endIfBB);
 
             switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Final)), ifFinalBB);

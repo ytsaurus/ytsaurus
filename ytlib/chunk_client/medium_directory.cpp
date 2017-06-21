@@ -56,7 +56,7 @@ const TMediumDescriptor* TMediumDirectory::GetByNameOrThrow(const TString& name)
     return result;
 }
 
-void TMediumDirectory::UpdateDirectory(const NProto::TMediumDirectory& protoDirectory)
+void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
     auto oldIndexToDescriptor = std::move(IndexToDescriptor_);

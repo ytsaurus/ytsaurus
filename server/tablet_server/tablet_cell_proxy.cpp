@@ -69,7 +69,9 @@ private:
         descriptors->push_back("total_statistics");
         descriptors->push_back(TAttributeDescriptor("prerequisite_transaction_id")
             .SetPresent(cell->GetPrerequisiteTransaction()));
-        descriptors->push_back("tablet_cell_bundle");
+        descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
+            .SetReplicated(true)
+            .SetMandatory(true));
     }
 
     virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override

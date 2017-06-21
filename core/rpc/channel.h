@@ -32,6 +32,13 @@ DEFINE_REFCOUNTED_TYPE(IClientRequestControl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSendOptions
+{
+    TNullable<TDuration> Timeout;
+    bool RequestAck = true;
+    bool GenerateAttachmentChecksums = true;
+};
+
 //! An interface for exchanging request-response pairs.
 /*!
  * \note Thread affinity: any.
@@ -59,8 +66,7 @@ struct IChannel
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) = 0;
+        const TSendOptions& options) = 0;
 
     //! Shuts down the channel.
     /*!

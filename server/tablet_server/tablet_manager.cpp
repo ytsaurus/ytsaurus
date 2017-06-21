@@ -18,6 +18,7 @@
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/serialize.h>
 
+#include <yt/server/chunk_server/helpers.h>
 #include <yt/server/chunk_server/chunk_list.h>
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_tree_traverser.h>
@@ -127,6 +128,7 @@ public:
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
         , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
+        , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
@@ -184,6 +186,14 @@ public:
         transactionManager->RegisterPrepareActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))));
         transactionManager->RegisterCommitActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))));
         transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->SubscribeReplicateKeysToSecondaryMaster(
+                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+            multicellManager->SubscribeReplicateValuesToSecondaryMaster(
+                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+        }
     }
 
     TTabletCellBundle* CreateTabletCellBundle(const TString& name, const TObjectId& hintId)
@@ -377,6 +387,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         YCHECK(!tablet->GetCell());
+        YCHECK(!tablet->GetTable());
 
         if (auto* action = tablet->GetAction()) {
             OnTabletActionTabletsTouched(
@@ -391,9 +402,20 @@ public:
         TReplicatedTableNode* table,
         const TString& clusterName,
         const TYPath& replicaPath,
+        ETableReplicaMode mode,
         TTimestamp startReplicationTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto* replica : table->Replicas()) {
+            if (replica->GetClusterName() == clusterName &&
+                replica->GetReplicaPath() == replicaPath)
+            {
+                THROW_ERROR_EXCEPTION("Replica table %v at cluster %Qv already exists",
+                    replicaPath,
+                    clusterName);
+            }
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
@@ -401,6 +423,7 @@ public:
         replicaHolder->SetTable(table);
         replicaHolder->SetClusterName(clusterName);
         replicaHolder->SetReplicaPath(replicaPath);
+        replicaHolder->SetMode(mode);
         replicaHolder->SetStartReplicationTimestamp(startReplicationTimestamp);
         replicaHolder->SetState(ETableReplicaState::Disabled);
 
@@ -409,9 +432,10 @@ public:
 
         YCHECK(table->Replicas().insert(replica).second);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, StartReplicationTimestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %llx)",
             table->GetId(),
             replica->GetId(),
+            mode,
             startReplicationTimestamp);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -535,6 +559,39 @@ public:
         }
 
         CheckForReplicaDisabled(replica);
+    }
+
+    void SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (replica->GetMode() == mode) {
+            return;
+        }
+
+        auto* table = replica->GetTable();
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica mode updated (TableId: %v, ReplicaId: %v, Mode: %v)",
+            table->GetId(),
+            replica->GetId(),
+            mode);
+
+        replica->SetMode(mode);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* tablet : table->Tablets()) {
+            if (!tablet->IsActive()) {
+                continue;
+            }
+
+            auto* cell = tablet->GetCell();
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            TReqSetTableReplicaMode req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_replica_id(), replica->GetId());
+            req.set_mode(static_cast<int>(mode));
+            hiveManager->PostMessage(mailbox, req);
+        }
     }
 
 
@@ -1176,9 +1233,10 @@ public:
                 Y_UNREACHABLE();
         }
         for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
-            tabletStatistics.DiskSpace[mediumIndex] =
-                table->Properties()[mediumIndex].GetReplicationFactor() *
-                (treeStatistics.RegularDiskSpace + treeStatistics.ErasureDiskSpace);
+            tabletStatistics.DiskSpace[mediumIndex] = CalculateDiskSpaceUsage(
+                table->Properties()[mediumIndex].GetReplicationFactor(),
+                treeStatistics.RegularDiskSpace,
+                treeStatistics.ErasureDiskSpace);
         }
         tabletStatistics.ChunkCount = treeStatistics.ChunkCount;
         tabletStatistics.TabletCountPerMemoryMode[tablet->GetInMemoryMode()] = 1;
@@ -1240,6 +1298,18 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
         ValidateTableMountConfig(table, mountConfig);
+        ValidateTabletStaticMemoryUpdate(
+            table,
+            firstTabletIndex,
+            lastTabletIndex,
+            mountConfig,
+            false);
+
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
+        }
 
         // Do after all validations.
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
@@ -1271,6 +1341,8 @@ public:
             serializedReaderConfig,
             serializedWriterConfig,
             serializedWriterOptions);
+
+        CommitTabletStaticMemoryUpdate(table);
     }
 
     void DoMountTablet(
@@ -1360,7 +1432,7 @@ public:
                 req.set_atomicity(static_cast<int>(table->GetAtomicity()));
                 req.set_commit_ordering(static_cast<int>(table->GetCommitOrdering()));
                 req.set_freeze(freeze);
-                req.set_replication_mode(static_cast<int>(table->GetReplicationMode()));
+                ToProto(req.mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
                 if (table->IsReplicated()) {
                     auto* replicatedTable = table->As<TReplicatedTableNode>();
                     for (auto* replica : replicatedTable->Replicas()) {
@@ -1384,7 +1456,7 @@ public:
                 }
 
                 LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
-                    "Atomicity: %v, CommitOrdering: %v, Freeze: %v, ReplicationMode: %v)",
+                    "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId(),
@@ -1392,7 +1464,7 @@ public:
                     table->GetAtomicity(),
                     table->GetCommitOrdering(),
                     freeze,
-                    table->GetReplicationMode());
+                    table->GetUpstreamReplicaId());
 
                 hiveManager->PostMessage(mailbox, req);
             }
@@ -1474,6 +1546,18 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
         ValidateTableMountConfig(table, mountConfig);
+        ValidateTabletStaticMemoryUpdate(
+            table,
+            firstTabletIndex,
+            lastTabletIndex,
+            mountConfig,
+            true);
+
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
+        }
 
         // Do after all validations.
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
@@ -1516,6 +1600,8 @@ public:
                 hiveManager->PostMessage(mailbox, request);
             }
         }
+
+        CommitTabletStaticMemoryUpdate(table);
     }
 
     void FreezeTable(
@@ -1711,6 +1797,12 @@ public:
         }
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidateResourceUsageIncrease(
+            table->GetAccount(),
+            TClusterResources().SetTabletCount(newTabletCount - oldTabletCount));
+
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
                 MaxTabletCount);
@@ -1950,6 +2042,8 @@ public:
         objectManager->UnrefObject(oldRootChunkList);
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+
+        securityManager->UpdateAccountNodeUsage(table);
     }
 
     void CloneTable(
@@ -2045,6 +2139,9 @@ public:
             THROW_ERROR_EXCEPTION("Cannot switch mode from static to dynamic: table is external");
         }
 
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        securityManager->ValidateResourceUsageIncrease(table->GetAccount(), TClusterResources().SetTabletCount(1));
+
         auto* oldRootChunkList = table->GetChunkList();
 
         std::vector<TChunk*> chunks;
@@ -2099,6 +2196,8 @@ public:
         oldRootChunkList->RemoveOwningNode(table);
         objectManager->UnrefObject(oldRootChunkList);
 
+        securityManager->UpdateAccountNodeUsage(table);
+
         LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
             table->GetId());
     }
@@ -2150,6 +2249,9 @@ public:
         table->Tablets().clear();
 
         table->SetLastCommitTimestamp(NullTimestamp);
+
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        securityManager->UpdateAccountNodeUsage(table);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
@@ -2257,7 +2359,7 @@ private:
     const TTabletManagerConfigPtr Config_;
 
     const TTabletTrackerPtr TabletTracker_;
-    TTabletBalancerPtr TabletBalancer_;
+    const TTabletBalancerPtr TabletBalancer_;
 
     TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
     TEntityMap<TTabletCell> TabletCellMap_;
@@ -2275,6 +2377,7 @@ private:
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
     bool UpdateChunkListsKind_ = false;
+    bool RecomputeTabletCountByState_ = false;
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
@@ -2337,6 +2440,8 @@ private:
         InitializeCellBundles_ = (context.GetVersion() < 400);
         // COMPAT(savrus)
         UpdateChunkListsKind_ = (context.GetVersion() < 600);
+        // COMPAT(savrus)
+        RecomputeTabletCountByState_ = (context.GetVersion() <= 608);
     }
 
 
@@ -2412,6 +2517,25 @@ private:
                                 ? EChunkListKind::SortedDynamicTablet
                                 : EChunkListKind::OrderedDynamicTablet);
                             tabletChunkList->SetPivotKey(table->Tablets()[index]->GetPivotKey());
+                        }
+                    }
+                }
+            }
+        }
+
+        //COMPAT(savrus)
+        if (RecomputeTabletCountByState_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                auto* node = pair.second;
+                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
+                    auto* table = node->As<TTableNode>();
+                    if (table->IsDynamic()) {
+                        for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
+                            table->TabletCountByState()[state] = 0;
+                        }
+                        for (const auto* tablet : table->Tablets()) {
+                            ++table->TabletCountByState()[tablet->GetState()];
                         }
                     }
                 }
@@ -2690,11 +2814,15 @@ private:
         for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto* tablet = FindTablet(tabletId);
-            if (!IsObjectAlive(tablet) || tablet->GetState() != ETabletState::Mounted) {
+            if (!IsObjectAlive(tablet) || tablet->GetState() == ETabletState::Unmounted) {
                 continue;
             }
 
             auto* cell = tablet->GetCell();
+            if (!IsObjectAlive(cell) || expectedCells.find(cell) == expectedCells.end()) {
+                continue;
+            }
+
             cell->TotalStatistics() -= GetTabletStatistics(tablet);
             tablet->NodeStatistics() = tabletInfo.statistics();
             cell->TotalStatistics() += GetTabletStatistics(tablet);
@@ -2735,9 +2863,7 @@ private:
                 PopulateTableReplicaInfoFromStatistics(replicaInfo, protoReplicaInfo.statistics());
             }
 
-            if (TabletBalancer_) {
-                TabletBalancer_->OnTabletHeartbeat(tablet);
-            }
+            TabletBalancer_->OnTabletHeartbeat(tablet);
         }
     }
 
@@ -2984,7 +3110,7 @@ private:
         PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tabletId,
             replicaId,
             replicaInfo->GetCurrentReplicationRowIndex(),
@@ -3067,6 +3193,8 @@ private:
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
+
+        CommitTabletStaticMemoryUpdate(table);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
@@ -3307,14 +3435,24 @@ private:
         // Copy chunk tree if somebody holds a reference.
         CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
 
+        // Save old tabet resource usage.
+        auto oldMemorySize = tablet->GetTabletStaticMemorySize();
+        auto oldStatistics = GetTabletStatistics(tablet);
+
         // Apply all requested changes.
         auto* tabletChunkList = tablet->GetChunkList();
         auto* cell = tablet->GetCell();
-        cell->TotalStatistics() -= GetTabletStatistics(tablet);
         chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
         chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
-        cell->TotalStatistics() += GetTabletStatistics(tablet);
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+
+        // Get new tabet resource usage.
+        auto newMemorySize = tablet->GetTabletStaticMemorySize();
+        auto newStatistics = GetTabletStatistics(tablet);
+        auto deltaStatistics = newStatistics - oldStatistics;
+
+        // Update cell statistics.
+        cell->TotalStatistics() += deltaStatistics;
 
         // Unstage just attached chunks.
         // Update table resource usage.
@@ -3326,12 +3464,20 @@ private:
             tablet->SetStoresUpdatePreparedTransaction(nullptr);
         }
 
+        // Update node resource usage.
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateAccountNodeUsage(table);
+        auto deltaResources = TClusterResources()
+            .SetChunkCount(deltaStatistics.ChunkCount)
+            .SetTabletStaticMemory(newMemorySize - oldMemorySize);
+        std::copy(
+            std::begin(deltaStatistics.DiskSpace),
+            std::end(deltaStatistics.DiskSpace),
+            std::begin(deltaResources.DiskSpace));
+        securityManager->IncrementAccountNodeUsage(table, deltaResources);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkIds: %v, "
-            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %v)",
+            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %llx)",
             transaction->GetId(),
             table->GetId(),
             tabletId,
@@ -3426,21 +3572,6 @@ private:
     }
 
     
-    virtual void OnRecoveryComplete() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnRecoveryComplete();
-
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-            UpdateCellDirectory(cell);
-        }
-    }
-
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -3449,8 +3580,6 @@ private:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             TabletTracker_->Start();
-
-            TabletBalancer_ = New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_);
             TabletBalancer_->Start();
         }
 
@@ -3468,11 +3597,7 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         TabletTracker_->Stop();
-
-        if (TabletBalancer_) {
-            TabletBalancer_->Stop();
-            TabletBalancer_.Reset();
-        }
+        TabletBalancer_->Stop();
 
         if (CleanupExecutor_) {
             CleanupExecutor_->Stop();
@@ -3495,17 +3620,9 @@ private:
             }
         }
 
-        UpdateCellDirectory(cell);
-
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
-    }
-
-    void UpdateCellDirectory(TTabletCell* cell)
-    {
-        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        cellDirectory->ReconfigureCell(cell->GetDescriptor());
     }
 
 
@@ -3585,9 +3702,7 @@ private:
             if (!IsObjectAlive(cell)) {
                 continue;
             }
-            if (cell->GetCellBundle() == table->GetTabletCellBundle() &&
-                cell->GetHealth() == ETabletCellHealth::Good)
-            {
+            if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
                 YCHECK(cellKeys.insert(TCellKey{getCellSize(cell), cell}).second);
             }
         }
@@ -3802,6 +3917,40 @@ private:
 
             DoTabletUnmounted(tablet);
         }
+    }
+
+    void ValidateTabletStaticMemoryUpdate(
+        const TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        const TTableMountConfigPtr& mountConfig,
+        bool remount)
+    {
+        i64 oldMemorySize = 0;
+        i64 newMemorySize = 0;
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            const auto* tablet = table->Tablets()[index];
+            if (remount && !tablet->IsActive()) {
+                continue;
+            }
+            if (remount) {
+                oldMemorySize += tablet->GetTabletStaticMemorySize();
+            }
+            newMemorySize += tablet->GetTabletStaticMemorySize(mountConfig->InMemoryMode);
+        }
+
+        auto memorySize = newMemorySize - oldMemorySize;
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidateResourceUsageIncrease(
+            table->GetAccount(),
+            TClusterResources().SetTabletStaticMemory(memorySize));
+    }
+
+    void CommitTabletStaticMemoryUpdate(TTableNode* table)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateAccountNodeUsage(table);
     }
 
     void ValidateTableMountConfig(
@@ -4043,6 +4192,35 @@ private:
         return std::make_pair(beginIt, endIt);
     }
 
+    void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        auto tabletCellBundles = GetValuesSortedByKey(TabletCellBundleMap_);
+        for (auto* tabletCellBundle : tabletCellBundles) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(tabletCellBundle, cellTag);
+        }
+
+        auto tabletCells = GetValuesSortedByKey(TabletCellMap_);
+        for (auto* tabletCell : tabletCells) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(tabletCell, cellTag);
+        }
+    }
+
+    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        auto tabletCellBundles = GetValuesSortedByKey(TabletCellBundleMap_);
+        for (auto* tabletCellBundle : tabletCellBundles) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(tabletCellBundle, cellTag);
+        }
+
+        auto tabletCells = GetValuesSortedByKey(TabletCellMap_);
+        for (auto* tabletCell : tabletCells) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(tabletCell, cellTag);
+        }
+    }
 
     static void ValidateTabletCellBundleName(const TString& name)
     {
@@ -4058,6 +4236,7 @@ private:
         descriptor->set_cluster_name(replica->GetClusterName());
         descriptor->set_replica_path(replica->GetReplicaPath());
         descriptor->set_start_replication_timestamp(replica->GetStartReplicationTimestamp());
+        descriptor->set_mode(static_cast<int>(replica->GetMode()));
         PopulateTableReplicaStatisticsFromInfo(descriptor->mutable_statistics(), info);
     }
 
@@ -4085,7 +4264,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TableReplica, TTableReplica, TableReplicaMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletAction, TTabletAction, TabletActionMap_)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TTabletManager::TTabletManager(
     TTabletManagerConfigPtr config,
@@ -4278,12 +4457,14 @@ TTableReplica* TTabletManager::CreateTableReplica(
     TReplicatedTableNode* table,
     const TString& clusterName,
     const TYPath& replicaPath,
+    ETableReplicaMode mode,
     TTimestamp startReplicationTimestamp)
 {
     return Impl_->CreateTableReplica(
         table,
         clusterName,
         replicaPath,
+        mode,
         startReplicationTimestamp);
 }
 
@@ -4295,6 +4476,11 @@ void TTabletManager::DestroyTableReplica(TTableReplica* replica)
 void TTabletManager::SetTableReplicaEnabled(TTableReplica* replica, bool enabled)
 {
     Impl_->SetTableReplicaEnabled(replica, enabled);
+}
+
+void TTabletManager::SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode)
+{
+    Impl_->SetTableReplicaMode(replica, mode);
 }
 
 TTabletAction* TTabletManager::CreateTabletAction(
@@ -4331,7 +4517,7 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl_)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletServer
 } // namespace NYT

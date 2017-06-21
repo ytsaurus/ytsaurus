@@ -65,10 +65,10 @@ public:
         return Connection_->GetEndpointAttributes();
     }
 
-    virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override
+    virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Connection_->Send(std::move(message), level);
+        return Connection_->Send(std::move(message), options);
     }
 
     virtual void Terminate(const TError& error) override
@@ -126,7 +126,6 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto id = TConnectionId::Create();
-        auto dispatcherThread = TTcpDispatcher::TImpl::Get()->GetClientThread();
 
         LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v)",
             EndpointDescription_,
@@ -140,7 +139,6 @@ public:
 
         auto connection = New<TTcpConnection>(
             Config_,
-            dispatcherThread,
             EConnectionType::Client,
             Null,
             id,
@@ -150,9 +148,9 @@ public:
             Config_->Address,
             Config_->UnixDomainName,
             Config_->Priority,
-            handler);
-
-        dispatcherThread->AsyncRegister(connection);
+            handler,
+            TTcpDispatcher::TImpl::Get()->GetXferPoller());
+        connection->Start();
 
         return New<TTcpClientBusProxy>(connection);
     }

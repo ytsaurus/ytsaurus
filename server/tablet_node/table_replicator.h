@@ -19,7 +19,6 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         TTableReplicaInfo* replicaInfo,
-        NHiveClient::TClusterDirectoryPtr clusterDirectory,
         NApi::INativeConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,

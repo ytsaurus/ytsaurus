@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include "serialize.h"
+
 #include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -12,7 +14,7 @@ namespace NControllerAgent {
 using namespace NObjectClient;
 using namespace NScheduler;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleJobSizeConstraints
     : public IJobSizeConstraints
@@ -26,18 +28,21 @@ public:
     TSimpleJobSizeConstraints(
         const TSimpleOperationSpecBasePtr& spec,
         const TSimpleOperationOptionsPtr& options,
-        i64 inputDataSize,
-        i64 inputRowCount)
+        int outputTableCount,
+        i64 primaryInputDataSize,
+        i64 inputRowCount,
+        i64 foreignInputDataSize)
         : Spec_(spec)
         , Options_(options)
-        , InputDataSize_(inputDataSize)
+        , InputDataSize_(primaryInputDataSize + foreignInputDataSize)
+        , PrimaryInputDataSize_(primaryInputDataSize)
         , InputRowCount_(inputRowCount)
     {
         if (Spec_->JobCount) {
             JobCount_ = *Spec_->JobCount;
         } else {
             i64 dataSizePerJob = Spec_->DataSizePerJob.Get(Options_->DataSizePerJob);
-            JobCount_ = DivCeil(InputDataSize_, dataSizePerJob);
+            JobCount_ = DivCeil(PrimaryInputDataSize_, dataSizePerJob);
         }
 
         i64 maxJobCount = Options_->MaxJobCount;
@@ -48,6 +53,11 @@ public:
 
         JobCount_ = std::min(JobCount_, maxJobCount);
         JobCount_ = std::min(JobCount_, InputRowCount_);
+
+        if (JobCount_ * outputTableCount > Options_->MaxOutputTablesTimesJobsCount) {
+            // ToDo(psushin): register alert if explicit job count or data size per job were given.
+            JobCount_ = DivCeil(Options_->MaxOutputTablesTimesJobsCount, outputTableCount);
+        }
 
         YCHECK(JobCount_ >= 0);
         YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
@@ -74,6 +84,13 @@ public:
     {
         return JobCount_ > 0
             ? DivCeil(InputDataSize_, JobCount_)
+            : 1;
+    }
+
+    virtual i64 GetPrimaryDataSizePerJob() const override
+    {
+        return JobCount_ > 0
+            ? DivCeil(PrimaryInputDataSize_, JobCount_)
             : 1;
     }
 
@@ -122,6 +139,7 @@ public:
         Persist(context, Options_);
         Persist(context, InputDataSize_);
         Persist(context, InputRowCount_);
+        Persist(context, PrimaryInputDataSize_);
         Persist(context, JobCount_);
     }
 
@@ -132,6 +150,7 @@ private:
     TSimpleOperationOptionsPtr Options_;
 
     i64 InputDataSize_;
+    i64 PrimaryInputDataSize_;
     i64 InputRowCount_;
 
     i64 JobCount_;
@@ -140,7 +159,7 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleJobSizeConstraints);
 DEFINE_REFCOUNTED_TYPE(TSimpleJobSizeConstraints)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleSortJobSizeConstraints
     : public IJobSizeConstraints
@@ -183,6 +202,11 @@ public:
         return JobCount_ > 0
             ? DivCeil(InputDataSize_, JobCount_)
             : 1;
+    }
+
+    virtual i64 GetPrimaryDataSizePerJob() const override
+    {
+        Y_UNREACHABLE();
     }
 
     virtual i64 GetMaxDataSlicesPerJob() const override
@@ -244,7 +268,7 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleSortJobSizeConstraints);
 DEFINE_REFCOUNTED_TYPE(TSimpleSortJobSizeConstraints)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionJobSizeConstraints
     : public IJobSizeConstraints
@@ -313,6 +337,11 @@ public:
             : 1;
     }
 
+    virtual i64 GetPrimaryDataSizePerJob() const override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual i64 GetMaxDataSlicesPerJob() const override
     {
         return Options_->MaxDataSlicesPerJob;
@@ -376,7 +405,7 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TPartitionJobSizeConstraints);
 DEFINE_REFCOUNTED_TYPE(TPartitionJobSizeConstraints)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TExplicitJobSizeConstraints
     : public IJobSizeConstraints
@@ -391,6 +420,7 @@ public:
         bool isExplicitJobCount,
         int jobCount,
         i64 dataSizePerJob,
+        i64 primaryDataSizePerJob,
         i64 maxDataSlicesPerJob,
         i64 maxDataSizePerJob,
         i64 inputSliceDataSize,
@@ -399,6 +429,7 @@ public:
         , IsExplicitJobCount_(isExplicitJobCount)
         , JobCount_(jobCount)
         , DataSizePerJob_(dataSizePerJob)
+        , PrimaryDataSizePerJob_(primaryDataSizePerJob)
         , MaxDataSlicesPerJob_(maxDataSlicesPerJob)
         , MaxDataSizePerJob_(maxDataSizePerJob)
         , InputSliceDataSize_(inputSliceDataSize)
@@ -430,6 +461,11 @@ public:
         return MaxDataSlicesPerJob_;
     }
 
+    virtual i64 GetPrimaryDataSizePerJob() const override
+    {
+        return PrimaryDataSizePerJob_;
+    }
+
     virtual i64 GetMaxDataSizePerJob() const override
     {
         return MaxDataSizePerJob_;
@@ -452,6 +488,7 @@ public:
         Persist(context, IsExplicitJobCount_);
         Persist(context, JobCount_);
         Persist(context, DataSizePerJob_);
+        Persist(context, PrimaryDataSizePerJob_);
         Persist(context, MaxDataSlicesPerJob_);
         Persist(context, MaxDataSizePerJob_);
         Persist(context, InputSliceDataSize_);
@@ -465,6 +502,7 @@ private:
     bool IsExplicitJobCount_;
     int JobCount_;
     i64 DataSizePerJob_;
+    i64 PrimaryDataSizePerJob_;
     i64 MaxDataSlicesPerJob_;
     i64 MaxDataSizePerJob_;
     i64 InputSliceDataSize_;
@@ -474,15 +512,17 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints);
 DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
     const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
-    i64 inputDataSize,
-    i64 inputRowCount)
+    int outputTableCount,
+    i64 primaryInputDataSize,
+    i64 inputRowCount,
+    i64 foreignInputDataSize)
 {
-    return New<TSimpleJobSizeConstraints>(spec, options, inputDataSize, inputRowCount);
+    return New<TSimpleJobSizeConstraints>(spec, options, outputTableCount, primaryInputDataSize, inputRowCount, foreignInputDataSize);
 }
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
@@ -505,13 +545,27 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
-    const TSortOperationOptionsBasePtr& options)
+    const TSortOperationOptionsBasePtr& options,
+    int outputTableCount)
 {
+
+    // NB(psushin): I don't know real partition size at this point,
+    // but I assume at least 2 sort jobs per partition.
+    // Also I don't know exact partition count, so I take the worst case scenario.
+    i64 jobsPerPartition = DivCeil(
+        options->MaxOutputTablesTimesJobsCount,
+        outputTableCount * options->MaxPartitionCount);
+    i64 estimatedDataSizePerPartition = 2 * spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob);
+
+    i64 minDataSizePerJob = std::max(estimatedDataSizePerPartition / jobsPerPartition, (i64)1);
+    i64 dataSizePerJob = std::max(minDataSizePerJob, spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob));
+
     return CreateExplicitJobSizeConstraints(
         false /* canAdjustDataSizePerJob */,
         false /* isExplicitJobCount */,
         0 /* jobCount */,
-        spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob) /* dataSizePerJob */,
+        dataSizePerJob /* dataSizePerJob */,
+        dataSizePerJob /* dataSizePerJob */,
         options->MaxDataSlicesPerJob /* maxDataSlicesPerJob */,
         std::numeric_limits<i64>::max() /* maxDataSizePerJob */,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
@@ -523,6 +577,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     bool isExplicitJobCount,
     int jobCount,
     i64 dataSizePerJob,
+    i64 primaryDataSizePerJob,
     i64 maxDataSlicesPerJob,
     i64 maxDataSizePerJob,
     i64 inputSliceDataSize,
@@ -533,13 +588,14 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         isExplicitJobCount,
         jobCount,
         dataSizePerJob,
+        primaryDataSizePerJob,
         maxDataSlicesPerJob,
         maxDataSizePerJob,
         inputSliceDataSize,
         inputSliceRowCount);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TString TrimCommandForBriefSpec(const TString& command)
 {
@@ -550,15 +606,14 @@ TString TrimCommandForBriefSpec(const TString& command)
         : command.substr(0, MaxBriefSpecCommandLength) + "...";
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TString TLockedUserObject::GetPath() const
 {
     return FromObjectId(ObjectId);
 }
 
-////////////////////////////////////////////////////////////////////
-
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

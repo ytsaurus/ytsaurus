@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/ytlib/chunk_client/session_id.h>
+#include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <yt/ytlib/misc/workload.h>
@@ -24,6 +25,7 @@ struct TSessionOptions
 {
     TWorkloadDescriptor WorkloadDescriptor;
     bool SyncOnClose = false;
+    bool EnableWriteDirectIO = false;
     bool EnableMultiplexing = false;
     NChunkClient::TPlacementId PlacementId;
 };
@@ -70,7 +72,7 @@ struct ISession
     //! Puts a contiguous range of blocks into the window.
     virtual TFuture<void> PutBlocks(
         int startBlockIndex,
-        const std::vector<TSharedRef>& blocks,
+        const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.

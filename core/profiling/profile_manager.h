@@ -24,7 +24,6 @@ struct TQueuedSample
     TValue Value = -1;
     TTagIdList TagIds;
     EMetricType MetricType;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

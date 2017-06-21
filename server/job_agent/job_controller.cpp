@@ -111,12 +111,13 @@ private:
      */
     void AbortJob(IJobPtr job);
 
+    void FailJob(IJobPtr job);
+
     //! Interrupts a job.
     /*!
      *  If the job is running, interrupts it.
      */
     void InterruptJob(IJobPtr job);
-    void DoInterruptJob(IJobPtr job);
 
     //! Removes the job from the map.
     /*!
@@ -387,18 +388,23 @@ void TJobController::TImpl::AbortJob(IJobPtr job)
     job->Abort(TError(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler"));
 }
 
+void TJobController::TImpl::FailJob(IJobPtr job)
+{
+    LOG_INFO("Job fail requested (JobId: %v)",
+        job->GetId());
+
+    try {
+        job->Fail();
+    } catch (const std::exception& ex) {
+        LOG_WARNING(ex, "Failed to fail job (JobId: %v)", job->GetId());
+    }
+}
+
 void TJobController::TImpl::InterruptJob(IJobPtr job)
 {
     LOG_INFO("Job interrupt requested (JobId: %v)",
         job->GetId());
-    GetCurrentInvoker()->Invoke(BIND(
-        &TJobController::TImpl::DoInterruptJob,
-        MakeWeak(this),
-        job));
-}
 
-void TJobController::TImpl::DoInterruptJob(IJobPtr job)
-{
     try {
         job->Interrupt();
     } catch (const std::exception& ex) {
@@ -579,6 +585,18 @@ void TJobController::TImpl::ProcessHeartbeatResponse(const TRspHeartbeatPtr& res
                 jobId);
         }
     }
+
+    for (const auto& protoJobId : response->jobs_to_fail()) {
+        auto jobId = FromProto<TJobId>(protoJobId);
+        auto job = FindJob(jobId);
+        if (job) {
+            FailJob(job);
+        } else {
+            LOG_WARNING("Requested to fail a non-existing job (JobId: %v)",
+                jobId);
+        }
+    }
+
 
     int attachmentIndex = 0;
     for (auto& info : *response->mutable_jobs_to_start()) {

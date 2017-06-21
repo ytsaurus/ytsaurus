@@ -19,6 +19,7 @@
 #include <yt/server/hive/transaction_manager.h>
 #include <yt/server/hive/transaction_supervisor.h>
 #include <yt/server/hive/transaction_participant_provider.h>
+#include <yt/server/hive/cell_directory_synchronizer.h>
 
 #include <yt/server/hydra/changelog.h>
 #include <yt/server/hydra/file_snapshot_store.h>
@@ -64,7 +65,6 @@
 #include <yt/ytlib/election/cell_manager.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -113,6 +113,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
+using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NJournalServer;
@@ -128,6 +129,9 @@ using namespace NTableServer;
 using namespace NJournalServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
+
+using NTransactionServer::TTransactionManager;
+using NTransactionServer::TTransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,6 +241,11 @@ const TTransactionManagerPtr& TBootstrap::GetTransactionManager() const
 const TTransactionSupervisorPtr& TBootstrap::GetTransactionSupervisor() const
 {
     return TransactionSupervisor_;
+}
+
+const ITimestampProviderPtr& TBootstrap::GetTimestampProvider() const
+{
+    return TimestampProvider_;
 }
 
 const TCypressManagerPtr& TBootstrap::GetCypressManager() const
@@ -354,9 +363,7 @@ void TBootstrap::DoInitialize()
         cellConfig->ValidateAllPeersPresent();
     }
 
-    auto localAddress = BuildServiceAddress(
-        TAddressResolver::Get()->GetLocalHostName(),
-        Config_->RpcPort);
+    auto localAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
 
     TCellConfigPtr localCellConfig;
     TPeerId localPeerId;
@@ -420,7 +427,8 @@ void TBootstrap::DoInitialize()
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
         lightChannelFactory,
-        networks);
+        networks,
+        Logger);
 
     YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
     for (const auto& cellConfig : Config_->SecondaryMasters) {
@@ -468,13 +476,6 @@ void TBootstrap::DoInitialize()
 
     WorldInitializer_ = New<TWorldInitializer>(Config_, this);
 
-    if (SecondaryMaster_) {
-        CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
-            Config_->CellDirectorySynchronizer,
-            CellDirectory_,
-            PrimaryCellId_);
-    }
-
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,
         CellDirectory_,
@@ -507,9 +508,10 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
 
-    auto timestampProvider = CreateRemoteTimestampProvider(
+    TimestampProvider_ = CreateRemoteTimestampProvider(
         Config_->TimestampProvider,
         lightChannelFactory);
+    TimestampProvider_->GetLatestTimestamp();
 
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,
@@ -520,11 +522,11 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetResponseKeeper(),
         TransactionManager_,
         CellId_,
-        timestampProvider,
+        TimestampProvider_,
         std::vector<ITransactionParticipantProviderPtr>{
             CreateTransactionParticipantProvider(
                 CellDirectory_,
-                timestampProvider,
+                TimestampProvider_,
                 CellTag_)
         });
 
@@ -536,9 +538,14 @@ void TBootstrap::DoInitialize()
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TabletManager_->Initialize();
-    if (CellDirectorySynchronizer_) {
-        CellDirectorySynchronizer_->Start();
-    }
+
+    CellDirectorySynchronizer_ = New<NHiveServer::TCellDirectorySynchronizer>(
+        Config_->CellDirectorySynchronizer,
+        CellDirectory_,
+        TabletManager_,
+        HydraFacade_->GetHydraManager(),
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager));
+    CellDirectorySynchronizer_->Start();
 
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(

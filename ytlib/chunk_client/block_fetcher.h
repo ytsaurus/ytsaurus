@@ -18,7 +18,7 @@
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! For a sequence of block indexes, fetches and uncompresses these blocks in the given order.
 /*!
@@ -63,7 +63,7 @@ public:
      *  It is not allowed to fetch the block more times than it has been requested.
      *  If an error occurs during fetching then the whole session is failed.
      */
-    TFuture<TSharedRef> FetchBlock(int blockIndex);
+    TFuture<TBlock> FetchBlock(int blockIndex);
 
     //! Returns true if all blocks are fetched and false otherwise.
     bool IsFetchingCompleted();
@@ -87,7 +87,7 @@ private:
 
     void DecompressBlocks(
         const std::vector<int>& windowIndexes,
-        const std::vector<TSharedRef>& compressedBlocks);
+        const std::vector<NChunkClient::TBlock>& compressedBlocks);
 
     void MarkFailedBlocks(
         const std::vector<int>& windowIndexes,
@@ -104,7 +104,7 @@ private:
 
     struct TWindowSlot
     {
-        TLazyUniquePtr<TPromise<TSharedRef>> BlockPromise;
+        TLazyUniquePtr<TPromise<NChunkClient::TBlock>> BlockPromise;
         std::atomic<int> RemainingFetches = { 0 };
         std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard;
         bool Cached = false;
@@ -112,7 +112,7 @@ private:
 
         TWindowSlot()
             : BlockPromise(BIND([] () {
-                return new TPromise<TSharedRef>(NewPromise<TSharedRef>());
+                return new TPromise<NChunkClient::TBlock>(NewPromise<NChunkClient::TBlock>());
             }))
         { }
     };
@@ -137,7 +137,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
 
-//////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSequentialBlockFetcher
     : public virtual TRefCounted
@@ -152,7 +152,7 @@ public:
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId);
 
-    TFuture<TSharedRef> FetchNextBlock();
+    TFuture<NChunkClient::TBlock> FetchNextBlock();
 
     using TBlockFetcher::HasMoreBlocks;
     using TBlockFetcher::IsFetchingCompleted;
@@ -166,7 +166,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TSequentialBlockFetcher)
 
-//////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

@@ -1,15 +1,14 @@
 #pragma once
 
+#include "block.h"
 #include "public.h"
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/ref.h>
-
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! A basic interface for reading chunks from a suitable source.
 struct IChunkReader
@@ -17,14 +16,14 @@ struct IChunkReader
 {
     //! Asynchronously reads a given set of blocks.
     //! Returns a collection of blocks, each corresponding to a single given index.
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<int>& blockIndexes) = 0;
 
     //! Asynchronously reads a given range of blocks.
     //! The call may return less blocks than requested.
     //! If an empty list of blocks is returned then there are no blocks in the given range.
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount) = 0;
@@ -40,7 +39,7 @@ struct IChunkReader
 
 DEFINE_REFCOUNTED_TYPE(IChunkReader)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

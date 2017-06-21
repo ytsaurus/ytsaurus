@@ -277,9 +277,9 @@ private:
                         auto* enumDescriptor = field.Descriptor->enum_type();
                         auto* enumValueDescriptor = enumDescriptor->FindValueByNumber(value);
                         if (!enumValueDescriptor) {
-                            THROW_ERROR_EXCEPTION("Invalid value %v for %v",
+                            THROW_ERROR_EXCEPTION("Invalid value %v for enum %v",
                                 value,
-                                field.Descriptor->DebugString());
+                                field.Descriptor->full_name());
                         }
 
                         ValueConsumer_->OnValue(MakeUnversionedStringValue(
@@ -306,7 +306,7 @@ private:
                 default:
                     THROW_ERROR_EXCEPTION("Invalid protobuf field type %v for %v",
                         static_cast<int>(field.Descriptor->type()),
-                        field.Descriptor->DebugString());
+                        field.Descriptor->full_name());
             }
         }
 
@@ -350,7 +350,7 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
             tableIndex));
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
 } // namespace NYT

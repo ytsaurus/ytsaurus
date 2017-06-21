@@ -394,9 +394,7 @@ private:
 
             asyncResults.push_back(
                 BIND([=, this_ = MakeStrong(this)] () {
-                    if (slot->GetHydraManager()->IsActiveLeader()) {
-                        ScanSlot_.Fire(slot);
-                    }
+                    ScanSlot_.Fire(slot);
                 })
                 .AsyncVia(slot->GetGuardedAutomatonInvoker())
                 .Run()

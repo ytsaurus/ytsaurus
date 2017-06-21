@@ -28,7 +28,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -136,7 +136,7 @@ void TStoreBase::SetMemoryUsage(i64 value)
 
 TOwningKey TStoreBase::RowToKey(TUnversionedRow row)
 {
-    return NTabletNode::RowToKey(Schema_, row);
+    return NTableClient::RowToKey(Schema_, row);
 }
 
 TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row)
@@ -287,6 +287,11 @@ void TDynamicStoreBase::SetStoreState(EStoreState state)
     TStoreBase::SetStoreState(state);
 }
 
+i64 TDynamicStoreBase::GetCompressedDataSize() const
+{
+    return GetPoolCapacity();
+}
+
 i64 TDynamicStoreBase::GetUncompressedDataSize() const
 {
     return GetPoolCapacity();
@@ -361,7 +366,7 @@ void TDynamicStoreBase::UpdateTimestampRange(TTimestamp commitTimestamp)
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TPreloadedBlockCache
     : public IBlockCache
@@ -392,13 +397,13 @@ public:
     virtual void Put(
         const TBlockId& id,
         EBlockType type,
-        const TSharedRef& data,
+        const TBlock& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
     {
         UnderlyingCache_->Put(id, type, data, source);
     }
 
-    virtual TSharedRef Find(
+    virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -447,7 +452,7 @@ private:
     const EBlockType Type_;
     const IBlockCachePtr UnderlyingCache_;
 
-    std::vector<TSharedRef> Blocks_;
+    std::vector<TBlock> Blocks_;
     std::atomic<bool> Preloaded_ = {false};
 };
 
@@ -492,6 +497,11 @@ void TChunkStoreBase::Initialize(const TAddStoreDescriptor* descriptor)
 const TChunkMeta& TChunkStoreBase::GetChunkMeta() const
 {
     return *ChunkMeta_;
+}
+
+i64 TChunkStoreBase::GetCompressedDataSize() const
+{
+    return MiscExt_.compressed_data_size();
 }
 
 i64 TChunkStoreBase::GetUncompressedDataSize() const
@@ -591,16 +601,6 @@ TFuture<void> TChunkStoreBase::GetPreloadFuture() const
 void TChunkStoreBase::SetPreloadFuture(TFuture<void> future)
 {
     PreloadFuture_ = std::move(future);
-}
-
-TFuture<void> TChunkStoreBase::GetPreloadBackoffFuture() const
-{
-    return PreloadBackoffFuture_;
-}
-
-void TChunkStoreBase::SetPreloadBackoffFuture(TFuture<void> future)
-{
-    PreloadBackoffFuture_ = std::move(future);
 }
 
 EStoreCompactionState TChunkStoreBase::GetCompactionState() const
@@ -737,24 +737,24 @@ void TChunkStoreBase::PrecacheProperties()
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
 }
 
-TInstant TChunkStoreBase::GetLastPreloadAttemptTimestamp() const
+bool TChunkStoreBase::IsPreloadAllowed() const
 {
-    return LastPreloadAttemptTimestamp_;
+    return Now() > AllowedPreloadTimestamp_;
 }
 
-void TChunkStoreBase::UpdatePreloadAttemptTimestamp()
+void TChunkStoreBase::UpdatePreloadAttempt()
 {
-    LastPreloadAttemptTimestamp_ = Now();
+    AllowedPreloadTimestamp_ = Now() + Config_->ErrorBackoffTime;
 }
 
-TInstant TChunkStoreBase::GetLastCompactionAttemptTimestamp() const
+bool TChunkStoreBase::IsCompactionAllowed() const
 {
-    return LastCompactionAttemptTimestamp_;
+    return Now() > AllowedCompactionTimestamp_;
 }
 
-void TChunkStoreBase::UpdateCompactionAttemptTimestamp()
+void TChunkStoreBase::UpdateCompactionAttempt()
 {
-    LastCompactionAttemptTimestamp_ = Now();
+    AllowedCompactionTimestamp_ = Now() + Config_->ErrorBackoffTime;
 }
 
 EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
@@ -781,10 +781,6 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
     if (PreloadFuture_) {
         PreloadFuture_.Cancel();
         PreloadFuture_.Reset();
-    }
-    if (PreloadBackoffFuture_) {
-        PreloadBackoffFuture_.Cancel();
-        PreloadBackoffFuture_.Reset();
     }
 
     if (mode == EInMemoryMode::None) {
@@ -829,9 +825,13 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         return;
     }
 
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+
     PreloadedBlockCache_->Preload(chunkData);
-    ChunkState_ = New<TCacheBasedChunkState>(
+    ChunkState_ = New<TChunkState>(
         PreloadedBlockCache_,
+        chunkSpec,
         chunkData->ChunkMeta,
         PreloadedBlockCache_->GetLookupHashTable(),
         PerformanceCounters_,

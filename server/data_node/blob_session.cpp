@@ -11,6 +11,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -92,7 +93,7 @@ TChunkInfo TBlobSession::GetChunkInfo() const
 
 TFuture<void> TBlobSession::DoPutBlocks(
     int startBlockIndex,
-    const std::vector<TSharedRef>& blocks,
+    const std::vector<TBlock>& blocks,
     bool enableCaching)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -132,7 +133,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
         auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
-            if (TRef::AreBitwiseEqual(slot.Block, block)) {
+            if (TRef::AreBitwiseEqual(slot.Block.Data, block.Data)) {
                 LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
                 continue;
             }
@@ -217,11 +218,15 @@ TFuture<void> TBlobSession::DoSendBlocks(
     req->set_first_block_index(firstBlockIndex);
 
     i64 requestSize = 0;
+
+    std::vector<TBlock> blocks;
     for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
         auto block = GetBlock(blockIndex);
-        req->Attachments().push_back(block);
+
+        blocks.push_back(std::move(block));
         requestSize += block.Size();
     }
+    SetRpcAttachedBlocks(req, blocks);
 
     auto throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
@@ -229,7 +234,7 @@ TFuture<void> TBlobSession::DoSendBlocks(
     }));
 }
 
-void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
+void TBlobSession::DoWriteBlock(const TBlock& block, int blockIndex)
 {
     // Thread affinity: WriterThread
 
@@ -240,14 +245,22 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         block.Size());
 
     TScopedTimer timer;
+    TBlockId blockId(GetChunkId(), blockIndex);
     try {
         if (!Writer_->WriteBlock(block)) {
             auto result = Writer_->GetReadyEvent().Get();
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
             Y_UNREACHABLE();
         }
+    } catch (const TBlockChecksumValidationException& ex) {
+        SetFailed(TError(
+            NChunkClient::EErrorCode::InvalidBlockChecksum,
+            "Invalid checksum detected in chunk block %v",
+            blockId)
+            << TErrorAttribute("expected_checksum", ex.GetExpected())
+            << TErrorAttribute("actual_checksum", ex.GetActual()),
+            /* fatal */ false);
     } catch (const std::exception& ex) {
-        TBlockId blockId(GetChunkId(), blockIndex);
         SetFailed(TError(
             NChunkClient::EErrorCode::IOError,
             "Error writing chunk block %v",
@@ -332,7 +345,7 @@ void TBlobSession::DoOpenWriter()
     PROFILE_TIMING ("/blob_chunk_open_time") {
         try {
             auto fileName = Location_->GetChunkPath(GetChunkId());
-            Writer_ = New<TFileWriter>(GetChunkId(), fileName, Options_.SyncOnClose);
+            Writer_ = New<TFileWriter>(GetChunkId(), fileName, Options_.SyncOnClose, Options_.EnableWriteDirectIO);
             // File writer opens synchronously.
             Writer_->Open()
                 .Get()
@@ -471,7 +484,7 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
     while (WindowStartBlockIndex_ <= flushedBlockIndex) {
         auto& slot = GetSlot(WindowStartBlockIndex_);
         YCHECK(slot.State == ESlotState::Written);
-        slot.Block = TSharedRef();
+        slot.Block = TBlock();
         slot.MemoryTrackerGuard.Release();
         slot.PendingIOGuard.Release();
         slot.WrittenPromise.Reset();
@@ -517,7 +530,7 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
     return Window_[blockIndex];
 }
 
-TSharedRef TBlobSession::GetBlock(int blockIndex)
+TBlock TBlobSession::GetBlock(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -558,7 +571,7 @@ void TBlobSession::ReleaseSpace()
     Location_->UpdateUsedSpace(-Size_);
 }
 
-void TBlobSession::SetFailed(const TError& error)
+void TBlobSession::SetFailed(const TError& error, bool fatal)
 {
     // Thread affinity: WriterThread
 
@@ -570,8 +583,10 @@ void TBlobSession::SetFailed(const TError& error)
     Bootstrap_->GetControlInvoker()->Invoke(
         BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this), error));
 
-    Location_->Disable(Error_);
-    Y_UNREACHABLE(); // Disable() exits the process.
+    if (fatal) {
+        Location_->Disable(Error_);
+        Y_UNREACHABLE(); // Disable() exits the process.
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

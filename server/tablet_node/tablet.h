@@ -33,6 +33,7 @@ struct TRuntimeTableReplicaData
 {
     std::atomic<i64> CurrentReplicationRowIndex = {0};
     std::atomic<TTimestamp> CurrentReplicationTimestamp = {NullTimestamp};
+    std::atomic<TTimestamp> LastReplicationTimestamp = {NullTimestamp};
     std::atomic<i64> PreparedReplicationRowIndex = {-1};
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
@@ -89,7 +90,7 @@ struct TTabletSnapshot
     NTabletClient::TSchemaData PhysicalSchemaData;
     NTabletClient::TSchemaData KeysSchemaData;
     NTransactionClient::EAtomicity Atomicity;
-    NTableClient::ETableReplicationMode ReplicationMode;
+    NTabletClient::TTableReplicaId UpstreamReplicaId;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
@@ -188,12 +189,13 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartReplicationTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionId, PreparedReplicationTransactionId);
 
-    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
+    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
+    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaMode, Mode, ETableReplicaMode::Async);
 
     DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
 
 public:
-    TTableReplicaInfo();
+    TTableReplicaInfo() = default;
     explicit TTableReplicaInfo(const TTableReplicaId& id);
 
     void Save(TSaveContext& context) const;
@@ -249,7 +251,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering);
-    DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableReplicationMode, ReplicationMode);
+    DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableReplicaId, UpstreamReplicaId);
 
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
@@ -263,12 +265,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
-
-    //! Counts rows in write logs; see #TTransaction::ImmediateLockedWriteLog,
-    //! #TTransaction::ImmediateLocklessWriteLog, and #TTransaction::DelayedLocklessWriteLog.
-    DEFINE_BYVAL_RW_PROPERTY(int, WriteLogsRowCount);
-    //! Counts prelocked rows; see #TTransaction::PrelockdRows.
-    DEFINE_BYVAL_RW_PROPERTY(int, PrelockedRowCount);
 
 public:
     TTablet(
@@ -288,7 +284,7 @@ public:
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::ECommitOrdering commitOrdering,
-        NTableClient::ETableReplicationMode replicationMode);
+        const NTabletClient::TTableReplicaId& upstreamReplicaId);
 
     ETabletState GetPersistentState() const;
 

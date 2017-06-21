@@ -5,6 +5,7 @@
 #include "config.h"
 #include "job.h"
 #include "job_satellite_connection.h"
+#include "resource_controller.h"
 
 #include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
@@ -50,6 +51,7 @@ public:
     virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
     virtual void Interrupt() override;
+    virtual void Fail() override;
 
     virtual const NJobAgent::TJobId& GetJobId() const override;
 
@@ -60,8 +62,8 @@ private:
     const NJobTrackerClient::TOperationId OperationId_;
     const NJobTrackerClient::TJobId JobId_;
 
-    //! Can be null if running in non-cgroups environment.
-    NExecAgent::TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
+    //! Can be null if running in non-porto and non-cgroups environment.
+    IResourceControllerPtr ResourceController;
 
     // Job proxy memory reserve (= memory limit after multiplication by
     // job proxy memory reserve factor) by the scheduler.
@@ -130,7 +132,7 @@ private:
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
-    virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const override;
+    virtual IResourceControllerPtr GetResourceController() const override;
     virtual const NJobAgent::TOperationId& GetOperationId() const override;
 
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;

@@ -12,7 +12,7 @@ namespace NYT {
 namespace NChunkClient {
 namespace NErasureHelpers {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TPartRange
 {
@@ -29,7 +29,7 @@ TPartRange Intersection(const TPartRange& lhs, const TPartRange& rhs);
 
 std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TParityPartSplitInfo
 {
@@ -48,7 +48,7 @@ struct TParityPartSplitInfo
     i64 LastBlockSize = 0;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct IPartBlockConsumer
     : public TRefCounted
@@ -59,7 +59,7 @@ struct IPartBlockConsumer
 DECLARE_REFCOUNTED_TYPE(IPartBlockConsumer)
 DEFINE_REFCOUNTED_TYPE(IPartBlockConsumer)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct IPartBlockProducer
     : public TRefCounted
@@ -70,27 +70,29 @@ struct IPartBlockProducer
 DECLARE_REFCOUNTED_TYPE(IPartBlockProducer)
 DEFINE_REFCOUNTED_TYPE(IPartBlockProducer)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Subinterface of IChunkReader without any knowledge about meta information.
 struct IBlocksReader
     : public TRefCounted
 {
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) = 0;
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(const std::vector<int>& blockIndexes) = 0;
 };
 
 DECLARE_REFCOUNTED_TYPE(IBlocksReader)
 DEFINE_REFCOUNTED_TYPE(IBlocksReader)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TPartWriter
     : public IPartBlockConsumer
 {
 public:
-    TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes);
+    TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum);
 
     virtual TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override;
+
+    TChecksum GetPartChecksum() const;
 
 private:
     class TImpl;
@@ -100,7 +102,7 @@ private:
 DECLARE_REFCOUNTED_TYPE(TPartWriter)
 DEFINE_REFCOUNTED_TYPE(TPartWriter)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TPartReader
     : public IPartBlockProducer
@@ -118,10 +120,11 @@ private:
 DECLARE_REFCOUNTED_TYPE(TPartReader)
 DEFINE_REFCOUNTED_TYPE(TPartReader)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Iterate over encode ranges and perform following logic:
-//! retrieve blocks from parts producer, encode these blocks and pass it to part consumers.
+//! retrieve blocks from parts producer, encode these blocks
+//! and pass it to part consumers.
 class TPartEncoder
     : public TRefCounted
 {
@@ -144,7 +147,7 @@ private:
 DECLARE_REFCOUNTED_TYPE(TPartEncoder)
 DEFINE_REFCOUNTED_TYPE(TPartEncoder)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
     const IChunkReaderPtr& reader,
@@ -154,7 +157,7 @@ TParityPartSplitInfo GetParityPartSplitInfo(const NProto::TErasurePlacementExt& 
 
 std::vector<i64> GetBlockSizes(int partIndex, const NProto::TErasurePlacementExt& placementExt);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TDataBlocksPlacementInPart
 {
@@ -169,7 +172,7 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
     const std::vector<int>& blockIndexes,
     const NProto::TErasurePlacementExt& placementExt);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TErasureChunkReaderBase
     : public IChunkReader
@@ -193,7 +196,7 @@ protected:
     NProto::TErasurePlacementExt PlacementExt_;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasureHelpers
 } // namespace NChunkClient

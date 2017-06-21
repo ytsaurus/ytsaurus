@@ -2,11 +2,13 @@
 #include "sorted_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
-#include "chunk_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller_detail.h"
+
+#include <yt/server/chunk_pools/atomic_chunk_pool.h>
+#include <yt/server/chunk_pools/chunk_pool.h>
 
 #include <yt/ytlib/api/transaction.h>
 
@@ -32,6 +34,7 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NJobProxy;
 using namespace NChunkClient;
+using namespace NChunkPools;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NScheduler::NProto;
@@ -45,11 +48,11 @@ using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
 using NTableClient::TKey;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const NProfiling::TProfiler Profiler("/operations/merge");
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TMergeControllerBase
     : public TOperationControllerBase
@@ -464,7 +467,7 @@ protected:
                 CurrentPartitionIndex);
 
             // Place the chunk directly to the output table.
-            RegisterOutput(chunkSpec, CurrentPartitionIndex, *tableIndex);
+            RegisterTeleportChunk(chunkSpec, CurrentPartitionIndex, *tableIndex);
             ++CurrentPartitionIndex;
         }
     }
@@ -512,6 +515,7 @@ protected:
         auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
             Spec,
             Options,
+            GetOutputTablePaths().size(),
             PrimaryInputDataSize);
 
         MaxDataSizePerJob = jobSizeConstraints->GetDataSizePerJob();
@@ -663,7 +667,7 @@ protected:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeControllerBase::TMergeTask);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Handles ordered merge and (sic!) erase operations.
 class TOrderedMergeControllerBase
@@ -703,7 +707,7 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedMapController
     : public TOrderedMergeControllerBase
@@ -844,7 +848,12 @@ private:
     // Unsorted helpers.
     virtual bool IsJobInterruptible() const override
     {
-        return !IsExplicitJobCount;
+        // ToDo(psushin): Restore proper implementation after resolving YT-7064.
+        return false;
+
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        // return !IsExplicitJobCount &&
+        //    2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();;
     }
 
     virtual TCpuResource GetCpuLimit() const override
@@ -916,7 +925,7 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateOrderedMapController(
     TSchedulerConfigPtr config,
@@ -927,7 +936,7 @@ IOperationControllerPtr CreateOrderedMapController(
     return New<TOrderedMapController>(config, spec, config->MapOperationOptions, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedMergeController
     : public TOrderedMergeControllerBase
@@ -1061,7 +1070,7 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TEraseController
     : public TOrderedMergeControllerBase
@@ -1234,7 +1243,7 @@ IOperationControllerPtr CreateEraseController(
     return New<TEraseController>(config, spec, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EEndpointType,
     (Left)
@@ -1497,7 +1506,7 @@ protected:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeControllerBase::TManiacTask);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TLegacySortedMergeController
     : public TLegacySortedMergeControllerBase
@@ -1904,7 +1913,7 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMergeController(
     TSchedulerConfigPtr config,
@@ -1943,7 +1952,7 @@ IOperationControllerPtr CreateMergeController(
     }
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TLegacyReduceControllerBase
     : public TLegacySortedMergeControllerBase
@@ -2192,7 +2201,9 @@ protected:
     // Unsorted helpers.
     virtual bool IsJobInterruptible() const override
     {
-        return !IsExplicitJobCount;
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        return !IsExplicitJobCount &&
+            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();
     }
 
     virtual TCpuResource GetCpuLimit() const override
@@ -2275,7 +2286,7 @@ protected:
     }
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TLegacyReduceController
     : public TLegacyReduceControllerBase
@@ -2620,7 +2631,7 @@ IOperationControllerPtr CreateLegacyReduceController(
     return New<TLegacyReduceController>(config, spec, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TLegacyJoinReduceController
     : public TLegacyReduceControllerBase
@@ -2780,7 +2791,7 @@ IOperationControllerPtr CreateLegacyJoinReduceController(
     return New<TLegacyJoinReduceController>(config, spec, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

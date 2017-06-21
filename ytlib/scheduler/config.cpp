@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/server/chunk_pools/sorted_chunk_pool.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -37,6 +39,12 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(TDuration::Seconds(0));
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
+    RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
+        .Default(TDuration::Seconds(0));
+    RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
+        .Default(EDelayInsideOperationCommitStage::Stage1);
+    RegisterParameter("controller_failure", ControllerFailure)
+        .Default(EControllerFailureType::None);
 }
 
 TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
@@ -127,11 +135,11 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("secure_vault", SecureVault)
         .Default();
 
-    RegisterParameter("fail_controller", FailController)
-        .Default(false);
-
     RegisterParameter("available_nodes_missing_timeout", AvailableNodesMissingTimeout)
         .Default(TDuration::Hours(1));
+
+    RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
+        .Default(false);
 
     RegisterValidator([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -297,6 +305,8 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
         .Default(TDuration::Seconds(5));
     RegisterParameter("job_io", JobIO)
         .DefaultNew();
+    RegisterParameter("stripe_list_extraction_order", StripeListExtractionOrder)
+        .Default(NChunkPools::EStripeListExtractionOrder::DataSizeDescending);
 
     RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
@@ -430,6 +440,8 @@ TReduceOperationSpec::TReduceOperationSpec()
     RegisterParameter("reduce_by", ReduceBy)
         .NonEmpty();
     RegisterParameter("sort_by", SortBy)
+        .Default();
+    RegisterParameter("pivot_keys", PivotKeys)
         .Default();
 
     RegisterValidator([&] () {
@@ -693,11 +705,15 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
     RegisterParameter("cluster_connection", ClusterConnection)
         .Default();
     RegisterParameter("max_chunk_count_per_job", MaxChunkCountPerJob)
-        .Default(100);
+        .Default(1000);
     RegisterParameter("copy_attributes", CopyAttributes)
         .Default(false);
     RegisterParameter("attribute_keys", AttributeKeys)
         .Default();
+    RegisterParameter("concurrency", Concurrency)
+        .Default(4);
+    RegisterParameter("block_buffer_size", BlockBufferSize)
+        .Default((i64) 64 * 1024 * 1024);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 }
@@ -763,6 +779,9 @@ TSchedulableConfig::TSchedulableConfig()
     RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
         .InRange(0.0, 1.0)
         .Default();
+
+    RegisterParameter("allow_aggressive_starvation_preemption", AllowAggressiveStarvationPreemption)
+        .Default();
 }
 
 TPoolConfig::TPoolConfig()
@@ -813,6 +832,8 @@ TOperationRuntimeParams::TOperationRuntimeParams()
     RegisterParameter("weight", Weight)
         .Default(1.0)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
+    RegisterParameter("resource_limits", ResourceLimits)
+        .DefaultNew();
 }
 
 TSchedulerConnectionConfig::TSchedulerConnectionConfig()

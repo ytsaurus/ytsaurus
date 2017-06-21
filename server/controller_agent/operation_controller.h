@@ -45,10 +45,10 @@ namespace NControllerAgent {
 struct TControllerTransactions
     : public TIntrinsicRefCounted
 {
-    NApi::ITransactionPtr Sync;
     NApi::ITransactionPtr Async;
     NApi::ITransactionPtr Input;
     NApi::ITransactionPtr Output;
+    NApi::ITransactionPtr Completion;
     NApi::ITransactionPtr DebugOutput;
 };
 
@@ -85,11 +85,6 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
 
     //! Returns the control invoker of the scheduler.
@@ -97,7 +92,7 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual IInvokerPtr GetControlInvoker() const = 0;
-    
+
     //! Returns invoker for statistics analyzer.
     /*!
      *  \note Thread affinity: any
@@ -142,6 +137,14 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual void OnOperationFailed(
+        const TOperationId& operationId,
+        const TError& error) = 0;
+
+    //! Called by a controller to notify the host that the operation should be suspended.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void OnOperationSuspended(
         const TOperationId& operationId,
         const TError& error) = 0;
 
@@ -323,11 +326,20 @@ struct IOperationController
     //! Returns whether controller was forgotten or not.
     virtual bool IsForgotten() const = 0;
 
+    //! Returns whether controller was revived from snapshot.
+    virtual bool IsRevivedFromSnapshot() const = 0;
+
     /*!
      *  \note Thread affinity: any
      */
     //! Returns the total resources that are additionally needed.
     virtual TJobResources GetNeededResources() const = 0;
+
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
+    //! Called periodically during heartbeat to obtain min needed resources to schedule any operation job.
+    virtual std::vector<TJobResources> GetMinNeededJobResources() const = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
@@ -418,7 +430,7 @@ struct IOperationController
     //! Called to get a YSON string representing current job(s) state.
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
     virtual NYson::TYsonString BuildJobsYson() const = 0;
-    
+
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
 };

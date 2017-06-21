@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/object_client/public.h>
 
+#include <yt/core/erasure/public.h>
+
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/small_vector.h>
 
@@ -89,7 +91,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
 DECLARE_REFCOUNTED_CLASS(TChunkManagerConfig)
 
 //! Used as an expected upper bound in SmallVector.
-const int TypicalChunkParentCount = 2;
+constexpr int TypicalChunkParentCount = 2;
 
 //! The number of supported replication priorities.
 //! The smaller the more urgent.
@@ -97,7 +99,11 @@ const int TypicalChunkParentCount = 2;
  *  current RF == 2 -> priority = 1
  *  current RF >= 3 -> priority = 2
  */
-const int ReplicationPriorityCount = 3;
+constexpr int ReplicationPriorityCount = 3;
+
+constexpr int LastSeenReplicaCount = 16;
+// Cf. #TChunk::LastSeenReplicas.
+static_assert(LastSeenReplicaCount >= NErasure::MaxTotalPartCount, "LastSeenReplicaCount < NErasure::MaxTotalPartCount");
 
 DEFINE_BIT_ENUM(EChunkStatus,
     ((None)              (0x0000))
@@ -151,7 +157,7 @@ template <typename T>
 using TPerMediumArray = std::array<T, MaxMediumCount>;
 using TPerMediumIntArray = TPerMediumArray<int>;
 
-const int MediumDefaultPriority = 0;
+constexpr int MediumDefaultPriority = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 

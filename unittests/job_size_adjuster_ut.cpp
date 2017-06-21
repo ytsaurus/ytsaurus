@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/server/scheduler/config.h>
 
@@ -8,12 +8,12 @@ namespace NYT {
 namespace NControllerAgent {
 namespace {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TJobSizeAdjusterTest, Simple)
 {
     i64 dataSizePerJob = 128LL * 1024 * 1024;
-    auto config = New<NScheduler::TJobSizeAdjusterConfig>();
+    auto config = New<TJobSizeAdjusterConfig>();
     config->MinJobTime = TDuration::Seconds(20);
     config->ExecToPrepareTimeRatio = 10.0;
     auto jobSizeAdjuster = CreateJobSizeAdjuster(
@@ -31,7 +31,7 @@ TEST(TJobSizeAdjusterTest, Simple)
     EXPECT_EQ(static_cast<i64>(JobSizeBoostFactor * jobDataSize), jobSizeAdjuster->GetDataSizePerJob());
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NControllerAgent

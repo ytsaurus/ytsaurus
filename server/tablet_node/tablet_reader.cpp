@@ -61,12 +61,33 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     auto upperBound = bounds[bounds.Size() - 1].second;
 
     std::vector<ISortedStorePtr> stores;
+    std::vector<TSharedRange<TRowRange>> boundsPerStore;
 
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
     auto takePartition = [&] (const std::vector<ISortedStorePtr>& candidateStores) {
         for (const auto& store : candidateStores) {
-            if (store->GetMinKey() < upperBound && store->GetMaxKey() >= lowerBound) {
+            auto begin = std::lower_bound(
+                bounds.begin(),
+                bounds.end(),
+                store->GetMinKey().Get(),
+                [] (const TRowRange& lhs, TUnversionedRow rhs) {
+                    return lhs.second < rhs;
+                });
+
+            auto end = std::upper_bound(
+                bounds.begin(),
+                bounds.end(),
+                store->GetMaxKey().Get(),
+                [] (TUnversionedRow lhs, const TRowRange& rhs) {
+                    return lhs < rhs.first;
+                });
+
+            if (begin != end) {
+                auto offsetBegin = std::distance(bounds.begin(), begin);
+                auto offsetEnd = std::distance(bounds.begin(), end);
+
                 stores.push_back(store);
+                boundsPerStore.push_back(bounds.Slice(offsetBegin, offsetEnd));
             }
         }
     };
@@ -78,7 +99,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         takePartition((*it)->Stores);
     }
 
-    LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
+    LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, "
         "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v, BoundCount: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -116,28 +137,9 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         [=, stores = std::move(stores)] (int index) {
             Y_ASSERT(index < stores.size());
 
-            auto begin = std::lower_bound(
-                bounds.begin(),
-                bounds.end(),
-                stores[index]->GetMinKey().Get(),
-                [] (const TRowRange& lhs, TUnversionedRow rhs) {
-                    return lhs.second < rhs;
-                });
-
-            auto end = std::upper_bound(
-                bounds.begin(),
-                bounds.end(),
-                stores[index]->GetMaxKey().Get(),
-                [] (TUnversionedRow lhs, const TRowRange& rhs) {
-                    return lhs < rhs.first;
-                });
-
-            auto offsetBegin = std::distance(bounds.begin(), begin);
-            auto offsetEnd = std::distance(bounds.begin(), end);
-
             return stores[index]->CreateReader(
                 tabletSnapshot,
-                bounds.Slice(offsetBegin, offsetEnd),
+                boundsPerStore[index],
                 timestamp,
                 false,
                 columnFilter,
@@ -221,7 +223,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         upperRowIndex = totalRowCount;
     }
 
-    std::vector<ISchemafulReaderPtr> readers;
+    std::vector<std::function<ISchemafulReaderPtr()>> readers;
     if (lowerRowIndex < upperRowIndex && !tabletSnapshot->OrderedStores.empty()) {
         auto lowerIt = std::upper_bound(
             tabletSnapshot->OrderedStores.begin(),
@@ -236,18 +238,20 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
             if (store->GetStartingRowIndex() >= upperRowIndex) {
                 break;
             }
-            readers.emplace_back(store->CreateReader(
-                tabletSnapshot,
-                tabletIndex,
-                lowerRowIndex,
-                upperRowIndex,
-                columnFilter,
-                workloadDescriptor));
+            readers.emplace_back([=] () {
+                return store->CreateReader(
+                    tabletSnapshot,
+                    tabletIndex,
+                    lowerRowIndex,
+                    upperRowIndex,
+                    columnFilter,
+                    workloadDescriptor);
+            });
             ++it;
         }
     }
 
-    return CreateSchemafulConcatencatingReader(readers);
+    return CreateSchemafulConcatenatingReader(readers);
 }
 
 ISchemafulReaderPtr CreateSchemafulTabletReader(
@@ -305,7 +309,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     takeStores(tabletSnapshot->GetEdenStores());
     takeStores(paritionSnapshot->Stores);
 
-    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, WorkloadDescriptor: %v, "
+    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, WorkloadDescriptor: %v, "
         "StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -422,7 +426,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
     LOG_DEBUG(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
-        "CurrentTimestamp: %v, MajorTimestamp: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
+        "CurrentTimestamp: %llx, MajorTimestamp: %llx, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         lowerBound,

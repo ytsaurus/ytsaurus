@@ -46,7 +46,7 @@ public:
     virtual void Put(
         const TBlockId& id,
         EBlockType type,
-        const TSharedRef& data,
+        const TBlock& data,
         const TNullable<TNodeDescriptor>& source) override
     {
         if (type == EBlockType::CompressedData) {
@@ -57,14 +57,14 @@ public:
         }
     }
 
-    virtual TSharedRef Find(
+    virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) override
     {
         if (type == EBlockType::CompressedData) {
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto cachedBlock = chunkBlockManager->FindCachedBlock(id);
-            return cachedBlock ? cachedBlock->GetData() : TSharedRef();
+            return cachedBlock ? cachedBlock->GetData() : TBlock();
         } else {
             return UnderlyingCache_->Find(id, type);
         }

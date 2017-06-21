@@ -28,11 +28,13 @@ struct TTransactionWriteRecord
     TTransactionWriteRecord(
         const TTabletId& tabletId,
         TSharedRef data,
-        int rowCount);
+        int rowCount,
+        const TSyncReplicaIdList& syncReplicaIds);
 
     TTabletId TabletId;
     TSharedRef Data;
     int RowCount = 0;
+    TSyncReplicaIdList SyncReplicaIds;
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -52,6 +54,7 @@ class TTransaction
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Foreign);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasLease);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
 
@@ -70,6 +73,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, PersistentSignature, InitialTransactionSignature);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature, InitialTransactionSignature);
+
+    DEFINE_BYVAL_RW_PROPERTY(bool, ReplicatedRowsPrepared, false);
 
 public:
     explicit TTransaction(const TTransactionId& id);
@@ -92,6 +97,8 @@ public:
     bool IsActive() const;
     bool IsCommitted() const;
     bool IsPrepared() const;
+
+    bool IsSerializationNeeded() const;
 
 private:
     TPromise<void> Finished_ = NewPromise<void>();

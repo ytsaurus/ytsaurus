@@ -14,6 +14,79 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInterDCLimitsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    explicit TInterDCLimitsConfig()
+    {
+        RegisterParameter("default_capacity", DefaultCapacity)
+            .Default(1024LL * 1024LL * 1024LL * 1024LL)
+            .GreaterThanOrEqual(0);
+
+        RegisterParameter("update_interval", UpdateInterval)
+            .Default(TDuration::Seconds(30));
+
+        // Soon to be removed. All inter-DC edge-related info will be moved to Cypress.
+        RegisterParameter("capacities", Capacities)
+            .Default();
+
+        RegisterValidator([&] () {
+            for (const auto& pair : Capacities) {
+                for (const auto& pair2 : pair.second) {
+                    if (pair2.second < 0) {
+                        THROW_ERROR_EXCEPTION(
+                            "Negative capacity %v for inter-DC edge %v->%v",
+                            pair2.second,
+                            pair.first,
+                            pair2.first);
+                    }
+                }
+            }
+        });
+    }
+
+    yhash<TNullable<TString>, yhash<TNullable<TString>, i64>> GetCapacities() const
+    {
+        yhash<TNullable<TString>, yhash<TNullable<TString>, i64>> result;
+        for (const auto& pair : Capacities) {
+            auto srcDataCenter = MakeNullable(!pair.first.empty(), pair.first);
+            auto& srcDataCenterCapacities = result[srcDataCenter];
+            for (const auto& pair2 : pair.second) {
+                auto dstDataCenter = MakeNullable(!pair2.first.empty(), pair2.first);
+                srcDataCenterCapacities.emplace(dstDataCenter, pair2.second);
+            }
+        }
+        return result;
+    }
+
+    i64 GetDefaultCapacity() const
+    {
+        return DefaultCapacity;
+    }
+
+    NProfiling::TCpuDuration GetUpdateInterval() const
+    {
+        return CpuUpdateInterval;
+    }
+
+private:
+    void OnLoaded() override
+    {
+        CpuUpdateInterval = NProfiling::DurationToCpuDuration(UpdateInterval);
+    }
+
+    // src DC -> dst DC -> data size.
+    // NB: that null DC is encoded as an empty string here.
+    yhash<TString, yhash<TString, i64>> Capacities;
+    i64 DefaultCapacity;
+    TDuration UpdateInterval;
+    NProfiling::TCpuDuration CpuUpdateInterval;
+};
+
+DECLARE_REFCOUNTED_CLASS(TInterDCLimitsConfig)
+DEFINE_REFCOUNTED_TYPE(TInterDCLimitsConfig)
+
 class TChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -106,7 +179,27 @@ public:
     //! Interval between consequent replicator state checks.
     TDuration ReplicatorEnabledCheckPeriod;
 
+    //! Throttles chunk jobs.
     NConcurrency::TThroughputThrottlerConfigPtr JobThrottler;
+
+    //! Controls the maximum number of unsuccessful attempts to schedule a replication job.
+    int MaxMisscheduledReplicationJobsPerHeartbeat;
+    //! Controls the maximum number of unsuccessful attempts to schedule a repair job.
+    int MaxMisscheduledRepairJobsPerHeartbeat;
+    //! Controls the maximum number of unsuccessful attempts to schedule a removal job.
+    int MaxMisscheduledRemovalJobsPerHeartbeat;
+    //! Controls the maximum number of unsuccessful attempts to schedule a seal job.
+    int MaxMisscheduledSealJobsPerHeartbeat;
+
+    //! When balancing chunk repair queues for multiple media, how often do
+    //! their weights decay. (Weights are essentially repaired data sizes.)
+    TDuration RepairQueueBalancerWeightDecayInterval;
+
+    //! The number by which chunk repair queue weights are multiplied during decay.
+    double RepairQueueBalancerWeightDecayFactor;
+
+    //! Limits data size to be replicated/repaired along an inter-DC edge at any given moment.
+    TInterDCLimitsConfigPtr InterDCLimits;
 
     TChunkManagerConfig()
     {
@@ -190,9 +283,27 @@ public:
         RegisterParameter("job_throttler", JobThrottler)
             .DefaultNew();
 
+        RegisterParameter("max_misscheduled_replication_jobs_per_heartbeat", MaxMisscheduledReplicationJobsPerHeartbeat)
+            .Default(128);
+        RegisterParameter("max_misscheduled_repair_jobs_per_heartbeat", MaxMisscheduledRepairJobsPerHeartbeat)
+            .Default(128);
+        RegisterParameter("max_misscheduled_removal_jobs_per_heartbeat", MaxMisscheduledRemovalJobsPerHeartbeat)
+            .Default(128);
+        RegisterParameter("max_misscheduled_seal_jobs_per_heartbeat", MaxMisscheduledSealJobsPerHeartbeat)
+            .Default(128);
+
         RegisterInitializer([&] () {
             JobThrottler->Limit = 10000;
         });
+
+        RegisterParameter("repair_queue_balancer_weight_decay_interval", RepairQueueBalancerWeightDecayInterval)
+            .Default(TDuration::Seconds(60));
+
+        RegisterParameter("repair_queue_balancer_weight_decay_factor", RepairQueueBalancerWeightDecayFactor)
+            .Default(0.5);
+
+        RegisterParameter("inter_dc_limits", InterDCLimits)
+            .DefaultNew();
     }
 };
 

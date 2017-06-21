@@ -36,6 +36,11 @@ DEFINE_ENUM(ESyncStreamAdapterStrategy,
 
 class TAsyncSemaphore;
 
+DEFINE_ENUM(EExecutionStackKind,
+    (Small) // 256 Kb (default)
+    (Large) //   8 Mb
+);
+
 class TFiber;
 
 template <class TSignature>
@@ -45,13 +50,16 @@ template <class T>
 class TNonblockingQueue;
 
 DECLARE_REFCOUNTED_STRUCT(TLeaseEntry)
-typedef TLeaseEntryPtr TLease;
+using TLease = TLeaseEntryPtr;
 
-typedef size_t TThreadId;
-const size_t InvalidThreadId = 0;
+DECLARE_REFCOUNTED_STRUCT(IPollable)
+DECLARE_REFCOUNTED_STRUCT(IPoller)
 
-typedef size_t TFiberId;
-const size_t InvalidFiberId = 0;
+using TThreadId = size_t;
+constexpr size_t InvalidThreadId = 0;
+
+using TFiberId = size_t;
+constexpr size_t InvalidFiberId = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 

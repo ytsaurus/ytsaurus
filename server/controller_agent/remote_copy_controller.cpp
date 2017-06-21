@@ -1,9 +1,11 @@
 #include "remote_copy_controller.h"
 #include "private.h"
-#include "chunk_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+
+#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/atomic_chunk_pool.h>
 
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -35,6 +37,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NChunkServer;
+using namespace NChunkPools;
 using namespace NJobProxy;
 using namespace NChunkClient;
 using namespace NObjectClient;
@@ -47,11 +50,11 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NScheduler;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const NProfiling::TProfiler Profiler("/operations/remote_copy");
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteCopyController
     : public TOperationControllerBase
@@ -202,16 +205,19 @@ private:
         {
             i64 result = 0;
 
+            int concurrency = Controller_->Spec_->Concurrency;
+
             // Replication writer
-            result += Controller_->Spec_->JobIO->TableWriter->SendWindowSize +
-                Controller_->Spec_->JobIO->TableWriter->GroupSize;
+            result += concurrency * (Controller_->Spec_->JobIO->TableWriter->SendWindowSize +
+                Controller_->Spec_->JobIO->TableWriter->GroupSize);
 
             // Max block size
             i64 maxBlockSize = 0;
             for (const auto& stat : statistics) {
                  maxBlockSize = std::max(maxBlockSize, stat.MaxBlockSize);
             }
-            result += maxBlockSize;
+
+            result += concurrency * std::max(maxBlockSize, Controller_->Spec_->BlockBufferSize);
 
             return result;
         }
@@ -250,10 +256,15 @@ private:
     // Custom bits of preparation pipeline.
     void InitializeTransactions() override
     {
-        StartAsyncSchedulerTransaction();
-        StartInputTransaction(NullTransactionId);
-        StartOutputTransaction(UserTransactionId);
-        StartDebugOutputTransaction();
+        std::vector<TFuture<void>> startFutures {
+            StartAsyncSchedulerTransaction(),
+            StartInputTransaction(NullTransactionId),
+            StartOutputTransaction(UserTransactionId),
+            StartDebugOutputTransaction(),
+        };
+        WaitFor(Combine(startFutures))
+            .ThrowOnError();
+        AreTransactionsActive = true;
     }
 
     virtual void DoInitialize() override
@@ -274,6 +285,8 @@ private:
             AuthenticatedInputMasterClient = connection->CreateNativeClient(options);
         } else {
             AuthenticatedInputMasterClient = Host
+                ->GetMasterClient()
+                ->GetNativeConnection()
                 ->GetClusterDirectory()
                 ->GetConnectionOrThrow(*Spec_->ClusterName)
                 ->CreateNativeClient(options);
@@ -353,7 +366,11 @@ private:
             stripes.push_back(New<TChunkStripe>(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunkSpec))));
         }
 
-        auto jobSizeConstraints = CreateSimpleJobSizeConstraints(Spec_, Options_, TotalEstimatedInputDataSize);
+        auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
+            Spec_,
+            Options_,
+            GetOutputTablePaths().size(),
+            TotalEstimatedInputDataSize);
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobSizeConstraints->GetJobCount()) {
             THROW_ERROR_EXCEPTION("Too many chunks per job: actual %v, limit %v; "
@@ -408,7 +425,7 @@ private:
             for (const auto& key : attributeKeys) {
                 auto req = TYPathProxy::Set(path + "/@" + key);
                 req->set_value(InputTableAttributes_->GetYson(key).GetData());
-                SetTransactionId(req, OutputTransaction->GetId());
+                SetTransactionId(req, CompletionTransaction->GetId());
                 batchReq->AddRequest(req);
             }
 
@@ -501,7 +518,10 @@ private:
 
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
-        const auto& clusterDirectory = Host->GetClusterDirectory();
+        const auto& clusterDirectory = Host
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectory();
         TNativeConnectionConfigPtr connectionConfig;
         if (Spec_->ClusterConnection) {
             connectionConfig = *Spec_->ClusterConnection;
@@ -515,6 +535,8 @@ private:
 
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
         remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).GetData());
+        remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
+        remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
     }
 
 };
@@ -531,7 +553,7 @@ IOperationControllerPtr CreateRemoteCopyController(
     return New<TRemoteCopyController>(config, spec, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

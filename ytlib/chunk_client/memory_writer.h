@@ -2,13 +2,14 @@
 
 #include "public.h"
 #include "chunk_writer.h"
+#include "block.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryWriter
     : public IChunkWriter
@@ -16,8 +17,8 @@ class TMemoryWriter
 public:
     // IChunkWriter implementation.
     virtual TFuture<void> Open() override;
-    virtual bool WriteBlock(const TSharedRef& block) override;
-    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
+    virtual bool WriteBlock(const TBlock& block) override;
+    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override;
     virtual TFuture<void> GetReadyEvent() override;
     virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
 
@@ -32,7 +33,7 @@ public:
     virtual NErasure::ECodec GetErasureCodecId() const override;
 
     //! Can only be called after the writer is closed.
-    std::vector<TSharedRef>& GetBlocks();
+    std::vector<TBlock>& GetBlocks();
     //! Can only be called after the writer is closed.
     NProto::TChunkMeta& GetChunkMeta();
 
@@ -40,14 +41,14 @@ private:
     bool Open_ = false;
     bool Closed_ = false;
 
-    std::vector<TSharedRef> Blocks_;
+    std::vector<TBlock> Blocks_;
     NProto::TChunkMeta ChunkMeta_;
 
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryWriter)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

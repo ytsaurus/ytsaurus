@@ -3,16 +3,19 @@
 #include "private.h"
 
 #include "chunk_list_pool.h"
-#include "chunk_pool.h"
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
+#include "output_chunk_tree.h"
 #include "serialize.h"
 #include "helpers.h"
 #include "master_connector.h"
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/event_log.h>
+
+#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/public.h>
 
 #include <yt/server/chunk_server/public.h>
 
@@ -62,7 +65,7 @@
 namespace NYT {
 namespace NControllerAgent {
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Describes which part of the operation needs a particular file.
 DEFINE_ENUM(EOperationStage,
@@ -81,6 +84,7 @@ DEFINE_ENUM(EInputChunkState,
 DEFINE_ENUM(EControllerState,
     (Preparing)
     (Running)
+    (Failing)
     (Finished)
 );
 
@@ -91,10 +95,10 @@ DEFINE_ENUM(EOutputTableType,
 );
 
 DEFINE_ENUM(ETransactionType,
-    (Sync)
     (Async)
     (Input)
     (Output)
+    (Completion)
     (DebugOutput)
 );
 
@@ -117,41 +121,48 @@ class TOperationControllerBase
     // Welcome to the beautiful world of preprocessor!
 #define VERIFY_PASTER(affinity) VERIFY_ ## affinity
 #define VERIFY_EVALUATOR(affinity) VERIFY_PASTER(affinity)
-#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, affinity, defaultValue) \
+#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, affinity, catchStdException, defaultValue) \
 public: \
     virtual returnType method signature final \
     { \
         VERIFY_EVALUATOR(affinity); \
-        TSafeAssertionsGuard guard(Host->GetCoreDumper(), Host->GetCoreSemaphore()); \
+        TSafeAssertionsGuard guard( \
+            Host->GetCoreDumper(), \
+            Host->GetCoreSemaphore(), \
+            {"OperationId: " + ToString(OperationId)}); \
         try { \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \
-            OnOperationCrashed(ex); \
+            ProcessSafeException(ex); \
             return defaultValue; \
+        } catch (const std::exception& ex) { \
+            if (catchStdException) { \
+                ProcessSafeException(ex); \
+                return defaultValue; \
+            } \
+            throw; \
         } \
     } \
 private: \
     returnType Safe ## method signature;
 
-#define IMPLEMENT_SAFE_VOID_METHOD(method, signature, args, affinity) \
-    IMPLEMENT_SAFE_METHOD(void, method, signature, args, affinity, )
+#define IMPLEMENT_SAFE_VOID_METHOD(method, signature, args, affinity, catchStdException) \
+    IMPLEMENT_SAFE_METHOD(void, method, signature, args, affinity, catchStdException, )
 
-    IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
 
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<NScheduler::TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<NScheduler::TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<NScheduler::TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<NScheduler::TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
 
-    IMPLEMENT_SAFE_VOID_METHOD(SaveSnapshot, (TOutputStream* output), (output), THREAD_AFFINITY_ANY())
-
-    IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY(ControlThread))
-    IMPLEMENT_SAFE_VOID_METHOD(Forget, (), (), THREAD_AFFINITY(ControlThread))
-    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY(ControlThread))
+    IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY(ControlThread), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Forget, (), (), THREAD_AFFINITY(ControlThread), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY(ControlThread), false)
 
     IMPLEMENT_SAFE_METHOD(
         NScheduler::TScheduleJobResultPtr,
@@ -159,6 +170,7 @@ private: \
         (NScheduler::ISchedulingContextPtr context, const TJobResources& jobLimits),
         (context, jobLimits),
         INVOKER_AFFINITY(CancelableInvoker),
+        true,
         New<NScheduler::TScheduleJobResult>())
 
     //! Callback called by TChunkScraper when get information on some chunk.
@@ -166,14 +178,16 @@ private: \
         OnInputChunkLocated,
         (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
         (chunkId, replicas),
-        THREAD_AFFINITY_ANY())
+        THREAD_AFFINITY_ANY(),
+        false)
 
     //! Called by #IntermediateChunkScraper.
     IMPLEMENT_SAFE_VOID_METHOD(
         OnIntermediateChunkLocated,
         (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
         (chunkId, replicas),
-        THREAD_AFFINITY_ANY())
+        THREAD_AFFINITY_ANY(),
+        false)
 
 public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
@@ -199,7 +213,10 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
+    virtual std::vector<TJobResources> GetMinNeededJobResources() const override;
+
     virtual bool IsForgotten() const override;
+    virtual bool IsRevivedFromSnapshot() const override;
 
     virtual bool HasProgress() const override;
     virtual bool HasJobSplitterInfo() const override;
@@ -212,6 +229,10 @@ public:
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override;
+
+    // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
+    // operation from a forked process is a bad idea.
+    virtual void SaveSnapshot(TOutputStream* output) override;
 
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
@@ -280,8 +301,7 @@ protected:
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
     std::atomic<bool> Forgotten = {false};
-
-    bool RevivedFromSnapshot = false;
+    std::atomic<bool> RevivedFromSnapshot = {false};
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
@@ -304,14 +324,18 @@ protected:
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory;
 
-    NApi::ITransactionPtr SyncSchedulerTransaction;
     NApi::ITransactionPtr AsyncSchedulerTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
+    NApi::ITransactionPtr CompletionTransaction;
     NApi::ITransactionPtr DebugOutputTransaction;
     NApi::ITransactionPtr UserTransaction;
 
     NTransactionClient::TTransactionId UserTransactionId;
+
+    std::atomic<bool> AreTransactionsActive = {false};
+
+    bool CommitFinished = false;
 
     TOperationSnapshot Snapshot;
 
@@ -326,6 +350,28 @@ protected:
     {
         // Live preview table id.
         NCypressClient::TNodeId LivePreviewTableId;
+
+        void Persist(const TPersistenceContext& context);
+    };
+
+    struct TInputTable
+        : public TLockedUserObject
+    {
+        //! Number of chunks in the whole table (without range selectors).
+        int ChunkCount = -1;
+        std::vector<NChunkClient::TInputChunkPtr> Chunks;
+        NTableClient::TTableSchema Schema;
+        NTableClient::ETableSchemaMode SchemaMode;
+        bool IsDynamic;
+
+        //! Set to true when schema of the table is compatible with the output
+        //! teleport table and when no special options set that disallow chunk
+        //! teleporting (like force_transform = %true).
+        bool IsTeleportable = false;
+
+        bool IsForeign() const;
+
+        bool IsPrimary() const;
 
         void Persist(const TPersistenceContext& context);
     };
@@ -360,11 +406,10 @@ protected:
         NChunkClient::NProto::TDataStatistics DataStatistics;
 
         //! Chunk trees comprising the output (the order matters).
-        //! Keys are used when the output is sorted (e.g. in sort operations).
-        //! Trees are sorted w.r.t. key and appended to #OutputChunkListId.
-        std::multimap<int, NChunkClient::TChunkTreeId> OutputChunkTreeIds;
-
-        std::vector<TJobBoundaryKeys> BoundaryKeys;
+        //! Chunk trees are sorted according to either:
+        //! * integer key (e.g. in remote copy);
+        //! * boundary keys (when the output is sorted).
+        std::vector<std::pair<TOutputChunkTreeKey, NChunkClient::TChunkTreeId>> OutputChunkTreeIds;
 
         NYson::TYsonString EffectiveAcl;
 
@@ -380,7 +425,7 @@ protected:
     TNullable<TOutputTable> StderrTable;
     TNullable<TOutputTable> CoreTable;
 
-    // All output tables and stderr table (if present).
+    // All output tables plus stderr and core tables (if present).
     std::vector<TOutputTable*> UpdatingTables;
 
     struct TIntermediateTable
@@ -465,12 +510,12 @@ protected:
         bool Restarted = false;
 
         NScheduler::TExtendedJobResources EstimatedResourceUsage;
-        double JobProxyMemoryReserveFactor = -1;
-        double UserJobMemoryReserveFactor = -1;
+        TNullable<double> JobProxyMemoryReserveFactor;
+        TNullable<double> UserJobMemoryReserveFactor;
         TJobResources ResourceLimits;
 
-        TChunkStripeListPtr InputStripeList;
-        IChunkPoolOutput::TCookie OutputCookie;
+        NChunkPools::TChunkStripeListPtr InputStripeList;
+        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
 
         //! All chunk lists allocated for this job.
         /*!
@@ -521,10 +566,10 @@ protected:
         TCompletedJob(
             const TJobId& jobId,
             TTaskPtr sourceTask,
-            IChunkPoolOutput::TCookie outputCookie,
+            NChunkPools::IChunkPoolOutput::TCookie outputCookie,
             i64 dataSize,
-            IChunkPoolInput* destinationPool,
-            IChunkPoolInput::TCookie inputCookie,
+            NChunkPools::IChunkPoolInput* destinationPool,
+            NChunkPools::IChunkPoolInput::TCookie inputCookie,
             const NScheduler::TJobNodeDescriptor& nodeDescriptor)
             : Lost(false)
             , JobId(jobId)
@@ -541,11 +586,11 @@ protected:
         TJobId JobId;
 
         TTaskPtr SourceTask;
-        IChunkPoolOutput::TCookie OutputCookie;
+        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
         i64 DataSize;
 
-        IChunkPoolInput* DestinationPool;
-        IChunkPoolInput::TCookie InputCookie;
+        NChunkPools::IChunkPoolInput* DestinationPool;
+        NChunkPools::IChunkPoolInput::TCookie InputCookie;
 
         NScheduler::TJobNodeDescriptor NodeDescriptor;
 
@@ -597,8 +642,8 @@ protected:
 
         void ResetCachedMinNeededResources();
 
-        void AddInput(TChunkStripePtr stripe);
-        void AddInput(const std::vector<TChunkStripePtr>& stripes);
+        void AddInput(NChunkPools::TChunkStripePtr stripe);
+        void AddInput(const std::vector<NChunkPools::TChunkStripePtr>& stripes);
         void FinishInput();
 
         void CheckCompleted();
@@ -635,8 +680,8 @@ protected:
 
         TNullable<i64> GetMaximumUsedTmpfsSize() const;
 
-        virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
+        virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
+        virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
         virtual void Persist(const TPersistenceContext& context) override;
 
@@ -659,7 +704,7 @@ protected:
         bool CompletedFired;
 
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
-        yhash<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
+        yhash<NChunkPools::IChunkPoolOutput::TCookie, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
 
     private:
         TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
@@ -699,7 +744,7 @@ protected:
         void AddChunksToInputSpec(
             NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
             NScheduler::NProto::TTableInputSpec* inputSpec,
-            TChunkStripePtr stripe);
+            NChunkPools::TChunkStripePtr stripe);
 
         void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(
@@ -713,16 +758,16 @@ protected:
 
         void RegisterIntermediate(
             TJobletPtr joblet,
-            TChunkStripePtr stripe,
+            NChunkPools::TChunkStripePtr stripe,
             TTaskPtr destinationTask,
             bool attachToLivePreview);
         void RegisterIntermediate(
             TJobletPtr joblet,
-            TChunkStripePtr stripe,
-            IChunkPoolInput* destinationPool,
+            NChunkPools::TChunkStripePtr stripe,
+            NChunkPools::IChunkPoolInput* destinationPool,
             bool attachToLivePreview);
 
-        static TChunkStripePtr BuildIntermediateChunkStripe(
+        static NChunkPools::TChunkStripePtr BuildIntermediateChunkStripe(
             google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
         void RegisterOutput(
@@ -765,10 +810,9 @@ protected:
         }
 
         void Persist(const TPersistenceContext& context);
-
     };
 
-    NApi::ITransactionPtr StartTransaction(
+    TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::INativeClientPtr client,
         const NTransactionClient::TTransactionId& parentTransactionId = NTransactionClient::NullTransactionId);
@@ -780,6 +824,7 @@ protected:
     void RegisterTaskGroup(TTaskGroupPtr group);
 
     void UpdateTask(TTaskPtr task);
+    void UpdateDynamicNeededResources(TTaskPtr task);
 
     void UpdateAllTasks();
 
@@ -788,7 +833,7 @@ protected:
 
     void DoAddTaskLocalityHint(TTaskPtr task, NNodeTrackerClient::TNodeId nodeId);
     void AddTaskLocalityHint(TTaskPtr task, NNodeTrackerClient::TNodeId nodeId);
-    void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
+    void AddTaskLocalityHint(TTaskPtr task, NChunkPools::TChunkStripePtr stripe);
     void AddTaskPendingHint(TTaskPtr task);
     void ResetTaskLocalityDelays();
 
@@ -811,6 +856,10 @@ protected:
     void AnalyzeJobsIOUsage() const;
     void AnalyzeJobsDuration() const;
     void AnalyzeOperationProgess() const;
+    void AnalyzeScheduleJobStatistics() const;
+
+    void CheckMinNeededResourcesSanity();
+    void UpdateCachedMaxAvailableExecNodeResources();
 
     void DoScheduleJob(
         NScheduler::ISchedulingContext* context,
@@ -843,6 +892,7 @@ protected:
     virtual void InitializeConnections();
     virtual void InitializeTransactions();
     virtual void InitializeStructures();
+    virtual void SyncPrepare();
     void InitUpdatingTables();
 
 
@@ -854,13 +904,11 @@ protected:
     void GetOutputTablesSchema();
     virtual void PrepareInputTables();
     virtual void PrepareOutputTables();
-    void BeginUploadOutputTables();
-    void GetOutputTablesUploadParams();
+    void LockOutputTablesAndGetAttributes();
     void FetchUserFiles();
     void LockUserFiles();
     void GetUserFilesAttributes();
     void CreateLivePreviewTables();
-    void LockLivePreviewTables();
     void CollectTotals();
     virtual void CustomPrepare();
     void AddAllTaskPendingHints();
@@ -879,21 +927,21 @@ protected:
     void InitChunkListPool();
 
     // Initialize transactions
-    void StartAsyncSchedulerTransaction();
-    void StartSyncSchedulerTransaction();
-    void StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
-    void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
-    void StartDebugOutputTransaction();
+    TFuture<void> StartAsyncSchedulerTransaction();
+    TFuture<void> StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    TFuture<void> StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    TFuture<void> StartDebugOutputTransaction();
 
     // Completion.
     void TeleportOutputChunks();
+    void BeginUploadOutputTables(const std::vector<TOutputTable*>& updatingTables);
     void AttachOutputChunks(const std::vector<TOutputTable*>& tableList);
     void EndUploadOutputTables(const std::vector<TOutputTable*>& tableList);
     void CommitTransactions();
     virtual void CustomCommit();
 
-    bool GetCommitting();
-    void SetCommitting();
+    void StartCompletionTransaction();
+    void CommitCompletionTransaction();
 
     // Revival.
     void ReinstallLivePreview();
@@ -950,12 +998,12 @@ protected:
 
     struct TStripeDescriptor
     {
-        TChunkStripePtr Stripe;
-        IChunkPoolInput::TCookie Cookie;
+        NChunkPools::TChunkStripePtr Stripe;
+        NChunkPools::IChunkPoolInput::TCookie Cookie;
         TTaskPtr Task;
 
         TStripeDescriptor()
-            : Cookie(IChunkPoolInput::NullCookie)
+            : Cookie(NChunkPools::IChunkPoolInput::NullCookie)
         { }
 
         void Persist(const TPersistenceContext& context);
@@ -1001,7 +1049,7 @@ protected:
 
     virtual void OnOperationFailed(const TError& error, bool flush = true);
 
-    virtual void OnOperationAborted(const TError& error);
+    virtual void OnOperationTimeLimitExceeded();
 
     virtual bool IsCompleted() const = 0;
 
@@ -1015,6 +1063,9 @@ protected:
 
     //! Returns |true| as long as the operation can schedule new jobs.
     bool IsRunning() const;
+
+    //! Returns |true| as long as the operation is waiting for jobs abort events.
+    bool IsFailing() const;
 
     //! Returns |true| when operation completion event is scheduled to control invoker.
     bool IsFinished() const;
@@ -1045,36 +1096,32 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
-    void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
+    void RegisterInputStripe(NChunkPools::TChunkStripePtr stripe, TTaskPtr task);
 
-
-    void RegisterBoundaryKeys(
+    TOutputChunkTreeKey BuildChunkTreeKeyFromBoundaryKeys(
         const NScheduler::NProto::TOutputResult& boundaryKeys,
-        const NChunkClient::TChunkTreeId& chunkTreeId,
-        TOutputTable* outputTable);
+        const TOutputTable& outputTable);
+
+    const NObjectClient::TTransactionId& GetTransactionIdForOutputTable(const TOutputTable& table);
+
+    void AttachToLivePreview(NChunkClient::TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId);
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const NScheduler::TCompletedJobSummary& jobSummary);
 
     virtual void RegisterOutput(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
-        int key,
+        TOutputChunkTreeKey key,
         const NScheduler::TCompletedJobSummary& jobSummary);
 
-    void RegisterOutput(
+    void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunkSpec,
-        int key,
+        TOutputChunkTreeKey key,
         int tableIndex);
-
-    void RegisterOutput(
-        const NChunkClient::TChunkTreeId& chunkTreeId,
-        int key,
-        int tableIndex,
-        TOutputTable& table);
 
     void RegisterIntermediate(
         TJobletPtr joblet,
         TCompletedJobPtr completedJob,
-        TChunkStripePtr stripe,
+        NChunkPools::TChunkStripePtr stripe,
         bool attachToLivePreview);
 
     void RegisterStderr(TJobletPtr joblet, const NScheduler::TJobSummary& jobSummary);
@@ -1107,13 +1154,13 @@ protected:
     void SliceUnversionedChunks(
         const std::vector<NChunkClient::TInputChunkPtr>& unversionedChunks,
         const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<TChunkStripePtr>* result) const;
+        std::vector<NChunkPools::TChunkStripePtr>* result) const;
     void SlicePrimaryUnversionedChunks(
         const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<TChunkStripePtr>* result) const;
+        std::vector<NChunkPools::TChunkStripePtr>* result) const;
     void SlicePrimaryVersionedChunks(
         const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<TChunkStripePtr>* result) const;
+        std::vector<NChunkPools::TChunkStripePtr>* result) const;
 
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
@@ -1141,13 +1188,12 @@ protected:
 
     i64 GetFinalIOMemorySize(
         NScheduler::TJobIOConfigPtr ioConfig,
-        const TChunkStripeStatisticsVector& stripeStatistics) const;
+        const NChunkPools::TChunkStripeStatisticsVector& stripeStatistics) const;
 
     void InitIntermediateOutputConfig(NScheduler::TJobIOConfigPtr config);
     void InitFinalOutputConfig(NScheduler::TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(NScheduler::TJobIOConfigPtr ioConfig);
-    static NTableClient::TTableReaderOptionsPtr CreateIntermediateTableReaderOptions();
 
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
 
@@ -1172,6 +1218,8 @@ protected:
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
 
     virtual NScheduler::TJobSplitterConfigPtr GetJobSplitterConfig() const;
+
+    void CheckFailedJobsStatusReceived();
 
 private:
     typedef TOperationControllerBase TThis;
@@ -1233,6 +1281,12 @@ private:
     //! Periodically checks operation progress and registers operation alerts if necessary.
     NConcurrency::TPeriodicExecutorPtr AnalyzeOperationProgressExecutor;
 
+    //! Periodically checks min needed resources of tasks for sanity.
+    NConcurrency::TPeriodicExecutorPtr MinNeededResourcesSanityCheckExecutor;
+
+    //! Periodically updates cached max available exec node resources.
+    NConcurrency::TPeriodicExecutorPtr MaxAvailableExecNodeResourcesUpdateExecutor;
+
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
@@ -1240,6 +1294,8 @@ private:
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
+
+    TNullable<TJobResources> CachedMaxAvailableExecNodeResources_;
 
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
@@ -1249,8 +1305,6 @@ private:
     TMemoryDigestMap UserJobMemoryDigests_;
 
     const TString CodicilData_;
-
-    std::atomic<bool> AreTransactionsActive = {false};
 
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
     std::unique_ptr<IHistogram> InputDataSizeHistogram_;
@@ -1270,7 +1324,7 @@ private:
 
     void BuildAndSaveProgress();
 
-    void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
+    void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
 
     void InitializeHistograms();
     void AddValueToEstimatedHistogram(TJobletPtr joblet);
@@ -1290,6 +1344,9 @@ private:
     void UpdateAllTasksIfNeeded();
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
+
+    TNullable<TDuration> GetTimeLimit() const;
+    TError GetTimeLimitError() const;
 
     //! Sets finish time and other timing statistics.
     void FinalizeJoblet(
@@ -1311,9 +1368,12 @@ private:
         const NTableClient::TTableSchema& schema,
         const NYTree::IAttributeDictionary& attributes) const;
 
+    void SleepInStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
+
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.
-    void OnOperationCrashed(const TAssertionFailedException& ex);
+    void ProcessSafeException(const TAssertionFailedException& ex);
+    void ProcessSafeException(const std::exception& ex);
 
     static EJobState GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state);
 
@@ -1337,7 +1397,7 @@ private:
         TDuration suspiciousInactivityTimeout,
         i64 suspiciousCpuUsageThreshold,
         double suspiciousInputPipeIdleTimeFraction,
-        const TBriefJobStatisticsPtr& briefStatistics);
+        const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

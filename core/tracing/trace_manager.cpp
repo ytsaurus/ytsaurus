@@ -9,6 +9,7 @@
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <yt/core/rpc/bus_channel.h>
 
@@ -255,7 +256,7 @@ private:
     NProto::TEndpoint GetLocalEndpoint()
     {
         auto* addressResolver = TAddressResolver::Get();
-        auto addressOrError = addressResolver->Resolve(addressResolver->GetLocalHostName()).Get();
+        auto addressOrError = addressResolver->Resolve(GetLocalHostName()).Get();
         if (!addressOrError.IsOK()) {
             LOG_FATAL(addressOrError, "Error determining local endpoint address");
         }
@@ -337,6 +338,10 @@ void TTraceManager::Enqueue(
         annotationKey,
         annotationValue);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(8, TTraceManager::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/service_combiner.h>

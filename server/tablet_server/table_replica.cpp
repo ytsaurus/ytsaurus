@@ -27,6 +27,7 @@ void TTableReplica::Save(NCellMaster::TSaveContext& context) const
     Save(context, StartReplicationTimestamp_);
     Save(context, Table_);
     Save(context, State_);
+    Save(context, Mode_);
     Save(context, DisablingTablets_);
 }
 
@@ -40,6 +41,12 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     Load(context, StartReplicationTimestamp_);
     Load(context, Table_);
     Load(context, State_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 602) {
+        Load(context, Mode_);
+    } else {
+        Mode_ = ETableReplicaMode::Async;
+    }
     Load(context, DisablingTablets_);
 }
 
@@ -52,6 +59,9 @@ void TTableReplica::ThrowInvalidState()
 
 TDuration TTableReplica::ComputeReplicationLagTime() const
 {
+    if (Mode_ == ETableReplicaMode::Sync) {
+        return TDuration::Zero();
+    }
     auto result = TDuration::Zero();
     for (auto* tablet : Table_->Tablets()) {
         const auto* replicaInfo = tablet->GetReplicaInfo(this);

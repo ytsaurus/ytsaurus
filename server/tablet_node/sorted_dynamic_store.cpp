@@ -13,6 +13,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_writer.h>
@@ -1023,11 +1024,22 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
     for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
         auto revision = RegisterRevision(value->Timestamp);
         WriteRevisions_.push_back(revision);
-        auto list = PrepareFixedValue(result, value->Id);
-        auto& uncommittedValue = list.GetUncommitted();
-        uncommittedValue.Revision = revision;
-        CaptureUnversionedValue(&uncommittedValue, *value);
-        list.Commit();
+
+        TDynamicValue dynamicValue;
+        CaptureUnversionedValue(&dynamicValue, *value);
+        dynamicValue.Revision = revision;
+
+        int index = value->Id;
+        auto currentList = result.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
+        if (currentList && currentList.HasUncommitted()) {
+            currentList.GetUncommitted() = dynamicValue;
+            currentList.Commit();
+            PrepareFixedValue(result, index);
+        } else {
+            auto newList = PrepareFixedValue(result, index);
+            newList.GetUncommitted() = dynamicValue;
+            newList.Commit();
+        }
     }
 
     std::sort(
@@ -1826,7 +1838,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             .ThrowOnError();
 
         Save(context, chunkWriter->GetChunkMeta());
-        Save(context, chunkWriter->GetBlocks());
+        Save(context, TBlock::Unwrap(chunkWriter->GetBlocks()));
     });
 }
 
@@ -1837,23 +1849,30 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
     if (Load<bool>(context)) {
         auto chunkMeta = Load<TChunkMeta>(context);
         auto blocks = Load<std::vector<TSharedRef>>(context);
-
-        auto chunkReader = CreateMemoryReader(chunkMeta, blocks);
+        
+        auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
 
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, TWorkloadDescriptor(), Schema_);
         auto cachedMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+        auto chunkState = New<TChunkState>(
+            GetNullBlockCache(),
+            chunkSpec,
+            std::move(cachedMeta),
+            nullptr,
+            New<TChunkReaderPerformanceCounters>(),
+            nullptr);
 
         auto tableReaderConfig = New<TTabletChunkReaderConfig>();
         auto tableReader = CreateVersionedChunkReader(
             tableReaderConfig,
             chunkReader,
-            GetNullBlockCache(),
-            cachedMeta,
+            chunkState,
             MinKey(),
             MaxKey(),
             TColumnFilter(),
-            New<TChunkReaderPerformanceCounters>(),
             AllCommittedTimestamp,
             true);
         WaitFor(tableReader->Open())

@@ -32,7 +32,7 @@ using namespace NConcurrency;
 using namespace NTools;
 using namespace NShell;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TJobProberService
     : public TServiceBase
@@ -51,6 +51,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Fail));
     }
 
 private:
@@ -116,6 +117,15 @@ private:
 
         context->Reply();
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Fail)
+    {
+        Y_UNUSED(response);
+
+        JobProxy_->Fail();
+
+        context->Reply();
+    }
 };
 
 IServicePtr CreateJobProberService(TJobProxyPtr jobProxy)
@@ -128,7 +138,7 @@ IServicePtr CreateJobProberService(IJobProbePtr jobProbe, IInvokerPtr controlInv
     return New<TJobProberService>(jobProbe, controlInvoker);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProxy
 } // namespace NYT

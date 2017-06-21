@@ -23,7 +23,7 @@ using namespace NObjectClient;
 
 using NYT::FromProto;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TScraperTask
     : public TRefCounted
@@ -159,7 +159,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TScraperTask)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TChunkScraper::TChunkScraper(
     const TChunkScraperConfigPtr config,
@@ -173,7 +173,7 @@ TChunkScraper::TChunkScraper(
     : Config_(config)
     , Invoker_(invoker)
     , ThrottlerManager_(throttlerManager)
-    , MasterClient_(client)
+    , Client_(client)
     , NodeDirectory_(nodeDirectory)
     , OnChunkLocated_(onChunkLocated)
     , Logger(logger)
@@ -219,7 +219,7 @@ void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
     for (const auto& cellChunks : chunksByCells) {
         auto cellTag = cellChunks.first;
         auto throttler = ThrottlerManager_->GetThrottler(cellTag);
-        auto masterChannel = MasterClient_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellTag);
+        auto masterChannel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellTag);
         auto task = New<TScraperTask>(
             Config_,
             Invoker_,
@@ -234,7 +234,7 @@ void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

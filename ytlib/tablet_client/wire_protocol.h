@@ -22,7 +22,7 @@ namespace NTabletClient {
 
 // ToDo(psushin): move to NTableClient.
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EWireProtocolCommand,
     // Read commands:
@@ -65,7 +65,7 @@ DEFINE_ENUM(EWireProtocolCommand,
     // Output:
     //   None
 
-    ((WriteVersionedRow)(102))
+    ((VersionedWriteRow)(102))
     // Writes a versioned row (possibly inserting new values and/or delete timestamps).
     // Currently only used by replicator.
     //
@@ -140,7 +140,7 @@ inline void TWireProtocolWriter::WriteRowset<NTableClient::TVersionedRow>(
     return WriteVersionedRowset(rowset);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Reads wire-encoded stream.
 /*!
@@ -219,7 +219,7 @@ inline TSharedRange<NTableClient::TVersionedRow> TWireProtocolReader::ReadRowset
     return ReadVersionedRowset(schemaData, deep);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct IWireProtocolRowsetReader
     : public NTableClient::ISchemafulReader
@@ -234,7 +234,7 @@ IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
     bool isSchemaful,
     const NLogging::TLogger& logger);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct IWireProtocolRowsetWriter
     : public NTableClient::ISchemafulWriter
@@ -251,7 +251,7 @@ IWireProtocolRowsetWriterPtr CreateWireProtocolRowsetWriter(
     bool isSchemaful,
     const NLogging::TLogger& logger);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletClient
 } // namespace NYT

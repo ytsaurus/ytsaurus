@@ -6,6 +6,7 @@
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
+#include "helpers.h"
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -52,18 +53,18 @@ using NYT::ToProto;
 using NYT::FromProto;
 using ::ToString;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const double MaxBackoffMultiplier = 1000.0;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EPeerType,
     (Peer)
     (Seed)
 );
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TPeer
 {
@@ -85,7 +86,7 @@ TString ToString(const TPeer& peer)
     return peer.Address;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TPeerQueueEntry
 {
@@ -99,7 +100,7 @@ struct TPeerQueueEntry
     ui32 Random = RandomNumber<ui32>();
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReader
     : public IChunkReader
@@ -152,11 +153,11 @@ public:
             Networks_);
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<int>& blockIndexes) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount) override;
@@ -361,9 +362,9 @@ private:
     }
 };
 
-typedef TIntrusivePtr<TReplicationReader> TReplicationReaderPtr;
+using TReplicationReaderPtr = TIntrusivePtr<TReplicationReader>;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReader::TSessionBase
     : public TRefCounted
@@ -554,7 +555,7 @@ protected:
     std::vector<TPeer> PickPeerCandidates(
         int count,
         std::function<bool(const TString&)> filter,
-        TReplicationReaderPtr reader)
+        const TReplicationReaderPtr& reader)
     {
         std::vector<TPeer> candidates;
         while (!PeerQueue_.empty() && candidates.size() < count) {
@@ -704,7 +705,7 @@ protected:
     }
 
     template <class TResponsePtr>
-    void BanSeedIfUncomplete(TResponsePtr rsp, const TString& address)
+    void BanSeedIfUncomplete(const TResponsePtr& rsp, const TString& address)
     {
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
             LOG_DEBUG("Seed does not contain the chunk (Address: %v)", address);
@@ -825,7 +826,7 @@ private:
     }
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReader::TReadBlockSetSession
     : public TSessionBase
@@ -846,7 +847,7 @@ public:
         Promise_.TrySet(TError("Reader terminated"));
     }
 
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<std::vector<TBlock>> Run()
     {
         NextRetry();
         return Promise_;
@@ -857,10 +858,10 @@ private:
     const std::vector<int> BlockIndexes_;
 
     //! Promise representing the session.
-    TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
+    TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
-    yhash<int, TSharedRef> Blocks_;
+    yhash<int, TBlock> Blocks_;
 
     //! Maps peer addresses to block indexes.
     yhash<TString, yhash_set<int>> PeerBlocksMap_;
@@ -911,7 +912,7 @@ private:
         return false;
     }
 
-    void FetchBlocksFromCache(TReplicationReaderPtr reader)
+    void FetchBlocksFromCache(const TReplicationReaderPtr& reader)
     {
         for (int blockIndex : BlockIndexes_) {
             if (Blocks_.find(blockIndex) == Blocks_.end()) {
@@ -925,7 +926,10 @@ private:
         }
     }
 
-    TNullable<TPeer> SelectBestPeer(const std::vector<TPeer>& candidates, const std::vector<int>& blockIndexes, TReplicationReaderPtr reader)
+    TNullable<TPeer> SelectBestPeer(
+        const std::vector<TPeer>& candidates,
+        const std::vector<int>& blockIndexes,
+        const TReplicationReaderPtr& reader)
     {
         LOG_DEBUG("Gathered candidate peers (Addresses: %v)", candidates);
 
@@ -941,8 +945,7 @@ private:
         std::vector<TPeer> probePeers;
 
         for (const auto& peer : candidates) {
-            IChannelPtr channel = GetHeavyChannel(peer.Address);
-
+            auto channel = GetHeavyChannel(peer.Address);
             if (!channel) {
                 continue;
             }
@@ -1039,7 +1042,9 @@ private:
             .Run();
     }
 
-    bool UpdatePeerBlockMap(TDataNodeServiceProxy::TRspGetBlockSetPtr rsp, TReplicationReaderPtr reader)
+    bool UpdatePeerBlockMap(
+        const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp,
+        const TReplicationReaderPtr& reader)
     {
         if (!Config_->FetchFromPeers && rsp->peer_descriptors_size() > 0) {
             LOG_DEBUG("Peer suggestions received but ignored");
@@ -1103,8 +1108,7 @@ private:
         }
 
         const auto& peerAddress = maybePeer->Address;
-        IChannelPtr channel = GetHeavyChannel(peerAddress);
-
+        auto channel = GetHeavyChannel(peerAddress);
         if (!channel) {
             RequestBlocks();
             return;
@@ -1145,17 +1149,34 @@ private:
 
         i64 bytesReceived = 0;
         std::vector<int> receivedBlockIndexes;
-        for (int index = 0; index < rsp->Attachments().size(); ++index) {
-            const auto& block = rsp->Attachments()[index];
+
+        auto blocks = GetRpcAttachedBlocks(rsp);
+        for (int index = 0; index < blocks.size(); ++index) {
+            const auto& block = blocks[index];
             if (!block)
                 continue;
 
             int blockIndex = req->block_indexes(index);
             auto blockId = TBlockId(reader->ChunkId_, blockIndex);
 
+            try {
+                block.ValidateChecksum();
+            } catch (const TBlockChecksumValidationException& ex) {
+                RegisterError(TError("Failed to validate received block checksum")
+                    << TErrorAttribute("block_id", ToString(blockId))
+                    << TErrorAttribute("peer", peerAddress)
+                    << TErrorAttribute("actual", ex.GetActual())
+                    << TErrorAttribute("expected", ex.GetExpected()));
+
+                BanPeer(peerAddress, false);
+                RequestBlocks();
+                return;
+             }
+
             auto sourceDescriptor = reader->Options_->EnableP2P
                 ? TNullable<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
                 : TNullable<TNodeDescriptor>(Null);
+
             reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
             YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
@@ -1185,14 +1206,14 @@ private:
     {
         LOG_DEBUG("All requested blocks are fetched");
 
-        std::vector<TSharedRef> blocks;
+        std::vector<TBlock> blocks;
         blocks.reserve(BlockIndexes_.size());
         for (int blockIndex : BlockIndexes_) {
             const auto& block = Blocks_[blockIndex];
-            YCHECK(block);
+            YCHECK(block.Data);
             blocks.push_back(block);
         }
-        Promise_.TrySet(std::vector<TSharedRef>(blocks));
+        Promise_.TrySet(std::vector<TBlock>(blocks));
     }
 
     virtual void OnSessionFailed() override
@@ -1208,7 +1229,7 @@ private:
     }
 };
 
-TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
+TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
     const std::vector<int>& blockIndexes)
 {
@@ -1220,7 +1241,7 @@ TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
         .Run();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReader::TReadBlockRangeSession
     : public TSessionBase
@@ -1240,10 +1261,10 @@ public:
             FirstBlockIndex_ + BlockCount_ - 1);
     }
 
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<std::vector<TBlock>> Run()
     {
         if (BlockCount_ == 0) {
-            return MakeFuture(std::vector<TSharedRef>());
+            return MakeFuture(std::vector<TBlock>());
         }
 
         NextRetry();
@@ -1258,10 +1279,10 @@ private:
     const int BlockCount_;
 
     //! Promise representing the session.
-    TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
+    TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
-    std::vector<TSharedRef> FetchedBlocks_;
+    std::vector<TBlock> FetchedBlocks_;
 
     virtual bool IsCanceled() const override
     {
@@ -1304,8 +1325,7 @@ private:
         }
 
         const auto& peerAddress = candidates.front().Address;
-        IChannelPtr channel = GetHeavyChannel(peerAddress);
-
+        auto channel = GetHeavyChannel(peerAddress);
         if (!channel) {
             RequestBlocks();
             return;
@@ -1339,15 +1359,33 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        const auto& blocks = rsp->Attachments();
+        auto blocks = GetRpcAttachedBlocks(rsp);
+
         int blocksReceived = 0;
         i64 bytesReceived = 0;
-        for (const auto& block : blocks) {
+
+        for (auto& block : blocks) {
             if (!block)
                 break;
+
             blocksReceived += 1;
             bytesReceived += block.Size();
-            FetchedBlocks_.push_back(block);
+
+            try {
+                block.ValidateChecksum();
+            } catch (const TBlockChecksumValidationException& ex) {
+                RegisterError(TError("Failed to validate received block checksum")
+                    << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
+                    << TErrorAttribute("peer", peerAddress)
+                    << TErrorAttribute("actual", ex.GetActual())
+                    << TErrorAttribute("expected", ex.GetExpected()));
+
+                BanPeer(peerAddress, false);
+                RequestBlocks();
+                return;
+             }
+
+             FetchedBlocks_.emplace_back(std::move(block));
          }
 
         BanSeedIfUncomplete(rsp, peerAddress);
@@ -1382,7 +1420,7 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + FetchedBlocks_.size() - 1);
 
-        Promise_.TrySet(std::vector<TSharedRef>(FetchedBlocks_));
+        Promise_.TrySet(std::vector<TBlock>(FetchedBlocks_));
     }
 
     virtual void OnSessionFailed() override
@@ -1399,7 +1437,7 @@ private:
 
 };
 
-TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
+TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
     int firstBlockIndex,
     int blockCount)
@@ -1412,7 +1450,7 @@ TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
         .Run();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReader::TGetMetaSession
     : public TSessionBase
@@ -1486,7 +1524,7 @@ private:
         }
 
         const auto& peerAddress = candidates.front().Address;
-        IChannelPtr channel = GetHeavyChannel(peerAddress);
+        auto channel = GetHeavyChannel(peerAddress);
         if (!channel) {
             RequestMeta();
             return;
@@ -1562,7 +1600,7 @@ TFuture<TChunkMeta> TReplicationReader::GetMeta(
         .Run();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
@@ -1581,20 +1619,20 @@ IChunkReaderPtr CreateReplicationReader(
     YCHECK(nodeDirectory);
 
     auto reader = New<TReplicationReader>(
-        config,
-        options,
-        client,
-        nodeDirectory,
+        std::move(config),
+        std::move(options),
+        std::move(client),
+        std::move(nodeDirectory),
         localDescriptor,
         chunkId,
         seedReplicas,
-        blockCache,
-        throttler);
+        std::move(blockCache),
+        std::move(throttler));
     reader->Initialize();
     return reader;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

@@ -11,6 +11,7 @@
 #include <yt/server/tablet_node/slot_manager.h>
 #include <yt/server/tablet_node/tablet.h>
 #include <yt/server/tablet_node/tablet_manager.h>
+#include <yt/server/tablet_node/transaction_manager.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -42,6 +43,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NCellNode;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,6 +64,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
+            .SetInvoker(bootstrap->GetLookupPoolInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(bootstrap->GetLookupPoolInvoker()));
     }
 
@@ -139,7 +143,7 @@ private:
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto responseCodecId = NCompression::ECodec(request->response_codec());
 
-        context->SetRequestInfo("TabletId: %v, Timestamp: %v, RequestCodec: %v, ResponseCodec: %v",
+        context->SetRequestInfo("TabletId: %v, Timestamp: %llxx, RequestCodec: %v, ResponseCodec: %v",
             tabletId,
             timestamp,
             requestCodecId,
@@ -184,6 +188,39 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetTabletInfo)
+    {
+        auto tabletIds = FromProto<std::vector<TTabletId>>(request->tablet_ids());
+
+        context->SetRequestInfo("TabletIds: %v", tabletIds);
+
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+
+        for (const auto& tabletId : tabletIds) {
+            const auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+            auto* protoTabletInfo = response->add_tablet_info();
+            ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
+
+            for (const auto& replicaPair : tabletSnapshot->Replicas) {
+                const auto& replicaId = replicaPair.first;
+                const auto& replicaSnapshot = replicaPair.second;
+
+                auto lastReplicationTimestamp =
+                    replicaSnapshot->RuntimeData->LastReplicationTimestamp.load(std::memory_order_relaxed);
+                if (lastReplicationTimestamp == NullTimestamp) {
+                    auto replicationTimestamp =
+                        replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load(std::memory_order_relaxed);
+                    lastReplicationTimestamp = replicationTimestamp;
+                }
+
+                auto* protoReplicaInfo = protoTabletInfo->add_replica_info();
+                ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
+                protoReplicaInfo->set_last_replication_timestamp(lastReplicationTimestamp);
+            }
+        }
+        context->Reply();
+    }
 };
 
 IServicePtr CreateQueryService(

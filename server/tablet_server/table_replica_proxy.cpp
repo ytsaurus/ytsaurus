@@ -19,6 +19,7 @@ namespace NTabletServer {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NTabletClient;
 using namespace NObjectServer;
 using namespace NCypressServer;
 
@@ -53,6 +54,7 @@ private:
         attributes->push_back("table_path");
         attributes->push_back("start_replication_timestamp");
         attributes->push_back("state");
+        attributes->push_back("mode");
         attributes->push_back(TAttributeDescriptor("tablets")
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor("replication_lag_time")
@@ -98,6 +100,12 @@ private:
             return true;
         }
 
+        if (key == "mode") {
+            BuildYsonFluently(consumer)
+                .Value(replica->GetMode());
+            return true;
+        }
+
         if (key == "tablets") {
             BuildYsonFluently(consumer)
                 .DoMapFor(table->Tablets(), [=] (TFluentMap fluent, TTablet* tablet) {
@@ -135,11 +143,21 @@ private:
 
         DeclareMutating();
 
+        auto enabled = request->has_enabled() ? MakeNullable(request->enabled()) : Null;
+        auto mode = request->has_mode() ? MakeNullable(ETableReplicaMode(request->mode())) : Null;
+
+        context->SetRequestInfo("Enabled: %v, Mode: %v",
+            enabled,
+            mode);
+
         auto* replica = GetThisImpl();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        if (request->has_enabled()) {
-            tabletManager->SetTableReplicaEnabled(replica, request->enabled());
+        if (enabled) {
+            tabletManager->SetTableReplicaEnabled(replica, *enabled);
+        }
+        if (mode) {
+            tabletManager->SetTableReplicaMode(replica, *mode);
         }
 
         context->Reply();

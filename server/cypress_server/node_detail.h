@@ -102,7 +102,9 @@ public:
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes) override
+        NYTree::IAttributeDictionary* attributes,
+        NSecurityServer::TAccount* account,
+        bool enableAccounting) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(GetObjectType(), hintId);
@@ -110,7 +112,9 @@ public:
             TVersionedNodeId(id),
             externalCellTag,
             transaction,
-            attributes);
+            attributes,
+            account,
+            enableAccounting);
     }
 
     virtual void Destroy(TCypressNodeBase* node) override
@@ -173,7 +177,8 @@ public:
         TCypressNodeBase* sourceNode,
         ICypressNodeFactory* factory,
         const TNodeId& hintId,
-        ENodeCloneMode mode) override
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override
     {
         // Run core prologue stuff.
         auto* clonedNode = CloneCorePrologue(
@@ -184,7 +189,7 @@ public:
         // Run custom stuff.
         auto* typedSourceNode = sourceNode->template As<TImpl>();
         auto* typedClonedNode = clonedNode->template As<TImpl>();
-        DoClone(typedSourceNode, typedClonedNode, factory, mode);
+        DoClone(typedSourceNode, typedClonedNode, factory, mode, account);
 
         // Run core epilogue stuff.
         CloneCoreEpilogue(
@@ -221,16 +226,27 @@ protected:
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* /*transaction*/,
-        NYTree::IAttributeDictionary* /*attributes*/    )
+        NYTree::IAttributeDictionary* /*attributes*/,
+        NSecurityServer::TAccount* account,
+        bool enableAccounting)
     {
         auto nodeHolder = std::make_unique<TImpl>(id);
         nodeHolder->SetExternalCellTag(externalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
+
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(account, user, NSecurityServer::EPermission::Use);
+        securityManager->SetAccount(nodeHolder.get(), account);
+
         return nodeHolder;
     }
 
-    virtual void DoDestroy(TImpl* /*node*/)
-    { }
+    virtual void DoDestroy(TImpl* node)
+    {
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        securityManager->ResetAccount(node);
+    }
 
     virtual void DoBranch(
         const TImpl* /*originatingNode*/,
@@ -283,7 +299,8 @@ protected:
         TImpl* /*sourceNode*/,
         TImpl* /*clonedNode*/,
         ICypressNodeFactory* /*factory*/,
-        ENodeCloneMode /*mode*/)
+        ENodeCloneMode /*mode*/,
+        NSecurityServer::TAccount* /*account*/)
     { }
 
 };
@@ -426,9 +443,10 @@ protected:
         TScalarNode<TValue>* sourceNode,
         TScalarNode<TValue>* clonedNode,
         ICypressNodeFactory* factory,
-        ENodeCloneMode mode) override
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override
     {
-        TBase::DoClone(sourceNode, clonedNode, factory, mode);
+        TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
         clonedNode->Value() = sourceNode->Value();
     }
@@ -493,7 +511,8 @@ private:
         TMapNode* sourceNode,
         TMapNode* clonedNode,
         ICypressNodeFactory* factory,
-        ENodeCloneMode mode) override;
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -553,7 +572,8 @@ private:
         TListNode* sourceNode,
         TListNode* clonedNode,
         ICypressNodeFactory* factory,
-        ENodeCloneMode mode) override;
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -596,7 +616,9 @@ private:
         const TVersionedNodeId& id,
         NObjectClient::TCellTag cellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes) override;
+        NYTree::IAttributeDictionary* attributes,
+        NSecurityServer::TAccount* account,
+        bool enableAccounting) override;
 
     virtual void DoBranch(
         const TLinkNode* originatingNode,
@@ -611,7 +633,8 @@ private:
         TLinkNode* sourceNode,
         TLinkNode* clonedNode,
         ICypressNodeFactory* factory,
-        ENodeCloneMode mode) override;
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -663,7 +686,8 @@ private:
         TDocumentNode* sourceNode,
         TDocumentNode* clonedNode,
         ICypressNodeFactory* factory,
-        ENodeCloneMode mode) override;
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override;
 
 };
 

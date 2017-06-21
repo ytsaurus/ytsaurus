@@ -25,7 +25,7 @@ struct TExternalFunctionSpec
 
 struct TExternalFunctionImpl
 {
-    bool IsAggregate;
+    bool IsAggregate = false;
     TString Name;
     TString SymbolName;
     ECallingConvention CallingConvention;
@@ -97,7 +97,6 @@ void FetchJobImplementations(
 struct TDescriptorType
 {
     TType Type = EValueType::Min;
-
 };
 
 void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer);

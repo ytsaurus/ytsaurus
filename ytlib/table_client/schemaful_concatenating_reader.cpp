@@ -13,48 +13,65 @@ class TSchemafulConcatenatingReader
 {
 public:
     explicit TSchemafulConcatenatingReader(
-        std::vector<ISchemafulReaderPtr> underlyingReaders)
-        : UnderlyingReaders_(std::move(underlyingReaders))
+        std::vector<std::function<ISchemafulReaderPtr()>> underlyingReaderFactories)
+        : UnderlyingReaderFactories_(std::move(underlyingReaderFactories))
     { }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        while (CurrentReaderIndex_ < UnderlyingReaders_.size()) {
-            if (UnderlyingReaders_[CurrentReaderIndex_]->Read(rows)) {
+        auto resetCurrentReader = [&] () {
+            ++CurrentReaderIndex_;
+            if (CurrentReaderIndex_ < UnderlyingReaderFactories_.size()) {
+                CurrentReader_ = UnderlyingReaderFactories_[CurrentReaderIndex_]();
+                Readers_.push_back(CurrentReader_);
+            } else {
+                CurrentReader_.Reset();
+            }
+        };
+
+        if (!CurrentReader_) {
+            resetCurrentReader();
+        }
+
+        while (CurrentReader_) {
+            if (CurrentReader_->Read(rows)) {
                 return true;
             }
-            ++CurrentReaderIndex_;
+
+            resetCurrentReader();
         }
         return false;
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        return CurrentReaderIndex_ < UnderlyingReaders_.size()
-            ? UnderlyingReaders_[CurrentReaderIndex_]->GetReadyEvent()
+        return CurrentReader_
+            ? CurrentReader_->GetReadyEvent()
             : VoidFuture;
     }
 
     virtual TDataStatistics GetDataStatistics() const override
     {
         TDataStatistics dataStatistics;
-        for (const auto& reader : UnderlyingReaders_) {
+        for (const auto& reader : Readers_) {
             dataStatistics += reader->GetDataStatistics();
         }
         return dataStatistics;
     }
 
 private:
-    const std::vector<ISchemafulReaderPtr> UnderlyingReaders_;
+    const std::vector<std::function<ISchemafulReaderPtr()>> UnderlyingReaderFactories_;
 
-    int CurrentReaderIndex_ = 0;
+    int CurrentReaderIndex_ = -1;
+    ISchemafulReaderPtr CurrentReader_;
+    std::vector<ISchemafulReaderPtr> Readers_;
 
 };
 
-ISchemafulReaderPtr CreateSchemafulConcatencatingReader(
-    std::vector<ISchemafulReaderPtr> underlyingReaders)
+ISchemafulReaderPtr CreateSchemafulConcatenatingReader(
+    std::vector<std::function<ISchemafulReaderPtr()>> underlyingReaderFactories)
 {
-    return New<TSchemafulConcatenatingReader>(std::move(underlyingReaders));
+    return New<TSchemafulConcatenatingReader>(std::move(underlyingReaderFactories));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

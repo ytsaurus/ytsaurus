@@ -28,6 +28,7 @@ message TTableReplicaDescriptor
     required string replica_path = 3;
     required uint64 start_replication_timestamp = 4;
     required NYT.NTabletClient.NProto.TTableReplicaStatistics statistics = 5;
+    required int32 mode = 6; // ETableReplicaMode
 }
 
 message TReqMountTablet
@@ -48,7 +49,7 @@ message TReqMountTablet
     required int64 trimmed_row_count = 12;
     required bool freeze = 13;
     repeated TTableReplicaDescriptor replicas = 14;
-    required int32 replication_mode = 18; // ETableReplicationMode
+    optional NYT.NProto.TGuid upstream_replica_id = 18;
 }
 
 message TReqUnmountTablet
@@ -95,6 +96,7 @@ message TReqWriteRows
     optional uint32 signature = 9;
     required bool lockless = 10;
     required int32 row_count = 11;
+    repeated NYT.NProto.TGuid sync_replica_ids = 12;
 }
 
 message TReqTrimRows
@@ -151,6 +153,13 @@ message TReqSetTableReplicaEnabled
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid replica_id = 2;
     required bool enabled = 3;
+}
+
+message TReqSetTableReplicaMode
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    required int32 mode = 3; // ETableReplicaMode
 }
 
 message TReqReplicateRows

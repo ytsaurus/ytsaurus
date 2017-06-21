@@ -9,7 +9,7 @@
 namespace NYT {
 namespace NApi {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterChannelKind,
     (Leader)
@@ -33,7 +33,7 @@ DEFINE_ENUM(ERowModificationType,
     ((VersionedWrite)   (2))
 );
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TRow>
 struct IRowset;
@@ -48,6 +48,14 @@ DECLARE_REFCOUNTED_STRUCT(IPersistentQueueRowset)
 struct TAdminOptions;
 struct TClientOptions;
 struct TTransactionParticipantOptions;
+
+struct TTimeoutOptions;
+struct TTransactionalOptions;
+struct TPrerequisiteOptions;
+struct TMasterReadOptions;
+struct TMutatingOptions;
+struct TSuppressableAccessTrackingOptions;
+struct TTabletRangeOptions;
 
 DECLARE_REFCOUNTED_STRUCT(IConnection)
 DECLARE_REFCOUNTED_STRUCT(IAdmin)
@@ -80,7 +88,7 @@ DECLARE_REFCOUNTED_STRUCT(TPrerequisiteRevisionConfig)
 
 DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NApi
 } // namespace NYT

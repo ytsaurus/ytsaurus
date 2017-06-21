@@ -56,10 +56,10 @@ public:
         : TFunctionTypeInferrer(std::unordered_map<TTypeArgument, TUnionType>(), argumentTypes, resultType)
     { }
 
-    EValueType InferResultType(
-        const std::vector<EValueType>& argumentTypes,
-        const TString& name,
-        const TStringBuf& source) const;
+    size_t GetNormalizedConstraints(
+        std::vector<TTypeSet>* typeConstraints,
+        std::vector<size_t>* formalArguments,
+        TNullable<std::pair<size_t, bool>>* repeatedType) const;
 
 private:
     std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
@@ -84,15 +84,11 @@ public:
         , StateType_(stateType)
     { }
 
-    EValueType InferStateType(
-        EValueType type,
-        const TString& aggregateName,
-        const TStringBuf& source) const;
-
-    EValueType InferResultType(
-        EValueType argumentType,
-        const TString& aggregateName,
-        const TStringBuf& source) const;
+    void GetNormalizedConstraints(
+        TTypeSet* constraint,
+        TNullable<EValueType>* stateType,
+        TNullable<EValueType>* resultType,
+        const TStringBuf& name) const;
 
 private:
     std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;

@@ -32,11 +32,8 @@ TOwningKey RowToKey(
          index < schema.GetKeyColumnCount();
          ++index, nullKeyBit <<= 1, ++srcKey, ++columnIt)
     {
-        TUnversionedValue dstKey;
-        dstKey.Id = index;
-        if (nullKeyMask & nullKeyBit) {
-            dstKey.Type = EValueType::Null;
-        } else {
+        auto dstKey = MakeUnversionedSentinelValue(EValueType::Null, index);
+        if (!(nullKeyMask & nullKeyBit)) {
             dstKey.Type = columnIt->Type;
             if (IsStringLikeType(EValueType(dstKey.Type))) {
                 dstKey.Length = srcKey->String->Length;
@@ -46,17 +43,6 @@ TOwningKey RowToKey(
             }
         }
         builder.AddValue(dstKey);
-    }
-    return builder.FinishRow();
-}
-
-TOwningKey RowToKey(
-    const TTableSchema& schema,
-    TUnversionedRow row)
-{
-    TUnversionedOwningRowBuilder builder;
-    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
-        builder.AddValue(row[index]);
     }
     return builder.FinishRow();
 }

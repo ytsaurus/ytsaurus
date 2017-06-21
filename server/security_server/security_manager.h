@@ -108,6 +108,9 @@ public:
     //! Updates the account to accommodate recent changes in #node resource usage.
     void UpdateAccountNodeUsage(NCypressServer::TCypressNodeBase* node);
 
+    //! Increments #node resource usage and updates the account to accomodate these changes.
+    void IncrementAccountNodeUsage(NCypressServer::TCypressNodeBase* node, const TClusterResources& delta);
+
     //! Enables or disables accounting for a given node updating account usage appropriately.
     void SetNodeResourceAccounting(NCypressServer::TCypressNodeBase* node, bool enable);
 
@@ -116,7 +119,6 @@ public:
         NTransactionServer::TTransaction* transaction,
         TAccount* account,
         const TClusterResources& delta);
-
 
     //! Returns user with a given name (|nullptr| if none).
     TUser* FindUserByName(const TString& name);

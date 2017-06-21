@@ -16,17 +16,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Read this
-// http://ewontfix.com/7/
-// before making any changes.
-class TProcess
+TErrorOr<TString> ResolveBinaryPath(const TString& binary);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProcessBase
     : public TRefCounted
 {
 public:
-    explicit TProcess(
-        const TString& path,
-        bool copyEnv = true,
-        TDuration pollPeriod = TDuration::MilliSeconds(100));
+    explicit TProcessBase(const TString& path);
 
     void AddArgument(TStringBuf arg);
     void AddEnvVar(TStringBuf var);
@@ -36,15 +34,12 @@ public:
 
     void SetWorkingDirectory(const TString& path);
 
-    // File actions are done after fork but before exec.
-    void AddCloseFileAction(int fd);
-
-    NPipes::TAsyncWriterPtr GetStdInWriter();
-    NPipes::TAsyncReaderPtr GetStdOutReader();
-    NPipes::TAsyncReaderPtr GetStdErrReader();
+    virtual NPipes::TAsyncWriterPtr GetStdInWriter() = 0;
+    virtual NPipes::TAsyncReaderPtr GetStdOutReader() = 0;
+    virtual NPipes::TAsyncReaderPtr GetStdErrReader() = 0;
 
     TFuture<void> Spawn();
-    void Kill(int signal);
+    virtual void Kill(int signal) = 0;
 
     TString GetPath() const;
     int GetProcessId() const;
@@ -53,23 +48,58 @@ public:
 
     TString GetCommandLine() const;
 
-private:
+protected:
     const TString Path_;
-    const TDuration PollPeriod_;
 
     int ProcessId_;
     std::atomic<bool> Started_ = {false};
     std::atomic<bool> Finished_ = {false};
-
     int MaxSpawnActionFD_ = - 1;
-
     NPipes::TPipe Pipe_;
     std::vector<TString> StringHolders_;
     std::vector<const char*> Args_;
     std::vector<const char*> Env_;
     TString ResolvedPath_;
     TString WorkingDirectory_;
+    TPromise<void> FinishedPromise_ = NewPromise<void>();
 
+    virtual void DoSpawn() = 0;
+    const char* Capture(const TStringBuf& arg);
+
+private:
+    void SpawnChild();
+    void ValidateSpawnResult();
+    void Child();
+    void AsyncPeriodicTryWait();
+};
+
+DEFINE_REFCOUNTED_TYPE(TProcessBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Read this
+// http://ewontfix.com/7/
+// before making any changes.
+class TSimpleProcess
+    : public TProcessBase
+{
+public:
+    explicit TSimpleProcess(
+        const TString& path,
+        bool copyEnv = true,
+        TDuration pollPeriod = TDuration::MilliSeconds(100));
+    virtual void Kill(int signal) override;
+    virtual NPipes::TAsyncWriterPtr GetStdInWriter() override;
+    virtual NPipes::TAsyncReaderPtr GetStdOutReader() override;
+    virtual NPipes::TAsyncReaderPtr GetStdErrReader() override;
+
+private:
+    const TDuration PollPeriod_;
+
+    NPipes::TPipeFactory PipeFactory_;
+    std::array<NPipes::TPipe, 3> StdPipes_;
+
+    NConcurrency::TPeriodicExecutorPtr AsyncWaitExecutor_;
     struct TSpawnAction
     {
         std::function<bool()> Callback;
@@ -78,23 +108,13 @@ private:
 
     std::vector<TSpawnAction> SpawnActions_;
 
-    NPipes::TPipeFactory PipeFactory_;
-    std::array<NPipes::TPipe, 3> StdPipes_;
-
-    NConcurrency::TPeriodicExecutorPtr AsyncWaitExecutor_;
-    TPromise<void> FinishedPromise_ = NewPromise<void>();
-
-    const char* Capture(const TStringBuf& arg);
-
-    void DoSpawn();
+    void AddDup2FileAction(int oldFD, int newFD);
+    virtual void DoSpawn() override;
     void SpawnChild();
     void ValidateSpawnResult();
-    void Child();
     void AsyncPeriodicTryWait();
-    void AddDup2FileAction(int oldFD, int newFD);
+    void Child();
 };
-
-DEFINE_REFCOUNTED_TYPE(TProcess)
 
 ////////////////////////////////////////////////////////////////////////////////
 

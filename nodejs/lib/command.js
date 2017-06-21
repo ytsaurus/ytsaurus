@@ -66,6 +66,58 @@ var _MIME_TO_FORMAT = {
     }),
 };
 
+function formatToMime(format)
+{
+    var format_name = format.Get();
+    switch (format_name) {
+        case "schemaful_dsv":
+            return "text/tab-separated-values";
+        case "yamred_dsv":
+            return "text/tab-separated-values";
+        case "yamr": {
+            var lenval = format.FindByYPath("/@lenval").Get();
+            var has_subkey = format.FindByYPath("/@has_subkey").Get();
+            if (lenval) {
+                if (has_subkey) {
+                    return "application/x-yamr-subkey-lenval";
+                } else {
+                    return "application/x-yamr-lenval"
+                }
+            } else {
+                if (has_subkey) {
+                    return "application/x-yamr-subkey-delimited";
+                } else {
+                    return "application/x-yamr-delimited";
+                }
+            }
+        }
+        case "dsv": {
+            var record_separator = format.FindByYPath("/@record_separator").Get();
+            var key_value_separator = format.FindByYPath("/@key_value_separator").Get();
+            var line_prefix = format.FindByYPath("/@line_prefix").Get();
+            if (record_separator == "," && key_value_separator == ":") {
+                return "text/csv";
+            } else if (line_prefix == "tskv") {
+                return "text/x-tskv";
+            } else {
+                return "text/tab-separated-values";
+            }
+        }
+        case "json":
+            return "application/json";
+        case "yson": {
+            var yson_format = format.FindByYPath("/@format").Get();
+            if (yson_format == "text") {
+                return "application/x-yt-yson-text";
+            } else if (yson_format == "pretty") {
+                return "application/x-yt-yson-pretty";
+            } else {
+                return "application/x-yt-yson-binary";
+            }
+        }
+    }
+}
+
 // This mapping defines which MIME types could be used to encode specific data type.
 var _MIME_BY_OUTPUT_TYPE = {};
 _MIME_BY_OUTPUT_TYPE[binding.EDataType_Structured] = [
@@ -193,7 +245,6 @@ YtCommand.prototype.dispatch = function(req, rsp) {
             self._checkAvailability();
             self._redirectHeavyRequests();
             self._getHeaderFormat();
-            self._captureParametersFromHeadersAndUrl();
             self._getInputFormat();
             self._getInputCompression();
             self._getOutputFormat();
@@ -201,6 +252,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
         })
         .then(self._captureParameters.bind(self))
         .then(function() {
+            self._setContentDispositionAndMime();
             self._logRequest();
             self._addHeaders();
         })
@@ -229,9 +281,13 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
         this.rsp.statusCode = 400;
     }
 
+    var sent_headers = !!this.rsp._header;
+
     if (result.isUnavailable() || result.isAllTargetNodesFailed()) {
         this.rsp.statusCode = 503;
-        this.rsp.setHeader("Retry-After", "60");
+        if (!sent_headers) {
+            this.rsp.setHeader("Retry-After", "60");
+        }
     }
 
     if (result.isUserBanned()) {
@@ -255,7 +311,7 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
         "X-YT-Response-Message": utils.escapeHeader(result.getMessage()),
         "X-YT-Response-Parameters": this.response_parameters.Print(binding.ECompression_None, this.header_format),
     };
-    var sent_headers = !!this.rsp._header;
+
     if (!sent_headers) {
         this.rsp.removeHeader("Trailer");
         for (var p in extra_headers) {
@@ -561,10 +617,9 @@ YtCommand.prototype._getInputCompression = function() {
     this.input_compression = result;
 };
 
-YtCommand.prototype._getOutputFormat = function() {
-    this.__DBG("_getOutputFormat");
+YtCommand.prototype._setContentDispositionAndMime = function() {
+    this.__DBG("_setContentDispositionAndMime");
 
-    var result_format, result_mime, header;
     var disposition = "attachment";
 
     // First, resolve content disposition.
@@ -577,7 +632,9 @@ YtCommand.prototype._getOutputFormat = function() {
         }
 
         if (this.command == "get_job_stderr") {
-            filename = "job_stderr_{}_{}".format(this.parameters.operation_id, this.parameters.job_id);
+            filename = "job_stderr_{}_{}".format(
+                this.parameters.GetByYPath("/operation_id").Get(),
+                this.parameters.GetByYPath("/job_id").Get());
         }
 
         var passed_filename = this.req.parsedQuery.filename;
@@ -623,13 +680,11 @@ YtCommand.prototype._getOutputFormat = function() {
 
     // Now, check whether the command either produces no data or an octet stream.
     if (this.descriptor.output_type_as_integer === binding.EDataType_Null) {
-        this.output_format = _PREDEFINED_YSON_FORMAT;
         this.mime_type = undefined;
         return;
     }
 
     if (this.descriptor.output_type_as_integer === binding.EDataType_Binary) {
-        this.output_format = _PREDEFINED_YSON_FORMAT;
         // XXX(sandello): Allow browsers to display data inline.
         if (disposition === "inline") {
             this.mime_type = "text/plain; charset=\"utf-8\"";
@@ -639,7 +694,25 @@ YtCommand.prototype._getOutputFormat = function() {
         return;
     }
 
-    // Now, try to deduce output format from Accept header.
+    this.mime_type = formatToMime(this.parameters.GetByYPath("/output_format"));
+};
+
+YtCommand.prototype._getOutputFormat = function() {
+    this.__DBG("_getOutputFormat");
+
+    var result_format, result_mime, header;
+    var output_type_as_integer = this.descriptor.output_type_as_integer;
+
+    if (output_type_as_integer === binding.EDataType_Null ||
+        output_type_as_integer === binding.EDataType_Binary)
+    {
+        this.output_format = _PREDEFINED_YSON_FORMAT;
+        return;
+    }
+
+    result_mime = _MIME_DEFAULT[this.descriptor.output_type_as_integer];
+    result_format = _MIME_TO_FORMAT[result_mime];
+
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
         result_mime = utils.bestAcceptedType(
@@ -656,11 +729,9 @@ YtCommand.prototype._getOutputFormat = function() {
         result_format = _MIME_TO_FORMAT[result_mime];
     }
 
-    // Now, try to deduce output format from our custom header.
     try {
         header = utils.gather(this.req.headers, "x-yt-output-format");
         if (header) {
-            result_mime = "application/octet-stream";
             result_format = new binding.TNodeWrap(
                 header,
                 binding.ECompression_None,
@@ -670,14 +741,7 @@ YtCommand.prototype._getOutputFormat = function() {
         throw new YtError("Unable to parse X-YT-Output-Format header", err);
     }
 
-    // Lastly, provide a default option.
-    if (typeof(result_format) === "undefined") {
-        result_mime = _MIME_DEFAULT[this.descriptor.output_type_as_integer];
-        result_format = _MIME_TO_FORMAT[result_mime];
-    }
-
     this.output_format = result_format;
-    this.mime_type = result_mime;
 };
 
 YtCommand.prototype._getOutputCompression = function() {
@@ -713,11 +777,21 @@ YtCommand.prototype._getOutputCompression = function() {
     this.mime_compression = result_mime;
 };
 
-YtCommand.prototype._captureParametersFromHeadersAndUrl = function() {
-    this.__DBG("_captureParametersFromHeadersAndUrl");
+YtCommand.prototype._captureParameters = function() {
+    this.__DBG("_captureParameters");
 
-    var from_url, from_header;
     var header;
+    var from_formats, from_url, from_header, from_body;
+
+    try {
+        from_formats = {
+            input_format: this.input_format,
+            output_format: this.output_format
+        };
+        from_formats = binding.CreateV8Node(from_formats);
+    } catch (err) {
+        throw new YtError("Unable to parse formats", err);
+    }
 
     try {
         from_url = utils.numerify(qs.parse(this.req.parsedUrl.query));
@@ -745,29 +819,6 @@ YtCommand.prototype._captureParametersFromHeadersAndUrl = function() {
         throw new YtError("Unable to parse parameters from the request header X-YT-Parameters", err);
     }
 
-    this.parameters = binding.CreateMergedNode.apply(
-        undefined,
-        [from_url, from_header]);
-    if (this.parameters.GetNodeType() !== "map") {
-        throw new YtError("Parameters must be a map");
-    }
-};
-
-YtCommand.prototype._captureParameters = function() {
-    this.__DBG("_captureParameters");
-
-    var from_formats, from_body;
-
-    try {
-        from_formats = {
-            input_format: this.input_format,
-            output_format: this.output_format
-        };
-        from_formats = binding.CreateV8Node(from_formats);
-    } catch (err) {
-        throw new YtError("Unable to parse formats", err);
-    }
-
     if (this.req.method === "POST") {
         // Here we heavily rely on fact that HTTP method was checked beforehand.
         // Moreover, there is a convention that mutating commands with structured input
@@ -792,7 +843,7 @@ YtCommand.prototype._captureParameters = function() {
     var self = this;
 
     return Q
-        .all([from_formats, self.parameters, from_body])
+        .all([from_formats, from_url, from_header, from_body])
         .spread(function() {
             self.parameters = binding.CreateMergedNode.apply(
                 undefined,

@@ -51,11 +51,11 @@ using namespace NSecurityClient;
 using namespace NTransactionClient;
 using namespace NScheduler;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = MasterConnectorLogger;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnector::TImpl
     : public TRefCounted
@@ -275,7 +275,7 @@ private:
         auto localConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();
         return cellTag == localConnection->GetCellTag()
             ? localConnection
-            : Bootstrap_->GetClusterDirectory()->FindConnection(cellTag);
+            : localConnection->GetClusterDirectory()->FindConnection(cellTag);
     }
 
     void RefreshTransactions()
@@ -339,6 +339,7 @@ private:
                 const auto& batchRsp = it->second;
                 auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
                 if (!rspOrError.IsOK()) {
+                    LOG_ERROR(rspOrError, "Found dead transaction %v", id);
                     deadTransactionIds.insert(id);
                 }
             }
@@ -353,6 +354,7 @@ private:
                 const auto& controller = pair.second;
                 for (const auto& transaction : controller->GetTransactions()) {
                     if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
+                        TInverseGuard<TSpinLock> inverseGuard(ControllersLock_);
                         controller->OnTransactionAborted(transaction->GetId());
                         break;
                     }
@@ -962,7 +964,7 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TMasterConnector::TMasterConnector(
     IInvokerPtr invoker,
@@ -1031,7 +1033,7 @@ void TMasterConnector::UpdateConfig(const TSchedulerConfigPtr& config)
     Impl_->UpdateConfig(config);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

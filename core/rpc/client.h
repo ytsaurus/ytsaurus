@@ -92,9 +92,10 @@ class TClientRequest
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
-    DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Heavy);
-    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, Codec);
+    DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck, true);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Heavy, false);
+    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, Codec, NCompression::ECodec::None);
+    DEFINE_BYVAL_RW_PROPERTY(bool, GenerateAttachmentChecksums, true);
 
 public:
     virtual TSharedRefArray Serialize() override;

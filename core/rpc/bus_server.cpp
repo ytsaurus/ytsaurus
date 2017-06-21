@@ -45,9 +45,10 @@ private:
     {
         return TServerBase::DoStop(graceful).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
         	// NB: Stop the bus server anyway.
-            BusServer_->Stop();
+            auto asyncResult = BusServer_->Stop();
             BusServer_.Reset();
             error.ThrowOnError();
+            return asyncResult;
         }));
     }
 
@@ -118,7 +119,7 @@ private:
 
             if (!isOneWay) {
                 auto response = CreateErrorResponseMessage(requestId, error);
-                replyBus->Send(response, EDeliveryTrackingLevel::None);
+                replyBus->Send(response, TSendOptions(EDeliveryTrackingLevel::None));
             }
             return;
         }
@@ -136,7 +137,7 @@ private:
 
             if (!isOneWay) {
                 auto response = CreateErrorResponseMessage(requestId, error);
-                replyBus->Send(std::move(response), EDeliveryTrackingLevel::None);
+                replyBus->Send(std::move(response), TSendOptions(EDeliveryTrackingLevel::None));
             }
             return;
         }

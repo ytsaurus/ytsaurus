@@ -1,6 +1,7 @@
 #include "job_splitter.h"
 #include "private.h"
-#include "chunk_pool.h"
+
+#include <yt/server/chunk_pools/chunk_pool.h>
 
 #include <yt/server/scheduler/config.h>
 
@@ -9,12 +10,13 @@
 namespace NYT {
 namespace NControllerAgent {
 
+using namespace NChunkPools;
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TJobSplitter
     : public IJobSplitter
@@ -296,14 +298,14 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IJobSplitter> CreateJobSplitter(const TJobSplitterConfigPtr& config, const TOperationId& operationId)
 {
     return std::unique_ptr<IJobSplitter>(new TJobSplitter(config, operationId));
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

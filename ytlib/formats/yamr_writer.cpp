@@ -91,15 +91,15 @@ private:
 
             for (const auto* item = row.Begin(); item != row.End(); ++item) {
                 if (item->Id == KeyId_) {
-                    ValidateColumnType(item);
+                    ValidateColumnType(item, STRINGBUF("key"));
                     key = TStringBuf(item->Data.String, item->Length);
                 } else if (item->Id == SubkeyId_) {
                     if (item->Type != EValueType::Null) {
-                        ValidateColumnType(item);
+                        ValidateColumnType(item, STRINGBUF("subkey"));
                         subkey = TStringBuf(item->Data.String, item->Length);
                     }
                 } else if (item->Id == ValueId_) {
-                    ValidateColumnType(item);
+                    ValidateColumnType(item, STRINGBUF("value"));
                     value = TStringBuf(item->Data.String, item->Length);
                 } else {
                     // Ignore unknown columns.
@@ -142,10 +142,12 @@ private:
         TryFlushBuffer(true);
     }
 
-    void ValidateColumnType(const TUnversionedValue* value)
+    void ValidateColumnType(const TUnversionedValue* value, const TStringBuf& columnName)
     {
         if (value->Type != EValueType::String) {
-            THROW_ERROR_EXCEPTION("Wrong column type %Qlv in YAMR record", value->Type);
+            THROW_ERROR_EXCEPTION("Wrong type %Qlv of column %Qv in YAMR record",
+                value->Type,
+                columnName);
         }
     }
 };

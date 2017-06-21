@@ -16,11 +16,11 @@
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     NErasure::ECodec codecId,
     NErasure::ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers);
@@ -28,14 +28,14 @@ IChunkWriterPtr CreateErasureWriter(
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     NErasure::ICodec* codec,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::INativeClientPtr client,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     IBlockCachePtr blockCache = GetNullBlockCache());
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

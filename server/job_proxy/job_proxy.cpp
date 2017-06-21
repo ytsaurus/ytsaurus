@@ -78,12 +78,6 @@ using NJobTrackerClient::TStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Option cpu.share is limited to [2, 1024], see http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279
-// To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
-static const int CpuShareMultiplier = 10;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobProxy::TJobProxy(
     TJobProxyConfigPtr config,
     const TOperationId& operationId,
@@ -128,6 +122,11 @@ TYsonString TJobProxy::PollJobShell(const TYsonString& parameters)
 void TJobProxy::Interrupt()
 {
     Job_->Interrupt();
+}
+
+void TJobProxy::Fail()
+{
+    Job_->Fail();
 }
 
 IServerPtr TJobProxy::GetRpcServer() const
@@ -363,10 +362,7 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 TJobResult TJobProxy::DoRun()
 {
     try {
-        auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-        if (environmentConfig->Type == EJobEnvironmentType::Cgroups) {
-            CGroupsConfig_ = ConvertTo<TCGroupJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-        }
+        ResourceController = CreateResourceController(Config_->JobEnvironment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
 
@@ -399,9 +395,8 @@ TJobResult TJobProxy::DoRun()
 
     RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
 
-    if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
-        auto cpuCGroup = GetCurrentCGroup<TCpu>();
-        cpuCGroup.SetShare(CpuLimit_ * CpuShareMultiplier);
+    if (ResourceController) {
+        ResourceController->SetCpuShare(CpuLimit_);
     }
 
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
@@ -470,16 +465,20 @@ TStatistics TJobProxy::GetStatistics() const
 {
     auto statistics = Job_ ? Job_->GetStatistics() : TStatistics();
 
-    if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
-        auto cpuAccounting = GetCurrentCGroup<TCpuAccounting>();
-        auto cpuStatistics = cpuAccounting.GetStatistics();
-        statistics.AddSample("/job_proxy/cpu", cpuStatistics);
-    }
+    if (ResourceController) {
+        try {
+            auto cpuStatistics = ResourceController->GetCpuStatistics();
+            statistics.AddSample("/job_proxy/cpu", cpuStatistics);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Unable to get cpu statistics from resource controller");
+        }
 
-    if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
-        auto blockIO = GetCurrentCGroup<TBlockIO>();
-        auto blockIOStatistics = blockIO.GetStatistics();
-        statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
+        try {
+            auto blockIOStatistics = ResourceController->GetBlockIOStatistics();
+            statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
+        }
     }
 
     if (JobProxyMaxMemoryUsage_ > 0) {
@@ -495,9 +494,9 @@ TStatistics TJobProxy::GetStatistics() const
     return statistics;
 }
 
-TCGroupJobEnvironmentConfigPtr TJobProxy::GetCGroupsConfig() const
+IResourceControllerPtr TJobProxy::GetResourceController() const
 {
-    return CGroupsConfig_;
+    return ResourceController;
 }
 
 TJobProxyConfigPtr TJobProxy::GetConfig() const
@@ -638,7 +637,8 @@ void TJobProxy::CheckMemoryUsage()
                 TotalMaxMemoryUsage_,
                 ApprovedMemoryReserve_.load(),
                 Config_->AheadMemoryReserve);
-            Exit(EJobProxyExitCode::ResourceOverdraft);
+            // TODO(psushin): first improve memory estimates with data weights.
+            // Exit(EJobProxyExitCode::ResourceOverdraft);
         }
     }
     i64 memoryReserve = TotalMaxMemoryUsage_ + Config_->AheadMemoryReserve;
@@ -667,7 +667,7 @@ void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
 void TJobProxy::Exit(EJobProxyExitCode exitCode)
 {
     if (Job_) {
-        Job_->Abort();
+        Job_->Cleanup();
     }
 
     NLogging::TLogManager::Get()->Shutdown();

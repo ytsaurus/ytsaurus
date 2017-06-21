@@ -397,14 +397,14 @@ private:
     void OnFinished()
     {
         LOG_INFO("Waiting for transfer loop to finish");
-
         WaitFor(AsyncTransferResult_)
             .ThrowOnError();
+        LOG_INFO("Transfer loop finished");
 
         LOG_INFO("Waiting for snapshot writer to close");
-
         WaitFor(SnapshotWriter_->Close())
             .ThrowOnError();
+        LOG_INFO("Snapshot writer closed");
     }
 };
 
@@ -962,12 +962,15 @@ bool TDecoratedAutomaton::HasReadyMutations() const
 
 void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 {
+    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
             auto& pendingMutation = PendingMutations_.front();
-            if (pendingMutation.Version >= CommittedVersion_)
+            if (pendingMutation.Version >= CommittedVersion_) {
                 break;
+            }
 
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
@@ -977,10 +980,13 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
                 pendingMutation.Timestamp,
                 pendingMutation.RandomSeed);
 
+            // Cf. YT-6908; see below.
+            auto commitPromise = pendingMutation.CommitPromise;
+
             DoApplyMutation(&context);
 
-            if (pendingMutation.CommitPromise) {
-                pendingMutation.CommitPromise.Set(context.Response());
+            if (commitPromise) {
+                commitPromise.Set(context.Response());
             }
 
             PendingMutations_.pop();
@@ -1034,26 +1040,35 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
-    if (request.Type.empty()) {
+    // Refs are fine here (but see below).
+    const auto& request = context->Request();
+    const auto& mutationType = request.Type;
+    const auto& handler = request.Handler;
+
+    // Cannot access #request after the handler has been invoked since the latter
+    // could submit more mutations and cause #PendingMutations_ to be reallocated.
+    // So we'd better make the needed copies right away.
+    // Cf. YT-6908.
+    auto mutationId = request.MutationId;
+
+    if (mutationType.empty()) {
         LOG_DEBUG_UNLESS(IsRecovery(), "Skipping heartbeat mutation (Version: %v)",
             automatonVersion);
     } else {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
-            automatonVersion,
-            request.Type,
-            request.MutationId);
+        auto* descriptor = GetTypeDescriptor(mutationType);
 
         TMutationContextGuard contextGuard(context);
-
-        auto* descriptor = GetTypeDescriptor(request.Type);
-
         NProfiling::TScopedTimer timer;
 
-        if (request.Handler) {
-            request.Handler.Run(context);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
+            automatonVersion,
+            mutationType,
+            mutationId);
+
+        if (handler) {
+            handler.Run(context);
         } else {
             Automaton_->ApplyMutation(context);
         }
@@ -1062,13 +1077,13 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
             descriptor->CumulativeTimeCounter,
             NProfiling::DurationToValue(timer.GetElapsed()));
 
-        if (Options_.ResponseKeeper && request.MutationId) {
+        if (Options_.ResponseKeeper && mutationId) {
             if (State_ == EPeerState::Leading) {
-                YCHECK(request.MutationId == PendingMutationIds_.front());
+                YCHECK(mutationId == PendingMutationIds_.front());
                 PendingMutationIds_.pop();
             }
             const auto& response = context->Response();
-            Options_.ResponseKeeper->EndRequest(request.MutationId, response.Data);
+            Options_.ResponseKeeper->EndRequest(mutationId, response.Data);
         }
     }
 

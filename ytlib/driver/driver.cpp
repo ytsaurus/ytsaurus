@@ -11,7 +11,7 @@
 #include "transaction_commands.h"
 
 #include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/connection.h>
 
 #include <yt/core/yson/null_consumer.h>
 
@@ -71,18 +71,18 @@ class TCachedClient
 public:
     TCachedClient(
         const TString& user,
-        INativeClientPtr client)
+        IClientPtr client)
         : TSyncCacheValueBase(user)
         , Client_(std::move(client))
     { }
 
-    INativeClientPtr GetClient()
+    const IClientPtr& GetClient()
     {
         return Client_;
     }
 
 private:
-    const INativeClientPtr Client_;
+    const IClientPtr Client_;
 };
 
 class TDriver;
@@ -93,13 +93,13 @@ class TDriver
     , public TSyncSlruCacheBase<TString, TCachedClient>
 {
 public:
-    explicit TDriver(TDriverConfigPtr config)
+    TDriver(TDriverConfigPtr config, IConnectionPtr connection)
         : TSyncSlruCacheBase(config->ClientCache)
-        , Config(config)
+        , Config_(std::move(config))
+        , Connection_(std::move(connection))
     {
-        YCHECK(Config);
-
-        Connection_ = CreateNativeConnection(Config);
+        YCHECK(Config_);
+        YCHECK(Connection_);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -140,6 +140,7 @@ public:
         REGISTER(TEnableTableReplicaCommand,   "enable_table_replica",    Null,       Null,       true,  false);
         REGISTER(TDisableTableReplicaCommand,  "disable_table_replica",   Null,       Null,       true,  false);
         REGISTER(TAlterTableReplicaCommand,    "alter_table_replica",     Null,       Null,       true,  false);
+        REGISTER(TGetInSyncReplicasCommand,    "get_in_sync_replicas",    Tabular,    Structured, false, true );
 
         REGISTER(TMountTableCommand,           "mount_table",             Null,       Null,       true,  false);
         REGISTER(TUnmountTableCommand,         "unmount_table",           Null,       Null,       true,  false);
@@ -207,16 +208,17 @@ public:
         if (!cachedClient) {
             TClientOptions options;
             options.User = user;
-            cachedClient = New<TCachedClient>(user, Connection_->CreateNativeClient(options));
+            cachedClient = New<TCachedClient>(user, Connection_->CreateClient(options));
 
             TryInsert(cachedClient, &cachedClient);
         }
 
         auto context = New<TCommandContext>(
             this,
+            cachedClient->GetClient(),
+            Config_,
             entry.Descriptor,
-            request,
-            cachedClient->GetClient());
+            request);
 
         auto invoker = entry.Descriptor.Heavy
             ? Connection_->GetHeavyInvoker()
@@ -266,9 +268,9 @@ private:
     typedef TIntrusivePtr<TCommandContext> TCommandContextPtr;
     typedef TCallback<void(ICommandContextPtr)> TExecuteCallback;
 
-    const TDriverConfigPtr Config;
+    const TDriverConfigPtr Config_;
 
-    INativeConnectionPtr Connection_;
+    IConnectionPtr Connection_;
 
     struct TCommandEntry
     {
@@ -329,27 +331,29 @@ private:
     {
     public:
         TCommandContext(
-            TDriverPtr driver,
+            IDriverPtr driver,
+            IClientPtr client,
+            TDriverConfigPtr config,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest& request,
-            INativeClientPtr client)
-            : Driver_(driver)
+            const TDriverRequest& request)
+            : Driver_(std::move(driver))
+            , Client_(std::move(client))
+            , Config_(std::move(config))
             , Descriptor_(descriptor)
             , Request_(request)
-            , Client_(std::move(client))
         { }
 
-        virtual TDriverConfigPtr GetConfig() override
+        virtual const TDriverConfigPtr& GetConfig() override
         {
-            return Driver_->Config;
+            return Config_;
         }
 
-        virtual INativeClientPtr GetClient() override
+        virtual const IClientPtr& GetClient() override
         {
             return Client_;
         }
 
-        virtual IDriverPtr GetDriver() override
+        virtual const IDriverPtr& GetDriver() override
         {
             return Driver_;
         }
@@ -406,24 +410,25 @@ private:
         }
 
     private:
-        const TDriverPtr Driver_;
+        const IDriverPtr Driver_;
+        const IClientPtr Client_;
+        const TDriverConfigPtr Config_;
         const TCommandDescriptor Descriptor_;
-
         const TDriverRequest Request_;
 
         TNullable<TFormat> InputFormat_;
         TNullable<TFormat> OutputFormat_;
-
-        INativeClientPtr Client_;
 
     };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDriverPtr CreateDriver(TDriverConfigPtr config)
+IDriverPtr CreateDriver(INodePtr configNode)
 {
-    return New<TDriver>(config);
+    auto config = ConvertTo<TDriverConfigPtr>(configNode);
+    auto connection = CreateConnection(configNode);
+    return New<TDriver>(std::move(config), std::move(connection));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

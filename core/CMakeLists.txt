@@ -1,13 +1,12 @@
-SET(PROTO_NAMESPACE yt/${YT_ABI})
-
 include(Sources.txt)
 
-IF(NOT OS_WINDOWS)
-  SET(YT_SRCS ${YT_SRCS} ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S)
-ENDIF()
+list(APPEND YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S
+)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
-add_library(yt-core STATIC ${YT_SRCS_RESOLVED})
+
+add_library(yt-core ${YT_SRCS_RESOLVED})
 
 llvm_map_components_to_libraries(
   REQUIRED_LLVM_LIBRARIES
@@ -19,18 +18,20 @@ llvm_map_components_to_libraries(
 list(REMOVE_ITEM REQUIRED_LLVM_LIBRARIES "-lz")
 
 target_link_libraries(yt-core
+  deps-arcadia-contrib-libs-brotli
+  deps-arcadia-contrib-libs-c--ares
   deps-arcadia-contrib-libs-libbz2
   deps-arcadia-contrib-libs-lzmasdk
+  deps-arcadia-contrib-libs-protobuf
   deps-arcadia-contrib-libs-snappy
   deps-arcadia-contrib-libs-zstd07
   deps-arcadia-library-http
   deps-arcadia-library-streams-lz
+  deps-arcadia-library-getopt
   deps-arcadia-util
-  deps-contrib-libs-brotli
   deps-yt-contrib-farmhash
   deps-yt-contrib-quicklz
   deps-yt-contrib-zstd-legacy
-  protobuf
   yt-build
   yt-contrib-jerasure
   yt-contrib-libev
@@ -40,6 +41,7 @@ target_link_libraries(yt-core
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   target_link_libraries(yt-core deps-yt-contrib-coredumper)
+  target_link_libraries(yt-core deps-yt-contrib-portoapi)
 endif()
 
 if(CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
@@ -49,3 +51,4 @@ endif()
 if(NOT APPLE)
   target_link_libraries(yt-core -lutil)
 endif()
+

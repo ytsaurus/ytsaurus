@@ -20,31 +20,59 @@ IScheduler* TryGetCurrentScheduler()
     return CurrentScheduler;
 }
 
-TCurrentSchedulerGuard::TCurrentSchedulerGuard(IScheduler* scheduler)
-    : SavedScheduler_(CurrentScheduler)
+void SetCurrentScheduler(IScheduler* scheduler)
 {
+    YCHECK(!CurrentScheduler);
     CurrentScheduler = scheduler;
-}
-
-TCurrentSchedulerGuard::~TCurrentSchedulerGuard()
-{
-    CurrentScheduler = SavedScheduler_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+PER_THREAD TFiberId CurrentFiberId = InvalidFiberId;
+
+static class TFiberIdGenerator
+{
+public:
+    TFiberIdGenerator()
+    {
+        Seed_.store(static_cast<TFiberId>(::time(nullptr)));
+    }
+
+    TFiberId Generate()
+    {
+        const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
+        Y_ASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
+
+        while (true) {
+            auto seed = Seed_++;
+            auto id = seed * Factor;
+            if (id != InvalidFiberId) {
+                return id;
+            }
+        }
+    }
+
+private:
+    std::atomic<TFiberId> Seed_;
+
+} FiberIdGenerator;
+
+TFiberId GenerateFiberId()
+{
+    return FiberIdGenerator.Generate();
+}
+
 TFiberId GetCurrentFiberId()
 {
-    auto* scheduler = TryGetCurrentScheduler();
-    if (!scheduler) {
-        return InvalidFiberId;
-    }
-    auto* fiber = scheduler->GetCurrentFiber();
-    if (!fiber) {
-        return InvalidFiberId;
-    }
-    return fiber->GetId();
+    return CurrentFiberId;
 }
+
+void SetCurrentFiberId(TFiberId id)
+{
+    CurrentFiberId = id;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void Yield()
 {

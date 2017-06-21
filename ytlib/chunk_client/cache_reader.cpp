@@ -9,7 +9,7 @@ namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TCacheReader
     : public IChunkReader
@@ -22,16 +22,16 @@ public:
         , BlockCache_(std::move(blockCache))
     {  }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         const std::vector<int>& blockIndexes) override
     {
-        std::vector<TSharedRef> blocks;
+        std::vector<TBlock> blocks;
         for (auto index : blockIndexes) {
             TBlockId blockId(ChunkId_, index);
             auto block = BlockCache_->Find(blockId, EBlockType::CompressedData);
             if (!block) {
-                return MakeFuture<std::vector<TSharedRef>>(TError("Block %v is not found in the compressed data cache", blockId));
+                return MakeFuture<std::vector<TBlock>>(TError("Block %v is not found in the compressed data cache", blockId));
             }
 
             blocks.push_back(block);
@@ -39,17 +39,17 @@ public:
         return MakeFuture(std::move(blocks));
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         int firstBlockIndex,
         int blockCount) override
     {
-        std::vector<TSharedRef> blocks;
+        std::vector<TBlock> blocks;
         for (int index = 0; index < blockCount; ++index) {
             TBlockId blockId(ChunkId_, firstBlockIndex + index);
             auto block = BlockCache_->Find(blockId, EBlockType::CompressedData);
             if (!block) {
-                return MakeFuture<std::vector<TSharedRef>>(TError("Block %v is not found in the compressed data cache", blockId));
+                return MakeFuture<std::vector<TBlock>>(TError("Block %v is not found in the compressed data cache", blockId));
             }
 
             blocks.push_back(block);
@@ -84,7 +84,7 @@ IChunkReaderPtr CreateCacheReader(
     return New<TCacheReader>(chunkId, std::move(blockCache));
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

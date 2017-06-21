@@ -1,7 +1,9 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 #include "error.h"
+#include "local_address.h"
 
 #include <yt/core/actions/future.h>
 
@@ -39,13 +41,16 @@ TStringBuf GetServiceHostName(const TStringBuf& address);
 
 //! Configuration for TAddressResolver singleton.
 class TAddressResolverConfig
-    : public NYTree::TYsonSerializable
+    : public TExpiringCacheConfig
 {
 public:
     bool EnableIPv4;
     bool EnableIPv6;
     TNullable<TString> LocalHostFqdn;
-    TDuration AddressExpirationTime;
+    int Retries;
+    TDuration ResolveTimeout;
+    TDuration MaxResolveTimeout;
+    TDuration WarningTimeout;
 
     TAddressResolverConfig()
     {
@@ -55,8 +60,20 @@ public:
             .Default(true);
         RegisterParameter("localhost_fqdn", LocalHostFqdn)
             .Default();
-        RegisterParameter("address_expiration_time", AddressExpirationTime)
-            .Default(TDuration::Minutes(1));
+        RegisterParameter("retries", Retries)
+            .Default(25);
+        RegisterParameter("resolve_timeout", ResolveTimeout)
+            .Default(TDuration::MilliSeconds(500));
+        RegisterParameter("max_resolve_timeout", MaxResolveTimeout)
+            .Default(TDuration::MilliSeconds(5000));
+        RegisterParameter("warning_timeout", WarningTimeout)
+            .Default(TDuration::MilliSeconds(1000));
+
+        RegisterInitializer([this] () {
+            RefreshTime = TDuration::Seconds(60);
+            ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(120);
+            ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
+        });
     }
 };
 
@@ -115,13 +132,6 @@ public:
      *  Caches successful resolutions.
      */
     TFuture<TNetworkAddress> Resolve(const TString& address);
-
-    //! Returns the FQDN of the local host.
-    /*!
-     *  If for some reason this FQDN could not be determined, |<unknown>| string is used.
-     *  \see IsLocalHostNameOK
-     */
-    TString GetLocalHostName();
 
     //! Return |true| if the local host FQDN can be properly determined.
     bool IsLocalHostNameOK();

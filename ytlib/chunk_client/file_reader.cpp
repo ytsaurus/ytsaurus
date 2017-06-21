@@ -10,7 +10,7 @@ namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TFileReaderDataBufferTag
 { };
@@ -48,11 +48,11 @@ TFileReader::TFileReader(
 { }
 
 
-TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
+TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TWorkloadDescriptor& /*workloadDescriptor*/,
     const std::vector<int>& blockIndexes)
 {
-    std::vector<TSharedRef> blocks;
+    std::vector<TBlock> blocks;
     blocks.reserve(blockIndexes.size());
 
     try {
@@ -75,13 +75,13 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
             localIndex = endLocalIndex;
         }
     } catch (const std::exception& ex) {
-        return MakeFuture<std::vector<TSharedRef>>(ex);
+        return MakeFuture<std::vector<TBlock>>(ex);
     }
 
     return MakeFuture(std::move(blocks));
 }
 
-TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
+TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TWorkloadDescriptor& /*workloadDescriptor*/,
     int firstBlockIndex,
     int blockCount)
@@ -91,7 +91,7 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
     try {
         return MakeFuture(DoReadBlocks(firstBlockIndex, blockCount));
     } catch (const std::exception& ex) {
-        return MakeFuture<std::vector<TSharedRef>>(ex);
+        return MakeFuture<std::vector<TBlock>>(ex);
     }
 }
 
@@ -112,7 +112,7 @@ TChunkId TFileReader::GetChunkId() const
     return ChunkId_;
 }
 
-std::vector<TSharedRef> TFileReader::DoReadBlocks(
+std::vector<TBlock> TFileReader::DoReadBlocks(
     int firstBlockIndex,
     int blockCount)
 {
@@ -141,7 +141,7 @@ std::vector<TSharedRef> TFileReader::DoReadBlocks(
     });
 
     // Slice the result; validate checksums.
-    std::vector<TSharedRef> blocks;
+    std::vector<TBlock> blocks;
     blocks.reserve(blockCount);
     for (int localIndex = 0; localIndex < blockCount; ++localIndex) {
         int blockIndex = firstBlockIndex + localIndex;
@@ -159,7 +159,7 @@ std::vector<TSharedRef> TFileReader::DoReadBlocks(
                       checksum);
             }
         }
-        blocks.push_back(block);
+        blocks.push_back(TBlock(block, blockInfo.checksum()));
     }
 
     return blocks;
@@ -261,7 +261,7 @@ TFile& TFileReader::GetDataFile()
     return *CachedDataFile_;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

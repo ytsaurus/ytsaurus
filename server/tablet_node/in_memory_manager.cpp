@@ -20,7 +20,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
+#include <yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -79,7 +79,7 @@ void FinalizeChunkData(
 
     if (tabletSnapshot->HashTableSize > 0) {
         data->LookupHashTable = CreateChunkLookupHashTable(
-            data->Blocks,
+            TBlock::Unwrap(data->Blocks),
             data->ChunkMeta,
             tabletSnapshot->RowKeyComparer);
     }
@@ -182,16 +182,6 @@ private:
 
     void ScanSlot(TTabletSlotPtr slot)
     {
-        if (IsMemoryLimitExceeded()) {
-            LOG_DEBUG("Store preload is disabled due to memory pressure (CellId: %v)",
-                slot->GetCellId());
-            return;
-        }
-
-        if (slot->GetAutomatonState() != EPeerState::Leading) {
-            return;
-        }
-
         const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;
@@ -244,25 +234,30 @@ private:
         IStoreManagerPtr storeManager)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, StoreId: %v",
+        Logger.AddTag("TabletId: %v, StoreId: %v, CellId: %v",
             tablet->GetId(),
-            store->GetId());
+            store->GetId(),
+            slot->GetCellId());
 
         auto invoker = tablet->GetEpochAutomatonInvoker();
 
         try {
+            auto revision = storeManager->GetInMemoryConfigRevision();
             auto finalizer = Finally(
                 [&] () {
                     LOG_WARNING("Backing off tablet store preload");
-                    store->SetPreloadBackoffFuture(
-                        BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
-                            .AsyncVia(invoker)
-                            .Run());
+                    invoker->Invoke(BIND([revision, storeManager, store] {
+                        if (storeManager->GetInMemoryConfigRevision() == revision) {
+                            storeManager->BackoffStorePreload(store);
+                        }
+                    }));
                 });
-            if (!IsMemoryLimitExceeded()) {
-                auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
-                PreloadInMemoryStore(tabletSnapshot, store, CompressionInvoker_);
+            if (IsMemoryLimitExceeded()) {
+                LOG_INFO("Store preload is disabled due to memory pressure");
+                return;
             }
+            auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
+            PreloadInMemoryStore(tabletSnapshot, store, CompressionInvoker_);
             finalizer.Release();
             storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
@@ -297,7 +292,7 @@ private:
         virtual void Put(
             const TBlockId& id,
             EBlockType type,
-            const TSharedRef& block,
+            const TBlock& block,
             const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
         {
             if (type != BlockType_) {
@@ -328,7 +323,7 @@ private:
                 data->Blocks.resize(id.BlockIndex + 1);
             }
 
-            if (!data->Blocks[id.BlockIndex]) {
+            if (!data->Blocks[id.BlockIndex].Data) {
                 data->Blocks[id.BlockIndex] = block;
                 data->MemoryTrackerGuard.UpdateSize(block.Size());
             }
@@ -336,11 +331,11 @@ private:
             YCHECK(!data->ChunkMeta);
         }
 
-        virtual TSharedRef Find(
+        virtual TBlock Find(
             const TBlockId& /*id*/,
             EBlockType /*type*/) override
         {
-            return TSharedRef();
+            return TBlock();
         }
 
         virtual EBlockType GetSupportedBlockTypes() const override
@@ -465,6 +460,12 @@ void PreloadInMemoryStore(
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
     auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
 
+    auto erasureCodec = NErasure::ECodec(miscExt.erasure_codec());
+    if (erasureCodec != NErasure::ECodec::None) {
+        THROW_ERROR_EXCEPTION("Could not preload erasure coded store %v",
+            store->GetId());
+    }
+
     auto codecId = NCompression::ECodec(miscExt.compression_codec());
     auto* codec = NCompression::GetCodec(codecId);
 
@@ -489,7 +490,7 @@ void PreloadInMemoryStore(
             startBlockIndex,
             startBlockIndex + readBlockCount - 1);
 
-        std::vector<TSharedRef> cachedBlocks;
+        std::vector<TBlock> cachedBlocks;
         switch (mode) {
             case EInMemoryMode::Compressed:
                 cachedBlocks = std::move(compressedBlocks);
@@ -503,13 +504,13 @@ void PreloadInMemoryStore(
                 std::vector<TFuture<TSharedRef>> asyncUncompressedBlocks;
                 for (const auto& compressedBlock : compressedBlocks) {
                     asyncUncompressedBlocks.push_back(
-                        BIND([=] () { return codec->Decompress(compressedBlock); })
+                        BIND([=] () { return codec->Decompress(compressedBlock.Data); })
                             .AsyncVia(compressionInvoker)
                             .Run());
                 }
 
-                cachedBlocks = WaitFor(Combine(asyncUncompressedBlocks))
-                    .ValueOrThrow();
+                cachedBlocks = TBlock::Wrap(WaitFor(Combine(asyncUncompressedBlocks))
+                    .ValueOrThrow());
                 break;
             }
 

@@ -7,7 +7,7 @@ namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryReader
     : public IChunkReader
@@ -15,16 +15,16 @@ class TMemoryReader
 public:
     TMemoryReader(
         const TChunkMeta& meta,
-        std::vector<TSharedRef> blocks)
+        std::vector<TBlock> blocks)
         : Meta_(meta)
         , Blocks_(std::move(blocks))
     { }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         const std::vector<int>& blockIndexes) override
     {
-        std::vector<TSharedRef> blocks;
+        std::vector<TBlock> blocks;
         for (auto index : blockIndexes) {
             YCHECK(index < Blocks_.size());
             blocks.push_back(Blocks_[index]);
@@ -32,16 +32,16 @@ public:
         return MakeFuture(std::move(blocks));
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         int firstBlockIndex,
         int blockCount) override
     {
         if (firstBlockIndex >= Blocks_.size()) {
-            return MakeFuture(std::vector<TSharedRef>());
+            return MakeFuture(std::vector<TBlock>());
         }
 
-        return MakeFuture(std::vector<TSharedRef>(
+        return MakeFuture(std::vector<TBlock>(
             Blocks_.begin() + firstBlockIndex,
             Blocks_.begin() + std::min(static_cast<size_t>(blockCount), Blocks_.size() - firstBlockIndex)));
     }
@@ -62,18 +62,18 @@ public:
 
 private:
     const TChunkMeta Meta_;
-    const std::vector<TSharedRef> Blocks_;
+    const std::vector<TBlock> Blocks_;
 
 };
 
 IChunkReaderPtr CreateMemoryReader(
     const TChunkMeta& meta,
-    std::vector<TSharedRef> blocks)
+    std::vector<TBlock> blocks)
 {
     return New<TMemoryReader>(meta, std::move(blocks));
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

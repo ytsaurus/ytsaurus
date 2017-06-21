@@ -6,14 +6,14 @@
 namespace NYT {
 namespace NApi {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TForeignTransactionStartOptions
     : public TTransactionStartOptions
 {
     //! If |true| then the foreign transaction will use the start timestamp or its originator.
     //! If |false| then the foreign transaction will generate its own start timestamp.
-    bool InheritStartTimestamp = false;
+    bool InheritStartTimestamp = true;
 
 };
 struct INativeTransaction
@@ -31,7 +31,7 @@ struct INativeTransaction
 
 DEFINE_REFCOUNTED_TYPE(INativeTransaction)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NApi
 } // namespace NYT

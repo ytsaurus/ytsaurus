@@ -12,6 +12,7 @@
 #include <yt/core/misc/id_generator.h>
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/fluent.h>
@@ -239,24 +240,40 @@ private:
             TRspGet* response,
             const TCtxGetPtr& context)
         {
-            auto profilingManager = TProfileManager::Get()->Impl_;
-            TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
-
-            context->SetRequestInfo();
-
             auto options = FromProto(request->options());
             auto fromTime = ParseInstant(options->Find<i64>("from_time"));
-            auto range = GetSamples(fromTime);
+            context->SetRequestInfo("FromTime: %v", fromTime);
+
+            auto samplesRange = GetSamples(fromTime);
+
+            yhash<TTagId, TTag> tagIdToValue;
+            for (auto it = samplesRange.first; it != samplesRange.second; ++it) {
+                const auto& sample = *it;
+                for (auto tagId : sample.TagIds) {
+                    tagIdToValue.emplace(tagId, TTag());
+                }
+            }
+
+            {
+                const auto& profilingManager = TProfileManager::Get()->Impl_;
+                TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
+                for (auto& pair : tagIdToValue) {
+                    pair.second = profilingManager->GetTag(pair.first);
+                }
+            }
+
             response->set_value(BuildYsonStringFluently()
-                .DoListFor(range.first, range.second, [&] (TFluentList fluent, const TSamplesIterator& it) {
+                .DoListFor(samplesRange.first, samplesRange.second, [&] (TFluentList fluent, const TSamplesIterator& it) {
                     const auto& sample = *it;
                     fluent
                         .Item().BeginMap()
                             .Item("id").Value(sample.Id)
                             .Item("time").Value(static_cast<i64>(sample.Time.MicroSeconds()))
                             .Item("value").Value(sample.Value)
-                            .Item("tags").DoMapFor(sample.TagIds, [&] (TFluentMap fluent, TTagId id) {
-                                const auto& tag = profilingManager->GetTag(id);
+                            .Item("tags").DoMapFor(sample.TagIds, [&] (TFluentMap fluent, TTagId tagId) {
+                                auto it = tagIdToValue.find(tagId);
+                                YCHECK(it != tagIdToValue.end());
+                                const auto& tag = it->second;
                                 fluent
                                     .Item(tag.Key).Value(tag.Value);
                             })
@@ -440,6 +457,8 @@ TTagId TProfileManager::RegisterTag(const TTag& tag)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(4, TProfileManager::StaticShutdown);
 
 } // namespace NProfiling
 } // namespace NYT

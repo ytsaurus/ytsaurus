@@ -121,7 +121,8 @@ DEFINE_REFCOUNTED_TYPE(IDriver)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates an implementation of IDriver with a given configuration.
-IDriverPtr CreateDriver(TDriverConfigPtr config);
+//! The latter consists of TDriverConfig plus a polymorphic connection configuration.
+IDriverPtr CreateDriver(NYTree::INodePtr configNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

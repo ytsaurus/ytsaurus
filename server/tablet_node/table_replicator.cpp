@@ -4,6 +4,7 @@
 #include "tablet_slot.h"
 #include "tablet_reader.h"
 #include "tablet_manager.h"
+#include "transaction_manager.h"
 #include "config.h"
 #include "private.h"
 
@@ -58,13 +59,11 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         TTableReplicaInfo* replicaInfo,
-        TClusterDirectoryPtr clusterDirectory,
         INativeConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
         IInvokerPtr workerInvoker)
         : Config_(std::move(config))
-        , ClusterDirectory_(std::move(clusterDirectory))
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
         , SlotManager_(std::move(slotManager))
@@ -109,7 +108,6 @@ public:
 
 private:
     const TTabletManagerConfigPtr Config_;
-    const TClusterDirectoryPtr ClusterDirectory_;
     const INativeConnectionPtr LocalConnection_;
     const TTabletSlotPtr Slot_;
     const TSlotManagerPtr SlotManager_;
@@ -167,7 +165,7 @@ private:
                 THROW_ERROR_EXCEPTION("No mount configuration is available");
             }
 
-            auto foreignConnection = ClusterDirectory_->FindConnection(ClusterName_);
+            auto foreignConnection = LocalConnection_->GetClusterDirectory()->FindConnection(ClusterName_);
             if (!foreignConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
                     << HardErrorAttribute;
@@ -187,11 +185,18 @@ private:
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
+            auto updateSuccessTimestamp = [&] {
+                replicaRuntimeData->LastReplicationTimestamp.store(
+                    Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
+                    std::memory_order_relaxed);
+            };
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             if (tabletRuntimeData->TotalRowCount <= lastReplicationRowIndex) {
+                updateSuccessTimestamp();
                 return;
             }
             if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
+                updateSuccessTimestamp();
                 return;
             }
 
@@ -236,11 +241,16 @@ private:
                 YCHECK(readReplicationBatch());
             }
 
-            foreignTransaction->WriteRows(
-                ReplicaPath_,
-                TNameTable::FromSchema(TableSchema_),
-                MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)));
-            
+            {
+                TModifyRowsOptions options;
+                options.UpstreamReplicaId = ReplicaId_;
+                foreignTransaction->WriteRows(
+                    ReplicaPath_,
+                    TNameTable::FromSchema(TableSchema_),
+                    MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)),
+                    options);
+            }
+
             {
                 NProto::TReqReplicateRows req;
                 ToProto(req.mutable_tablet_id(), TabletId_);
@@ -259,6 +269,10 @@ private:
                     .ThrowOnError();
             }
             LOG_DEBUG("Finished committing replication transaction");
+
+            replicaRuntimeData->LastReplicationTimestamp.store(
+                newReplicationTimestamp,
+                std::memory_order_relaxed);
         } catch (const std::exception& ex) {
             TError error(ex);
             if (error.Attributes().Get<bool>("hard", false)) {
@@ -321,7 +335,7 @@ private:
 
         YCHECK(actualRowIndex == rowIndex);
 
-        LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %v)",
+        LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %llx)",
             rowIndex,
             timestamp);
 
@@ -345,7 +359,7 @@ private:
 
         auto startReplicationTimestamp = replicaSnapshot->StartReplicationTimestamp;
 
-        LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %v, RowIndexLo: %v, RowIndexHi: %v)",
+        LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %llx, RowIndexLo: %v, RowIndexHi: %v)",
             startReplicationTimestamp,
             rowIndexLo,
             rowIndexHi);
@@ -370,7 +384,7 @@ private:
             ++startRowIndex;
         }
 
-        LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %v)",
+        LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %llx)",
             startRowIndex,
             startTimestamp);
 
@@ -444,7 +458,7 @@ private:
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
                     YCHECK(row == readerRows[0]);
-                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
+                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %llx, LogRecordTimestamp: %llx)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
                     return false;
@@ -478,7 +492,7 @@ private:
         *newReplicationTimestamp = prevTimestamp;
 
         LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
-            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v)",
+            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %llx)",
             currentRowIndex,
             rowCount,
             dataWeight,
@@ -527,7 +541,7 @@ private:
         int keyColumnCount = tabletSnapshot->TableSchema.GetKeyColumnCount();
         int valueColumnCount = tabletSnapshot->TableSchema.GetValueColumnCount();
 
-        Y_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount* 2 + 4);
+        Y_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
 
         switch (changeType) {
             case ERowModificationType::Write: {
@@ -551,7 +565,7 @@ private:
                 }
                 int replicationValueIndex = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
-                    const auto& flagsValue  = logRow[logValueIndex * 2 + keyColumnCount + 5];
+                    const auto& flagsValue = logRow[logValueIndex * 2 + keyColumnCount + 5];
                     Y_ASSERT(flagsValue.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
@@ -605,7 +619,6 @@ TTableReplicator::TTableReplicator(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
     TTableReplicaInfo* replicaInfo,
-    TClusterDirectoryPtr clusterDirectory,
     INativeConnectionPtr localConnection,
     TTabletSlotPtr slot,
     TSlotManagerPtr slotManager,
@@ -614,7 +627,6 @@ TTableReplicator::TTableReplicator(
         std::move(config),
         tablet,
         replicaInfo,
-        std::move(clusterDirectory),
         std::move(localConnection),
         std::move(slot),
         std::move(slotManager),

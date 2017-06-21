@@ -22,7 +22,7 @@ DEFINE_ENUM(ELinuxErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> GetPidsByUid(int uid);
+std::vector<int> GetPidsByUid(int uid = -1);
 
 //! Gets the resident set size of a process.
 /*!
@@ -51,12 +51,12 @@ bool TryExecve(const char* path, const char* const* argv, const char* const* env
 
 void CreateStderrFile(TString fileName);
 
-// Returns a pipe with CLOSE_EXEC flag.
+//! Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
 
 int SafeDup(int fd);
 
-// Returns a pty with CLOSE_EXEC flag on master channel.
+//! Returns a pty with CLOSE_EXEC flag on master channel.
 void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width);
 void SafeLoginTty(int fd);
 void SafeSetTtyWindowSize(int slaveFD, int height, int width);
@@ -70,6 +70,8 @@ TString SafeGetUsernameByUid(int uid);
 
 void SetPermissions(const TString& path, int permissions);
 void SetPermissions(int fd, int permissions);
+
+void SetUid(int uid);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
 

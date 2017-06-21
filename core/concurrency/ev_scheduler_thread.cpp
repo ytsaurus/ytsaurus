@@ -3,7 +3,7 @@
 namespace NYT {
 namespace NConcurrency {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TEVSchedulerThread::TInvoker::TInvoker(TEVSchedulerThread* owner)
     : Owner_(owner)
@@ -18,16 +18,16 @@ void TEVSchedulerThread::TInvoker::Invoke(TClosure callback)
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 TThreadId TEVSchedulerThread::TInvoker::GetThreadId() const
 {
-    return Owner_->ThreadId;
+    return Owner_->ThreadId_;
 }
 
-bool TEVSchedulerThread::TInvoker::CheckAffinity(IInvokerPtr invoker) const
+bool TEVSchedulerThread::TInvoker::CheckAffinity(const IInvokerPtr& invoker) const
 {
     return invoker.Get() == this;
 }
 #endif
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TEVSchedulerThread::TEVSchedulerThread(
     const TString& threadName,
@@ -95,7 +95,7 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecuteCallbacks()
         return EBeginExecuteResult::QueueEmpty;
     }
 
-    CallbackEventCount->CancelWait();
+    CallbackEventCount_->CancelWait();
 
     if (IsShutdown()) {
         return EBeginExecuteResult::Terminated;
@@ -128,7 +128,7 @@ void TEVSchedulerThread::EnqueueCallback(TClosure callback)
     CallbackWatcher_.send();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency
 } // namespace NYT

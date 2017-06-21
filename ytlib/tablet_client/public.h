@@ -9,7 +9,7 @@
 namespace NYT {
 namespace NTabletClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
 
@@ -21,7 +21,7 @@ class TTableReplicaStatistics;
 
 } // namespace NProto
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletState,
     // Individual states
@@ -39,6 +39,11 @@ DEFINE_ENUM(ETabletState,
     ((Mixed)         (101))
 );
 
+DEFINE_ENUM(ETableReplicaMode,
+    ((Sync)     (0))
+    ((Async)    (1))
+);
+
 DEFINE_ENUM(EErrorCode,
     ((TransactionLockConflict)  (1700))
     ((NoSuchTablet)             (1701))
@@ -47,10 +52,10 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidMountRevision)     (1704))
 );
 
-static const int TypicalPeerCount = 5;
-static const int MaxPeerCount = 10;
+constexpr int TypicalPeerCount = 5;
+constexpr int MaxPeerCount = 10;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_BIT_ENUM(EReplicationLogDataFlags,
     ((None)      (0x0000))
@@ -66,7 +71,7 @@ struct TReplicationLogTable
     static const TString FlagsColumnNamePrefix;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Signatures enable checking tablet transaction integrity.
 /*!
@@ -98,10 +103,11 @@ using TTableReplicaId = NObjectClient::TObjectId;
 
 using TTabletActionId = NObjectClient::TObjectId;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TTableMountInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletInfo)
+DECLARE_REFCOUNTED_STRUCT(TTableReplicaInfo)
 DECLARE_REFCOUNTED_STRUCT(ITableMountCache)
 
 DECLARE_REFCOUNTED_CLASS(TTabletCellOptions)
@@ -116,7 +122,7 @@ using TSchemaData = std::vector<ui32>;
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetReader)
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletClient
 } // namespace NYT

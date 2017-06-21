@@ -83,16 +83,16 @@ bool TTableNode::IsPhysicallySorted() const
 
 ETabletState TTableNode::GetTabletState() const
 {
-    auto result = ETabletState::None;
-    for (const auto* tablet : GetTrunkNode()->Tablets_) {
-        auto state = tablet->GetState();
-        if (result == ETabletState::None) {
-            result = state;
-        } else if (result != state) {
-            result = ETabletState::Mixed;
+    auto* trunkNode = GetTrunkNode();
+    if (trunkNode->Tablets_.empty()) {
+        return ETabletState::None;
+    }
+    for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
+        if (trunkNode->Tablets_.size() == trunkNode->TabletCountByState_[state]) {
+            return state;
         }
     }
-    return result;
+    return ETabletState::Mixed;
 }
 
 void TTableNode::Save(NCellMaster::TSaveContext& context) const
@@ -109,8 +109,9 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, LastCommitTimestamp_);
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
-    Save(context, ReplicationMode_);
+    Save(context, UpstreamReplicaId_);
     Save(context, OptimizeFor_);
+    Save(context, TabletCountByState_);
 }
 
 void TTableNode::Load(NCellMaster::TLoadContext& context)
@@ -131,8 +132,12 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         Load(context, UnflushedTimestamp_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= 600) {
-        Load(context, ReplicationMode_);
+    if (context.GetVersion() >= 600 && context.GetVersion() <= 601) {
+        Load<int>(context); // replication mode
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 602) {
+        Load(context, UpstreamReplicaId_);
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 601) {
@@ -156,6 +161,10 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
                 Attributes_.reset();
             }
         }
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 607) {
+        Load(context, TabletCountByState_);
     }
 }
 
@@ -220,18 +229,20 @@ TTableNode::TTabletList& TTableNode::Tablets()
 
 TTimestamp TTableNode::CalculateUnflushedTimestamp() const
 {
-    auto trunkNode = GetTrunkNode();
+    auto* trunkNode = GetTrunkNode();
     auto result = MaxTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
-        auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
-        result = std::min(result, timestamp);
+        if (tablet->GetState() != ETabletState::Unmounted) {
+            auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
+            result = std::min(result, timestamp);
+        }
     }
-    return result;
+    return result != MaxTimestamp ? result : NullTimestamp;
 }
 
 TTimestamp TTableNode::CalculateRetainedTimestamp() const
 {
-    auto trunkNode = GetTrunkNode();
+    auto* trunkNode = GetTrunkNode();
     auto result = MinTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
         auto timestamp = tablet->GetRetainedTimestamp();

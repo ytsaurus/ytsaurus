@@ -48,7 +48,7 @@ i64 TMemoryUsageTracker<ECategory>::GetTotalLimit() const
 template <class ECategory>
 i64 TMemoryUsageTracker<ECategory>::GetTotalUsed() const
 {
-    return TotalUsedCounter_.Current;
+    return TotalUsedCounter_.GetCurrent();
 }
 
 template <class ECategory>
@@ -62,7 +62,7 @@ i64 TMemoryUsageTracker<ECategory>::GetTotalFree() const
 template <class ECategory>
 bool TMemoryUsageTracker<ECategory>::IsTotalExceeded() const
 {
-    return TotalUsedCounter_.Current > TotalLimit_;
+    return TotalUsedCounter_.GetCurrent() > TotalLimit_;
 }
 
 template <class ECategory>
@@ -74,7 +74,7 @@ i64 TMemoryUsageTracker<ECategory>::GetLimit(ECategory category) const
 template <class ECategory>
 i64 TMemoryUsageTracker<ECategory>::GetUsed(ECategory category) const
 {
-    return Categories_[category].UsedCounter.Current;
+    return Categories_[category].UsedCounter.GetCurrent();
 }
 
 template <class ECategory>
@@ -92,7 +92,7 @@ bool TMemoryUsageTracker<ECategory>::IsExceeded(ECategory category) const
         return true;
     }
     const auto& data = Categories_[category];
-    return data.UsedCounter.Current > data.Limit;
+    return data.UsedCounter.GetCurrent() > data.Limit;
 }
 
 template <class ECategory>
@@ -102,17 +102,19 @@ void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
 
     DoAcquire(category, size);
 
-    if (TotalFreeCounter_.Current < 0) {
+    auto currentFree = TotalFreeCounter_.GetCurrent();
+    if (currentFree < 0) {
         LOG_WARNING("Total memory overcommit by %v after %Qlv request for %v",
-            -TotalFreeCounter_.Current,
+            -currentFree,
             category,
             size);
     }
 
     const auto& data = Categories_[category];
-    if (data.UsedCounter.Current > data.Limit) {
+    auto currentUsed = data.UsedCounter.GetCurrent();
+    if (currentUsed > data.Limit) {
         LOG_WARNING("Per-category memory overcommit by %v after %Qlv request for %v",
-            data.UsedCounter.Current - data.Limit,
+            currentUsed - data.Limit,
             category,
             size);
     }

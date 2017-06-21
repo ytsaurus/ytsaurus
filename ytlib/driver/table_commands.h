@@ -52,7 +52,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWriteTableCommand
-    : public TTypedCommand<NApi::TTransactionalOptions>
+    : public TTypedCommand<NApi::TTableWriterOptions>
 {
 public:
     TWriteTableCommand();
@@ -186,7 +186,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInsertRowsCommand
-    : public TTypedCommand<TTabletWriteOptions>
+    : public TTypedCommand<TInsertRowsOptions>
 {
 public:
     TInsertRowsCommand();
@@ -224,8 +224,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetInSyncReplicasCommand
+    : public TTypedCommand<NApi::TGetInSyncReplicasOptions>
+{
+public:
+    TGetInSyncReplicasCommand();
+
+private:
+    NYTree::INodePtr TableWriter;
+    NYPath::TRichYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDeleteRowsCommand
-    : public TTypedCommand<TTabletWriteOptions>
+    : public TTypedCommand<TDeleteRowsOptions>
 {
 public:
     TDeleteRowsCommand();

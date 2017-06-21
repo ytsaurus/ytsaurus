@@ -933,14 +933,19 @@ TObjectBase* TObjectManager::CreateObject(
 
     auto* object = handler->CreateObject(hintId, attributes);
 
-    YCHECK(object->GetObjectRefCounter() > 0);
+    YCHECK(object->GetObjectRefCounter() == 1);
 
     if (CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag()) {
         object->SetForeign();
     }
 
-    FillAttributes(object, *attributes);
-
+    try {
+        FillAttributes(object, *attributes);
+    } catch (const std::exception& ex) {
+        UnrefObject(object);
+        throw;
+    }
+ 
     auto* acd = securityManager->FindAcd(object);
     if (acd) {
         acd->SetOwner(user);

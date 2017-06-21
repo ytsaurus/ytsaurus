@@ -33,6 +33,7 @@ struct IJob
     virtual void Start() = 0;
 
     virtual void Abort(const TError& error) = 0;
+    virtual void Fail() = 0;
 
     virtual const TJobId& GetId() const = 0;
     virtual const TOperationId& GetOperationId() const = 0;

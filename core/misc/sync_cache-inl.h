@@ -1,3 +1,4 @@
+#pragma once
 #ifndef SYNC_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include sync_cache.h"
 #endif
@@ -170,7 +171,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::
 {
     // Move from older to younger.
     while (!shard->OlderLruList.Empty() &&
-           OlderWeightCounter_.Current > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
+           OlderWeightCounter_.GetCurrent() > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
     {
         auto* item = &*(--shard->OlderLruList.End());
         MoveToYounger(shard, item);
@@ -179,7 +180,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::
     // Evict from younger.
     std::vector<TValuePtr> evictedValues;
     while (!shard->YoungerLruList.Empty() &&
-           YoungerWeightCounter_.Current + OlderWeightCounter_.Current > Config_->Capacity)
+           YoungerWeightCounter_.GetCurrent() + OlderWeightCounter_.GetCurrent() > Config_->Capacity)
     {
         auto* item = &*(--shard->YoungerLruList.End());
         auto value = item->Value;

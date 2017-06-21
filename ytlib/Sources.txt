@@ -2,6 +2,8 @@
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/admin/admin_service.proto
 
+  ${CMAKE_CURRENT_LIST_DIR}/api/admin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/connection.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/native_admin.cpp
@@ -16,6 +18,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/rowset.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/table_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/table_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/tablet_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/persistent_queue.cpp
@@ -24,6 +27,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cgroup/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cgroup/private.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_id.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/cache_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_info.proto
@@ -76,12 +80,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/session_id.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/session_id.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/throttler_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/heartbeat.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory_synchronizer.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_info.proto
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/helpers.cpp
@@ -222,6 +226,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/folding_profiler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_common.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cache.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cache.proto
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cg.cpp
@@ -291,6 +296,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/blob_table_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/cached_versioned_chunk_meta.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/cache_based_versioned_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_lookup_hash_table.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
@@ -359,6 +365,4 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_manager.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/ypath/rich.cpp
-
-  ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
 )

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/election/election_service_proxy.h>
 

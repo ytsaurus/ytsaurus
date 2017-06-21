@@ -78,41 +78,42 @@ protected:
 
     void OnContextSwitch();
 
-    const std::shared_ptr<TEventCount> CallbackEventCount;
-    const TString ThreadName;
-    const bool EnableLogging;
+    const std::shared_ptr<TEventCount> CallbackEventCount_;
+    const TString ThreadName_;
+    const bool EnableLogging_;
 
     NProfiling::TProfiler Profiler;
 
     // First bit is an indicator whether startup was performed.
     // Second bit is an indicator whether shutdown was requested.
-    std::atomic<ui64> Epoch = {0};
+    std::atomic<ui64> Epoch_ = {0};
     static constexpr ui64 StartedEpochMask = 0x1;
     static constexpr ui64 ShutdownEpochMask = 0x2;
     static constexpr ui64 TurnShift = 2;
     static constexpr ui64 TurnDelta = 1 << TurnShift;
 
-    TEvent ThreadStartedEvent;
-    TEvent ThreadShutdownEvent;
+    TEvent ThreadStartedEvent_;
+    TEvent ThreadShutdownEvent_;
 
-    TThreadId ThreadId = InvalidThreadId;
-    TThread Thread;
+    TThreadId ThreadId_ = InvalidThreadId;
+    TThread Thread_;
 
-    TExecutionContext SchedulerContext;
+    TExecutionContext SchedulerContext_;
 
-    std::list<TFiberPtr> RunQueue;
-    NProfiling::TSimpleCounter CreatedFibersCounter;
-    NProfiling::TSimpleCounter AliveFibersCounter;
+    std::list<TFiberPtr> RunQueue_;
+    NProfiling::TSimpleCounter CreatedFibersCounter_;
+    NProfiling::TSimpleCounter AliveFibersCounter_;
 
-    TFiberPtr IdleFiber;
-    TFiberPtr CurrentFiber;
+    TFiberPtr IdleFiber_;
+    TFiberPtr CurrentFiber_;
 
-    TFuture<void> WaitForFuture;
-    IInvokerPtr SwitchToInvoker;
+    TFuture<void> WaitForFuture_;
+    IInvokerPtr SwitchToInvoker_;
 
-    std::vector<std::function<void()>> ContextSwitchCallbacks;
+    std::vector<std::function<void()>> ContextSwitchCallbacks_;
 
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerThread)

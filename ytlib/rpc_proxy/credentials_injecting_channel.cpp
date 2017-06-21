@@ -32,8 +32,7 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         request->SetUser(User_);
         auto* ext = request->Header().MutableExtension(NProto::TCredentialsExt::credentials_ext);
@@ -42,8 +41,7 @@ public:
         return UnderlyingChannel_->Send(
             std::move(request),
             std::move(responseHandler),
-            timeout,
-            requestAck);
+            options);
     }
 
 private:
@@ -90,8 +88,7 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         request->SetUser(User_);
         auto* ext = request->Header().MutableExtension(NProto::TCredentialsExt::credentials_ext);
@@ -102,8 +99,7 @@ public:
         return UnderlyingChannel_->Send(
             std::move(request),
             std::move(responseHandler),
-            timeout,
-            requestAck);
+            options);
     }
 
 private:

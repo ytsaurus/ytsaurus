@@ -52,8 +52,8 @@ struct IScheduler
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// Provides a way to work with the current scheduler.
-// Scheduler is thread-scoped so this is an access to TLS.
+// Provides a way to work with the current scheduler and fiber.
+// Schedulers and fibers are thread-scoped so this is an access to TLS.
 
 //! Returns the current scheduler. Fails if there's none.
 IScheduler* GetCurrentScheduler();
@@ -61,20 +61,21 @@ IScheduler* GetCurrentScheduler();
 //! Returns the current scheduler or |nullptr| if there's none.
 IScheduler* TryGetCurrentScheduler();
 
-class TCurrentSchedulerGuard
-{
-public:
-    explicit TCurrentSchedulerGuard(IScheduler* scheduler);
-    ~TCurrentSchedulerGuard();
+//! Sets the current scheduler. Can only be called once per thread.
+void SetCurrentScheduler(IScheduler* scheduler);
 
-private:
-    IScheduler* SavedScheduler_;
-};
+//! Generates a fresh fiber id.
+TFiberId GenerateFiberId();
+
+//! Returns the current fiber id.
+TFiberId GetCurrentFiberId();
+
+//! Sets the current fiber id.
+void SetCurrentFiberId(TFiberId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Shortcuts.
 
-TFiberId GetCurrentFiberId();
 void Yield();
 void SwitchTo(IInvokerPtr invoker);
 
@@ -83,7 +84,7 @@ void SwitchTo(IInvokerPtr invoker);
 class TContextSwitchGuard
 {
 public:
-    TContextSwitchGuard(std::function<void()> handler);
+    explicit TContextSwitchGuard(std::function<void()> handler);
     TContextSwitchGuard(const TContextSwitchGuard& other) = delete;
     ~TContextSwitchGuard();
 

@@ -25,7 +25,9 @@ protected:
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag cellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes) override;
+        NYTree::IAttributeDictionary* attributes,
+        NSecurityServer::TAccount* account,
+        bool enableAccounting) override;
 
     virtual void DoDestroy(TImpl* table) override;
 
@@ -40,10 +42,19 @@ protected:
         TImpl* sourceNode,
         TImpl* clonedNode,
         NCypressServer::ICypressNodeFactory* factory,
-        NCypressServer::ENodeCloneMode mode) override;
+        NCypressServer::ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override;
 
     virtual int GetDefaultReplicationFactor() const override;
 
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
+        const NCypressServer::TCypressNodeBase* table) override;
+    virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(
+        const NCypressServer::TCypressNodeBase* table) override;
+
+private:
+    NSecurityServer::TClusterResources GetTabletResourceUsage(
+        const NCypressServer::TCypressNodeBase* table);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

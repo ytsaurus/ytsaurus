@@ -105,7 +105,7 @@ bool TSortedStoreManager::ExecuteWrites(
         //        }
         //        break;
         //
-        //    case EWireProtocolCommand::WriteVersionedRow:
+        //    case EWireProtocolCommand::VersionedWriteRow:
         //        if (Tablet_->GetReplicationMode() != ETableReplicationMode::AsynchronousSink) {
         //            THROW_ERROR_EXCEPTION("Versioned writes in %Qlv replication mode are not allowed",
         //                Tablet_->GetReplicationMode());
@@ -130,7 +130,7 @@ bool TSortedStoreManager::ExecuteWrites(
                 break;
             }
 
-            case EWireProtocolCommand::WriteVersionedRow: {
+            case EWireProtocolCommand::VersionedWriteRow: {
                 auto row = reader->ReadVersionedRow(Tablet_->PhysicalSchemaData(), false);
                 rowRef = ModifyRow(row, context);
                 break;
@@ -198,7 +198,6 @@ void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const
 {
     if (prelock) {
         transaction->PrelockedRows().push(rowRef);
-        Tablet_->SetPrelockedRowCount(Tablet_->GetPrelockedRowCount() + 1);
     } else {
         transaction->LockedRows().push_back(rowRef);
     }
@@ -207,7 +206,6 @@ void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const
 void TSortedStoreManager::ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
     transaction->LockedRows().push_back(rowRef);
-    Tablet_->SetPrelockedRowCount(Tablet_->GetPrelockedRowCount() - 1);
 }
 
 void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
@@ -225,7 +223,7 @@ void TSortedStoreManager::CommitRow(TTransaction* transaction, const TSortedDyna
         CheckForUnlockedStore(rowRef.Store);
         ActiveStore_->CommitRow(transaction, migratedRow);
     }
-    UpdateLastCommitTimestamp(transaction->GetCommitTimestamp());
+    UpdateLastCommitTimestamp(transaction, transaction->GetCommitTimestamp());
 }
 
 void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
@@ -488,7 +486,7 @@ bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
         return false;
     }
 
-    if (sortedChunkStore->GetLastCompactionAttemptTimestamp() + Config_->ErrorBackoffTime > Now()) {
+    if (!sortedChunkStore->IsCompactionAllowed()) {
         return false;
     }
 

@@ -2,7 +2,7 @@
 
 namespace Py {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 bool IsInstance(const Object& obj, const Object& cls)
 {
@@ -31,7 +31,7 @@ TStringBuf ConvertToStringBuf(const Bytes& pyString)
     return TStringBuf(stringData, length);
 }
 
-TString ConvertStringObjectToStroka(const Object& obj)
+TString ConvertStringObjectToString(const Object& obj)
 {
     Object pyString = obj;
     if (!PyBytes_Check(pyString.ptr())) {
@@ -70,14 +70,14 @@ std::string Repr(const Object& obj)
     return obj.repr().as_std_string("utf-8", "replace");
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace Py
 
 namespace NYT {
 namespace NPython {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string& name)
 {
@@ -110,13 +110,13 @@ void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
         throw Py::RuntimeError("Excessive positinal argument");
     }
     if (kwargs.length() > 0) {
-        auto name = ConvertStringObjectToStroka(kwargs.keys()[0]);
+        auto name = ConvertStringObjectToString(kwargs.keys()[0]);
         throw Py::RuntimeError("Excessive named argument '" + name + "'");
     }
 
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TGilGuard::TGilGuard()
     : State_(PyGILState_Ensure())
@@ -127,7 +127,7 @@ TGilGuard::~TGilGuard()
     PyGILState_Release(State_);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
 } // namespace NYT

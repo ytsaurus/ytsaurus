@@ -141,6 +141,12 @@ const TString& TNode::GetDefaultAddress() const
     return DefaultAddress_;
 }
 
+TDataCenter* TNode::GetDataCenter() const
+{
+    auto* rack = GetRack();
+    return rack ? rack->GetDataCenter() : nullptr;
+}
+
 bool TNode::HasTag(const TNullable<TString>& tag) const
 {
     return !tag || Tags_.find(*tag) != Tags_.end();
@@ -575,8 +581,7 @@ bool TNode::HasMedium(int mediumIndex) const
     auto it = std::find_if(
         locations.begin(),
         locations.end(),
-        [=] (const auto& location)
-        {
+        [=] (const auto& location) {
             return location.medium_index() == mediumIndex;
         });
     return it != locations.end();

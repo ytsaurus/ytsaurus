@@ -19,9 +19,21 @@ namespace NSecurityServer {
 struct TClusterResources
 {
     TClusterResources();
-    TClusterResources(
-        int nodeCount,
-        int chunkCount);
+
+    //! Set node count.
+    TClusterResources&& SetNodeCount(int nodeCount) &&;
+
+    //! Set chunk count.
+    TClusterResources&& SetChunkCount(int chunkCount) &&;
+
+    //! Set tablet count.
+    TClusterResources&& SetTabletCount(int tabletCount) &&;
+
+    //! Set tablet static memory size.
+    TClusterResources&& SetTabletStaticMemory(i64 tabletStaticMemory) &&;
+
+    //! Set medium disk space.
+    TClusterResources&& SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&;
 
     //! Space occupied on data nodes in bytes per medium.
     /*!
@@ -38,6 +50,12 @@ struct TClusterResources
 
     //! Number of chunks created at master.
     int ChunkCount;
+
+    //! Number of tablets.
+    int TabletCount;
+
+    //! Occupied tablet static memory.
+    i64 TabletStaticMemory;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -64,6 +82,8 @@ public:
 private:
     int NodeCount_ = 0;
     int ChunkCount_ = 0;
+    int TabletCount_ = 0;
+    i64 TabletStaticMemory_ = 0;
     yhash<TString, i64> DiskSpacePerMedium_;
     i64 DiskSpace_; // Compatibility.
 

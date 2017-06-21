@@ -7,6 +7,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/reader_base.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
 
@@ -37,7 +38,7 @@ protected:
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;
-    std::vector<TFuture<TSharedRef>> PendingBlocks_;
+    std::vector<TFuture<NChunkClient::TBlock>> PendingBlocks_;
 
     struct TColumn
     {

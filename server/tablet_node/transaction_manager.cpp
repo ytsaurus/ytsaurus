@@ -26,6 +26,8 @@
 
 #include <yt/ytlib/tablet_client/tablet_service.pb.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -45,6 +47,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 using namespace NHydra;
 using namespace NHiveServer;
 using namespace NCellNode;
@@ -95,7 +98,7 @@ class TTransactionManager::TImpl
 {
 public:
     DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
-    DEFINE_SIGNAL(void(TTransaction*), TransactionPrepared);
+    DEFINE_SIGNAL(void(TTransaction*, bool), TransactionPrepared);
     DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
     DEFINE_SIGNAL(void(TTransaction*), TransactionSerialized);
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
@@ -117,6 +120,7 @@ public:
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
+        , NativeCellTag_(Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag())
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -230,6 +234,7 @@ public:
         }
 
         auto transactionHolder = std::make_unique<TTransaction>(transactionId);
+        transactionHolder->SetForeign(CellTagFromId(transactionId) != NativeCellTag_);
         transactionHolder->SetTimeout(timeout);
         transactionHolder->SetStartTimestamp(startTimestamp);
         transactionHolder->SetState(ETransactionState::Active);
@@ -242,7 +247,7 @@ public:
             CreateLease(transaction);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %llx, StartTime: %v, "
             "Timeout: %v, Transient: %v)",
             transactionId,
             startTimestamp,
@@ -347,16 +352,15 @@ public:
             YCHECK(transaction->GetPrepareTimestamp() == NullTimestamp);
             transaction->SetPrepareTimestamp(prepareTimestamp);
             RegisterPrepareTimestamp(transaction);
-
             transaction->SetState(persistent
                 ? ETransactionState::PersistentCommitPrepared
                 : ETransactionState::TransientCommitPrepared);
 
-            TransactionPrepared_.Fire(transaction);
+            TransactionPrepared_.Fire(transaction, persistent);
             RunPrepareTransactionActions(transaction, persistent);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
-                "PrepareTimestamp: %v)",
+                "PrepareTimestamp: %llx)",
                 transactionId,
                 persistent,
                 prepareTimestamp);
@@ -412,14 +416,21 @@ public:
         TransactionCommitted_.Fire(transaction);
         RunCommitTransactionActions(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
             transactionId,
             commitTimestamp);
 
-        SerializingTransactionHeap_.push_back(transaction);
-        AdjustHeapBack(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
-
         FinishTransaction(transaction);
+
+        if (transaction->IsSerializationNeeded()) {
+            YCHECK(!transaction->GetForeign());
+            SerializingTransactionHeap_.push_back(transaction);
+            AdjustHeapBack(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
+        } else {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction removed without serialization (TransactionId: %v)",
+                transactionId);
+            PersistentTransactionMap_.Remove(transactionId);
+        }
     }
 
     void AbortTransaction(const TTransactionId& transactionId, bool force)
@@ -490,6 +501,7 @@ public:
 private:
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
+    const TCellTag NativeCellTag_;
 
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
@@ -625,7 +637,8 @@ private:
         SerializingTransactionHeap_.clear();
         for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
-            if (transaction->GetState() == ETransactionState::Committed) {
+            if (transaction->GetState() == ETransactionState::Committed && transaction->IsSerializationNeeded()) {
+                YCHECK(!transaction->GetForeign());
                 SerializingTransactionHeap_.push_back(transaction);
             }
             if (transaction->IsPrepared() && !transaction->IsCommitted()) {
@@ -822,7 +835,7 @@ private:
     {
         auto barrierTimestamp = request->timestamp();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %llx)",
             barrierTimestamp);
 
         while (!SerializingTransactionHeap_.empty()) {
@@ -836,7 +849,7 @@ private:
             LastSerializedCommitTimestamp_ = commitTimestamp;
 
             const auto& transactionId = transaction->GetId();
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
                 transaction->GetId(),
                 commitTimestamp);
 
@@ -853,7 +866,7 @@ private:
 
     void OnPeriodicBarrierCheck()
     {
-        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %v, MinPrepareTimestamp: %v)",
+        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %llx, MinPrepareTimestamp: %llx)",
             TransientBarrierTimestamp_,
             GetMinPrepareTimestamp());
 
@@ -867,11 +880,12 @@ private:
         }
 
         auto minPrepareTimestamp = GetMinPrepareTimestamp();
+        Slot_->GetRuntimeData()->MinPrepareTimestamp.store(minPrepareTimestamp, std::memory_order_relaxed);
         if (minPrepareTimestamp <= TransientBarrierTimestamp_) {
             return;
         }
 
-        LOG_DEBUG("Committing transaction barrier (Timestamp: %v->%v)",
+        LOG_DEBUG("Committing transaction barrier (Timestamp: %llx -> %llx)",
             TransientBarrierTimestamp_,
             minPrepareTimestamp);
 
@@ -885,6 +899,9 @@ private:
 
     void RegisterPrepareTimestamp(TTransaction* transaction)
     {
+        if (transaction->GetForeign()) {
+            return;
+        }
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         YCHECK(prepareTimestamp != NullTimestamp);
         YCHECK(PreparedTransactions_.emplace(prepareTimestamp, transaction).second);
@@ -892,6 +909,9 @@ private:
 
     void UnregisterPrepareTimestamp(TTransaction* transaction)
     {
+        if (transaction->GetForeign()) {
+            return;
+        }
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;
@@ -1025,7 +1045,7 @@ TTimestamp TTransactionManager::GetMinCommitTimestamp()
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionPrepared, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*, bool), TransactionPrepared, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionSerialized, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);

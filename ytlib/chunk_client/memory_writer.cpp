@@ -8,7 +8,7 @@ namespace NChunkClient {
 
 using namespace NProto;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> TMemoryWriter::Open()
 {
@@ -20,7 +20,7 @@ TFuture<void> TMemoryWriter::Open()
     return VoidFuture;
 }
 
-bool TMemoryWriter::WriteBlock(const TSharedRef& block)
+bool TMemoryWriter::WriteBlock(const TBlock& block)
 {
     YCHECK(Open_);
     YCHECK(!Closed_);
@@ -29,7 +29,7 @@ bool TMemoryWriter::WriteBlock(const TSharedRef& block)
     return true;
 }
 
-bool TMemoryWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
+bool TMemoryWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
     YCHECK(Open_);
     YCHECK(!Closed_);
@@ -81,7 +81,7 @@ NErasure::ECodec TMemoryWriter::GetErasureCodecId() const
     return NErasure::ECodec::None;
 }
 
-std::vector<TSharedRef>& TMemoryWriter::GetBlocks()
+std::vector<TBlock>& TMemoryWriter::GetBlocks()
 {
     YCHECK(Open_);
     YCHECK(Closed_);
@@ -97,7 +97,7 @@ NProto::TChunkMeta& TMemoryWriter::GetChunkMeta()
     return ChunkMeta_;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 #include "table_client_helpers.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -6,12 +6,14 @@
 #include <yt/ytlib/chunk_client/memory_writer.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
+#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/compression/public.h>
 
@@ -24,6 +26,7 @@ namespace NTableClient {
 namespace {
 
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 
@@ -306,13 +309,20 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         std::get<3>(GetParam()),
         std::get<1>(GetParam()).GetKeyColumnCount());
 
-    auto chunkReader = CreateSchemalessChunkReader(
+    auto chunkState = New<TChunkState>(
+        GetNullBlockCache(),
         ChunkSpec_,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr);
+
+    auto chunkReader = CreateSchemalessChunkReader(
+        std::move(chunkState),
         New<TChunkReaderConfig>(),
         New<TChunkReaderOptions>(),
         MemoryReader_,
         readNameTable,
-        GetNullBlockCache(),
         TKeyColumns(),
         columnFilter,
         std::get<3>(GetParam()));
@@ -527,13 +537,27 @@ protected:
         auto options = New<TChunkReaderOptions>();
         options->DynamicTable = true;
 
-        return CreateSchemalessChunkReader(
+        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
+            MemoryReader_,
+            TWorkloadDescriptor(),
+            Schema_);
+        auto chunkMeta = WaitFor(asyncCachedMeta)
+            .ValueOrThrow();
+
+        auto chunkState = New<TChunkState>(
+            GetNullBlockCache(),
             ChunkSpec_,
+            chunkMeta,
+            nullptr,
+            nullptr,
+            nullptr);
+
+        return CreateSchemalessChunkReader(
+            std::move(chunkState),
             New<TChunkReaderConfig>(),
             options,
             MemoryReader_,
             WriteNameTable_,
-            GetNullBlockCache(),
             keyColumns,
             TColumnFilter(),
             keys);

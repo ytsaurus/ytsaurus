@@ -1,5 +1,6 @@
 #include "job_helpers.h"
-#include "chunk_pool.h"
+
+#include <yt/server/chunk_pools/chunk_pool.h>
 
 #include <yt/server/scheduler/job.h>
 
@@ -8,6 +9,7 @@
 namespace NYT {
 namespace NControllerAgent {
 
+using namespace NChunkPools;
 using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
@@ -15,7 +17,15 @@ using namespace NChunkClient;
 using namespace NPhoenix;
 using namespace NScheduler;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+static const TString InputRowCountPath = "/data/input/row_count";
+static const TString InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
+static const TString InputCompressedDataSizePath = "/data/input/compressed_data_size";
+static const TString InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
+static const TString JobProxyCpuUsagePath = "/job_proxy/cpu/user";
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TBriefJobStatistics::Persist(const NPhoenix::TPersistenceContext& context)
 {
@@ -31,7 +41,7 @@ void TBriefJobStatistics::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, JobProxyCpuUsage);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* consumer)
 {
@@ -61,7 +71,7 @@ void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* 
         .EndMap();
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 bool CheckJobActivity(
     const TBriefJobStatisticsPtr& lhs,
@@ -90,13 +100,15 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     const auto& statistics = *jobSummary->Statistics;
 
     auto briefStatistics = New<TBriefJobStatistics>();
-    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
-    briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
-    briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, "/data/input/compressed_data_size");
-    briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, "/user_job/pipes/input/idle_time");
-    briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, "/job_proxy/cpu/user");
+    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, InputRowCountPath);
+    briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, InputUncompressedDataSizePath);
+    briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, InputCompressedDataSizePath);
+    briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, InputPipeIdleTimePath);
+    briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
     briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
 
+    // TODO(max42): GetTotalOutputDataStatistics is implemented very inefficiently (it creates yhash containing
+    // output data statistics per output table and then aggregates them). Rewrite it without any new allocations.
     auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
     briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();
     briefStatistics->ProcessedOutputCompressedDataSize = outputDataStatistics.compressed_data_size();
@@ -233,7 +245,7 @@ TYsonString BuildInputPaths(
         });
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
 {
@@ -254,7 +266,7 @@ void TScheduleJobStatistics::Persist(const TPersistenceContext& context)
 
 DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleJobStatistics, 0x1ba9c7e0);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

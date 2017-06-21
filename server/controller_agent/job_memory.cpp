@@ -6,11 +6,12 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NChunkClient;
+using namespace NChunkPools;
 using namespace NScheduler;
 
 using NChunkClient::ChunkReaderMemorySize;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Additive term for each job memory usage.
 //! Accounts for job proxy process and other lightweight stuff.
@@ -21,7 +22,7 @@ static const i64 LFAllocBufferSize = (i64) 64 * 1024 * 1024;
 
 static const i64 ChunkSpecOverhead = (i64) 1000;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 i64 GetFootprintMemorySize()
 {
@@ -81,7 +82,7 @@ i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
         stat.ChunkCount * (ChunkReaderMemorySize + ChunkSpecOverhead));
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

@@ -72,6 +72,7 @@ DEFINE_ENUM(EAbortReason,
     (UserRequest)
     (NodeOffline)
     (WaitingTimeout)
+    (AccountLimitExceeded)
     (Unknown)
     (SchedulingFirst)
     (SchedulingTimeout)

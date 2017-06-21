@@ -94,12 +94,12 @@ using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerClient::TNodeDirectory;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TScheduler::TImpl
     : public TRefCounted
@@ -156,25 +156,25 @@ public:
                 Bootstrap_));
         }
 
-        auto localHostName = TAddressResolver::Get()->GetLocalHostName();
-        int port = Bootstrap_->GetConfig()->RpcPort;
-        ServiceAddress_ = BuildServiceAddress(localHostName, port);
+        ServiceAddress_ = BuildServiceAddress(
+            GetLocalHostName(),
+            Bootstrap_->GetConfig()->RpcPort);
 
         for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
             JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", FormatEnum(state));
         }
-        
+
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", FormatEnum(type));
+            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("job_type", FormatEnum(type));
         }
-        
+
         for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
             if (IsSentinelReason(reason)) {
                 continue;
             }
             JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("abort_reason", FormatEnum(reason));
         }
-        
+
         for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
             JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
@@ -221,7 +221,7 @@ public:
         ProfilingExecutor_->Start();
 
         auto nameTable = New<TNameTable>();
-        auto options = New<TTableWriterOptions>();
+        auto options = New<NTableClient::TTableWriterOptions>();
         options->EnableValidationOptions();
 
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
@@ -293,13 +293,19 @@ public:
 
     bool IsConnected()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return MasterConnector_->IsConnected();
     }
 
     void ValidateConnected()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         if (!IsConnected()) {
-            THROW_ERROR_EXCEPTION(GetMasterDisconnectedError());
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Master is not connected");
         }
     }
 
@@ -406,7 +412,7 @@ public:
         return result;
     }
 
-    virtual void SetSchedulerAlert(EAlertType alertType, const TError& alert) override
+    virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -478,6 +484,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_DEBUG("Validating permission %Qv of user %Qv on pool %Qv",
+            permission,
+            user,
+            path);
+
         const auto& client = GetMasterClient();
         auto result = WaitFor(client->CheckPermission(user, GetPoolsPath() + path, permission))
             .ValueOrThrow();
@@ -489,6 +500,8 @@ public:
                 path.empty() ? RootPoolName : path)
                 << result.ToError(user, permission);
         }
+
+        LOG_DEBUG("Pool permission successfully validated");
     }
 
 
@@ -498,6 +511,11 @@ public:
         EPermission permission) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        LOG_DEBUG("Validating permission %Qv of user %Qv on operation %v",
+            permission,
+            user,
+            ToString(operationId));
 
         auto path = GetOperationPath(operationId);
 
@@ -518,6 +536,8 @@ public:
                 user,
                 operationId);
         }
+
+        LOG_DEBUG("Operation permission successfully validated");
     }
 
     TFuture<TOperationPtr> StartOperation(
@@ -621,14 +641,7 @@ public:
                 operation->GetState()));
         }
 
-        operation->SetSuspended(true);
-
-        if (abortRunningJobs) {
-            AbortOperationJobs(operation, TError("Suspend operation by user request"), /* terminated */ false);
-        }
-
-        LOG_INFO("Operation suspended (OperationId: %v)",
-            operation->GetId());
+        DoSuspendOperation(operation->GetId(), TError("Suspend operation by user request"), abortRunningJobs, /* setAlert */ false);
 
         return MasterConnector_->FlushOperationNode(operation);
     }
@@ -658,6 +671,11 @@ public:
             .ThrowOnError();
 
         operation->SetSuspended(false);
+
+        SetOperationAlert(
+            operation->GetId(),
+            EOperationAlertType::OperationSuspended,
+            TError());
 
         LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
@@ -755,8 +773,23 @@ public:
             .Run();
     }
 
+    void LogOperations(yhash_set<TOperationId> operationsToLog)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& operationId : operationsToLog) {
+            auto operation = FindOperation(operationId);
+            if (!operation) {
+                continue;
+            }
+            LogOperationProgress(operation);
+        }
+    }
+
     void ProcessHeartbeat(TCtxHeartbeatPtr context)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
@@ -767,14 +800,10 @@ public:
                 .Run(context))
             .ValueOrThrow();
 
-        // NB: Do heavy logging after responding to heartbeat.
-        for (const auto& operationId : operationsToLog) {
-            auto operation = FindOperation(operationId);
-            if (!operation) {
-                continue;
-            }
-            LogOperationProgress(operation);
-        }
+        GetControlInvoker()->Invoke(BIND(
+            &TImpl::LogOperations,
+            MakeStrong(this),
+            Passed(std::move(operationsToLog))));
     }
 
     // ISchedulerStrategyHost implementation
@@ -847,19 +876,22 @@ public:
     void MaterializeOperation(TOperationPtr operation)
     {
         auto controller = operation->GetController();
-        // TODO(ignat): avoid non-necessary async call here if operation is successfully revived.
-        operation->SetState(EOperationState::Materializing);
-        BIND(&IOperationController::Materialize, controller)
-            .AsyncVia(controller->GetCancelableInvoker())
-            .Run()
-            .Subscribe(BIND([operation] (const TError& error) {
-                if (error.IsOK()) {
-                    if (operation->GetState() == EOperationState::Materializing) {
-                        operation->SetState(EOperationState::Running);
+        if (controller->IsRevivedFromSnapshot()) {
+            operation->SetState(EOperationState::Running);
+        } else {
+            operation->SetState(EOperationState::Materializing);
+            BIND(&IOperationController::Materialize, controller)
+                .AsyncVia(controller->GetCancelableInvoker())
+                .Run()
+                .Subscribe(BIND([operation] (const TError& error) {
+                    if (error.IsOK()) {
+                        if (operation->GetState() == EOperationState::Materializing) {
+                            operation->SetState(EOperationState::Running);
+                        }
                     }
-                }
-            })
-            .Via(operation->GetCancelableControlInvoker()));
+                })
+                .Via(operation->GetCancelableControlInvoker()));
+        }
     }
 
 
@@ -872,11 +904,6 @@ public:
     virtual const NApi::INativeClientPtr& GetMasterClient() const override
     {
         return Bootstrap_->GetMasterClient();
-    }
-
-    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() override
-    {
-        return Bootstrap_->GetClusterDirectory();
     }
 
     virtual const TNodeDirectoryPtr& GetNodeDirectory() override
@@ -920,6 +947,14 @@ public:
 
         MasterConnector_->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
+    }
+
+    virtual void OnOperationSuspended(const TOperationId& operationId, const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND(&TImpl::DoSuspendOperation, MakeStrong(this), operationId, error, /* abortRunningJobs */ true, /* setAlert */ true));
     }
 
     virtual void OnOperationAborted(const TOperationId& operationId, const TError& error) override
@@ -1322,13 +1357,6 @@ private:
         LOG_INFO("Finished scheduler state cleanup");
     }
 
-    TError GetMasterDisconnectedError()
-    {
-        return TError(
-            NRpc::EErrorCode::Unavailable,
-            "Master is not connected");
-    }
-
     void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
     {
         LogEventFluently(logEventType)
@@ -1389,7 +1417,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing pools configuration")
                 << ex;
-            SetSchedulerAlert(EAlertType::UpdatePools, error);
+            SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             return;
         }
 
@@ -1487,7 +1515,7 @@ private:
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No config in Cypress, just ignore.
-            SetSchedulerAlert(EAlertType::UpdateConfig, TError());
+            SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, TError());
             return;
         }
         if (!rspOrError.IsOK()) {
@@ -1504,17 +1532,17 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError("Error updating cell scheduler configuration")
                     << ex;
-                SetSchedulerAlert(EAlertType::UpdateConfig, error);
+                SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, error);
                 return;
             }
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing updated scheduler configuration")
                 << ex;
-            SetSchedulerAlert(EAlertType::UpdateConfig, error);
+            SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, error);
             return;
         }
 
-        SetSchedulerAlert(EAlertType::UpdateConfig, TError());
+        SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, TError());
 
         auto oldConfigNode = ConvertToNode(Config_);
         auto newConfigNode = ConvertToNode(newConfig);
@@ -1725,8 +1753,6 @@ private:
     {
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        operation->SetState(EOperationState::Reviving);
-
         const auto& operationId = operation->GetId();
 
         LOG_INFO("Reviving operation (OperationId: %v)",
@@ -1930,7 +1956,11 @@ private:
 
     void InitStrategy()
     {
-        Strategy_ = CreateFairShareStrategy(Config_, this);
+        std::vector<IInvokerPtr> feasibleInvokers;
+        for (auto controlQueue : TEnumTraits<EControlQueue>::GetDomainValues()) {
+            feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
+        }
+        Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
     }
 
     INodePtr GetSpecTemplate(EOperationType type, IMapNodePtr spec)
@@ -2105,6 +2135,37 @@ private:
         DoAbortOperation(operation, error);
     }
 
+    void DoSuspendOperation(const TOperationId operationId, const TError& error, bool abortRunningJobs, bool setAlert)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+
+        // NB: finishing state is ok, do not skip operation fail in this case.
+        if (!operation || operation->IsFinishedState()) {
+            // Operation is already terminated.
+            return;
+        }
+
+        auto codicilGuard = operation->MakeCodicilGuard();
+
+        operation->SetSuspended(true);
+
+        if (abortRunningJobs) {
+            AbortOperationJobs(operation, error, /* terminated */ false);
+        }
+
+        if (setAlert) {
+            SetOperationAlert(
+                operation->GetId(),
+                EOperationAlertType::OperationSuspended,
+                error);
+        }
+
+        LOG_INFO(error, "Operation suspended (OperationId: %v)",
+            operation->GetId());
+    }
+
     void TerminateOperation(
         TOperationPtr operation,
         EOperationState intermediateState,
@@ -2155,7 +2216,13 @@ private:
             operation->Cancel();
             auto controller = operation->GetController();
             if (controller) {
-                controller->Abort();
+                try {
+                    controller->Abort();
+                } catch (const std::exception& ex) {
+                    LOG_ERROR(ex, "Failed to abort controller (OperationId: %v)", operation->GetId());
+                    MasterConnector_->Disconnect();
+                    return;
+                }
             }
         }
 
@@ -2174,6 +2241,30 @@ private:
         FinishOperation(operation);
     }
 
+    void CompleteCompletingOperation(const TOperationReport& report)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& operation = report.Operation;
+
+        auto codicilGuard = operation->MakeCodicilGuard();
+
+        LOG_INFO("Completing operation (OperationId: %v)",
+             operation->GetId());
+
+        if (report.ShouldCommitOutputTransaction) {
+            WaitFor(report.ControllerTransactions->Output->Commit())
+                .ThrowOnError();
+        }
+
+        SetOperationFinalState(operation, EOperationState::Completed, TError());
+
+        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
+        YCHECK(flushResult.IsOK());
+
+        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+    }
+
     void AbortAbortingOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2190,14 +2281,14 @@ private:
             }
         };
 
-        abortTransaction(controllerTransactions->Sync);
         abortTransaction(controllerTransactions->Async);
         abortTransaction(controllerTransactions->Input);
         abortTransaction(controllerTransactions->Output);
 
         SetOperationFinalState(operation, EOperationState::Aborted, TError());
 
-        WaitFor(MasterConnector_->FlushOperationNode(operation));
+        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
+        YCHECK(flushResult.IsOK());
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
@@ -2208,14 +2299,23 @@ private:
 
         for (const auto& operationReport : operationReports) {
             const auto& operation = operationReport.Operation;
+
+            operation->SetState(EOperationState::Reviving);
+
+            if (operationReport.IsCommitted) {
+                CompleteCompletingOperation(operationReport);
+                continue;
+            }
+
             if (operation->GetState() == EOperationState::Aborting) {
                 AbortAbortingOperation(operation, operationReport.ControllerTransactions);
+                continue;
+            }
+
+            if (operationReport.UserTransactionAborted) {
+                OnUserTransactionAborted(operation);
             } else {
-                if (operationReport.UserTransactionAborted) {
-                    OnUserTransactionAborted(operation);
-                } else {
-                    ReviveOperation(operation, operationReport.ControllerTransactions);
-                }
+                ReviveOperation(operation, operationReport.ControllerTransactions);
             }
         }
     }
@@ -2224,6 +2324,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        const auto& clusterDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectory();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("connected").Value(MasterConnector_->IsConnected())
@@ -2264,7 +2368,7 @@ private:
                         }
                     })
                 .EndMap()
-                .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const TString& clusterName) {
+                .Item("clusters").DoMapFor(clusterDirectory->GetClusterNames(), [=] (TFluentMap fluent, const TString& clusterName) {
                     BuildClusterYson(clusterName, fluent);
                 })
                 .Item("config").Value(Config_)
@@ -2274,9 +2378,17 @@ private:
 
     void BuildClusterYson(const TString& clusterName, IYsonConsumer* consumer)
     {
+        const auto& clusterDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectory();
+        auto connection = clusterDirectory->FindConnection(clusterName);
+        if (!connection) {
+            return;
+        }
         BuildYsonMapFluently(consumer)
             .Item(clusterName)
-            .Value(GetClusterDirectory()->FindConnection(clusterName)->GetConfig());
+            .Value(connection->GetConfig());
     }
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer) const
@@ -2475,7 +2587,7 @@ private:
     };
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TScheduler::TScheduler(
     TSchedulerConfigPtr config,
@@ -2617,7 +2729,7 @@ void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)
     Impl_->ProcessHeartbeat(context);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

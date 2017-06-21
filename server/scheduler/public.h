@@ -38,10 +38,8 @@ DECLARE_REFCOUNTED_STRUCT(TExecNodeDescriptorList);
 
 DECLARE_REFCOUNTED_CLASS(TExecNode)
 
-DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TEventLogConfig)
-DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
 DECLARE_REFCOUNTED_CLASS(TJobSplitterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TOperationOptions)
@@ -81,7 +79,7 @@ using NJobTrackerClient::NProto::TJobStatus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EAlertType,
+DEFINE_ENUM(ESchedulerAlertType,
     (UpdatePools)
     (UpdateConfig)
     (UpdateFairShare)
@@ -97,6 +95,8 @@ DEFINE_ENUM(EOperationAlertType,
     (LongAbortedJobs)
     (ExcessiveDiskUsage)
     (ShortJobsDuration)
+    (OperationSuspended)
+    (ExcessiveJobSpecThrottling)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

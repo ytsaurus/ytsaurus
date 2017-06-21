@@ -5,6 +5,8 @@
 
 #include <yt/ytlib/api/config.h>
 
+#include <yt/ytlib/chunk_pools/public.h>
+
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/formats/config.h>
 
@@ -33,6 +35,102 @@ const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSupportsSchedulingTagsConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TBooleanFormula SchedulingTagFilter;
+
+    TSupportsSchedulingTagsConfig();
+
+    virtual void OnLoaded() override;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResourceLimitsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TNullable<int> UserSlots;
+    TNullable<int> Cpu;
+    TNullable<int> Network;
+    TNullable<i64> Memory;
+
+    TResourceLimitsConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
+class TSchedulableConfig
+    : public TSupportsSchedulingTagsConfig
+{
+public:
+    double Weight;
+
+    // Specifies resource limits in terms of a share of all cluster resources.
+    double MaxShareRatio;
+    // Specifies resource limits in absolute values.
+    TResourceLimitsConfigPtr ResourceLimits;
+
+    // Specifies guaranteed resources in terms of a share of all cluster resources.
+    double MinShareRatio;
+    // Specifies guaranteed resources in absolute values.
+    TResourceLimitsConfigPtr MinShareResources;
+
+    // The following settings override scheduler configuration.
+    TNullable<TDuration> MinSharePreemptionTimeout;
+    TNullable<TDuration> FairSharePreemptionTimeout;
+    TNullable<double> FairShareStarvationTolerance;
+
+    TNullable<TDuration> MinSharePreemptionTimeoutLimit;
+    TNullable<TDuration> FairSharePreemptionTimeoutLimit;
+    TNullable<double> FairShareStarvationToleranceLimit;
+
+    TNullable<bool> AllowAggressiveStarvationPreemption;
+
+    TSchedulableConfig();
+};
+
+class TPoolConfig
+    : public TSchedulableConfig
+{
+public:
+    ESchedulingMode Mode;
+
+    TNullable<int> MaxRunningOperationCount;
+    TNullable<int> MaxOperationCount;
+
+    std::vector<EFifoSortParameter> FifoSortParameters;
+
+    bool EnableAggressiveStarvation;
+
+    bool ForbidImmediateOperations;
+
+    TPoolConfig();
+
+    void Validate();
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStrategyOperationSpec
+    : public TSchedulableConfig
+{
+public:
+    TNullable<TString> Pool;
+
+    TStrategyOperationSpec();
+};
+
+DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobIOConfig
     : public NYTree::TYsonSerializable
 {
@@ -55,12 +153,34 @@ DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDelayInsideOperationCommitStage,
+    (Stage1)
+    (Stage2)
+    (Stage3)
+    (Stage4)
+    (Stage5)
+    (Stage6)
+    (Stage7)
+);
+
+DEFINE_ENUM(EControllerFailureType,
+    (None)
+    (AssertionFailureInPrepare)
+    (ExceptionThrownInOnJobCompleted)
+)
+
 class TTestingOperationOptions
     : public NYTree::TYsonSerializable
 {
 public:
     TDuration SchedulingDelay;
     ESchedulingDelayType SchedulingDelayType;
+
+    TDuration DelayInsideOperationCommit;
+    EDelayInsideOperationCommitStage DelayInsideOperationCommitStage;
+
+    //! Intentionally fails the operation controller. Used only for testing purposes.
+    EControllerFailureType ControllerFailure;
 
     TTestingOperationOptions();
 };
@@ -69,23 +189,8 @@ DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSupportsSchedulingTagsConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    TBooleanFormula SchedulingTagFilter;
-
-    TSupportsSchedulingTagsConfig();
-
-    virtual void OnLoaded() override;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOperationSpecBase
-    : public TSupportsSchedulingTagsConfig
+    : public TStrategyOperationSpec
 {
 public:
     //! Account holding intermediate data produces by the operation.
@@ -141,11 +246,11 @@ public:
     //! to all user jobs via environment variables.
     NYTree::IMapNodePtr SecureVault;
 
-    //! Intentionally fails the operation controller. Used only for testing purposes.
-    bool FailController;
-
     //! If candidate exec nodes are not found for more than timeout time then operation will be failed.
     TDuration AvailableNodesMissingTimeout;
+
+    //! Suspend operation in case of jobs failed due to account limit exceeded.
+    bool SuspendOperationIfAccountLimitExceeded;
 
     TOperationSpecBase();
 };
@@ -262,6 +367,8 @@ public:
 
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
+
+    NChunkPools::EStripeListExtractionOrder StripeListExtractionOrder;
 
     // Operations inherited from this class produce the only kind
     // of jobs. This option corresponds to jobs of this kind.
@@ -411,6 +518,8 @@ class TReduceOperationSpec
 public:
     NTableClient::TKeyColumns ReduceBy;
     NTableClient::TKeyColumns SortBy;
+
+    std::vector<NTableClient::TOwningKey> PivotKeys;
 
     TReduceOperationSpec();
 };
@@ -570,6 +679,14 @@ public:
     bool CopyAttributes;
     TNullable<std::vector<TString>> AttributeKeys;
 
+    // Specifies how many chunks to read/write concurrently.
+    int Concurrency;
+
+    // Specifies buffer size for blocks of one chunk.
+    // At least one block will be read so this buffer size can be violated
+    // if block is bigger than this value.
+    i64 BlockBufferSize;
+
     ESchemaInferenceMode SchemaInferenceMode;
 
     TRemoteCopyOperationSpec();
@@ -581,90 +698,13 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResourceLimitsConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TNullable<int> UserSlots;
-    TNullable<int> Cpu;
-    TNullable<int> Network;
-    TNullable<i64> Memory;
-
-    TResourceLimitsConfig();
-};
-
-class TSchedulableConfig
-    : public TSupportsSchedulingTagsConfig
-{
-public:
-    double Weight;
-
-    // Specifies resource limits in terms of a share of all cluster resources.
-    double MaxShareRatio;
-    // Specifies resource limits in absolute values.
-    TResourceLimitsConfigPtr ResourceLimits;
-
-    // Specifies guaranteed resources in terms of a share of all cluster resources.
-    double MinShareRatio;
-    // Specifies guaranteed resources in absolute values.
-    TResourceLimitsConfigPtr MinShareResources;
-
-    // The following settings override scheduler configuration.
-    TNullable<TDuration> MinSharePreemptionTimeout;
-    TNullable<TDuration> FairSharePreemptionTimeout;
-    TNullable<double> FairShareStarvationTolerance;
-
-    TNullable<TDuration> MinSharePreemptionTimeoutLimit;
-    TNullable<TDuration> FairSharePreemptionTimeoutLimit;
-    TNullable<double> FairShareStarvationToleranceLimit;
-
-    TSchedulableConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
-
-class TPoolConfig
-    : public TSchedulableConfig
-{
-public:
-    ESchedulingMode Mode;
-
-    TNullable<int> MaxRunningOperationCount;
-    TNullable<int> MaxOperationCount;
-
-    std::vector<EFifoSortParameter> FifoSortParameters;
-
-    bool EnableAggressiveStarvation;
-
-    bool ForbidImmediateOperations;
-
-    TPoolConfig();
-
-    void Validate();
-};
-
-DEFINE_REFCOUNTED_TYPE(TPoolConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TStrategyOperationSpec
-    : public TSchedulableConfig
-{
-public:
-    TNullable<TString> Pool;
-
-    TStrategyOperationSpec();
-};
-
-DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOperationRuntimeParams
     : public NYTree::TYsonSerializable
 {
 public:
     double Weight;
+
+    TResourceLimitsConfigPtr ResourceLimits;
 
     TOperationRuntimeParams();
 };

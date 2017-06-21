@@ -42,6 +42,9 @@ using namespace NTabletClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TApiServiceBufferTag
@@ -64,7 +67,24 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExistsNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LockNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CopyNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(MoveNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LinkNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ConcatenateNodes));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(MountTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnmountTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemountTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FreezeTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnfreezeTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReshardTable));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
@@ -80,7 +100,9 @@ private:
     // TODO(sandello): Introduce expiration times for clients.
     yhash<TString, INativeClientPtr> AuthenticatedClients_;
 
-    INativeClientPtr GetAuthenticatedClientOrAbortContext(const IServiceContextPtr& context)
+    INativeClientPtr GetAuthenticatedClientOrAbortContext(
+        const IServiceContextPtr& context,
+        const google::protobuf::Message* request)
     {
         auto replyWithMissingCredentials = [&] () {
             context->Reply(TError(
@@ -133,6 +155,8 @@ private:
             return nullptr;
         }
 
+        context->SetRequestInfo("Request: %v", request->ShortDebugString());
+
         {
             auto guard = Guard(SpinLock_);
             auto it = AuthenticatedClients_.find(user);
@@ -150,10 +174,11 @@ private:
 
     ITransactionPtr GetTransactionOrAbortContext(
         const IServiceContextPtr& context,
+        const google::protobuf::Message* request,
         const TTransactionId& transactionId,
         const TTransactionAttachOptions& options)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context);
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return nullptr;
         }
@@ -165,27 +190,25 @@ private:
             return nullptr;
         }
 
-        context->SetRequestInfo("TransactionId: %v", transactionId);
-
         return transaction;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, StartTransaction)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context);
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return;
         }
 
         TTransactionStartOptions options;
         if (request->has_timeout()) {
-            options.Timeout = FromProto<TDuration>(request->timeout());
+            options.Timeout = NYT::FromProto<TDuration>(request->timeout());
         }
         if (request->has_id()) {
-            FromProto(&options.Id, request->id());
+            NYT::FromProto(&options.Id, request->id());
         }
         if (request->has_parent_id()) {
-            FromProto(&options.ParentId, request->parent_id());
+            NYT::FromProto(&options.ParentId, request->parent_id());
         }
         options.AutoAbort = request->auto_abort();
         options.Sticky = request->sticky();
@@ -213,7 +236,8 @@ private:
         transactionAttachOptions.Sticky = request->sticky();
         auto transaction = GetTransactionOrAbortContext(
             context,
-            FromProto<TTransactionId>(request->transaction_id()),
+            request,
+            NYT::FromProto<TTransactionId>(request->transaction_id()),
             transactionAttachOptions);
         if (!transaction) {
             return;
@@ -237,7 +261,8 @@ private:
         transactionAttachOptions.Sticky = request->sticky();
         auto transaction = GetTransactionOrAbortContext(
             context,
-            FromProto<TTransactionId>(request->transaction_id()),
+            request,
+            NYT::FromProto<TTransactionId>(request->transaction_id()),
             transactionAttachOptions);
         if (!transaction) {
             return;
@@ -262,7 +287,8 @@ private:
         transactionAttachOptions.Sticky = request->sticky();
         auto transaction = GetTransactionOrAbortContext(
             context,
-            FromProto<TTransactionId>(request->transaction_id()),
+            request,
+            NYT::FromProto<TTransactionId>(request->transaction_id()),
             transactionAttachOptions);
         if (!transaction) {
             return;
@@ -278,27 +304,782 @@ private:
         }));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetNode)
+    ////////////////////////////////////////////////////////////////////////////////
+    // OPTIONS
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static void SetTimeoutOptions(
+        TTimeoutOptions* options,
+        IServiceContext* context)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context);
+        options->Timeout = context->GetTimeout();
+    }
+
+    static void FromProto(
+        TTransactionalOptions* options,
+        const NProto::TTransactionalOptions& proto)
+    {
+        if (proto.has_transaction_id()) {
+            NYT::FromProto(&options->TransactionId, proto.transaction_id());
+        }
+        if (proto.has_ping()) {
+            options->Ping = proto.ping();
+        }
+        if (proto.has_ping_ancestors()) {
+            options->PingAncestors = proto.ping_ancestors();
+        }
+        if (proto.has_sticky()) {
+            options->Sticky = proto.sticky();
+        }
+    }
+
+    static void FromProto(
+        TPrerequisiteOptions* options,
+        const NProto::TPrerequisiteOptions& proto)
+    {
+        options->PrerequisiteTransactionIds.resize(proto.transactions_size());
+        for (int i = 0; i < proto.transactions_size(); ++i) {
+            const auto& protoItem = proto.transactions(i);
+            auto& item = options->PrerequisiteTransactionIds[i];
+            NYT::FromProto(&item, protoItem.transaction_id());
+        }
+        options->PrerequisiteRevisions.reserve(proto.revisions_size());
+        for (int i = 0; i < proto.revisions_size(); ++i) {
+            const auto& protoItem = proto.revisions(i);
+            options->PrerequisiteRevisions[i] = New<TPrerequisiteRevisionConfig>();
+            auto& item = *options->PrerequisiteRevisions[i];
+            NYT::FromProto(&item.TransactionId, protoItem.transaction_id());
+            item.Revision = protoItem.revision();
+            item.Path = protoItem.path();
+        }
+    }
+
+    static void FromProto(
+        TMasterReadOptions* options,
+        const NProto::TMasterReadOptions& proto)
+    {
+        if (proto.has_read_from()) {
+            switch (proto.read_from()) {
+                case NProto::TMasterReadOptions_EMasterReadKind_LEADER:
+                    options->ReadFrom = EMasterChannelKind::Leader;
+                    break;
+                case NProto::TMasterReadOptions_EMasterReadKind_FOLLOWER:
+                    options->ReadFrom = EMasterChannelKind::Follower;
+                    break;
+                case NProto::TMasterReadOptions_EMasterReadKind_CACHE:
+                    options->ReadFrom = EMasterChannelKind::Cache;
+                    break;
+            }
+        }
+        if (proto.has_success_expiration_time()) {
+            NYT::FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.success_expiration_time());
+        }
+        if (proto.has_failure_expiration_time()) {
+            NYT::FromProto(&options->ExpireAfterFailedUpdateTime, proto.failure_expiration_time());
+        }
+        if (proto.has_cache_sticky_group_size()) {
+            options->CacheStickyGroupSize = proto.cache_sticky_group_size();
+        }
+    }
+
+    static void FromProto(
+        TMutatingOptions* options,
+        const NProto::TMutatingOptions& proto)
+    {
+        if (proto.has_mutation_id()) {
+            NYT::FromProto(&options->MutationId, proto.mutation_id());
+        }
+        if (proto.has_retry()) {
+            options->Retry = proto.retry();
+        }
+    }
+
+    static void FromProto(
+        TSuppressableAccessTrackingOptions* options,
+        const NProto::TSuppressableAccessTrackingOptions& proto)
+    {
+        if (proto.has_suppress_access_tracking()) {
+            options->SuppressAccessTracking = proto.suppress_access_tracking();
+        }
+        if (proto.has_suppress_modification_tracking()) {
+            options->SuppressModificationTracking = proto.suppress_modification_tracking();
+        }
+    }
+
+    static void FromProto(
+        TTabletRangeOptions* options,
+        const NProto::TTabletRangeOptions& proto)
+    {
+        if (proto.has_first_tablet_index()) {
+            options->FirstTabletIndex = proto.first_tablet_index();
+        }
+        if (proto.has_last_tablet_index()) {
+            options->LastTabletIndex = proto.last_tablet_index();
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // CYPRESS
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ExistsNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return;
         }
 
-        context->SetRequestInfo("Path: %v", request->path());
+        auto&& path = request->path();
 
-        // TODO(sandello): Inject options into req/rsp structure.
-        auto options = TGetNodeOptions();
-        client->GetNode(request->path(), options)
-            .Subscribe(BIND([=] (const TErrorOr<NYson::TYsonString>& result) {
+        TNodeExistsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
+        client->NodeExists(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<bool>& result) {
                 if (!result.IsOK()) {
                     context->Reply(result);
                 } else {
-                    response->set_data(result.Value().GetData());
+                    response->set_exists(result.Value());
                     context->Reply();
                 }
             }));
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+        TGetNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_attributes()) {
+            const auto& protoAttributes = request->attributes();
+            if (protoAttributes.all()) {
+                options.Attributes.Reset();
+            } else {
+                options.Attributes = std::vector<TString>();
+                options.Attributes->reserve(protoAttributes.columns_size());
+                for (int i = 0; i < protoAttributes.columns_size(); ++i) {
+                    const auto& protoItem = protoAttributes.columns(i);
+                    options.Attributes->push_back(protoItem);
+                }
+            }
+        }
+        if (request->has_max_size()) {
+            options.MaxSize = request->max_size();
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
+        client->GetNode(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<NYson::TYsonString>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    response->set_value(result.Value().GetData());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ListNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TListNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_attributes()) {
+            const auto& protoAttributes = request->attributes();
+            if (protoAttributes.all()) {
+                options.Attributes.Reset();
+            } else {
+                options.Attributes = std::vector<TString>();
+                options.Attributes->reserve(protoAttributes.columns_size());
+                for (int i = 0; i < protoAttributes.columns_size(); ++i) {
+                    const auto& protoItem = protoAttributes.columns(i);
+                    options.Attributes->push_back(protoItem);
+                }
+            }
+        }
+        if (request->has_max_size()) {
+            options.MaxSize = request->max_size();
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
+        client->ListNode(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<NYson::TYsonString>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    response->set_value(result.Value().GetData());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CreateNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+        NObjectClient::EObjectType type = static_cast<NObjectClient::EObjectType>(request->type());
+
+        TCreateNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_attributes()) {
+            const auto& protoAttributes = request->attributes();
+            auto attributes = std::shared_ptr<IAttributeDictionary>(CreateEphemeralAttributes());
+            for (int i = 0; i < protoAttributes.attributes_size(); ++i) {
+                const auto& protoItem = protoAttributes.attributes(i);
+                attributes->SetYson(protoItem.key(), NYson::TYsonString(protoItem.value()));
+            }
+            options.Attributes = std::move(attributes);
+        }
+        if (request->has_recursive()) {
+            options.Recursive = request->recursive();
+        }
+        if (request->has_force()) {
+            options.Force = request->force();
+        }
+        if (request->has_ignore_existing()) {
+            options.IgnoreExisting = request->ignore_existing();
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        client->CreateNode(path, type, options)
+            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    ToProto(response->mutable_node_id(), result.Value());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, RemoveNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TRemoveNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_recursive()) {
+            options.Recursive = request->recursive();
+        }
+        if (request->has_force()) {
+            options.Force = request->force();
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        client->RemoveNode(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, SetNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+        NYson::TYsonString value(request->value());
+
+        TSetNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        client->SetNode(path, value, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LockNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+        NCypressClient::ELockMode mode = static_cast<NCypressClient::ELockMode>(request->mode());
+
+        TLockNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_waitable()) {
+            options.Waitable = request->waitable();
+        }
+        if (request->has_child_key()) {
+            options.ChildKey = request->child_key();
+        }
+        if (request->has_attribute_key()) {
+            options.AttributeKey = request->attribute_key();
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        client->LockNode(path, mode, options)
+            .Subscribe(BIND([=] (const TErrorOr<TLockNodeResult>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    ToProto(response->mutable_node_id(), result.Value().NodeId);
+                    ToProto(response->mutable_lock_id(), result.Value().LockId);
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CopyNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& srcPath = request->src_path();
+        auto&& dstPath = request->dst_path();
+
+        TCopyNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_recursive()) {
+            options.Recursive = request->recursive();
+        }
+        if (request->has_force()) {
+            options.Force = request->force();
+        }
+        if (request->has_preserve_account()) {
+            options.PreserveAccount = request->preserve_account();
+        }
+        if (request->has_preserve_expiration_time()) {
+            options.PreserveExpirationTime = request->preserve_expiration_time();
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        client->CopyNode(srcPath, dstPath, options)
+            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    ToProto(response->mutable_node_id(), result.Value());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, MoveNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& srcPath = request->src_path();
+        auto&& dstPath = request->dst_path();
+
+        TMoveNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_recursive()) {
+            options.Recursive = request->recursive();
+        }
+        if (request->has_force()) {
+            options.Force = request->force();
+        }
+        if (request->has_preserve_account()) {
+            options.PreserveAccount = request->preserve_account();
+        }
+        if (request->has_preserve_expiration_time()) {
+            options.PreserveExpirationTime = request->preserve_expiration_time();
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        client->MoveNode(srcPath, dstPath, options)
+            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    ToProto(response->mutable_node_id(), result.Value());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LinkNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& srcPath = request->src_path();
+        auto&& dstPath = request->dst_path();
+
+        TLinkNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_recursive()) {
+            options.Recursive = request->recursive();
+        }
+        if (request->has_force()) {
+            options.Force = request->force();
+        }
+        if (request->has_ignore_existing()) {
+            options.IgnoreExisting = request->ignore_existing();
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        client->LinkNode(srcPath, dstPath, options)
+            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    ToProto(response->mutable_node_id(), result.Value());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ConcatenateNodes)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        std::vector<NYPath::TYPath> srcPaths;
+        srcPaths.reserve(request->src_path_size());
+        for (int i = 0; i < request->src_path_size(); ++i) {
+            srcPaths.push_back(request->src_path(i));
+        }
+        auto&& dstPath = request->dst_path();
+
+        TConcatenateNodesOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_append()) {
+            options.Append = request->append();
+        }
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        // if (request->has_prerequisite_options()) {
+        //     FromProto(&options, request->prerequisite_options());
+        // }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        client->ConcatenateNodes(srcPaths, dstPath, options)
+            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // TABLES (NON-TRANSACTIONAL)
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, MountTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TMountTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_cell_id()) {
+            NYT::FromProto(&options.CellId, request->cell_id());
+        }
+        if (request->has_freeze()) {
+            options.Freeze = request->freeze();
+        }
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->MountTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnmountTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TUnmountTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_force()) {
+            options.Force = request->force();
+        }
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->UnmountTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, RemountTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TRemountTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->RemountTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, FreezeTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TFreezeTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->FreezeTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnfreezeTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TUnfreezeTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->UnfreezeTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ReshardTable)
+    {
+        Y_UNREACHABLE();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // TABLES (TRANSACTIONAL)
+    ////////////////////////////////////////////////////////////////////////////////
 
     template <class TContext, class TRequest, class TOptions>
     static bool LookupRowsPrologue(
@@ -354,7 +1135,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LookupRows)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context);
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return;
         }
@@ -375,7 +1156,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, VersionedLookupRows)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context);
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return;
         }
@@ -396,12 +1177,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, SelectRows)
     {
-        auto client = GetAuthenticatedClientOrAbortContext(context);
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
         if (!client) {
             return;
         }
 
         TSelectRowsOptions options; // TODO: Fill all options.
+        options.Timestamp = NTransactionClient::AsyncLastCommittedTimestamp;
 
         client->SelectRows(request->query(), options)
             .Subscribe(BIND([=] (const TErrorOr<TSelectRowsResult>& result) {
@@ -426,7 +1208,8 @@ private:
         transactionAttachOptions.Sticky = true; // XXX(sandello): Fix me!
         auto transaction = GetTransactionOrAbortContext(
             context,
-            FromProto<TTransactionId>(request->transaction_id()),
+            request,
+            NYT::FromProto<TTransactionId>(request->transaction_id()),
             transactionAttachOptions);
         if (!transaction) {
             return;

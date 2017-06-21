@@ -119,10 +119,8 @@ class TTablet
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
-    DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
     DEFINE_BYVAL_RW_PROPERTY(i64, MountRevision);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StoresUpdatePreparedTransaction);
-    DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
     DEFINE_BYVAL_RW_PROPERTY(TTabletAction*, Action);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TOwningKey, PivotKey);
@@ -156,6 +154,19 @@ public:
 
     NChunkServer::TChunkList* GetChunkList();
     const NChunkServer::TChunkList* GetChunkList() const;
+
+    i64 GetTabletStaticMemorySize(NTabletNode::EInMemoryMode mode) const;
+    i64 GetTabletStaticMemorySize() const;
+
+    ETabletState GetState() const;
+    void SetState(ETabletState state);
+
+    NTableServer::TTableNode* GetTable() const;
+    void SetTable(NTableServer::TTableNode* table);
+
+private:
+    ETabletState State_ = ETabletState::Unmounted;
+    NTableServer::TTableNode* Table_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
