@@ -172,6 +172,51 @@ function(PROTOC proto output)
     PARENT_SCOPE)
 endfunction()
 
+function(PROTOC_PYTHON proto output prefix)
+  get_filename_component(_proto_realpath ${proto} REALPATH)
+  get_filename_component(_proto_dirname  ${_proto_realpath} PATH)
+  get_filename_component(_proto_basename ${_proto_realpath} NAME_WE)
+  get_filename_component(_source_realpath ${CMAKE_SOURCE_DIR} REALPATH)
+  string(REPLACE "${_source_realpath}" "" _relative_path "${_proto_dirname}")
+  string(REPLACE "${_source_realpath}" "" _prefix_relative_path "${prefix}")
+
+  # Specify custom command how to generate _pb2.py and _py2_grpc.py
+  add_custom_command(
+    OUTPUT
+      ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}_pb2.py
+      ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}_pb2_grpc.py
+    COMMAND
+      ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}${_relative_path}
+    COMMAND
+    $<TARGET_FILE:protoc>
+      -I${prefix}
+      -I${CMAKE_SOURCE_DIR}/contrib/libs/protobuf
+      --python_out=${CMAKE_BINARY_DIR}${_prefix_relative_path}
+      --grpc_py_out=${CMAKE_BINARY_DIR}${_prefix_relative_path}
+      --plugin=protoc-gen-grpc_py=${CMAKE_BINARY_DIR}/bin/grpc_python
+      ${_proto_realpath}
+    MAIN_DEPENDENCY
+      ${_proto_realpath}
+    DEPENDS
+      protoc
+      grpc_python
+    WORKING_DIRECTORY
+      ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generating protobuf from ${proto}..."
+  )
+
+  set_source_files_properties(
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}_pb2.py
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}_pb2_grpc.py
+    PROPERTIES GENERATED TRUE
+  )
+  set(${output}
+    ${${output}}
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}_pb2.py
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}_pb2_grpc.py
+    PARENT_SCOPE)
+endfunction()
+
 function(RAGEL source result_variable)
   get_filename_component(_realpath ${source} REALPATH)
   get_filename_component(_dirname ${_realpath} PATH)
