@@ -39,14 +39,11 @@ class TestOrchid(YTEnvSetup):
         cells = ls("//sys/tablet_cells")
         assert len(cells) == 1
         for cell in cells:
-            tablets = get("//sys/tablet_cells/" + cell + "/@tablet_ids")
             peers = get("//sys/tablet_cells/" + cell + "/@peers")
             for peer in peers:
                 address = peer["address"]
                 peer_cells = ls("//sys/nodes/" + address + "/orchid/tablet_cells")
                 assert cell in peer_cells
-                orchid_tablets = ls("//sys/nodes/" + address + "/orchid/tablet_cells/" + cell + "/tablets")
-                assert_items_equal(orchid_tablets, tablets)
 
 ##################################################################
 
