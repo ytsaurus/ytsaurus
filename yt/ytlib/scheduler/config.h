@@ -154,6 +154,9 @@ public:
     //! If candidate exec nodes are not found for more than timeout time then operation will be failed.
     TDuration AvailableNodesMissingTimeout;
 
+    //! Generic map to turn on/off different experimental options.
+    NYTree::IMapNodePtr NightlyOptions;
+
     TOperationSpecBase();
 };
 

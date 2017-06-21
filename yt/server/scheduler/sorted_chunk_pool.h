@@ -23,6 +23,9 @@ struct TSortedJobOptions
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;
 
+    //! Experimental workaround for YTADMINREQ-5836.
+    bool UseNewEndpointKeys = false;
+
     void Persist(const TPersistenceContext& context);
 };
 
