@@ -129,6 +129,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert get("//tmp/t1") == 0
         assert get("//tmp/t2") == 0
 
+    @flaky(max_runs=5)
     def test_timeout(self):
         tx = start_transaction(timeout=2000)
 
