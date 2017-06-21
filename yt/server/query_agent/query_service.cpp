@@ -217,6 +217,9 @@ private:
                 auto* protoReplicaInfo = protoTabletInfo->add_replica_info();
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
                 protoReplicaInfo->set_last_replication_timestamp(lastReplicationTimestamp);
+
+                auto mode = replicaSnapshot->RuntimeData->Mode.load(std::memory_order_relaxed);
+                protoReplicaInfo->set_mode(static_cast<int>(mode));
             }
         }
         context->Reply();

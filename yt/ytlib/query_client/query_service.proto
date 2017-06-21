@@ -52,6 +52,7 @@ message TReplicaInfo
 {
     required NYT.NProto.TGuid replica_id = 1;
     required uint64 last_replication_timestamp = 2;
+    required int32 mode = 3; // ETableReplicaMode
 }
 
 message TTabletInfo
