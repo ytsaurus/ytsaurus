@@ -478,10 +478,19 @@ protected:
         jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
         jobOptions.EnablePeriodicYielder = true;
+
+        if (Spec_->NightlyOptions) {
+            auto useNewEndpointKeys = Spec_->NightlyOptions->FindChild("use_new_endpoint_keys");
+            if (useNewEndpointKeys && useNewEndpointKeys->GetType() == ENodeType::Boolean) {
+                jobOptions.UseNewEndpointKeys = useNewEndpointKeys->AsBoolean()->GetValue();
+            }
+        }
+
         chunkPoolOptions.SortedJobOptions = jobOptions;
         chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.OperationId = OperationId;
+
         return chunkPoolOptions;
     }
 

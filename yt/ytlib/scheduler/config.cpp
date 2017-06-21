@@ -146,6 +146,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("available_nodes_missing_timeout", AvailableNodesMissingTimeout)
         .Default(TDuration::Hours(1));
 
+    RegisterParameter("nightly_options", NightlyOptions)
+        .Default();
+
     RegisterValidator([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
