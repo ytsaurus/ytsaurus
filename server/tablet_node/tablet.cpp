@@ -153,9 +153,6 @@ void TTabletSnapshot::ValidateMountRevision(i64 mountRevision)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReplicaInfo::TTableReplicaInfo()
-{ }
-
 TTableReplicaInfo::TTableReplicaInfo(const TTableReplicaId& id)
     : Id_(id)
 { }
@@ -169,6 +166,7 @@ void TTableReplicaInfo::Save(TSaveContext& context) const
     Save(context, StartReplicationTimestamp_);
     Save(context, PreparedReplicationTransactionId_);
     Save(context, State_);
+    Save(context, Mode_);
     Save(context, RuntimeData_->CurrentReplicationRowIndex);
     Save(context, RuntimeData_->CurrentReplicationTimestamp);
     Save(context, RuntimeData_->PreparedReplicationRowIndex);
@@ -181,11 +179,9 @@ void TTableReplicaInfo::Load(TLoadContext& context)
     Load(context, ClusterName_);
     Load(context, ReplicaPath_);
     Load(context, StartReplicationTimestamp_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 100001) {
-        Load(context, PreparedReplicationTransactionId_);
-    }
+    Load(context, PreparedReplicationTransactionId_);
     Load(context, State_);
+    Load(context, Mode_);
     Load(context, RuntimeData_->CurrentReplicationRowIndex);
     Load(context, RuntimeData_->CurrentReplicationTimestamp);
     Load(context, RuntimeData_->PreparedReplicationRowIndex);
@@ -266,7 +262,7 @@ TTablet::TTablet(
     TOwningKey nextPivotKey,
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
-    ETableReplicationMode replicationMode)
+    const TTableReplicaId& upstreamReplicaId)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -276,7 +272,7 @@ TTablet::TTablet(
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
     , CommitOrdering_(commitOrdering)
-    , ReplicationMode_(replicationMode)
+    , UpstreamReplicaId_(upstreamReplicaId)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(MinTimestamp)
     , Config_(config)
@@ -375,7 +371,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, TableSchema_);
     Save(context, Atomicity_);
     Save(context, CommitOrdering_);
-    Save(context, ReplicationMode_);
+    Save(context, UpstreamReplicaId_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TotalRowCount);
     Save(context, RuntimeData_->TrimmedRowCount);
@@ -417,7 +413,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, TableSchema_);
     Load(context, Atomicity_);
     Load(context, CommitOrdering_);
-    Load(context, ReplicationMode_);
+    Load(context, UpstreamReplicaId_);
     Load(context, HashTableSize_);
     Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
@@ -943,7 +939,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->PhysicalSchemaData = PhysicalSchemaData_;
     snapshot->KeysSchemaData = KeysSchemaData_;
     snapshot->Atomicity = Atomicity_;
-    snapshot->ReplicationMode = ReplicationMode_;
+    snapshot->UpstreamReplicaId = UpstreamReplicaId_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->StoreCount = static_cast<int>(StoreIdMap_.size());
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
@@ -956,7 +952,11 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
             switch (preloadState) {
                 case EStorePreloadState::Scheduled:
                 case EStorePreloadState::Running:
-                    ++snapshot->PreloadPendingStoreCount;
+                    if (chunkStore->IsPreloadAllowed()) {
+                        ++snapshot->PreloadPendingStoreCount;
+                    } else {
+                        ++snapshot->PreloadFailedStoreCount;
+                    }
                     break;
                 case EStorePreloadState::Complete:
                     ++snapshot->PreloadCompletedStoreCount;

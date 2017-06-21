@@ -9,6 +9,7 @@
 #include <yt/server/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/block.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -42,7 +43,7 @@ private:
     struct TSlot
     {
         ESlotState State = ESlotState::Empty;
-        TSharedRef Block;
+        NChunkClient::TBlock Block;
         TPromise<void> WrittenPromise = NewPromise<void>();
         NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
         TPendingIOGuard PendingIOGuard;
@@ -65,7 +66,7 @@ private:
    
     virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,
-        const std::vector<TSharedRef>& blocks,
+        const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
 
     virtual TFuture<void> DoSendBlocks(
@@ -85,7 +86,7 @@ private:
     void ValidateBlockIsInWindow(int blockIndex);
     TSlot& GetSlot(int blockIndex);
     void ReleaseBlocks(int flushedBlockIndex);
-    TSharedRef GetBlock(int blockIndex);
+    NChunkClient::TBlock GetBlock(int blockIndex);
     void MarkAllSlotsWritten(const TError& error);
 
     TFuture<void> AbortWriter();
@@ -96,14 +97,14 @@ private:
     void DoCloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     IChunkPtr OnWriterClosed(const TError& error);
 
-    void DoWriteBlock(const TSharedRef& block, int blockIndex);
+    void DoWriteBlock(const NChunkClient::TBlock& block, int blockIndex);
     void OnBlockWritten(int blockIndex, const TError& error);
 
     void OnBlockFlushed(int blockIndex, const TError& error);
 
     void ReleaseSpace();
 
-    void SetFailed(const TError& error);
+    void SetFailed(const TError& error, bool fatal = true);
 
 };
 

@@ -167,10 +167,6 @@ public:
     {
         ValidateCreatedNodeType(type);
 
-        auto* account = GetNewNodeAccount();
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& handler = cypressManager->FindHandler(type);
         if (!handler) {
@@ -189,6 +185,14 @@ public:
         if (attributes->Get<bool>("dynamic", false)) {
             attributes->Set("external", false);
         }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = GetNewNodeAccount();
+        auto maybeAccount = attributes->FindAndRemove<TString>("account");
+        if (maybeAccount) {
+            account = securityManager->GetAccountByNameOrThrow(*maybeAccount);
+        }
+        securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool isExternalDefault =
@@ -257,7 +261,7 @@ public:
             }
             replicationRequest.set_type(static_cast<int>(type));
             ToProto(replicationRequest.mutable_node_attributes(), *replicationAttributes);
-            ToProto(replicationRequest.mutable_account_id(), Account_->GetId());
+            ToProto(replicationRequest.mutable_account_id(), account->GetId());
             replicationRequest.set_enable_accounting(enableAccounting);
             multicellManager->PostToMaster(replicationRequest, cellTag);
         }
@@ -291,7 +295,7 @@ public:
             // might not be aware of the actual resource usage.
             // This should be safe since chunk lists are shared anyway.
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidateResourceUsageIncrease(clonedAccount, TClusterResources(1, 0));
+            securityManager->ValidateResourceUsageIncrease(clonedAccount, TClusterResources().SetNodeCount(1));
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -647,7 +651,9 @@ public:
             hintId,
             externalCellTag,
             transaction,
-            attributes);
+            attributes,
+            account,
+            enableAccounting);
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set account.
@@ -1813,7 +1819,7 @@ private:
                 YCHECK(parentTransaction->Locks().insert(lock).second);
                 // NB: Node could be locked more than once.
                 parentTransaction->LockedNodes().insert(trunkNode);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, TransactionId: %v->%v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, TransactionId: %v -> %v)",
                     lock->GetId(),
                     transaction->GetId(),
                     parentTransaction->GetId());
@@ -2098,16 +2104,19 @@ private:
         const TNodeId& hintId,
         ENodeCloneMode mode)
     {
+        // Prepare account.
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = factory->GetClonedNodeAccount(sourceNode);
+
         const auto& handler = GetHandler(sourceNode);
         auto* clonedNode = handler->Clone(
             sourceNode,
             factory,
             hintId,
-            mode);
+            mode,
+            account);
 
         // Set account.
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = factory->GetClonedNodeAccount(sourceNode);
         securityManager->SetAccount(clonedNode, account);
 
         // Set owner.
@@ -2265,23 +2274,15 @@ private:
                 continue;
             }
 
-            auto error = CheckLock(
-                trunkNode,
-                nullptr,
-                ELockMode::Exclusive,
-                true);
-
-            if (error.IsOK()) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Removing expired node (NodeId: %v)",
-                    nodeId);
-
+            try {
                 auto nodeProxy = GetNodeProxy(trunkNode, nullptr);
                 auto parentProxy = nodeProxy->GetParent();
                 parentProxy->RemoveChild(nodeProxy);
-            } else {
-                LOG_DEBUG_UNLESS(IsRecovery(), error, "Cannot remove an expired node; backing off and retrying (NodeId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Expired node removed (NodeId: %v)",
                     nodeId);
-
+            } catch (const std::exception& ex) {
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v)",
+                    nodeId);
                 ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
             }
         }

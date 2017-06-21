@@ -25,7 +25,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NSecurityClient;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TJobProberService
     : public TServiceBase
@@ -33,7 +33,7 @@ class TJobProberService
 public:
     TJobProberService(TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            bootstrap->GetControlInvoker(EControlQueue::UserRequest),
             TJobProberServiceProxy::GetDescriptor(),
             SchedulerLogger)
         , Bootstrap_(bootstrap)
@@ -178,7 +178,7 @@ IServicePtr CreateJobProberService(TBootstrap* bootstrap)
     return New<TJobProberService>(bootstrap);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

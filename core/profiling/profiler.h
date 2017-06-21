@@ -43,8 +43,9 @@ DEFINE_ENUM(ETimerMode,
  *
  *  \note Not thread-safe.
  */
-struct TTimer
+class TTimer
 {
+public:
     TTimer();
     TTimer(
         const NYPath::TYPath& path,
@@ -52,14 +53,16 @@ struct TTimer
         ETimerMode mode,
         const TTagIdList& tagIds);
 
-    NYPath::TYPath Path;
+private:
+    NYPath::TYPath Path_;
     //! Start time.
-    TCpuInstant Start;
+    TCpuInstant Start_;
     //! Last checkpoint time (0 if no checkpoint has occurred yet).
-    TCpuInstant LastCheckpoint;
-    ETimerMode Mode;
-    TTagIdList TagIds;
+    TCpuInstant LastCheckpoint_;
+    ETimerMode Mode_;
+    TTagIdList TagIds_;
 
+    friend class TProfiler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,22 +71,29 @@ struct TTimer
 /*!
  *  Maintains the profiling path and timing information.
  */
-struct TCounterBase
+class TCounterBase
 {
+public:
     TCounterBase(
-        const NYPath::TYPath& path = "",
+        const NYPath::TYPath& path = NYPath::TYPath(),
         const TTagIdList& tagIds = EmptyTagIds,
         TDuration interval = TDuration::MilliSeconds(100));
     TCounterBase(const TCounterBase& other);
     TCounterBase& operator = (const TCounterBase& other);
 
-    TSpinLock SpinLock;
-    NYPath::TYPath Path;
-    TTagIdList TagIds;
+    TValue GetCurrent() const;
+
+private:
+    TSpinLock SpinLock_;
+    NYPath::TYPath Path_;
+    TTagIdList TagIds_;
     //! Interval between samples (in ticks).
-    TCpuDuration Interval;
+    TCpuDuration Interval_;
     //! The time when the next sample must be queued (in ticks).
-    TCpuInstant Deadline;
+    std::atomic<TCpuInstant> Deadline_;
+    std::atomic<TValue> Current_;
+
+    friend class TProfiler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,42 +119,45 @@ DEFINE_ENUM(EAggregateMode,
  *
  *  \note Thread-safe.
  */
-struct TAggregateCounter
+class TAggregateCounter
     : public TCounterBase
 {
+public:
     TAggregateCounter(
-        const NYPath::TYPath& path = "",
+        const NYPath::TYPath& path = NYPath::TYPath(),
         const TTagIdList& tagIds = EmptyTagIds,
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(1000));
     TAggregateCounter(const TAggregateCounter& other);
     TAggregateCounter& operator = (const TAggregateCounter& other);
 
+private:
+    EAggregateMode Mode_;
+    std::atomic<TValue> Min_;
+    std::atomic<TValue> Max_;
+    std::atomic<TValue> Sum_;
+    std::atomic<int> SampleCount_;
+
     void Reset();
 
-    EAggregateMode Mode;
-    TValue Current;
-    TValue Min;
-    TValue Max;
-    TValue Sum;
-    int SampleCount;
+    friend class TProfiler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A rudimentary but much cheaper version of TAggregateCounter capable of
 //! maintaining just the value itself but not any of its aggregates.
-struct TSimpleCounter
+class TSimpleCounter
     : public TCounterBase
 {
+public:
     TSimpleCounter(
-        const NYPath::TYPath& path = "",
+        const NYPath::TYPath& path = NYPath::TYPath(),
         const TTagIdList& tagIds = EmptyTagIds,
         TDuration interval = TDuration::MilliSeconds(1000));
     TSimpleCounter(const TSimpleCounter& other);
     TSimpleCounter& operator = (const TSimpleCounter& other);
 
-    std::atomic<TValue> Current;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,8 +251,7 @@ private:
 
     bool IsCounterEnabled(const TCounterBase& counter) const;
 
-    void DoUpdate(TAggregateCounter& counter, TValue value) const;
-
+    void OnUpdated(TAggregateCounter& counter, TValue value) const;
     void OnUpdated(TSimpleCounter& counter) const;
 
     TDuration DoTimingCheckpoint(

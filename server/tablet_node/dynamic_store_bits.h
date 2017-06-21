@@ -562,10 +562,6 @@ TOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
     TSortedDynamicRow row);
 
-TOwningKey RowToKey(
-    const NTableClient::TTableSchema& schema,
-    TUnversionedRow row);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode

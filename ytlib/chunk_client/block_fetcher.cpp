@@ -17,7 +17,7 @@ namespace NChunkClient {
 
 using namespace NConcurrency;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TBlockFetcher::TBlockFetcher(
     TBlockFetcherConfigPtr config,
@@ -112,7 +112,7 @@ bool TBlockFetcher::HasMoreBlocks() const
     return TotalRemainingFetches_ > 0;
 }
 
-TFuture<TSharedRef> TBlockFetcher::FetchBlock(int blockIndex)
+TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
 {
     YCHECK(HasMoreBlocks());
 
@@ -164,7 +164,7 @@ TFuture<TSharedRef> TBlockFetcher::FetchBlock(int blockIndex)
 
 void TBlockFetcher::DecompressBlocks(
     const std::vector<int>& windowIndexes,
-    const std::vector<TSharedRef>& compressedBlocks)
+    const std::vector<TBlock>& compressedBlocks)
 {
     YCHECK(windowIndexes.size() == compressedBlocks.size());
     for (int i = 0; i < compressedBlocks.size(); ++i) {
@@ -178,11 +178,11 @@ void TBlockFetcher::DecompressBlocks(
             blockIndex,
             windowIndex);
 
-        auto uncompressedBlock = Codec_->Decompress(compressedBlock);
+        auto uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
         YCHECK(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
 
         auto& windowSlot = Window_[windowIndex];
-        Window_[windowIndex].BlockPromise->Set(uncompressedBlock);
+        Window_[windowIndex].BlockPromise->Set(TBlock(uncompressedBlock));
         if (windowSlot.RemainingFetches == 0) {
             TDispatcher::Get()->GetReaderInvoker()->Invoke(
                 BIND(&TBlockFetcher::ReleaseBlock,
@@ -200,7 +200,7 @@ void TBlockFetcher::DecompressBlocks(
             uncompressedBlock.Size());
 
         if (Codec_->GetId() != NCompression::ECodec::None) {
-            BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
+            BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), Null);
         }
     }
 }
@@ -322,7 +322,7 @@ i64 TBlockFetcher::GetCompressedDataSize() const
     return CompressedDataSize_;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSequentialBlockFetcher::TSequentialBlockFetcher(
     TBlockFetcherConfigPtr config,
@@ -341,13 +341,13 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     , OriginalOrderBlockInfos_(blockInfos)
 { }
 
-TFuture<TSharedRef> TSequentialBlockFetcher::FetchNextBlock()
+TFuture<TBlock> TSequentialBlockFetcher::FetchNextBlock()
 {
     YCHECK(CurrentIndex_ < OriginalOrderBlockInfos_.size());
     return FetchBlock(OriginalOrderBlockInfos_[CurrentIndex_++].Index);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

@@ -26,7 +26,7 @@ public:
     DECLARE_SIGNAL(void(TTransaction*), TransactionStarted);
 
     //! Raised when a transaction is prepared.
-    DECLARE_SIGNAL(void(TTransaction*), TransactionPrepared);
+    DECLARE_SIGNAL(void(TTransaction*, bool), TransactionPrepared);
 
     //! Raised when a transaction is committed.
     DECLARE_SIGNAL(void(TTransaction*), TransactionCommitted);

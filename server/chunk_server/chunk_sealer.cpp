@@ -191,7 +191,7 @@ private:
 
             ++totalCount;
             auto* chunk = SealScanner_->DequeueChunk();
-            if (!IsObjectAlive(chunk)) {
+            if (!chunk) {
                 continue;
             }
 

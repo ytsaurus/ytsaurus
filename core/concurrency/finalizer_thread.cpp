@@ -1,14 +1,19 @@
 #include "single_queue_scheduler_thread.h"
-#include "profiler_utils.h"
+#include "profiling_helpers.h"
+
+#include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/shutdown.h>
+
+#include <yt/core/misc/ref_counted_tracker.h>
 
 namespace NYT {
 namespace NConcurrency {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TFinalizerThread
 {
-    static const TString ThreadName;
+private:
     static std::atomic<bool> ShutdownStarted;
     static std::atomic<bool> ShutdownFinished;
     static constexpr int ShutdownSpinCount = 100;
@@ -39,9 +44,9 @@ class TFinalizerThread
             return Owner_->Queue_->GetThreadId();
         }
 
-        virtual bool CheckAffinity(IInvokerPtr invoker) const override
+        virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
         {
-            return Owner_->Queue_->CheckAffinity(std::move(invoker));
+            return Owner_->Queue_->CheckAffinity(invoker);
         }
 #endif
     private:
@@ -50,16 +55,17 @@ class TFinalizerThread
 
 public:
     TFinalizerThread()
-        : Queue_(New<TInvokerQueue>(
+        : ThreadName_("Finalizer")
+        , Queue_(New<TInvokerQueue>(
             CallbackEventCount_,
-            GetThreadTagIds(false, ThreadName),
+            GetThreadTagIds(false, ThreadName_),
             false,
             false))
         , Thread_(New<TSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
-            ThreadName,
-            GetThreadTagIds(false, ThreadName),
+            ThreadName_,
+            GetThreadTagIds(false, ThreadName_),
             false,
             false))
         , OwningPid_(getpid())
@@ -152,6 +158,7 @@ private:
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const std::shared_ptr<TEventCount> ShutdownEventCount_ = std::make_shared<TEventCount>();
 
+    const TString ThreadName_;
     const TInvokerQueuePtr Queue_;
     const TSingleQueueSchedulerThreadPtr Thread_;
 
@@ -159,13 +166,12 @@ private:
     std::atomic<int> Refs_ = {1};
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-const TString TFinalizerThread::ThreadName = "Finalizer";
 std::atomic<bool> TFinalizerThread::ShutdownStarted = {false};
 std::atomic<bool> TFinalizerThread::ShutdownFinished = {false};
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static TFinalizerThread& GetFinalizerThread()
 {
@@ -183,7 +189,11 @@ void ShutdownFinalizerThread()
     return GetFinalizerThread().Shutdown();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(1, ShutdownFinalizerThread);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency
 } // namespace NYT

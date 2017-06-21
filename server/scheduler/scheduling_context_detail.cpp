@@ -10,7 +10,7 @@ namespace NScheduler {
 
 using namespace NObjectClient;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSchedulingContextBase::TSchedulingContextBase(
     TSchedulerConfigPtr config,
@@ -51,9 +51,14 @@ bool TSchedulingContextBase::HasEnoughResources(const TJobResources& neededResou
         ResourceUsage_ + neededResources);
 }
 
+bool TSchedulingContextBase::CanStartJob(const TJobResources& jobResources) const
+{
+    return HasEnoughResources(jobResources - ResourceUsageDiscount());
+}
+
 bool TSchedulingContextBase::CanStartMoreJobs() const
 {
-    if (!HasEnoughResources(MinSpareNodeResources() - ResourceUsageDiscount())) {
+    if (!CanStartJob(MinSpareNodeResources())) {
         return false;
     }
 
@@ -97,7 +102,12 @@ TJobId TSchedulingContextBase::GenerateJobId()
     return MakeJobId(CellTag_, Node_->GetId());
 }
 
-////////////////////////////////////////////////////////////////////
+TJobResources TSchedulingContextBase::GetFreeResources()
+{
+    return ResourceLimits_ - ResourceUsage_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

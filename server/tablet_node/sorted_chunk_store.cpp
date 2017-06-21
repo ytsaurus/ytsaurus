@@ -19,9 +19,10 @@
 
 #include <yt/ytlib/misc/workload.h>
 
+#include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_reader.h>
 
@@ -140,9 +141,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             workloadDescriptor);
     }
 
-    auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
-    auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
+    auto chunkState = PrepareCachedChunkState(chunkReader);
 
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
@@ -150,11 +150,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     return CreateVersionedChunkReader(
         std::move(config),
         std::move(chunkReader),
-        std::move(blockCache),
-        std::move(cachedVersionedChunkMeta),
+        std::move(chunkState),
         std::move(ranges),
         columnFilter,
-        PerformanceCounters_,
         timestamp,
         produceAllVersions);
 }
@@ -220,19 +218,17 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
-    auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
+    auto chunkState = PrepareCachedChunkState(chunkReader);
+
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
 
     return CreateVersionedChunkReader(
         std::move(config),
         std::move(chunkReader),
-        std::move(blockCache),
-        std::move(cachedVersionedChunkMeta),
+        std::move(chunkState),
         keys,
         columnFilter,
-        PerformanceCounters_,
-        KeyComparer_,
         timestamp,
         produceAllVersions);
 }
@@ -283,14 +279,14 @@ TError TSortedChunkStore::CheckRowLocks(
         << TErrorAttribute("key", RowToKey(row));
 }
 
-TCachedVersionedChunkMetaPtr TSortedChunkStore::PrepareCachedVersionedChunkMeta(IChunkReaderPtr chunkReader)
+TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkReader)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
         TReaderGuard guard(SpinLock_);
-        if (CachedVersionedChunkMeta_) {
-            return CachedVersionedChunkMeta_;
+        if (ChunkState_) {
+            return ChunkState_;
         }
     }
 
@@ -301,13 +297,20 @@ TCachedVersionedChunkMetaPtr TSortedChunkStore::PrepareCachedVersionedChunkMeta(
         Schema_);
     auto cachedMeta = WaitFor(asyncCachedMeta)
         .ValueOrThrow();
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
 
     {
         TWriterGuard guard(SpinLock_);
-        CachedVersionedChunkMeta_ = cachedMeta;
+        ChunkState_ = New<TChunkState>(
+            BlockCache_,
+            chunkSpec,
+            std::move(cachedMeta),
+            nullptr,
+            PerformanceCounters_,
+            GetKeyComparer());
+        return ChunkState_;
     }
-
-    return cachedMeta;
 }
 
 TKeyComparer TSortedChunkStore::GetKeyComparer()

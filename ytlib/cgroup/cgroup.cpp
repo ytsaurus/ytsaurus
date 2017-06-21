@@ -3,13 +3,13 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
-
 #include <yt/core/tools/registry.h>
 #include <yt/core/tools/tools.h>
 
 #include <yt/core/ytree/fluent.h>
 
 #include <util/string/split.h>
+#include <util/system/filemap.h>
 
 #include <util/system/yield.h>
 
@@ -564,8 +564,10 @@ TBlockIO::TStatistics TBlockIO::GetStatistics() const
         for (const auto& item : ioStats) {
             if (item.Type == "Read") {
                 result.IORead += item.Value;
+                result.IOTotal += item.Value;
             } else if (item.Type == "Write") {
                 result.IOWrite += item.Value;
+                result.IOTotal += item.Value;
             }
         }
 #endif
@@ -642,6 +644,7 @@ void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* co
             .Item("bytes_written").Value(statistics.BytesWritten)
             .Item("io_read").Value(statistics.IORead)
             .Item("io_write").Value(statistics.IOWrite)
+            .Item("io_total").Value(statistics.IOTotal)
         .EndMap();
 }
 
@@ -684,9 +687,9 @@ TMemory::TStatistics TMemory::GetStatistics() const
     return result;
 }
 
-ui64 TMemory::GetMaxMemoryUsage() const
+i64 TMemory::GetMaxMemoryUsage() const
 {
-    return FromString<ui64>(Get("memory.max_usage_in_bytes"));
+    return FromString<i64>(Get("memory.max_usage_in_bytes"));
 }
 
 void TMemory::SetLimitInBytes(i64 bytes) const

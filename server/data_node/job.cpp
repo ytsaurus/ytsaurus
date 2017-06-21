@@ -116,6 +116,11 @@ public:
         }
     }
 
+    virtual void Fail() override
+    {
+        THROW_ERROR_EXCEPTION("Fail not implemented");
+    }
+
     virtual const TJobId& GetId() const override
     {
         return JobId_;
@@ -414,6 +419,10 @@ private:
             sourceMediumIndex,
             MakeFormattableRange(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
+        // Compute target medium index.
+        YCHECK(!targetReplicas.empty());
+        int targetMediumIndex = targetReplicas[0].GetMediumIndex();
+
         // Find chunk on the highest priority medium.
         auto chunk = GetLocalChunkOrThrow(chunkId, AllMediaIndex);
 
@@ -431,7 +440,7 @@ private:
         auto writer = CreateReplicationWriter(
             Config_->ReplicationWriter,
             options,
-            chunkId,
+            TSessionId(chunkId, targetMediumIndex),
             targetReplicas,
             nodeDirectory,
             Bootstrap_->GetMasterClient(),
@@ -458,7 +467,7 @@ private:
             auto readBlocks = WaitFor(asyncReadBlocks)
                 .ValueOrThrow();
 
-            std::vector<TSharedRef> writeBlocks;
+            std::vector<TBlock> writeBlocks;
             for (const auto& block : readBlocks) {
                 if (!block)
                     break;
@@ -542,6 +551,11 @@ private:
         auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
         auto targetReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.target_replicas());
 
+        // Compute target medium index.
+        YCHECK(!targetReplicas.empty());
+        int targetMediumIndex = targetReplicas[0].GetMediumIndex();
+
+        /// Compute erasured parts.
         NErasure::TPartIndexList erasedPartIndexes;
         for (auto replica : targetReplicas) {
             erasedPartIndexes.push_back(replica.GetReplicaIndex());
@@ -574,14 +588,14 @@ private:
             }
             YCHECK(!partReplicas.empty());
 
-            auto partId = ErasurePartIdFromChunkId(chunkId, partIndex);
+            auto partChunkId = ErasurePartIdFromChunkId(chunkId, partIndex);
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
                 New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-                partId,
+                partChunkId,
                 partReplicas,
                 Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetRepairInThrottler());
@@ -591,13 +605,15 @@ private:
         std::vector<IChunkWriterPtr> writers;
         for (int index = 0; index < static_cast<int>(erasedPartIndexes.size()); ++index) {
             int partIndex = erasedPartIndexes[index];
-            auto partId = ErasurePartIdFromChunkId(chunkId, partIndex);
+            auto partSessionId = TSessionId(
+                ErasurePartIdFromChunkId(chunkId, partIndex),
+                targetMediumIndex);
             auto options = New<TRemoteWriterOptions>();
             options->AllowAllocatingNewTargetNodes = false;
             auto writer = CreateReplicationWriter(
                 Config_->RepairWriter,
                 options,
-                partId,
+                partSessionId,
                 TChunkReplicaList(1, targetReplicas[index]),
                 nodeDirectory,
                 Bootstrap_->GetMasterClient(),
@@ -607,9 +623,6 @@ private:
         }
 
         {
-            auto onProgress = BIND(&TChunkRepairJob::SetProgress, MakeWeak(this))
-                .Via(GetCurrentInvoker());
-
             auto result = RepairErasedParts(
                 codec,
                 erasedPartIndexes,
@@ -738,7 +751,7 @@ private:
                     currentRowCount + blockCount - 1);
 
                 for (const auto& block : blocks) {
-                    changelog->Append(block);
+                    changelog->Append(block.Data);
                 }
 
                 currentRowCount += blockCount;

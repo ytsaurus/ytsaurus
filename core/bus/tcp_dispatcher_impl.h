@@ -3,16 +3,12 @@
 #include "private.h"
 #include "tcp_dispatcher.h"
 
-#include <yt/core/concurrency/ev_scheduler_thread.h>
-#include <yt/core/concurrency/event_count.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/error.h>
 
 #include <util/thread/lfqueue.h>
-
-#include <yt/contrib/libev/ev++.h>
 
 #include <atomic>
 
@@ -27,83 +23,78 @@ bool IsLocalBusTransportEnabled();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IEventLoopObject
-    : public virtual TRefCounted
+struct TTcpDispatcherCounters
+    : public TIntrinsicRefCounted
 {
-    virtual void SyncInitialize() = 0;
-    virtual void SyncFinalize() = 0;
-    virtual void SyncCheck() = 0;
-    virtual TString GetLoggingId() const = 0;
+    std::atomic<i64> InBytes = {0};
+    std::atomic<i64> InPackets = {0};
+
+    std::atomic<i64> OutBytes = {0};
+    std::atomic<i64> OutPackets = {0};
+
+    std::atomic<i64> PendingOutPackets = {0};
+    std::atomic<i64> PendingOutBytes = {0};
+
+    std::atomic<int> ClientConnections = {0};
+    std::atomic<int> ServerConnections = {0};
+
+    std::atomic<i64> StalledReads = {0};
+    std::atomic<i64> StalledWrites = {0};
+
+    std::atomic<i64> ReadErrors = {0};
+    std::atomic<i64> WriteErrors = {0};
+
+    std::atomic<i64> EncoderErrors = {0};
+    std::atomic<i64> DecoderErrors = {0};
+
+    TTcpDispatcherStatistics ToStatistics() const;
 };
 
-DEFINE_REFCOUNTED_TYPE(IEventLoopObject)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTcpDispatcherThread
-    : public NConcurrency::TEVSchedulerThread
-{
-public:
-    explicit TTcpDispatcherThread(const TString& threadName);
-
-    const ev::loop_ref& GetEventLoop() const;
-
-    TFuture<void> AsyncRegister(IEventLoopObjectPtr object);
-    TFuture<void> AsyncUnregister(IEventLoopObjectPtr object);
-
-    TTcpDispatcherStatistics* GetStatistics(ETcpInterfaceType interfaceType);
-
-private:
-    const NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
-
-    TEnumIndexedVector<TTcpDispatcherStatistics, ETcpInterfaceType> Statistics_;
-    yhash_set<IEventLoopObjectPtr> Objects_;
-
-    void DoRegister(IEventLoopObjectPtr object);
-    void DoUnregister(IEventLoopObjectPtr object);
-
-
-    virtual void BeforeShutdown() override;
-
-    void OnCheck();
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TTcpDispatcherThread)
+DEFINE_REFCOUNTED_TYPE(TTcpDispatcherCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpDispatcher::TImpl
+    : public TRefCounted
 {
 public:
-    static TImpl* Get();
-
+    static const TIntrusivePtr<TImpl>& Get();
     void Shutdown();
 
-    TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
-    int GetServerConnectionCount(ETcpInterfaceType interfaceType) const;
+    const TTcpDispatcherCountersPtr& GetCounters(ETcpInterfaceType interfaceType);
+    TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
 
-    TTcpDispatcherThreadPtr GetServerThread();
-    TTcpDispatcherThreadPtr GetClientThread();
-
-    void SetClientThreadCount(int clientThreadCount);
+    NConcurrency::IPollerPtr GetAcceptorPoller();
+    NConcurrency::IPollerPtr GetXferPoller();
 
 private:
     friend class TTcpDispatcher;
 
     TImpl();
+    DECLARE_NEW_FRIEND();
+
     void OnProfiling();
 
-    TEnumIndexedVector<NProfiling::TTagId, ETcpInterfaceType> InterfaceTypeToProfilingTag_;
+    NConcurrency::IPollerPtr GetOrCreatePoller(
+        NConcurrency::IPollerPtr* poller,
+        int threadCount,
+        const TString& threadNamePrefix);
+    void ShutdownPoller(NConcurrency::IPollerPtr* poller);
 
-    // Server thread + all client threads.
-    std::vector<TTcpDispatcherThreadPtr> Threads_;
-    unsigned int CurrentClientThreadIndex_ = 0;
-    int ClientThreadCount_ = 0;
+    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
+    bool Terminated_ = false;
+    NConcurrency::IPollerPtr AcceptorPoller_;
+    NConcurrency::IPollerPtr XferPoller_;
+
+    struct TInterfaceInfo
+    {
+        NProfiling::TTagId Tag;
+        TTcpDispatcherCountersPtr Counters = New<TTcpDispatcherCounters>();
+    };
+
+    TEnumIndexedVector<TInterfaceInfo, ETcpInterfaceType> InterfaceTypeMap_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
-
-    NConcurrency::TReaderWriterSpinLock SpinLock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

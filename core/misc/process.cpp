@@ -13,7 +13,11 @@
 
 #include <util/folder/dirut.h>
 
+#include <util/generic/guid.h>
+
 #include <util/string/ascii.h>
+
+#include <util/string/util.h>
 
 #include <util/system/env.h>
 #include <util/system/execpath.h>
@@ -136,6 +140,10 @@ bool TryResetSignals()
     return true;
 }
 
+#endif
+
+} // namespace
+
 TErrorOr<TString> ResolveBinaryPath(const TString& binary)
 {
     std::vector<TError> accumulatedErrors;
@@ -205,18 +213,20 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     return done();
 }
 
-#endif
+////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+TProcessBase::TProcessBase(const TString& path)
+     : Path_(path)
+     , ProcessId_(InvalidProcessId)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcess::TProcess(const TString& path, bool copyEnv, TDuration pollPeriod)
+TSimpleProcess::TSimpleProcess(const TString& path, bool copyEnv, TDuration pollPeriod)
     // TString is guaranteed to be zero-terminated.
-    // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
-    : Path_(path)
+    // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/TStringAndTStringBuf#sobstvennosimvoly
+    : TProcessBase(path)
     , PollPeriod_(pollPeriod)
-    , ProcessId_(InvalidProcessId)
     , PipeFactory_(3)
 {
     AddArgument(NFS::GetFileName(path));
@@ -228,51 +238,40 @@ TProcess::TProcess(const TString& path, bool copyEnv, TDuration pollPeriod)
     }
 }
 
-void TProcess::AddArgument(TStringBuf arg)
+void TProcessBase::AddArgument(TStringBuf arg)
 {
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     Args_.push_back(Capture(arg));
 }
 
-void TProcess::AddEnvVar(TStringBuf var)
+void TProcessBase::AddEnvVar(TStringBuf var)
 {
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     Env_.push_back(Capture(var));
 }
 
-void TProcess::AddArguments(std::initializer_list<TStringBuf> args)
+void TProcessBase::AddArguments(std::initializer_list<TStringBuf> args)
 {
     for (auto arg : args) {
         AddArgument(arg);
     }
 }
 
-void TProcess::AddArguments(const std::vector<TString>& args)
+void TProcessBase::AddArguments(const std::vector<TString>& args)
 {
     for (const auto& arg : args) {
         AddArgument(arg);
     }
 }
 
-void TProcess::SetWorkingDirectory(const TString& path)
+void TProcessBase::SetWorkingDirectory(const TString& path)
 {
     WorkingDirectory_ = path;
 }
 
-void TProcess::AddCloseFileAction(int fd)
-{
-    TSpawnAction action{
-        std::bind(TryClose, fd, true),
-        Format("Error closing %v file descriptor in child process", fd)
-    };
-
-    MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, fd);
-    SpawnActions_.push_back(action);
-}
-
-void TProcess::AddDup2FileAction(int oldFD, int newFD)
+void TSimpleProcess::AddDup2FileAction(int oldFD, int newFD)
 {
     TSpawnAction action{
         std::bind(TryDup2, oldFD, newFD),
@@ -283,7 +282,7 @@ void TProcess::AddDup2FileAction(int oldFD, int newFD)
     SpawnActions_.push_back(action);
 }
 
-TAsyncReaderPtr TProcess::GetStdOutReader()
+TAsyncReaderPtr TSimpleProcess::GetStdOutReader()
 {
     auto& pipe = StdPipes_[STDOUT_FILENO];
     pipe = PipeFactory_.Create();
@@ -291,7 +290,7 @@ TAsyncReaderPtr TProcess::GetStdOutReader()
     return pipe.CreateAsyncReader();
 }
 
-TAsyncReaderPtr TProcess::GetStdErrReader()
+TAsyncReaderPtr TSimpleProcess::GetStdErrReader()
 {
     auto& pipe = StdPipes_[STDERR_FILENO];
     pipe = PipeFactory_.Create();
@@ -299,7 +298,7 @@ TAsyncReaderPtr TProcess::GetStdErrReader()
     return pipe.CreateAsyncReader();
 }
 
-TAsyncWriterPtr TProcess::GetStdInWriter()
+TAsyncWriterPtr TSimpleProcess::GetStdInWriter()
 {
     auto& pipe = StdPipes_[STDIN_FILENO];
     pipe = PipeFactory_.Create();
@@ -307,7 +306,7 @@ TAsyncWriterPtr TProcess::GetStdInWriter()
     return pipe.CreateAsyncWriter();
 }
 
-TFuture<void> TProcess::Spawn()
+TFuture<void> TProcessBase::Spawn()
 {
     try {
         DoSpawn();
@@ -317,7 +316,7 @@ TFuture<void> TProcess::Spawn()
     return FinishedPromise_;
 }
 
-void TProcess::DoSpawn()
+void TSimpleProcess::DoSpawn()
 {
 #ifdef _unix_
     auto finally = Finally([&] () {
@@ -432,7 +431,7 @@ void TProcess::DoSpawn()
 
     AsyncWaitExecutor_ = New<TPeriodicExecutor>(
         GetSyncInvoker(),
-        BIND(&TProcess::AsyncPeriodicTryWait, MakeStrong(this)),
+        BIND(&TSimpleProcess::AsyncPeriodicTryWait, MakeStrong(this)),
         PollPeriod_);
 
     AsyncWaitExecutor_->Start();
@@ -441,8 +440,11 @@ void TProcess::DoSpawn()
 #endif
 }
 
-void TProcess::SpawnChild()
+void TSimpleProcess::SpawnChild()
 {
+    // NB: fork() will cause data corruption when run concurrently with
+    // Disk IO on O_DIRECT file descriptor. Seems like vfork don't suffer from the same issue.
+
 #ifdef _unix_
     int pid = vfork();
 
@@ -467,7 +469,7 @@ void TProcess::SpawnChild()
 #endif
 }
 
-void TProcess::ValidateSpawnResult()
+void TSimpleProcess::ValidateSpawnResult()
 {
 #ifdef _unix_
     int data[2];
@@ -504,7 +506,7 @@ void TProcess::ValidateSpawnResult()
 }
 
 #ifdef _unix_
-void TProcess::AsyncPeriodicTryWait()
+void TSimpleProcess::AsyncPeriodicTryWait()
 {
     siginfo_t processInfo;
     memset(&processInfo, 0, sizeof(siginfo_t));
@@ -535,7 +537,7 @@ void TProcess::AsyncPeriodicTryWait()
 #endif
 }
 
-void TProcess::Kill(int signal)
+void TSimpleProcess::Kill(int signal)
 {
 #ifdef _unix_
     if (!Started_) {
@@ -559,27 +561,27 @@ void TProcess::Kill(int signal)
 #endif
 }
 
-TString TProcess::GetPath() const
+TString TProcessBase::GetPath() const
 {
     return Path_;
 }
 
-int TProcess::GetProcessId() const
+int TProcessBase::GetProcessId() const
 {
     return ProcessId_;
 }
 
-bool TProcess::IsStarted() const
+bool TProcessBase::IsStarted() const
 {
     return Started_;
 }
 
-bool TProcess::IsFinished() const
+bool TProcessBase::IsFinished() const
 {
     return Finished_;
 }
 
-TString TProcess::GetCommandLine() const
+TString TProcessBase::GetCommandLine() const
 {
     TStringBuilder builder;
     builder.AppendString(Path_);
@@ -621,13 +623,13 @@ TString TProcess::GetCommandLine() const
     return builder.Flush();
 }
 
-const char* TProcess::Capture(const TStringBuf& arg)
+const char* TProcessBase::Capture(const TStringBuf& arg)
 {
     StringHolders_.push_back(TString(arg));
     return StringHolders_.back().c_str();
 }
 
-void TProcess::Child()
+void TSimpleProcess::Child()
 {
 #ifdef _unix_
     for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {

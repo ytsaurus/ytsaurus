@@ -1,5 +1,6 @@
 #include "helpers.h"
 
+#include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/rowset.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -19,6 +20,97 @@ using namespace NApi;
 using namespace NTableClient;
 using namespace NTabletClient;
 
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// OPTIONS
+////////////////////////////////////////////////////////////////////////////////
+
+void SetTimeoutOptions(
+    NRpc::TClientRequest& proto,
+    const TTimeoutOptions& options)
+{
+    proto.SetTimeout(options.Timeout);
+}
+
+void ToProto(
+    NProto::TTransactionalOptions* proto,
+    const TTransactionalOptions& options)
+{
+    if (options.TransactionId) {
+        ToProto(proto->mutable_transaction_id(), options.TransactionId);
+    }
+    proto->set_ping(options.Ping);
+    proto->set_ping_ancestors(options.PingAncestors);
+    proto->set_sticky(options.Sticky);
+}
+
+void ToProto(
+    NProto::TPrerequisiteOptions* proto,
+    const TPrerequisiteOptions& options)
+{
+    for (const auto& item : options.PrerequisiteTransactionIds) {
+        auto* protoItem = proto->add_transactions();
+        ToProto(protoItem->mutable_transaction_id(), item);
+    }
+    for (const auto& item : options.PrerequisiteRevisions) {
+        auto* protoItem = proto->add_revisions();
+        protoItem->set_path(item->Path);
+        protoItem->set_revision(item->Revision);
+        ToProto(protoItem->mutable_transaction_id(), item->TransactionId);
+    }
+}
+
+void ToProto(
+    NProto::TMasterReadOptions* proto,
+    const TMasterReadOptions& options)
+{
+    switch (options.ReadFrom) {
+        case EMasterChannelKind::Leader:
+            proto->set_read_from(NProto::TMasterReadOptions_EMasterReadKind_LEADER);
+            break;
+        case EMasterChannelKind::Follower:
+            proto->set_read_from(NProto::TMasterReadOptions_EMasterReadKind_FOLLOWER);
+            break;
+        case EMasterChannelKind::Cache:
+            proto->set_read_from(NProto::TMasterReadOptions_EMasterReadKind_CACHE);
+            break;
+    }
+    proto->set_success_expiration_time(NYT::ToProto(options.ExpireAfterSuccessfulUpdateTime));
+    proto->set_failure_expiration_time(NYT::ToProto(options.ExpireAfterFailedUpdateTime));
+    proto->set_cache_sticky_group_size(options.CacheStickyGroupSize);
+}
+
+void ToProto(
+    NProto::TMutatingOptions* proto,
+    const TMutatingOptions& options)
+{
+    ToProto(proto->mutable_mutation_id(), options.GetOrGenerateMutationId());
+    proto->set_retry(options.Retry);
+}
+
+void ToProto(
+    NProto::TSuppressableAccessTrackingOptions* proto,
+    const TSuppressableAccessTrackingOptions& options)
+{
+    proto->set_suppress_access_tracking(options.SuppressAccessTracking);
+    proto->set_suppress_modification_tracking(options.SuppressModificationTracking);
+}
+
+void ToProto(
+    NProto::TTabletRangeOptions* proto,
+    const TTabletRangeOptions& options)
+{
+    if (options.FirstTabletIndex) {
+        proto->set_first_tablet_index(*options.FirstTabletIndex);
+    }
+    if (options.LastTabletIndex) {
+        proto->set_last_tablet_index(*options.LastTabletIndex);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ROWSETS
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRow>

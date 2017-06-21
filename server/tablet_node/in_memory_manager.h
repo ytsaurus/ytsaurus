@@ -22,7 +22,7 @@ namespace NTabletNode {
 struct TInMemoryChunkData
     : public TIntrinsicRefCounted
 {
-    std::vector<TSharedRef> Blocks;
+    std::vector<NChunkClient::TBlock> Blocks;
     EInMemoryMode InMemoryMode = EInMemoryMode::None;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;

@@ -76,9 +76,9 @@ private:
         return CreateTabletCellBundleProxy(Bootstrap_, &Metadata_, cellBundle);
     }
 
-    virtual void DoDestroyObject(TTabletCellBundle* cellBundle) override
+    virtual void DoZombifyObject(TTabletCellBundle* cellBundle) override
     {
-        TObjectTypeHandlerWithMapBase::DoDestroyObject(cellBundle);
+        TObjectTypeHandlerWithMapBase::DoZombifyObject(cellBundle);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTabletCellBundle(cellBundle);
     }

@@ -234,14 +234,13 @@ YtHttpRequest.prototype.fire = function()
         }
     });
 
-    var timeout = setTimeout(function() {
-        if (promise.isPending()) {
-            promise.reject(new YtError(self.toString() + " has timed out (hardly)"));
-            req.promise.then(function(r) { r.abort(); });
-        }
-    }, self.timeout * 1.05);
+    promise = promise.timeout(
+        self.timeout * 1.05,
+        new YtError(self.toString() + " has timed out (hardly)"));
 
-    promise.finally(function() { clearTimeout(timeout); });
+    promise.catch(function() {
+        req.promise.then(function(r) { r.abort(); });
+    });
 
     return promise;
 };

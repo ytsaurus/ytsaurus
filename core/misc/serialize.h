@@ -563,7 +563,7 @@ struct TEnumSerializer
     }
 };
 
-struct TStrokaSerializer
+struct TStringSerializer
 {
     template <class C>
     static void Save(C& context, const TString& value)
@@ -1494,7 +1494,7 @@ struct TSerializerTraits<
 template <class C>
 struct TSerializerTraits<TString, C, void>
 {
-    typedef TStrokaSerializer TSerializer;
+    typedef TStringSerializer TSerializer;
     typedef TValueBoundComparer TComparer;
 };
 

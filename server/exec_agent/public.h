@@ -46,6 +46,7 @@ DEFINE_ENUM(ESandboxKind,
 DEFINE_ENUM(EJobEnvironmentType,
     (Simple)
     (Cgroups)
+    (Porto)
 );
 
 extern const TEnumIndexedVector<TString, ESandboxKind> SandboxDirectoryNames;
@@ -62,10 +63,12 @@ DECLARE_REFCOUNTED_CLASS(TSlotLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
 DECLARE_REFCOUNTED_STRUCT(IJobEnvironment)
+DECLARE_REFCOUNTED_STRUCT(IMounter)
 
 DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TCGroupJobEnvironmentConfig)
+DECLARE_REFCOUNTED_CLASS(TPortoJobEnvironmentConfig)
 
 DECLARE_REFCOUNTED_CLASS(TSlotManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)

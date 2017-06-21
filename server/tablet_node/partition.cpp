@@ -12,6 +12,8 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <yt/core/utilex/random.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -109,6 +111,15 @@ void TPartition::AsyncLoad(TLoadContext& context)
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
     Load(context, *SampleKeys_);
+}
+
+i64 TPartition::GetCompressedDataSize() const
+{
+    i64 result = 0;
+    for (const auto& store : Stores_) {
+        result += store->GetCompressedDataSize();
+    }
+    return result;
 }
 
 i64 TPartition::GetUncompressedDataSize() const

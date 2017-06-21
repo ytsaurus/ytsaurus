@@ -16,7 +16,7 @@ using NYson::IYsonConsumer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TBoundaryKeys::SpaceUsed() const
+size_t TOwningBoundaryKeys::SpaceUsed() const
 {
     return
        sizeof(*this) +
@@ -24,31 +24,31 @@ size_t TBoundaryKeys::SpaceUsed() const
        MaxKey.GetSpaceUsed() - sizeof(MaxKey);
 }
 
-void TBoundaryKeys::Persist(const TStreamPersistenceContext& context)
+void TOwningBoundaryKeys::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinKey);
     Persist(context, MaxKey);
 }
 
-bool TBoundaryKeys::operator ==(const TBoundaryKeys& other) const
+bool TOwningBoundaryKeys::operator ==(const TOwningBoundaryKeys& other) const
 {
     return MinKey == other.MinKey && MaxKey == other.MaxKey;
 }
 
-bool TBoundaryKeys::operator !=(const TBoundaryKeys& other) const
+bool TOwningBoundaryKeys::operator !=(const TOwningBoundaryKeys& other) const
 {
     return MinKey != other.MinKey || MaxKey != other.MaxKey;
 }
 
-TString ToString(const TBoundaryKeys& keys)
+TString ToString(const TOwningBoundaryKeys& keys)
 {
     return Format("MinKey: %v, MaxKey: %v",
         keys.MinKey,
         keys.MaxKey);
 }
 
-void Serialize(const TBoundaryKeys& keys, IYsonConsumer* consumer)
+void Serialize(const TOwningBoundaryKeys& keys, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -70,13 +70,13 @@ bool FindBoundaryKeys(const TChunkMeta& chunkMeta, TOwningKey* minKey, TOwningKe
     return true;
 }
 
-std::unique_ptr<TBoundaryKeys> FindBoundaryKeys(const TChunkMeta& chunkMeta)
+std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(const TChunkMeta& chunkMeta)
 {
-    TBoundaryKeys keys;
+    TOwningBoundaryKeys keys;
     if (!FindBoundaryKeys(chunkMeta, &keys.MinKey, &keys.MaxKey)) {
         return nullptr;
     }
-    return std::make_unique<TBoundaryKeys>(std::move(keys));
+    return std::make_unique<TOwningBoundaryKeys>(std::move(keys));
 }
 
 TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, int partitionTag)

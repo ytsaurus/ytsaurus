@@ -1205,7 +1205,7 @@ private:
         TRACE_ANNOTATION(
             traceContext,
             ClientHostAnnotation,
-            TAddressResolver::Get()->GetLocalHostName());
+            GetLocalHostName());
 
         message->set_trace_id(traceContext.GetTraceId());
         message->set_span_id(traceContext.GetSpanId());

@@ -166,12 +166,12 @@ public:
         return Check(Underlying_->Open());
     }
 
-    virtual bool WriteBlock(const TSharedRef& block) override
+    virtual bool WriteBlock(const TBlock& block) override
     {
         return Underlying_->WriteBlock(block);
     }
 
-    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override
+    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
         return Underlying_->WriteBlocks(blocks);
     }
@@ -704,13 +704,13 @@ private:
             TSessionCounterGuard sessionCounterGuard(location);
 
             auto producer = [&] (TOutputStream* output) {
-                TSharedRef block;
+                TBlock block;
                 while (reader->ReadBlock(&block)) {
-                    if (block.Empty()) {
+                    if (block.Data.Empty()) {
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
                     } else {
-                        output->Write(block.Begin(), block.Size());
+                        output->Write(block.Data.Begin(), block.Size());
                         WaitFor(location->GetInThrottler()->Throttle(block.Size()))
                             .ThrowOnError();
                     }

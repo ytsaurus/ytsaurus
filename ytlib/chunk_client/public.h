@@ -12,7 +12,7 @@
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
 
@@ -40,7 +40,9 @@ class TMediumDirectory;
 
 } // namespace NProto
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBlock;
 
 using TChunkId = NObjectClient::TObjectId;
 extern const TChunkId NullChunkId;
@@ -147,6 +149,7 @@ DEFINE_ENUM(EErrorCode,
     ((WriteThrottlingActive)    (718))
     ((NoSuchMedium)             (719))
     ((OptimisticLockFailure)    (720))
+    ((InvalidBlockChecksum)     (721))
 );
 
 //! Values must be contiguous.
@@ -175,7 +178,6 @@ DECLARE_REFCOUNTED_CLASS(TFetcherConfig)
 DECLARE_REFCOUNTED_CLASS(TBlockCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkScraperConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporterConfig)
-DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TEncodingWriter)
 DECLARE_REFCOUNTED_CLASS(TEncodingChunkWriter)
@@ -209,9 +211,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TScraperTask)
 DECLARE_REFCOUNTED_CLASS(TThrottlerManager)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
-
 DECLARE_REFCOUNTED_CLASS(TMediumDirectory)
-DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizer)
 
 class TReadLimit;
 
@@ -224,7 +224,7 @@ struct TDataSliceDescriptor;
 
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

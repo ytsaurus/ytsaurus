@@ -3,6 +3,7 @@
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/misc/lazy_ptr.h>
+#include <yt/core/misc/shutdown.h>
 
 namespace NYT {
 namespace NHydra {
@@ -30,6 +31,10 @@ void ShutdownHydraIOInvoker()
 {
     GetHydraIOActionQueue()->Shutdown();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(11, ShutdownHydraIOInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

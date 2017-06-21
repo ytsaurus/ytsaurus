@@ -60,10 +60,10 @@ protected:
         std::vector<IReaderFactoryPtr> ReaderFactories;
     };
 
-    NLogging::TLogger Logger;
-
     const TMultiChunkReaderConfigPtr Config_;
     const TMultiChunkReaderOptionsPtr Options_;
+
+    const NLogging::TLogger Logger;
 
     TSession CurrentSession_;
     std::vector<IReaderFactoryPtr> ReaderFactories_;

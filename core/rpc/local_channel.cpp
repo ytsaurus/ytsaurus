@@ -54,8 +54,7 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool /*requestAck*/) override
+        const TSendOptions& options) override
     {
         TServiceId serviceId(request->GetService(), request->GetRealmId());
         auto service = Server_->FindService(serviceId);
@@ -71,15 +70,15 @@ public:
 
         auto& header = request->Header();
         header.set_start_time(ToProto(TInstant::Now()));
-        if (timeout) {
-            header.set_timeout(ToProto(*timeout));
+        if (options.Timeout) {
+            header.set_timeout(ToProto(*options.Timeout));
         } else {
             header.clear_timeout();
         }
 
         auto serializedRequest = request->Serialize();
 
-        auto session = New<TSession>(std::move(responseHandler), timeout);
+        auto session = New<TSession>(std::move(responseHandler), options.Timeout);
 
         service->HandleRequest(
             std::make_unique<NProto::TRequestHeader>(request->Header()),
@@ -108,7 +107,7 @@ private:
         : public IBus
     {
     public:
-        TSession(IClientResponseHandlerPtr handler, const TNullable<TDuration>& timeout)
+        TSession(IClientResponseHandlerPtr handler, TNullable<TDuration> timeout)
             : Handler_(std::move(handler))
         {
             if (timeout) {
@@ -128,7 +127,7 @@ private:
             return *EndpointAttributes;
         }
 
-        virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
+        virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
             NProto::TResponseHeader header;
             YCHECK(ParseResponseHeader(message, &header));

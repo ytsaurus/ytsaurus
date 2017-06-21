@@ -18,13 +18,15 @@ using namespace NBus;
 
 TJobSatelliteConnection::TJobSatelliteConnection(
     const TJobId& jobId,
-    TTcpBusServerConfigPtr jobProxyRpcServerConfig)
+    TTcpBusServerConfigPtr jobProxyRpcServerConfig,
+    bool useContainer)
     : JobId_(jobId)
 {
-    ConnectionConfigPtr_ = New<TJobSatelliteConnectionConfig>();
+    ConnectionConfig_ = New<TJobSatelliteConnectionConfig>();
     auto unixDomainName = Format("%v-job-satellite", JobId_);
-    ConnectionConfigPtr_->SatelliteRpcServerConfig->UnixDomainName = unixDomainName;
-    ConnectionConfigPtr_->JobProxyRpcClientConfig->UnixDomainName = jobProxyRpcServerConfig->UnixDomainName;
+    ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName = unixDomainName;
+    ConnectionConfig_->JobProxyRpcClientConfig->UnixDomainName = jobProxyRpcServerConfig->UnixDomainName;
+    ConnectionConfig_->UseContainer = useContainer;
 }
 
 TString TJobSatelliteConnection::GetConfigPath() const
@@ -34,7 +36,7 @@ TString TJobSatelliteConnection::GetConfigPath() const
 
 TTcpBusClientConfigPtr TJobSatelliteConnection::GetRpcClientConfig() const
 {
-    return TTcpBusClientConfig::CreateUnixDomain(ConnectionConfigPtr_->SatelliteRpcServerConfig->UnixDomainName.Get());
+    return TTcpBusClientConfig::CreateUnixDomain(ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName.Get());
 }
 
 const NJobTrackerClient::TJobId& TJobSatelliteConnection::GetJobId() const
@@ -49,7 +51,7 @@ void TJobSatelliteConnection::MakeConfig()
         TFile file(ConfigFile_, CreateAlways | WrOnly | Seq | CloseOnExec);
         TFileOutput output(file);
         NYson::TYsonWriter writer(&output, EYsonFormat::Pretty);
-        Serialize(ConnectionConfigPtr_, &writer);
+        Serialize(ConnectionConfig_, &writer);
         writer.Flush();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to write satellite config into %v", ConfigFile_) << ex;

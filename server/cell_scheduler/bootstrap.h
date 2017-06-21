@@ -29,7 +29,7 @@ namespace NCellScheduler {
 
 DEFINE_ENUM(EControlQueue,
     (Default)
-    (Heartbeat)
+    (UserRequest)
 );
 
 class TBootstrap
@@ -44,7 +44,6 @@ public:
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     const NScheduler::TSchedulerPtr& GetScheduler() const;
-    const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
     const TCoreDumperPtr& GetCoreDumper() const;
@@ -63,7 +62,6 @@ private:
     std::unique_ptr<NHttp::TServer> HttpServer_;
     NApi::INativeClientPtr MasterClient_;
     NScheduler::TSchedulerPtr Scheduler_;
-    NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;

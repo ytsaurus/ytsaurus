@@ -6,6 +6,8 @@
 
 #include <yt/server/cell_master/public.h>
 
+#include <yt/server/misc/max_min_balancer.h>
+
 #include <yt/server/node_tracker_server/rack.h>
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
@@ -19,6 +21,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/small_set.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -154,11 +157,13 @@ private:
 
     yhash<TJobId, TJobPtr> JobMap_;
 
-    //! A single queue for all chunks and media is maintained.
+    //! A queue of chunks to be repaired on each medium.
     //! Replica index is always GenericChunkReplicaIndex.
-    //! Medium index is designates the medium where the chunk is lacking some of its parts.
-    //! A single chunk may appear multiple times here (but at most once per medium).
-    TChunkRepairQueue ChunkRepairQueue_;
+    //! Medium index designates the medium where the chunk is missing some of
+    //! its parts. It's always equal to the index of its queue.
+    //! In each queue, a single chunk may only appear once.
+    TPerMediumArray<TChunkRepairQueue>  ChunkRepairQueues_ = {};
+    TDecayingMaxMinBalancer<int, double> ChunkRepairQueueBalancer_;
 
     const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
@@ -166,6 +171,12 @@ private:
 
     TNullable<bool> Enabled_;
 
+    NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime = {};
+    // src DC -> dst DC -> data size
+    yhash<const NNodeTrackerServer::TDataCenter*, yhash<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeConsumption;
+    yhash<const NNodeTrackerServer::TDataCenter*, yhash<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeCapacities;
+    // Cached from the above fields.
+    yhash<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges;
 
     void ProcessExistingJobs(
         TNode* node,
@@ -262,6 +273,12 @@ private:
 
     void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
     void RemoveFromChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
+
+    void InitInterDCEdges();
+    void UpdateInterDCEdgeCapacities();
+    void UpdateUnsaturatedInterDCEdges();
+    void UpdateInterDCEdgeConsumption(const TJobPtr& job, int sizeMultiplier);
+    bool HasUnsaturatedInterDCEdgeStartingFrom(const NNodeTrackerServer::TDataCenter* srcDataCenter);
 
     void OnCheckEnabled();
     void OnCheckEnabledPrimary();

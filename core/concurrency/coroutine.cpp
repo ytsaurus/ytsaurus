@@ -8,7 +8,7 @@ namespace NDetail {
 
 TCoroutineBase::TCoroutineBase()
     : Completed_(false)
-    , CoroutineStack_(CreateExecutionStack(EExecutionStack::Small))
+    , CoroutineStack_(CreateExecutionStack(EExecutionStackKind::Small))
     , CoroutineContext_(CreateExecutionContext(CoroutineStack_.get(), &TCoroutineBase::Trampoline))
 { }
 

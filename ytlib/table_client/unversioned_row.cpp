@@ -1084,6 +1084,13 @@ void ValidateReadTimestamp(TTimestamp timestamp)
     }
 }
 
+void ValidateSyncTimestamp(TTimestamp timestamp)
+{
+    if (timestamp < MinTimestamp || timestamp > MaxTimestamp) {
+        THROW_ERROR_EXCEPTION("Invalid sync timestamp %llx", timestamp);
+    }
+}
+
 void ValidateWriteTimestamp(TTimestamp timestamp)
 {
     if (timestamp < MinTimestamp || timestamp > MaxTimestamp) {
@@ -1307,6 +1314,17 @@ TString ToString(TMutableUnversionedRow row)
 TString ToString(const TUnversionedOwningRow& row)
 {
     return ToString(row.Get());
+}
+
+TOwningKey RowToKey(
+    const TTableSchema& schema,
+    TUnversionedRow row)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
+        builder.AddValue(row[index]);
+    }
+    return builder.FinishRow();
 }
 
 namespace {

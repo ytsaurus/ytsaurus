@@ -37,54 +37,33 @@ public:
     // Tables
     virtual TFuture<void> MountTable(
         const NYPath::TYPath& path,
-        const NApi::TMountTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    };
+        const NApi::TMountTableOptions& options) override;
 
     virtual TFuture<void> UnmountTable(
         const NYPath::TYPath& path,
-        const NApi::TUnmountTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TUnmountTableOptions& options) override;
 
     virtual TFuture<void> RemountTable(
         const NYPath::TYPath& path,
-        const NApi::TRemountTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TRemountTableOptions& options) override;
 
     virtual TFuture<void> FreezeTable(
         const NYPath::TYPath& path,
-        const NApi::TFreezeTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TFreezeTableOptions& options) override;
 
     virtual TFuture<void> UnfreezeTable(
         const NYPath::TYPath& path,
-        const NApi::TUnfreezeTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TUnfreezeTableOptions& options) override;
 
     virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
-        const NApi::TReshardTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TReshardTableOptions& options) override;
 
     virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
         int tabletCount,
-        const NApi::TReshardTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TReshardTableOptions& options) override;
 
     virtual TFuture<void> AlterTable(
         const NYPath::TYPath& path,
@@ -98,20 +77,6 @@ public:
         int tabletIndex,
         i64 trimmedRowCount,
         const NApi::TTrimTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual TFuture<void> EnableTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
-        const NApi::TEnableTableReplicaOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual TFuture<void> DisableTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
-        const NApi::TDisableTableReplicaOptions& options) override
     {
         Y_UNIMPLEMENTED();
     }

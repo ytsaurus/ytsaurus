@@ -21,10 +21,7 @@ public:
         TClusterDirectoryPtr clusterDirectory);
     ~TClusterDirectorySynchronizer();
 
-    void Start();
-    void Stop();
-
-    //! Forces an out-of-order synchronization.
+    //! Returns a future that gets set with the next sync.
     TFuture<void> Sync();
 
 private:

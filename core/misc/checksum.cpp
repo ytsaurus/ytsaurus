@@ -12,6 +12,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChecksum CombineChecksums(const std::vector<TChecksum>& blockChecksums)
+{
+    TChecksum combined = NullChecksum;
+    for (auto checksum : blockChecksums) {
+        HashCombine(combined, checksum);
+    }
+    return combined;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 using namespace NCrc;

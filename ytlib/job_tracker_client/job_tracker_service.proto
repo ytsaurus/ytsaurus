@@ -35,6 +35,7 @@ message TRspHeartbeat
     optional bool scheduling_skipped = 4 [default = false];
     optional bool enable_statistics_reporter = 5 [default = false];
     repeated NYT.NProto.TGuid jobs_to_interrupt = 6;
+    repeated NYT.NProto.TGuid jobs_to_fail = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

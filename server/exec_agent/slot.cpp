@@ -56,7 +56,9 @@ public:
         JobEnvironment_->CleanProcesses(SlotIndex_);
 
         // After that clean the filesystem.
-        WaitFor(Location_->CleanSandboxes(SlotIndex_))
+        WaitFor(Location_->CleanSandboxes(
+            SlotIndex_,
+            CreateMounter()))
             .ThrowOnError();
         Location_->DecreaseSessionCount();
     }
@@ -85,7 +87,10 @@ public:
                     Location_->GetSlotPath(SlotIndex_),
                     jobId,
                     operationId);
-            });
+            },
+            // Job proxy preparation is uncancelable, otherwise we might try to kill
+            // a never-started job proxy process.
+            true);
     }
 
     virtual TFuture<void> MakeLink(
@@ -133,7 +138,8 @@ public:
                     size,
                     JobEnvironment_->GetUserId(SlotIndex_),
                     path,
-                    enable);
+                    enable,
+                    CreateMounter());
             },
             // Tmpfs mounting is uncancelable since it includes tool invocation in a separate process.
             true);
@@ -174,6 +180,9 @@ private:
 
     IJobProbePtr JobProberClient_;
 
+    //! Mounter should be alive, after cleaning enviornment.
+    IMounterPtr Mounter_;
+
     std::vector<TFuture<void>> PreparationFutures_;
     bool PreparationCanceled_ = false;
 
@@ -198,6 +207,14 @@ private:
                 : preparationFuture);
             return future;
         }
+    }
+
+    IMounterPtr CreateMounter()
+    {
+        if (!Mounter_) {
+            Mounter_ = JobEnvironment_->CreateMounter(SlotIndex_);
+        }
+        return Mounter_;
     }
 };
 

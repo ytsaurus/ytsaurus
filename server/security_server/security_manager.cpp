@@ -243,7 +243,7 @@ private:
     virtual void DoZombifyObject(TGroup* group) override;
 };
 
-/////////////////////////////////////////////////////////////////////////// /////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager::TImpl
     : public TMasterAutomatonPart
@@ -385,7 +385,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         if (oldAccount) {
-            UpdateAccountResourceUsage(node, oldAccount, -1);
+            AddNodeCachedResourceUsageToAccount(node, oldAccount, -1);
             objectManager->UnrefObject(oldAccount);
         }
 
@@ -393,7 +393,7 @@ public:
 
         UpdateNodeCachedResourceUsage(node);
 
-        UpdateAccountResourceUsage(node, account, +1);
+        AddNodeCachedResourceUsageToAccount(node, account, +1);
 
         objectManager->RefObject(account);
     }
@@ -405,7 +405,7 @@ public:
             return;
         }
 
-        UpdateAccountResourceUsage(node, account, -1);
+        AddNodeCachedResourceUsageToAccount(node, account, -1);
 
         node->CachedResourceUsage() = TClusterResources();
         node->SetAccount(nullptr);
@@ -434,6 +434,11 @@ public:
         account->SetName(newName);
     }
 
+    void IncrementAccountNodeUsage(TCypressNodeBase* node, const TClusterResources& delta)
+    {
+        IncrementNodeCachedResourceUsage(node, delta);
+    }
+
     void UpdateAccountNodeUsage(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
@@ -441,11 +446,11 @@ public:
             return;
         }
 
-        UpdateAccountResourceUsage(node, account, -1);
+        AddNodeCachedResourceUsageToAccount(node, account, -1);
 
         UpdateNodeCachedResourceUsage(node);
 
-        UpdateAccountResourceUsage(node, account, +1);
+        AddNodeCachedResourceUsageToAccount(node, account, +1);
     }
 
     void SetNodeResourceAccounting(TCypressNodeBase* node, bool enable)
@@ -468,15 +473,11 @@ public:
             return;
         }
 
-        account->ClusterStatistics().ResourceUsage += delta;
-        account->LocalStatistics().ResourceUsage += delta;
-
-        CheckSanity(account);
+        IncrementAccountResourceUsage(account, delta, false);
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
         *transactionUsage += delta;
     }
-
 
     void DestroySubject(TSubject* subject)
     {
@@ -998,6 +999,22 @@ public:
                 << TErrorAttribute("usage", usage.ChunkCount)
                 << TErrorAttribute("limit", limits.ChunkCount);
         }
+        if (delta.TabletCount > 0 && usage.TabletCount + delta.TabletCount > limits.TabletCount) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over tablet count limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.TabletCount)
+                << TErrorAttribute("limit", limits.TabletCount);
+        }
+        if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over tablet static memory limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.TabletStaticMemory)
+                << TErrorAttribute("limit", limits.TabletStaticMemory);
+        }
     }
 
 
@@ -1160,24 +1177,45 @@ private:
         }
     }
 
-    static void UpdateAccountResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)
+    void IncrementNodeCachedResourceUsage(TCypressNodeBase* node, const TClusterResources& delta)
+    {
+        if (!node->IsExternal() && node->GetAccountingEnabled()) {
+            node->CachedResourceUsage() += delta;
+            auto* account = node->GetAccount();
+            if (account) {
+                IncrementAccountResourceUsage(account, delta, node->IsTrunk());
+            }
+        }
+    }
+
+    static void AddNodeCachedResourceUsageToAccount(TCypressNodeBase* node, TAccount* account, int delta)
     {
         auto resourceUsage = node->CachedResourceUsage() * delta;
 
-        account->ClusterStatistics().ResourceUsage += resourceUsage;
-        account->LocalStatistics().ResourceUsage += resourceUsage;
-        if (node->IsTrunk()) {
-            account->ClusterStatistics().CommittedResourceUsage += resourceUsage;
-            account->LocalStatistics().CommittedResourceUsage += resourceUsage;
-        }
-
-        CheckSanity(account);
+        IncrementAccountResourceUsage(account, resourceUsage, node->IsTrunk());
 
         auto* transactionUsage = FindTransactionAccountUsage(node);
         if (transactionUsage) {
             *transactionUsage += resourceUsage;
         }
     }
+
+    static void IncrementAccountResourceUsage(
+        TAccount* account,
+        const TClusterResources& delta,
+        bool incrementCommittedResourceUsage)
+    {
+        account->ClusterStatistics().ResourceUsage += delta;
+        account->LocalStatistics().ResourceUsage += delta;
+
+        if (incrementCommittedResourceUsage) {
+            account->ClusterStatistics().CommittedResourceUsage += delta;
+            account->LocalStatistics().CommittedResourceUsage += delta;
+        }
+
+        CheckSanity(account);
+    }
+
 
     static TClusterResources* FindTransactionAccountUsage(TCypressNodeBase* node)
     {
@@ -1212,6 +1250,7 @@ private:
             .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024; // 1 GB
         accountHolder->ClusterResourceLimits().NodeCount = 1000;
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
+        accountHolder->ClusterResourceLimits().TabletCount = 100000;
 
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
         YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
@@ -1397,9 +1436,10 @@ private:
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
-        // COMPAT(babenko)
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 601;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 601;
+        // COMPAT(savrus)
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 606;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 606;
+        RecomputeNodeResourceUsage_ = context.GetVersion() < 606;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1667,11 +1707,14 @@ private:
 
         // Accounts
 
-        // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: root
+        // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks, 100 000 tablets, 10TB tablet static memory, allowed for: root
         if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
-            SysAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
-            SysAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
+            SysAccount_->ClusterResourceLimits() = TClusterResources()
+                .SetNodeCount(100000)
+                .SetChunkCount(1000000000)
+                .SetTabletCount(100000)
+                .SetTabletStaticMemory((i64) 10 * 1024 * 1024 * 1024 * 1024)
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, (i64) 1024 * 1024 * 1024 * 1024);
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -1680,9 +1723,10 @@ private:
 
         // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
         if (EnsureBuiltinAccountInitialized(TmpAccount_, TmpAccountId_, TmpAccountName)) {
-            TmpAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
-            TmpAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
+            TmpAccount_->ClusterResourceLimits() = TClusterResources()
+                .SetNodeCount(100000)
+                .SetChunkCount(1000000000)
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, (i64) 1024 * 1024 * 1024 * 1024);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1691,9 +1735,10 @@ private:
 
         // intermediate, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
         if (EnsureBuiltinAccountInitialized(IntermediateAccount_, IntermediateAccountId_, IntermediateAccountName)) {
-            IntermediateAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
-            IntermediateAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
+            IntermediateAccount_->ClusterResourceLimits() = TClusterResources()
+                .SetNodeCount(100000)
+                .SetChunkCount(1000000000)
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, (i64) 1024 * 1024 * 1024 * 1024);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -2073,7 +2118,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountM
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, UserMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, GroupMap_)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->AccountMap_)
@@ -2102,7 +2147,7 @@ void TSecurityManager::TAccountTypeHandler::DoZombifyObject(TAccount* account)
     Owner_->DestroyAccount(account);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->UserMap_)
@@ -2131,7 +2176,7 @@ void TSecurityManager::TUserTypeHandler::DoZombifyObject(TUser* user)
     Owner_->DestroyUser(user);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->GroupMap_)
@@ -2160,7 +2205,7 @@ void TSecurityManager::TGroupTypeHandler::DoZombifyObject(TGroup* group)
     Owner_->DestroyGroup(group);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TSecurityManager(
     TSecurityManagerConfigPtr config,
@@ -2218,6 +2263,11 @@ void TSecurityManager::RenameAccount(TAccount* account, const TString& newName)
 void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)
 {
     Impl_->UpdateAccountNodeUsage(node);
+}
+
+void TSecurityManager::IncrementAccountNodeUsage(TCypressNodeBase* node, const TClusterResources& delta)
+{
+    Impl_->IncrementAccountNodeUsage(node, delta);
 }
 
 void TSecurityManager::SetNodeResourceAccounting(NCypressServer::TCypressNodeBase* node, bool enable)
@@ -2433,7 +2483,7 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer
 } // namespace NYT

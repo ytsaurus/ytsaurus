@@ -199,7 +199,6 @@ private:
         , Name_(name.str())
     {
         YCHECK(
-            StaticType_ == EValueType::Null ||
             StaticType_ == EValueType::Int64 ||
             StaticType_ == EValueType::Uint64 ||
             StaticType_ == EValueType::Double ||
@@ -297,10 +296,6 @@ public:
         EValueType staticType,
         Twine name = Twine())
     {
-        if (staticType == EValueType::Null) {
-            return CreateNull(builder, staticType, name);
-        }
-
         auto type = builder->CreateLoad(
             builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Type, name + ".typePtr"),
             name + ".type");
@@ -342,23 +337,13 @@ public:
         EValueType staticType,
         Twine name = Twine())
     {
-        if (staticType == EValueType::Null) {
-            return CreateFromValue(
-                builder,
-                builder->getInt1(true),
-                nullptr,
-                nullptr,
-                staticType,
-                name);
-        } else {
-            return CreateFromValue(
-                builder,
-                builder->getInt1(true),
-                llvm::UndefValue::get(TTypeBuilder::TLength::get(builder->getContext())),
-                llvm::UndefValue::get(TDataTypeBuilder::get(builder->getContext(), staticType)),
-                staticType,
-                name);
-        }
+        return CreateFromValue(
+            builder,
+            builder->getInt1(true),
+            llvm::UndefValue::get(TTypeBuilder::TLength::get(builder->getContext())),
+            llvm::UndefValue::get(TDataTypeBuilder::get(builder->getContext(), staticType)),
+            staticType,
+            name);
     }
 
     void StoreToRow(TCGIRBuilderPtr& builder, Value* row, int index, ui16 id)
@@ -441,9 +426,7 @@ public:
     TCGValue Cast(TCGIRBuilderPtr& builder, EValueType dest, bool bitcast = false)
     {
         if (dest == StaticType_) {
-            auto result = *this;
-            result.StaticType_ = dest;
-            return result;
+            return *this;
         }
 
         if (StaticType_ == EValueType::Null) {

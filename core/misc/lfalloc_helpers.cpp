@@ -101,7 +101,18 @@ enum {
 void SetBufferSize(i64 size)
 {
     BindWithLFAllocOnce();
-    SafeMallocSetParam("LB_LIMIT_TOTAL_SIZE_BYTES", ~ToString(size));
+    auto sizeAsString = ToString(size);
+    SafeMallocSetParam("LB_LIMIT_TOTAL_SIZE_BYTES", sizeAsString.c_str());
+}
+
+void SetEnableDefrag(bool flag)
+{
+    BindWithLFAllocOnce();
+    if (flag) {
+        SafeMallocSetParam("EnableDefrag", "true");
+    } else {
+        SafeMallocSetParam("EnableDefrag", "false");
+    }
 }
 
 i64 GetCurrentUsed()

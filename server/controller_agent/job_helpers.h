@@ -3,6 +3,8 @@
 #include "public.h"
 #include "serialize.h"
 
+#include <yt/server/chunk_pools/public.h>
+
 #include <yt/server/scheduler/job.h>
 
 namespace NYT {
@@ -32,7 +34,7 @@ DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
 
 void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, NYson::IYsonConsumer* consumer);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<NScheduler::TJobSummary> jobSummary);
 
@@ -49,11 +51,11 @@ void ParseStatistics(NScheduler::TJobSummary* jobSummary, const NYson::TYsonStri
 
 NYson::TYsonString BuildInputPaths(
     const std::vector<NYPath::TRichYPath>& inputPaths,
-    const TChunkStripeListPtr& inputStripeList,
+    const NChunkPools::TChunkStripeListPtr& inputStripeList,
     EOperationType operationType,
     EJobType jobType);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TScheduleJobStatistics
     : public TIntrinsicRefCounted
@@ -70,7 +72,7 @@ struct TScheduleJobStatistics
 
 DEFINE_REFCOUNTED_TYPE(TScheduleJobStatistics)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

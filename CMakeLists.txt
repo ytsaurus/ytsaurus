@@ -6,15 +6,19 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src # header-only library
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2 # re2 contains relative includes
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf # protobuf contains relative includes
+  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/google/protobuf # protobuf contains relative includes
   ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include # openssl contains relative includes
 )
 
 add_subdirectory(build)
 add_subdirectory(core)
+add_subdirectory(core/test_framework)
+add_subdirectory(core/unittests)
 add_subdirectory(ytlib)
 add_subdirectory(server)
 add_subdirectory(run_codec)
 add_subdirectory(python)
+add_subdirectory(unittests)
 
 if(YT_BUILD_ENABLE_BENCHMARKS)
   add_subdirectory(benchmarks)
@@ -26,12 +30,6 @@ if(YT_BUILD_ENABLE_EXPERIMENTS)
   add_subdirectory(experiments)
 else()
   message(STATUS "Omitting experiments from build (YT_BUILD_ENABLE_EXPERIMENTS = OFF)")
-endif()
-
-if(YT_BUILD_ENABLE_TESTS)
-  add_subdirectory(unittests)
-else()
-  message(STATUS "Omitting tests from build (YT_BUILD_ENABLE_TESTS = OFF)")
 endif()
 
 if(YT_BUILD_ENABLE_NODEJS)

@@ -89,6 +89,8 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJournalClient;
 using namespace NJournalServer;
 
+using NChunkClient::TSessionId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
@@ -337,7 +339,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TMedium* medium, TTransaction* transaction) override;
 
-    virtual void DoDestroyObject(TMedium* medium) override;
+    virtual void DoZombifyObject(TMedium* medium) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -930,35 +932,9 @@ public:
             priority);
     }
 
-    TMedium* DoCreateMedium(
-        const TMediumId& id,
-        int mediumIndex,
-        const TString& name,
-        TNullable<bool> transient,
-        TNullable<bool> cache,
-        TNullable<int> priority)
+    void DestroyMedium(TMedium* medium)
     {
-        auto mediumHolder = std::make_unique<TMedium>(id);
-        mediumHolder->SetName(name);
-        mediumHolder->SetIndex(mediumIndex);
-        if (transient) {
-            mediumHolder->SetTransient(*transient);
-        }
-        if (cache) {
-            mediumHolder->SetCache(*cache);
-        }
-        if (priority) {
-            ValidateMediumPriority(*priority);
-            mediumHolder->SetPriority(*priority);
-        }
-
-        auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
-        RegisterMedium(medium);
-
-        // Make the fake reference.
-        YCHECK(medium->RefObject() == 1);
-
-        return medium;
+        UnregisterMedium(medium);
     }
 
     void RenameMedium(TMedium* medium, const TString& newName)
@@ -993,16 +969,6 @@ public:
         ValidateMediumPriority(priority);
 
         medium->SetPriority(priority);
-    }
-
-    int GetFreeMediumIndex()
-    {
-        for (int index = 0; index < MaxMediumCount; ++index) {
-            if (!UsedMediumIndexes_[index]) {
-                return index;
-            }
-        }
-        Y_UNREACHABLE();
     }
 
     TMedium* FindMediumByName(const TString& name) const
@@ -1590,11 +1556,12 @@ private:
         bool isJournal = (chunkType == EObjectType::JournalChunk);
         auto erasureCodecId = isErasure ? NErasure::ECodec(subrequest->erasure_codec()) : NErasure::ECodec::None;
         int replicationFactor = isErasure ? 1 : subrequest->replication_factor();
-        int mediumIndex = subrequest->medium_index();
+        const auto& mediumName = subrequest->medium_name();
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
 
-        auto* medium = GetMediumByIndexOrThrow(mediumIndex);
+        auto* medium = GetMediumByNameOrThrow(mediumName);
+        int mediumIndex = medium->GetIndex();
 
         ValidateReplicationFactor(replicationFactor);
 
@@ -1603,8 +1570,9 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
-        TClusterResources resourceUsageIncrease(0, 1);
-        resourceUsageIncrease.DiskSpace[mediumIndex] = 1;
+        auto resourceUsageIncrease = TClusterResources()
+            .SetChunkCount(1)
+            .SetMediumDiskSpace(mediumIndex, 1);
         if (subrequest->validate_resource_usage_increase()) {
             securityManager->ValidateResourceUsageIncrease(account, resourceUsageIncrease);
         }
@@ -1624,6 +1592,8 @@ private:
         chunk->SetMovable(subrequest->movable());
         chunk->SetLocalVital(subrequest->vital());
 
+        auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
+
         auto& chunkProperties = chunk->LocalProperties();
         chunkProperties[mediumIndex].SetReplicationFactor(replicationFactor);
         chunkProperties.SetVital(subrequest->vital());
@@ -1637,19 +1607,17 @@ private:
         }
 
         if (subresponse) {
-            ToProto(subresponse->mutable_chunk_id(), chunk->GetId());
+            ToProto(subresponse->mutable_session_id(), sessionId);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Chunk created "
             "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, "
-            "Medium: %v, ReplicationFactor: %v, "
-            "ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
-            chunk->GetId(),
+            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
+            sessionId,
             GetObjectId(chunkList),
             transaction->GetId(),
             account->GetName(),
-            medium->GetName(),
             replicationFactor,
             readQuorum,
             writeQuorum,
@@ -2154,7 +2122,7 @@ private:
             return;
         }
 
-        chunk->AddReplica(nodeWithIndexes, medium->GetCache());
+        chunk->AddReplica(nodeWithIndexes, medium);
 
         if (!IsRecovery()) {
             LOG_EVENT(
@@ -2197,7 +2165,7 @@ private:
             return;
         }
 
-        chunk->RemoveReplica(nodeWithIndexes, cached);
+        chunk->RemoveReplica(nodeWithIndexes, medium);
 
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
@@ -2436,17 +2404,69 @@ private:
     }
 
 
+    int GetFreeMediumIndex()
+    {
+        for (int index = 0; index < MaxMediumCount; ++index) {
+            if (!UsedMediumIndexes_[index]) {
+                return index;
+            }
+        }
+        Y_UNREACHABLE();
+    }
+
+    TMedium* DoCreateMedium(
+        const TMediumId& id,
+        int mediumIndex,
+        const TString& name,
+        TNullable<bool> transient,
+        TNullable<bool> cache,
+        TNullable<int> priority)
+    {
+        auto mediumHolder = std::make_unique<TMedium>(id);
+        mediumHolder->SetName(name);
+        mediumHolder->SetIndex(mediumIndex);
+        if (transient) {
+            mediumHolder->SetTransient(*transient);
+        }
+        if (cache) {
+            mediumHolder->SetCache(*cache);
+        }
+        if (priority) {
+            ValidateMediumPriority(*priority);
+            mediumHolder->SetPriority(*priority);
+        }
+
+        auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
+        RegisterMedium(medium);
+
+        // Make the fake reference.
+        YCHECK(medium->RefObject() == 1);
+
+        return medium;
+    }
+
     void RegisterMedium(TMedium* medium)
     {
         YCHECK(NameToMediumMap_.emplace(medium->GetName(), medium).second);
 
         auto mediumIndex = medium->GetIndex();
-
         YCHECK(!UsedMediumIndexes_[mediumIndex]);
         UsedMediumIndexes_.set(mediumIndex);
 
         YCHECK(!IndexToMediumMap_[mediumIndex]);
         IndexToMediumMap_[mediumIndex] = medium;
+    }
+
+    void UnregisterMedium(TMedium* medium)
+    {
+        YCHECK(NameToMediumMap_.erase(medium->GetName()) == 1);
+
+        auto mediumIndex = medium->GetIndex();
+        YCHECK(UsedMediumIndexes_[mediumIndex]);
+        UsedMediumIndexes_.reset(mediumIndex);
+
+        YCHECK(IndexToMediumMap_[mediumIndex] == medium);
+        IndexToMediumMap_[mediumIndex] = nullptr;
     }
 
     static void ValidateMediumName(const TString& name)
@@ -2480,7 +2500,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, PrecariousV
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, QuorumMissingChunks, *ChunkReplicator_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnsafelyPlacedChunks, *ChunkReplicator_);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandlerBase::TChunkTypeHandlerBase(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->ChunkMap_)
@@ -2566,9 +2586,12 @@ TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
     return Owner_->CreateMedium(name, transient, cache, priority, hintId);
 }
 
-void TChunkManager::TMediumTypeHandler::DoDestroyObject(TMedium* /*medium*/)
+void TChunkManager::TMediumTypeHandler::DoZombifyObject(TMedium* medium)
 {
-    Y_UNREACHABLE();
+    // NB: Destroying arbitrary media is not currently supported.
+    // This handler, however, is needed to destroy just-created media
+    // for which attribute initialization has failed.
+    Owner_->DestroyMedium(medium);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2841,7 +2864,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, QuorumMissingChunk
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnsafelyPlacedChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ForeignChunks, *Impl_);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
 } // namespace NYT

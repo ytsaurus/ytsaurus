@@ -1,14 +1,15 @@
 #include "cache_based_versioned_chunk_reader.h"
 #include "cached_versioned_chunk_meta.h"
+#include "chunk_lookup_hash_table.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader_base.h"
+#include "chunk_state.h"
 #include "config.h"
 #include "private.h"
 #include "schema.h"
 #include "schemaless_block_reader.h"
 #include "unversioned_row.h"
 #include "versioned_block_reader.h"
-#include "versioned_chunk_reader.h"
 #include "versioned_chunk_reader.h"
 #include "versioned_reader.h"
 
@@ -64,55 +65,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// We put 16-bit block index and 32-bit row index into 48-bit value entry in LinearProbeHashTable.
-
-static constexpr i64 MaxBlockIndex = std::numeric_limits<ui16>::max();
-
-TChunkLookupHashTable::TChunkLookupHashTable(size_t size)
-    : HashTable_(size)
-{ }
-
-void TChunkLookupHashTable::Insert(TKey key, std::pair<ui16, ui32> index)
-{
-    YCHECK(HashTable_.Insert(GetFarmFingerprint(key), (static_cast<ui64>(index.first) << 32) | index.second));
-}
-
-SmallVector<std::pair<ui16, ui32>, 1> TChunkLookupHashTable::Find(TKey key) const
-{
-    SmallVector<std::pair<ui16, ui32>, 1> result;
-    SmallVector<ui64, 1> items;
-    HashTable_.Find(GetFarmFingerprint(key), &items);
-    for (const auto& value : items) {
-        result.emplace_back(value >> 32, static_cast<ui32>(value));
-    }
-    return result;
-}
-
-size_t TChunkLookupHashTable::GetByteSize() const
-{
-    return HashTable_.GetByteSize();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSimpleBlockCache
     : public IBlockCache
 {
 public:
-    explicit TSimpleBlockCache(const std::vector<TSharedRef>& blocks)
+    explicit TSimpleBlockCache(const std::vector<TBlock>& blocks)
         : Blocks_(blocks)
     { }
 
     virtual void Put(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
-        const TSharedRef& /*block*/,
+        const TBlock& /*block*/,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual TSharedRef Find(
+    virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -127,92 +97,8 @@ public:
     }
 
 private:
-    const std::vector<TSharedRef>& Blocks_;
+    const std::vector<TBlock>& Blocks_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-IChunkLookupHashTablePtr CreateChunkLookupHashTable(
-    const std::vector<TSharedRef>& blocks,
-    TCachedVersionedChunkMetaPtr chunkMeta,
-    TKeyComparer keyComparer)
-{
-    if (chunkMeta->GetChunkFormat() != ETableChunkFormat::VersionedSimple &&
-        chunkMeta->GetChunkFormat() != ETableChunkFormat::SchemalessHorizontal)
-    {
-        LOG_INFO("Cannot create lookup hash table for %Qlv chunk format (ChunkId: %v)",
-            chunkMeta->GetChunkId(),
-            chunkMeta->GetChunkFormat());
-        return nullptr;
-    }
-
-    if (chunkMeta->BlockMeta().blocks_size() > MaxBlockIndex) {
-        LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, BlockCount: %v)",
-            chunkMeta->GetChunkId(),
-            chunkMeta->BlockMeta().blocks_size());
-        return nullptr;
-    }
-
-    auto blockCache = New<TSimpleBlockCache>(blocks);
-    auto chunkSize = chunkMeta->BlockMeta().blocks(chunkMeta->BlockMeta().blocks_size() - 1).chunk_row_count();
-
-    auto hashTable = New<TChunkLookupHashTable>(chunkSize);
-
-    for (int blockIndex = 0; blockIndex < chunkMeta->BlockMeta().blocks_size(); ++blockIndex) {
-        const auto& blockMeta = chunkMeta->BlockMeta().blocks(blockIndex);
-
-        auto blockId = TBlockId(chunkMeta->GetChunkId(), blockIndex);
-        auto uncompressedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
-        if (!uncompressedBlock) {
-            LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache (ChunkId: %v, BlockIndex: %v)",
-                chunkMeta->GetChunkId(),
-                blockIndex);
-            return nullptr;
-        }
-
-        std::unique_ptr<IVersionedBlockReader> blockReader;
-
-        switch(chunkMeta->GetChunkFormat()) {
-            case ETableChunkFormat::VersionedSimple:
-                blockReader = std::make_unique<TSimpleVersionedBlockReader>(
-                    uncompressedBlock,
-                    blockMeta,
-                    chunkMeta->ChunkSchema(),
-                    chunkMeta->GetChunkKeyColumnCount(),
-                    chunkMeta->GetKeyColumnCount(),
-                    BuildVersionedSimpleSchemaIdMapping(TColumnFilter(), chunkMeta),
-                    keyComparer,
-                    AllCommittedTimestamp,
-                    true,
-                    true);
-                break;
-
-            case ETableChunkFormat::SchemalessHorizontal:
-                blockReader = std::make_unique<THorizontalSchemalessVersionedBlockReader>(
-                    uncompressedBlock,
-                    blockMeta,
-                    BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter(), chunkMeta),
-                    chunkMeta->GetChunkKeyColumnCount(),
-                    chunkMeta->GetKeyColumnCount(),
-                    chunkMeta->Misc().min_timestamp());
-                break;
-
-            default:
-                Y_UNREACHABLE();
-        }
-
-        // Verify that row index fits into 32 bits.
-        YCHECK(sizeof(blockMeta.row_count()) <= sizeof(ui32));
-
-        for (int index = 0; index < blockMeta.row_count(); ++index) {
-            auto key = blockReader->GetKey();
-            hashTable->Insert(key, std::make_pair<ui16, ui32>(blockIndex, index));
-            blockReader->NextRow();
-        }
-    }
-
-    return hashTable;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -225,7 +111,7 @@ class TCacheBasedVersionedChunkReaderBase
 {
 public:
     TCacheBasedVersionedChunkReaderBase(
-        const TCacheBasedChunkStatePtr& state,
+        const TChunkStatePtr& state,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions)
@@ -289,7 +175,7 @@ public:
     }
 
 protected:
-    const TCacheBasedChunkStatePtr ChunkState_;
+    const TChunkStatePtr ChunkState_;
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
 
@@ -365,13 +251,13 @@ private:
     TSharedRef GetUncompressedBlockFromCache(int blockIndex)
     {
         const auto& chunkMeta = ChunkState_->ChunkMeta;
-        const auto& blockCache = ChunkState_->PreloadedBlockCache;
+        const auto& blockCache = ChunkState_->BlockCache;
 
         TBlockId blockId(chunkMeta->GetChunkId(), blockIndex);
 
         auto uncompressedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
-            return uncompressedBlock;
+            return uncompressedBlock.Data;
         }
 
         auto compressedBlock = blockCache->Find(blockId, EBlockType::CompressedData);
@@ -379,9 +265,9 @@ private:
             auto codecId = NCompression::ECodec(chunkMeta->Misc().compression_codec());
             auto* codec = NCompression::GetCodec(codecId);
 
-            auto uncompressedBlock = codec->Decompress(compressedBlock);
+            auto uncompressedBlock = codec->Decompress(compressedBlock.Data);
             if (codecId != NCompression::ECodec::None) {
-                blockCache->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
+                blockCache->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), Null);
             }
             return uncompressedBlock;
         }
@@ -489,7 +375,7 @@ class TCacheBasedSimpleVersionedLookupChunkReader
 {
 public:
     TCacheBasedSimpleVersionedLookupChunkReader(
-        const TCacheBasedChunkStatePtr& chunkState,
+        const TChunkStatePtr& chunkState,
         const TSharedRange<TKey>& keys,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
@@ -580,7 +466,7 @@ private:
 };
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
-    const TCacheBasedChunkStatePtr& chunkState,
+    const TChunkStatePtr& chunkState,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -622,16 +508,13 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             }
             auto underlyingReader = CreateCacheReader(
                 chunkState->ChunkMeta->GetChunkId(),
-                chunkState->PreloadedBlockCache);
+                chunkState->BlockCache);
             return CreateVersionedChunkReader(
                 New<TChunkReaderConfig>(),
                 std::move(underlyingReader),
-                chunkState->PreloadedBlockCache,
-                chunkState->ChunkMeta,
+                chunkState,
                 keys,
                 columnFilter,
-                chunkState->PerformanceCounters,
-                chunkState->KeyComparer,
                 timestamp,
                 produceAllVersions);
         }
@@ -649,7 +532,7 @@ class TSimpleCacheBasedVersionedRangeChunkReader
 {
 public:
     TSimpleCacheBasedVersionedRangeChunkReader(
-        const TCacheBasedChunkStatePtr& chunkState,
+        const TChunkStatePtr& chunkState,
         TSharedRange<TRowRange> ranges,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
@@ -753,7 +636,7 @@ private:
 };
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
-    const TCacheBasedChunkStatePtr& chunkState,
+    const TChunkStatePtr& chunkState,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -794,16 +677,14 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             }
             auto underlyingReader = CreateCacheReader(
                 chunkState->ChunkMeta->GetChunkId(),
-                chunkState->PreloadedBlockCache);
+                chunkState->BlockCache);
 
             return CreateVersionedChunkReader(
                 New<TChunkReaderConfig>(),
                 std::move(underlyingReader),
-                chunkState->PreloadedBlockCache,
-                chunkState->ChunkMeta,
+                chunkState,
                 std::move(ranges),
                 columnFilter,
-                chunkState->PerformanceCounters,
                 timestamp,
                 produceAllVersions);
         }

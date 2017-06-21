@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/logging/public.h>
+
 namespace NYT {
 namespace NHiveClient {
 
@@ -16,13 +18,11 @@ public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        const TCellId& primaryCellId);
+        const TCellId& primaryCellId,
+        const NLogging::TLogger& logger);
     ~TCellDirectorySynchronizer();
 
-    void Start();
-    void Stop();
-
-    //! Forces an out-of-order synchronization.
+    //! Returns a future that gets set with the next sync.
     TFuture<void> Sync();
 
 private:

@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>
@@ -6,8 +6,10 @@
 #include <yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
+#include <yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/core/erasure/codec.h>
+#include <yt/core/misc/checksum.h>
 
 #include <util/stream/file.h>
 
@@ -23,7 +25,6 @@ namespace {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,16 +121,21 @@ public:
             writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
         }
 
-        TChunkMeta meta;
+        NChunkClient::NProto::TChunkMeta meta;
         meta.set_type(1);
         meta.set_version(1);
 
         i64 dataSize = 0;
-        auto erasureWriter = CreateErasureWriter(config, NullChunkId, codecId, codec, writers);
+        auto erasureWriter = CreateErasureWriter(
+            config,
+            TSessionId(),
+            codecId,
+            codec,
+            writers);
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
 
         for (const auto& ref : data) {
-            erasureWriter->WriteBlock(ref);
+            erasureWriter->WriteBlock(TBlock(ref, GetChecksum(ref)));
             dataSize += ref.Size();
         }
         EXPECT_TRUE(erasureWriter->Close(meta).Get().IsOK());
@@ -218,7 +224,7 @@ public:
                 auto resultRef = result[i];
                 auto dataRef = dataRefs[indexes[i]];
                 EXPECT_EQ(dataRef.Size(), resultRef.Size());
-                EXPECT_EQ(ToString(dataRef), ToString(resultRef));
+                EXPECT_EQ(ToString(dataRef), ToString(resultRef.Data));
             }
         }
     }
@@ -233,7 +239,7 @@ public:
             EXPECT_TRUE(result.IsOK());
             auto resultRef = result.ValueOrThrow().front();
 
-            EXPECT_EQ(ToString(ref), ToString(resultRef));
+            EXPECT_EQ(ToString(ref), ToString(resultRef.Data));
         }
     }
 
@@ -302,7 +308,7 @@ TEST_F(TErasureMixture, ReaderTest)
         for (const auto& ref : dataRefs) {
             auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
             EXPECT_TRUE(result.IsOK());
-            auto resultRef = result.ValueOrThrow().front();
+            auto resultRef = TBlock::Unwrap(result.ValueOrThrow()).front();
 
             EXPECT_EQ(ToString(ref), ToString(resultRef));
         }
@@ -315,7 +321,7 @@ TEST_F(TErasureMixture, ReaderTest)
         indices.push_back(3);
         auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), indices).Get();
         EXPECT_TRUE(result.IsOK());
-        auto resultRef = result.ValueOrThrow();
+        auto resultRef = TBlock::Unwrap(result.ValueOrThrow());
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
         EXPECT_EQ(ToString(dataRefs[3]), ToString(resultRef[1]));
     }

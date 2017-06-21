@@ -15,7 +15,7 @@
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 typedef TCallback<void(const TChunkId& chunkId, const TChunkReplicaList& replicas)> TChunkLocatedHandler;
 
@@ -48,7 +48,7 @@ private:
     const TChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TThrottlerManagerPtr ThrottlerManager_;
-    const NApi::INativeClientPtr MasterClient_;
+    const NApi::INativeClientPtr Client_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TChunkLocatedHandler OnChunkLocated_;
     const NLogging::TLogger Logger;
@@ -64,7 +64,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TChunkScraper)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

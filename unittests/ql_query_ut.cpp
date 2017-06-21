@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 #include "ql_helpers.h"
 #include "udf/invalid_ir.h"
 
@@ -130,7 +130,7 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where a > \"xyz\"",
-        ContainsRegex("Type mismatch in expression .*"));
+        ContainsRegex("Type mismatch in expression"));
 }
 
 TEST_F(TQueryPrepareTest, TooBigQuery)
@@ -1929,7 +1929,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
     }, resultSplit);
 
     Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1)) + 1 as t FROM [//t] group by if"
-                 "(a % 2 = 0, double(4), 5.0) as q", split, source, ResultMatcher(result));
+                 "(a % 2 = 0, double(4), 5) as q", split, source, ResultMatcher(result));
 
     SUCCEED();
 }

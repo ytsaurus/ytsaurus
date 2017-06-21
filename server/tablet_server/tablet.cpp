@@ -24,6 +24,8 @@ using namespace NCellMaster;
 using namespace NYTree;
 using namespace NTransactionClient;
 
+using NTabletNode::EInMemoryMode;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
@@ -220,8 +222,7 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
 TTablet::TTablet(const TTabletId& id)
     : TNonversionedObjectBase(id)
     , Index_(-1)
-    , State_(ETabletState::Unmounted)
-    , InMemoryMode_(NTabletNode::EInMemoryMode::None)
+    , InMemoryMode_(EInMemoryMode::None)
     , RetainedTimestamp_(MinTimestamp)
 { }
 
@@ -356,6 +357,60 @@ TChunkList* TTablet::GetChunkList()
 const TChunkList* TTablet::GetChunkList() const
 {
     return const_cast<TTablet*>(this)->GetChunkList();
+}
+
+i64 TTablet::GetTabletStaticMemorySize(EInMemoryMode mode) const
+{
+    // TODO(savrus) consider lookup hash table.
+
+    const auto& statistics = GetChunkList()->Statistics();
+    switch (mode) {
+        case EInMemoryMode::Compressed:
+            return statistics.CompressedDataSize;
+        case EInMemoryMode::Uncompressed:
+            return statistics.UncompressedDataSize;
+        case EInMemoryMode::None:
+            return 0;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+i64 TTablet::GetTabletStaticMemorySize() const
+{
+    return GetTabletStaticMemorySize(GetInMemoryMode());
+}
+
+ETabletState TTablet::GetState() const
+{
+    return State_;
+}
+
+void TTablet::SetState(ETabletState state)
+{
+    if (Table_) {
+        auto* table = Table_->GetTrunkNode();
+        --table->TabletCountByState()[State_];
+        ++table->TabletCountByState()[state];
+    }
+    State_ = state;
+}
+
+TTableNode* TTablet::GetTable() const
+{
+    return Table_;
+}
+
+void TTablet::SetTable(TTableNode* table)
+{
+    if (Table_) {
+        --Table_->GetTrunkNode()->TabletCountByState()[State_];
+    }
+    if (table) {
+        YCHECK(table->IsTrunk());
+        ++table->TabletCountByState()[State_];
+    }
+    Table_ = table;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

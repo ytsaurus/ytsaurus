@@ -1,6 +1,6 @@
 #pragma once
 
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/sorted_dynamic_store.h>
@@ -134,7 +134,7 @@ protected:
             sorted ? MaxKey() : TOwningKey(),
             GetAtomicity(),
             GetCommitOrdering(),
-            ETableReplicationMode::None);
+            TTableReplicaId());
 
         auto storeManager = CreateStoreManager(Tablet_.get());
         Tablet_->SetStoreManager(storeManager);
@@ -351,7 +351,7 @@ protected:
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TBase>
 class TStoreManagerTestBase
@@ -375,7 +375,7 @@ protected:
     }
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NTabletNode

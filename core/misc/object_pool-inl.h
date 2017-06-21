@@ -4,34 +4,26 @@
 #endif
 
 #include "mpl.h"
-#include "ref_counted_tracker.h"
-
-#include <yt/core/utilex/random.h>
-
-#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TObjectPool<T>::TObjectPool()
-    : PoolSize_(0)
-{ }
+TObjectPool<T>::~TObjectPool()
+{
+    T* obj;
+    while (PooledObjects_.Dequeue(&obj)) {
+        FreeInstance(obj);
+    }
+}
 
 template <class T>
 auto TObjectPool<T>::Allocate() -> TObjectPtr
 {
     T* obj = nullptr;
-    while (PooledObjects_.Dequeue(&obj)) {
+    if (PooledObjects_.Dequeue(&obj)) {
         --PoolSize_;
-
-        auto* header = GetHeader(obj);
-        if (!IsExpired(header))
-            break;
-
-        FreeInstance(obj);
-        obj = nullptr;
     }
 
     if (!obj) {
@@ -46,12 +38,6 @@ auto TObjectPool<T>::Allocate() -> TObjectPtr
 template <class T>
 void TObjectPool<T>::Reclaim(T* obj)
 {
-    auto* header = GetHeader(obj);
-    if (IsExpired(header)) {
-        FreeInstance(obj);
-        return;
-    }
-
     TPooledObjectTraits<T>::Clean(obj);
 
     while (true) {
@@ -77,40 +63,13 @@ void TObjectPool<T>::Reclaim(T* obj)
 template <class T>
 T* TObjectPool<T>::AllocateInstance()
 {
-    auto cookie = GetRefCountedTypeCookie<T>();
-    TRefCountedTracker::Get()->Allocate(cookie, sizeof (T));
-    char* buffer = new char[sizeof (THeader) + sizeof (T)];
-    auto* header = reinterpret_cast<THeader*>(buffer);
-    auto* obj = reinterpret_cast<T*>(header + 1);
-    new (obj) T();
-    header->ExpireInstant =
-        NProfiling::GetCpuInstant() +
-        NProfiling::DurationToCpuDuration(
-            TPooledObjectTraits<T>::GetMaxLifetime() +
-            RandomDuration(TPooledObjectTraits<T>::GetMaxLifetimeSplay()));
-    return obj;
+    return new T();
 }
 
 template <class T>
 void TObjectPool<T>::FreeInstance(T* obj)
 {
-    auto cookie = GetRefCountedTypeCookie<T>();
-    TRefCountedTracker::Get()->Free(cookie, sizeof (T));
-    obj->~T();
-    auto* buffer = reinterpret_cast<char*>(obj) - sizeof (THeader);
-    delete[] buffer;
-}
-
-template <class T>
-typename TObjectPool<T>::THeader* TObjectPool<T>::GetHeader(T* obj)
-{
-    return reinterpret_cast<THeader*>(obj) - 1;
-}
-
-template <class T>
-bool TObjectPool<T>::IsExpired(const THeader* header)
-{
-    return NProfiling::GetCpuInstant() > header->ExpireInstant;
+    delete obj;
 }
 
 template <class T>

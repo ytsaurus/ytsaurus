@@ -42,14 +42,14 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = HydraProfiler;
+static const auto PostponeBackoffTime = TDuration::MilliSeconds(100);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedHydraManager;
-typedef TIntrusivePtr<TDistributedHydraManager> TDistributedHydraManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TDistributedHydraManager)
 
 class TDistributedHydraManager
     : public THydraServiceBase
@@ -130,7 +130,8 @@ public:
         : THydraServiceBase(
             controlInvoker,
             THydraServiceProxy::GetDescriptor(),
-            HydraLogger,
+            NLogging::TLogger(HydraLogger)
+                .AddTag("CellId: %v", cellManager->GetCellId()),
             cellManager->GetCellId())
         , Config_(config)
         , RpcServer_(rpcServer)
@@ -146,8 +147,6 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
-
-        Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(
             Config_,
@@ -330,6 +329,7 @@ public:
                     .Item("active_leader").Value(IsActiveLeader())
                     .Item("active_follower").Value(IsActiveFollower())
                     .Item("read_only").Value(GetReadOnly())
+                    .Item("warming_up").Value(Options_.ResponseKeeper ? Options_.ResponseKeeper->IsWarmingUp() : false)
                 .EndMap();
         });
     }
@@ -516,24 +516,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AcceptMutations)
     {
-        // AcceptMutations and RotateChangelog handling must start in Control Thread
-        // since during recovery Automaton Thread may be busy for prolonged periods of time
-        // and we must still be able to capture and postpone the relevant mutations.
-        //
-        // Additionally, it is vital for AcceptMutations, BuildSnapshot, and RotateChangelog handlers
-        // to follow the same thread transition pattern (start in ControlThread, then switch to
-        // Automaton Thread) to ensure consistent callbacks ordering.
-        //
-        // E.g. BuildSnapshot and RotateChangelog calls rely on the fact than all mutations
-        // that were previously sent via AcceptMutations are accepted (and the logged version is
-        // propagated appropriately).
-
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto startVersion = TVersion::FromRevision(request->start_revision());
         auto committedVersion = TVersion::FromRevision(request->committed_revision());
-        int mutationCount = static_cast<int>(request->Attachments().size());
+        auto mutationCount = request->Attachments().size();
 
         context->SetRequestInfo("StartVersion: %v, CommittedVersion: %v, EpochId: %v, MutationCount: %v",
             startVersion,
@@ -541,59 +527,81 @@ private:
             epochId,
             mutationCount);
 
-        if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::Unavailable,
-                "Cannot accept mutations in %Qlv state",
-                ControlState_);
-        }
+        bool again;
+        do {
+            again = false;
 
-        auto epochContext = GetEpochContext(epochId);
+            // AcceptMutations and RotateChangelog handling must start in Control Thread
+            // since during recovery Automaton Thread may be busy for prolonged periods of time
+            // and we must still be able to capture and postpone the relevant mutations.
+            //
+            // Additionally, it is vital for AcceptMutations, BuildSnapshot, and RotateChangelog handlers
+            // to follow the same thread transition pattern (start in ControlThread, then switch to
+            // Automaton Thread) to ensure consistent callbacks ordering.
+            //
+            // E.g. BuildSnapshot and RotateChangelog calls rely on the fact than all mutations
+            // that were previously sent via AcceptMutations are accepted (and the logged version is
+            // propagated appropriately).
+            VERIFY_THREAD_AFFINITY(ControlThread);
 
-        switch (ControlState_) {
-            case EPeerState::Following: {
-                SwitchTo(epochContext->EpochUserAutomatonInvoker);
-                VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-                CommitMutationsAtFollower(epochContext, committedVersion);
-
-                try {
-                    auto asyncResult = epochContext->FollowerCommitter->AcceptMutations(
-                        startVersion,
-                        request->Attachments());
-                    WaitFor(asyncResult)
-                        .ThrowOnError();
-                    response->set_logged(Options_.WriteChangelogsAtFollowers);
-                } catch (const std::exception& ex) {
-                    auto error = TError("Error logging mutations")
-                        << ex;
-                    Restart(epochContext, error);
-                    THROW_ERROR error;
-                }
-                break;
+            if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Cannot accept mutations in %Qlv state",
+                    ControlState_);
             }
 
-            case EPeerState::FollowerRecovery: {
-                try {
-                    CheckForInitialPing(startVersion);
-                    auto followerRecovery = epochContext->FollowerRecovery;
-                    if (followerRecovery) {
-                        followerRecovery->PostponeMutations(startVersion, request->Attachments());
-                        followerRecovery->SetCommittedVersion(committedVersion);
+            auto epochContext = GetEpochContext(epochId);
+
+            switch (ControlState_) {
+                case EPeerState::Following: {
+                    SwitchTo(epochContext->EpochUserAutomatonInvoker);
+                    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+                    CommitMutationsAtFollower(epochContext, committedVersion);
+
+                    try {
+                        auto asyncResult = epochContext->FollowerCommitter->AcceptMutations(
+                            startVersion,
+                            request->Attachments());
+                        WaitFor(asyncResult)
+                            .ThrowOnError();
+                        response->set_logged(Options_.WriteChangelogsAtFollowers);
+                    } catch (const std::exception& ex) {
+                        auto error = TError("Error logging mutations")
+                            << ex;
+                        Restart(epochContext, error);
+                        THROW_ERROR error;
                     }
-                    response->set_logged(false);
-                } catch (const std::exception& ex) {
-                    auto error = TError("Error postponing mutations during recovery")
-                        << ex;
-                    Restart(epochContext, error);
-                    THROW_ERROR error;
+                    break;
                 }
-                break;
-            }
 
-            default:
-                Y_UNREACHABLE();
-        }
+                case EPeerState::FollowerRecovery: {
+                    try {
+                        CheckForInitialPing(startVersion);
+                        auto followerRecovery = epochContext->FollowerRecovery;
+                        if (followerRecovery) {
+                            if (!followerRecovery->PostponeMutations(startVersion, request->Attachments())) {
+                                BackoffPostpone();
+                                again = true;
+                                continue;
+                            }
+                            followerRecovery->SetCommittedVersion(committedVersion);
+                        }
+                        response->set_logged(false);
+                    } catch (const std::exception& ex) {
+                        auto error = TError("Error postponing mutations during recovery")
+                            << ex;
+                        Restart(epochContext, error);
+                        THROW_ERROR error;
+                    }
+                    break;
+                }
+
+                default:
+                    Y_UNREACHABLE();
+            }
+        } while (again);
 
         context->Reply();
     }
@@ -705,8 +713,6 @@ private:
         context->SetRequestInfo("SetReadOnly: %v",
             setReadOnly);
 
-        //SetReadOnly(setReadOnly);
-
         int snapshotId = WaitFor(BuildSnapshot(setReadOnly))
             .ValueOrThrow();
 
@@ -720,8 +726,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RotateChangelog)
     {
-        // See AcceptMutations.
-        VERIFY_THREAD_AFFINITY(ControlThread);
         Y_UNUSED(response);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
@@ -731,76 +735,88 @@ private:
             epochId,
             version);
 
-        if (ControlState_ != EPeerState::Following && ControlState_  != EPeerState::FollowerRecovery) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::Unavailable,
-                "Cannot rotate changelog while in %Qlv state",
-                ControlState_);
-        }
+        bool again;
+        do {
+            again = false;
 
-        auto epochContext = GetEpochContext(epochId);
+            // See AcceptMutations.
+            VERIFY_THREAD_AFFINITY(ControlThread);
 
-        switch (ControlState_) {
-            case EPeerState::Following: {
-                SwitchTo(epochContext->EpochUserAutomatonInvoker);
-                VERIFY_THREAD_AFFINITY(AutomatonThread);
+            if (ControlState_ != EPeerState::Following && ControlState_  != EPeerState::FollowerRecovery) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Cannot rotate changelog while in %Qlv state",
+                    ControlState_);
+            }
 
-                try {
-                    if (DecoratedAutomaton_->GetLoggedVersion() != version) {
-                        THROW_ERROR_EXCEPTION(
-                            NHydra::EErrorCode::InvalidVersion,
-                            "Invalid logged version: expected %v, actual %v",
-                            version,
-                            DecoratedAutomaton_->GetLoggedVersion());
+            auto epochContext = GetEpochContext(epochId);
+
+            switch (ControlState_) {
+                case EPeerState::Following: {
+                    SwitchTo(epochContext->EpochUserAutomatonInvoker);
+                    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+                    try {
+                        if (DecoratedAutomaton_->GetLoggedVersion() != version) {
+                            THROW_ERROR_EXCEPTION(
+                                NHydra::EErrorCode::InvalidVersion,
+                                "Invalid logged version: expected %v, actual %v",
+                                version,
+                                DecoratedAutomaton_->GetLoggedVersion());
+                        }
+
+                        auto followerCommitter = epochContext->FollowerCommitter;
+                        if (followerCommitter->IsLoggingSuspended()) {
+                            THROW_ERROR_EXCEPTION(
+                                NRpc::EErrorCode::Unavailable,
+                                "Changelog is already being rotated");
+                        }
+
+                        followerCommitter->SuspendLogging();
+
+                        WaitFor(DecoratedAutomaton_->RotateChangelog())
+                            .ThrowOnError();
+
+                        followerCommitter->ResumeLogging();
+                    } catch (const std::exception& ex) {
+                        auto error = TError("Error rotating changelog")
+                            << ex;
+                        Restart(epochContext, error);
+                        THROW_ERROR error;
                     }
 
-                    auto followerCommitter = epochContext->FollowerCommitter;
-                    if (followerCommitter->IsLoggingSuspended()) {
+                    break;
+                }
+
+                case EPeerState::FollowerRecovery: {
+                    auto followerRecovery = epochContext->FollowerRecovery;
+                    if (!followerRecovery) {
+                        // NB: No restart.
                         THROW_ERROR_EXCEPTION(
                             NRpc::EErrorCode::Unavailable,
-                            "Changelog is already being rotated");
+                            "Initial ping is not received yet");
                     }
 
-                    followerCommitter->SuspendLogging();
+                    try {
+                        if (!followerRecovery->PostponeChangelogRotation(version)) {
+                            BackoffPostpone();
+                            again = true;
+                            continue;
+                        }
+                    } catch (const std::exception& ex) {
+                        auto error = TError("Error postponing changelog rotation during recovery")
+                            << ex;
+                        Restart(epochContext, error);
+                        THROW_ERROR error;
+                    }
 
-                    WaitFor(DecoratedAutomaton_->RotateChangelog())
-                        .ThrowOnError();
-
-                    followerCommitter->ResumeLogging();
-                } catch (const std::exception& ex) {
-                    auto error = TError("Error rotating changelog")
-                        << ex;
-                    Restart(epochContext, error);
-                    THROW_ERROR error;
+                    break;
                 }
 
-                break;
+                default:
+                    Y_UNREACHABLE();
             }
-
-            case EPeerState::FollowerRecovery: {
-                auto followerRecovery = epochContext->FollowerRecovery;
-                if (!followerRecovery) {
-                    // NB: No restart.
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::Unavailable,
-                        "Initial ping is not received yet");
-                }
-
-                try {
-                    followerRecovery->PostponeChangelogRotation(version);
-                } catch (const std::exception& ex) {
-                    auto error = TError("Error postponing changelog rotation during recovery")
-                        << ex;
-                    Restart(epochContext, error);
-                    THROW_ERROR error;
-                }
-
-                break;
-            }
-
-            default:
-                Y_UNREACHABLE();
-        }
+        } while (again);
 
         context->Reply();
     }
@@ -1628,6 +1644,14 @@ private:
     }
 
 
+    void BackoffPostpone()
+    {
+        LOG_DEBUG("Cannot postpone more actions at the moment; backing off and retrying");
+        WaitFor(TDelayedExecutor::MakeDelayed(PostponeBackoffTime));
+        SwitchTo(ControlInvoker_);
+    }
+
+
     // THydraServiceBase overrides.
     virtual IHydraManagerPtr GetHydraManager() override
     {
@@ -1639,6 +1663,8 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TDistributedHydraManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

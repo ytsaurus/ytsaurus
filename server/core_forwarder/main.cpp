@@ -56,6 +56,12 @@ protected:
 
         ParseFreeArgs(parseResult);
 
+        if (RLimitCore_ == 0) {
+            // Do nothing.
+            syslog(LOG_INFO, "Doing nothing (RLimitCore: 0)");
+            return;
+        }
+
         TString jobProxySocketNameFile = JobProxySocketNameDirectory_ + "/" + ToString(UserId_);
         if (Exists(jobProxySocketNameFile)) {
             auto jobProxySocketName = TFileInput(jobProxySocketNameFile).ReadLine();
@@ -95,17 +101,11 @@ protected:
         // We do not fully imitate the system core dump logic here. We only check if
         // core limit is not zero, and then write the whole core dump without truncating
         // it to first RLIMIT_CORE bytes.
-
-        if (RLimitCore_ == 0) {
-            // Do nothing.
-            syslog(LOG_INFO, "Doing nothing (RLimitCore: 0)");
-        } else {
-            syslog(LOG_INFO, "Writing core to fallback path (FallbackPath: %s)", FallbackPath_.c_str());
-            TFile coreFile(FallbackPath_, CreateNew | WrOnly | Seq | CloseOnExec);
-            TFileOutput coreFileOutput(coreFile);
-            i64 size = Cin.ReadAll(coreFileOutput);
-            syslog(LOG_INFO, "Finished writing core to disk (Size: %" PRId64 ")", size);
-        }
+        syslog(LOG_INFO, "Writing core to fallback path (FallbackPath: %s)", FallbackPath_.c_str());
+        TFile coreFile(FallbackPath_, CreateNew | WrOnly | Seq | CloseOnExec);
+        TFileOutput coreFileOutput(coreFile);
+        i64 size = Cin.ReadAll(coreFileOutput);
+        syslog(LOG_INFO, "Finished writing core to disk (Size: %" PRId64 ")", size);
     }
 
     void ForwardCore(const TString& socketName)

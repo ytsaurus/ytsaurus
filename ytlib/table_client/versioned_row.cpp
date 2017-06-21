@@ -39,7 +39,7 @@ size_t WriteValue(char* output, const TVersionedValue& value)
 
 TString ToString(const TVersionedValue& value)
 {
-    return Format("%v@%v",
+    return Format("%v@%llx",
         static_cast<TUnversionedValue>(value),
         value.Timestamp);
 }
@@ -322,6 +322,15 @@ void ValidateClientDataRow(
 
         ValidateDataValue(value);
     }
+}
+
+TOwningKey RowToKey(TVersionedRow row)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (int index = 0; index < row.GetKeyCount(); ++index) {
+        builder.AddValue(row.BeginKeys()[index]);
+    }
+    return builder.FinishRow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

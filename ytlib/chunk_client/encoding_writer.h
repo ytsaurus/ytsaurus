@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "block.h"
 
 #include <yt/core/compression/public.h>
 
@@ -9,12 +10,10 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/ref.h>
-
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TEncodingWriter
     : public TRefCounted
@@ -61,13 +60,13 @@ private:
     NConcurrency::TAsyncSemaphorePtr Semaphore_;
     NCompression::ICodec* Codec_;
 
-    NConcurrency::TNonblockingQueue<TSharedRef> PendingBlocks_;
+    NConcurrency::TNonblockingQueue<TBlock> PendingBlocks_;
 
     TFuture<void> OpenFuture_;
     TPromise<void> CompletionError_ = NewPromise<void>();
-    TCallback<void(const TErrorOr<TSharedRef>&)> WritePendingBlockCallback_;
+    TCallback<void(const TErrorOr<TBlock>&)> WritePendingBlockCallback_;
 
-    void WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError);
+    void WritePendingBlock(const TErrorOr<TBlock>& blockOrError);
 
     void EnsureOpen();
     void CacheUncompressedBlock(const TSharedRef& block, int blockIndex);
@@ -75,7 +74,7 @@ private:
     void DoCompressBlock(const TSharedRef& uncompressedBlock);
     void DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock);
 
-    void ProcessCompressedBlock(const TSharedRef& block, i64 delta);
+    void ProcessCompressedBlock(const TBlock& block, i64 delta);
 
     void VerifyBlock(
         const TSharedRef& uncompressedBlock,
@@ -89,7 +88,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TEncodingWriter)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

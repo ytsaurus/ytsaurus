@@ -3,8 +3,9 @@
 #error "Direct inclusion of this file is not allowed, include composite_automaton.h"
 #endif
 
-#include <yt/core/rpc/service_detail.h>
 #include "mutation.h"
+
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NHydra {
@@ -108,7 +109,9 @@ void TCompositeAutomatonPart::RegisterMethod(
                 static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
                 mutationResponse.Data = cachedResponseMessage;
             } catch (const std::exception& ex) {
-                mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+                auto error = TError(ex);
+                LogHandlerError(error);
+                mutationResponse.Data = NRpc::CreateErrorResponseMessage(error);
             }
         }));
 }
@@ -130,7 +133,9 @@ void TCompositeAutomatonPart::RegisterMethod(
                 callback.Run(nullptr, &request, &response);
                 mutationResponse.Data = NRpc::CreateResponseMessage(response);
             } catch (const std::exception& ex) {
-                mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+                auto error = TError(ex);
+                LogHandlerError(error);
+                mutationResponse.Data = NRpc::CreateErrorResponseMessage(error);
             }
         }));
 }

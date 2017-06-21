@@ -87,7 +87,7 @@ public:
 private:
     const int MaxReplicasPerRack_;
 
-    std::array<i8, MaxRackCount> PerRackCounters_{};
+    std::array<i8, RackIndexBound> PerRackCounters_{};
     TNodeList ForbiddenNodes_;
     TNodeList AddedNodes_;
 
@@ -178,6 +178,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         minCount,
         sessionType == ESessionType::Replication,
         replicationFactorOverride,
+        nullptr,
         forbiddenNodes,
         preferredHostName);
 
@@ -271,6 +272,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     int minCount,
     bool forceRackAwareness,
     TNullable<int> replicationFactorOverride,
+    const TDataCenterSet* dataCenters,
     const TNodeList* forbiddenNodes,
     const TNullable<TString>& preferredHostName)
 {
@@ -279,7 +281,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     TTargetCollector collector(medium, chunk, maxReplicasPerRack, forbiddenNodes);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
-        if (IsValidWriteTarget(medium, node, &collector, enableRackAwareness)) {
+        if (IsValidWriteTarget(medium, dataCenters, node, &collector, enableRackAwareness)) {
             collector.AddNode(node);
         }
     };
@@ -316,6 +318,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int desiredCount,
     int minCount,
     TNullable<int> replicationFactorOverride,
+    const TDataCenterSet& dataCenters,
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
@@ -324,7 +327,8 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         desiredCount,
         minCount,
         sessionType == ESessionType::Replication,
-        replicationFactorOverride);
+        replicationFactorOverride,
+        &dataCenters);
 
     for (auto* target : targetNodes) {
         AddSessionHint(target, sessionType);
@@ -340,7 +344,7 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     auto mediumIndex = chunkWithIndexes.GetMediumIndex();
     int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, Null);
 
-    std::array<i8, MaxRackCount> perRackCounters{};
+    std::array<i8, RackIndexBound> perRackCounters{};
     for (auto replica : chunk->StoredReplicas()) {
         if (replica.GetMediumIndex() != mediumIndex)
             continue;
@@ -405,9 +409,10 @@ bool TChunkPlacement::HasBalancingTargets(TMedium* medium, double maxFillFactor)
 TNode* TChunkPlacement::AllocateBalancingTarget(
     TMedium* medium,
     TChunk* chunk,
-    double maxFillFactor)
+    double maxFillFactor,
+    const TDataCenterSet& dataCenters)
 {
-    auto* target = GetBalancingTarget(medium, chunk, maxFillFactor);
+    auto* target = GetBalancingTarget(medium, &dataCenters, chunk, maxFillFactor);
 
     if (target) {
         AddSessionHint(target, ESessionType::Replication);
@@ -418,6 +423,7 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
 
 TNode* TChunkPlacement::GetBalancingTarget(
     TMedium* medium,
+    const TDataCenterSet* dataCenters,
     TChunk* chunk,
     double maxFillFactor)
 {
@@ -432,7 +438,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
         if (*nodeFillFactor > maxFillFactor) {
             break;
         }
-        if (IsValidBalancingTarget(medium, node, &collector, true)) {
+        if (IsValidBalancingTarget(medium, dataCenters, node, &collector, true)) {
             return node;
         }
     }
@@ -454,7 +460,7 @@ bool TChunkPlacement::IsValidWriteTarget(
         // Do not write anything to nodes not accepting writes.
         return false;
     }
-    
+
     if (node->GetDecommissioned()) {
         // Do not write anything to decommissioned nodes.
         return false;
@@ -471,6 +477,7 @@ bool TChunkPlacement::IsValidWriteTarget(
 
 bool TChunkPlacement::IsValidWriteTarget(
     TMedium* medium,
+    const TDataCenterSet* dataCenters,
     TNode* node,
     TTargetCollector* collector,
     bool enableRackAwareness)
@@ -480,8 +487,12 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
+    if (dataCenters && dataCenters->count(node->GetDataCenter()) == 0) {
+        return false;
+    }
+
     if (medium->GetCache()) {
-        // Direct writes to cache locations is not allowed.
+        // Direct writing to cache locations is not allowed.
         return false;
     }
 
@@ -514,6 +525,7 @@ bool TChunkPlacement::IsValidBalancingTarget(
 
 bool TChunkPlacement::IsValidBalancingTarget(
     TMedium* medium,
+    const TDataCenterSet* dataCenters,
     TNode* node,
     TTargetCollector* collector,
     bool enableRackAwareness)
@@ -524,7 +536,7 @@ bool TChunkPlacement::IsValidBalancingTarget(
     }
 
     // Balancing implies write, after all.
-    if (!IsValidWriteTarget(medium, node, collector, enableRackAwareness)) {
+    if (!IsValidWriteTarget(medium, dataCenters, node, collector, enableRackAwareness)) {
         return false;
     }
 

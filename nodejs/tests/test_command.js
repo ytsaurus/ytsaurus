@@ -274,6 +274,7 @@ describe("YtCommand - command descriptors", function() {
             'erase',
             'exists',
             'get',
+            'get_in_sync_replicas',
             'get_version',
             'link',
             'list',
@@ -337,6 +338,7 @@ describe("YtCommand - command descriptors", function() {
             'get',
             'get_job_input',
             'get_job_stderr',
+            'get_in_sync_replicas',
             'get_version',
             'insert_rows',
             'trim_rows',
@@ -1365,6 +1367,24 @@ describe("YtCommand - v3 output format selection", function() {
             rsp.should.have.content_type("text/tab-separated-values");
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('"dsv"');
+        }, done).end();
+    });
+
+    it("should respect output format with mime type", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/read_table",
+        {
+            "Accept": "*/*",
+            "X-YT-Output-Format": JSON.stringify({
+                $attributes: { "foo": "bar" },
+                $value: "schemaful_dsv"
+            })
+        },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.have.content_type("text/tab-separated-values");
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"foo"="bar";>"schemaful_dsv"'); 
         }, done).end();
     });
 

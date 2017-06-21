@@ -25,7 +25,7 @@ namespace NFileClient {
 struct IFileReader
     : public virtual NChunkClient::IReaderBase
 {
-    virtual bool ReadBlock(TSharedRef* block) = 0;
+    virtual bool ReadBlock(NChunkClient::TBlock* block) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileReader)

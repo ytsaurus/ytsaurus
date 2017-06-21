@@ -37,7 +37,7 @@ static const auto& Logger = DataNodeLogger;
 
 TCachedBlock::TCachedBlock(
     const TBlockId& blockId,
-    const TSharedRef& data,
+    const TBlock& data,
     const TNullable<TNodeDescriptor>& source)
     : TAsyncCacheValueBase<TBlockId, TCachedBlock>(blockId)
     , Data_(data)
@@ -80,7 +80,7 @@ public:
 
     void PutCachedBlock(
         const TBlockId& blockId,
-        const TSharedRef& data,
+        const TBlock& data,
         const TNullable<TNodeDescriptor>& source)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -99,7 +99,7 @@ public:
         return BeginInsert(blockId);
     }
 
-    TFuture<std::vector<TSharedRef>> ReadBlockRange(
+    TFuture<std::vector<TBlock>> ReadBlockRange(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -121,11 +121,11 @@ public:
             // Release the read guard upon future completion.
             return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
         } catch (const std::exception& ex) {
-            return MakeFuture<std::vector<TSharedRef>>(TError(ex));
+            return MakeFuture<std::vector<TBlock>>(TError(ex));
         }
     }
 
-    TFuture<std::vector<TSharedRef>> ReadBlockSet(
+    TFuture<std::vector<TBlock>> ReadBlockSet(
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options)
@@ -136,7 +136,7 @@ public:
             auto chunkRegistry = Bootstrap_->GetChunkRegistry();
             auto chunk = chunkRegistry->FindChunk(chunkId);
             if (!chunk) {
-                std::vector<TSharedRef> blocks;
+                std::vector<TBlock> blocks;
                 // During block peering, data nodes exchange individual blocks.
                 // Thus the cache may contain a block not bound to any chunk in the registry.
                 // We must look for these blocks.
@@ -159,7 +159,7 @@ public:
             // Hold the read guard.
             return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
         } catch (const std::exception& ex) {
-            return MakeFuture<std::vector<TSharedRef>>(TError(ex));
+            return MakeFuture<std::vector<TBlock>>(TError(ex));
         }
     }
 
@@ -175,9 +175,9 @@ private:
         return block->GetData().Size();
     }
 
-    static std::vector<TSharedRef> OnBlocksRead(
+    static std::vector<TBlock> OnBlocksRead(
         TChunkReadGuard /*guard*/,
-        const std::vector<TSharedRef>& blocks)
+        const std::vector<TBlock>& blocks)
     {
         return blocks;
     }
@@ -201,7 +201,7 @@ TCachedBlockPtr TChunkBlockManager::FindCachedBlock(const TBlockId& blockId)
 
 void TChunkBlockManager::PutCachedBlock(
     const TBlockId& blockId,
-    const TSharedRef& data,
+    const TBlock& data,
     const TNullable<TNodeDescriptor>& source)
 {
     Impl_->PutCachedBlock(blockId, data, source);
@@ -212,7 +212,7 @@ TCachedBlockCookie TChunkBlockManager::BeginInsertCachedBlock(const TBlockId& bl
     return Impl_->BeginInsertCachedBlock(blockId);
 }
 
-TFuture<std::vector<TSharedRef>> TChunkBlockManager::ReadBlockRange(
+TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockRange(
     const TChunkId& chunkId,
     int firstBlockIndex,
     int blockCount,
@@ -225,7 +225,7 @@ TFuture<std::vector<TSharedRef>> TChunkBlockManager::ReadBlockRange(
         options);
 }
 
-TFuture<std::vector<TSharedRef>> TChunkBlockManager::ReadBlockSet(
+TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockSet(
     const TChunkId& chunkId,
     const std::vector<int>& blockIndexes,
     const TBlockReadOptions& options)

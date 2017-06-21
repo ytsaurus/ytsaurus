@@ -25,6 +25,8 @@ struct TOperationReport
     TOperationPtr Operation;
     NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
     bool UserTransactionAborted = false;
+    bool IsCommitted = false;
+    bool ShouldCommitOutputTransaction = false;
 };
 
 //! Information retrieved during scheduler-master handshake.
@@ -53,11 +55,13 @@ public:
 
     bool IsConnected() const;
 
+    void Disconnect();
+
     TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult);
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
-    void SetSchedulerAlert(EAlertType alertType, const TError& alert);
+    void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);
@@ -76,7 +80,7 @@ private:
 
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

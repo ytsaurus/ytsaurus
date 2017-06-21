@@ -19,7 +19,7 @@
 namespace NYT {
 namespace NScheduler {
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NProto;
 using namespace NYTree;
@@ -32,11 +32,11 @@ using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NChunkClient;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
 {
@@ -56,6 +56,7 @@ void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsum
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
+        .Item("slot_index").Value(operation->GetSlotIndex())
         .DoIf(static_cast<bool>(controller), BIND(&NControllerAgent::IOperationController::BuildOperationAttributes, controller));
 }
 
@@ -66,7 +67,6 @@ void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)
         .Item("resource_usage").Value(node->GetResourceUsage())
         .Item("resource_limits").Value(node->GetResourceLimits());
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +82,7 @@ EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
     }
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TString MakeOperationCodicilString(const TOperationId& operationId)
 {
@@ -94,7 +94,7 @@ TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
     return TCodicilGuard(MakeOperationCodicilString(operationId));
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

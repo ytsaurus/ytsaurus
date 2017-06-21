@@ -38,6 +38,7 @@ public:
     virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
     virtual void Interrupt() override;
+    virtual void Fail() override;
 
 protected:
     const IJobHostPtr Host_;
@@ -54,7 +55,7 @@ public:
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override;
 
-    virtual void Abort() override;
+    virtual void Cleanup() override;
 
     virtual double GetProgress() const override;
 

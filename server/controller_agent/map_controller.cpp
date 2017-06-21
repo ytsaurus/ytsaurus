@@ -1,11 +1,13 @@
 #include "map_controller.h"
 #include "merge_controller.h"
-#include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
 #include "private.h"
 #include "operation_controller_detail.h"
+
+#include <yt/server/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/chunk_pools/chunk_pool.h>
 
 #include <yt/ytlib/api/transaction.h>
 
@@ -28,6 +30,7 @@ using namespace NYPath;
 using namespace NChunkServer;
 using namespace NJobProxy;
 using namespace NChunkClient;
+using namespace NChunkPools;
 using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
@@ -35,11 +38,11 @@ using namespace NTableClient;
 using namespace NConcurrency;
 using namespace NScheduler;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const NProfiling::TProfiler Profiler("/operations/unordered");
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedOperationControllerBase
     : public TOperationControllerBase
@@ -300,7 +303,7 @@ protected:
                         currentPartitionIndex);
 
                     // Place the chunk directly to the output table.
-                    RegisterOutput(chunk, currentPartitionIndex, 0);
+                    RegisterTeleportChunk(chunk, currentPartitionIndex, 0);
                     ++currentPartitionIndex;
                 } else {
                     mergedChunks.push_back(chunk);
@@ -318,6 +321,7 @@ protected:
                 auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
                     Spec,
                     Options,
+                    GetOutputTablePaths().size(),
                     totalDataSize,
                     totalRowCount);
 
@@ -440,7 +444,7 @@ protected:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TUnorderedTask);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TMapController
     : public TUnorderedOperationControllerBase
@@ -613,13 +617,15 @@ private:
 
     virtual bool IsJobInterruptible() const override
     {
-        return !IsExplicitJobCount;
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        return !IsExplicitJobCount &&
+            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();
     }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMapController(
     TSchedulerConfigPtr config,
@@ -632,7 +638,7 @@ IOperationControllerPtr CreateMapController(
         : New<TMapController>(config, spec, config->MapOperationOptions, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedMergeController
     : public TUnorderedOperationControllerBase
@@ -770,7 +776,7 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateUnorderedMergeController(
     TSchedulerConfigPtr config,
@@ -781,7 +787,7 @@ IOperationControllerPtr CreateUnorderedMergeController(
     return New<TUnorderedMergeController>(config, spec, config->UnorderedMergeOperationOptions, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

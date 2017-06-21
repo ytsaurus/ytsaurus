@@ -34,7 +34,7 @@ public:
     TString GetCommandLine() const;
 
 private:
-    TProcessPtr Process_;
+    const TProcessBasePtr Process_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -90,6 +90,11 @@ void TJob::Interrupt()
     THROW_ERROR_EXCEPTION("Interrupting is not supported for built-in jobs");
 }
 
+void TJob::Fail()
+{
+    THROW_ERROR_EXCEPTION("Failing is not supported for built-in jobs");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
@@ -146,7 +151,7 @@ TJobResult TSimpleJobBase::Run()
     }
 }
 
-void TSimpleJobBase::Abort()
+void TSimpleJobBase::Cleanup()
 { }
 
 bool TSimpleJobBase::ShouldSendBoundaryKeys() const

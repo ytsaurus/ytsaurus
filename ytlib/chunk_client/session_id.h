@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-#include <yt/ytlib/chunk_client/data_node_service.pb.h>
+#include <yt/ytlib/chunk_client/session_id.pb.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -10,6 +10,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/checksum.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -20,7 +21,18 @@ using namespace NConcurrency;
 using namespace NProto;
 using NYT::FromProto;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+TPartIndexList GetParityPartIndices(const ICodec* codec)
+{
+    TPartIndexList result;
+    for (int index = codec->GetDataPartCount(); index < codec->GetTotalPartCount(); ++index) {
+        result.push_back(index);
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 i64 TPartRange::Size() const
 {
@@ -79,7 +91,7 @@ std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges_)
     return result;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TParityPartSplitInfo::TParityPartSplitInfo(int parityBlockCount, i64 parityBlockSize, i64 lastBlockSize)
     : BlockCount(parityBlockCount)
@@ -119,15 +131,16 @@ std::vector<i64> TParityPartSplitInfo::GetSizes() const
     return result;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TPartWriter::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(IChunkWriterPtr writer, const std::vector<i64>& blockSizes)
+    TImpl(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum)
         : Writer_(writer)
         , BlockSizes_(blockSizes)
+        , ComputeChecksum_(computeChecksum)
     { }
 
     TFuture<void> Consume(const TPartRange& range, const TSharedRef& block)
@@ -137,7 +150,7 @@ public:
         Cursor_ = range.End;
 
         i64 blockPosition = 0;
-        std::vector<TSharedRef> blocksToWrite;
+        std::vector<TBlock> blocksToWrite;
 
         // Fill current block if it is started.
         if (PositionInCurrentBlock_ > 0) {
@@ -147,7 +160,8 @@ public:
             blockPosition += copySize;
 
             if (PositionInCurrentBlock_ == CurrentBlock_.Size()) {
-                blocksToWrite.push_back(CurrentBlock_);
+                blocksToWrite.push_back(TBlock(CurrentBlock_));
+
                 ++CurrentBlockIndex_;
                 PositionInCurrentBlock_ = 0;
             }
@@ -158,7 +172,7 @@ public:
             blockPosition + BlockSizes_[CurrentBlockIndex_] <= block.Size())
         {
             auto size = BlockSizes_[CurrentBlockIndex_];
-            blocksToWrite.push_back(block.Slice(blockPosition, blockPosition + size));
+            blocksToWrite.push_back(TBlock(block.Slice(blockPosition, blockPosition + size)));
             blockPosition += size;
             ++CurrentBlockIndex_;
         }
@@ -171,24 +185,39 @@ public:
             PositionInCurrentBlock_ = copySize;
         }
 
+        if (ComputeChecksum_) {
+            for (auto& block : blocksToWrite) {
+                block.Checksum = block.GetOrComputeChecksum();
+                BlockChecksums_.push_back(block.Checksum);
+            }
+        }
+
         if (!Writer_->WriteBlocks(blocksToWrite)) {
             return Writer_->GetReadyEvent();
         }
         return VoidFuture;
     }
 
+    TChecksum GetPartChecksum() const
+    {
+        return CombineChecksums(BlockChecksums_);
+    }
+
 private:
     const IChunkWriterPtr Writer_;
     const std::vector<i64> BlockSizes_;
+    const bool ComputeChecksum_;
 
     TSharedMutableRef CurrentBlock_;
     int CurrentBlockIndex_ = 0;
     size_t PositionInCurrentBlock_ = 0;
     i64 Cursor_ = 0;
+
+    std::vector<TChecksum> BlockChecksums_;
 };
 
-TPartWriter::TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes)
-    : Impl_(New<TImpl>(writer, blockSizes))
+TPartWriter::TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum)
+    : Impl_(New<TImpl>(writer, blockSizes, computeChecksum))
 { }
 
 TFuture<void> TPartWriter::Consume(const TPartRange& range, const TSharedRef& block)
@@ -196,7 +225,13 @@ TFuture<void> TPartWriter::Consume(const TPartRange& range, const TSharedRef& bl
     return Impl_->Consume(range, block);
 }
 
+TChecksum TPartWriter::GetPartChecksum() const
+{
+    return Impl_->GetPartChecksum();
+}
+
 ///////////////////////////////////////////////////////////////////////////////
+
 
 class TPartReader::TImpl
     : public TRefCounted
@@ -241,11 +276,11 @@ public:
                 .Run();
 
             return blocksFuture.Apply(BIND(
-                [=] (const TErrorOr<std::vector<TSharedRef>>& errorOrBlocks) -> TSharedRef {
+                [=] (const TErrorOr<std::vector<TBlock>>& errorOrBlocks) -> TSharedRef {
                     if (!errorOrBlocks.IsOK()) {
                         THROW_ERROR TError(errorOrBlocks);
                     }
-                    OnBlocksRead(indicesToRequest, errorOrBlocks.Value());
+                    OnBlocksRead(indicesToRequest, TBlock::Unwrap(errorOrBlocks.Value()));
                     return BuildBlock(range);
                 }));
         } else {
@@ -343,7 +378,7 @@ TFuture<TSharedRef> TPartReader::Produce(const TPartRange& range)
     return Impl_->Produce(range);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TPartEncoder::TImpl
     : public TRefCounted
@@ -405,7 +440,14 @@ public:
             for (const auto& windowRange : windowRanges) {
                 auto blocks = WaitFor(ProduceBlocks(windowRange))
                     .ValueOrThrow();
-                auto decodedBlocks = Codec_->Decode(blocks, MissingPartIndices_);
+
+                std::vector<TSharedRef> decodedBlocks;
+                if (GetParityPartIndices(Codec_) == MissingPartIndices_) {
+                    YCHECK(blocks.size() == Codec_->GetDataPartCount());
+                    decodedBlocks = Codec_->Encode(blocks);
+                } else {
+                    decodedBlocks = Codec_->Decode(blocks, MissingPartIndices_);
+                }
                 WaitFor(ConsumeBlocks(windowRange, decodedBlocks))
                     .ThrowOnError();
             }
@@ -421,7 +463,7 @@ private:
     const std::vector<IPartBlockConsumerPtr> Consumers_;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TPartEncoder::TPartEncoder(
     const ICodec* codec,
@@ -444,7 +486,7 @@ void TPartEncoder::Run()
     return Impl_->Run();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
     const IChunkReaderPtr& reader,
@@ -480,7 +522,7 @@ std::vector<i64> GetBlockSizes(int partIndex, const TErasurePlacementExt& placem
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
     const std::vector<int>& blockIndexes,
@@ -539,7 +581,7 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
     return result;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TErasureChunkReaderBase::TErasureChunkReaderBase(NErasure::ICodec* codec, const std::vector<IChunkReaderPtr>& readers)
     : Codec_(codec)
@@ -582,7 +624,7 @@ void TErasureChunkReaderBase::OnGotPlacementMeta(const TErasurePlacementExt& pla
     PlacementExt_ = placementExt;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasureHelpers
 } // namespace NChunkClient

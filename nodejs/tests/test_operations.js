@@ -191,6 +191,22 @@ function testApplicationOperations(version)
         .then(done, done);
     });
 
+    it("should fail when archive is not available", function(done) {
+        var mock = sinon.mock(this.driver);
+        mockForList(mock, Q.resolve([]), Q.reject());
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            include_archive: true,
+        }).then(
+            function() { throw new Error("This should fail."); },
+            function(err) {
+                err.should.be.instanceof(YtError);
+                err.message.should.match(/failed to list operations/i);
+            })
+        .then(done, done);
+    });
+
     it("should fail when max_size is invalid", function(done) {
         this.application_operations.list({
             max_size: 999999

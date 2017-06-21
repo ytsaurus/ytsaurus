@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/server/blackbox/default_blackbox_service.h>
 #include <yt/server/blackbox/token_authenticator.h>

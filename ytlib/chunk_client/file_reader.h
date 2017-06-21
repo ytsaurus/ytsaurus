@@ -12,7 +12,7 @@
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a local and synchronous implementation of IReader.
 class TFileReader
@@ -31,11 +31,11 @@ public:
 
 
     // IReader implementation.
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<int>& blockIndexes) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount) override;
@@ -58,7 +58,7 @@ private:
     std::atomic<bool> HasCachedBlocksExt_ = {false};
     TNullable<NProto::TBlocksExt> CachedBlocksExt_;
 
-    std::vector<TSharedRef> DoReadBlocks(int firstBlockIndex, int blockCount);
+    std::vector<TBlock> DoReadBlocks(int firstBlockIndex, int blockCount);
     NProto::TChunkMeta DoGetMeta(
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags);
@@ -69,7 +69,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TFileReader)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

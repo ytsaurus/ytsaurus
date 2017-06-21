@@ -130,29 +130,57 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues)
     } else {
         str = "*";
     }
+
     clauses.emplace_back("SELECT " + str);
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
+        for (const auto& joinClause : derivedQuery->JoinClauses) {
+            std::vector<TString> selfJoinEquation;
+            for (const auto& equation : joinClause->SelfEquations) {
+                selfJoinEquation.push_back(InferName(equation.first, omitValues));
+            }
+            std::vector<TString> foreignJoinEquation;
+            for (const auto& equation : joinClause->ForeignEquations) {
+                foreignJoinEquation.push_back(InferName(equation, omitValues));
+            }
+
+            clauses.push_back(Format("%v JOIN[via ranges: %v, common key prefix: %v] (%v) = (%v)",
+                joinClause->IsLeft ? "LEFT" : "INNER",
+                joinClause->CanUseSourceRanges,
+                joinClause->CommonKeyPrefix,
+                JoinToString(selfJoinEquation),
+                JoinToString(foreignJoinEquation)));
+
+            if (joinClause->Predicate) {
+                clauses.push_back("AND" + InferName(joinClause->Predicate, omitValues));
+            }
+        }
+
         if (derivedQuery->WhereClause) {
-            str = InferName(derivedQuery->WhereClause, omitValues);
-            clauses.push_back(TString("WHERE ") + str);
+            clauses.push_back(TString("WHERE ") + InferName(derivedQuery->WhereClause, omitValues));
         }
     }
+
     if (query->GroupClause) {
-        str = JoinToString(query->GroupClause->GroupItems, namedItemFormatter);
-        clauses.push_back(TString("GROUP BY ") + str);
+        clauses.push_back(TString("GROUP BY ") + JoinToString(query->GroupClause->GroupItems, namedItemFormatter));
+        if (query->GroupClause->TotalsMode == ETotalsMode::BeforeHaving) {
+            clauses.push_back("WITH TOTALS");
+        }
     }
+
     if (query->HavingClause) {
-        str = InferName(query->HavingClause, omitValues);
-        clauses.push_back(TString("HAVING ") + str);
+        clauses.push_back(TString("HAVING ") + InferName(query->HavingClause, omitValues));
+        if (query->GroupClause->TotalsMode == ETotalsMode::AfterHaving) {
+            clauses.push_back("WITH TOTALS");
+        }
     }
+
     if (query->OrderClause) {
-        str = JoinToString(query->OrderClause->OrderItems, orderItemFormatter);
-        clauses.push_back(TString("ORDER BY ") + str);
+        clauses.push_back(TString("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
     }
+
     if (query->Limit < std::numeric_limits<i64>::max()) {
-        str = ToString(query->Limit);
-        clauses.push_back(TString("LIMIT ") + str);
+        clauses.push_back(TString("LIMIT ") + ToString(query->Limit));
     }
 
     return JoinToString(clauses, STRINGBUF(" "));
@@ -241,119 +269,6 @@ void ThrowTypeMismatchError(
             << TErrorAttribute("rhs_source", rhsSource)
             << TErrorAttribute("lhs_type", lhsType)
             << TErrorAttribute("rhs_type", rhsType);
-}
-
-EValueType InferBinaryExprType(
-    EBinaryOp opCode,
-    EValueType lhsType,
-    EValueType rhsType,
-    const TStringBuf& source,
-    const TStringBuf& lhsSource,
-    const TStringBuf& rhsSource)
-{
-    switch (opCode) {
-        case EBinaryOp::Plus:
-        case EBinaryOp::Minus:
-        case EBinaryOp::Multiply:
-        case EBinaryOp::Divide: {
-            if (lhsType == EValueType::Null || rhsType == EValueType::Null) {
-                return EValueType::Null;
-            }
-
-            if (lhsType != rhsType) {
-                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
-            }
-
-            EValueType operandType = lhsType;
-            if (!IsArithmeticType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires either integral or floating-point operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("operand_type", operandType);
-            }
-            return operandType;
-        }
-
-        case EBinaryOp::Modulo:
-        case EBinaryOp::LeftShift:
-        case EBinaryOp::RightShift:
-        case EBinaryOp::BitOr:
-        case EBinaryOp::BitAnd: {
-            if (lhsType == EValueType::Null || rhsType == EValueType::Null) {
-                return EValueType::Null;
-            }
-
-            if (lhsType != rhsType) {
-                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
-            }
-
-            EValueType operandType = lhsType;
-            if (!IsIntegralType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires integral operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("operand_type", operandType);
-            }
-            return operandType;
-        }
-
-        case EBinaryOp::And:
-        case EBinaryOp::Or: {
-            EValueType operandType = lhsType;
-
-            if (operandType == EValueType::Null) {
-                operandType = rhsType;
-            }
-
-            if (lhsType != EValueType::Null && rhsType != EValueType::Null && lhsType != rhsType) {
-                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
-            }
-
-            if (operandType != EValueType::Boolean && operandType != EValueType::Null) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires boolean operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("operand_type", operandType);
-            }
-            return EValueType::Boolean;
-        }
-
-        case EBinaryOp::Equal:
-        case EBinaryOp::NotEqual:
-        case EBinaryOp::Less:
-        case EBinaryOp::Greater:
-        case EBinaryOp::LessOrEqual:
-        case EBinaryOp::GreaterOrEqual: {
-            EValueType operandType = lhsType;
-
-            if (operandType == EValueType::Null) {
-                operandType = rhsType;
-            }
-
-            if (lhsType != EValueType::Null && rhsType != EValueType::Null && lhsType != rhsType) {
-                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
-            }
-
-            if (operandType != EValueType::Null && !IsComparableType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires either integral, floating-point or string operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("lhs_type", operandType);
-            }
-            return EValueType::Boolean;
-        }
-
-        default:
-            Y_UNREACHABLE();
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -452,39 +367,18 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             auto result = New<TLiteralExpression>(type);
             const auto& ext = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
 
-            switch (type) {
-                case EValueType::Int64: {
-                    result->Value = MakeUnversionedInt64Value(ext.int64_value());
-                    break;
-                }
-
-                case EValueType::Uint64: {
-                    result->Value = MakeUnversionedUint64Value(ext.uint64_value());
-                    break;
-                }
-
-                case EValueType::Double: {
-                    result->Value = MakeUnversionedDoubleValue(ext.double_value());
-                    break;
-                }
-
-                case EValueType::String: {
-                    result->Value = MakeUnversionedStringValue(ext.string_value());
-                    break;
-                }
-
-                case EValueType::Boolean: {
-                    result->Value = MakeUnversionedBooleanValue(ext.boolean_value());
-                    break;
-                }
-
-                case EValueType::Null: {
-                    result->Value = MakeUnversionedSentinelValue(EValueType::Null);
-                    break;
-                }
-
-                default:
-                    Y_UNREACHABLE();
+            if (ext.has_int64_value()) {
+                result->Value = MakeUnversionedInt64Value(ext.int64_value());
+            } else if (ext.has_uint64_value()) {
+                result->Value = MakeUnversionedUint64Value(ext.uint64_value());
+            } else if (ext.has_double_value()) {
+                result->Value = MakeUnversionedDoubleValue(ext.double_value());
+            } else if (ext.has_string_value()) {
+                result->Value = MakeUnversionedStringValue(ext.string_value());
+            } else if (ext.has_boolean_value()) {
+                result->Value = MakeUnversionedBooleanValue(ext.boolean_value());
+            } else {
+                result->Value = MakeUnversionedSentinelValue(EValueType::Null);
             }
 
             *original = result;

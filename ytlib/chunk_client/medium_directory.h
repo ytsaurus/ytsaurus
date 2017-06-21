@@ -29,7 +29,7 @@ public:
     const TMediumDescriptor* FindByName(const TString& name) const;
     const TMediumDescriptor* GetByNameOrThrow(const TString& name) const;
 
-    void UpdateDirectory(const NProto::TMediumDirectory& protoDirectory);
+    void LoadFrom(const NProto::TMediumDirectory& protoDirectory);
 
 private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;

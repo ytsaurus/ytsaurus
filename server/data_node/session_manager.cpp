@@ -195,7 +195,7 @@ void TSessionManager::OnSessionLeaseExpired(const TSessionId& sessionId)
     if (!session)
         return;
 
-    LOG_INFO("Session lease expired (SessionId: %v)",
+    LOG_INFO("Session lease expired (ChunkId: %v)",
         sessionId);
 
     session->Cancel(TError("Session lease expired"));
@@ -205,7 +205,7 @@ void TSessionManager::OnSessionFinished(ISession* session, const TError& /*error
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Session finished (SessionId: %v)",
+    LOG_INFO("Session finished (ChunkId: %v)",
         session->GetId());
 
     UnregisterSession(session);
@@ -215,7 +215,7 @@ int TSessionManager::GetSessionCount(ESessionType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return PerTypeSessionCounters_[type].Current.load();
+    return PerTypeSessionCounters_[type].GetCurrent();
 }
 
 void TSessionManager::RegisterSession(ISessionPtr session)

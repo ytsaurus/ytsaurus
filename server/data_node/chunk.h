@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/misc/workload.h>
 
+#include <yt/ytlib/chunk_client/block.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/ref.h>
@@ -68,7 +70,7 @@ struct IChunk
      *  \note
      *  Thread affinity: any
      */
-    virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options) = 0;
 
@@ -77,7 +79,7 @@ struct IChunk
      *  \note
      *  Thread affinity: any
      */
-    virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
         const TBlockReadOptions& options) = 0;

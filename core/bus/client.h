@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/ytree/public.h>
+
 namespace NYT {
 namespace NBus {
 

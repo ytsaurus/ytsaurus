@@ -335,9 +335,11 @@ void TMapNodeTypeHandler::DoClone(
     TMapNode* sourceNode,
     TMapNode* clonedNode,
     ICypressNodeFactory* factory,
-    ENodeCloneMode mode)
+    ENodeCloneMode mode,
+    TAccount* account)
+
 {
-    TBase::DoClone(sourceNode, clonedNode, factory, mode);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
     auto* transaction = factory->GetTransaction();
 
@@ -490,9 +492,10 @@ void TListNodeTypeHandler::DoClone(
     TListNode* sourceNode,
     TListNode* clonedNode,
     ICypressNodeFactory* factory,
-    ENodeCloneMode mode)
+    ENodeCloneMode mode,
+    TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory, mode);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
@@ -574,7 +577,9 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
     const TVersionedNodeId& id,
     TCellTag cellTag,
     TTransaction* transaction,
-    IAttributeDictionary* attributes)
+    IAttributeDictionary* attributes,
+    TAccount* account,
+    bool enableAccounting)
 {
     // Make sure that target_path is valid upon creation.
     auto targetPath = attributes->GetAndRemove<TString>("target_path");
@@ -586,7 +591,9 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
         id,
         cellTag,
         transaction,
-        attributes);
+        attributes,
+        account,
+        enableAccounting);
 
     implHolder->SetTargetPath(targetPath);
 
@@ -620,9 +627,10 @@ void TLinkNodeTypeHandler::DoClone(
     TLinkNode* sourceNode,
     TLinkNode* clonedNode,
     ICypressNodeFactory* factory,
-    ENodeCloneMode mode)
+    ENodeCloneMode mode,
+    TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory, mode);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
     clonedNode->SetTargetPath(sourceNode->GetTargetPath());
 }
@@ -707,9 +715,10 @@ void TDocumentNodeTypeHandler::DoClone(
     TDocumentNode* sourceNode,
     TDocumentNode* clonedNode,
     ICypressNodeFactory* factory,
-    ENodeCloneMode mode)
+    ENodeCloneMode mode,
+    TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory, mode);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
     clonedNode->SetValue(CloneNode(sourceNode->GetValue()));
 }

@@ -767,7 +767,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
 
     LOG_DEBUG_IF(
         options.VerboseLogging,
-        "Got %v from key trie",
+        "Got %v ranges from key trie",
         ranges.size());
 
     auto rangeExpansionLeft = options.RangeExpansionLimit > ranges.size()

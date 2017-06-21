@@ -38,7 +38,7 @@ public:
         TThrottlerManagerPtr throttlerManager,
         INativeClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
-        const NLogging::TLogger& logger = ChunkClientLogger)
+        const NLogging::TLogger& logger)
         : Config_(config)
         , Invoker_(invoker)
         , ThrottlerManager_(throttlerManager)
@@ -47,7 +47,7 @@ public:
         , Logger(logger)
     { }
 
-    TFuture<void> ScrapeChunks(yhash_set<TInputChunkPtr> chunkSpecs)
+    TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs)
     {
         yhash_set<TChunkId> chunkIds;
         ChunkMap_.clear();
@@ -85,6 +85,7 @@ private:
     const TThrottlerManagerPtr ThrottlerManager_;
     const INativeClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
+    const NLogging::TLogger Logger;
 
     TChunkScraperPtr Scraper_;
 
@@ -94,7 +95,6 @@ private:
 
     int ChunkLocatedCallCount_ = 0;
 
-    NLogging::TLogger Logger;
 
     void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
     {
@@ -106,9 +106,13 @@ private:
                 UnavailableFetcherChunkCount_);
         }
 
-        LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v)", chunkId, replicas.size());
-        if (replicas.empty())
+        LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v)",
+            chunkId,
+            replicas);
+
+        if (replicas.empty()) {
             return;
+        }
 
         auto it = ChunkMap_.find(chunkId);
         YCHECK(it != ChunkMap_.end());
@@ -121,7 +125,9 @@ private:
 
         description.IsWaiting = false;
 
-        LOG_TRACE("Fetcher chunk is available (ChunkId: %v, Replicas: %v)", chunkId, replicas.size());
+        LOG_TRACE("Fetcher chunk is available (ChunkId: %v, Replicas: %v)",
+            chunkId,
+            replicas);
 
         // Update replicas in place for all input chunks with current chunkId.
         for (auto& chunkSpec : description.ChunkSpecs) {

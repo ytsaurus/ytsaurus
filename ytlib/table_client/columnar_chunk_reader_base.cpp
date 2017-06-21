@@ -76,7 +76,7 @@ void TColumnarChunkReaderBase::ResetExhaustedColumns()
             YCHECK(PendingBlocks_[i].IsSet());
             YCHECK(PendingBlocks_[i].Get().IsOK());
             Columns_[i].ColumnReader->ResetBlock(
-                PendingBlocks_[i].Get().Value(),
+                PendingBlocks_[i].Get().Value().Data,
                 Columns_[i].PendingBlockIndex_);
         }
     }

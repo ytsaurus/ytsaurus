@@ -280,6 +280,8 @@ void ValidateClientDataRow(
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable);
 
+TOwningKey RowToKey(TVersionedRow row);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A variant of TVersionedRow that enables mutating access to its content.

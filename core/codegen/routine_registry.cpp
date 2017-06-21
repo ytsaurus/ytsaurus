@@ -36,7 +36,9 @@ TString DemangleSymbol(const TString& name)
 uint64_t TRoutineRegistry::GetAddress(const TString& symbol) const
 {
     auto it = SymbolToAddress_.find(symbol);
-    YCHECK(it != SymbolToAddress_.end());
+    if (it == SymbolToAddress_.end()) {
+        THROW_ERROR_EXCEPTION("Symbol %Qv not found", symbol);
+    }
     return it->second;
 }
 

@@ -98,7 +98,14 @@ message TTabletInfo
     required bytes pivot_key = 3;
     optional NYT.NProto.TGuid cell_id = 4;
     optional int32 cell_config_version = 5;
-    repeated int32 replica_node_ids = 6;
+}
+
+message TReplicaInfo
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required string cluster_name = 2;
+    required string replica_path = 3;
+    required int32 mode = 4; // ETableReplicaMode
 }
 
 message TRspGetMountInfo
@@ -108,7 +115,8 @@ message TRspGetMountInfo
     repeated TTabletInfo tablets = 3;
     repeated NYT.NHiveClient.NProto.TCellDescriptor tablet_cells = 4;
     required bool dynamic = 5;
-    required int32 replication_mode = 6; // ETableReplicationMode
+    required NYT.NProto.TGuid upstream_replica_id = 6;
+    repeated TReplicaInfo replicas = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,7 +125,7 @@ message TReqAlter
 {
     optional TTableSchemaExt schema = 1;
     optional bool dynamic = 2;
-    optional int32 replication_mode = 3; // ETableReplicationMode
+    optional NYT.NProto.TGuid upstream_replica_id = 3;
 }
 
 message TRspAlter

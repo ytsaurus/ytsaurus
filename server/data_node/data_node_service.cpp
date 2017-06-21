@@ -22,6 +22,7 @@
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/key_set.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -82,16 +83,23 @@ public:
         YCHECK(Config_);
         YCHECK(Bootstrap_);
 
+        // TODO(prime): disable RPC attachment checksums for methods receiving/returning blocks
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks)
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
@@ -137,8 +145,10 @@ private:
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
+        // DirectIO have the same effect, as fsync after every write.
+        options.EnableWriteDirectIO = request->sync_on_close() && Config_->EnableWriteDirectIO;
 
-        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
+        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
             "PlacementId: %v",
             sessionId,
             options.WorkloadDescriptor,
@@ -161,7 +171,7 @@ private:
         auto sessionId = FromProto<TSessionId>(request->session_id());
         auto blockCount = request->has_block_count() ? MakeNullable(request->block_count()) : Null;
 
-        context->SetRequestInfo("SessionId: %v, BlockCount: %v",
+        context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
             sessionId,
             blockCount);
 
@@ -191,7 +201,7 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v",
+        context->SetRequestInfo("ChunkId: %v",
             sessionId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
@@ -209,7 +219,8 @@ private:
 
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->SetRequestInfo("ChunkId: %v",
+            sessionId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(sessionId);
@@ -247,10 +258,10 @@ private:
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
-        // Put blocks.
+        // NB: block checksums are validated before disk write
         auto result = session->PutBlocks(
             firstBlockIndex,
-            request->Attachments(),
+            GetRpcAttachedBlocks(request, /* validateChecksum */ false),
             populateCache);
 
         // Flush blocks if needed.
@@ -389,8 +400,8 @@ private:
                 blockIndexes,
                 options);
 
-            response->Attachments() = WaitFor(asyncBlocks)
-                .ValueOrThrow();
+            auto blocks = WaitFor(asyncBlocks).ValueOrThrow();
+            SetRpcAttachedBlocks(response, blocks);
         }
 
         int blocksWithData = 0;
@@ -493,8 +504,7 @@ private:
                 blockCount,
                 options);
 
-            response->Attachments() = WaitFor(asyncBlocks)
-                .ValueOrThrow();
+            SetRpcAttachedBlocks(response, WaitFor(asyncBlocks).ValueOrThrow());
         }
 
         int blocksWithData = response->Attachments().size();

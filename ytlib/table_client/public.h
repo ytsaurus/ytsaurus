@@ -45,6 +45,7 @@ using TKeyColumns = std::vector<TString>;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Keep values below consistent with https://wiki.yandex-team.ru/yt/userdoc/tables.
+const int MaxKeyColumnCount = 256;
 const int TypicalColumnCount = 64;
 const int MaxColumnLockCount = 32;
 extern const TString PrimaryLockName;
@@ -53,7 +54,6 @@ const int MaxColumnLockLength = 256;
 const int MaxColumnGroupLength = 256;
 
 // Only for dynamic tables.
-const int MaxKeyColumnCount = 32;
 const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = (i64) 16 * 1024 * 1024;
@@ -91,12 +91,6 @@ DEFINE_ENUM(ETableSchemaMode,
 DEFINE_ENUM(EOptimizeFor,
     ((Lookup)  (0))
     ((Scan)    (1))
-);
-
-DEFINE_ENUM(ETableReplicationMode,
-    ((None)                (0))
-    ((Source)              (1))
-    ((AsynchronousSink)    (2))
 );
 
 DEFINE_ENUM(EErrorCode,
@@ -248,9 +242,9 @@ class TSamplingRowMerger;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 
-DECLARE_REFCOUNTED_STRUCT(TCacheBasedChunkState)
+DECLARE_REFCOUNTED_STRUCT(TChunkState)
 
-struct TBoundaryKeys;
+struct TOwningBoundaryKeys;
 
 class TSaveContext;
 class TLoadContext;

@@ -17,8 +17,15 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnEvaluator::TColumnEvaluator(std::vector<TColumn> columns)
+static const auto& Logger = QueryClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TColumnEvaluator::TColumnEvaluator(
+    std::vector<TColumn> columns,
+    std::vector<bool> isAggregate)
     : Columns_(std::move(columns))
+    , IsAggregate_(std::move(isAggregate))
 { }
 
 TColumnEvaluatorPtr TColumnEvaluator::Create(
@@ -27,6 +34,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
     const TConstFunctionProfilerMapPtr& profilers)
 {
     std::vector<TColumn> columns(schema.GetColumnCount());
+    std::vector<bool> isAggregate(schema.GetColumnCount());
 
     for (int index = 0; index < schema.GetColumnCount(); ++index) {
         auto& column = columns[index];
@@ -57,11 +65,11 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             auto type = schema.Columns()[index].Type;
             column.Aggregate = CodegenAggregate(
                 BuiltinAggregateCG->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName));
-            column.IsAggregate = true;
+            isAggregate[index] = true;
         }
     }
 
-    return New<TColumnEvaluator>(std::move(columns));
+    return New<TColumnEvaluator>(std::move(columns), std::move(isAggregate));
 }
 
 void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int index) const
@@ -102,11 +110,6 @@ const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index) const
 TConstExpressionPtr TColumnEvaluator::GetExpression(int index) const
 {
     return Columns_[index].Expression;
-}
-
-bool TColumnEvaluator::IsAggregate(int index) const
-{
-    return Columns_[index].IsAggregate;
 }
 
 void TColumnEvaluator::InitAggregate(
@@ -163,7 +166,7 @@ public:
         , Evaluator_(std::move(evaluator))
     { }
 
-    TColumnEvaluatorPtr GetColumnEvaluator()
+    const TColumnEvaluatorPtr& GetColumnEvaluator()
     {
         return Evaluator_;
     }
@@ -193,6 +196,9 @@ public:
 
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {
+            LOG_DEBUG("Codegen cache miss: generating column evaluator (Schema: %v)",
+                schema);
+
             auto evaluator = TColumnEvaluator::Create(
                 schema,
                 TypeInferers_,
@@ -206,8 +212,8 @@ public:
     }
 
 private:
-    TConstTypeInferrerMapPtr TypeInferers_;
-    TConstFunctionProfilerMapPtr Profilers_;
+    const TConstTypeInferrerMapPtr TypeInferers_;
+    const TConstFunctionProfilerMapPtr Profilers_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,7 +222,10 @@ TColumnEvaluatorCache::TColumnEvaluatorCache(
     TColumnEvaluatorCacheConfigPtr config,
     const TConstTypeInferrerMapPtr& typeInferrers,
     const TConstFunctionProfilerMapPtr& profilers)
-    : Impl_(New<TImpl>(std::move(config), typeInferrers, profilers))
+    : Impl_(New<TImpl>(
+        std::move(config),
+        typeInferrers,
+        profilers))
 { }
 
 TColumnEvaluatorCache::~TColumnEvaluatorCache() = default;

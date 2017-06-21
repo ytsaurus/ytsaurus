@@ -12,7 +12,6 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -42,7 +41,6 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NErasure;
 using namespace NNodeTrackerClient;
-using namespace NProto;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NCypressClient;
@@ -53,11 +51,7 @@ using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkId CreateChunk(
+TSessionId CreateChunk(
     INativeClientPtr client,
     TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
@@ -72,13 +66,6 @@ TChunkId CreateChunk(
         transactionId,
         chunkListId,
         options->MediumName);
-
-    const auto& connection = client->GetNativeConnection();
-    WaitFor(connection->SynchronizeMediumDirectory())
-        .ThrowOnError();
-
-    const auto& mediumDirecotry = connection->GetMediumDirectory();
-    const auto* mediumDescriptor = mediumDirecotry->GetByNameOrThrow(options->MediumName);
 
     auto chunkType = options->ErasureCodec == ECodec::None
         ? EObjectType::Chunk
@@ -99,7 +86,7 @@ TChunkId CreateChunk(
     req->set_movable(options->ChunksMovable);
     req->set_vital(options->ChunksVital);
     req->set_erasure_codec(static_cast<int>(options->ErasureCodec));
-    req->set_medium_index(mediumDescriptor->Index);
+    req->set_medium_name(options->MediumName);
     req->set_validate_resource_usage_increase(options->ValidateResourceUsageIncrease);
     if (chunkListId) {
         ToProto(req->mutable_chunk_list_id(), chunkListId);
@@ -113,7 +100,12 @@ TChunkId CreateChunk(
 
     const auto& batchRsp = batchRspOrError.Value();
     const auto& rsp = batchRsp->create_chunk_subresponses(0);
-    return FromProto<TChunkId>(rsp.chunk_id());
+    auto sessionId = FromProto<TSessionId>(rsp.session_id());
+
+    LOG_DEBUG("Chunk created (MediumIndex: %v)",
+        sessionId.MediumIndex);
+
+    return sessionId;
 }
 
 void ProcessFetchResponse(
@@ -216,11 +208,10 @@ void FetchChunkSpecs(
 
 TChunkReplicaList AllocateWriteTargets(
     INativeClientPtr client,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     int desiredTargetCount,
     int minTargetCount,
     TNullable<int> replicationFactorOverride,
-    const TString& mediumName,
     bool preferLocalHost,
     const std::vector<TString>& forbiddenAddresses,
     TNodeDirectoryPtr nodeDirectory,
@@ -228,25 +219,16 @@ TChunkReplicaList AllocateWriteTargets(
 {
     const auto& Logger = logger;
 
-    LOG_DEBUG(
-        "Allocating write targets "
-        "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, Medium: %v, PreferLocalHost: %v, "
+    LOG_DEBUG("Allocating write targets "
+        "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, PreferLocalHost: %v, "
         "ForbiddenAddresses: %v)",
-        chunkId,
+        sessionId,
         desiredTargetCount,
         minTargetCount,
-        mediumName,
         preferLocalHost,
         forbiddenAddresses);
 
-    const auto& connection = client->GetNativeConnection();
-    WaitFor(connection->SynchronizeMediumDirectory())
-        .ThrowOnError();
-
-    const auto& mediumDirecotry = connection->GetMediumDirectory();
-    const auto* mediumDescriptor = mediumDirecotry->GetByNameOrThrow(mediumName);
-
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(chunkId));
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(sessionId.ChunkId));
     TChunkServiceProxy proxy(channel);
 
     auto batchReq = proxy.AllocateWriteTargets();
@@ -257,11 +239,10 @@ TChunkReplicaList AllocateWriteTargets(
         req->set_replication_factor_override(*replicationFactorOverride);
     }
     if (preferLocalHost) {
-        req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+        req->set_preferred_host_name(GetLocalHostName());
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
-    ToProto(req->mutable_chunk_id(), chunkId);
-    req->set_medium_index(mediumDescriptor->Index);
+    ToProto(req->mutable_session_id(), sessionId);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
 
@@ -270,7 +251,7 @@ TChunkReplicaList AllocateWriteTargets(
             error,
             NChunkClient::EErrorCode::MasterCommunicationFailed,
             "Error allocating targets for chunk %v",
-            chunkId);
+            sessionId);
     };
 
     throwOnError(batchRspOrError);
@@ -288,11 +269,11 @@ TChunkReplicaList AllocateWriteTargets(
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MasterCommunicationFailed,
             "Not enough data nodes available to write chunk %v",
-            chunkId);
+            sessionId);
     }
 
     LOG_DEBUG("Write targets allocated (ChunkId: %v, Targets: %v)",
-        chunkId,
+        sessionId,
         MakeFormattableRange(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
     return replicas;
@@ -326,19 +307,19 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetChunkDataSize(const TChunkSpec& chunkSpec)
+i64 GetChunkDataSize(const NProto::TChunkSpec& chunkSpec)
 {
     if (chunkSpec.has_uncompressed_data_size_override()) {
         return chunkSpec.uncompressed_data_size_override();
     }
-    auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+    auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
     return miscExt->uncompressed_data_size();
 }
 
-i64 GetChunkReaderMemoryEstimate(const TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)
+i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)
 {
     // Misc may be cleared out by the scheduler (e.g. for partition chunks).
-    auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+    auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
     if (miscExt) {
         i64 currentSize = GetChunkDataSize(chunkSpec);
 
@@ -358,7 +339,7 @@ i64 GetChunkReaderMemoryEstimate(const TChunkSpec& chunkSpec, TMultiChunkReaderC
 }
 
 IChunkReaderPtr CreateRemoteReader(
-    const TChunkSpec& chunkSpec,
+    const NProto::TChunkSpec& chunkSpec,
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     INativeClientPtr client,
@@ -367,6 +348,8 @@ IChunkReaderPtr CreateRemoteReader(
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {
+    const auto& Logger = ChunkClientLogger;
+
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
 

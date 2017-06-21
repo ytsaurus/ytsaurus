@@ -53,6 +53,7 @@ public:
         auto clusterName = attributes->GetAndRemove<TString>("cluster_name");
         auto replicaPath = attributes->GetAndRemove<TString>("replica_path");
         auto startReplicationTimestamp = attributes->GetAndRemove<NTransactionClient::TTimestamp>("start_replication_timestamp", NTransactionClient::MinTimestamp);
+        auto mode = attributes->GetAndRemove<ETableReplicaMode>("mode", ETableReplicaMode::Async);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver(nullptr);
@@ -72,6 +73,7 @@ public:
             table,
             clusterName,
             replicaPath,
+            mode,
             startReplicationTimestamp);
     }
 

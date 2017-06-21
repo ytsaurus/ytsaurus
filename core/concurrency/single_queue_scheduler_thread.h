@@ -1,15 +1,11 @@
 #pragma once
 
+#include "private.h"
 #include "scheduler_thread.h"
 #include "invoker_queue.h"
 
 namespace NYT {
 namespace NConcurrency {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSingleQueueSchedulerThread;
-typedef TIntrusivePtr<TSingleQueueSchedulerThread> TSingleQueueSchedulerThreadPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,17 +24,17 @@ public:
 
     ~TSingleQueueSchedulerThread();
 
-    IInvokerPtr GetInvoker();
-
 protected:
-    TInvokerQueuePtr Queue;
+    const TInvokerQueuePtr Queue;
+    const int Index;
 
     TEnqueuedAction CurrentAction;
-    int Index;
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TSingleQueueSchedulerThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 

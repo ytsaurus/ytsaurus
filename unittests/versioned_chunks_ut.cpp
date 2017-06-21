@@ -1,11 +1,13 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 #include "table_client_helpers.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>
@@ -25,6 +27,7 @@ namespace NTableClient {
 namespace {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,15 +232,19 @@ protected:
 
             auto sharedKeys = MakeSharedRange(std::move(keys), std::move(owningKeys));
 
+            auto chunkState = New<TChunkState>(
+                GetNullBlockCache(),
+                TChunkSpec(),
+                std::move(chunkMeta),
+                nullptr,
+                New<TChunkReaderPerformanceCounters>(),
+                KeyComparer_);
             auto chunkReader = CreateVersionedChunkReader(
                 New<TChunkReaderConfig>(),
                 MemoryReader,
-                GetNullBlockCache(),
-                chunkMeta,
+                std::move(chunkState),
                 sharedKeys,
                 TColumnFilter(),
-                New<TChunkReaderPerformanceCounters>(),
-                KeyComparer_,
                 MaxTimestamp,
                 false);
 
@@ -356,15 +363,20 @@ protected:
             TWorkloadDescriptor(),
             readSchema).Get().ValueOrThrow();
 
+        auto chunkState = New<TChunkState>(
+            GetNullBlockCache(),
+            TChunkSpec(),
+            std::move(chunkMeta),
+            nullptr,
+            New<TChunkReaderPerformanceCounters>(),
+            nullptr);
         auto chunkReader = CreateVersionedChunkReader(
             New<TChunkReaderConfig>(),
             memoryReader,
-            GetNullBlockCache(),
-            chunkMeta,
+            std::move(chunkState),
             lowerKey,
             upperKey,
             TColumnFilter(),
-            New<TChunkReaderPerformanceCounters>(),
             timestamp,
             produceAllVersions);
 

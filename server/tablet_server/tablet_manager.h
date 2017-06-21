@@ -89,6 +89,7 @@ public:
     void MakeTableStatic(NTableServer::TTableNode* table);
 
     void SetTableReplicaEnabled(TTableReplica* replica, bool enabled);
+    void SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
     TTabletCellBundle* FindTabletCellBundleByName(const TString& name);
@@ -131,6 +132,7 @@ private:
         NTableServer::TReplicatedTableNode* table,
         const TString& clusterName,
         const NYPath::TYPath& replicaPath,
+        ETableReplicaMode mode,
         NTransactionClient::TTimestamp startReplicationTimestamp);
     void DestroyTableReplica(TTableReplica* replica);
 

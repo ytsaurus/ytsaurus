@@ -108,7 +108,7 @@ TOrderedDynamicRowRef TOrderedStoreManager::WriteRow(
 {
     auto dynamicRow = ActiveStore_->WriteRow(row, context);
     Tablet_->SetTotalRowCount(Tablet_->GetTotalRowCount() + 1);
-    UpdateLastCommitTimestamp(context->CommitTimestamp);
+    UpdateLastCommitTimestamp(context->Transaction, context->CommitTimestamp);
     return TOrderedDynamicRowRef(
         ActiveStore_.Get(),
         this,

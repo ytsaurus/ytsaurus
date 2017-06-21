@@ -13,13 +13,14 @@
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/serialize.h>
+#include <yt/core/misc/checksum.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 using namespace NConcurrency;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TEncodingWriter::TEncodingWriter(
     TEncodingWriterConfigPtr config,
@@ -94,7 +95,7 @@ void TEncodingWriter::CacheUncompressedBlock(const TSharedRef& block, int blockI
 {
     // We cannot cache blocks before chunk writer is open, since we do not know the #ChunkId.
     auto blockId = TBlockId(ChunkWriter_->GetChunkId(), blockIndex);
-    BlockCache_->Put(blockId, EBlockType::UncompressedData, block, Null);
+    BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(block), Null);
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
@@ -102,12 +103,17 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
 {
     LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
 
-    auto compressedBlock = Codec_->Compress(uncompressedBlock);
+    TBlock compressedBlock;
+    compressedBlock.Data = Codec_->Compress(uncompressedBlock);
 
     CompressedSize_ += compressedBlock.Size();
 
+    if (Config_->ComputeChecksum) {
+        compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
+    }
+
     if (Config_->VerifyCompression) {
-        VerifyBlock(uncompressedBlock, compressedBlock);
+        VerifyBlock(uncompressedBlock, compressedBlock.Data);
     }
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
@@ -127,19 +133,24 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
 {
     LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
 
-    auto compressedBlock = Codec_->Compress(uncompressedVectorizedBlock);
+    TBlock compressedBlock;
+    compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
 
     CompressedSize_ += compressedBlock.Size();
 
+    if (Config_->ComputeChecksum) {
+        compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
+    }
+
     if (Config_->VerifyCompression) {
-        VerifyVector(uncompressedVectorizedBlock, compressedBlock);
+        VerifyVector(uncompressedVectorizedBlock, compressedBlock.Data);
     }
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
         struct TMergedTag { };
         // Handle none codec separately to avoid merging block parts twice.
         auto uncompressedBlock = Options_->CompressionCodec == NCompression::ECodec::None
-            ? compressedBlock
+            ? compressedBlock.Data
             : MergeRefsToRef<TMergedTag>(uncompressedVectorizedBlock);
         OpenFuture_.Apply(BIND(
             &TEncodingWriter::CacheUncompressedBlock,
@@ -182,7 +193,7 @@ void TEncodingWriter::VerifyBlock(
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeToRelease)
+void TEncodingWriter::ProcessCompressedBlock(const TBlock& block, i64 sizeToRelease)
 {
     CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
 
@@ -199,7 +210,7 @@ void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeTo
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError)
+void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
 {
     if (!blockOrError.IsOK()) {
         // Sentinel element.
@@ -270,7 +281,7 @@ double TEncodingWriter::GetCompressionRatio() const
     return CompressionRatio_.load();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

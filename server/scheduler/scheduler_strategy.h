@@ -38,7 +38,7 @@ struct ISchedulerStrategyHost
         const TString& user,
         NYTree::EPermission permission) const = 0;
 
-    virtual void SetSchedulerAlert(EAlertType alertType, const TError& alert) = 0;
+    virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +67,7 @@ struct TCompletedJob
     TJobId JobId;
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 
 struct ISchedulerStrategy
@@ -86,6 +86,9 @@ struct ISchedulerStrategy
 
     //! Called periodically to log essential for simulator tree state.
     virtual void OnFairShareEssentialLoggingAt(TInstant now) = 0;
+
+    //! Called periodically to update min needed job resources for operation.
+    virtual void OnMinNeededJobResourcesUpdate() = 0;
 
     //! Resets memoized state.
     virtual void ResetState() = 0;

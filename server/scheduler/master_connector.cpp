@@ -23,7 +23,6 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -36,6 +35,8 @@
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/utilex/random.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -58,11 +59,11 @@ using namespace NConcurrency;
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnector::TImpl
     : public TRefCounted
@@ -73,11 +74,6 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , ClusterDirectory(Bootstrap->GetClusterDirectory())
-        , ClusterDirectorySynchronizer(New<TClusterDirectorySynchronizer>(
-            Config->ClusterDirectorySynchronizer,
-            Bootstrap->GetMasterClient()->GetConnection(),
-            ClusterDirectory))
         , OperationNodesUpdateExecutor_(
             BIND(&TImpl::UpdateOperationNode, MakeStrong(this)),
             BIND(&TImpl::IsOperationInFinishedState, MakeStrong(this)),
@@ -94,6 +90,11 @@ public:
     bool IsConnected() const
     {
         return Connected;
+    }
+
+    void Disconnect()
+    {
+        DoDisconnect();
     }
 
     IInvokerPtr GetCancelableControlInvoker() const
@@ -181,7 +182,7 @@ public:
 
         return batchReq->Invoke().Apply(
             BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(Bootstrap->GetControlInvoker()));
+                .AsyncVia(GetCancelableControlInvoker()));
     }
 
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation)
@@ -227,7 +228,7 @@ public:
     }
 
 
-    void SetSchedulerAlert(EAlertType alertType, const TError& alert)
+    void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -275,23 +276,20 @@ private:
     TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* const Bootstrap;
 
-    NHiveClient::TClusterDirectoryPtr ClusterDirectory;
-
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
 
-    bool Connected = false;
+    std::atomic<bool> Connected = {false};
 
     ITransactionPtr LockTransaction;
 
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr AlertsExecutor;
-    TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
 
-    TEnumIndexedVector<TError, EAlertType> Alerts;
+    TEnumIndexedVector<TError, ESchedulerAlertType> Alerts;
 
     NControllerAgent::TMasterConnectorPtr ControllerAgentMasterConnector;
 
@@ -366,7 +364,7 @@ private:
         LOG_INFO("Master connected");
 
         YCHECK(!Connected);
-        Connected = true;
+        Connected.store(true);
 
         CancelableContext = New<TCancelableContext>();
         CancelableControlInvoker = CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker());
@@ -422,9 +420,10 @@ private:
             TakeLock();
             AssumeControl();
             UpdateGlobalWatchers();
-            UpdateClusterDirectory();
+            SyncClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
+            RequestCommittedFlag();
             return Result;
         }
 
@@ -512,14 +511,20 @@ private:
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
+            {
+                auto req = TYPathProxy::Set("//sys/scheduler/@connection_time");
+                req->set_value(ConvertToYsonString(TInstant::Now()).GetData());
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+            }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
 
-        void UpdateClusterDirectory()
+        void SyncClusterDirectory()
         {
-            WaitFor(Owner->ClusterDirectorySynchronizer->Sync())
+            WaitFor(Owner->Bootstrap->GetMasterClient()->GetNativeConnection()->SyncClusterDirectory())
                 .ThrowOnError();
         }
 
@@ -574,17 +579,18 @@ private:
                             "operation_type",
                             "mutation_id",
                             "user_transaction_id",
-                            "sync_scheduler_transaction_id",
                             "async_scheduler_transaction_id",
                             "input_transaction_id",
                             "output_transaction_id",
+                            "completion_transaction_id",
                             "debug_output_transaction_id",
                             "spec",
                             "authenticated_user",
                             "start_time",
                             "state",
                             "suspended",
-                            "events"
+                            "events",
+                            "slot_index"
                         };
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                         batchReq->AddRequest(req, "get_op_attr");
@@ -640,6 +646,72 @@ private:
             }
         }
 
+        // - Request committed flag for operations.
+        void RequestCommittedFlag()
+        {
+            std::vector<TOperationReport*> operationsWithOutputTransaction;
+
+            auto getBatchKey = [] (const TOperationReport& report) {
+                return "get_op_committed_attr_" + ToString(report.Operation->GetId());
+            };
+
+            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
+
+            {
+                LOG_INFO("Fetching committed attribute for operations");
+                for (auto& report : Result.OperationReports) {
+                    if (!report.ControllerTransactions->Output) {
+                        continue;
+                    }
+
+                    operationsWithOutputTransaction.push_back(&report);
+
+                    for (auto transactionId : {
+                        report.ControllerTransactions->Output->GetId(),
+                        NullTransactionId})
+                    {
+                        auto req = TYPathProxy::Get(GetOperationPath(report.Operation->GetId()) + "/@");
+                        std::vector<TString> attributeKeys{
+                            "committed"
+                        };
+                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                        SetTransactionId(req, transactionId);
+                        batchReq->AddRequest(req, getBatchKey(report));
+                    }
+                }
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
+            const auto& batchRsp = batchRspOrError.Value();
+
+            {
+                for (int index = 0; index < static_cast<int>(operationsWithOutputTransaction.size()); ++index) {
+                    auto* report = operationsWithOutputTransaction[index];
+                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(*report));
+
+                    size_t rspIndex = 0;
+                    for (auto rsp : rsps) {
+                        ++rspIndex;
+                        if (!rsp.IsOK()) {
+                            // Output transaction may be aborted or expired.
+                            continue;
+                        }
+
+                        auto attributesRsp = rsp.Value();
+                        auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
+                        if (attributes->Get<bool>("committed", false)) {
+                            report->IsCommitted = true;
+                            if (rspIndex == 1) {
+                                report->ShouldCommitOutputTransaction = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         // Update global watchers.
         void UpdateGlobalWatchers()
         {
@@ -673,7 +745,7 @@ private:
         return batchReq;
     }
 
-    void Disconnect()
+    void DoDisconnect()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -682,7 +754,7 @@ private:
 
         LOG_WARNING("Master disconnected");
 
-        Connected = false;
+        Connected.store(false);
 
         ControllerAgentMasterConnector.Reset();
 
@@ -742,10 +814,6 @@ private:
             false);
 
         result.ControllerTransactions = New<NControllerAgent::TControllerTransactions>();
-        result.ControllerTransactions->Sync = attachTransaction(
-            attributes.Get<TTransactionId>("sync_scheduler_transaction_id"),
-            true,
-            "sync transaction");
         result.ControllerTransactions->Async = attachTransaction(
             attributes.Get<TTransactionId>("async_scheduler_transaction_id"),
             true,
@@ -758,6 +826,11 @@ private:
             attributes.Get<TTransactionId>("output_transaction_id"),
             true,
             "output transaction");
+
+        result.ControllerTransactions->Completion = attachTransaction(
+            attributes.Get<TTransactionId>("completion_transaction_id", TTransactionId()),
+            true,
+            "completion transaction");
 
         // COMPAT(ermolovd). We use NullTransactionId as default value for the transition period.
         // Once all clusters are updated to version that creates debug_output transaction
@@ -789,7 +862,8 @@ private:
             Bootstrap->GetControlInvoker(),
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"),
-            attributes.Get<std::vector<TOperationEvent>>("events", {}));
+            attributes.Get<std::vector<TOperationEvent>>("events", {}),
+            attributes.Get<int>("slot_index", -1));
 
         result.Operation->SetSecureVault(std::move(secureVault));
 
@@ -812,8 +886,6 @@ private:
             EPeriodicExecutorMode::Automatic);
         WatchersExecutor->Start();
 
-        ClusterDirectorySynchronizer->Start();
-
         AlertsExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
@@ -833,8 +905,6 @@ private:
             AlertsExecutor->Stop();
             AlertsExecutor.Reset();
         }
-
-        ClusterDirectorySynchronizer->Stop();
     }
 
     TWatcherList* GetOrCreateWatcherList(TOperationPtr operation)
@@ -1102,7 +1172,7 @@ private:
         YCHECK(Connected);
 
         std::vector<TError> alerts;
-        for (auto alertType : TEnumTraits<EAlertType>::GetDomainValues()) {
+        for (auto alertType : TEnumTraits<ESchedulerAlertType>::GetDomainValues()) {
             const auto& alert = Alerts[alertType];
             if (!alert.IsOK()) {
                 alerts.push_back(alert);
@@ -1126,7 +1196,7 @@ private:
         auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
         return cellTag == localConnection->GetCellTag()
             ? localConnection
-            : ClusterDirectory->FindConnection(cellTag);
+            : localConnection->GetClusterDirectory()->FindConnection(cellTag);
     }
 
     INativeConnectionPtr GetConnectionOrThrow(TCellTag cellTag)
@@ -1134,11 +1204,11 @@ private:
         auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
         return cellTag == localConnection->GetCellTag()
             ? localConnection
-            : ClusterDirectory->GetConnectionOrThrow(cellTag);
+            : localConnection->GetClusterDirectory()->GetConnectionOrThrow(cellTag);
     }
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TMasterConnector::TMasterConnector(
     TSchedulerConfigPtr config,
@@ -1156,6 +1226,11 @@ void TMasterConnector::Start()
 bool TMasterConnector::IsConnected() const
 {
     return Impl->IsConnected();
+}
+
+void TMasterConnector::Disconnect()
+{
+    return Impl->Disconnect();
 }
 
 IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
@@ -1183,7 +1258,7 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
     return Impl->FlushOperationNode(operation);
 }
 
-void TMasterConnector::SetSchedulerAlert(EAlertType alertType, const TError& alert)
+void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
 {
     Impl->SetSchedulerAlert(alertType, alert);
 }
@@ -1216,7 +1291,7 @@ void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatc
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

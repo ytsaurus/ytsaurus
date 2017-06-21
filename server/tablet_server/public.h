@@ -26,6 +26,7 @@ using NTabletClient::TTabletId;
 using NTabletClient::NullTabletId;
 using NTabletClient::TStoreId;
 using NTabletClient::ETabletState;
+using NTabletClient::ETableReplicaMode;
 using NTabletClient::TypicalPeerCount;
 using NTabletClient::TTableReplicaId;
 using NTabletClient::TTabletActionId;

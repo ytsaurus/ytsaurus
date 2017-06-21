@@ -18,13 +18,13 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<TFuture<void>(yhash_set<TInputChunkPtr> chunkSpecs)> TScrapeChunksCallback;
+using TScrapeChunksCallback = TCallback<TFuture<void>(const yhash_set<TInputChunkPtr>& chunkSpecs)>;
 
 TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::INativeClientPtr client, // TODO(sandello): This is redundant; IConnection is sufficient.
+    NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger);
 
@@ -50,7 +50,7 @@ public:
         IInvokerPtr invoker,
         NTableClient::TRowBufferPtr rowBuffer,
         TScrapeChunksCallback scraperCallback,
-        NApi::INativeClientPtr client, // TODO(sandello): This is redundant; IConnection is sufficient.
+        NApi::INativeClientPtr client,
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(TInputChunkPtr chunk) override;
@@ -60,13 +60,12 @@ protected:
     const TFetcherConfigPtr Config_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const IInvokerPtr Invoker_;
-    NTableClient::TRowBufferPtr RowBuffer_;
+    const NTableClient::TRowBufferPtr RowBuffer_;
+    const TScrapeChunksCallback ScraperCallback_;
+    const NLogging::TLogger Logger;
 
     //! All chunks for which info is to be fetched.
     std::vector<TInputChunkPtr> Chunks_;
-    TScrapeChunksCallback ScraperCallback_;
-    NLogging::TLogger Logger;
-
 
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,

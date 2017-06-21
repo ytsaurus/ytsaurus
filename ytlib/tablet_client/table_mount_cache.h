@@ -29,7 +29,7 @@ namespace NTabletClient {
 struct TTabletInfo
     : public TRefCounted
 {
-    NObjectClient::TObjectId TabletId;
+    NTabletClient::TTabletId TabletId;
     i64 MountRevision = 0;
     NTabletClient::ETabletState State;
     NTableClient::TOwningKey PivotKey;
@@ -40,6 +40,19 @@ struct TTabletInfo
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTableReplicaInfo
+    : public TRefCounted
+{
+    NTabletClient::TTableReplicaId ReplicaId;
+    TString ClusterName;
+    TString ReplicaPath;
+    NTabletClient::ETableReplicaMode Mode;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableReplicaInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,11 +81,13 @@ struct TTableMountInfo
     TEnumIndexedVector<NTableClient::TTableSchema, ETableSchemaKind> Schemas;
 
     bool Dynamic;
-    NTableClient::ETableReplicationMode ReplicationMode;
+    NTabletClient::TTableReplicaId UpstreamReplicaId;
     bool NeedKeyEvaluation;
 
     std::vector<TTabletInfoPtr> Tablets;
     std::vector<TTabletInfoPtr> MountedTablets;
+
+    std::vector<TTableReplicaInfoPtr> Replicas;
 
     //! For sorted tables, these are -infinity and +infinity.
     //! For ordered tablets, these are |[0]| and |[tablet_count]| resp.
@@ -81,6 +96,7 @@ struct TTableMountInfo
 
     bool IsSorted() const;
     bool IsOrdered() const;
+    bool IsReplicated() const;
 
     TTabletInfoPtr GetTabletForRow(const TRange<NTableClient::TUnversionedValue>& row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
@@ -91,6 +107,7 @@ struct TTableMountInfo
     void ValidateSorted() const;
     void ValidateOrdered() const;
     void ValidateNotReplicated() const;
+    void ValidateReplicated() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountInfo)

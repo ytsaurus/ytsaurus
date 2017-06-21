@@ -19,7 +19,7 @@ namespace NPython {
 using namespace NYTree;
 using namespace NYPath;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 Py::Exception CreateYsonError(const TString& message, const NYT::TError& error = TError())
 {
@@ -47,7 +47,7 @@ Py::Exception CreateYsonError(const TString& message, const NYT::TError& error =
         } \
     }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TYsonIterator
     : public Py::PythonClass<TYsonIterator>
@@ -129,7 +129,7 @@ private:
     char Buffer_[BufferSize_];
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TRawYsonIterator
     : public Py::PythonClass<TRawYsonIterator>
@@ -183,7 +183,7 @@ private:
     TListFragmentLexer Lexer_;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TYsonModule
     : public Py::ExtensionModule<TYsonModule>
@@ -233,7 +233,7 @@ public:
             throw Py::TypeError("Only binary strings parsing is supported, got unicode");
         }
 #endif
-        auto string = ConvertStringObjectToStroka(stringArgument);
+        auto string = ConvertStringObjectToString(stringArgument);
         std::unique_ptr<TInputStream> stringStream(new TOwningStringInput(string));
 
         try {
@@ -273,7 +273,7 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto path = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "path"));
+        auto path = ConvertStringObjectToString(ExtractArgument(args, kwargs, "path"));
         ValidateArgumentsEmpty(args, kwargs);
 
         auto richPath = TRichYPath::Parse(path);
@@ -310,7 +310,7 @@ private:
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-                ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToStroka(arg));
+                ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToString(arg));
         }
 
         bool alwaysCreateAttributes = true;
@@ -332,7 +332,7 @@ private:
 #if PY_MAJOR_VERSION < 3
                 throw Py::RuntimeError("Encoding parameter is not supported for Python 2");
 #else
-                encoding = ConvertStringObjectToStroka(arg);
+                encoding = ConvertStringObjectToString(arg);
 #endif
             }
 #if PY_MAJOR_VERSION >= 3
@@ -423,13 +423,13 @@ private:
         auto ysonFormat = NYson::EYsonFormat::Text;
         if (HasArgument(args, kwargs, "yson_format")) {
             auto arg = ExtractArgument(args, kwargs, "yson_format");
-            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertStringObjectToStroka(arg));
+            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertStringObjectToString(arg));
         }
 
         NYson::EYsonType ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-            ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToStroka(arg));
+            ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToString(arg));
         }
 
         int indent = NYson::TYsonWriter::DefaultIndent;
@@ -461,7 +461,7 @@ private:
             if (arg.isNone()) {
                 encoding = Null;
             } else {
-                encoding = ConvertStringObjectToStroka(arg);
+                encoding = ConvertStringObjectToString(arg);
             }
         }
 
@@ -509,7 +509,7 @@ private:
 } // namespace NPython
 } // namespace NYT
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 #if defined( _WIN32 )
 #define EXPORT_SYMBOL __declspec( dllexport )

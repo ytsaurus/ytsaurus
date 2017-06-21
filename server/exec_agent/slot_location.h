@@ -50,11 +50,12 @@ public:
         i64 size,
         int userId,
         const TString& path,
-        bool enable);
+        bool enable,
+        IMounterPtr mounter);
 
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
-    TFuture<void> CleanSandboxes(int slotIndex);
+    TFuture<void> CleanSandboxes(int slotIndex, IMounterPtr mounter);
 
     TString GetSlotPath(int slotIndex) const;
 

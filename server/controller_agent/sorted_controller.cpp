@@ -1,11 +1,12 @@
 #include "sorted_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
-#include "chunk_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
-#include "sorted_chunk_pool.h"
 #include "operation_controller_detail.h"
+
+#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/sorted_chunk_pool.h>
 
 #include <yt/ytlib/api/transaction.h>
 
@@ -29,6 +30,7 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NJobProxy;
 using namespace NChunkClient;
+using namespace NChunkPools;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NScheduler::NProto;
@@ -42,11 +44,11 @@ using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
 using NTableClient::TKey;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const NProfiling::TProfiler Profiler("/operations/merge");
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 // TODO(max42): support Config->MaxTotalSliceCount
 // TODO(max42): reorder virtual methods in public section.
@@ -62,8 +64,8 @@ public:
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, spec, options, host, operation)
-          , Spec_(spec)
-          , Options_(options)
+        , Spec_(spec)
+        , Options_(options)
     { }
 
     // Persistence.
@@ -271,6 +273,7 @@ protected:
         JobSizeConstraints_ = CreateSimpleJobSizeConstraints(
             Spec_,
             Options_,
+            GetOutputTablePaths().size(),
             PrimaryInputDataSize + ForeignInputDataSize);
 
         InputSliceDataSize_ = JobSizeConstraints_->GetInputSliceDataSize();
@@ -422,7 +425,7 @@ protected:
 
         for (const auto& teleportChunk : SortedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
             // If teleport chunks were found, then teleport table index should be non-Null.
-            RegisterOutput(teleportChunk, 0, *GetOutputTeleportTableIndex());
+            RegisterTeleportChunk(teleportChunk, 0, *GetOutputTeleportTableIndex());
         }
 
         RegisterTask(SortedTask_);
@@ -435,7 +438,6 @@ protected:
         return true;
     }
 
-private:
     class TChunkSliceFetcherFactory
         : public IChunkSliceFetcherFactory
     {
@@ -465,11 +467,29 @@ private:
         TSortedControllerBase* Controller_;
     };
 
-    IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory()
+    virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory()
     {
         return New<TChunkSliceFetcherFactory>(this /* controller */);
     };
 
+    virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions()
+    {
+        TSortedChunkPoolOptions chunkPoolOptions;
+        TSortedJobOptions jobOptions;
+        jobOptions.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
+        jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
+        jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
+        jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        jobOptions.EnablePeriodicYielder = true;
+        chunkPoolOptions.SortedJobOptions = jobOptions;
+        chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
+        chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
+        chunkPoolOptions.OperationId = OperationId;
+        chunkPoolOptions.ExtractionOrder = Spec_->StripeListExtractionOrder;
+        return chunkPoolOptions;
+    }
+
+private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher() const
     {
         TScrapeChunksCallback scraperCallback;
@@ -495,28 +515,12 @@ private:
             RowBuffer,
             Logger);
     }
-
-    TSortedChunkPoolOptions GetSortedChunkPoolOptions()
-    {
-        TSortedChunkPoolOptions chunkPoolOptions;
-        TSortedJobOptions jobOptions;
-        jobOptions.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
-        jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
-        jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
-        jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
-        jobOptions.EnablePeriodicYielder = true;
-        chunkPoolOptions.SortedJobOptions = jobOptions;
-        chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
-        chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.OperationId = OperationId;
-        return chunkPoolOptions;
-    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TSortedTask);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TChunkSliceFetcherFactory);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSortedMergeController
     : public TSortedControllerBase
@@ -697,7 +701,7 @@ IOperationControllerPtr CreateSortedMergeController(
     return New<TSortedMergeController>(config, spec, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSortedReduceControllerBase
     : public TSortedControllerBase
@@ -822,7 +826,7 @@ public:
 
         if (teleportOutputCount > 1) {
             THROW_ERROR_EXCEPTION("Too many teleport output tables: maximum allowed 1, actual %v",
-                                  teleportOutputCount);
+                teleportOutputCount);
         }
 
         ValidateUserFileCount(Spec_->Reducer, "reducer");
@@ -839,7 +843,8 @@ public:
 
     virtual bool IsJobInterruptible() const override
     {
-        return true;
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        return 2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();
     }
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
@@ -889,7 +894,6 @@ private:
     i64 StartRowIndex_ = 0;
 
     TNullable<int> OutputTeleportTableIndex_;
-
 };
 
 class TSortedReduceController
@@ -982,6 +986,28 @@ public:
         if (foreignInputCount != 0 && Spec_->JoinBy.empty()) {
             THROW_ERROR_EXCEPTION("Join key columns are required");
         }
+
+        if (!Spec_->PivotKeys.empty()) {
+            TKey previousKey;
+            for (const auto& key : Spec_->PivotKeys) {
+                if (key < previousKey) {
+                    THROW_ERROR_EXCEPTION("Pivot keys should be sorted")
+                        << TErrorAttribute("lhs", previousKey)
+                        << TErrorAttribute("rhs", key);
+                }
+                previousKey = key;
+                if (key.GetCount() > Spec_->ReduceBy.size()) {
+                    THROW_ERROR_EXCEPTION("Pivot key can't be longer than reduce key column count")
+                        << TErrorAttribute("key", key)
+                        << TErrorAttribute("reduce_by", Spec_->ReduceBy);
+                }
+            }
+            for (auto& table : InputTables) {
+                if (table.Path.GetTeleport()) {
+                    THROW_ERROR_EXCEPTION("Chunk teleportation is not supported when pivot keys are specified");
+                }
+            }
+        }
     }
 
 protected:
@@ -1000,6 +1026,22 @@ private:
 
     TReduceOperationSpecPtr Spec_;
 
+    virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory() override
+    {
+        if (Spec_->PivotKeys.empty()) {
+            return TSortedControllerBase::CreateChunkSliceFetcherFactory();
+        } else {
+            return nullptr;
+        }
+    }
+
+    virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
+    {
+        auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
+        options.SortedJobOptions.PivotKeys = std::vector<TKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
+        return options;
+    }
+
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController);
@@ -1013,7 +1055,7 @@ IOperationControllerPtr CreateSortedReduceController(
     return New<TSortedReduceController>(config, spec, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TJoinReduceController
     : public TSortedReduceControllerBase
@@ -1118,7 +1160,7 @@ IOperationControllerPtr CreateJoinReduceController(
     return New<TJoinReduceController>(config, spec, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

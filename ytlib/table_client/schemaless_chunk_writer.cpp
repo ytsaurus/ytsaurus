@@ -64,6 +64,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NApi;
+using namespace NQueryClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -837,7 +838,11 @@ public:
         , NameTable_(nameTable)
         , Schema_(schema)
         , LastKey_(lastKey)
-    { }
+    {
+        if (Options_->EvaluateComputedColumns) {
+            ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
+        }
+    }
 
     virtual TFuture<void> GetReadyEvent() override
     {
@@ -954,6 +959,7 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
 
+    TColumnEvaluatorPtr ColumnEvaluator_;
 
     // Maps global name table indexes into chunk name table indexes.
     std::vector<int> IdMapping_;
@@ -964,9 +970,8 @@ private:
 
     void EvaluateComputedColumns(TMutableUnversionedRow row)
     {
-        if (Options_->EvaluateComputedColumns) {
-            auto evaluator = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
-            evaluator->EvaluateKeys(row, RowBuffer_);
+        if (ColumnEvaluator_) {
+            ColumnEvaluator_->EvaluateKeys(row, RowBuffer_);
         }
     }
 
@@ -1043,7 +1048,7 @@ private:
         if (cmp == 0) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::UniqueKeyViolation,
-                "Duplicated key: %v",
+                "Duplicate key %v",
                 leftBuilder.FinishRow().Get());
         } else {
             if (Options_->ExplodeOnValidationError) {

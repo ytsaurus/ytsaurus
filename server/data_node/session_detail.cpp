@@ -42,7 +42,7 @@ TSessionBase::TSessionBase(
     YCHECK(location);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 
-    Logger.AddTag("LocationId: %v, SessionId: %v",
+    Logger.AddTag("LocationId: %v, ChunkId: %v",
         Location_->GetId(),
         SessionId_);
 
@@ -147,7 +147,7 @@ TFuture<IChunkPtr> TSessionBase::Finish(const TChunkMeta* chunkMeta, const TNull
 
 TFuture<void> TSessionBase::PutBlocks(
     int startBlockIndex,
-    const std::vector<TSharedRef>& blocks,
+    const std::vector<TBlock>& blocks,
     bool enableCaching)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

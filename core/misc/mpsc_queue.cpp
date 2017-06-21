@@ -4,12 +4,16 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMPSCQueueBase::TMPSCQueueBase()
+TMpscQueueBase::TMpscQueueBase()
     : Head_(&Stub_)
     , Tail_(&Stub_)
-{ }
+{
+    Y_UNUSED(StubPadding_);
+    Y_UNUSED(HeadPadding_);
+    Y_UNUSED(TailPadding_);
+}
 
-TMPSCQueueBase::~TMPSCQueueBase()
+TMpscQueueBase::~TMpscQueueBase()
 {
     // Check that queue is empty. Derived classes must ensure that the queue is empty.
     YCHECK(Head_ == Tail_);
@@ -17,14 +21,14 @@ TMPSCQueueBase::~TMPSCQueueBase()
     YCHECK(Head_.load()->Next_.load() == nullptr);
 }
 
-void TMPSCQueueBase::PushImpl(TMPSCQueueBase::TNodeBase* node)
+void TMpscQueueBase::PushImpl(TMpscQueueHook* node) noexcept
 {
     node->Next_.store(nullptr, std::memory_order_release);
     auto prev = Head_.exchange(node, std::memory_order_acq_rel);
     prev->Next_.store(node, std::memory_order_release);
 }
 
-TMPSCQueueBase::TNodeBase* TMPSCQueueBase::PopImpl()
+TMpscQueueHook* TMpscQueueBase::PopImpl() noexcept
 {
     auto tail = Tail_;
     auto next = tail->Next_.load(std::memory_order_acquire);

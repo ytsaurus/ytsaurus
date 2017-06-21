@@ -7,6 +7,7 @@
 #include "config.h"
 #include "dispatcher.h"
 #include "erasure_helpers.h"
+#include "block.h"
 #include "replication_reader.h"
 
 #include <yt/ytlib/api/native_client.h>
@@ -32,7 +33,7 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NErasureHelpers;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 // Non-repairing reader
 
 class TNonRepairingReaderSession
@@ -50,9 +51,9 @@ public:
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, placementExt))
     { }
 
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<std::vector<TBlock>> Run()
     {
-        std::vector<TFuture<std::vector<TSharedRef>>> readBlocksFutures;
+        std::vector<TFuture<std::vector<TBlock>>> readBlocksFutures;
         for (int readerIndex = 0; readerIndex < Readers_.size(); ++readerIndex) {
             auto blocksPlacementInPart = DataBlocksPlacementInParts_[readerIndex];
             auto reader = Readers_[readerIndex];
@@ -60,8 +61,8 @@ public:
         }
 
         return Combine(readBlocksFutures).Apply(
-            BIND([=, this_ = MakeStrong(this)] (std::vector<std::vector<TSharedRef>> readBlocks) {
-                std::vector<TSharedRef> resultBlocks(BlockIndexes_.size());
+            BIND([=, this_ = MakeStrong(this)] (std::vector<std::vector<TBlock>> readBlocks) {
+                std::vector<TBlock> resultBlocks(BlockIndexes_.size());
                 for (int readerIndex = 0; readerIndex < readBlocks.size(); ++readerIndex) {
                     auto blocksPlacementInPart = DataBlocksPlacementInParts_[readerIndex];
                     for (int blockIndex = 0; blockIndex < readBlocks[readerIndex].size(); ++blockIndex) {
@@ -80,7 +81,7 @@ private:
     TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TNonRepairingReader
     : public TErasureChunkReaderBase
@@ -92,7 +93,7 @@ public:
         YCHECK(!Readers_.empty());
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<int>& blockIndexes) override
     {
@@ -107,7 +108,7 @@ public:
             }).AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount) override
@@ -128,7 +129,7 @@ IChunkReaderPtr CreateNonRepairingErasureReader(
     return New<TNonRepairingReader>(codec, dataBlockReaders);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
@@ -241,7 +242,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
         throttler);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

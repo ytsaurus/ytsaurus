@@ -38,24 +38,22 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const NChunkClient::NProto::TChunkSpec& chunkSpec,
+    const TChunkStatePtr& chunkState,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const NChunkClient::TReadRange& readRange,
     TNullable<int> partitionTag = Null);
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const NChunkClient::NProto::TChunkSpec& chunkSpec,
+    const TChunkStatePtr& chunkState,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,

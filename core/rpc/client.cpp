@@ -27,10 +27,7 @@ TClientRequest::TClientRequest(
     const TString& method,
     bool oneWay,
     int protocolVersion)
-    : RequestAck_(true)
-    , Heavy_(false)
-    , Codec_(NCompression::ECodec::None)
-    , Channel_(std::move(channel))
+    : Channel_(std::move(channel))
 {
     Y_ASSERT(Channel_);
 
@@ -56,11 +53,14 @@ TSharedRefArray TClientRequest::Serialize()
 
 IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
 {
+    TSendOptions options;
+    options.Timeout = Timeout_;
+    options.RequestAck = RequestAck_;
+    options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
     return Channel_->Send(
         this,
         std::move(responseHandler),
-        Timeout_,
-        RequestAck_);
+        options);
 }
 
 NProto::TRequestHeader& TClientRequest::Header()
@@ -188,7 +188,7 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
     NTracing::TraceEvent(
         traceContext,
         ClientHostAnnotation,
-        TAddressResolver::Get()->GetLocalHostName());
+        GetLocalHostName());
 }
 
 const TSharedRef& TClientRequest::GetSerializedBody() const

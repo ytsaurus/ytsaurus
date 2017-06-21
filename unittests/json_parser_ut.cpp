@@ -1,6 +1,6 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
-#include "yson_consumer_mock.h"
+#include <yt/core/test_framework/yson_consumer_mock.h>
 
 #include <yt/ytlib/formats/json_parser.h>
 
@@ -801,7 +801,7 @@ TEST(TJsonParserTest, MemoryLimit4)
     ParseJson(&stream, &Mock, config, EYsonType::ListFragment);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NFormats

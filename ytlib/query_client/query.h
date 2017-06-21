@@ -43,7 +43,7 @@ struct TExpression
         : Type(type)
     { }
 
-    const EValueType Type;
+    EValueType Type;
 
     template <class TDerived>
     const TDerived* As() const
@@ -178,14 +178,6 @@ struct TInOpExpression
 };
 
 void ThrowTypeMismatchError(
-    EValueType lhsType,
-    EValueType rhsType,
-    const TStringBuf& source,
-    const TStringBuf& lhsSource,
-    const TStringBuf& rhsSource);
-
-EValueType InferBinaryExprType(
-    EBinaryOp opCode,
     EValueType lhsType,
     EValueType rhsType,
     const TStringBuf& source,

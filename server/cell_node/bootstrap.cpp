@@ -63,8 +63,6 @@
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
-#include <yt/ytlib/hive/cluster_directory.h>
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/misc/workload.h>
@@ -215,11 +213,6 @@ void TBootstrap::DoRun()
         NodeDirectory);
     NodeDirectorySynchronizer->Start();
 
-    CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
-        Config->CellDirectorySynchronizer,
-        MasterConnection->GetCellDirectory(),
-        Config->ClusterConnection->PrimaryMaster->CellId);
-
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
         "Query");
@@ -289,14 +282,6 @@ void TBootstrap::DoRun()
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
     MasterConnector->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
     MasterConnector->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
-
-    ClusterDirectory = New<TClusterDirectory>();
-
-    ClusterDirectorySynchronizer = New<TClusterDirectorySynchronizer>(
-        Config->ClusterDirectorySynchronizer,
-        MasterConnection,
-        ClusterDirectory);
-    ClusterDirectorySynchronizer->Start();
 
     if (Config->CoreDumper) {
         CoreDumper = New<TCoreDumper>(Config->CoreDumper);
@@ -368,7 +353,6 @@ void TBootstrap::DoRun()
     for (const auto& config : JobProxyConfigTemplate->ClusterConnection->SecondaryMasters) {
         patchMasterConnectionConfig(config);
     }
-    JobProxyConfigTemplate->ClusterConnection->MediumDirectorySynchronizer->ReadFrom = EMasterChannelKind::Cache;
 
     JobProxyConfigTemplate->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
     JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
@@ -477,8 +461,6 @@ void TBootstrap::DoRun()
                 EPeerKind::Follower),
             Config->ClusterConnection->PrimaryMaster->RpcTimeout),
         GetCellId());
-
-    CellDirectorySynchronizer->Start();
 
     OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
 
@@ -681,11 +663,6 @@ const TJournalDispatcherPtr& TBootstrap::GetJournalDispatcher() const
 const TMasterConnectorPtr& TBootstrap::GetMasterConnector() const
 {
     return MasterConnector;
-}
-
-const TClusterDirectoryPtr& TBootstrap::GetClusterDirectory()
-{
-    return ClusterDirectory;
 }
 
 const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const

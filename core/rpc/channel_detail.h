@@ -19,8 +19,7 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override;
+        const TSendOptions& options) override;
 
     virtual TFuture<void> Terminate(const TError& error) override;
 

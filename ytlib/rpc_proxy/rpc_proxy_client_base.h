@@ -53,9 +53,19 @@ public:
         const TString& query,
         const NApi::TSelectRowsOptions& options) override;
 
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const NApi::TGetInSyncReplicasOptions& options) override;
+
     // TODO(babenko): batch read and batch write
 
     // Cypress
+    virtual TFuture<bool> NodeExists(
+        const NYPath::TYPath& path,
+        const NApi::TNodeExistsOptions& options) override;
+
     virtual TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
         const NApi::TGetNodeOptions& options) override;
@@ -63,80 +73,45 @@ public:
     virtual TFuture<void> SetNode(
         const NYPath::TYPath& path,
         const NYson::TYsonString& value,
-        const NApi::TSetNodeOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TSetNodeOptions& options) override;
 
     virtual TFuture<void> RemoveNode(
         const NYPath::TYPath& path,
-        const NApi::TRemoveNodeOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TRemoveNodeOptions& options) override;
 
     virtual TFuture<NYson::TYsonString> ListNode(
         const NYPath::TYPath& path,
-        const NApi::TListNodeOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TListNodeOptions& options) override;
 
     virtual TFuture<NCypressClient::TNodeId> CreateNode(
         const NYPath::TYPath& path,
         NObjectClient::EObjectType type,
-        const NApi::TCreateNodeOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TCreateNodeOptions& options) override;
 
     virtual TFuture<NApi::TLockNodeResult> LockNode(
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
-        const NApi::TLockNodeOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TLockNodeOptions& options) override;
 
     virtual TFuture<NCypressClient::TNodeId> CopyNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
-        const NApi::TCopyNodeOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TCopyNodeOptions& options) override;
 
     virtual TFuture<NCypressClient::TNodeId> MoveNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
-        const NApi::TMoveNodeOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TMoveNodeOptions& options) override;
 
     virtual TFuture<NCypressClient::TNodeId> LinkNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
-        const NApi::TLinkNodeOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TLinkNodeOptions& options) override;
 
     virtual TFuture<void> ConcatenateNodes(
         const std::vector<NYPath::TYPath>& srcPaths,
         const NYPath::TYPath& dstPath,
-        const NApi::TConcatenateNodesOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    };
-
-    virtual TFuture<bool> NodeExists(
-        const NYPath::TYPath& path,
-        const NApi::TNodeExistsOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
+        const NApi::TConcatenateNodesOptions& options) override;
 
     // Objects
     virtual TFuture<NObjectClient::TObjectId> CreateObject(
@@ -183,6 +158,13 @@ public:
     virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const NApi::TTableReaderOptions& options) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
+    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+        const NYPath::TRichYPath& path,
+        const NApi::TTableWriterOptions& options) override
     {
         Y_UNIMPLEMENTED();
     }

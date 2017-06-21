@@ -19,7 +19,7 @@ using NJobTrackerClient::TJobId;
 
 using namespace NConcurrency;
 
-///////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TJobProberClient
     : public IJobProbe
@@ -104,6 +104,16 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
     }
 
+    virtual void Fail() override
+    {
+        EnsureJobProberProxy();
+        auto req = JobProberProxy_->Fail();
+
+        ToProto(req->mutable_job_id(), JobId_);
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+    }
+
 private:
     const TTcpBusClientConfigPtr TcpBusClientConfig_;
     const TJobId JobId_;
@@ -119,7 +129,7 @@ private:
     }
 };
 
-///////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IJobProbePtr CreateJobProbe(
     NBus::TTcpBusClientConfigPtr config,
@@ -128,7 +138,7 @@ IJobProbePtr CreateJobProbe(
     return New<TJobProberClient>(config, jobId);
 }
 
-///////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 } // namespace NJobProberClient

@@ -23,8 +23,8 @@ public:
     TDuration ReadStallTimeout;
     TDuration WriteStallTimeout;
 
-    bool VerifyChecksum;
-    bool CalculateChecksum;
+    bool VerifyChecksums;
+    bool GenerateChecksums;
 
     TTcpBusConfig()
     {
@@ -43,9 +43,9 @@ public:
             .Default(TDuration::Minutes(2));
         RegisterParameter("write_stall_timeout", WriteStallTimeout)
             .Default(TDuration::Minutes(2));
-        RegisterParameter("verify_checksum", VerifyChecksum)
+        RegisterParameter("verify_checksums", VerifyChecksums)
             .Default(true);
-        RegisterParameter("calculate_checksum", CalculateChecksum)
+        RegisterParameter("generate_checksum", GenerateChecksums)
             .Default(true);
     }
 };

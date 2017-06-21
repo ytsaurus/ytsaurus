@@ -12,6 +12,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/variant.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -106,11 +107,6 @@ DEFINE_REFCOUNTED_TYPE(TLeaderRecovery)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EPostponedMutationType,
-    (Mutation)
-    (ChangelogRotation)
-);
-
 //! Drives the follower recovery.
 /*!
  *  \note
@@ -135,12 +131,12 @@ public:
     TFuture<void> Run();
 
     //! Postpones an incoming request for changelog rotation.
-    void PostponeChangelogRotation(TVersion version);
+    //! Returns |false| is no more postponed are can be accepted; the caller must back off and retry.
+    bool PostponeChangelogRotation(TVersion version);
 
     //! Postpones incoming mutations.
-    void PostponeMutations(
-        TVersion version,
-        const std::vector<TSharedRef>& recordsData);
+    //! Returns |false| is no more postponed are can be accepted; the caller must back off and retry.
+    bool PostponeMutations(TVersion version, const std::vector<TSharedRef>& recordsData);
 
     //! Notifies the recovery process about the latest committed version available at leader.
     void SetCommittedVersion(TVersion version);
@@ -148,32 +144,17 @@ public:
 private:
     struct TPostponedMutation
     {
-        using EType = EPostponedMutationType;
-
-        EType Type;
         TSharedRef RecordData;
-
-        static TPostponedMutation CreateMutation(const TSharedRef& recordData)
-        {
-            return TPostponedMutation(EType::Mutation, recordData);
-        }
-
-        static TPostponedMutation CreateChangelogRotation()
-        {
-            return TPostponedMutation(EType::ChangelogRotation, TSharedRef());
-        }
-
-        TPostponedMutation(EType type, const TSharedRef& recordData)
-            : Type(type)
-            , RecordData(recordData)
-        { }
-
     };
 
-    typedef std::vector<TPostponedMutation> TPostponedMutations;
+    struct TPostponedChangelogRotation
+    { };
+
+    using TPostponedAction = TVariant<TPostponedMutation, TPostponedChangelogRotation>;
 
     TSpinLock SpinLock_;
-    TPostponedMutations PostponedMutations_;
+    std::vector<TPostponedAction> PostponedActions_;
+    bool NoMorePostponedActions_ = false;
     TVersion PostponedVersion_;
     TVersion CommittedVersion_;
 
@@ -185,7 +166,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TFollowerRecovery)
 
-//////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHydra
 } // namespace NYT

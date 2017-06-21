@@ -4,6 +4,8 @@
 #endif
 #undef NONBLOCKING_BATCH_INL_H_
 
+#include <yt/core/concurrency/delayed_executor.h>
+
 namespace NYT {
 namespace NConcurrency {
 

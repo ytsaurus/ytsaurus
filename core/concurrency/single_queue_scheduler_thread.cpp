@@ -3,7 +3,7 @@
 namespace NYT {
 namespace NConcurrency {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
     TInvokerQueuePtr queue,
@@ -21,15 +21,9 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
         enableProfiling)
     , Queue(std::move(queue))
     , Index(index)
-{
-}
+{ }
 
 TSingleQueueSchedulerThread::~TSingleQueueSchedulerThread() = default;
-
-IInvokerPtr TSingleQueueSchedulerThread::GetInvoker()
-{
-    return Queue;
-}
 
 EBeginExecuteResult TSingleQueueSchedulerThread::BeginExecute()
 {
@@ -41,7 +35,7 @@ void TSingleQueueSchedulerThread::EndExecute()
     Queue->EndExecute(&CurrentAction);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency
 } // namespace NYT

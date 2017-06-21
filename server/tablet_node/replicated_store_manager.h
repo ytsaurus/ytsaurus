@@ -62,6 +62,7 @@ public:
         TCallback<TFuture<void>()> callbackFuture) override;
     virtual void EndStorePreload(IChunkStorePtr store) override;
     virtual void BackoffStorePreload(IChunkStorePtr store) override;
+    virtual ui64 GetInMemoryConfigRevision() const override;
 
     virtual bool IsStoreFlushable(IStorePtr store) const override;
     virtual TStoreFlushCallback BeginStoreFlush(

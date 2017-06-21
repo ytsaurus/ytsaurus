@@ -3,8 +3,6 @@
 #include "public.h"
 #include "connection.h"
 
-#include <yt/ytlib/job_tracker_client/public.h>
-
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/cypress_client/public.h>
@@ -52,7 +50,7 @@
 namespace NYT {
 namespace NApi {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TUserWorkloadDescriptor
 {
@@ -65,7 +63,7 @@ struct TUserWorkloadDescriptor
 void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer);
 void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYTree::INodePtr node);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TTimeoutOptions
 {
@@ -134,6 +132,7 @@ struct TPrerequisiteOptions
 
 struct TMountTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 {
     NTabletClient::TTabletCellId CellId = NTabletClient::NullTabletCellId;
@@ -142,6 +141,7 @@ struct TMountTableOptions
 
 struct TUnmountTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 {
     bool Force = false;
@@ -149,21 +149,25 @@ struct TUnmountTableOptions
 
 struct TRemountTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
 struct TFreezeTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
 struct TUnfreezeTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
 struct TReshardTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
@@ -174,7 +178,7 @@ struct TAlterTableOptions
 {
     TNullable<NTableClient::TTableSchema> Schema;
     TNullable<bool> Dynamic;
-    TNullable<NTableClient::ETableReplicationMode> ReplicationMode;
+    TNullable<NTabletClient::TTableReplicaId> UpstreamReplicaId;
 };
 
 struct TTrimTableOptions
@@ -193,6 +197,13 @@ struct TAlterTableReplicaOptions
     : public TTimeoutOptions
 {
     TNullable<bool> Enabled;
+    TNullable<NTabletClient::ETableReplicaMode> Mode;
+};
+
+struct TGetInSyncReplicasOptions
+    : public TTimeoutOptions
+{
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
 
 struct TAddMemberOptions
@@ -267,15 +278,18 @@ struct TTransactionCommitOptions
     , public TPrerequisiteOptions
     , public TTransactionalOptions
 {
-    //! If none, then a random participant is chosen as a coordinator.
-    NElection::TCellId CoordinatorCellId;
+    //! If not null, then this particular cell will be the coordinator.
+    NObjectClient::TCellId CoordinatorCellId;
+
+    //! If not #InvalidCellTag, a random participant from the given cell will be the coordinator.
+    NObjectClient::TCellTag CoordinatorCellTag = NObjectClient::InvalidCellTag;
 
     //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
 
     //! If |true| then all participants will use the commit timestamp provided by the coordinator.
     //! If |false| then the participants will use individual commit timestamps based on their cell tag.
-    bool InheritCommitTimestamp = false;
+    bool InheritCommitTimestamp = true;
 };
 
 struct TTransactionCommitResult
@@ -464,6 +478,7 @@ struct TNodeExistsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
     , public TTransactionalOptions
+    , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 { };
 
@@ -508,6 +523,12 @@ struct TTableReaderOptions
 {
     bool Unordered = false;
     NTableClient::TTableReaderConfigPtr Config;
+};
+
+struct TTableWriterOptions
+    : public TTransactionalOptions
+{
+    NTableClient::TTableWriterConfigPtr Config;
 };
 
 struct TStartOperationOptions
@@ -638,7 +659,7 @@ struct TJob
     TNullable<TString> CoreInfos;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
 //! both standalone and inside transaction.
@@ -676,7 +697,20 @@ struct IClientBase
         const TString& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
-    // TODO(babenko): batch read and batch write
+    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
+        const NYPath::TRichYPath& path,
+        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
+
+    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+        const NYPath::TRichYPath& path,
+        const TTableWriterOptions& options = TTableWriterOptions()) = 0;
+
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
+
 
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(
@@ -756,16 +790,11 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TJournalWriterOptions& options = TJournalWriterOptions()) = 0;
 
-
-    // Tables
-    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
-        const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientBase)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! A central entry point for all interactions with the YT cluster.
 /*!
@@ -832,14 +861,6 @@ struct IClient
         int tabletIndex,
         i64 trimmedRowCount,
         const TTrimTableOptions& options = TTrimTableOptions()) = 0;
-
-    virtual TFuture<void> EnableTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
-        const TEnableTableReplicaOptions& options = TEnableTableReplicaOptions()) = 0;
-
-    virtual TFuture<void> DisableTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
-        const TDisableTableReplicaOptions& options = TDisableTableReplicaOptions()) = 0;
 
     virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
@@ -933,7 +954,7 @@ struct IClient
 
 DEFINE_REFCOUNTED_TYPE(IClient)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NApi
 } // namespace NYT

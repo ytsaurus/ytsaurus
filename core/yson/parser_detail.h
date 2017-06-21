@@ -64,8 +64,11 @@ public:
                 }
             }
         } catch (const std::exception& ex) {
+            TString context = TBase::GetContextFromCheckpoint();
+            size_t contextPosition = TBase::GetContextPosition();
             THROW_ERROR_EXCEPTION("Error occurred while parsing YSON")
-                << TErrorAttribute("context", TBase::GetContextFromCheckpoint())
+                << TErrorAttribute("context", context)
+                << TErrorAttribute("context_pos", contextPosition)
                 << ex;
         }
     }

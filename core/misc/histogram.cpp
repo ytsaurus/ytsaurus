@@ -10,15 +10,14 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NPhoenix;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class THistogram
     : public IHistogram
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
-    THistogram()
-    { }
+    THistogram() = default;
 
     explicit THistogram(int defaultBuckets)
         : MaxBuckets_(defaultBuckets * HistogramViewReserveFactor)
@@ -139,7 +138,7 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(THistogram);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IHistogram> CreateHistogram(int maxBuckets)
 {
@@ -156,8 +155,6 @@ void Serialize(const IHistogram& histogram, IYsonConsumer* consumer)
             .Item("count").Value(view.Count)
         .EndMap();
 }
-
-////////////////////////////////////////////////////////////////////
 
 THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramView)
 {
@@ -183,6 +180,8 @@ THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramVie
 
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 

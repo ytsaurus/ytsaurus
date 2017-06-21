@@ -47,14 +47,16 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
+        auto adjustedOptions = options;
+        if (!adjustedOptions.Timeout) {
+            adjustedOptions.Timeout = Timeout_;
+        }
         return UnderlyingChannel_->Send(
             request,
             responseHandler,
-            timeout.Get(Timeout_),
-            requestAck);
+            adjustedOptions);
     }
 
 private:
@@ -117,15 +119,13 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         request->SetUser(User_);
         return UnderlyingChannel_->Send(
             request,
             responseHandler,
-            timeout,
-            requestAck);
+            options);
     }
 
 private:
@@ -188,15 +188,13 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         ToProto(request->Header().mutable_realm_id(), RealmId_);
         return UnderlyingChannel_->Send(
             request,
             responseHandler,
-            timeout,
-            requestAck);
+            options);
     }
 
 private:
@@ -259,14 +257,12 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         return UnderlyingChannel_->Send(
             request,
             New<TResponseHandler>(this, std::move(responseHandler), OnFailure_),
-            timeout,
-            requestAck);
+            options);
     }
 
 private:

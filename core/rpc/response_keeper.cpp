@@ -50,7 +50,7 @@ public:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            EvictionPeriod);
+            ProfilingPeriod);
         ProfilingExecutor_->Start();
     }
 
@@ -119,7 +119,7 @@ public:
             return MakeFuture(finishedIt->second);
         }
 
-        if (isRetry && NProfiling::GetCpuInstant() < WarmupDeadline_) {
+        if (isRetry && IsWarmingUp()) {
             THROW_ERROR_EXCEPTION("Cannot reliably check for a duplicate mutating request")
                 << TErrorAttribute("mutation_id", id)
                 << TErrorAttribute("warmup_time", Config_->WarmupTime);
@@ -209,6 +209,11 @@ public:
             }).Via(Invoker_));
             return false;
         }
+    }
+
+    bool IsWarmingUp() const
+    {
+        return NProfiling::GetCpuInstant() < WarmupDeadline_;
     }
 
 private:
@@ -332,6 +337,11 @@ void TResponseKeeper::CancelRequest(const TMutationId& id, const TError& error)
 bool TResponseKeeper::TryReplyFrom(IServiceContextPtr context)
 {
     return Impl_->TryReplyFrom(std::move(context));
+}
+
+bool TResponseKeeper::IsWarmingUp() const
+{
+    return Impl_->IsWarmingUp();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,6 +30,18 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! All fields must be atomic since they're being accessed both
+//! from the writer and from readers concurrently.
+struct TRuntimeTabletCellData
+    : public TIntrinsicRefCounted
+{
+    std::atomic<TTimestamp> MinPrepareTimestamp = {MinTimestamp};
+};
+
+DEFINE_REFCOUNTED_TYPE(TRuntimeTabletCellData)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! An instance of Hydra managing a number of tablets.
 class TTabletSlot
     : public TRefCounted
@@ -77,6 +89,8 @@ public:
     const NYTree::IYPathServicePtr& GetOrchidService();
 
     const NProfiling::TTagIdList& GetTagIdList();
+
+    const TRuntimeTabletCellDataPtr& GetRuntimeData() const;
 
 private:
     class TImpl;

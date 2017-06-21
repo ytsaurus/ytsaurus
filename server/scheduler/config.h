@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/controller_agent/public.h>
+#include <yt/server/controller_agent/config.h>
 
 #include <yt/server/job_proxy/config.h>
 
@@ -85,9 +85,9 @@ public:
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
 
-    //! Enable option that allows to fail a controller by passing "fail_controller = %true"
+    //! Allow failing a controller by passing testing option `controller_failure`
     //! in operation spec. Used only for testing purposes.
-    bool EnableFailControllerSpecOption;
+    bool EnableControllerFailureSpecOption;
 
     //! To investigate CPU load of node shard threads.
     bool EnableSchedulingTags;
@@ -95,129 +95,19 @@ public:
     //! Backoff for printing tree scheduling info in heartbeat.
     TDuration HeartbeatTreeSchedulingInfoLogBackoff;
 
-    TFairShareStrategyConfig()
-    {
-        RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
-            .Default(TDuration::Seconds(30));
-        RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
-            .InRange(0.0, 1.0)
-            .Default(0.8);
+    //! How often min needed resources for jobs are retrieved from controller.
+    TDuration MinNeededResourcesUpdatePeriod;
 
-        RegisterParameter("min_share_preemption_timeout_limit", MinSharePreemptionTimeoutLimit)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("fair_share_preemption_timeout_limit", FairSharePreemptionTimeoutLimit)
-            .Default(TDuration::Seconds(30));
-        RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
-            .InRange(0.0, 1.0)
-            .Default(0.8);
+    //! Maximum number of ephemeral pools that can be created by user.
+    int MaxEphemeralPoolsPerUser;
 
-        RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
-            .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-            .Default(TDuration::MilliSeconds(1000));
+    //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
+    double ThresholdToEnableMaxPossibleUsageRegularization;
 
-        RegisterParameter("fair_share_profiling_period", FairShareProfilingPeriod)
-            .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-            .Default(TDuration::MilliSeconds(5000));
-
-        RegisterParameter("fair_share_log_period", FairShareLogPeriod)
-            .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-            .Default(TDuration::MilliSeconds(1000));
-
-        RegisterParameter("max_unpreemptable_running_job_count", MaxUnpreemptableRunningJobCount)
-            .Default(10);
-
-        RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
-            .Alias("max_running_operations")
-            .Default(200)
-            .GreaterThan(0);
-
-        RegisterParameter("max_running_operation_count_per_pool", MaxRunningOperationCountPerPool)
-            .Alias("max_running_operations_per_pool")
-            .Default(50)
-            .GreaterThan(0);
-
-        RegisterParameter("max_operation_count_per_pool", MaxOperationCountPerPool)
-            .Alias("max_operations_per_pool")
-            .Default(50)
-            .GreaterThan(0);
-
-        RegisterParameter("max_operation_count", MaxOperationCount)
-            .Default(1000)
-            .GreaterThan(0);
-
-        RegisterParameter("enable_pool_starvation", EnablePoolStarvation)
-            .Default(true);
-
-        RegisterParameter("default_parent_pool", DefaultParentPool)
-            .Default(RootPoolName);
-
-        RegisterParameter("forbid_immediate_operations_in_root", ForbidImmediateOperationsInRoot)
-            .Default(true);
-
-        RegisterParameter("job_count_preemption_timeout_coefficient", JobCountPreemptionTimeoutCoefficient)
-            .Default(1.0)
-            .GreaterThanOrEqual(1.0);
-
-        RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
-            .Default(10)
-            .GreaterThan(0);
-
-        RegisterParameter("schedule_job_time_limit", ControllerScheduleJobTimeLimit)
-            .Default(TDuration::Seconds(60));
-
-        RegisterParameter("schedule_job_fail_backoff_time", ControllerScheduleJobFailBackoffTime)
-            .Default(TDuration::MilliSeconds(100));
-
-        RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
-            .Default(TDuration::Seconds(1));
-
-        RegisterParameter("preemption_satisfaction_threshold", PreemptionSatisfactionThreshold)
-            .Default(1.0)
-            .GreaterThan(0);
-
-        RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
-            .Default(0.5)
-            .GreaterThan(0);
-
-        RegisterParameter("enable_fail_controller_spec_option", EnableFailControllerSpecOption)
-            .Default(false);
-
-        RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
-            .Default(true);
-
-        RegisterParameter("heartbeat_tree_scheduling_info_log_period", HeartbeatTreeSchedulingInfoLogBackoff)
-            .Default(TDuration::MilliSeconds(100));
-
-        RegisterValidator([&] () {
-            if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
-                THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
-                    << TErrorAttribute("aggressive_threshold", AggressivePreemptionSatisfactionThreshold)
-                    << TErrorAttribute("threshold", PreemptionSatisfactionThreshold);
-            }
-        });
-    }
+    TFairShareStrategyConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TIntermediateChunkScraperConfig
-    : public NChunkClient::TChunkScraperConfig
-{
-public:
-    TDuration RestartTimeout;
-
-    TIntermediateChunkScraperConfig()
-    {
-        RegisterParameter("restart_timeout", RestartTimeout)
-            .Default(TDuration::Seconds(10));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,40 +117,10 @@ class TEventLogConfig
 public:
     NYPath::TYPath Path;
 
-    TEventLogConfig()
-    {
-        RegisterParameter("path", Path)
-            .Default("//sys/scheduler/event_log");
-    }
+    TEventLogConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TEventLogConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJobSizeAdjusterConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TDuration MinJobTime;
-    TDuration MaxJobTime;
-
-    double ExecToPrepareTimeRatio;
-
-    TJobSizeAdjusterConfig()
-    {
-        RegisterParameter("min_job_time", MinJobTime)
-            .Default(TDuration::Seconds(60));
-
-        RegisterParameter("max_job_time", MaxJobTime)
-            .Default(TDuration::Minutes(10));
-
-        RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
-            .Default(20.0);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobSizeAdjusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,32 +136,7 @@ public:
     double CandidatePercentile;
     int MaxJobsPerSplit;
 
-    TJobSplitterConfig()
-    {
-        RegisterParameter("min_job_time", MinJobTime)
-            .Default(TDuration::Seconds(60));
-
-        RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
-            .Default(20.0);
-
-        RegisterParameter("min_total_data_size", MinTotalDataSize)
-            .Default((i64)1024 * 1024 * 1024);
-
-        RegisterParameter("update_period", UpdatePeriod)
-            .Default(TDuration::Seconds(60));
-
-        RegisterParameter("median_excess_duration", MedianExcessDuration)
-            .Default(TDuration::Minutes(3));
-
-        RegisterParameter("candidate_percentile", CandidatePercentile)
-            .GreaterThanOrEqual(0.5)
-            .LessThanOrEqual(1.0)
-            .Default(0.8);
-
-        RegisterParameter("max_jobs_per_split", MaxJobsPerSplit)
-            .GreaterThan(0)
-            .Default(5);
-    }
+    TJobSplitterConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
@@ -311,6 +146,9 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 class TOperationOptions
     : public NYTree::TYsonSerializable
 {
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationOptions, 0x6d2a0bdd);
+
 public:
     NYTree::INodePtr SpecTemplate;
 
@@ -323,36 +161,10 @@ public:
     i64 MaxSliceDataSize;
     i64 MinSliceDataSize;
 
-    TOperationOptions()
-    {
-        RegisterParameter("spec_template", SpecTemplate)
-            .Default()
-            .MergeBy(NYTree::EMergeStrategy::Combine);
+    //! Maximum number of output tables times job count an operation can have.
+    int MaxOutputTablesTimesJobsCount;
 
-        RegisterParameter("slice_data_size_multiplier", SliceDataSizeMultiplier)
-            .Default(0.51)
-            .GreaterThan(0.0);
-
-        RegisterParameter("max_data_slices_per_job", MaxDataSlicesPerJob)
-            .Default(100000)
-            .GreaterThan(0);
-
-        RegisterParameter("max_slice_data_size", MaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("min_slice_data_size", MinSliceDataSize)
-            .Default((i64)1 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterValidator([&] () {
-            if (MaxSliceDataSize < MinSliceDataSize) {
-                THROW_ERROR_EXCEPTION("Minimum slice data size must be less than or equal to maximum slice data size")
-                    << TErrorAttribute("min_slice_data_size", MinSliceDataSize)
-                    << TErrorAttribute("max_slice_data_size", MaxSliceDataSize);
-            }
-        });
-    }
+    TOperationOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationOptions)
@@ -360,19 +172,14 @@ DEFINE_REFCOUNTED_TYPE(TOperationOptions)
 class TSimpleOperationOptions
     : public TOperationOptions
 {
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationOptions, 0x875251fa);
+
 public:
     int MaxJobCount;
     i64 DataSizePerJob;
 
-    TSimpleOperationOptions()
-    {
-        RegisterParameter("max_job_count", MaxJobCount)
-            .Default(100000);
-
-        RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 256 * 1024 * 1024)
-            .GreaterThan(0);
-    }
+    TSimpleOperationOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
@@ -382,21 +189,14 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 class TMapOperationOptions
     : public TSimpleOperationOptions
 {
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationOptions, 0x5d08252b);
+
 public:
-    TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+    NControllerAgent::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
     TJobSplitterConfigPtr JobSplitter;
 
-    TMapOperationOptions()
-    {
-        RegisterParameter("job_size_adjuster", JobSizeAdjuster)
-            .DefaultNew();
-        RegisterParameter("job_splitter", JobSplitter)
-            .DefaultNew();
-
-        RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 128 * 1024 * 1024;
-        });
-    }
+    TMapOperationOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
@@ -405,7 +205,10 @@ DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
 
 class TUnorderedMergeOperationOptions
     : public TSimpleOperationOptions
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationOptions, 0x28332598);
+};
 
 DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationOptions)
 
@@ -413,7 +216,10 @@ DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationOptions)
 
 class TOrderedMergeOperationOptions
     : public TSimpleOperationOptions
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationOptions, 0xc71863e6);
+};
 
 DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationOptions)
 
@@ -421,7 +227,10 @@ DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationOptions)
 
 class TSortedMergeOperationOptions
     : public TSimpleOperationOptions
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationOptions, 0x9089b24a);
+};
 
 DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationOptions)
 
@@ -430,18 +239,13 @@ DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationOptions)
 class TReduceOperationOptions
     : public TSortedMergeOperationOptions
 {
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions, 0x91371bf5);
+
 public:
     TJobSplitterConfigPtr JobSplitter;
 
-    TReduceOperationOptions()
-    {
-        RegisterParameter("job_splitter", JobSplitter)
-            .DefaultNew();
-
-        RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 128 * 1024 * 1024;
-        });
-    }
+    TReduceOperationOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
@@ -450,7 +254,10 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
 
 class TJoinReduceOperationOptions
     : public TReduceOperationOptions
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationOptions, 0xdd9303bc);
+};
 
 DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationOptions)
 
@@ -458,7 +265,10 @@ DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationOptions)
 
 class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec, 0x73cb9f3b);
+};
 
 DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)
 
@@ -467,6 +277,9 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)
 class TSortOperationOptionsBase
     : public TOperationOptions
 {
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptionsBase, 0x1f448453);
+
 public:
     int MaxPartitionJobCount;
     int MaxPartitionCount;
@@ -476,48 +289,9 @@ public:
     i64 CompressedBlockSize;
     i64 MinPartitionSize;
     i64 MinUncompressedBlockSize;
-    TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    NControllerAgent::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
 
-    TSortOperationOptionsBase()
-    {
-        RegisterParameter("max_partition_job_count", MaxPartitionJobCount)
-            .Default(100000)
-            .GreaterThan(0);
-
-        RegisterParameter("max_partition_count", MaxPartitionCount)
-            .Default(10000)
-            .GreaterThan(0);
-
-        RegisterParameter("partition_job_max_slice_data_size", PartitionJobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("sort_job_max_slice_data_size", SortJobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("max_sample_size", MaxSampleSize)
-            .Default(10 * 1024)
-            .GreaterThanOrEqual(1024)
-            // NB(psushin): removing this validator may lead to weird errors in sorting.
-            .LessThanOrEqual(NTableClient::MaxSampleSize);
-
-        RegisterParameter("compressed_block_size", CompressedBlockSize)
-            .Default(1 * 1024 * 1024)
-            .GreaterThanOrEqual(1024);
-
-        RegisterParameter("min_partition_size", MinPartitionSize)
-            .Default(256 * 1024 * 1024)
-            .GreaterThanOrEqual(1);
-
-        // Minimum is 1 for tests.
-        RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
-            .Default(1024 * 1024)
-            .GreaterThanOrEqual(1);
-
-        RegisterParameter("partition_job_size_adjuster", PartitionJobSizeAdjuster)
-            .DefaultNew();
-    }
+    TSortOperationOptionsBase();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortOperationOptionsBase)
@@ -526,7 +300,10 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationOptionsBase)
 
 class TSortOperationOptions
     : public TSortOperationOptionsBase
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions, 0xc11251c0);
+};
 
 DEFINE_REFCOUNTED_TYPE(TSortOperationOptions)
 
@@ -534,7 +311,10 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationOptions)
 
 class TMapReduceOperationOptions
     : public TSortOperationOptionsBase
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationOptions, 0x91e3968d);
+};
 
 DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
 
@@ -542,7 +322,10 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
 
 class TRemoteCopyOperationOptions
     : public TSimpleOperationOptions
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationOptions, 0xf3893dc8);
+};
 
 DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
@@ -565,19 +348,7 @@ public:
     // Testing option that enables sleeping between intermediate and final states of operation.
     TNullable<TDuration> FinishOperationTransitionDelay;
 
-    TTestingOptions()
-    {
-        RegisterParameter("enable_random_master_disconnection", EnableRandomMasterDisconnection)
-            .Default(false);
-        RegisterParameter("random_master_disconnection_max_backoff", RandomMasterDisconnectionMaxBackoff)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
-            .Default(Null);
-        RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
-            .Default(false);
-        RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
-            .Default(Null);
-    }
+    TTestingOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestingOptions)
@@ -614,38 +385,11 @@ public:
     // Minimum interquartile range to consider data to be skewed.
     i64 IntermediateDataSkewAlertMinInterquartileRange;
 
-    TOperationAlertsConfig()
-    {
-        RegisterParameter("tmpfs_alert_max_unused_space_ratio", TmpfsAlertMaxUnusedSpaceRatio)
-            .InRange(0.0, 1.0)
-            .Default(0.2);
+    // Job spec throttling alert is triggered if throttler activation
+    // count is above this threshold.
+    i64 JobSpecThrottlingAlertActivationCountThreshold;
 
-        RegisterParameter("tmpfs_alert_min_unused_space_threshold", TmpfsAlertMinUnusedSpaceThreshold)
-            .Default((i64) 512 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("aborted_jobs_alert_max_aborted_time", AbortedJobsAlertMaxAbortedTime)
-            .Default((i64) 10 * 60 * 1000)
-            .GreaterThan(0);
-
-        RegisterParameter("aborted_jobs_alert_max_aborted_time_ratio", AbortedJobsAlertMaxAbortedTimeRatio)
-            .InRange(0.0, 1.0)
-            .Default(0.25);
-
-        RegisterParameter("short_jobs_alert_min_job_duration", ShortJobsAlertMinJobDuration)
-            .Default(TDuration::Minutes(1));
-
-        RegisterParameter("short_jobs_alert_min_job_count", ShortJobsAlertMinJobCount)
-            .Default((i64) 1000);
-
-        RegisterParameter("intermediate_data_skew_alert_min_partition_size", IntermediateDataSkewAlertMinPartitionSize)
-            .Default((i64) 10 * 1024 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("intermediate_data_skew_alert_min_interquartile_range", IntermediateDataSkewAlertMinInterquartileRange)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
-    }
+    TOperationAlertsConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationAlertsConfig)
@@ -687,8 +431,6 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
-    NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
-
     TDuration NodeShardsUpdatePeriod;
 
     TDuration ResourceDemandSanityCheckPeriod;
@@ -715,6 +457,8 @@ public:
 
     TDuration OperationTimeLimitCheckPeriod;
 
+    TDuration OperationControllerFailTimeout;
+
     TDuration AvailableExecNodesCheckPeriod;
 
     TDuration OperationProgressAnalysisPeriod;
@@ -732,6 +476,9 @@ public:
 
     //! Missing jobs are checked not more often then this period.
     TDuration CheckMissingJobsPeriod;
+
+    //! Max available exec node resources are updated not more often then this period.
+    TDuration MaxAvailableExecNodeResourcesUpdatePeriod;
 
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
@@ -770,9 +517,6 @@ public:
 
     //! Maximum size of file allowed to be passed to jobs.
     i64 MaxFileSize;
-
-    //! Maximum number of output tables times job count an operation can have.
-    int MaxOutputTablesTimesJobsCount;
 
     //! Maximum number of input tables an operation can have.
     int MaxInputTableCount;
@@ -886,6 +630,7 @@ public:
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
+    double ResourceOverdraftFactor;
 
     // Duration of no activity by job to be considered as suspicious.
     TDuration SuspiciousInactivityTimeout;
@@ -902,7 +647,7 @@ public:
     TDuration StaticOrchidCacheUpdatePeriod;
 
     // We use the same config for input chunk scraper and intermediate chunk scraper.
-    TIntermediateChunkScraperConfigPtr ChunkScraper;
+    NControllerAgent::TIntermediateChunkScraperConfigPtr ChunkScraper;
 
     // Enables statistics reporter to send job events/statistics/specs etc.
     bool EnableStatisticsReporter;
@@ -931,363 +676,13 @@ public:
     // How often job metrics should be updated.
     TDuration JobMetricsBatchInterval;
 
-    TSchedulerConfig()
-    {
-        RegisterParameter("controller_thread_count", ControllerThreadCount)
-            .Default(4)
-            .GreaterThan(0);
-        RegisterParameter("statistics_analyzer_thread_count", StatisticsAnalyzerThreadCount)
-            .Default(2)
-            .GreaterThan(0);
-        RegisterParameter("job_spec_builder_thread_count", JobSpecBuilderThreadCount)
-            .Default(8)
-            .GreaterThan(0);
-        RegisterParameter("parallel_snapshot_builder_count", ParallelSnapshotBuilderCount)
-            .Default(4)
-            .GreaterThan(0);
-        RegisterParameter("node_shard_count", NodeShardCount)
-            .Default(4)
-            .GreaterThan(0);
+    TSchedulerConfig();
 
-        RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("node_heartbeat_timeout", NodeHeartbeatTimeout)
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("transactions_refresh_period", TransactionsRefreshPeriod)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("operations_update_period", OperationsUpdatePeriod)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("profiling_update_period", ProfilingUpdatePeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
-            .DefaultNew();
-        RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
-            .Default(TDuration::Seconds(10));
-
-        RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("operation_initialization_timeout", OperationInitializationTimeout)
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
-            .Default(TDuration::Minutes(60));
-        RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
-            .Default(TDuration::Seconds(300));
-
-        RegisterParameter("operation_controller_suspend_timeout", OperationControllerSuspendTimeout)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("operation_progress_log_backoff", OperationLogProgressBackoff)
-            .Default(TDuration::Seconds(1));
-
-        RegisterParameter("task_update_period", TaskUpdatePeriod)
-            .Default(TDuration::Seconds(3));
-
-        RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
-            .Default(TDuration::Seconds(1));
-
-        RegisterParameter("pending_event_log_rows_flush_period", PendingEventLogRowsFlushPeriod)
-            .Default(TDuration::Seconds(1));
-
-        RegisterParameter("update_exec_node_descriptors_period", UpdateExecNodeDescriptorsPeriod)
-            .Default(TDuration::Seconds(10));
-
-
-        RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
-            .Default(TDuration::Seconds(1));
-
-        RegisterParameter("available_exec_nodes_check_period", AvailableExecNodesCheckPeriod)
-            .Default(TDuration::Seconds(5));
-
-        RegisterParameter("operation_progress_analysis_period", OperationProgressAnalysisPeriod)
-            .Default(TDuration::Seconds(10));
-
-        RegisterParameter("operation_build_progress_period", OperationBuildProgressPeriod)
-            .Default(TDuration::Seconds(3));
-
-        RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
-            .Default(TDuration::Seconds(30));
-
-        RegisterParameter("running_jobs_update_period", RunningJobsUpdatePeriod)
-            .Default(TDuration::Seconds(10));
-
-        RegisterParameter("check_missing_jobs_period", CheckMissingJobsPeriod)
-            .Default(TDuration::Seconds(10));
-
-        RegisterParameter("operation_time_limit", OperationTimeLimit)
-            .Default();
-
-        RegisterParameter("max_job_nodes_per_operation", MaxJobNodesPerOperation)
-            .Default(200)
-            .GreaterThanOrEqual(0)
-            .LessThanOrEqual(200);
-
-        RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
-            .Default(128)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("max_chunk_list_allocation_count", MaxChunkListAllocationCount)
-            .Default(16384)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("chunk_list_watermark_count", ChunkListWatermarkCount)
-            .Default(50)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
-            .Default(2.0)
-            .GreaterThan(1.0);
-        RegisterParameter("chunk_list_release_batch_delay", ChunkListReleaseBatchDelay)
-            .Default(TDuration::Seconds(30));
-        RegisterParameter("desired_chunk_lists_per_release", DesiredChunkListsPerRelease)
-            .Default(1000);
-
-        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
-            .Default(100000)
-            .GreaterThan(0);
-
-        RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)
-            .Default(10000)
-            .GreaterThan(0);
-
-        RegisterParameter("max_file_size", MaxFileSize)
-            .Default((i64) 10 * 1024 * 1024 * 1024);
-
-        RegisterParameter("max_input_table_count", MaxInputTableCount)
-            .Default(1000)
-            .GreaterThan(0);
-
-        RegisterParameter("max_ranges_on_table", MaxRangesOnTable)
-            .Default(1000)
-            .GreaterThan(0);
-
-        RegisterParameter("max_user_file_count", MaxUserFileCount)
-            .Default(1000)
-            .GreaterThan(0);
-
-        RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
-            .Default(20 * 100000)
-            .GreaterThanOrEqual(100000);
-
-        RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
-            .Default()
-            .GreaterThan(0);
-
-        RegisterParameter("max_concurrent_safe_core_dumps", MaxConcurrentSafeCoreDumps)
-            .Default(1)
-            .GreaterThanOrEqual(0);
-
-        RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
-            .GreaterThanOrEqual(0)
-            .Default(1);
-
-        RegisterParameter("safe_scheduler_online_time", SafeSchedulerOnlineTime)
-            .Default(TDuration::Minutes(10));
-
-        RegisterParameter("controller_update_exec_nodes_information_delay", ControllerUpdateExecNodesInformationDelay)
-            .Default(TDuration::Seconds(30));
-
-        RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
-            .Default(TDuration::Hours(1));
-
-        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
-            .GreaterThan(0)
-            .Default(10000);
-
-        RegisterParameter("operation_options", OperationOptions)
-            .Default()
-            .MergeBy(NYTree::EMergeStrategy::Combine);
-
-        RegisterParameter("map_operation_options", MapOperationOptions)
-            .DefaultNew();
-        RegisterParameter("reduce_operation_options", ReduceOperationOptions)
-            .DefaultNew();
-        RegisterParameter("join_reduce_operation_options", JoinReduceOperationOptions)
-            .DefaultNew();
-        RegisterParameter("erase_operation_options", EraseOperationOptions)
-            .DefaultNew();
-        RegisterParameter("ordered_merge_operation_options", OrderedMergeOperationOptions)
-            .DefaultNew();
-        RegisterParameter("unordered_merge_operation_options", UnorderedMergeOperationOptions)
-            .DefaultNew();
-        RegisterParameter("sorted_merge_operation_options", SortedMergeOperationOptions)
-            .DefaultNew();
-        RegisterParameter("map_reduce_operation_options", MapReduceOperationOptions)
-            .DefaultNew();
-        RegisterParameter("sort_operation_options", SortOperationOptions)
-            .DefaultNew();
-        RegisterParameter("remote_copy_operation_options", RemoteCopyOperationOptions)
-            .DefaultNew();
-
-        RegisterParameter("environment", Environment)
-            .Default(yhash<TString, TString>())
-            .MergeBy(NYTree::EMergeStrategy::Combine);
-
-        RegisterParameter("snapshot_timeout", SnapshotTimeout)
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("snapshot_period", SnapshotPeriod)
-            .Default(TDuration::Seconds(300));
-        RegisterParameter("enable_snapshot_building", EnableSnapshotBuilding)
-            .Default(true);
-        RegisterParameter("enable_snapshot_loading", EnableSnapshotLoading)
-            .Default(false);
-        RegisterParameter("snapshot_temp_path", SnapshotTempPath)
-            .NonEmpty()
-            .Default("/tmp/yt/scheduler/snapshots");
-        RegisterParameter("snapshot_reader", SnapshotReader)
-            .DefaultNew();
-        RegisterParameter("snapshot_writer", SnapshotWriter)
-            .DefaultNew();
-
-        RegisterParameter("fetcher", Fetcher)
-            .DefaultNew();
-        RegisterParameter("event_log", EventLog)
-            .DefaultNew();
-
-        RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
-            .DefaultNew();
-
-        RegisterParameter("udf_registry_path", UdfRegistryPath)
-            .Default(Null);
-
-        RegisterParameter("heartbeat_process_backoff", HeartbeatProcessBackoff)
-            .Default(TDuration::MilliSeconds(5000));
-        RegisterParameter("soft_concurrent_heartbeat_limit", SoftConcurrentHeartbeatLimit)
-            .Default(50)
-            .GreaterThanOrEqual(1);
-        RegisterParameter("hard_concurrent_heartbeat_limit", HardConcurrentHeartbeatLimit)
-            .Default(100)
-            .GreaterThanOrEqual(1);
-
-        RegisterParameter("job_spec_slice_throttler", JobSpecSliceThrottler)
-            .Default(New<NConcurrency::TThroughputThrottlerConfig>(500000));
-        RegisterParameter("heavy_job_spec_slice_count_threshold", HeavyJobSpecSliceCountThreshold)
-            .Default(1000)
-            .GreaterThan(0);
-
-        RegisterParameter("enable_tmpfs", EnableTmpfs)
-            .Default(true);
-        RegisterParameter("enable_map_job_size_adjustment", EnableMapJobSizeAdjustment)
-            .Default(true);
-        RegisterParameter("enable_job_splitting", EnableJobSplitting)
-            .Default(true);
-
-        RegisterParameter("additional_intermediate_data_acl", AdditionalIntermediateDataAcl)
-            .Default(NYTree::BuildYsonNodeFluently()
-                .BeginList()
-                .EndList()->AsList());
-
-        //! By default we disable job size adjustment for partition maps,
-        //! since it may lead to partition data skew between nodes.
-        RegisterParameter("enable_partition_map_job_size_adjustment", EnablePartitionMapJobSizeAdjustment)
-            .Default(false);
-
-        RegisterParameter("user_job_memory_digest_precision", UserJobMemoryDigestPrecision)
-            .Default(0.01)
-            .GreaterThan(0);
-        RegisterParameter("user_job_memory_reserve_quantile", UserJobMemoryReserveQuantile)
-            .InRange(0.0, 1.0)
-            .Default(0.95);
-        RegisterParameter("job_proxy_memory_reserve_quantile", JobProxyMemoryReserveQuantile)
-            .InRange(0.0, 1.0)
-            .Default(0.95);
-
-        RegisterParameter("suspicious_inactivity_timeout", SuspiciousInactivityTimeout)
-            .Default(TDuration::Minutes(1));
-        RegisterParameter("suspicious_cpu_usage_threshold", SuspiciousCpuUsageThreshold)
-            .Default(300);
-        RegisterParameter("suspicious_input_pipe_time_idle_fraction", SuspiciousInputPipeIdleTimeFraction)
-            .Default(0.95);
-
-        RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
-            .Default(TDuration::Seconds(1));
-
-        RegisterParameter("iops_threshold", IopsThreshold)
-            .Default(Null);
-        RegisterParameter("iops_throttler_limit", IopsThrottlerLimit)
-            .Default(Null);
-
-        RegisterParameter("chunk_scraper", ChunkScraper)
-            .DefaultNew();
-
-        RegisterParameter("enable_statistics_reporter", EnableStatisticsReporter)
-            .Default(false);
-
-        RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
-            .Default(TDuration::Seconds(10));
-
-        RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
-            .Default((i64) 10 * 1000 * 1000)
-            .GreaterThan(0);
-
-        RegisterParameter("operation_alerts", OperationAlertsConfig)
-            .DefaultNew();
-
-        RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
-            .Default((i64) 64 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("main_nodes_filter", MainNodesFilterFormula)
-            .Default();
-
-        RegisterParameter("testing_options", TestingOptions)
-            .DefaultNew();
-
-        RegisterParameter("job_spec_codec", JobSpecCodec)
-            .Default(NCompression::ECodec::Lz4);
-
-        RegisterParameter("job_metrics_batch_interval", JobMetricsBatchInterval)
-            .Default(TDuration::Minutes(1));
-
-        RegisterInitializer([&] () {
-            ChunkLocationThrottler->Limit = 10000;
-
-            EventLog->MaxRowWeight = (i64) 128 * 1024 * 1024;
-        });
-
-        RegisterValidator([&] () {
-            if (SoftConcurrentHeartbeatLimit > HardConcurrentHeartbeatLimit) {
-                THROW_ERROR_EXCEPTION("Soft limit on concurrent heartbeats must be less than or equal to hard limit on concurrent heartbeats")
-                    << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)
-                    << TErrorAttribute("hard_limit", HardConcurrentHeartbeatLimit);
-            }
-        });
-    }
-
-    virtual void OnLoaded() override
-    {
-        UpdateOptions(&MapOperationOptions, OperationOptions);
-        UpdateOptions(&ReduceOperationOptions, OperationOptions);
-        UpdateOptions(&JoinReduceOperationOptions, OperationOptions);
-        UpdateOptions(&EraseOperationOptions, OperationOptions);
-        UpdateOptions(&OrderedMergeOperationOptions, OperationOptions);
-        UpdateOptions(&UnorderedMergeOperationOptions, OperationOptions);
-        UpdateOptions(&SortedMergeOperationOptions, OperationOptions);
-        UpdateOptions(&MapReduceOperationOptions, OperationOptions);
-        UpdateOptions(&SortOperationOptions, OperationOptions);
-        UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
-
-        MainNodesFilter.Reload(MainNodesFilterFormula);
-    }
+    virtual void OnLoaded() override;
 
 private:
     template <class TOptions>
-    void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch)
-    {
-        using NYTree::INodePtr;
-        using NYTree::ConvertTo;
-
-        if (!patch) {
-            return;
-        }
-
-        if (*options) {
-            *options = ConvertTo<TOptions>(UpdateNode(patch, ConvertTo<INodePtr>(*options)));
-        } else {
-            *options = ConvertTo<TOptions>(patch);
-        }
-    }
+    void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
@@ -1296,3 +691,7 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 
 } // namespace NScheduler
 } // namespace NYT
+
+#define CONFIG_INL_H_
+#include "config-inl.h"
+#undef CONFIG_INL_H_

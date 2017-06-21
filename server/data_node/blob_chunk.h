@@ -8,6 +8,7 @@
 
 #include <yt/server/misc/memory_usage_tracker.h>
 
+#include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
@@ -32,11 +33,11 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<std::vector<int>>& extensionTags = Null) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
         const TBlockReadOptions& options) override;
@@ -65,7 +66,7 @@ private:
         };
 
         std::vector<TBlockEntry> Entries;
-        std::vector<TSharedRef> Blocks;
+        std::vector<NChunkClient::TBlock> Blocks;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;

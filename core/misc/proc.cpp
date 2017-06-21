@@ -30,12 +30,15 @@
     #include <pwd.h>
     #include <sys/ioctl.h>
     #include <sys/types.h>
+    #include <sys/resource.h>
     #include <sys/stat.h>
     #include <unistd.h>
 #endif
 #ifdef _linux_
     #include <pty.h>
+    #include <grp.h>
     #include <utmp.h>
+    #include <sys/prctl.h>
 #endif
 #ifdef _darwin_
     #include <util.h>
@@ -74,7 +77,7 @@ std::vector<int> GetPidsByUid(int uid)
         int res = ::stat(~path, &buf);
 
         if (res == 0) {
-            if (buf.st_uid == uid) {
+            if (buf.st_uid == uid || uid == -1) {
                 result.push_back(pid);
             }
         } else {
@@ -407,6 +410,43 @@ void SetPermissions(int fd, int permissions)
     SetPermissions(procPath, permissions);
 }
 
+void SetUid(int uid)
+{
+    // Set unprivileged uid and gid for user process.
+    if (setuid(0) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set zero uid")
+            << TError::FromSystem();
+    }
+    if (setgroups(0, nullptr) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set zero gid")
+            << TError::FromSystem();
+    }
+#ifdef _linux_
+    if (setresgid(uid, uid, uid) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set uids")
+            << TErrorAttribute("uid", uid)
+            << TError::FromSystem();
+    }
+    if (setresuid(uid, uid, uid) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set gids")
+            << TErrorAttribute("gid", uid)
+            << TError::FromSystem();
+    }
+#else
+    if (setuid(uid) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set uid")
+            << TErrorAttribute("uid", uid)
+            << TError::FromSystem();
+    }
+
+    if (setgid(uid) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set gid")
+            << TErrorAttribute("gid", uid)
+            << TError::FromSystem();
+    }
+#endif
+}
+
 void SafePipe(int fd[2])
 {
 #ifdef _linux_
@@ -419,7 +459,7 @@ void SafePipe(int fd[2])
     {
         int result = ::pipe(fd);
         if (result == -1) {
-            THROW_ERROR_EXCEPTION("Error creating pipe: pipe creation failed")
+            THROW_ERROR_EXCEPTION("Error creating pipe")
                 << TError::FromSystem();
         }
     }

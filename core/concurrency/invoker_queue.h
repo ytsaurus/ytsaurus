@@ -37,13 +37,13 @@ public:
 
     void SetThreadId(TThreadId threadId);
 
-    void Configure(int threads);
+    void Configure(int threadCount);
 
     virtual void Invoke(TClosure callback) override;
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     virtual TThreadId GetThreadId() const override;
-    virtual bool CheckAffinity(IInvokerPtr invoker) const override;
+    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override;
 #endif
 
     virtual void Shutdown() override;

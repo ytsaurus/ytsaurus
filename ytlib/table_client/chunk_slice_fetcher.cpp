@@ -1,7 +1,7 @@
 #include "chunk_slice_fetcher.h"
 
-#include "yt/ytlib/table_client/row_buffer.h"
-#include "yt/ytlib/table_client/private.h"
+#include "row_buffer.h"
+#include "private.h"
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/config.h>
@@ -33,7 +33,7 @@ using namespace NRpc;
 using NYT::FromProto;
 using NYT::ToProto;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Fetches slices for a bunch of table chunks by requesting
 //! them directly from data nodes.
@@ -228,7 +228,7 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     TFetcherConfigPtr config,
@@ -255,7 +255,7 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
         logger);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient
 } // namespace NYT

@@ -36,7 +36,7 @@ class TFiber
 public:
     explicit TFiber(
         TClosure callee,
-        EExecutionStack stack = EExecutionStack::Small);
+        EExecutionStackKind stackKind = EExecutionStackKind::Small);
 
     TFiber(const TFiber&) = delete;
     TFiber(TFiber&&) = delete;
@@ -142,6 +142,14 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFiber)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the current global limit for the number of pooled fiber stacks of a given size.
+int GetFiberStackPoolSize(EExecutionStackKind stackKind);
+
+//! Sets the global limit for the number of pooled fiber stacks of a given size.
+void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

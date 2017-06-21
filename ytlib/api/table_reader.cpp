@@ -428,7 +428,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
 {
     ITransactionPtr transaction;
 
-    if (options.TransactionId != NTransactionClient::NullTransactionId) {
+    if (options.TransactionId) {
         TTransactionAttachOptions transactionOptions;
         transactionOptions.Ping = options.Ping;
         transactionOptions.PingAncestors = options.PingAncestors;

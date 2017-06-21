@@ -27,10 +27,12 @@ using namespace NHiveServer;
 TTransactionWriteRecord::TTransactionWriteRecord(
     const TTabletId& tabletId,
     TSharedRef data,
-    int rowCount)
+    int rowCount,
+    const TSyncReplicaIdList& syncReplicaIds)
     : TabletId(tabletId)
     , Data(std::move(data))
     , RowCount(rowCount)
+    , SyncReplicaIds(syncReplicaIds)
 { }
 
 void TTransactionWriteRecord::Save(TSaveContext& context) const
@@ -39,6 +41,7 @@ void TTransactionWriteRecord::Save(TSaveContext& context) const
     Save(context, TabletId);
     Save(context, Data);
     Save(context, RowCount);
+    Save(context, SyncReplicaIds);
 }
 
 void TTransactionWriteRecord::Load(TLoadContext& context)
@@ -47,6 +50,7 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
     Load(context, TabletId);
     Load(context, Data);
     Load(context, RowCount);
+    Load(context, SyncReplicaIds);
 }
 
 i64 TTransactionWriteRecord::GetByteSize() const
@@ -67,12 +71,14 @@ void TTransaction::Save(TSaveContext& context) const
     using NYT::Save;
 
     YCHECK(!Transient_);
+    Save(context, Foreign_);
     Save(context, Timeout_);
     Save(context, GetPersistentState());
     Save(context, StartTimestamp_);
     Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
     Save(context, PersistentSignature_);
+    Save(context, ReplicatedRowsPrepared_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -82,6 +88,7 @@ void TTransaction::Load(TLoadContext& context)
     using NYT::Load;
 
     Transient_ = false;
+    Load(context, Foreign_);
     Load(context, Timeout_);
     Load(context, State_);
     Load(context, StartTimestamp_);
@@ -89,6 +96,7 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, CommitTimestamp_);
     Load(context, PersistentSignature_);
     TransientSignature_ = PersistentSignature_;
+    Load(context, ReplicatedRowsPrepared_);
 }
 
 TCallback<void(TSaveContext&)> TTransaction::AsyncSave()
@@ -163,6 +171,11 @@ bool TTransaction::IsPrepared() const
     return
         State_ == ETransactionState::TransientCommitPrepared ||
         State_ == ETransactionState::PersistentCommitPrepared;
+}
+
+bool TTransaction::IsSerializationNeeded() const
+{
+    return !DelayedLocklessWriteLog_.Empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

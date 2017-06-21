@@ -215,6 +215,11 @@ private:
                         key.Account);
                 }
 
+                if (node->AsMap()->GetChild("tablet_static_memory")->GetValue<bool>()) {
+                    THROW_ERROR_EXCEPTION("Account %Qv violates tablet static memory limit",
+                        key.Account);
+                }
+
                 const auto& mediumLimit = node->AsMap()->GetChild("disk_space_per_medium")->AsMap()->FindChild(key.MediumName);
 
                 if (!mediumLimit) {
@@ -273,15 +278,6 @@ public:
             return VoidFuture;
         }
 
-        //if (tabletSnapshot->ReplicationMode == NTableClient::ETableReplicationMode::AsynchronousSink &&
-        //    permission == EPermission::Write &&
-        //    *maybeUser != NSecurityClient::ReplicatorUserName)
-        //{
-        //    THROW_ERROR_EXCEPTION("Only %Qv is allowed to write into tables with %Qlv replication mode",
-        //        NSecurityClient::ReplicatorUserName,
-        //        tabletSnapshot->ReplicationMode);
-        //}
-        //
         TTablePermissionKey key{tabletSnapshot->TableId, *maybeUser, permission};
         return TablePermissionCache_->Get(key);
     }
@@ -292,7 +288,14 @@ public:
     {
         auto asyncResult = CheckPermission(std::move(tabletSnapshot), permission);
         auto maybeResult = asyncResult.TryGet();
-        auto result = maybeResult ? *maybeResult : WaitFor(asyncResult);
+        TError result;
+        if (maybeResult) {
+            result = *maybeResult;
+        } else {
+            LOG_DEBUG("Started waiting for persmission cache result");
+            result = WaitFor(asyncResult);
+            LOG_DEBUG("Finished waiting for persmission cache result");
+        }
         result.ThrowOnError();
     }
 

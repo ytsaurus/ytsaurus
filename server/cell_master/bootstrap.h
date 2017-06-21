@@ -75,6 +75,7 @@ public:
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
     const NNodeTrackerServer::TNodeTrackerPtr& GetNodeTracker() const;
     const NTransactionServer::TTransactionManagerPtr& GetTransactionManager() const;
+    const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
     const NHiveServer::TTransactionSupervisorPtr& GetTransactionSupervisor() const;
     const NCypressServer::TCypressManagerPtr& GetCypressManager() const;
     const THydraFacadePtr& GetHydraFacade() const;
@@ -120,6 +121,7 @@ private:
     NHydra::ISnapshotStorePtr SnapshotStore_;
     NNodeTrackerServer::TNodeTrackerPtr NodeTracker_;
     NTransactionServer::TTransactionManagerPtr TransactionManager_;
+    NTransactionClient::ITimestampProviderPtr TimestampProvider_;
     NHiveServer::TTransactionSupervisorPtr TransactionSupervisor_;
     NCypressServer::TCypressManagerPtr CypressManager_;
     THydraFacadePtr HydraFacade_;
@@ -131,7 +133,7 @@ private:
     NTabletServer::TTabletManagerPtr TabletManager_;
     NHiveServer::THiveManagerPtr HiveManager_;
     NHiveClient::TCellDirectoryPtr CellDirectory_;
-    NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     TCoreDumperPtr CoreDumper_;
 

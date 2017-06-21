@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/actions/bind.h>
 
@@ -6,10 +6,12 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/process.h>
 #include <yt/core/misc/proc.h>
-
 #include <yt/core/pipes/async_reader.h>
+
+#include <yt/server/misc/process.h>
+#include <yt/server/containers/porto_executor.h>
+#include <yt/server/containers/instance.h>
 
 namespace NYT {
 namespace {
@@ -18,35 +20,69 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _unix_
-
-TEST(TProcessTest, Basic)
+#ifdef _linux_
+TEST(TPortoProcessTest, Basic)
 {
-    auto p = New<TProcess>("/bin/ls");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/ls", portoInstance, true);
     TFuture<void> finished;
-
     ASSERT_NO_THROW(finished = p->Spawn());
     ASSERT_TRUE(p->IsStarted());
     auto error = WaitFor(finished);
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
-TEST(TProcessTest, InvalidPath)
+TEST(TPortoProcessTest, RunFromPathEnv)
 {
-    auto p = New<TProcess>("/some/bad/path/binary");
-
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("ls", portoInstance, true);
     TFuture<void> finished;
     ASSERT_NO_THROW(finished = p->Spawn());
-    ASSERT_FALSE(p->IsStarted());
+    ASSERT_TRUE(p->IsStarted());
     auto error = WaitFor(finished);
-    EXPECT_FALSE(p->IsFinished());
-    EXPECT_FALSE(error.IsOK());
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
-TEST(TProcessTest, StdOut)
+TEST(TPortoProcessTest, MultiBasic)
 {
-    auto p = New<TProcess>("/bin/date");
+    auto portoExecutor = NContainers::CreatePortoExecutor();
+    auto c1 = NContainers::CreatePortoInstance("test1", portoExecutor);
+    auto c2 = NContainers::CreatePortoInstance("test2", portoExecutor);
+    auto p1 = New<TPortoProcess>("/bin/ls", c1, true);
+    auto p2 = New<TPortoProcess>("/bin/ls", c2, true);
+    TFuture<void> f1;
+    TFuture<void> f2;
+    ASSERT_NO_THROW(f1 = p1->Spawn());
+    ASSERT_NO_THROW(f2 = p2->Spawn());
+    auto error = WaitFor((Combine(std::vector<TFuture<void>>{f1, f2})));
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p1->IsFinished());
+    EXPECT_TRUE(p2->IsFinished());
+    c1->Destroy();
+    c2->Destroy();
+}
+
+TEST(TPortoProcessTest, InvalidPath)
+{
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/some/bad/path/binary", portoInstance, true);
+    TFuture<void> finished;
+    ASSERT_NO_THROW(finished = p->Spawn());
+    ASSERT_TRUE(p->IsStarted());
+    auto error = WaitFor(finished);
+    EXPECT_TRUE(p->IsFinished());
+    EXPECT_FALSE(error.IsOK());
+    portoInstance->Destroy();
+}
+
+TEST(TPortoProcessTest, StdOut)
+{
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/date", portoInstance, true);
 
     auto outStream = p->GetStdOutReader();
     TFuture<void> finished;
@@ -58,49 +94,28 @@ TEST(TProcessTest, StdOut)
 
     auto buffer = TSharedMutableRef::Allocate(4096, false);
     auto future = outStream->Read(buffer);
-    auto result = WaitFor(future);
+    TErrorOr<size_t> result = WaitFor(future);
     size_t sz = result.ValueOrThrow();
     EXPECT_TRUE(sz > 0);
+    portoInstance->Destroy();
 }
 
-TEST(TProcess, GetCommandLine1)
+TEST(TPortoProcessTest, GetCommandLine)
 {
-    auto p = New<TProcess>("/bin/bash");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     EXPECT_EQ("/bin/bash", p->GetCommandLine());
     p->AddArgument("-c");
     EXPECT_EQ("/bin/bash -c", p->GetCommandLine());
     p->AddArgument("exit 0");
     EXPECT_EQ("/bin/bash -c \"exit 0\"", p->GetCommandLine());
+    portoInstance->Destroy();
 }
 
-TEST(TProcess, GetCommandLine2)
+TEST(TPortoProcessTest, ProcessReturnCode0)
 {
-    auto p = New<TProcess>("/bin/bash");
-    EXPECT_EQ("/bin/bash", p->GetCommandLine());
-    p->AddArgument("-c");
-    EXPECT_EQ("/bin/bash -c", p->GetCommandLine());
-    p->AddArgument("\"quoted\"");
-    EXPECT_EQ("/bin/bash -c \"\\\"quoted\\\"\"", p->GetCommandLine());
-}
-
-TEST(TProcess, IgnoreCloseInvalidFD)
-{
-    auto p = New<TProcess>("/bin/bash");
-    p->AddArgument("-c");
-    p->AddArgument("exit 0");
-    p->AddCloseFileAction(74);
-
-    TFuture<void> finished;
-    ASSERT_NO_THROW(finished = p->Spawn());
-    ASSERT_TRUE(p->IsStarted());
-    auto error = WaitFor(finished);
-    EXPECT_TRUE(error.IsOK()) << ToString(error);
-    EXPECT_TRUE(p->IsFinished());
-}
-
-TEST(TProcessTest, ProcessReturnCode0)
-{
-    auto p = New<TProcess>("/bin/bash");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("exit 0");
 
@@ -110,11 +125,13 @@ TEST(TProcessTest, ProcessReturnCode0)
     auto error = WaitFor(finished);
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
-TEST(TProcessTest, ProcessReturnCode123)
+TEST(TPortoProcessTest, ProcessReturnCode123)
 {
-    auto p = New<TProcess>("/bin/bash");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("exit 123");
 
@@ -125,37 +142,43 @@ TEST(TProcessTest, ProcessReturnCode123)
     EXPECT_EQ(EProcessErrorCode::NonZeroExitCode, error.GetCode());
     EXPECT_EQ(123, error.Attributes().Get<int>("exit_code"));
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
-TEST(TProcessTest, Params1)
+TEST(TPortoProcessTest, Params1)
 {
-    auto p = New<TProcess>("/bin/bash");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("if test 3 -gt 1; then exit 7; fi");
 
     auto error = WaitFor(p->Spawn());
     EXPECT_FALSE(error.IsOK());
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
-TEST(TProcessTest, Params2)
+TEST(TPortoProcessTest, Params2)
 {
-    auto p = New<TProcess>("/bin/bash");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("if test 1 -gt 3; then exit 7; fi");
 
     auto error = WaitFor(p->Spawn());
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
-TEST(TProcessTest, InheritEnvironment)
+TEST(TPortoProcessTest, InheritEnvironment)
 {
     const char* name = "SPAWN_TEST_ENV_VAR";
     const char* value = "42";
     setenv(name, value, 1);
 
-    auto p = New<TProcess>("/bin/bash");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("if test $SPAWN_TEST_ENV_VAR = 42; then exit 7; fi");
 
@@ -164,12 +187,14 @@ TEST(TProcessTest, InheritEnvironment)
     EXPECT_TRUE(p->IsFinished());
 
     unsetenv(name);
+    portoInstance->Destroy();
 }
 
-TEST(TProcessTest, Kill)
+TEST(TPortoProcessTest, Kill)
 {
-    auto p = New<TProcess>("/bin/sleep");
-    p->AddArgument("1");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/sleep", portoInstance, true);
+    p->AddArgument("5");
 
     auto finished = p->Spawn();
 
@@ -180,13 +205,15 @@ TEST(TProcessTest, Kill)
         TDuration::MilliSeconds(100));
 
     auto error = WaitFor(finished);
-    EXPECT_FALSE(error.IsOK());
+    EXPECT_FALSE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
-TEST(TProcessTest, KillFinished)
+TEST(TPortoProcessTest, KillFinished)
 {
-    auto p = New<TProcess>("/bin/bash");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("true");
 
@@ -196,38 +223,20 @@ TEST(TProcessTest, KillFinished)
     EXPECT_TRUE(error.IsOK());
 
     p->Kill(SIGKILL);
+    portoInstance->Destroy();
 }
 
-TEST(TProcessTest, KillZombie)
+TEST(TPortoProcessTest, PollDuration)
 {
-    auto p = New<TProcess>("/bin/bash");
-    p->AddArgument("-c");
-    p->AddArgument("sleep 1; true");
-
-    auto finished = p->Spawn();
-
-    siginfo_t infop;
-    
-    auto res = HandleEintr(::waitid, P_PID, p->GetProcessId(), &infop, WEXITED | WNOWAIT);
-    EXPECT_EQ(0, res);
-
-    EXPECT_EQ(p->GetProcessId(), infop.si_pid);
-
-    p->Kill(SIGKILL);
-    auto error = WaitFor(finished);
-    EXPECT_TRUE(error.IsOK());
-}
-
-TEST(TProcessTest, PollDuration)
-{
-    auto p = New<TProcess>("/bin/sleep", true, TDuration::MilliSeconds(1));
-    p->AddArgument("0.1");
+    auto portoInstance = NContainers::CreatePortoInstance("test",  NContainers::CreatePortoExecutor());
+    auto p = New<TPortoProcess>("/bin/sleep", portoInstance, true, TDuration::MilliSeconds(1));
+    p->AddArgument("1");
 
     auto error = WaitFor(p->Spawn());
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
-
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////

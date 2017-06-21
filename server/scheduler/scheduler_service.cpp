@@ -26,7 +26,7 @@ using namespace NYson;
 using namespace NCypressClient;
 using namespace NConcurrency;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerService
     : public TServiceBase
@@ -34,7 +34,7 @@ class TSchedulerService
 public:
     TSchedulerService(TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            bootstrap->GetControlInvoker(EControlQueue::UserRequest),
             TSchedulerServiceProxy::GetDescriptor(),
             SchedulerLogger)
         , Bootstrap_(bootstrap)
@@ -193,7 +193,7 @@ IServicePtr CreateSchedulerService(TBootstrap* bootstrap)
     return New<TSchedulerService>(bootstrap);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

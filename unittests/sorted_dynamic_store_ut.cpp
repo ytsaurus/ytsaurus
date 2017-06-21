@@ -225,7 +225,7 @@ private:
 
     TUnversionedValue ToUnversionedValue(const TDynamicValueData& data, int index)
     {
-        TUnversionedValue value;
+        TUnversionedValue value{};
         value.Id = index;
         value.Type = Tablet_->PhysicalSchema().Columns()[index].Type;
         if (IsStringLikeType(value.Type)) {
@@ -248,7 +248,7 @@ private:
     }
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSortedDynamicRowKeyComparerTest
     : public TSingleLockSortedDynamicStoreTest
@@ -604,7 +604,7 @@ TEST_F(TSortedDynamicRowKeyComparerTest, DifferentLength)
         << "row2: " << ToString(row2);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TSingleLockSortedDynamicStoreTest, Empty)
 {
@@ -1367,7 +1367,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot_YT2591)
     EXPECT_EQ(dump, DumpStore());
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TMultiLockSortedDynamicStoreTest
     : public TSingleLockSortedDynamicStoreTest
@@ -1683,7 +1683,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, SerializeSnapshot1)
     check();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TNonAtomicSortedDynamicStoreTest
     : public TSingleLockSortedDynamicStoreTest
@@ -1840,7 +1840,7 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, WriteDelete3)
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NTabletNode

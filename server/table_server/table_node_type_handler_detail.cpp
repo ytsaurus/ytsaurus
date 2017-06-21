@@ -33,6 +33,8 @@ using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
 
+using NTabletNode::EInMemoryMode;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
@@ -45,7 +47,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const TVersionedNodeId& id,
     TCellTag cellTag,
     TTransaction* transaction,
-    IAttributeDictionary* attributes)
+    IAttributeDictionary* attributes,
+    TAccount* account,
+    bool enableAccounting)
 {
     if (!attributes->Contains("compression_codec")) {
         attributes->Set("compression_codec", NCompression::ECodec::Lz4);
@@ -95,17 +99,16 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     if (maybeTabletCount && maybePivotKeys) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"tablet_count\" and \"pivot_keys\"");
     }
-
-    auto maybeReplicationMode = attributes->FindAndRemove<ETableReplicationMode>("replication_mode");
-    if (maybeReplicationMode) {
+    auto upstreamReplicaId = attributes->GetAndRemove<TTableReplicaId>("upstream_replica_id", TTableReplicaId());
+    if (upstreamReplicaId) {
         if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Table replication mode can only be set for dynamic tables");
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
         }
         if (!maybeSchema->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Table replication mode can only be set for sorted tables");
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
         }
         if (replicated) {
-            THROW_ERROR_EXCEPTION("Table replication mode cannot be explicitly set for replicated tables");
+            THROW_ERROR_EXCEPTION("Upstream replica cannot be set for replicated tables");
         }
     }
 
@@ -115,7 +118,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         id,
         cellTag,
         transaction,
-        attributes);
+        attributes,
+        account,
+        enableAccounting);
     auto* node = nodeHolder.get();
 
     try {
@@ -123,7 +128,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             // NB: This setting is not visible in attributes but crucial for replication
             // to work properly.
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
-            node->SetReplicationMode(ETableReplicationMode::Source);
         }
 
         if (maybeSchema) {
@@ -142,9 +146,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             }
         }
 
-        if (maybeReplicationMode) {
-            node->SetReplicationMode(*maybeReplicationMode);
-        }
+        node->SetUpstreamReplicaId(upstreamReplicaId);
     } catch (const std::exception&) {
         DoDestroy(node);
         throw;
@@ -174,7 +176,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp());
-    branchedNode->SetReplicationMode(originatingNode->GetReplicationMode());
+    branchedNode->SetUpstreamReplicaId(originatingNode->GetUpstreamReplicaId());
 
     TBase::DoBranch(originatingNode, branchedNode, mode);
 }
@@ -196,11 +198,17 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedNode,
     ICypressNodeFactory* factory,
-    ENodeCloneMode mode)
+    ENodeCloneMode mode,
+    TAccount* account)
 {
+    const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+    securityManager->ValidateResourceUsageIncrease(
+        account,
+        TClusterResources().SetTabletCount(sourceNode->GetTrunkNode()->Tablets().size()));
+
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
 
-    TBase::DoClone(sourceNode, clonedNode, factory, mode);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
     if (sourceNode->IsDynamic()) {
         tabletManager->CloneTable(
@@ -216,7 +224,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
     clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
     clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
-    clonedNode->SetReplicationMode(sourceNode->GetReplicationMode());
+    clonedNode->SetUpstreamReplicaId(sourceNode->GetUpstreamReplicaId());
     clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
@@ -227,6 +235,42 @@ template <class TImpl>
 int TTableNodeTypeHandlerBase<TImpl>::GetDefaultReplicationFactor() const
 {
     return this->Bootstrap_->GetConfig()->CypressManager->DefaultTableReplicationFactor;
+}
+
+template <class TImpl>
+TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetTabletResourceUsage(
+    const TCypressNodeBase* node)
+{
+    int tabletCount = 0;
+    i64 memorySize = 0;
+
+    if (node->IsTrunk()) {
+        const auto* table = node->As<TImpl>();
+        tabletCount = table->Tablets().size();
+        for (const auto* tablet : table->Tablets()) {
+            if (tablet->GetState() != ETabletState::Unmounted) {
+                memorySize += tablet->GetTabletStaticMemorySize();
+            }
+        }
+    }
+
+    return TClusterResources()
+        .SetTabletCount(tabletCount)
+        .SetTabletStaticMemory(memorySize);
+}
+
+template <class TImpl>
+TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetTotalResourceUsage(
+    const TCypressNodeBase* node)
+{
+    return TBase::GetTotalResourceUsage(node) + GetTabletResourceUsage(node);
+}
+
+template <class TImpl>
+TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetAccountingResourceUsage(
+    const TCypressNodeBase* node)
+{
+    return TBase::GetAccountingResourceUsage(node) + GetTabletResourceUsage(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

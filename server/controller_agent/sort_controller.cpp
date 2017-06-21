@@ -1,12 +1,16 @@
 #include "sort_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
-#include "chunk_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller_detail.h"
-#include "sorted_chunk_pool.h"
+
+#include <yt/server/chunk_pools/atomic_chunk_pool.h>
+#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/shuffle_chunk_pool.h>
+#include <yt/server/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/server/scheduler/helpers.h>
 
@@ -36,6 +40,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NChunkServer;
+using namespace NChunkPools;
 using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;
@@ -52,14 +57,14 @@ using namespace NScheduler;
 using NTableClient::TKey;
 using NNodeTrackerClient::TNodeId;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const NProfiling::TProfiler Profiler("/operations/sort");
 
 //! Maximum number of buckets for partition progress aggregation.
 static const int MaxProgressBuckets = 100;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSortControllerBase
     : public TOperationControllerBase
@@ -1895,14 +1900,9 @@ protected:
         Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
     }
 
-    virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
-    {
-        TOperationControllerBase::RegisterOutput(std::move(joblet), key, jobSummary);
-    }
-
     virtual void RegisterOutput(
         const std::vector<TChunkListId>& chunkListIds,
-        int key,
+        TOutputChunkTreeKey key,
         const TCompletedJobSummary& jobSummary) override
     {
         YCHECK(jobSummary.Statistics);
@@ -1965,11 +1965,13 @@ protected:
             jobOptions.EnablePeriodicYielder = false;
             chunkPoolOptions.OperationId = OperationId;
             chunkPoolOptions.SortedJobOptions = jobOptions;
-            chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(Spec, Options);
+            chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
+                Spec,
+                Options,
+                GetOutputTablePaths().size());
             return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
         }
     }
-
 
     virtual EJobType GetPartitionJobType() const = 0;
     virtual EJobType GetIntermediateSortJobType() const = 0;
@@ -1987,7 +1989,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TSimpleSortTask);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TSortedMergeTask);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TUnorderedMergeTask);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSortController
     : public TSortControllerBase
@@ -2424,7 +2426,6 @@ private:
         }
 
         auto intermediateReaderOptions = New<TTableReaderOptions>();
-        intermediateReaderOptions->AllowFetchingSeedsFromMaster = false;
 
         TJobSpec sortJobSpecTemplate;
         {
@@ -2667,7 +2668,7 @@ IOperationControllerPtr CreateSortController(
     return New<TSortController>(config, spec, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TMapReduceController
     : public TSortControllerBase
@@ -3339,7 +3340,7 @@ IOperationControllerPtr CreateMapReduceController(
     return New<TMapReduceController>(config, spec, host, operation);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

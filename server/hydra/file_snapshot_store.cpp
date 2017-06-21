@@ -346,7 +346,9 @@ private:
     void DoFinish()
     {
         // NB: Some calls might be redundant.
-        FacadeOutput_->Finish();
+        if (FacadeOutput_) {
+            FacadeOutput_->Finish();
+        }
         if (LengthMeasureOutput_) {
             LengthMeasureOutput_->Finish();
         }

@@ -22,17 +22,16 @@ TMultiReaderBase::TMultiReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     const std::vector<IReaderFactoryPtr>& readerFactories)
-    : Logger(ChunkClientLogger)
-    , Config_(config)
+    : Config_(config)
     , Options_(options)
+    , Logger(NLogging::TLogger(ChunkClientLogger)
+        .AddTag("MultiReaderId: %v", TGuid::Create()))
     , ReaderFactories_(readerFactories)
     , FreeBufferSize_(Config_->MaxBufferSize)
 {
-    Logger.AddTag("MultiReader: %v", TGuid::Create());
-
     CurrentSession_.Reset();
 
-    LOG_DEBUG("Creating multi reader for %v readers",
+    LOG_DEBUG("Creating multi reader (ReaderCount: %v)",
         readerFactories.size());
 
     if (readerFactories.empty()) {
@@ -109,7 +108,7 @@ void TMultiReaderBase::OpenNextChunks()
 
         LOG_DEBUG("Reserve buffer for the next reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
             PrefetchIndex_,
-            static_cast<int>(ActiveReaderCount_),
+            ActiveReaderCount_.load(),
             ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint(),
             FreeBufferSize_);
 
@@ -124,8 +123,9 @@ void TMultiReaderBase::OpenNextChunks()
 
 void TMultiReaderBase::DoOpenReader(int index)
 {
-    if (CompletionError_.IsSet())
+    if (CompletionError_.IsSet()) {
         return;
+    }
 
     LOG_DEBUG("Opening reader (Index: %v)", index);
 

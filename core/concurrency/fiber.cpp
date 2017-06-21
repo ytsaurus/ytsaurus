@@ -6,6 +6,8 @@
 #include "scheduler.h"
 #include "thread_affinity.h"
 
+#include <util/generic/singleton.h>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -14,49 +16,52 @@ namespace NConcurrency {
 static const auto& Logger = ConcurrencyLogger;
 
 #ifdef DEBUG
-// TODO(sandello): Make it an intrusive list.
-static std::atomic_flag FiberRegistryLock = ATOMIC_FLAG_INIT;
-static std::list<TFiber*> FiberRegistry;
-#endif
 
-static class TFiberIdGenerator
+class TFiberRegistry
 {
 public:
-    TFiberIdGenerator()
+    std::list<TFiber*>::iterator Register(TFiber* fiber)
     {
-        Seed_.store(static_cast<TFiberId>(::time(nullptr)));
+        TGuard<std::atomic_flag> guard(Lock_);
+        return Fibers_.insert(Fibers_.begin(), fiber);
     }
 
-    TFiberId Generate()
+    void Unregister(std::list<TFiber*>::iterator iterator)
     {
-        const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
-        Y_ASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
-
-        while (true) {
-            auto seed = Seed_++;
-            auto id = seed * Factor;
-            if (id != InvalidFiberId) {
-                return id;
-            }
-        }
+        TGuard<std::atomic_flag> guard(Lock_);
+        Fibers_.erase(iterator);
     }
 
 private:
-    std::atomic<TFiberId> Seed_;
+    // TODO(sandello): Make it an intrusive list.
+    std::atomic_flag Lock_ = ATOMIC_FLAG_INIT;
+    std::list<TFiber*> Fibers_;
 
-} FiberIdGenerator;
+};
+
+// Cache registry in static variable to simplify introspection.
+static TFiberRegistry* FiberRegistry;
+
+TFiberRegistry* GetFiberRegistry()
+{
+    if (!FiberRegistry) {
+        FiberRegistry = Singleton<TFiberRegistry>();
+    }
+    return FiberRegistry;
+}
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFiber::TFiber(TClosure callee, EExecutionStack stack)
+TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
     : Callee_(std::move(callee))
-    , Stack_(CreateExecutionStack(stack))
+    , Stack_(CreateExecutionStack(stackKind))
     , Context_(CreateExecutionContext(Stack_.get(), &TFiber::Trampoline))
 {
     RegenerateId();
 #ifdef DEBUG
-    TGuard<std::atomic_flag> guard(FiberRegistryLock);
-    Iterator_ = FiberRegistry.insert(FiberRegistry.begin(), this);
+    Iterator_ = GetFiberRegistry()->Register(this);
 #endif
 }
 
@@ -70,8 +75,7 @@ TFiber::~TFiber()
         }
     }
 #ifdef DEBUG
-    TGuard<std::atomic_flag> guard(FiberRegistryLock);
-    FiberRegistry.erase(Iterator_);
+    GetFiberRegistry()->Unregister(Iterator_);
 #endif
 }
 
@@ -84,7 +88,7 @@ TFiberId TFiber::GetId() const
 
 void TFiber::RegenerateId()
 {
-    Id_ = FiberIdGenerator.Generate();
+    Id_ = GenerateFiberId();
 }
 
 EFiberState TFiber::GetState() const
@@ -228,6 +232,34 @@ void TFiber::Trampoline(void* opaque)
     GetCurrentScheduler()->Return();
 
     Y_UNREACHABLE();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static std::atomic<int> SmallFiberStackPoolSize = {1024};
+static std::atomic<int> LargeFiberStackPoolSize = {1024};
+
+int GetFiberStackPoolSize(EExecutionStackKind stackKind)
+{
+    switch (stackKind) {
+        case EExecutionStackKind::Small: return SmallFiberStackPoolSize.load(std::memory_order_relaxed);
+        case EExecutionStackKind::Large: return LargeFiberStackPoolSize.load(std::memory_order_relaxed);
+        default:                         Y_UNREACHABLE();
+    }
+}
+
+void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
+{
+    if (poolSize < 0) {
+        THROW_ERROR_EXCEPTION("Invalid fiber stack pool size %v is given for %Qlv stacks",
+            poolSize,
+            stackKind);
+    }
+    switch (stackKind) {
+        case EExecutionStackKind::Small: SmallFiberStackPoolSize = poolSize; break;
+        case EExecutionStackKind::Large: LargeFiberStackPoolSize = poolSize; break;
+        default:                         Y_UNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -77,7 +77,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, UpperLimit);
 
     // Here are boundary keys. They are not read-only because of chunk pool unittests.
-    typedef std::unique_ptr<NTableClient::TBoundaryKeys> TInputChunkBoundaryKeys;
+    typedef std::unique_ptr<NTableClient::TOwningBoundaryKeys> TInputChunkBoundaryKeys;
     DEFINE_BYREF_RW_PROPERTY(TInputChunkBoundaryKeys, BoundaryKeys);
 
     // These fields are not used directly by scheduler.

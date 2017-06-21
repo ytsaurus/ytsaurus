@@ -232,10 +232,8 @@ private:
             TAsyncSlruCacheBase::OnRemoved(entry);
 
             const auto& key = entry->GetKey();
-            LOG_DEBUG("Cache entry removed (Path: %v, Method: %v:%v, Success: %v, TotalSpace: %v)",
-                key.Path,
-                key.Service,
-                key.Method,
+            LOG_DEBUG("Cache entry removed (Key: %v, Success: %v, TotalSpace: %v)",
+                key,
                 entry->GetSuccess(),
                 entry->GetTotalSpace());
         }

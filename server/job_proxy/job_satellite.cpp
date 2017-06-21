@@ -27,24 +27,26 @@
 
 #include <yt/core/yson/string.h>
 
-#include <yt/core/ytree/convert.h>
-
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/proc.h>
 #include <yt/core/misc/stracer.h>
 #include <yt/core/misc/signaler.h>
+
+#include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/ytlib/shutdown.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <util/generic/guid.h>
 #include <util/system/fs.h>
 
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -61,16 +63,77 @@ using NJobTrackerClient::TJobId;
 using NYson::TYsonString;
 using NJobProberClient::IJobProbe;
 
-static NLogging::TLogger Logger("JobSatellite");
+static const NLogging::TLogger JobSatelliteLogger("JobSatellite");
+static const auto& Logger = JobSatelliteLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProbeCGroupTools
+DECLARE_REFCOUNTED_CLASS(TJobProbeTools)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IPidsHolder
+{
+    virtual ~IPidsHolder() = default;
+    virtual std::vector<int> GetPids() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFreezerPidsHolder
+    : public IPidsHolder
+{
+public:
+    explicit TFreezerPidsHolder(const TString& name)
+        : Freezer_(name)
+    { }
+
+    void Create()
+    {
+        Freezer_.Create();
+    }
+
+    virtual std::vector<int> GetPids() override
+    {
+        return Freezer_.GetTasks();
+    }
+
+private:
+    NCGroup::TFreezer Freezer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TContainerPidsHolder
+    : public IPidsHolder
+{
+public:
+
+    virtual std::vector<int> GetPids() override
+    {
+        auto pids = GetPidsByUid();
+        auto my_pid = ::getpid();
+        auto it = std::find(pids.begin(), pids.end(), my_pid);
+        if (it != pids.end()) {
+            pids.erase(it);
+        }
+        return pids;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobProbeTools
     : public TRefCounted
 {
 public:
-    ~TJobProbeCGroupTools();
-    static TIntrusivePtr<TJobProbeCGroupTools> Create(const TJobId& jobId, pid_t rootPid, int uid, const std::vector<TString>& env);
+    ~TJobProbeTools();
+    static TJobProbeToolsPtr Create(
+        const TJobId& jobId,
+        pid_t rootPid,
+        int uid,
+        const std::vector<TString>& env,
+        bool useContainer);
 
     TYsonString StraceJob();
     void SignalJob(const TString& signalName);
@@ -78,7 +141,8 @@ public:
     TFuture<void> AsyncGracefulShutdown(const TError& error);
 
 private:
-    NCGroup::TFreezer Freezer_;
+    std::unique_ptr<IPidsHolder> PidsHolder_;
+    bool UseCGroup_;
     const pid_t RootPid_;
     const int Uid_;
     const std::vector<TString> Environment_;
@@ -86,35 +150,36 @@ private:
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
     IShellManagerPtr ShellManager_;
 
-    TJobProbeCGroupTools(
-        const NJobTrackerClient::TJobId& jobId,
-        pid_t rootPid,
+    TJobProbeTools(pid_t rootPid,
         int uid,
-        const std::vector<TString>& env);
-    void Init();
+        const std::vector<TString>& env,
+        bool useContainer);
+    void Init(const TJobId& jobId);
 
     DECLARE_NEW_FRIEND();
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobProbeCGroupTools)
+DEFINE_REFCOUNTED_TYPE(TJobProbeTools)
 
-TJobProbeCGroupTools::TJobProbeCGroupTools(
-    const TJobId& jobId,
+////////////////////////////////////////////////////////////////////////////////
+
+TJobProbeTools::TJobProbeTools(
     pid_t rootPid,
     int uid,
-    const std::vector<TString>& env)
-    : Freezer_(GetCGroupUserJobPrefix() + ToString(jobId))
+    const std::vector<TString>& env,
+    bool useContainer)
+    : UseCGroup_(!useContainer)
     , RootPid_(rootPid)
     , Uid_(uid)
     , Environment_(env)
     , AuxQueue_(New<TActionQueue>("JobAux"))
 { }
 
-TIntrusivePtr<TJobProbeCGroupTools> TJobProbeCGroupTools::Create(const TJobId& jobId, pid_t rootPid, int uid, const std::vector<TString>& env)
+TJobProbeToolsPtr TJobProbeTools::Create(const TJobId& jobId, pid_t rootPid, int uid, const std::vector<TString>& env, bool useContainer)
 {
-    auto tools = New<TJobProbeCGroupTools>(jobId, rootPid, uid, env);
+    auto tools = New<TJobProbeTools>(rootPid, uid, env, useContainer);
     try {
-        tools->Init();
+        tools->Init(jobId);
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Unable to create cgroup tools");
         THROW_ERROR_EXCEPTION("Unable to create cgroup tools")
@@ -123,9 +188,15 @@ TIntrusivePtr<TJobProbeCGroupTools> TJobProbeCGroupTools::Create(const TJobId& j
     return tools;
 }
 
-void TJobProbeCGroupTools::Init()
+void TJobProbeTools::Init(const TJobId& jobId)
 {
-    Freezer_.Create();
+    if (UseCGroup_) {
+        auto freezerPidsHolder = new TFreezerPidsHolder(GetCGroupUserJobPrefix() + ToString(jobId));
+        freezerPidsHolder->Create();
+        PidsHolder_.reset(freezerPidsHolder);
+    } else {
+        PidsHolder_.reset(new TContainerPidsHolder());
+    }
 
     auto currentWorkDir = NFs::CurrentWorkingDirectory();
     currentWorkDir = currentWorkDir.substr(0, currentWorkDir.find_last_of("/"));
@@ -142,21 +213,19 @@ void TJobProbeCGroupTools::Init()
     ShellManager_ = CreateShellManager(
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
-        TNullable<TString>(GetCGroupUserJobBase()),
+        UseCGroup_ ? TNullable<TString>(GetCGroupUserJobBase()) : TNullable<TString>(),
         Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))),
         std::move(shellEnvironment));
 }
 
-TJobProbeCGroupTools::~TJobProbeCGroupTools()
+TJobProbeTools::~TJobProbeTools()
 {
-    if (Freezer_.IsCreated()) {
-        BIND(&IShellManager::Terminate, ShellManager_, TError())
-            .Via(AuxQueue_->GetInvoker())
-            .Run();
-    }
+    BIND(&IShellManager::Terminate, ShellManager_, TError())
+        .Via(AuxQueue_->GetInvoker())
+        .Run();
 }
 
-TYsonString TJobProbeCGroupTools::StraceJob()
+TYsonString TJobProbeTools::StraceJob()
 {
     if (Stracing_.test_and_set()) {
         THROW_ERROR_EXCEPTION("Another strace session is in progress");
@@ -166,7 +235,7 @@ TYsonString TJobProbeCGroupTools::StraceJob()
         Stracing_.clear();
     });
 
-    auto pids = Freezer_.GetTasks();
+    auto pids = PidsHolder_->GetPids();
 
     auto it = std::find(pids.begin(), pids.end(), RootPid_);
     if (it != pids.end()) {
@@ -184,10 +253,10 @@ TYsonString TJobProbeCGroupTools::StraceJob()
     return ConvertToYsonString(result.Value());
 }
 
-void TJobProbeCGroupTools::SignalJob(const TString& signalName)
+void TJobProbeTools::SignalJob(const TString& signalName)
 {
     auto arg = New<TSignalerArg>();
-    arg->Pids = Freezer_.GetTasks();
+    arg->Pids = PidsHolder_->GetPids();
 
     auto it = std::find(arg->Pids.begin(), arg->Pids.end(), RootPid_);
     if (it != arg->Pids.end()) {
@@ -211,14 +280,14 @@ void TJobProbeCGroupTools::SignalJob(const TString& signalName)
     THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job signaler tool");
 }
 
-TYsonString TJobProbeCGroupTools::PollJobShell(const TYsonString& parameters)
+TYsonString TJobProbeTools::PollJobShell(const TYsonString& parameters)
 {
     return WaitFor(BIND([=, this_ = MakeStrong(this)] () {
         return ShellManager_->PollJobShell(parameters);
     }).AsyncVia(AuxQueue_->GetInvoker()).Run()).ValueOrThrow();
 }
 
-TFuture<void> TJobProbeCGroupTools::AsyncGracefulShutdown(const TError &error)
+TFuture<void> TJobProbeTools::AsyncGracefulShutdown(const TError& error)
 {
     return BIND(&IShellManager::GracefulShutdown, ShellManager_, error)
         .AsyncVia(AuxQueue_->GetInvoker())
@@ -231,7 +300,12 @@ class TJobSatelliteWorker
     : public IJobProbe
 {
 public:
-    TJobSatelliteWorker(const pid_t rootPid, int uid, const std::vector<TString>& env, const TJobId& jobId);
+    TJobSatelliteWorker(
+        pid_t rootPid,
+        int uid,
+        const std::vector<TString>& env,
+        const TJobId& jobId,
+        bool useContainer);
     void GracefulShutdown(const TError& error);
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
@@ -240,13 +314,18 @@ public:
     virtual TYsonString PollJobShell(const TYsonString& parameters) override;
     virtual TString GetStderr() override;
     virtual void Interrupt() override;
+    virtual void Fail() override;
 
 private:
     const pid_t RootPid_;
     const int Uid_;
     const std::vector<TString> Env_;
     const TJobId JobId_;
-    TIntrusivePtr<TJobProbeCGroupTools> JobProbe_;
+    const bool UseContainer_;
+
+    const NLogging::TLogger Logger;
+
+    TJobProbeToolsPtr JobProbe_;
 
     void EnsureJobProbe();
 };
@@ -255,21 +334,24 @@ TJobSatelliteWorker::TJobSatelliteWorker(
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
-    const TJobId& jobId)
+    const TJobId& jobId,
+    bool useContainer)
     : RootPid_(rootPid)
     , Uid_(uid)
     , Env_(env)
     , JobId_(jobId)
+    , UseContainer_(useContainer)
+    , Logger(NLogging::TLogger(JobSatelliteLogger)
+        .AddTag("JobId: %v", JobId_))
 {
     YCHECK(JobId_);
-    Logger.AddTag("JobId: %v", JobId_);
     LOG_DEBUG("Starting job satellite service");
 }
 
 void TJobSatelliteWorker::EnsureJobProbe()
 {
     if (!JobProbe_) {
-        JobProbe_ = TJobProbeCGroupTools::Create(JobId_, RootPid_, Uid_, Env_);
+        JobProbe_ = TJobProbeTools::Create(JobId_, RootPid_, Uid_, Env_, UseContainer_);
     }
 }
 
@@ -302,6 +384,11 @@ TYsonString TJobSatelliteWorker::PollJobShell(const TYsonString& parameters)
 }
 
 void TJobSatelliteWorker::Interrupt()
+{
+    Y_UNREACHABLE();
+}
+
+void TJobSatelliteWorker::Fail()
 {
     Y_UNREACHABLE();
 }
@@ -366,7 +453,13 @@ void TJobSatellite::Run()
 
     RpcServer_ = CreateBusServer(CreateTcpBusServer(SatelliteConnectionConfig_->SatelliteRpcServerConfig));
 
-    auto jobSatelliteService = New<TJobSatelliteWorker>(RootPid_, Uid_, Env_, JobId_);
+    auto jobSatelliteService = New<TJobSatelliteWorker>(
+        RootPid_,
+        Uid_,
+        Env_,
+        JobId_,
+        SatelliteConnectionConfig_->UseContainer
+    );
 
     RpcServer_->RegisterService(CreateJobProberService(jobSatelliteService, JobSatelliteMainThread_->GetInvoker()));
     RpcServer_->Start();
@@ -374,7 +467,7 @@ void TJobSatellite::Run()
     StopCalback_ = BIND(&TJobSatelliteWorker::GracefulShutdown,
         MakeWeak(jobSatelliteService));
 
-    JobProxyControl_->NotifyJobSatellitePrepared();
+    JobProxyControl_->NotifyJobSatellitePrepared(GetProcessRss(-1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -392,6 +485,7 @@ void RunJobSatellite(
     } else if (pid == 0) { // child
         return;
     } else {
+
         NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateLogFile("../job_satellite.log"));
 
         siginfo_t processInfo;

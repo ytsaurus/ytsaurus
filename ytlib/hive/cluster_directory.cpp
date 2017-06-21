@@ -1,5 +1,6 @@
 #include "public.h"
 #include "cluster_directory.h"
+#include "private.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -17,6 +18,10 @@ using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NYTree;
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = HiveClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +73,8 @@ void TClusterDirectory::RemoveCluster(const TString& name)
     auto cellTag = GetCellTag(it->second);
     NameToCluster_.erase(it);
     YCHECK(CellTagToCluster_.erase(cellTag) == 1);
+    LOG_DEBUG("Remote cluster unregistered (Name: %v)",
+        name);
 }
 
 void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
@@ -86,12 +93,18 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
         auto cluster = CreateCluster(name, config);
         TGuard<TSpinLock> guard(Lock_);
         addNewCluster(cluster);
+        LOG_DEBUG("Remote cluster registered (Name: %v, CellTag: %v)",
+            name,
+            cluster.Connection->GetCellTag());
     } else if (!AreNodesEqual(it->second.Config, config)) {
         auto cluster = CreateCluster(name, config);
         TGuard<TSpinLock> guard(Lock_);
         CellTagToCluster_.erase(GetCellTag(it->second));
         NameToCluster_.erase(it);
         addNewCluster(cluster);
+        LOG_DEBUG("Remote cluster updated (Name: %v, CellTag: %v)",
+            name,
+            cluster.Connection->GetCellTag());
     }
 }
 

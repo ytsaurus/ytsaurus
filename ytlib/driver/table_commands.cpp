@@ -106,7 +106,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->ReadBufferRowCount);
 }
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TReadBlobTableCommand::TReadBlobTableCommand()
 {
@@ -165,7 +165,7 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
     }
 }
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TWriteTableCommand::TWriteTableCommand()
 {
@@ -189,23 +189,16 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->TableWriter,
         TableWriter);
 
-
-    auto nameTable = New<TNameTable>();
-    nameTable->SetEnableColumnNameValidation();
-
-    auto options = New<TTableWriterOptions>();
-    options->EnableValidationOptions();
-
-    auto writer = CreateSchemalessTableWriter(
+    config = UpdateYsonSerializable(
         config,
-        options,
-        Path,
-        nameTable,
-        context->GetClient(),
-        transaction);
+        GetOptions());
 
-    WaitFor(writer->Open())
-        .ThrowOnError();
+    Options.Config = config;
+
+    auto writer = WaitFor(context->GetClient()->CreateTableWriter(
+        Path,
+        Options))
+        .ValueOrThrow();
 
     TWritingValueConsumer valueConsumer(
         writer,
@@ -341,7 +334,7 @@ TAlterTableCommand::TAlterTableCommand()
         .Optional();
     RegisterParameter("dynamic", Options.Dynamic)
         .Optional();
-    RegisterParameter("replication_mode", Options.ReplicationMode)
+    RegisterParameter("upstream_replica_id", Options.UpstreamReplicaId)
         .Optional();
 }
 
@@ -434,6 +427,8 @@ std::vector<TUnversionedRow> ParseRows(
 
 TInsertRowsCommand::TInsertRowsCommand()
 {
+    RegisterParameter("require_sync_replica", Options.RequireSyncReplica)
+        .Optional();
     RegisterParameter("table_writer", TableWriter)
         .Default();
     RegisterParameter("path", Path);
@@ -482,7 +477,8 @@ void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
     transaction->WriteRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
-        std::move(rowRange));
+        std::move(rowRange),
+        Options);
 
     if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())
@@ -584,8 +580,59 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetInSyncReplicasCommand::TGetInSyncReplicasCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("timestamp", Options.Timestamp);
+}
+
+void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
+{
+    auto tableMountCache = context->GetClient()->GetConnection()->GetTableMountCache();
+    auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
+    auto tableInfo = WaitFor(asyncTableInfo)
+        .ValueOrThrow();
+
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateReplicated();
+
+    auto config = UpdateYsonSerializable(
+        context->GetConfig()->TableWriter,
+        TableWriter);
+
+    struct TInSyncBufferTag
+    { };
+
+    // Parse input data.
+    TBuildingValueConsumer valueConsumer(
+        tableInfo->Schemas[ETableSchemaKind::Lookup],
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
+    auto keys = ParseRows(context, config, &valueConsumer);
+    auto rowBuffer = New<TRowBuffer>(TInSyncBufferTag());
+    auto capturedKeys = rowBuffer->Capture(keys);
+    auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
+    auto keyRange = TSharedRange<TUnversionedRow>(
+        static_cast<const TUnversionedRow*>(mutableKeyRange.Begin()),
+        static_cast<const TUnversionedRow*>(mutableKeyRange.End()),
+        mutableKeyRange.GetHolder());
+    auto nameTable = valueConsumer.GetNameTable();
+
+    auto asyncReplicas = context->GetClient()->GetInSyncReplicas(
+        Path.GetPath(),
+        std::move(nameTable),
+        std::move(keyRange),
+        Options);
+    auto replicasResult = WaitFor(asyncReplicas);
+    auto replicas = replicasResult.ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently().List(replicas));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDeleteRowsCommand::TDeleteRowsCommand()
 {
+    RegisterParameter("require_sync_replica", Options.RequireSyncReplica)
+        .Optional();
     RegisterParameter("table_writer", TableWriter)
         .Default();
     RegisterParameter("path", Path);
@@ -624,7 +671,8 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
     transaction->DeleteRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
-        std::move(keyRange));
+        std::move(keyRange),
+        Options);
 
     if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())
@@ -663,9 +711,11 @@ TEnableTableReplicaCommand::TEnableTableReplicaCommand()
 void TEnableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    auto asyncResult = client->EnableTableReplica(
+    TAlterTableReplicaOptions options;
+    options.Enabled = true;
+    auto asyncResult = client->AlterTableReplica(
         ReplicaId,
-        Options);
+        options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }
@@ -680,9 +730,11 @@ TDisableTableReplicaCommand::TDisableTableReplicaCommand()
 void TDisableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    auto asyncResult = client->DisableTableReplica(
+    TAlterTableReplicaOptions options;
+    options.Enabled = false;
+    auto asyncResult = client->AlterTableReplica(
         ReplicaId,
-        Options);
+        options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }
@@ -692,7 +744,10 @@ void TDisableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 TAlterTableReplicaCommand::TAlterTableReplicaCommand()
 {
     RegisterParameter("replica_id", ReplicaId);
-    RegisterParameter("enabled", Options.Enabled);
+    RegisterParameter("enabled", Options.Enabled)
+        .Optional();
+    RegisterParameter("mode", Options.Mode)
+        .Optional();
 }
 
 void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)

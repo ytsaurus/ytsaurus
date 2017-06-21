@@ -1,5 +1,6 @@
 #include "job_environment.h"
 #include "config.h"
+#include "mounter.h"
 #include "private.h"
 
 #include <yt/server/cell_node/bootstrap.h>
@@ -7,6 +8,11 @@
 #include <yt/server/data_node/master_connector.h>
 
 #include <yt/server/program/names.h>
+
+#include <yt/server/containers/container_manager.h>
+#include <yt/server/containers/instance.h>
+
+#include <yt/server/misc/process.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
@@ -17,6 +23,8 @@
 #include <yt/core/misc/process.h>
 #include <yt/core/misc/proc.h>
 
+#include <util/generic/guid.h>
+
 #include <util/system/execpath.h>
 
 namespace NYT {
@@ -25,6 +33,7 @@ namespace NExecAgent {
 using namespace NCGroup;
 using namespace NCellNode;
 using namespace NConcurrency;
+using namespace NContainers;
 using namespace NYTree;
 using namespace NTools;
 
@@ -57,12 +66,12 @@ public:
         ValidateEnabled();
 
         try {
-            auto process = New<TProcess>(JobProxyProgramName);
+            auto process = CreateJobProxyProcess(slotIndex);
 
             process->AddArguments({
                 "--config", ProxyConfigFileName,
                 "--operation-id", ToString(operationId),
-                "--job-id", ToString(jobId),
+                "--job-id", ToString(jobId)
             });
 
             process->SetWorkingDirectory(workingDirectory);
@@ -100,10 +109,19 @@ public:
         return Enabled_;
     }
 
+    virtual IMounterPtr CreateMounter(int /*slotIndex*/) override
+    {
+        //Same mounter for all slots.
+        if (!Mounter_) {
+            Mounter_ = CreateSimpleMounter(ActionQueue_->GetInvoker());
+        }
+        return Mounter_;
+    }
+
 protected:
     struct TJobProxyProcess
     {
-        TProcessPtr Process;
+        TProcessBasePtr Process;
         TFuture<void> Result;
     };
 
@@ -157,8 +175,16 @@ protected:
         masterConnector->RegisterAlert(alert);
     }
 
-    virtual void AddArguments(TProcessPtr process, int slotIndex)
+    virtual void AddArguments(TProcessBasePtr process, int slotIndex)
     { }
+
+private:
+    IMounterPtr Mounter_;
+
+    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/)
+    {
+        return New<TSimpleProcess>(JobProxyProgramName);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,7 +254,7 @@ public:
 private:
     const TCGroupJobEnvironmentConfigPtr Config_;
 
-    virtual void AddArguments(TProcessPtr process, int slotIndex) override
+    virtual void AddArguments(TProcessBasePtr process, int slotIndex) override
     {
         for (const auto& path : GetCGroupPaths(slotIndex)) {
             process->AddArguments({"--cgroup", path});
@@ -302,6 +328,89 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPortoJobEnvironment
+    : public TProcessJobEnvironmentBase
+{
+public:
+    TPortoJobEnvironment(TPortoJobEnvironmentConfigPtr config, const TBootstrap* bootstrap)
+        : TProcessJobEnvironmentBase(config, bootstrap)
+        , Config_(std::move(config))
+    {
+        auto portoFatalErrorHandler = BIND([=] (const TError& error) {
+            Disable(error);
+        });
+        try {
+            ContainerManager_ = CreatePortoManager(
+                "yt_job-proxy_",
+                portoFatalErrorHandler,
+                { ECleanMode::All,
+                Config_->PortoWaitTime,
+                Config_->PortoPollPeriod });
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to initialize \"porto\" job environment")
+                << ex;
+            Disable(error);
+        }
+    }
+
+    virtual void CleanProcesses(int slotIndex) override
+    {
+        ValidateEnabled();
+
+        try {
+            auto jobProxyProcess = JobProxyProcesses_[slotIndex].Process;
+            if (jobProxyProcess) {
+                jobProxyProcess->Kill(SIGKILL);
+
+                // Drop reference to a process if there were any.
+                JobProxyProcesses_.erase(slotIndex);
+            }
+            PortoInstances_.erase(slotIndex);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to clean processes (SlotIndex: %v)",
+                slotIndex) << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    }
+
+    virtual int GetUserId(int slotIndex) const override
+    {
+        return Config_->StartUid + slotIndex;
+    }
+
+    virtual IMounterPtr CreateMounter(int slotIndex) override
+    {
+        auto instanceProvider = BIND([=, this_ = MakeStrong(this)]() {
+            InitPortoInstance(slotIndex);
+            return PortoInstances_.at(slotIndex);
+        });
+
+        return CreatePortoMounter(instanceProvider);
+    }
+
+private:
+    void InitPortoInstance(int slotIndex)
+    {
+        if (!PortoInstances_[slotIndex]) {
+            PortoInstances_[slotIndex] = ContainerManager_->CreateInstance();
+        }
+    }
+
+    virtual TProcessBasePtr CreateJobProxyProcess(int slotIndex) override
+    {
+        InitPortoInstance(slotIndex);
+        return New<TPortoProcess>(JobProxyProgramName, PortoInstances_.at(slotIndex));
+    }
+
+    const TPortoJobEnvironmentConfigPtr Config_;
+
+    IContainerManagerPtr ContainerManager_;
+    yhash<int, IInstancePtr> PortoInstances_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, const TBootstrap* bootstrap)
 {
     auto config = ConvertTo<TJobEnvironmentConfigPtr>(configNode);
@@ -317,6 +426,13 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, const TBootstrap* b
             auto cgroupConfig = ConvertTo<TCGroupJobEnvironmentConfigPtr>(configNode);
             return New<TCGroupJobEnvironment>(
                 cgroupConfig,
+                bootstrap);
+        }
+
+        case EJobEnvironmentType::Porto: {
+            auto portoConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(configNode);
+            return New<TPortoJobEnvironment>(
+                portoConfig,
                 bootstrap);
         }
 

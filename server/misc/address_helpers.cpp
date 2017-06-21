@@ -20,7 +20,7 @@ TAddressMap GetLocalAddresses(const TAddressList& addresses, int port)
     // Add default address.
     const auto pair = result.emplace(DefaultNetworkName, TString());
     if (pair.second) {
-        pair.first->second = BuildServiceAddress(TAddressResolver::Get()->GetLocalHostName(), port);
+        pair.first->second = BuildServiceAddress(GetLocalHostName(), port);
     }
 
     return result;

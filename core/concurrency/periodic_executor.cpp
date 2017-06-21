@@ -24,7 +24,10 @@ TPeriodicExecutor::TPeriodicExecutor(
     , Mode_(mode)
     , Splay_(splay)
     , IdlePromise_(MakePromise<void>(TError()))
-{ }
+{
+    YCHECK(Invoker_);
+    YCHECK(Callback_);
+}
 
 void TPeriodicExecutor::Start()
 {

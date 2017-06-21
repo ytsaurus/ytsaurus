@@ -35,15 +35,39 @@ TClusterResources::TClusterResources()
     : DiskSpace{}
     , NodeCount(0)
     , ChunkCount(0)
+    , TabletCount(0)
+    , TabletStaticMemory(0)
 { }
 
-TClusterResources::TClusterResources(
-    int nodeCount,
-    int chunkCount)
-    : DiskSpace{}
-    , NodeCount(nodeCount)
-    , ChunkCount(chunkCount)
-{ }
+TClusterResources&& TClusterResources::SetNodeCount(int nodeCount) &&
+{
+    NodeCount = nodeCount;
+    return std::move(*this);
+}
+
+TClusterResources&& TClusterResources::SetChunkCount(int chunkCount) &&
+{
+    ChunkCount = chunkCount;
+    return std::move(*this);
+}
+
+TClusterResources&& TClusterResources::SetTabletCount(int tabletCount) &&
+{
+    TabletCount = tabletCount;
+    return std::move(*this);
+}
+
+TClusterResources&& TClusterResources::SetTabletStaticMemory(i64 tabletStaticMemory) &&
+{
+    TabletStaticMemory = tabletStaticMemory;
+    return std::move(*this);
+}
+
+TClusterResources&& TClusterResources::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&
+{
+    DiskSpace[mediumIndex] = diskSpace;
+    return std::move(*this);
+}
 
 void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 {
@@ -51,6 +75,8 @@ void TClusterResources::Save(NCellMaster::TSaveContext& context) const
     Save(context, DiskSpace);
     Save(context, NodeCount);
     Save(context, ChunkCount);
+    Save(context, TabletCount);
+    Save(context, TabletStaticMemory);
 }
 
 void TClusterResources::Load(NCellMaster::TLoadContext& context)
@@ -64,6 +90,18 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, NodeCount);
     Load(context, ChunkCount);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 604) {
+        Load(context, TabletCount);
+        Load(context, TabletStaticMemory);
+    } else {
+        TabletCount = 1000000;
+        TabletStaticMemory = 100 * (1LL << 40);
+    }
+    //COMPAT(savrus)
+    if (context.GetVersion() == 604) {
+        TabletStaticMemory = 100 * (1LL << 40);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,6 +110,8 @@ void ToProto(NProto::TClusterResources* protoResources, const TClusterResources&
 {
     protoResources->set_chunk_count(resources.ChunkCount);
     protoResources->set_node_count(resources.NodeCount);
+    protoResources->set_tablet_count(resources.TabletCount);
+    protoResources->set_tablet_static_memory_size(resources.TabletStaticMemory);
 
     for (int index = 0; index < MaxMediumCount; ++index) {
         i64 diskSpace = resources.DiskSpace[index];
@@ -87,6 +127,8 @@ void FromProto(TClusterResources* resources, const NProto::TClusterResources& pr
 {
     resources->ChunkCount = protoResources.chunk_count();
     resources->NodeCount = protoResources.node_count();
+    resources->TabletCount = protoResources.tablet_count();
+    resources->TabletStaticMemory = protoResources.tablet_static_memory_size();
 
     std::fill_n(resources->DiskSpace, MaxMediumCount, 0);
     for (const auto& spaceStats : protoResources.disk_space_per_medium()) {
@@ -101,6 +143,14 @@ TSerializableClusterResources::TSerializableClusterResources()
     RegisterParameter("node_count", NodeCount_)
         .GreaterThanOrEqual(0);
     RegisterParameter("chunk_count", ChunkCount_)
+        .GreaterThanOrEqual(0);
+    RegisterParameter("tablet_count", TabletCount_)
+        // COMPAT(savrus) add defaults to environment/init_cluster.py
+        .Default(1000)
+        .GreaterThanOrEqual(0);
+    RegisterParameter("tablet_static_memory", TabletStaticMemory_)
+        // COMPAT(savrus) add defaults to environment/init_cluster.py
+        .Default((i64) 1024 * 1024 * 1024)
         .GreaterThanOrEqual(0);
     RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_);
     // NB: this is for (partial) compatibility: 'disk_space' is serialized when
@@ -122,6 +172,8 @@ TSerializableClusterResources::TSerializableClusterResources(
 {
     NodeCount_ = clusterResources.NodeCount;
     ChunkCount_ = clusterResources.ChunkCount;
+    TabletCount_ = clusterResources.TabletCount;
+    TabletStaticMemory_ = clusterResources.TabletStaticMemory;
     DiskSpace_ = 0;
     for (const auto& pair : chunkManager->Media()) {
         const auto* medium = pair.second;
@@ -137,7 +189,11 @@ TSerializableClusterResources::TSerializableClusterResources(
 
 TClusterResources TSerializableClusterResources::ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const
 {
-    TClusterResources result(NodeCount_, ChunkCount_);
+    auto result = TClusterResources()
+        .SetNodeCount(NodeCount_)
+        .SetChunkCount(ChunkCount_)
+        .SetTabletCount(TabletCount_)
+        .SetTabletStaticMemory(TabletStaticMemory_);
     for (const auto& pair : DiskSpacePerMedium_) {
         auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
         result.DiskSpace[medium->GetIndex()] = pair.second;
@@ -157,6 +213,8 @@ TClusterResources& operator += (TClusterResources& lhs, const TClusterResources&
         std::plus<i64>());
     lhs.NodeCount += rhs.NodeCount;
     lhs.ChunkCount += rhs.ChunkCount;
+    lhs.TabletCount += rhs.TabletCount;
+    lhs.TabletStaticMemory += rhs.TabletStaticMemory;
     return lhs;
 }
 
@@ -177,6 +235,8 @@ TClusterResources& operator -= (TClusterResources& lhs, const TClusterResources&
         std::minus<i64>());
     lhs.NodeCount -= rhs.NodeCount;
     lhs.ChunkCount -= rhs.ChunkCount;
+    lhs.TabletCount -= rhs.TabletCount;
+    lhs.TabletStaticMemory -= rhs.TabletStaticMemory;
     return lhs;
 }
 
@@ -196,6 +256,8 @@ TClusterResources& operator *= (TClusterResources& lhs, i64 rhs)
         [&] (i64 space) { return space * rhs; });
     lhs.NodeCount *= rhs;
     lhs.ChunkCount *= rhs;
+    lhs.TabletCount *= rhs;
+    lhs.TabletStaticMemory *= rhs;
     return lhs;
 }
 
@@ -216,6 +278,8 @@ TClusterResources operator -  (const TClusterResources& resources)
         std::negate<i64>());
     result.NodeCount = -resources.NodeCount;
     result.ChunkCount = -resources.ChunkCount;
+    result.TabletCount = -resources.TabletCount;
+    result.TabletStaticMemory = -resources.TabletStaticMemory;
     return result;
 }
 
@@ -228,6 +292,12 @@ bool operator == (const TClusterResources& lhs, const TClusterResources& rhs)
         return false;
     }
     if (lhs.ChunkCount != rhs.ChunkCount) {
+        return false;
+    }
+    if (lhs.TabletCount != rhs.TabletCount) {
+        return false;
+    }
+    if (lhs.TabletStaticMemory != rhs.TabletStaticMemory) {
         return false;
     }
     return true;
@@ -254,9 +324,11 @@ void FormatValue(TStringBuilder* builder, const TClusterResources& resources, co
             firstDiskSpace = false;
         }
     }
-    builder->AppendFormat("], NodeCount: %v, ChunkCount: %v}",
+    builder->AppendFormat("], NodeCount: %v, ChunkCount: %v, TabletCount: %v, TabletStaticMemory: %v}",
         resources.NodeCount,
-        resources.ChunkCount);
+        resources.ChunkCount,
+        resources.TabletCount,
+        resources.TabletStaticMemory);
 }
 
 TString ToString(const TClusterResources& resources)

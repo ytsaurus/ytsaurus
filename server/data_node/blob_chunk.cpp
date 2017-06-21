@@ -296,7 +296,7 @@ void TBlobChunkBase::DoReadBlockSet(
 
                 // NB: Prevent cache from holding the whole block sequence.
                 if (blocks.size() > 1) {
-                    data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data);
+                    data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data);
                 }
 
                 auto blockId = TBlockId(Id_, entry.BlockIndex);
@@ -321,7 +321,7 @@ void TBlobChunkBase::DoReadBlockSet(
     }
 }
 
-TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
+TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     const std::vector<int>& blockIndexes,
     const TBlockReadOptions& options)
 {
@@ -341,7 +341,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
         auto blockId = TBlockId(Id_, entry.BlockIndex);
         auto block = options.FetchFromCache && options.BlockCache
             ? options.BlockCache->Find(blockId, EBlockType::CompressedData)
-            : TSharedRef();
+            : TBlock();
         if (block) {
             session->Blocks[entry.LocalIndex] = std::move(block);
             entry.Cached = true;
@@ -388,7 +388,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
     return asyncResult.Apply(BIND([session] () { return std::move(session->Blocks); }));
 }
 
-TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockRange(
+TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
     int firstBlockIndex,
     int blockCount,
     const TBlockReadOptions& options)

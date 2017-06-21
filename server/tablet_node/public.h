@@ -18,6 +18,8 @@
 
 #include <yt/ytlib/object_client/public.h>
 
+#include <yt/core/misc/small_vector.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -52,6 +54,7 @@ using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;
 using NTabletClient::TTabletCellOptionsPtr;
+using NTabletClient::ETableReplicaMode;
 
 using NTransactionClient::TTransactionId;
 using NTransactionClient::NullTransactionId;
@@ -189,6 +192,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManager)
 DECLARE_REFCOUNTED_CLASS(TTabletSlot)
 DECLARE_REFCOUNTED_CLASS(TTabletAutomaton)
+DECLARE_REFCOUNTED_STRUCT(TRuntimeTabletCellData)
 
 class TSaveContext;
 class TLoadContext;
@@ -258,13 +262,15 @@ using TTabletWriterOptionsPtr = NTableClient::TTableWriterOptionsPtr;
 
 struct ITabletContext;
 
+using TSyncReplicaIdList = SmallVector<TTableReplicaId, 2>;
+
 //! This is the hard limit.
 //! Moreover, it is quite expensive to be graceful in preventing it from being exceeded.
 //! The soft limit, thus, is significantly smaller.
-static const i64 HardRevisionsPerDynamicStoreLimit = 1ULL << 26;
-static const i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
+constexpr i64 HardRevisionsPerDynamicStoreLimit = 1ULL << 26;
+constexpr i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
 
-static const int EdenIndex = -1;
+constexpr int EdenIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

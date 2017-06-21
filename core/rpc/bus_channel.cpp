@@ -20,8 +20,6 @@
 
 #include <yt/core/rpc/rpc.pb.h>
 
-#include <yt/core/ypath/token.h>
-
 namespace NYT {
 namespace NRpc {
 
@@ -61,22 +59,20 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto sessionOrError = GetOrCreateSession();
-        if (!sessionOrError.IsOK()) {
-            responseHandler->HandleError(sessionOrError);
+        try {
+            auto session = GetOrCreateSession();
+            return session->Send(
+                std::move(request),
+                std::move(responseHandler),
+                options);
+        } catch (const std::exception& ex) {
+            responseHandler->HandleError(TError(ex));
             return nullptr;
         }
-
-        return sessionOrError.Value()->Send(
-            std::move(request),
-            std::move(responseHandler),
-            timeout,
-            requestAck);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -120,7 +116,7 @@ private:
     TError TerminationError_;
     TSessionPtr Session_;
 
-    TErrorOr<TSessionPtr> GetOrCreateSession()
+    TSessionPtr GetOrCreateSession()
     {
         IBusPtr bus;
         TSessionPtr session;
@@ -132,19 +128,14 @@ private:
             }
 
             if (Terminated_) {
-                return TError(NRpc::EErrorCode::TransportError, "Channel terminated")
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, "Channel terminated")
                     << TerminationError_;
             }
 
             session = New<TSession>();
             auto messageHandler = New<TMessageHandler>(session);
 
-            try {
-                bus = Client_->CreateBus(messageHandler);
-            } catch (const std::exception& ex) {
-                return ex;
-            }
-
+            bus = Client_->CreateBus(messageHandler);
             session->Initialize(bus);
             Session_ = session;
         }
@@ -245,22 +236,25 @@ private:
         IClientRequestControlPtr Send(
             IClientRequestPtr request,
             IClientResponseHandlerPtr responseHandler,
-            TNullable<TDuration> timeout,
-            bool requestAck)
+            const TSendOptions& options)
         {
             YCHECK(request);
             YCHECK(responseHandler);
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto requestControl = New<TClientRequestControl>(this, request, timeout, responseHandler);
+            auto requestControl = New<TClientRequestControl>(
+                this,
+                request,
+                options.Timeout,
+                std::move(responseHandler));
 
             auto& header = request->Header();
             header.set_start_time(ToProto(TInstant::Now()));
-            if (timeout) {
-                header.set_timeout(ToProto(*timeout));
+            if (options.Timeout) {
+                header.set_timeout(ToProto(*options.Timeout));
                 auto timeoutCookie = TDelayedExecutor::Submit(
                     BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
-                    *timeout);
+                    *options.Timeout);
                 requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
             } else {
                 header.clear_timeout();
@@ -274,12 +268,12 @@ private:
                         &TSession::OnRequestSerialized,
                         MakeStrong(this),
                         requestControl,
-                        requestAck));
+                        options));
             } else {
                 auto&& requestMessage = request->Serialize();
                 OnRequestSerialized(
                     requestControl,
-                    requestAck,
+                    options,
                     std::move(requestMessage));
             }
 
@@ -342,7 +336,7 @@ private:
             ToProto(header.mutable_realm_id(), realmId);
 
             auto message = CreateRequestCancelationMessage(header);
-            bus->Send(std::move(message), EDeliveryTrackingLevel::None);
+            bus->Send(std::move(message), NBus::TSendOptions(EDeliveryTrackingLevel::None));
         }
 
         void HandleTimeout(const TClientRequestControlPtr& requestControl, bool aborted)
@@ -425,7 +419,11 @@ private:
                     error = FromProto<TError>(header.error());
                 }
                 if (error.IsOK()) {
-                    NotifyResponse(requestId, responseHandler, std::move(message));
+                    NotifyResponse(
+                        requestId,
+                        requestControl,
+                        responseHandler,
+                        std::move(message));
                 } else {
                     if (error.GetCode() == EErrorCode::PoisonPill) {
                         LOG_FATAL(error, "Poison pill received");
@@ -481,10 +479,9 @@ private:
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
         yhash<std::pair<TString, TString>, TMethodMetadata> CachedMethodMetadata_;
 
-
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
-            bool requestAck,
+            const TSendOptions& options,
             const TErrorOr<TSharedRefArray>& requestMessageOrError)
         {
             VERIFY_THREAD_AFFINITY_ANY();
@@ -551,25 +548,26 @@ private:
 
             const auto& requestMessage = requestMessageOrError.Value();
 
-            auto level = requestAck
+            NBus::TSendOptions busOptions;
+            busOptions.TrackingLevel = options.RequestAck
                 ? EDeliveryTrackingLevel::Full
                 : EDeliveryTrackingLevel::ErrorOnly;
-
-            bus->Send(requestMessage, level).Subscribe(BIND(
+            busOptions.ChecksummedPartCount = options.GenerateAttachmentChecksums
+                ? NBus::TSendOptions::AllParts
+                : 2; // RPC header + request body
+            bus->Send(requestMessage, busOptions).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
                 requestId));
 
-            const auto& service = requestControl->GetService();
-            const auto& method = requestControl->GetMethod();
-            const auto& timeout = requestControl->GetTimeout();
-
-            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, Endpoint: %v)",
+            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
+                "ChecksummedPartCount: %v, Endpoint: %v)",
                 requestId,
-                service,
-                method,
-                timeout,
-                level,
+                requestControl->GetService(),
+                requestControl->GetMethod(),
+                requestControl->GetTimeout(),
+                busOptions.TrackingLevel,
+                busOptions.ChecksummedPartCount,
                 bus->GetEndpointDescription());
         }
 
@@ -632,7 +630,9 @@ private:
                     << TErrorAttribute("timeout", *requestControl->GetTimeout());
             }
 
-            LOG_DEBUG(detailedError, "%v (RequestId: %v)", reason, requestControl->GetRequestId());
+            LOG_DEBUG(detailedError, "%v (RequestId: %v)",
+                reason,
+                requestControl->GetRequestId());
 
             responseHandler->HandleError(detailedError);
         }
@@ -641,8 +641,6 @@ private:
             const TRequestId& requestId,
             const IClientResponseHandlerPtr& responseHandler)
         {
-            YCHECK(responseHandler);
-
             LOG_DEBUG("Request acknowledged (RequestId: %v)", requestId);
 
             responseHandler->HandleAcknowledgement();
@@ -650,16 +648,18 @@ private:
 
         void NotifyResponse(
             const TRequestId& requestId,
+            const TClientRequestControlPtr& requestControl,
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message)
         {
-            YCHECK(responseHandler);
-
-            LOG_DEBUG("Response received (RequestId: %v)", requestId);
+            LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
+                requestId,
+                requestControl->GetService(),
+                requestControl->GetMethod(),
+                requestControl->GetTotalTime());
 
             responseHandler->HandleResponse(std::move(message));
         }
-
     };
 
     //! Controls a sent request.
@@ -723,6 +723,11 @@ private:
             return Timeout_;
         }
 
+        TDuration GetTotalTime() const
+        {
+            return TotalTime_;
+        }
+
         bool IsActive(const TGuard<TSpinLock>&) const
         {
             return static_cast<bool>(ResponseHandler_);
@@ -742,7 +747,7 @@ private:
         void Finalize(const TGuard<TSpinLock>&, IClientResponseHandlerPtr* responseHandler)
         {
             *responseHandler = std::move(ResponseHandler_);
-            Profiler.TimingStop(Timer_, STRINGBUF("total"));
+            TotalTime_ = Profiler.TimingStop(Timer_, STRINGBUF("total"));
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
         }
 
@@ -772,6 +777,7 @@ private:
         IClientResponseHandlerPtr ResponseHandler_;
 
         NProfiling::TTimer Timer_;
+        TDuration TotalTime_;
     };
 
 };

@@ -12,7 +12,7 @@
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic interface for uploading chunks to a suitable target.
 struct IChunkWriter
@@ -26,10 +26,10 @@ struct IChunkWriter
      *  If |false| is returned then the block was accepted but the window is already full.
      *  The client must call #GetReadyEvent and wait for the result to be set.
      */
-    virtual bool WriteBlock(const TSharedRef& block) = 0;
+    virtual bool WriteBlock(const TBlock& block) = 0;
 
     //! Similar to #WriteBlock but enqueues a bunch of blocks at once.
-    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) = 0;
+    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) = 0;
 
     //! Returns an asynchronous flag used to backpressure the upload.
     virtual TFuture<void> GetReadyEvent() = 0;
@@ -70,7 +70,7 @@ struct IChunkWriter
 
 DEFINE_REFCOUNTED_TYPE(IChunkWriter)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

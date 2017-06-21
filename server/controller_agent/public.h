@@ -19,7 +19,6 @@ using NScheduler::TExecNodeDescriptorListPtr;
 using NScheduler::EOperationType;
 using NScheduler::EJobType;
 using NScheduler::EJobState;
-using NScheduler::TIntermediateChunkScraperConfigPtr;
 using NScheduler::TOperation;
 using NScheduler::TOperationSpecBasePtr;
 using NScheduler::TOperationOptionsPtr;
@@ -33,10 +32,6 @@ DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
 DECLARE_REFCOUNTED_STRUCT(TControllerTransactions)
 
-DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
-
-DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
-
 DECLARE_REFCOUNTED_STRUCT(IJobSizeConstraints)
 
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobStatistics)
@@ -44,6 +39,9 @@ DECLARE_REFCOUNTED_STRUCT(TScheduleJobStatistics)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
+DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
+
+DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

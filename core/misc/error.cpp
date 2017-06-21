@@ -7,6 +7,7 @@
 #include <yt/core/misc/error.pb.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/local_address.h>
 
 #include <yt/core/tracing/trace_context.h>
 
@@ -26,22 +27,6 @@ using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-static char LocalHostName[1024] = {0};
-static std::atomic<bool> LocalHostNameInitialized = {false};
-const char* GetStaticLocalHostName()
-{
-    if (!LocalHostNameInitialized.load(std::memory_order_relaxed)) {
-        auto resolvedLocalHostName = TAddressResolver::Get()->GetLocalHostName();
-        YCHECK(resolvedLocalHostName.length() < sizeof(LocalHostName));
-        ::memcpy(LocalHostName, resolvedLocalHostName.c_str(), resolvedLocalHostName.length());
-        LocalHostName[resolvedLocalHostName.length()] = 0;
-        LocalHostNameInitialized = true;
-    }
-    return LocalHostName;
-}
-} // namespace
 
 void TErrorCode::Save(TStreamSaveContext& context) const
 {
@@ -239,7 +224,7 @@ void TErrorOr<void>::Load(TStreamLoadContext& context)
 
 void TError::CaptureOriginAttributes()
 {
-    Attributes().Set("host", GetStaticLocalHostName());
+    Attributes().Set("host", ReadLocalHostName());
     Attributes().Set("datetime", TInstant::Now());
     Attributes().Set("pid", ::getpid());
     Attributes().Set("tid", TThread::CurrentThreadId());

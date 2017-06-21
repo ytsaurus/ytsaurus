@@ -153,7 +153,9 @@ protected:
         const TVersionedNodeId& id,
         TCellTag cellTag,
         TTransaction* transaction,
-        IAttributeDictionary* attributes) override
+        IAttributeDictionary* attributes,
+        NSecurityServer::TAccount* account,
+        bool enableAccounting) override
     {
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
 
@@ -182,7 +184,9 @@ protected:
             id,
             cellTag,
             transaction,
-            attributes);
+            attributes,
+            account,
+            enableAccounting);
         auto* node = nodeHolder.get();
 
         node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
@@ -295,7 +299,8 @@ protected:
         TJournalNode* sourceNode,
         TJournalNode* clonedNode,
         ICypressNodeFactory* factory,
-        ENodeCloneMode mode) override
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override
     {
         if (mode == ENodeCloneMode::Copy) {
             THROW_ERROR_EXCEPTION("Journals cannot be copied");
@@ -308,7 +313,7 @@ protected:
         clonedNode->SetReadQuorum(sourceNode->GetReadQuorum());
         clonedNode->SetWriteQuorum(sourceNode->GetWriteQuorum());
 
-        TBase::DoClone(sourceNode, clonedNode, factory, mode);
+        TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
     }
 
     void HandleTransactionFinished(TJournalNode* originatingNode, TJournalNode* branchedNode)

@@ -13,8 +13,9 @@ class TScopedTimer
 {
 public:
     TScopedTimer()
-        : StartTime_(GetCpuInstant())
-    { }
+    {
+        Restart();
+    }
 
     TInstant GetStart() const
     {
@@ -23,7 +24,8 @@ public:
 
     TDuration GetElapsed() const
     {
-        return CpuDurationToDuration(GetCpuInstant() - StartTime_);
+        auto cpuDuration = static_cast<TCpuDuration>(GetCpuInstant() - StartTime_);
+        return cpuDuration < 0 ? TDuration::Zero() : CpuDurationToDuration(cpuDuration);
     }
 
     void Restart()

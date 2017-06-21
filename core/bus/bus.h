@@ -21,6 +21,21 @@ DEFINE_ENUM(EDeliveryTrackingLevel,
     (Full)
 );
 
+struct TSendOptions
+{
+    static constexpr int AllParts = -1;
+
+    explicit TSendOptions(
+        EDeliveryTrackingLevel trackingLevel = EDeliveryTrackingLevel::None,
+        int checksummedPartCount = AllParts)
+        : TrackingLevel(trackingLevel)
+        , ChecksummedPartCount(checksummedPartCount)
+    { }
+
+    EDeliveryTrackingLevel TrackingLevel;
+    int ChecksummedPartCount;
+};
+
 //! A bus, i.e. something capable of transmitting messages.
 struct IBus
     : public virtual TRefCounted
@@ -41,7 +56,7 @@ struct IBus
      *
      *  \note Thread affinity: any
      */
-    virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) = 0;
+    virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) = 0;
 
     //! Terminates the bus.
     /*!

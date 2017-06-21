@@ -56,6 +56,7 @@ public:
         TCallback<TFuture<void>()> callbackFuture) override;
     virtual void EndStorePreload(IChunkStorePtr store) override;
     virtual void BackoffStorePreload(IChunkStorePtr store) override;
+    virtual ui64 GetInMemoryConfigRevision() const override;
 
     virtual void Mount(
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
@@ -87,6 +88,7 @@ protected:
     const NApi::INativeClientPtr Client_;
 
     bool RotationScheduled_ = false;
+    ui64 InMemoryConfigRevision_ = 0;
     TInstant LastRotated_;
 
     yhash_set<IStorePtr> LockedStores_;
@@ -115,7 +117,7 @@ protected:
     bool IsRecovery() const;
 
     TTimestamp GenerateMonotonicCommitTimestamp(TTimestamp timestampHint);
-    void UpdateLastCommitTimestamp(TTimestamp timestamp);
+    void UpdateLastCommitTimestamp(TTransaction* transaction, TTimestamp timestamp);
 
 };
 

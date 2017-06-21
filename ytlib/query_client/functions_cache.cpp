@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/block.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
@@ -125,6 +126,8 @@ static const TString AggregateDescriptorAttribute("aggregate_descriptor");
 TExternalCGInfo::TExternalCGInfo()
     : NodeDirectory(New<NNodeTrackerClient::TNodeDirectory>())
 { }
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
@@ -260,12 +263,11 @@ void AppendUdfDescriptors(
 {
     YCHECK(names.size() == external.size());
 
-    LOG_DEBUG("Appending UDF %v descriptors", external.size());
+    LOG_DEBUG("Appending UDF descriptors (Count: %v)", external.size());
 
     for (size_t index = 0; index < external.size(); ++index) {
         const auto& item = external[index];
         const auto& descriptor = item.Descriptor;
-
         const auto& name = names[index];
 
         LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
@@ -285,8 +287,7 @@ void AppendUdfDescriptors(
             AggregateDescriptorAttribute);
 
         if (bool(functionDescriptor) == bool(aggregateDescriptor)) {
-            THROW_ERROR_EXCEPTION(
-                "Item must have either function descriptor or aggregate descriptor");
+            THROW_ERROR_EXCEPTION("Item must have either function descriptor or aggregate descriptor");
         }
 
         const auto& chunks = item.Chunks;
@@ -302,7 +303,7 @@ void AppendUdfDescriptors(
             }));
 
         if (functionDescriptor) {
-            LOG_DEBUG("Appending function UDF descriptor %v", name);
+            LOG_DEBUG("Appending function UDF descriptor %Qv", name);
 
             functionBody.IsAggregate = false;
             functionBody.SymbolName = functionDescriptor->Name;
@@ -329,7 +330,7 @@ void AppendUdfDescriptors(
         }
 
         if (aggregateDescriptor) {
-            LOG_DEBUG("Appending aggregate UDF descriptor %v", name);
+            LOG_DEBUG("Appending aggregate UDF descriptor %Qv", name);
 
             functionBody.IsAggregate = true;
             functionBody.SymbolName = aggregateDescriptor->Name;
@@ -373,21 +374,6 @@ public:
         , Invoker_(invoker)
     { }
 
-    virtual TFuture<TExternalFunctionSpec> DoGet(const TString& key)
-    {
-        return DoGetMany({key})
-            .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& result) {
-                return result[0];
-            }));
-    }
-
-    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<TString>& keys)
-    {
-        return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, Client_.Lock())
-            .AsyncVia(Invoker_)
-            .Run();
-    }
-
     virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<TString>& names) override
     {
         return Get(names);
@@ -398,6 +384,20 @@ private:
     const TWeakPtr<INativeClient> Client_;
     const IInvokerPtr Invoker_;
 
+    virtual TFuture<TExternalFunctionSpec> DoGet(const TString& key) override
+    {
+        return DoGetMany({key})
+            .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& result) {
+                return result[0];
+            }));
+    }
+
+    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<TString>& keys) override
+    {
+        return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, Client_.Lock())
+            .AsyncVia(Invoker_)
+            .Run();
+    }
 };
 
 } // namespace
@@ -519,13 +519,13 @@ public:
 
         std::vector<TSharedRef> blocks;
         while (true) {
-            TSharedRef block;
+            NChunkClient::TBlock block;
             if (!reader->ReadBlock(&block)) {
                 break;
             }
 
-            if (block) {
-                blocks.push_back(std::move(block));
+            if (block.Data) {
+                blocks.push_back(std::move(block.Data));
             }
 
             WaitFor(reader->GetReadyEvent())

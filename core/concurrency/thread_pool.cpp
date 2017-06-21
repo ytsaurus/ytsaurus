@@ -1,7 +1,7 @@
 #include "thread_pool.h"
 #include "single_queue_scheduler_thread.h"
 #include "private.h"
-#include "profiler_utils.h"
+#include "profiling_helpers.h"
 
 #include <yt/core/actions/invoker_detail.h>
 
@@ -16,7 +16,7 @@ using namespace NProfiling;
 using namespace NYPath;
 using namespace NYTree;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TThreadPool::TImpl
     : public TRefCounted
@@ -189,7 +189,7 @@ const IInvokerPtr& TThreadPool::GetInvoker()
     return Impl_->GetInvoker();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency
 } // namespace NYT

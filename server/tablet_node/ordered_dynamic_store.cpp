@@ -321,7 +321,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
             .ThrowOnError();
 
         Save(context, chunkWriter->GetChunkMeta());
-        Save(context, chunkWriter->GetBlocks());
+        Save(context, TBlock::Unwrap(chunkWriter->GetBlocks()));
     });
 }
 
@@ -332,15 +332,16 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
     if (Load<bool>(context)) {
         auto chunkMeta = Load<TChunkMeta>(context);
         auto blocks = Load<std::vector<TSharedRef>>(context);
-        auto chunkReader = CreateMemoryReader(chunkMeta, blocks);
+
+        auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
         auto tableReader = CreateSchemafulChunkReader(
-                New<TChunkReaderConfig>(),
-                chunkReader,
-                GetNullBlockCache(),
-                Schema_,
-                TKeyColumns(),
-                chunkMeta,
-                TReadRange());
+            New<TChunkReaderConfig>(),
+            chunkReader,
+            GetNullBlockCache(),
+            Schema_,
+            TKeyColumns(),
+            chunkMeta,
+            TReadRange());
 
         std::vector<TUnversionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);

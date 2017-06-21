@@ -27,6 +27,7 @@ class TServerConfig
 {
 public:
     // Singletons.
+    yhash<TString, int> FiberStackPoolSizes;
     TAddressResolverConfigPtr AddressResolver;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NLogging::TLogConfigPtr Logging;
@@ -44,6 +45,8 @@ public:
 
     TServerConfig()
     {
+        RegisterParameter("fiber_stack_pool_sizes", FiberStackPoolSizes)
+            .Default({});
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)

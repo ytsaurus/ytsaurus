@@ -501,7 +501,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TWriterGuard& 
 {
     // Move from older to younger.
     while (!OlderLruList_.Empty() &&
-           OlderWeightCounter_.Current > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
+           OlderWeightCounter_.GetCurrent() > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
     {
         auto* item = &*(--OlderLruList_.End());
         MoveToYounger(item);
@@ -510,7 +510,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TWriterGuard& 
     // Evict from younger.
     std::vector<TValuePtr> evictedValues;
     while (!YoungerLruList_.Empty() &&
-           YoungerWeightCounter_.Current + OlderWeightCounter_.Current > Config_->Capacity)
+           YoungerWeightCounter_.GetCurrent() + OlderWeightCounter_.GetCurrent() > Config_->Capacity)
     {
         auto* item = &*(--YoungerLruList_.End());
         auto value = item->Value;

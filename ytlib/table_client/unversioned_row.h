@@ -410,10 +410,17 @@ void ValidateServerKey(
     TKey key,
     const TTableSchema& schema);
 
-//! Checks if #timestamp is sane and can be used for reading data.
+//! Checks if #timestamp is sane and can be used for data.
+//! Allows timestamps in range [MinTimestamp, MaxTimestamp] plus some sentinels
+//! (SyncLastCommittedTimestamp and AsyncLastCommittedTimestamp).
 void ValidateReadTimestamp(TTimestamp timestamp);
 
+//! Checks if #timestamp is sane and can be used for replica synchronization.
+//! Allows timestamps in range [MinTimestamp, MaxTimestamp].
+void ValidateSyncTimestamp(TTimestamp timestamp);
+
 //! Checks if #timestamp is sane and can be used for writing (versioned) data.
+//! Allows timestamps in range [MinTimestamp, MaxTimestamp].
 void ValidateWriteTimestamp(TTimestamp timestamp);
 
 //! An internal helper used by validators.
@@ -489,6 +496,10 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue);
 TString ToString(TUnversionedRow row);
 TString ToString(TMutableUnversionedRow row);
 TString ToString(const TUnversionedOwningRow& row);
+
+TOwningKey RowToKey(
+    const NTableClient::TTableSchema& schema,
+    TUnversionedRow row);
 
 //! Constructs a shared range of rows from a non-shared one.
 /*!

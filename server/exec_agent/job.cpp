@@ -92,6 +92,9 @@ public:
 
         JobSpec_.Swap(&jobSpec);
 
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        AbortJobIfAccountLimitExceeded_ = schedulerJobSpecExt.abort_job_if_account_limit_exceeded();
+
         Logger.AddTag("JobId: %v, OperationId: %v, JobType: %v",
             Id_,
             OperationId_,
@@ -143,7 +146,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        LOG_INFO(error, "Job abort requested");
+        LOG_INFO(error, "Job abort requested (Phase %v)", JobPhase_);
 
         switch (JobPhase_) {
             case EJobPhase::Created:
@@ -439,6 +442,19 @@ public:
         }
     }
 
+    virtual void Fail() override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        ValidateJobRunning();
+
+        try {
+            Slot_->GetJobProberClient()->Fail();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error failing job on job proxy")
+                    << ex;
+        }
+    }
+
 private:
     const TJobId Id_;
     const TOperationId OperationId_;
@@ -448,6 +464,8 @@ private:
     const IInvokerPtr Invoker_;
 
     TJobSpec JobSpec_;
+
+    bool AbortJobIfAccountLimitExceeded_;
 
     // Used to terminate artifacts downloading in case of cancelation.
     TFuture<void> ArtifactsFuture_ = VoidFuture;
@@ -727,6 +745,7 @@ private:
 
         if (Slot_) {
             try {
+                LOG_DEBUG("Cleanup (slot: %v)", Slot_->GetSlotIndex());
                 Slot_->Cleanup();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
@@ -757,7 +776,7 @@ private:
         if (error.IsOK()) {
             SetJobState(EJobState::Completed);
         } else if (IsFatalError(error)) {
-            error.Attributes().Set("fatal", IsFatalError(error));
+            error.Attributes().Set("fatal", true);
             ToProto(JobResult_->mutable_error(), error);
             SetJobState(EJobState::Failed);
         } else {
@@ -1035,6 +1054,13 @@ private:
         }
 
         auto resultError = FromProto<TError>(jobResult.error());
+
+        if (AbortJobIfAccountLimitExceeded_ &&
+            resultError.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded))
+        {
+            return EAbortReason::AccountLimitExceeded;
+        }
+
         if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
             return EAbortReason::ResourceOverdraft;
         }
@@ -1062,13 +1088,15 @@ private:
             return EAbortReason::Other;
         }
 
-        if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
+        if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode))
+        {
             auto exitCode = NExecAgent::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
             if (exitCode == EJobProxyExitCode::HeartbeatFailed ||
                 exitCode == EJobProxyExitCode::ResultReportFailed ||
                 exitCode == EJobProxyExitCode::ResourcesUpdateFailed ||
                 exitCode == EJobProxyExitCode::GetJobSpecFailed ||
-                exitCode == EJobProxyExitCode::InvalidSpecVersion)
+                exitCode == EJobProxyExitCode::InvalidSpecVersion ||
+                exitCode == EJobProxyExitCode::PortoManagmentFailed)
             {
                 return EAbortReason::Other;
             }
@@ -1084,13 +1112,16 @@ private:
         return Null;
     }
 
-    static bool IsFatalError(const TError& error)
+    bool IsFatalError(const TError& error)
     {
         return
             error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
-            error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
+            (
+                error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) &&
+                !AbortJobIfAccountLimitExceeded_
+            ) ||
             error.FindMatching(NSecurityClient::EErrorCode::NoSuchAccount) ||
             error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||

@@ -7,7 +7,6 @@
 #include <yt/ytlib/admin/admin_service_proxy.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
@@ -104,18 +103,8 @@ private:
 
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-
-        auto cellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
-            New<TCellDirectorySynchronizerConfig>(),
-            cellDirectory,
-            Connection_->GetPrimaryMasterCellId());
-
-        WaitFor(cellDirectorySynchronizer->Sync())
-            .ThrowOnError();
-
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
-        auto channel = cellDirectory->GetChannelOrThrow(cellId);
+        auto channel = GetCellChannelOrThrow(cellId);
 
         THydraServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(TDuration::Hours(1)); // effective infinity
@@ -131,11 +120,8 @@ private:
 
     void DoGCCollect(const TGCCollectOptions& options)
     {
-        std::vector<TFuture<void>> asyncResults;
-
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(cellId);
+        auto channel = GetCellChannelOrThrow(cellId);
 
         TObjectServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Null); // infinity
@@ -156,7 +142,7 @@ private:
         auto asyncResult = req->Invoke().As<void>();
         // NB: this will always throw an error since the service can
         // never reply to the request because it makes _exit immediately.
-        // This is an intended behavior.
+        // This is the intended behavior.
         WaitFor(asyncResult)
             .ThrowOnError();
     }
@@ -170,6 +156,21 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
         return rsp->path();
+    }
+
+
+    IChannelPtr GetCellChannelOrThrow(const TCellId& cellId)
+    {
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto channel = cellDirectory->FindChannel(cellId);
+        if (channel) {
+            return channel;
+        }
+
+        WaitFor(Connection_->SyncCellDirectory())
+            .ThrowOnError();
+
+       return cellDirectory->GetChannelOrThrow(cellId);
     }
 };
 

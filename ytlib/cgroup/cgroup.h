@@ -155,6 +155,7 @@ public:
         ui64 BytesWritten = 0;
         ui64 IORead = 0;
         ui64 IOWrite = 0;
+        ui64 IOTotal = 0;
     };
 
     struct TStatisticsItem
@@ -201,7 +202,7 @@ public:
     explicit TMemory(const TString& name);
 
     TStatistics GetStatistics() const;
-    ui64 GetMaxMemoryUsage() const;
+    i64 GetMaxMemoryUsage() const;
 
     void SetLimitInBytes(i64 bytes) const;
 

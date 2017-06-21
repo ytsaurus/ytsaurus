@@ -135,20 +135,39 @@ private:
     size_t ContextSize = 0;
     char Context[MaxContextSize];
 
+    // LeftContextQueue keeps characters from previous blocks.
+    // We save MaxLeftMargin characters from the end of the current block when it ends.
+    // It will allow us to keep a left margin of the current context even if it starts at the beginning of the block.
+    std::deque<char> LeftContextQueue;
+    const char* CurrentBlockBegin;
+    size_t ContextPosition = 0;
+
+    const size_t MaxLeftMargin = 10;
 public:
     TReaderWithContext(const TBlockStream& blockStream)
         : TBlockStream(blockStream)
-    { }
+    {
+        CurrentBlockBegin = TBlockStream::Begin();
+    }
 
     void CheckpointContext()
     {
         ContextBegin = TBlockStream::Begin();
         ContextSize = 0;
+        ContextPosition = 0;
     }
 
-    TString GetContextFromCheckpoint() const
+    size_t GetContextPosition() const
+    {
+        return ContextPosition;
+    }
+
+    TString GetContextFromCheckpoint()
     {
         TString result;
+        if (ContextSize == 0) {
+            SaveLeftContextToContextBuffer();
+        }
         result.append(Context, ContextSize);
         if (ContextBegin && *ContextBegin != nullptr) {
             size_t remainingSize = MaxContextSize - ContextSize;
@@ -164,11 +183,15 @@ public:
             // ContextBegin can be defined but set to nullptr if someone called CheckpointContext
             // before any data was read by TBlockStream (when both Begin()/End() == nullptr).
             if (*ContextBegin != nullptr) {
+                if (ContextSize == 0) {
+                    SaveLeftContextToContextBuffer();
+                }
+
                 const auto sizeToCopy = std::min<size_t>(MaxContextSize - ContextSize, TBlockStream::End() - *ContextBegin);
                 memcpy(Context + ContextSize, *ContextBegin, sizeToCopy);
                 ContextSize += sizeToCopy;
             }
-
+            UpdateLeftContextQueue();
             TBlockStream::RefreshBlock();
 
             // If we reached maximum size set ContextBegin to Null (not nullptr).
@@ -180,8 +203,41 @@ public:
                 ContextBegin = TBlockStream::Begin();
             }
         } else {
+            UpdateLeftContextQueue();
             TBlockStream::RefreshBlock();
         }
+        CurrentBlockBegin = TBlockStream::Begin();
+    }
+
+private:
+    void SaveLeftContextToContextBuffer()
+    {
+        int currentBlockContextMargin = *ContextBegin - CurrentBlockBegin;
+        auto currentBlockMarginBegin = std::max<int>(0, currentBlockContextMargin - MaxLeftMargin);
+        auto sizeFromBlock = currentBlockContextMargin - currentBlockMarginBegin;
+        auto sizeFromDeque = std::min<int>(MaxLeftMargin - sizeFromBlock, LeftContextQueue.size());
+
+        auto LeftContextQueueBegin = LeftContextQueue.begin() + LeftContextQueue.size() - sizeFromDeque;
+        std::copy(LeftContextQueueBegin, LeftContextQueueBegin + sizeFromDeque, Context);
+        ContextSize = sizeFromDeque;
+
+        sizeFromBlock = std::min<int>(sizeFromBlock, MaxContextSize - ContextSize);
+        memcpy(Context + ContextSize, CurrentBlockBegin + currentBlockMarginBegin, sizeFromBlock);
+        ContextSize += sizeFromBlock;
+        ContextPosition = ContextSize;
+    }
+
+    void UpdateLeftContextQueue()
+    {
+        int blockSize = TBlockStream::End() - CurrentBlockBegin;
+        auto LeftContextQueueBegin = std::max<int>(0, blockSize - MaxLeftMargin);
+        auto sizeToCopy = blockSize - LeftContextQueueBegin;
+        int sizeToErase = LeftContextQueue.size() + sizeToCopy - MaxLeftMargin;
+
+        if (sizeToErase > 0) {
+            LeftContextQueue.erase(LeftContextQueue.begin(), LeftContextQueue.begin() + sizeToErase);
+        }
+        LeftContextQueue.insert(LeftContextQueue.end(), CurrentBlockBegin + LeftContextQueueBegin, TBlockStream::End());
     }
 };
 
@@ -200,6 +256,11 @@ public:
     TString GetContextFromCheckpoint() const
     {
         return "<context is disabled>";
+    }
+
+    size_t GetContextPosition() const
+    {
+        return 0;
     }
 };
 

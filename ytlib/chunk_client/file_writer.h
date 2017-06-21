@@ -7,11 +7,12 @@
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <util/system/file.h>
+#include <util/system/direct_io.h>
 
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a local and synchronous implementation of #IAsyncWriter.
 class TFileWriter
@@ -21,13 +22,14 @@ public:
     TFileWriter(
         const TChunkId& chunkId,
         const TString& fileName,
-        bool syncOnClose = true);
+        bool syncOnClose = true,
+        bool enableWriteDirectIO = false);
 
     // IChunkWriter implementation.
     virtual TFuture<void> Open() override;
 
-    virtual bool WriteBlock(const TSharedRef& block) override;
-    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
+    virtual bool WriteBlock(const TBlock& block) override;
+    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -60,12 +62,15 @@ private:
     const TChunkId ChunkId_;
     const TString FileName_;
     const bool SyncOnClose_;
+    const bool EnableWriteDirectIO_;
 
     bool IsOpen_ = false;
     bool IsClosed_ = false;
     i64 DataSize_ = 0;
 
+    // Classes don't share common interface.
     std::unique_ptr<TFile> DataFile_;
+    std::unique_ptr<TDirectIOBufferedFile> DirectIOFile_;
 
     NChunkClient::NProto::TChunkInfo ChunkInfo_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
@@ -77,7 +82,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TFileWriter)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT

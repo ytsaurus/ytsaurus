@@ -12,7 +12,7 @@
 namespace NYT {
 namespace NScheduler {
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EDeactivationReason,
     (IsNotAlive)
@@ -22,9 +22,10 @@ DEFINE_ENUM(EDeactivationReason,
     (TryStartScheduleJobFailed)
     (ScheduleJobFailed)
     (NoBestLeafDescendant)
+    (MinNeededResourcesUnsatisfied)
 );
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TSchedulableAttributes
 {
@@ -54,7 +55,7 @@ struct TDynamicAttributes
 
 typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct TFairShareContext
 {
@@ -79,7 +80,7 @@ struct TFairShareContext
     TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 const int UnassignedTreeIndex = -1;
 const int EmptySchedulingTagFilterIndex = -1;
@@ -180,6 +181,8 @@ public:
 
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
 
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
+
     bool IsAlive() const;
     void SetAlive(bool alive);
 
@@ -247,7 +250,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElement)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TCompositeSchedulerElementFixedState
 {
@@ -273,7 +276,7 @@ public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
         TFairShareStrategyConfigPtr strategyConfig,
-        const TString& profilingName);
+        NProfiling::TTagId profilingTag);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -305,6 +308,8 @@ public:
     virtual bool IsRoot() const;
     virtual bool IsExplicit() const;
     virtual bool IsAggressiveStarvationEnabled() const;
+
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
     void AddChild(const TSchedulerElementPtr& child, bool enabled = true);
     void EnableChild(const TSchedulerElementPtr& child);
@@ -356,7 +361,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TCompositeSchedulerElement)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TPoolFixedState
 {
@@ -365,6 +370,7 @@ protected:
 
     const TString Id_;
     bool DefaultConfigured_ = true;
+    TNullable<TString> UserName_;
 };
 
 class TPool
@@ -375,6 +381,7 @@ public:
     TPool(
         ISchedulerStrategyHost* host,
         const TString& id,
+        NProfiling::TTagId profilingTag,
         TFairShareStrategyConfigPtr strategyConfig);
     TPool(
         const TPool& other,
@@ -382,12 +389,17 @@ public:
 
     bool IsDefaultConfigured() const;
 
+    void SetUserName(const TNullable<TString>& userName);
+    const TNullable<TString>& GetUserName() const;
+
     TPoolConfigPtr GetConfig();
     void SetConfig(TPoolConfigPtr config);
     void SetDefaultConfig();
 
     virtual bool IsExplicit() const override;
     virtual bool IsAggressiveStarvationEnabled() const override;
+
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
     virtual TString GetId() const override;
 
@@ -431,7 +443,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TPool)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TOperationElementFixedState
 {
@@ -478,16 +490,16 @@ public:
         int maxConcurrentScheduleJobCalls,
         NProfiling::TCpuDuration scheduleJobFailBackoffTime) const;
 
-    bool TryStartScheduleJob(
-        NProfiling::TCpuInstant now,
-        int maxConcurrentScheduleJobCalls,
-        NProfiling::TCpuDuration scheduleJobFailBackoffTime);
+    void IncreaseConcurrentScheduleJobCalls();
+    void DecreaseConcurrentScheduleJobCalls();
 
-    void FinishScheduleJob(
-        bool enableBackoff,
-        NProfiling::TCpuInstant now);
+    void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
 
     TJobResources Finalize();
+
+    void SetMinNeededJobResources(std::vector<TJobResources> jobResourcesList);
+    std::vector<TJobResources> GetMinNeededJobResourcesList() const;
+    TJobResources GetMinNeededJobResources() const;
 
 private:
     template <typename T>
@@ -626,6 +638,10 @@ private:
     NJobTrackerClient::TStatistics ControllerTimeStatistics_;
 
     void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
+
+    NConcurrency::TReaderWriterSpinLock CachedMinNeededJobResourcesLock_;
+    std::vector<TJobResources> CachedMinNeededJobResourcesList_;
+    TJobResources CachedMinNeededJobResources_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
@@ -651,6 +667,7 @@ public:
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void UpdateMinNeededJobResources();
 
     virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
 
@@ -660,6 +677,8 @@ public:
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
     virtual TString GetId() const override;
+
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;
@@ -687,6 +706,8 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
+    int GetSlotIndex() const;
+
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage);
     void OnJobFinished(const TJobId& jobId);
 
@@ -705,11 +726,25 @@ public:
 private:
     TOperationElementSharedStatePtr SharedState_;
 
+    bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
+
     bool IsBlocked(NProfiling::TCpuInstant now) const;
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const;
 
-    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context);
+    bool TryStartScheduleJob(
+        NProfiling::TCpuInstant now,
+        int maxConcurrentScheduleJobCalls,
+        NProfiling::TCpuDuration scheduleJobFailBackoffTime,
+        const TJobResources& jobLimits,
+        const TJobResources& minNeededResources);
+
+    void FinishScheduleJob(
+        bool enableBackoff,
+        NProfiling::TCpuInstant now,
+        const TJobResources& minNeededResources);
+
+    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits, const TJobResources& jobResourceDiscount);
 
     TJobResources ComputeResourceDemand() const;
     TJobResources ComputeResourceLimits() const;
@@ -719,7 +754,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TRootElementFixedState
 {
@@ -734,6 +769,7 @@ class TRootElement
 public:
     TRootElement(
         ISchedulerStrategyHost* host,
+        NProfiling::TTagId profilingTag,
         TFairShareStrategyConfigPtr strategyConfig);
     TRootElement(const TRootElement& other);
 
@@ -767,7 +803,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRootElement)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

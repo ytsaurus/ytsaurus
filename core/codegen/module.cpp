@@ -27,6 +27,13 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
+#include <mutex>
+
+#ifdef _linux_
+    #include <link.h>
+    #include <dlfcn.h>
+#endif
+
 namespace NYT {
 namespace NCodegen {
 
@@ -34,7 +41,7 @@ namespace NCodegen {
 
 static const auto& Logger = CodegenLogger;
 
-static bool DumpIR()
+static bool IsIRDumpEnabled()
 {
     static bool result = (getenv("DUMP_IR") != nullptr);
     return result;
@@ -42,16 +49,36 @@ static bool DumpIR()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
+
+static int ProgramHeaderCallback(dl_phdr_info* info, size_t /*size*/, void* /*data*/)
+{
+    if (strstr(info->dlpi_name, "ytnode.node")) {
+        dlopen(info->dlpi_name, RTLD_NOW | RTLD_GLOBAL);
+    }
+
+    return 0;
+}
+
+static void LoadDynamicLibrarySymbols()
+{
+    dl_iterate_phdr(ProgramHeaderCallback, nullptr);
+}
+
+#endif
+
 class TCGMemoryManager
     : public llvm::SectionMemoryManager
 {
 public:
-    TCGMemoryManager(TRoutineRegistry* RoutineRegistry)
-        : RoutineRegistry(RoutineRegistry)
-    { }
-
-    ~TCGMemoryManager()
-    { }
+    explicit TCGMemoryManager(TRoutineRegistry* routineRegistry)
+        : RoutineRegistry_(routineRegistry)
+    {
+        static std::once_flag onceFlag;
+#ifdef _linux
+        std::call_once(onceFlag, &LoadDynamicLibrarySymbols);
+#endif
+    }
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
     {
@@ -60,11 +87,13 @@ public:
             return address;
         }
 
-        return RoutineRegistry->GetAddress(name.c_str());
+        return RoutineRegistry_->GetAddress(name.c_str());
     }
 
+private:
     // RoutineRegistry is supposed to be a static object.
-    TRoutineRegistry* RoutineRegistry;
+    TRoutineRegistry* const RoutineRegistry_;
+
 };
 
 class TCGModule::TImpl
@@ -90,9 +119,9 @@ public:
         // whereas LLVM modules contains darwin15.0.0.
         // So we rebuild triple to match with Clang object files.
         auto triple = llvm::Triple(hostTriple);
-        unsigned Maj, Min, Rev;
-        triple.getMacOSXVersion(Maj, Min, Rev);
-        auto osName = llvm::Twine(Format("macosx%d.%d.%d", Maj, Min, Rev));
+        unsigned maj, min, rev;
+        triple.getMacOSXVersion(maj, min, rev);
+        auto osName = llvm::Twine(Format("macosx%v.%v.%v", maj, min, rev));
         auto fixedTriple = llvm::Triple(triple.getArchName(), triple.getVendorName(), osName);
         hostTriple = llvm::Triple::normalize(fixedTriple.getTriple());
 #endif
@@ -191,7 +220,9 @@ private:
         using namespace llvm;
         using namespace llvm::legacy;
 
-        if (DumpIR()) {
+        LOG_DEBUG("Started compiling module");
+
+        if (IsIRDumpEnabled()) {
             llvm::errs() << "\n******** Before Optimization ***********************************\n";
             Module_->dump();
             llvm::errs() << "\n****************************************************************\n";
@@ -239,15 +270,17 @@ private:
 
         modulePassManager->run(*Module_);
 
-        if (DumpIR()) {
+        if (IsIRDumpEnabled()) {
             llvm::errs() << "\n******** After Optimization ************************************\n";
             Module_->dump();
             llvm::errs() << "\n****************************************************************\n";
         }
 
         LOG_DEBUG("Finalizing module");
+
         Engine_->finalizeObject();
 
+        LOG_DEBUG("Finished compiling module");
         // TODO(sandello): Clean module here.
     }
 
@@ -320,6 +353,9 @@ private:
     }
 
 private:
+    // RoutineRegistry is supposed to be a static object.
+    TRoutineRegistry* const RoutineRegistry_;
+
     llvm::LLVMContext Context_;
     llvm::Module* Module_;
 
@@ -331,9 +367,6 @@ private:
     std::set<TString> LoadedSymbols_;
 
     bool Compiled_ = false;
-
-    // RoutineRegistry is supposed to be a static object.
-    TRoutineRegistry* RoutineRegistry_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -347,8 +380,7 @@ TCGModule::TCGModule(std::unique_ptr<TImpl> impl)
     : Impl_(std::move(impl))
 { }
 
-TCGModule::~TCGModule()
-{ }
+TCGModule::~TCGModule() = default;
 
 llvm::Module* TCGModule::GetModule() const
 {

@@ -13,7 +13,7 @@
 namespace NYT {
 namespace NNodeTrackerServer {
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
 
@@ -25,7 +25,7 @@ typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TReqFullHeartbeat;
 
 } // namespace NProto
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::InvalidNodeId;
@@ -37,7 +37,7 @@ using NNodeTrackerClient::TDataCenterId;
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TNodeTracker)
 
@@ -49,17 +49,23 @@ DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TDirectObjectIdHa
 
 using TNodeList = SmallVector<TNode*, NChunkClient::TypicalReplicaCount>;
 
-constexpr int MaxRackCount = 127;
-constexpr int NullRackIndex = 0;
+constexpr int MaxRackCount = 255;
 // NB: +1 is because of null rack.
-using TRackSet = std::bitset<MaxRackCount + 1>;
+constexpr int RackIndexBound = MaxRackCount + 1;
+constexpr int NullRackIndex = 0;
+using TRackSet = std::bitset<RackIndexBound>;
 
 constexpr int MaxDataCenterCount = 16;
 constexpr int NullDataCenterIndex = 0;
 // NB: +1 is because of null dataCenter.
 using TDataCenterSet = std::bitset<MaxDataCenterCount + 1>;
 
-///////////////////////////////////////////////////////////////////////////////
+constexpr int TypicalInterDCEdgeCount = 9; // (2 DCs + null DC)^2
+static_assert(
+    TypicalInterDCEdgeCount <= NNodeTrackerServer::MaxDataCenterCount * NNodeTrackerServer::MaxDataCenterCount,
+    "TypicalInterDCEdgeCount is too large.");
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeTrackerServer
 } // namespace NYT

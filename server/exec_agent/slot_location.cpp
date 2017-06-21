@@ -1,6 +1,7 @@
 #include "slot_location.h"
 #include "private.h"
 #include "config.h"
+#include "mounter.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -27,48 +28,10 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NConcurrency;
+using namespace NContainers;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TMounter
-{
-public:
-    ~TMounter()
-    { }
-
-    static TMounter* Get()
-    {
-        return Singleton<TMounter>();
-    }
-
-    std::vector<NFS::TMountPoint> GetMountPoints()
-    {
-        auto invoker = Thread_->GetInvoker();
-        auto asyncResult = BIND(NFS::GetMountPoints)
-            .AsyncVia(invoker)
-            .Run("/proc/mounts");
-        auto result = WaitFor(asyncResult)
-            .ValueOrThrow();
-        return result;
-    }
-
-    void Mount(TMountTmpfsConfigPtr config)
-    {
-        RunTool<TMountTmpfsAsRootTool>(config);
-    }
-
-    void Umount(TUmountConfigPtr config)
-    {
-        RunTool<TUmountAsRootTool>(config);
-    }
-
-
-private:
-    const TActionQueuePtr Thread_ = New<TActionQueue>("Mounter");
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,7 +213,8 @@ TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
     i64 size,
     int userId,
     const TString& path,
-    bool enable)
+    bool enable,
+    IMounterPtr mounter)
 {
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
@@ -297,7 +261,7 @@ TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
             LOG_DEBUG("Mounting tmpfs (Config: %v)",
                 ConvertToYsonString(config, EYsonFormat::Text));
 
-            TMounter::Get()->Mount(config);
+            mounter->Mount(config);
             if (isSandbox) {
                 // We must give user full access to his sandbox.
                 NFS::Chmod(tmpfsPath, 0777);
@@ -340,12 +304,12 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
     .Run();
 }
 
-TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
+TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex, IMounterPtr mounter)
 {
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
 
-        auto removeMountPoint = [this, this_ = MakeStrong(this)] (const TString& path) {
+        auto removeMountPoint = [=, this_ = MakeStrong(this)] (const TString& path) {
             auto config = New<TUmountConfig>();
             config->Path = path;
             config->Detach = DetachedTmpfsUmount_;
@@ -358,7 +322,9 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 LOG_WARNING(ex, "Failed to remove mount point %v", path);
             }
 
-            TMounter::Get()->Umount(config);
+            YCHECK(mounter);
+
+            mounter->Umount(config);
         };
 
         for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
@@ -395,9 +361,9 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
                 // To avoid problems with undeleting tmpfs ordered by user in sandbox
                 // we always try to remove it several times.
-                for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
+                for (int attempt = 0; mounter && attempt < TmpfsRemoveAttemptCount; ++attempt) {
                     // Look mount points inside sandbox and unmount it.
-                    auto mountPoints = TMounter::Get()->GetMountPoints();
+                    auto mountPoints = mounter->GetMountPoints();
                     for (const auto& mountPoint : mountPoints) {
                         if (isInsideSandbox(mountPoint.Path)) {
                             LOG_DEBUG("Remove unknown mount point (Path: %v)", mountPoint.Path);
