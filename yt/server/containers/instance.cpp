@@ -1,4 +1,7 @@
 #include "instance.h"
+
+#ifdef _linux
+
 #include "porto_executor.h"
 #include "private.h"
 
@@ -242,7 +245,7 @@ public:
         config["backend"] = "tmpfs";
         config["user"] = user;
         config["space_limit"] = ToString(size);
-        TVolumeID mountId = WaitFor(Executor_->CreateVolume(path, config))
+        auto mountId = WaitFor(Executor_->CreateVolume(path, config))
             .ValueOrThrow();
 
         std::vector<TFuture<void>> mountActions;
@@ -342,3 +345,27 @@ IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor)
 
 } // namespace NContainers
 } // namespace NYT
+
+#else
+
+namespace NYT {
+namespace NContainers {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IInstancePtr CreatePortoInstance(const TString& /*name*/, IPortoExecutorPtr /*executor*/)
+{
+    Y_UNIMPLEMENTED();
+}
+
+IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr /*executor*/)
+{
+    Y_UNIMPLEMENTED();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NContainers
+} // namespace NYT
+
+#endif

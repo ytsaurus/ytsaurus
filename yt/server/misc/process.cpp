@@ -27,11 +27,13 @@ TPortoProcess::TPortoProcess(
     , ContainerInstance_(containerInstance)
 {
     AddArgument(NFS::GetFileName(path));
+#ifdef _linux_
     if (copyEnv) {
         for (char** envIt = environ; *envIt; ++envIt) {
             Env_.push_back(Capture(*envIt));
         }
     }
+#endif
 }
 
 void TPortoProcess::Kill(int signal)
