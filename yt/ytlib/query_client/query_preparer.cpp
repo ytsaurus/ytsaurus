@@ -1975,7 +1975,7 @@ void PrepareQuery(
     schemaProxy->Finish();
 }
 
-void ParseYqlString(
+void ParseQueryString(
     NAst::TAstHead* astHead,
     const TString& source,
     NAst::TParser::token::yytokentype strayToken)
@@ -2006,7 +2006,7 @@ void DefaultFetchFunctions(const std::vector<TString>& names, const TTypeInferre
 void ParseJobQuery(const TString& source)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
-    ParseYqlString(
+    ParseQueryString(
         &astHead,
         source,
         NAst::TParser::token::StrayWillParseJobQuery);
@@ -2025,7 +2025,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     auto Logger = MakeQueryLogger(query);
 
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
-    ParseYqlString(
+    ParseQueryString(
         &astHead,
         source,
         NAst::TParser::token::StrayWillParseQuery);
@@ -2372,7 +2372,7 @@ TQueryPtr PrepareJobQuery(
     const TFetchFunctions& fetchFunctions)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
-    ParseYqlString(
+    ParseQueryString(
         &astHead,
         source,
         NAst::TParser::token::StrayWillParseJobQuery);
@@ -2425,7 +2425,7 @@ TConstExpressionPtr PrepareExpression(
     yhash_set<TString>* references)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>(), NAst::TAliasMap()};
-    ParseYqlString(
+    ParseQueryString(
         &astHead,
         source,
         NAst::TParser::token::StrayWillParseExpression);
