@@ -216,13 +216,12 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
             clonedNode,
             factory->GetTransaction(),
             mode);
-
-        clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
     }
 
     clonedNode->TableSchema() = sourceNode->TableSchema();
     clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedNode->SetAtomicity(sourceNode->GetAtomicity());
+    clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
     clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
     clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
     clonedNode->SetUpstreamReplicaId(sourceNode->GetUpstreamReplicaId());
