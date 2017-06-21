@@ -1,6 +1,6 @@
 #include "instance.h"
 
-#ifdef _linux
+#ifdef _linux_
 
 #include "porto_executor.h"
 #include "private.h"
