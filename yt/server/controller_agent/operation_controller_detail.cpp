@@ -4192,6 +4192,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
                         .Item("permissions").BeginList()
                             .Item().Value("read")
                         .EndList()
+                        .Item("account").Value(Spec->IntermediateDataAccount)
                     .EndMap()
                     .DoFor(Spec->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
