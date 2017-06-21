@@ -31,7 +31,7 @@ void ShutdownFinalizerThread();
 //! If the invoker discards the callback without executing it then
 //! #onCancel is run.
 void GuardedInvoke(
-    IInvokerPtr invoker,
+    const IInvokerPtr& invoker,
     TClosure onSuccess,
     TClosure onCancel);
 
