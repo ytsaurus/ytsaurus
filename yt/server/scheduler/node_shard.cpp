@@ -1439,6 +1439,9 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
             if (schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) {
                 job->SetInterruptReason(EInterruptReason::None);
             }
+        } else {
+            YCHECK(abandoned);
+            job->SetInterruptReason(EInterruptReason::None);
         }
 
         SetJobState(job, EJobState::Completed);
