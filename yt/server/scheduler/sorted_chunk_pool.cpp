@@ -149,32 +149,32 @@ public:
         StripeList_->Stripes.resize(nonEmptyStripeCount);
     }
 
-    i64 GetDataSize()
+    i64 GetDataSize() const
     {
         return PrimaryDataSize_ + ForeignDataSize_;
     }
 
-    i64 GetRowCount()
+    i64 GetRowCount() const
     {
         return PrimaryRowCount_ + ForeignRowCount_;
     }
 
-    int GetSliceCount()
+    int GetSliceCount() const
     {
         return PrimarySliceCount_ + ForeignSliceCount_;
     }
 
-    i64 GetPreliminaryDataSize()
+    i64 GetPreliminaryDataSize() const
     {
         return PrimaryDataSize_ + PreliminaryForeignDataSize_;
     }
 
-    i64 GetPreliminaryRowCount()
+    i64 GetPreliminaryRowCount() const
     {
         return PrimaryRowCount_ + PreliminaryForeignRowCount_;
     }
 
-    int GetPreliminarySliceCount()
+    int GetPreliminarySliceCount() const
     {
         return PrimarySliceCount_ + PreliminaryForeignSliceCount_;
     }
@@ -732,9 +732,9 @@ public:
             };
 
             int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
-                    dataSlice->Type == EDataSourceType::UnversionedTable
-                    ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
-                    : 0);
+                dataSlice->Type == EDataSourceType::UnversionedTable
+                ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                : 0);
 
             rightEndpoint = {
                 EEndpointType::Right,
