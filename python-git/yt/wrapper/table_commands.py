@@ -1,10 +1,10 @@
 from .common import (flatten, require, update, parse_bool, get_value, set_param, datetime_to_string,
-                     MB)
+                     MB, EMPTY_GENERATOR, chunk_iter_stream)
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
 from .driver import make_request
-from .errors import YtIncorrectResponse, YtError, YtRetriableError
+from .errors import YtIncorrectResponse, YtError, YtRetriableError, YtHttpResponseError
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
@@ -190,6 +190,105 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     if get_config(client)["yamr_mode"]["delete_empty_tables"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
+
+def _prepare_table_path_for_read_blob_table(table, part_index_column_name, client=None):
+    table = TablePath(table, client=client)
+
+    sorted_by = get_attribute(table, "sorted_by")
+    if part_index_column_name not in sorted_by:
+        raise YtError('Table should be sorted by "{0}"'.format(part_index_column_name))
+
+    table.canonize_exact_ranges()
+    required_keys = sorted_by[:sorted_by.index(part_index_column_name)]
+
+    if not table.ranges:
+        if required_keys:
+            raise YtError("Key {0} should be specified".format(required_keys))
+
+        table.ranges = [{"lower_limit": {"key": [0]}}]
+        return table
+
+    if len(table.ranges) > 1:
+        raise YtError("Read blob table with multiple ranges is not supported")
+
+    range = table.ranges[-1]
+    if "lower_limit" not in range:
+        range["lower_limit"] = {"key": [0]}
+        return table
+
+    if "key" not in range["lower_limit"] or len(range["lower_limit"]) != 1:
+        raise YtError("Only ranges with keys are supported")
+
+    if len(range["lower_limit"]["key"]) != len(required_keys):
+        raise YtError("Key should consist of columns from the list {0}".format(sorted_by[:len(required_keys)]))
+
+    range["lower_limit"]["key"].append(0)
+    return table
+
+def read_blob_table(table, part_index_column_name="part_index", data_column_name="data",
+                    part_size=None, table_reader=None, client=None):
+    """
+    Reads file from blob table.
+
+    :param table: table to read.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param string part_index_column_name: name of column with part indexes.
+    :param string data_column_name: name of column with data.
+    :param int part_size: size of each blob.
+    :param dict table_reader: spec of "read" operation.
+    :rtype: :class:`ResponseStream <yt.wrapper.response_stream.ResponseStream>`.
+
+    """
+    table = TablePath(table, client=client)
+
+    if part_size is None:
+        try:
+            part_size = get_attribute(table, "part_size")
+        except YtHttpResponseError as err:
+            if err.is_resolve_error():
+                raise YtError("You should specify part_size")
+            raise
+
+    table = _prepare_table_path_for_read_blob_table(table, part_index_column_name, client)
+
+    params = {
+        "path": table,
+        "part_index_column_name": part_index_column_name,
+        "data_column_name": data_column_name,
+        "part_size": part_size
+    }
+    set_param(params, "table_reader", table_reader)
+
+    def process_response(response):
+        pass
+
+    class RetriableState(object):
+        def __init__(self):
+            self.offset = 0
+
+        def prepare_params_for_retry(self):
+            part_index = self.offset // part_size
+            offset = self.offset - part_size * part_index
+
+            params["start_part_index"] = part_index
+            params["offset"] = offset
+            table.attributes["ranges"][0]["lower_limit"]["key"][-1] = part_index
+            return params
+
+        def iterate(self, response):
+            for chunk in chunk_iter_stream(response, get_config(client)["read_buffer_size"]):
+                self.offset += len(chunk)
+                yield chunk
+
+    response = make_read_request(
+        "read_blob_table",
+        table,
+        params,
+        process_response_action=process_response,
+        retriable_state_class=RetriableState,
+        client=client)
+
+    return response
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
                raw=None, response_parameters=None, read_transaction=None, client=None):
