@@ -1,4 +1,7 @@
 #include "container_manager.h"
+
+#ifdef _linux_
+
 #include "instance.h"
 #include "porto_executor.h"
 #include "private.h"
@@ -183,3 +186,26 @@ IContainerManagerPtr CreatePortoManager(
 
 } // namespace NContainers
 } // namespace NYT
+
+#else
+
+namespace NYT {
+namespace NContainers {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IContainerManagerPtr CreatePortoManager(
+    const TString& prefix,
+    TCallback<void(const TError&)> errorHandler,
+    const TPortoManagerConfig& portoManagerConfig)
+{
+    Y_UNIMPLEMENTED();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NContainers
+} // namespace NYT
+
+#endif
+

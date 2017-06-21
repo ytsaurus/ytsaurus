@@ -1,4 +1,7 @@
 #include "porto_executor.h"
+
+#ifdef _linux_
+
 #include "private.h"
 
 #include <yt/core/concurrency/action_queue.h>
@@ -137,7 +140,7 @@ public:
         .Run();
     }
 
-    virtual TFuture<TVolumeID> CreateVolume(
+    virtual TFuture<TVolumeId> CreateVolume(
         const TString& path,
         const std::map<TString, TString>& properties) override
     {
@@ -297,7 +300,7 @@ private:
         }
     }
 
-    TVolumeID DoCreateVolume(
+    TVolumeId DoCreateVolume(
         const TString& path,
         const std::map<TString, TString>& properties)
     {
@@ -383,3 +386,22 @@ IPortoExecutorPtr CreatePortoExecutor(TDuration retryTime, TDuration pollPeriod)
 
 } // namespace NContainers
 } // namespace NYT
+
+#else
+
+namespace NYT {
+namespace NContainers {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IPortoExecutorPtr CreatePortoExecutor(TDuration /*retryTime*/, TDuration /*pollPeriod*/)
+{
+    Y_UNIMPLEMENTED();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NContainers
+} // namespace NYT
+
+#endif
