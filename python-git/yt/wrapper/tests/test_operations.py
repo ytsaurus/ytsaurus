@@ -226,14 +226,17 @@ class TestOperations(object):
         yt.run_map("echo map >&2 ; cat", table, other_table, stderr_table=stderr_table)
         row_list = list(yt.read_table(stderr_table, raw=False))
         assert len(row_list) > 0
+        assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
             assert r["data"] == "map\n"
+
 
         yt.run_reduce("echo reduce >&2 ; cat",
                       table, other_table, stderr_table=stderr_table,
                       reduce_by=["x"])
         row_list = list(yt.read_table(stderr_table, raw=False))
         assert len(row_list) > 0
+        assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
             assert r["data"] == "reduce\n"
 
@@ -245,6 +248,7 @@ class TestOperations(object):
 
         row_list = list(yt.read_table(stderr_table, raw=False))
         assert len(row_list) > 0
+        assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
             assert r["data"] in ["mr-map\n", "mr-reduce\n"]
 
@@ -266,6 +270,7 @@ class TestOperations(object):
         # We expect stderr to be saved nevertheless.
         row_list = list(yt.read_table(stderr_table, raw=False))
         assert len(row_list) > 0
+        assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
             assert r["data"] == "map\n"
 

@@ -297,6 +297,32 @@ class TablePath(YPathSupportingAppend):
         """Checks attributes for delimiters (channel, lower or upper limits)."""
         return any(key in self.attributes for key in ["columns", "lower_limit", "upper_limit", "ranges"])
 
+    @property
+    def ranges(self):
+        return self.attributes.get("ranges", [])
+
+    @ranges.setter
+    def ranges(self, value):
+        self.attributes["ranges"] = value
+
+    def canonize_exact_ranges(self):
+        """Replaces all "exact" ranges with "lower_limit" and "upper_limit"."""
+        for range in self.ranges:
+            if "exact" in range:
+                lower_limit = range["exact"]
+                range["lower_limit"] = lower_limit
+                upper_limit = deepcopy(lower_limit)
+                if "key" in upper_limit:
+                    sentinel = yson.YsonEntity()
+                    sentinel.attributes["type"] = "max"
+                    upper_limit["key"].append(sentinel)
+                if "row_index" in upper_limit:
+                    upper_limit["row_index"] += 1
+                if "chunk_index" in upper_limit:
+                    upper_limit["chunk_index"] += 1
+                range["upper_limit"] = upper_limit
+                del range["exact"]
+
 class FilePath(YPathSupportingAppend):
     """YPath descendant to be used in file commands."""
     def __init__(self, path, append=None, executable=None, file_name=None, simplify=None, attributes=None, client=None):

@@ -88,6 +88,26 @@ class TestTableCommands(object):
             assert sorted([column["name"] for column in yt.get(TEST_DIR + "/output/@schema")]) == ["x", "y"]
             assert parse_bool(yt.get(TEST_DIR + "/output/@schema").attributes["strict"]) == True
 
+        path = yt.TablePath("//path/to/table", exact_key="test_key")
+        path.canonize_exact_ranges()
+        assert "exact" not in path.ranges[0]
+        assert path.ranges[0]["lower_limit"]["key"] == ["test_key"]
+        sentinel = yt.yson.YsonEntity()
+        sentinel.attributes["type"] = "max"
+        assert path.ranges[0]["upper_limit"]["key"] == ["test_key", sentinel]
+
+        path = yt.TablePath("//path/to/table", exact_index=5)
+        path.canonize_exact_ranges()
+        assert "exact" not in path.ranges[0]
+        assert path.ranges[0]["lower_limit"]["row_index"] == 5
+        assert path.ranges[0]["upper_limit"]["row_index"] == 6
+
+        path = yt.TablePath("//path/to/table", attributes={"ranges": [{"exact": {"chunk_index": 1}}]})
+        path.canonize_exact_ranges()
+        assert "exact" not in path.ranges[0]
+        assert path.ranges[0]["lower_limit"]["chunk_index"] == 1
+        assert path.ranges[0]["upper_limit"]["chunk_index"] == 2
+
     def test_read_write_with_retries(self):
         with set_config_option("write_retries/enable", True):
             self._test_read_write()
@@ -632,3 +652,68 @@ class TestTableCommands(object):
 
         finally:
             stop(instance.id, path=dir)
+
+    def _test_read_blob_table(self):
+        table = TEST_DIR + "/test_blob_table"
+
+        yt.create("table", table, attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"},
+                                                         {"name": "part_index", "type": "int64",
+                                                          "sort_order": "ascending"},
+                                                         {"name": "data", "type": "string"}]})
+        yt.write_table(table, [{"key": "test" + str(i),
+                                "part_index": j,
+                                "data": "data" + str(j) + str(i)} for i in xrange(3) for j in xrange(3)])
+
+        stream = yt.read_blob_table(table + "[test0]", part_size=6)
+        assert stream.read() == b"data00data10data20"
+
+        stream = yt.read_blob_table(table + "[test1]", part_size=6)
+        assert stream.read() == b"data01data11data21"
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table, part_size=6)
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[test0]", part_size=7)
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[test0]")
+
+        yt.set(table + "/@part_size", 6)
+        stream = yt.read_blob_table(table + "[test0:#1]")
+        assert stream.read() == b"data00"
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[#4:]")
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[#4]")
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[(test0,1)]")
+
+        yt.write_table(table, [{"key": "test",
+                                "part_index": j,
+                                "data": "data" + str(j)} for j in xrange(3)])
+
+        yt.set(table + "/@part_size", 5)
+        stream = yt.read_blob_table(table + "[test]")
+        assert stream.read() == b"data0data1data2"
+
+        stream = yt.read_blob_table(table + "[test5]")
+        assert stream.read() == b""
+
+    def test_read_blob_table_with_retries(self):
+        with set_config_option("read_retries/enable", True):
+            with set_config_option("read_buffer_size", 10):
+                yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
+                yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
+                try:
+                    self._test_read_blob_table()
+                finally:
+                    yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
+                    yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
+
+    def test_read_blob_table_without_retries(self):
+        with set_config_option("read_retries/enable", False):
+            self._test_read_blob_table()
