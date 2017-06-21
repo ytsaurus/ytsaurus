@@ -2533,7 +2533,9 @@ private:
                     auto* table = node->As<TTableNode>();
                     if (table->IsDynamic()) {
                         for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-                            table->MutableTabletCountByState()[state] = 0;
+                            if (table->TabletCountByState().IsDomainValue(state)) {
+                                table->MutableTabletCountByState()[state] = 0;
+                            }
                         }
                         for (const auto* tablet : table->Tablets()) {
                             ++table->MutableTabletCountByState()[tablet->GetState()];

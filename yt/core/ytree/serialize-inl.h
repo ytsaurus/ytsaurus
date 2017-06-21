@@ -321,13 +321,16 @@ void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer)
     SerializeAssociative(value, consumer);
 }
 
-template <class T, class E>
-void Serialize(const TEnumIndexedVector<T, E>& value, NYson::IYsonConsumer* consumer)
+template <class T, class E, E Min, E Max>
+void Serialize(const TEnumIndexedVector<T, E, Min, Max>& value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
-    for (auto index : TEnumTraits<E>::GetDomainValues()) {
-        consumer->OnKeyedItem(FormatEnum(index));
-        Serialize(value[index], consumer);
+    for (auto key : TEnumTraits<E>::GetDomainValues()) {
+        if (!value.IsDomainValue(key)) {
+            continue;
+        }
+        consumer->OnKeyedItem(FormatEnum(key));
+        Serialize(value[key], consumer);
     }
     consumer->OnEndMap();
 }

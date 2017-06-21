@@ -39,6 +39,9 @@ DEFINE_ENUM(ETabletState,
     ((Mixed)         (101))
 );
 
+constexpr ETabletState MinValidTabletState = ETabletState::Mounting;
+constexpr ETabletState MaxValidTabletState = ETabletState::FrozenMounting;
+
 DEFINE_ENUM(ETableReplicaMode,
     ((Sync)     (0))
     ((Async)    (1))

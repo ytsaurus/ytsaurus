@@ -28,12 +28,15 @@ class TTableNode
     : public NChunkServer::TChunkOwnerBase
 {
 private:
-    using TTabletStateIndexedVector = TEnumIndexedVector<int, NTabletClient::ETabletState>;
+    using TTabletStateIndexedVector = TEnumIndexedVector<
+        int,
+        NTabletClient::ETabletState,
+        NTabletClient::MinValidTabletState,
+        NTabletClient::MaxValidTabletState>;
     using TTabletList = std::vector<NTabletServer::TTablet*>;
 
     struct TDynamicTableAttributes
     {
-    public:
         NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
         NTransactionClient::ECommitOrdering CommitOrdering = NTransactionClient::ECommitOrdering::Weak;
         NTabletClient::TTableReplicaId UpstreamReplicaId;

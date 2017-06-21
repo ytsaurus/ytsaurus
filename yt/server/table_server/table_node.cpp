@@ -117,8 +117,10 @@ ETabletState TTableNode::GetTabletState() const
         return ETabletState::None;
     }
     for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-        if (trunkNode->Tablets().size() == trunkNode->TabletCountByState()[state]) {
-            return state;
+        if (trunkNode->TabletCountByState().IsDomainValue(state)) {
+            if (trunkNode->Tablets().size() == trunkNode->TabletCountByState()[state]) {
+                return state;
+            }
         }
     }
     return ETabletState::Mixed;
