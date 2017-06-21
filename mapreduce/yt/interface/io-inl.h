@@ -5,8 +5,9 @@
 #endif
 #undef IO_INL_H_
 
-#include <util/stream/length.h>
 #include <util/generic/typetraits.h>
+#include <util/generic/yexception.h>
+#include <util/stream/length.h>
 #include <util/system/mutex.h>
 
 namespace NYT {
@@ -162,14 +163,26 @@ public:
     template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
     const U& GetRow() const
     {
-        if (CachedRow_) {
-            return *dynamic_cast<U*>(CachedRow_.Get());
+        if (!CachedRow_) {
+            THolder<Message> row(new U);
+            ReadRow(row.Get());
+            CachedRow_.Swap(row);
         }
+        return dynamic_cast<const U&>(*CachedRow_);
+    }
 
-        auto* row = new U;
-        CachedRow_.Reset(row);
-        Reader_->ReadRow(row);
-        return *row;
+    template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
+    void MoveRow(U* result) const
+    {
+        Y_VERIFY(result != nullptr);
+        U row;
+        if (CachedRow_) {
+            row.Swap(&dynamic_cast<U&>(*CachedRow_));
+            CachedRow_.Reset();
+        } else {
+            ReadRow(&row);
+        }
+        result->Swap(&row);
     }
 
     bool IsValid() const
@@ -181,6 +194,7 @@ public:
     {
         Reader_->Next();
         CachedRow_.Reset(nullptr);
+        RowDone_ = false;
     }
 
     ui32 GetTableIndex() const
@@ -194,8 +208,18 @@ public:
     }
 
 private:
+    void ReadRow(Message* row) const
+    {
+        //Not all the IProtoReaderImpl implementations support multiple ReadRow calls
+        //TODO: fix LSP violation
+        Y_ENSURE(!RowDone_, "Row is already moved");
+        Reader_->ReadRow(row);
+        RowDone_ = true;
+    }
+private:
     ::TIntrusivePtr<IProtoReaderImpl> Reader_;
     mutable THolder<Message> CachedRow_;
+    mutable bool RowDone_ = false;
 };
 
 template <class T>
@@ -213,6 +237,11 @@ public:
     const T& GetRow() const
     {
         return TBase::GetRow<T>();
+    }
+
+    void MoveRow(T* result) const
+    {
+        return TBase::MoveRow(result);
     }
 };
 
