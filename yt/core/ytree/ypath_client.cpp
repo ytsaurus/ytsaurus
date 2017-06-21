@@ -294,13 +294,6 @@ void ExecuteVerb(
             , UnderlyingContext_(std::move(underlyingContext))
         { }
 
-        ~TInvokeContext()
-        {
-            if (!Replied_) {
-                Reply(TError(NRpc::EErrorCode::Unavailable, "YPath request abandoned"));
-            }
-        }
-
         virtual void SetRawRequestInfo(const TString& info) override
         {
             UnderlyingContext_->SetRawRequestInfo(info);
