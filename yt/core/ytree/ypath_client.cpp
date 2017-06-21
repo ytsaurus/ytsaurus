@@ -294,6 +294,13 @@ void ExecuteVerb(
             , UnderlyingContext_(std::move(underlyingContext))
         { }
 
+        ~TInvokeContext()
+        {
+            if (!Replied_) {
+                Reply(TError(NRpc::EErrorCode::Unavailable, "YPath request abandoned"));
+            }
+        }
+
         virtual void SetRawRequestInfo(const TString& info) override
         {
             UnderlyingContext_->SetRawRequestInfo(info);
@@ -307,17 +314,18 @@ void ExecuteVerb(
     private:
         const IServiceContextPtr UnderlyingContext_;
 
+        bool Replied_ = false;
+
 
         virtual void LogRequest() override
-        {
-            Y_UNREACHABLE();
-        }
+        { }
 
         virtual void LogResponse() override
         { }
 
         virtual void DoReply() override
         {
+            Replied_ = true;
             UnderlyingContext_->Reply(GetResponseMessage());
         }
     };
