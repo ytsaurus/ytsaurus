@@ -1595,50 +1595,57 @@ private:
         tableInfo->ValidateSorted();
         tableInfo->ValidateReplicated();
 
-        yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
-        yhash_set<TTabletId> tabletIds;
-        for (const auto& key : keys) {
-            auto tabletInfo = tableInfo->GetTabletForRow(key);
-            if (tabletIds.count(tabletInfo->TabletId) == 0) {
-                tabletIds.insert(tabletInfo->TabletId);
-                ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
-                cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+        std::vector<TTableReplicaId> replicas;
+
+        if (keys.Empty()) {
+            for (const auto& replica : tableInfo->Replicas) {
+                replicas.push_back(replica->ReplicaId);
             }
-        }
+        } else {
+            yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
+            yhash_set<TTabletId> tabletIds;
+            for (const auto& key : keys) {
+                auto tabletInfo = tableInfo->GetTabletForRow(key);
+                if (tabletIds.count(tabletInfo->TabletId) == 0) {
+                    tabletIds.insert(tabletInfo->TabletId);
+                    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+                    cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+                }
+            }
 
-        std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
-        for (const auto& pair : cellToTabletIds) {
-            const auto& cellId = pair.first;
-            const auto& perCellTabletIds = pair.second;
-            const auto channel = GetReadCellChannelOrThrow(cellId);
+            std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
+            for (const auto& pair : cellToTabletIds) {
+                const auto& cellId = pair.first;
+                const auto& perCellTabletIds = pair.second;
+                const auto channel = GetReadCellChannelOrThrow(cellId);
 
-            TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(options.Timeout);
+                TQueryServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(options.Timeout);
 
-            auto req = proxy.GetTabletInfo();
-            ToProto(req->mutable_tablet_ids(), perCellTabletIds);
-            futures.push_back(req->Invoke());
-        }
-        auto responsesResult = WaitFor(Combine(futures));
-        auto responses = responsesResult.ValueOrThrow();
+                auto req = proxy.GetTabletInfo();
+                ToProto(req->mutable_tablet_ids(), perCellTabletIds);
+                futures.push_back(req->Invoke());
+            }
+            auto responsesResult = WaitFor(Combine(futures));
+            auto responses = responsesResult.ValueOrThrow();
 
-        yhash<TTableReplicaId, int> replicaIdToCount;
-        for (const auto& response : responses) {
-            for (const auto& protoTabletInfo : response->tablet_info()) {
-                for (const auto& protoReplicaInfo : protoTabletInfo.replica_info()) {
-                    if (protoReplicaInfo.last_replication_timestamp() >= options.Timestamp) {
-                        ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+            yhash<TTableReplicaId, int> replicaIdToCount;
+            for (const auto& response : responses) {
+                for (const auto& protoTabletInfo : response->tablet_info()) {
+                    for (const auto& protoReplicaInfo : protoTabletInfo.replica_info()) {
+                        if (protoReplicaInfo.last_replication_timestamp() >= options.Timestamp) {
+                            ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+                        }
                     }
                 }
             }
-        }
 
-        std::vector<TTableReplicaId> replicas;
-        for (const auto& pair : replicaIdToCount) {
-            const auto& replicaId = pair.first;
-            auto count = pair.second;
-            if (count == tabletIds.size()) {
-                replicas.push_back(replicaId);
+            for (const auto& pair : replicaIdToCount) {
+                const auto& replicaId = pair.first;
+                auto count = pair.second;
+                if (count == tabletIds.size()) {
+                    replicas.push_back(replicaId);
+                }
             }
         }
 
