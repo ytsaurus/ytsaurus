@@ -147,3 +147,9 @@ add_executable(protoc ${PROTO_MAIN})
 
 target_link_libraries(protoc ${NAME}-protoc deps-arcadia-util -ldl)
 
+exec_program(
+  ${CMAKE_COMMAND} ARGS -E create_symlink
+  ${BASE}/python/google
+  ${CMAKE_SOURCE_DIR}/python/google
+)
+
