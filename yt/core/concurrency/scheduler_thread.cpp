@@ -325,7 +325,7 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
     }
 
     // Reuse the fiber but regenerate its id.
-    CurrentFiber_->RegenerateId();
+    SetCurrentFiberId(CurrentFiber_->RegenerateId());
     return true;
 }
 

@@ -186,7 +186,28 @@ public:
                 GetKeySuccessor(GetKeyPrefix(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_), RowBuffer_),
                 0LL /* RowIndex */
             };
+        } else if (Options_.UseNewEndpointKeys) {
+            int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
+            leftEndpoint = {
+                EEndpointType::Left,
+                dataSlice,
+                GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
+                leftRowIndex
+            };
+
+            int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
+                dataSlice->Type == EDataSourceType::UnversionedTable
+                ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                : 0);
+
+            rightEndpoint = {
+                EEndpointType::Right,
+                dataSlice,
+                GetStrictKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
+                rightRowIndex
+            };
         } else {
+            // COMPAT(psushin): old behaviour for join reduce.
             int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
             leftEndpoint = {
                 EEndpointType::Left,
@@ -196,9 +217,9 @@ public:
             };
 
             int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
-                    dataSlice->Type == EDataSourceType::UnversionedTable
-                    ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
-                    : 0);
+                dataSlice->Type == EDataSourceType::UnversionedTable
+                ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                : 0);
 
             rightEndpoint = {
                 EEndpointType::Right,
@@ -554,6 +575,13 @@ public:
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         JobManager_->SetLogger(Logger);
+
+        LOG_DEBUG("Created sorted chunk pool (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
+            "ForeignPrefixLenght: %v, UseNewEndpointKeys: %v)",
+            SortedJobOptions_.EnableKeyGuarantee,
+            SortedJobOptions_.PrimaryPrefixLength,
+            SortedJobOptions_.ForeignPrefixLength,
+            SortedJobOptions_.UseNewEndpointKeys);
     }
 
     // IChunkPoolInput implementation.

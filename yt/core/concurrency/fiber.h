@@ -51,7 +51,8 @@ public:
     TFiberId GetId() const;
 
     //! Generates a new id for this fiber. Used when the fiber instance is reused.
-    void RegenerateId();
+    //! Returns the new id.
+    TFiberId RegenerateId();
 
     //! Return the current fiber state.
     /*!

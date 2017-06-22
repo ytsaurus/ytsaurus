@@ -46,13 +46,13 @@ public:
     //! and calculates the statistics for the stripe list.
     void Finalize();
 
-    i64 GetDataSize();
-    i64 GetRowCount();
-    int GetSliceCount();
+    i64 GetDataSize() const;
+    i64 GetRowCount() const;
+    int GetSliceCount() const;
 
-    i64 GetPreliminaryDataSize();
-    i64 GetPreliminaryRowCount();
-    int GetPreliminarySliceCount();
+    i64 GetPreliminaryDataSize() const;
+    i64 GetPreliminaryRowCount() const;
+    int GetPreliminarySliceCount() const;
 
 private:
     TChunkStripeListPtr StripeList_ = New<TChunkStripeList>();

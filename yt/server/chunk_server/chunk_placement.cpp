@@ -276,6 +276,10 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const TNullable<TString>& preferredHostName)
 {
+    if (dataCenters && dataCenters->empty()) {
+        return TNodeList();
+    }
+
     int mediumIndex = medium->GetIndex();
     int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, replicationFactorOverride);
     TTargetCollector collector(medium, chunk, maxReplicasPerRack, forbiddenNodes);
@@ -427,6 +431,10 @@ TNode* TChunkPlacement::GetBalancingTarget(
     TChunk* chunk,
     double maxFillFactor)
 {
+    if (dataCenters && dataCenters->empty()) {
+        return nullptr;
+    }
+
     int mediumIndex = medium->GetIndex();
     int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, Null);
     TTargetCollector collector(medium, chunk, maxReplicasPerRack, nullptr);
@@ -482,12 +490,12 @@ bool TChunkPlacement::IsValidWriteTarget(
     TTargetCollector* collector,
     bool enableRackAwareness)
 {
-    // Check node first.
-    if (!IsValidWriteTarget(medium, node)) {
+    if (dataCenters && dataCenters->count(node->GetDataCenter()) == 0) {
         return false;
     }
 
-    if (dataCenters && dataCenters->count(node->GetDataCenter()) == 0) {
+    // Check node first.
+    if (!IsValidWriteTarget(medium, node)) {
         return false;
     }
 

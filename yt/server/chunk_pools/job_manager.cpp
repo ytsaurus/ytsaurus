@@ -90,32 +90,32 @@ void TJobStub::Finalize()
     StripeList_->Stripes.resize(nonEmptyStripeCount);
 }
 
-i64 TJobStub::GetDataSize()
+i64 TJobStub::GetDataSize() const
 {
     return PrimaryDataSize_ + ForeignDataSize_;
 }
 
-i64 TJobStub::GetRowCount()
+i64 TJobStub::GetRowCount() const
 {
     return PrimaryRowCount_ + ForeignRowCount_;
 }
 
-int TJobStub::GetSliceCount()
+int TJobStub::GetSliceCount() const
 {
     return PrimarySliceCount_ + ForeignSliceCount_;
 }
 
-i64 TJobStub::GetPreliminaryDataSize()
+i64 TJobStub::GetPreliminaryDataSize() const
 {
     return PrimaryDataSize_ + PreliminaryForeignDataSize_;
 }
 
-i64 TJobStub::GetPreliminaryRowCount()
+i64 TJobStub::GetPreliminaryRowCount() const
 {
     return PrimaryRowCount_ + PreliminaryForeignRowCount_;
 }
 
-int TJobStub::GetPreliminarySliceCount()
+int TJobStub::GetPreliminarySliceCount() const
 {
     return PrimarySliceCount_ + PreliminaryForeignSliceCount_;
 }

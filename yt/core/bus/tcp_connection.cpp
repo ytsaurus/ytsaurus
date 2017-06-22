@@ -144,8 +144,8 @@ void TTcpConnection::Start()
             YCHECK(Socket_ != INVALID_SOCKET);
             State_ = EState::Opening;
             SetupInterfaceType(*InterfaceType_);
-            DoArmPoller();
             Open();
+            DoArmPoller();
             break;
         }
 
