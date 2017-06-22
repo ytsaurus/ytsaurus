@@ -19,7 +19,9 @@ NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     NTableClient::ISchemalessChunkReaderPtr reader,
     const TNullable<TString>& partIndexColumnName,
     const TNullable<TString>& dataColumnName,
-    i64 startPartIndex = 0);
+    i64 startPartIndex,
+    const TNullable<i64>& offset = Null,
+    const TNullable<i64>& partSize = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 

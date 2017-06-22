@@ -463,11 +463,15 @@ public:
         ISchemalessChunkReaderPtr reader,
         const TNullable<TString>& partIndexColumnName,
         const TNullable<TString>& dataColumnName,
-        const TNullable<i64>& startPartIndex)
+        i64 startPartIndex,
+        const TNullable<i64>& offset,
+        const TNullable<i64>& partSize)
         : Reader_(std::move(reader))
         , PartIndexColumnName_(partIndexColumnName ? *partIndexColumnName : TBlobTableSchema::PartIndexColumn)
         , DataColumnName_(dataColumnName ? *dataColumnName : TBlobTableSchema::DataColumn)
-        , NextPartIndex_(startPartIndex.Get(0))
+        , NextPartIndex_(startPartIndex)
+        , Offset_(offset.Get(0))
+        , PartSize_(partSize)
     {
         Rows_.reserve(1);
         ColumnIndex_[EColumnType::PartIndex] = Reader_->GetNameTable()->GetIdOrRegisterName(PartIndexColumnName_);
@@ -494,9 +498,12 @@ private:
     const TString PartIndexColumnName_;
     const TString DataColumnName_;
 
+    i64 Offset_;
+    TNullable<i64> PartSize_;
+
     std::vector<TUnversionedRow> Rows_;
     size_t Index_ = 0;
-    size_t NextPartIndex_ = 0;
+    size_t NextPartIndex_;
 
     TEnumIndexedVector<TNullable<size_t>, EColumnType> ColumnIndex_;
 
@@ -510,7 +517,18 @@ private:
         auto value = GetDataAndValidateRow(row);
 
         auto holder = MakeHolder(Reader_);
-        return TSharedRef(value.Data.String, value.Length, std::move(holder));
+        auto result = TSharedRef(value.Data.String, value.Length, std::move(holder));
+        if (Offset_ > 0) {
+            if (Offset_ > result.Size()) {
+                THROW_ERROR_EXCEPTION("Offset is out of bounds")
+                    << TErrorAttribute("offset", Offset_)
+                    << TErrorAttribute("part_size", result.Size())
+                    << TErrorAttribute("part_index", NextPartIndex_-1);
+            }
+            result = result.Slice(result.Begin() + Offset_, result.End());
+            Offset_ = 0;
+        }
+        return result;
     }
 
     TUnversionedValue GetAndValidateValue(
@@ -563,7 +581,14 @@ private:
 
         NextPartIndex_ = partIndex + 1;
 
-        return GetAndValidateValue(row, DataColumnName_, EColumnType::Data, EValueType::String);
+        auto value = GetAndValidateValue(row, DataColumnName_, EColumnType::Data, EValueType::String);
+        if (PartSize_ && value.Length != PartSize_.Get()) {
+            THROW_ERROR_EXCEPTION("Inconsistent part size (Expected: %v, Actual: %v, PartIndex: %v)",
+                PartSize_.Get(),
+                value.Length,
+                partIndex);
+        }
+        return value;
     }
 };
 
@@ -571,13 +596,17 @@ IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     ISchemalessChunkReaderPtr reader,
     const TNullable<TString>& partIndexColumnName,
     const TNullable<TString>& dataColumnName,
-    const i64 startPartIndex)
+    i64 startPartIndex,
+    const TNullable<i64>& offset,
+    const TNullable<i64>& partSize)
 {
     return New<TBlobTableReader>(
         std::move(reader),
         partIndexColumnName,
         dataColumnName,
-        startPartIndex);
+        startPartIndex,
+        offset,
+        partSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

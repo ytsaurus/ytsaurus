@@ -2011,6 +2011,20 @@ void TOperationControllerBase::SleepInStage(EDelayInsideOperationCommitStage des
     }
 }
 
+void TOperationControllerBase::SetPartSize(const TNullable<TOutputTable>& table, size_t partSize)
+{
+    const auto& client = Host->GetMasterClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = NYPath::ToString(table->Path) + "/@part_size";
+    auto req = TYPathProxy::Set(path);
+    SetTransactionId(req, DebugOutputTransaction->GetId());
+    req->set_value(ConvertToYsonString(partSize).GetData());
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
+}
+
 void TOperationControllerBase::SafeCommit()
 {
     StartCompletionTransaction();
@@ -2026,6 +2040,36 @@ void TOperationControllerBase::SafeCommit()
     SleepInStage(EDelayInsideOperationCommitStage::Stage5);
 
     CustomCommit();
+
+    if (StderrTable || CoreTable) {
+        const auto &client = Host->GetMasterClient();
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto addRequest = [&] (
+            const TNullable<TOutputTable>& table,
+            size_t partSize)
+        {
+            auto path = NYPath::ToString(table->Path) + "/@part_size";
+            auto req = TYPathProxy::Set(path);
+            SetTransactionId(req, DebugOutputTransaction->GetId());
+            req->set_value(ConvertToYsonString(partSize).GetData());
+            batchReq->AddRequest(req);
+        };
+
+        if (StderrTable) {
+            addRequest(StderrTable, GetStderrTableWriterConfig()->MaxPartSize);
+        }
+
+        if (CoreTable) {
+            addRequest(CoreTable, GetCoreTableWriterConfig()->MaxPartSize);
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Failed to set part_size attribute");
+    }
 
     CommitCompletionTransaction();
     SleepInStage(EDelayInsideOperationCommitStage::Stage6);
@@ -2967,12 +3011,14 @@ void TOperationControllerBase::SafeAbort()
                 BeginUploadOutputTables({StderrTable.GetPtr()});
                 AttachOutputChunks({StderrTable.GetPtr()});
                 EndUploadOutputTables({StderrTable.GetPtr()});
+                SetPartSize(StderrTable, GetStderrTableWriterConfig()->MaxPartSize);
             }
 
             if (CoreTable) {
                 BeginUploadOutputTables({CoreTable.GetPtr()});
                 AttachOutputChunks({CoreTable.GetPtr()});
                 EndUploadOutputTables({CoreTable.GetPtr()});
+                SetPartSize(CoreTable, GetCoreTableWriterConfig()->MaxPartSize);
             }
 
             CommitTransaction(DebugOutputTransaction);

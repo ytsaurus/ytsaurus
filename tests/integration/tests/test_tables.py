@@ -1053,27 +1053,36 @@ class TestTables(YTEnvSetup):
             {"key": "z", "part_index": 0}])
 
         with pytest.raises(YtError):
-            read_blob_table("//tmp/ttt")
+            read_blob_table("//tmp/ttt", part_size=6)
 
         with pytest.raises(YtError):
-            read_blob_table("//tmp/ttt[#2:#4]")
+            read_blob_table("//tmp/ttt[#2:#4]", part_size=3)
 
         with pytest.raises(YtError):
-            read_blob_table("//tmp/ttt[:#3]")
+            read_blob_table("//tmp/ttt[:#3]", part_size=6)
 
-        assert "hello " == read_blob_table("//tmp/ttt[:#1]")
-        assert "hello world!" == read_blob_table("//tmp/ttt[:#2]")
-        assert "AAA" == read_blob_table("//tmp/ttt[#2]")
-
-        assert "hello world!" == read_blob_table("//tmp/ttt[x]")
-        assert "AAA" == read_blob_table("//tmp/ttt[y]")
         with pytest.raises(YtError):
-            assert "AAA" == read_blob_table("//tmp/ttt[(x:z)]")
+            read_blob_table("//tmp/ttt[:#1]")
+
+        with pytest.raises(YtError):
+            read_blob_table("//tmp/ttt[:#1]", start_part_index=1, part_size=6)
+
+        assert "hello " == read_blob_table("//tmp/ttt[:#1]", part_size=6)
+        assert "world!" == read_blob_table("//tmp/ttt[#1:#2]", part_size=6, start_part_index=1)
+        assert "rld!" == read_blob_table("//tmp/ttt[#1:#2]", part_size=6, start_part_index=1, offset=2)
+        assert "hello world!" == read_blob_table("//tmp/ttt[:#2]", part_size=6)
+        assert "AAA" == read_blob_table("//tmp/ttt[#2]", part_size=3)
+
+        assert "hello world!" == read_blob_table("//tmp/ttt[x]", part_size=6)
+        assert "AAA" == read_blob_table("//tmp/ttt[y]", part_size=3)
+        with pytest.raises(YtError):
+            assert "AAA" == read_blob_table("//tmp/ttt[(x:z)]", part_size=3)
 
         write_table("//tmp/ttt", [
             {"key": "x", "index": 0, "value": "hello "},
             {"key": "x", "index": 1, "value": "world!"}])
-        assert "hello world!" == read_blob_table("//tmp/ttt", part_index_column_name="index", data_column_name="value")
+        assert "hello world!" == read_blob_table("//tmp/ttt", part_index_column_name="index",
+                                                 data_column_name="value", part_size=6)
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_table_chunk_format_statistics(self, optimize_for):

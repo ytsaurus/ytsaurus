@@ -944,6 +944,8 @@ protected:
     void StartCompletionTransaction();
     void CommitCompletionTransaction();
 
+    void SetPartSize(const TNullable<TOutputTable>& table, size_t partSize);
+
     // Revival.
     void ReinstallLivePreview();
     void AbortAllJoblets();

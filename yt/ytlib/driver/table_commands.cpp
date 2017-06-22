@@ -112,12 +112,17 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
 TReadBlobTableCommand::TReadBlobTableCommand()
 {
     RegisterParameter("path", Path);
+    RegisterParameter("part_size", PartSize);
     RegisterParameter("table_reader", TableReader)
         .Default(nullptr);
     RegisterParameter("part_index_column_name", PartIndexColumnName)
         .Default();
     RegisterParameter("data_column_name", DataColumnName)
         .Default();
+    RegisterParameter("start_part_index", StartPartIndex)
+        .Default(0);
+    RegisterParameter("offset", Offset)
+        .Default(0);
 }
 
 void TReadBlobTableCommand::OnLoaded()
@@ -129,6 +134,13 @@ void TReadBlobTableCommand::OnLoaded()
 
 void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
 {
+    if (Offset < 0) {
+        THROW_ERROR_EXCEPTION("Offset must be nonnegative");
+    }
+
+    if (PartSize <= 0) {
+        THROW_ERROR_EXCEPTION("Part size must be positive");
+    }
     Options.Ping = true;
 
     auto config = UpdateYsonSerializable(
@@ -149,7 +161,10 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
     auto input = CreateBlobTableReader(
         std::move(reader),
         PartIndexColumnName,
-        DataColumnName);
+        DataColumnName,
+        StartPartIndex,
+        Offset,
+        PartSize);
 
     auto output = context->Request().OutputStream;
 
