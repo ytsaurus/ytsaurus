@@ -85,10 +85,6 @@ public:
         auto options = New<NTableClient::TTableReaderOptions>();
         options->KeepInMemory = true;
 
-        // Partition sort is reading only intermediate chunks.
-        // Since intermediate chunks are unmovable it makes no sense to fetch seeds from master.
-        options->AllowFetchingSeedsFromMaster = false;
-
         UnderlyingReader_ = CreatePartitionMultiChunkReader(
             config,
             options,

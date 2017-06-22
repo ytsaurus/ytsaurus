@@ -2953,8 +2953,6 @@ private:
         }
 
         auto intermediateReaderOptions = New<TTableReaderOptions>();
-        intermediateReaderOptions->AllowFetchingSeedsFromMaster = false;
-
         {
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
