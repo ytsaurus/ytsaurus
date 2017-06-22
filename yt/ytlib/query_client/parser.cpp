@@ -1716,13 +1716,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
             if (yystack_[0].value.as< TExpressionList > ().size() != 1) {
                 THROW_ERROR_EXCEPTION("Expected scalar expression, got %Qv", GetSource(yylhs.location, source));
             }
-            head->first.As<TExpressionPtr>() = yystack_[0].value.as< TExpressionList > ().front();
+            head->Ast.As<TExpressionPtr>() = yystack_[0].value.as< TExpressionList > ().front();
         }
     break;
 
   case 8:
     {
-            head->first.As<TQuery>().SelectExprs = yystack_[0].value.as< TExpressionList > ();
+            head->Ast.As<TQuery>().SelectExprs = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
@@ -1750,7 +1750,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 13:
     {
-            head->first.As<TQuery>().Table = yystack_[1].value.as< TTableDescriptor > ();
+            head->Ast.As<TQuery>().Table = yystack_[1].value.as< TTableDescriptor > ();
         }
     break;
 
@@ -1762,13 +1762,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 16:
     {
-            head->first.As<TQuery>().Joins.emplace_back(yystack_[5].value.as< bool > (), yystack_[3].value.as< TTableDescriptor > (), yystack_[1].value.as< TIdentifierList > (), yystack_[0].value.as< TNullableExpressionList > ());
+            head->Ast.As<TQuery>().Joins.emplace_back(yystack_[5].value.as< bool > (), yystack_[3].value.as< TTableDescriptor > (), yystack_[1].value.as< TIdentifierList > (), yystack_[0].value.as< TNullableExpressionList > ());
         }
     break;
 
   case 17:
     {
-            head->first.As<TQuery>().Joins.emplace_back(yystack_[7].value.as< bool > (), yystack_[5].value.as< TTableDescriptor > (), yystack_[3].value.as< TExpressionList > (), yystack_[1].value.as< TExpressionList > (), yystack_[0].value.as< TNullableExpressionList > ());
+            head->Ast.As<TQuery>().Joins.emplace_back(yystack_[7].value.as< bool > (), yystack_[5].value.as< TTableDescriptor > (), yystack_[3].value.as< TExpressionList > (), yystack_[1].value.as< TExpressionList > (), yystack_[0].value.as< TNullableExpressionList > ());
         }
     break;
 
@@ -1786,13 +1786,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 21:
     {
-            head->first.As<TQuery>().WherePredicate = yystack_[0].value.as< TExpressionList > ();
+            head->Ast.As<TQuery>().WherePredicate = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
   case 23:
     {
-            head->first.As<TQuery>().GroupExprs = std::make_pair(yystack_[1].value.as< TExpressionList > (), yystack_[0].value.as< ETotalsMode > ());
+            head->Ast.As<TQuery>().GroupExprs = std::make_pair(yystack_[1].value.as< TExpressionList > (), yystack_[0].value.as< ETotalsMode > ());
         }
     break;
 
@@ -1828,13 +1828,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 30:
     {
-            head->first.As<TQuery>().HavingPredicate = yystack_[0].value.as< TExpressionList > ();
+            head->Ast.As<TQuery>().HavingPredicate = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
   case 31:
     {
-            head->first.As<TQuery>().OrderExpressions = yystack_[0].value.as< TOrderExpressionList > ();
+            head->Ast.As<TQuery>().OrderExpressions = yystack_[0].value.as< TOrderExpressionList > ();
         }
     break;
 
@@ -1871,7 +1871,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 38:
     {
-            head->first.As<TQuery>().Limit = yystack_[0].value.as< i64 > ();
+            head->Ast.As<TQuery>().Limit = yystack_[0].value.as< i64 > ();
         }
     break;
 
@@ -1897,7 +1897,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
             if (yystack_[2].value.as< TExpressionList > ().size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(yylhs.location, source));
             }
-            auto inserted = head->second.insert(std::make_pair(TString(yystack_[0].value.as< TStringBuf > ()), yystack_[2].value.as< TExpressionList > ().front()));
+            auto inserted = head->AliasMap.insert(std::make_pair(TString(yystack_[0].value.as< TStringBuf > ()), yystack_[2].value.as< TExpressionList > ().front()));
             if (!inserted.second) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", yystack_[0].value.as< TStringBuf > ());
             }
