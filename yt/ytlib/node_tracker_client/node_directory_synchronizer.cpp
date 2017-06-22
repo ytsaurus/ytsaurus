@@ -36,12 +36,12 @@ public:
         IConnectionPtr directoryConnection,
         TNodeDirectoryPtr nodeDirectory)
         : Config_(config)
-          , DirectoryClient_(directoryConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName)))
-          , NodeDirectory_(nodeDirectory)
-          , SyncExecutor_(New<TPeriodicExecutor>(
-                NRpc::TDispatcher::Get()->GetLightInvoker(),
-                BIND(&TImpl::OnSync, MakeWeak(this)),
-                Config_->SyncPeriod))
+        , DirectoryClient_(directoryConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName)))
+        , NodeDirectory_(nodeDirectory)
+        , SyncExecutor_(New<TPeriodicExecutor>(
+            NRpc::TDispatcher::Get()->GetLightInvoker(),
+            BIND(&TImpl::OnSync, MakeWeak(this)),
+            Config_->SyncPeriod))
     { }
 
     void Start()
