@@ -10,9 +10,9 @@
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/public.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #define _MIN_ "<\"type\"=\"min\">#"
 #define _MAX_ "<\"type\"=\"max\">#"
@@ -24,9 +24,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrintTo(const TOwningKey& key, ::std::ostream* os);
-
 void PrintTo(const TUnversionedValue& value, ::std::ostream* os);
-
 void PrintTo(const TUnversionedRow& value, ::std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,7 +113,7 @@ MATCHER_P(HasSplitsCount, expectedCount, "")
 
 MATCHER_P(HasLowerBound, encodedLowerBound, "")
 {
-    auto expected = BuildKey(encodedLowerBound);
+    auto expected = NTableClient::YsonToKey(encodedLowerBound);
     auto actual = GetLowerBoundFromDataSplit(arg);
 
     auto result = CompareRows(expected, actual);
@@ -136,7 +134,7 @@ MATCHER_P(HasLowerBound, encodedLowerBound, "")
 
 MATCHER_P(HasUpperBound, encodedUpperBound, "")
 {
-    auto expected = BuildKey(encodedUpperBound);
+    auto expected = NTableClient::YsonToKey(encodedUpperBound);
     auto actual = GetUpperBoundFromDataSplit(arg);
 
     auto result = CompareRows(expected, actual);
@@ -171,21 +169,11 @@ MATCHER_P(HasSchema, expectedSchema, "")
 }
 
 TKeyColumns GetSampleKeyColumns();
-
 TKeyColumns GetSampleKeyColumns2();
-
 TTableSchema GetSampleTableSchema();
 
-template <class T>
-TFuture<T> WrapInFuture(const T& value)
-{
-    return MakeFuture(TErrorOr<T>(value));
-}
-
-TFuture<void> WrapVoidInFuture();
 
 TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter = 0);
-
 TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter = 0);
 
 TFuture<TDataSplit> RaiseTableNotFound(
