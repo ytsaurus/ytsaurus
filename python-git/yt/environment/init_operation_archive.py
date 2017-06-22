@@ -396,7 +396,7 @@ def set_table_ttl_1week(path):
     def action(client):
         logging.info("Setting %s archive TTL: 1 week", path)
         set_table_ttl(client, path, ttl=1000*3600*24*7, auto_compaction_period=1000*3600*24*1)
-    
+
     return action
 
 def set_table_ttl_2years(path):
@@ -468,6 +468,33 @@ ACTIONS[11] = [
     set_table_ttl_1week("stderrs"),
     set_table_ttl_2years("ordered_by_id"),
     set_table_ttl_2years("ordered_by_start_time"),
+]
+
+TRANSFORMS[11] = [
+    Convert(
+        "ordered_by_id",
+        table_info=TableInfo([
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any"),
+                ("spec", "any"),
+                ("brief_progress", "any"),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64")
+            ],
+            in_memory=True,
+            get_pivot_keys=get_default_pivots))
 ]
 
 def add_attributes(path, attributes):
