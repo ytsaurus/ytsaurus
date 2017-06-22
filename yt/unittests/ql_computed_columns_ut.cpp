@@ -147,7 +147,7 @@ private:
 
             splits.push_back(dataSplit);
         }
-        return MakeFuture(splits);
+        return WrapInFuture(splits);
     }
 
     std::vector<TKeyRange> GetRangesFromSources(const TRowRanges& rowRanges)
