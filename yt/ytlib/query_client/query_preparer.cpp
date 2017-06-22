@@ -2038,12 +2038,25 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     fetchFunctions(functionNames, functions);
 
     const auto& table = ast.Table;
-    LOG_DEBUG("Getting initial data split (Path: %v)", table.Path);
 
-    auto selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
+    LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v)",
+        table.Path,
+        MakeFormattableRange(ast.Joins, [] (TStringBuilder* builder, const auto& join) {
+            FormatValue(builder, join.Table.Path, TStringBuf());
+        }));
+
+    std::vector<TFuture<TDataSplit>> asyncDataSplits;
+    asyncDataSplits.push_back(callbacks->GetInitialSplit(table.Path, timestamp));
+    for (const auto& join : ast.Joins) {
+        asyncDataSplits.push_back(callbacks->GetInitialSplit(join.Table.Path, timestamp));
+    }
+
+    auto dataSplits = WaitFor(Combine(asyncDataSplits))
         .ValueOrThrow();
 
     LOG_DEBUG("Initial data splits received");
+
+    const auto& selfDataSplit = dataSplits[0];
 
     auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
     query->OriginalSchema = tableSchema;
@@ -2060,9 +2073,9 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
 
-    for (const auto& join : ast.Joins) {
-        auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp))
-            .ValueOrThrow();
+    for (size_t joinIndex = 0; joinIndex < ast.Joins.size(); ++joinIndex) {
+        const auto& join = ast.Joins[joinIndex];
+        const auto& foreignDataSplit = dataSplits[joinIndex + 1];
 
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
         auto foreignKeyColumnsCount = foreignTableSchema.GetKeyColumns().size();
