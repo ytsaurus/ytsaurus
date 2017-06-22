@@ -13,10 +13,18 @@ namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNullLiteralValue {};
-typedef TVariant<TNullLiteralValue, i64, ui64, double, bool, TString> TLiteralValue;
-typedef std::vector<TLiteralValue> TLiteralValueList;
-typedef std::vector<std::vector<TLiteralValue>> TLiteralValueTupleList;
+struct TNullLiteralValue
+{ };
+
+using TLiteralValue = TVariant<
+    TNullLiteralValue,
+    i64,
+    ui64,
+    double,
+    bool,
+    TString>;
+using TLiteralValueList = std::vector<TLiteralValue>;
+using TLiteralValueTupleList = std::vector<std::vector<TLiteralValue>>;
 
 TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source);
 
@@ -161,15 +169,14 @@ TString InferName(const TExpression* expr, bool omitValues = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector<TReferenceExpressionPtr> TIdentifierList;
-typedef TNullable<TIdentifierList> TNullableIdentifierList;
+using TIdentifierList = std::vector<TReferenceExpressionPtr>;
+using TNullableIdentifierList = TNullable<TIdentifierList>;
 
-typedef std::vector<std::pair<TExpressionList, bool>> TOrderExpressionList;
+using TOrderExpressionList = std::vector<std::pair<TExpressionList, bool>>;
 
 struct TTableDescriptor
 {
-    TTableDescriptor()
-    { }
+    TTableDescriptor() = default;
 
     TTableDescriptor(
         const TString& path,
@@ -234,9 +241,23 @@ struct TQuery
     i64 Limit = 0;
 };
 
-typedef yhash<TString, TExpressionPtr> TAliasMap;
+using TAliasMap = yhash<TString, TExpressionPtr>;
 
-typedef std::pair<TVariant<TQuery, TExpressionPtr>, TAliasMap> TAstHead;
+struct TAstHead
+{
+    static TAstHead MakeQuery()
+    {
+        return TAstHead{TVariantTypeTag<TQuery>(), TAliasMap()};
+    }
+
+    static TAstHead MakeExpression()
+    {
+        return TAstHead{TVariantTypeTag<TExpressionPtr>(), TAliasMap()};
+    }
+
+    TVariant<TQuery, TExpressionPtr> Ast;
+    TAliasMap AliasMap;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1519,15 +1519,15 @@ private:
             HeavyChannelFactory_,
             FunctionImplCache_);
 
-        TQueryPtr query;
-        TDataRanges dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(
+        auto fragment = PreparePlanFragment(
             queryPreparer.Get(),
             queryString,
             fetchFunctions,
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
+        const auto& query = fragment->Query;
+        const auto& dataSource = fragment->Ranges;
 
         TQueryOptions queryOptions;
         queryOptions.Timestamp = options.Timestamp;

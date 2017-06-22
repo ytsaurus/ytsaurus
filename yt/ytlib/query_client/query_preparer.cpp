@@ -18,12 +18,12 @@
 namespace NYT {
 namespace NQueryClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NConcurrency;
 using namespace NTableClient;
 
-static const int PlanFragmentDepthLimit = 50;
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr int PlanFragmentDepthLimit = 50;
 
 struct TQueryPreparerBufferTag
 { };
@@ -31,8 +31,6 @@ struct TQueryPreparerBufferTag
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-typedef std::pair<NAst::TQuery, NAst::TAliasMap> TParsedQueryInfo;
 
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,
@@ -67,38 +65,39 @@ void ExtractFunctionNames(
         return;
     }
 
-    for (const auto& expr : exprs.Get()) {
+    for (const auto& expr : *exprs) {
         ExtractFunctionNames(expr, functions);
     }
 }
 
 std::vector<TString> ExtractFunctionNames(
-    const TParsedQueryInfo& parsedQueryInfo)
+    const NAst::TQuery& query,
+    const NAst::TAliasMap& aliasMap)
 {
     std::vector<TString> functions;
 
-    ExtractFunctionNames(parsedQueryInfo.first.WherePredicate, &functions);
-    ExtractFunctionNames(parsedQueryInfo.first.HavingPredicate, &functions);
-    ExtractFunctionNames(parsedQueryInfo.first.SelectExprs, &functions);
+    ExtractFunctionNames(query.WherePredicate, &functions);
+    ExtractFunctionNames(query.HavingPredicate, &functions);
+    ExtractFunctionNames(query.SelectExprs, &functions);
 
-    if (auto groupExprs = parsedQueryInfo.first.GroupExprs.GetPtr()) {
+    if (auto groupExprs = query.GroupExprs.GetPtr()) {
         for (const auto& expr : groupExprs->first) {
             ExtractFunctionNames(expr, &functions);
         }
     }
 
-    for (const auto& join : parsedQueryInfo.first.Joins) {
+    for (const auto& join : query.Joins) {
         ExtractFunctionNames(join.Left, &functions);
         ExtractFunctionNames(join.Right, &functions);
     }
 
-    for (const auto& orderExpression : parsedQueryInfo.first.OrderExpressions) {
+    for (const auto& orderExpression : query.OrderExpressions) {
         for (const auto& expr : orderExpression.first) {
             ExtractFunctionNames(expr, &functions);
         }
     }
 
-    for (const auto& aliasedExpression : parsedQueryInfo.second) {
+    for (const auto& aliasedExpression : aliasMap) {
         ExtractFunctionNames(aliasedExpression.second.Get(), &functions);
     }
 
@@ -112,7 +111,7 @@ std::vector<TString> ExtractFunctionNames(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CheckExpressionDepth(TConstExpressionPtr op, int depth = 0)
+void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
 {
     if (depth > PlanFragmentDepthLimit) {
         THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
@@ -309,7 +308,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
 
 TNullable<TUnversionedValue> FoldConstants(
     EUnaryOp opcode,
-    TConstExpressionPtr operand)
+    const TConstExpressionPtr& operand)
 {
     if (auto literalExpr = operand->As<TLiteralExpression>()) {
         if (opcode == EUnaryOp::Plus) {
@@ -350,8 +349,8 @@ TNullable<TUnversionedValue> FoldConstants(
 
 TNullable<TUnversionedValue> FoldConstants(
     EBinaryOp opcode,
-    TConstExpressionPtr lhsExpr,
-    TConstExpressionPtr rhsExpr)
+    const TConstExpressionPtr& lhsExpr,
+    const TConstExpressionPtr& rhsExpr)
 {
     auto lhsLiteral = lhsExpr->As<TLiteralExpression>();
     auto rhsLiteral = rhsExpr->As<TLiteralExpression>();
@@ -1871,7 +1870,10 @@ TConstGroupClausePtr BuildGroupClause(
         groupClause->AddGroupItem(typedExpr, InferName(expressionAst.Get()));
     }
 
-    schemaProxy = New<TGroupSchemaProxy>(&groupClause->GroupItems, std::move(schemaProxy), &groupClause->AggregateItems);
+    schemaProxy = New<TGroupSchemaProxy>(
+        &groupClause->GroupItems,
+        std::move(schemaProxy),
+        &groupClause->AggregateItems);
 
     return groupClause;
 }
@@ -1893,7 +1895,7 @@ TConstExpressionPtr BuildHavingClause(
     auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
-        THROW_ERROR_EXCEPTION("HAVING-clause is not a boolean expression")
+        THROW_ERROR_EXCEPTION("HAVING clause is not a boolean expression")
             << TErrorAttribute("actual_type", actualType)
             << TErrorAttribute("expected_type", expectedType);
     }
@@ -1991,6 +1993,26 @@ void ParseQueryString(
     }
 }
 
+NAst::TParser::token::yytokentype GetStrayToken(EParseMode mode)
+{
+    switch (mode) {
+        case EParseMode::Query:      return NAst::TParser::token::StrayWillParseQuery;
+        case EParseMode::JobQuery:   return NAst::TParser::token::StrayWillParseJobQuery;
+        case EParseMode::Expression: return NAst::TParser::token::StrayWillParseExpression;
+        default:                     Y_UNREACHABLE();
+    }
+}
+
+NAst::TAstHead MakeAstHead(EParseMode mode)
+{
+    switch (mode) {
+        case EParseMode::Query:
+        case EParseMode::JobQuery:   return NAst::TAstHead::MakeQuery();
+        case EParseMode::Expression: return NAst::TAstHead::MakeExpression();
+        default:                     Y_UNREACHABLE();
+    }
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2002,20 +2024,46 @@ void DefaultFetchFunctions(const std::vector<TString>& names, const TTypeInferre
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// For testing
-void ParseJobQuery(const TString& source)
+TParsedSource::TParsedSource(const TString& source, const NAst::TAstHead& astHead)
+    : Source(source)
+    , AstHead(astHead)
+{ }
+
+std::unique_ptr<TParsedSource> ParseSource(const TString& source, EParseMode mode)
 {
-    NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
-    ParseQueryString(
-        &astHead,
+    auto parsedSource = std::make_unique<TParsedSource>(
         source,
-        NAst::TParser::token::StrayWillParseJobQuery);
+        MakeAstHead(mode));
+    ParseQueryString(
+        &parsedSource->AstHead,
+        source,
+        GetStrayToken(mode));
+    return parsedSource;
 }
 
-std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
-    const TFetchFunctions& fetchFunctions,
+    const TFunctionsFetcher& functionsFetcher,
+    i64 inputRowLimit,
+    i64 outputRowLimit,
+    TTimestamp timestamp)
+{
+    return PreparePlanFragment(
+        callbacks,
+        *ParseSource(source, EParseMode::Query),
+        functionsFetcher,
+        inputRowLimit,
+        outputRowLimit,
+        timestamp);
+}
+
+std::unique_ptr<TPlanFragment> PreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    const TParsedSource& parsedSource,
+    const TFunctionsFetcher& functionsFetcher,
     i64 inputRowLimit,
     i64 outputRowLimit,
     TTimestamp timestamp)
@@ -2024,18 +2072,13 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
     auto Logger = MakeQueryLogger(query);
 
-    NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
-    ParseQueryString(
-        &astHead,
-        source,
-        NAst::TParser::token::StrayWillParseQuery);
+    const auto& ast = parsedSource.AstHead.Ast.As<NAst::TQuery>();
+    const auto& aliasMap = parsedSource.AstHead.AliasMap;
 
-    const auto& ast = astHead.first.As<NAst::TQuery>();
-
-    auto functionNames = ExtractFunctionNames(std::make_pair(ast, astHead.second));
+    auto functionNames = ExtractFunctionNames(ast, aliasMap);
 
     auto functions = New<TTypeInferrerMap>();
-    fetchFunctions(functionNames, functions);
+    functionsFetcher(functionNames, functions);
 
     const auto& table = ast.Table;
 
@@ -2067,9 +2110,9 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         &query->SchemaMapping);
 
     TTypedExpressionBuilder builder{
-        source,
+        parsedSource.Source,
         functions,
-        astHead.second};
+        aliasMap};
 
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
 
@@ -2362,25 +2405,26 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         buffer->Capture(range.first.Get()),
         buffer->Capture(range.second.Get())});
 
-    TDataRanges dataSource;
-    dataSource.Id = GetObjectIdFromDataSplit(selfDataSplit);
-    dataSource.Ranges = MakeSharedRange(std::move(rowRanges), std::move(buffer));
-
-    return std::make_pair(query, dataSource);
+    auto fragment = std::make_unique<TPlanFragment>();
+    fragment->Query = query;
+    fragment->Ranges.Id = GetObjectIdFromDataSplit(selfDataSplit);
+    fragment->Ranges.Ranges = MakeSharedRange(std::move(rowRanges), std::move(buffer));
+    return fragment;
 }
 
 TQueryPtr PrepareJobQuery(
     const TString& source,
     const TTableSchema& tableSchema,
-    const TFetchFunctions& fetchFunctions)
+    const TFunctionsFetcher& functionsFetcher)
 {
-    NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
+    auto astHead = NAst::TAstHead::MakeQuery();
     ParseQueryString(
         &astHead,
         source,
         NAst::TParser::token::StrayWillParseJobQuery);
 
-    auto& ast = astHead.first.As<NAst::TQuery>();
+    const auto& ast = astHead.Ast.As<NAst::TQuery>();
+    const auto& aliasMap = astHead.AliasMap;
 
     if (ast.Limit) {
         THROW_ERROR_EXCEPTION("LIMIT is not supported in map-reduce queries");
@@ -2390,11 +2434,10 @@ TQueryPtr PrepareJobQuery(
         THROW_ERROR_EXCEPTION("GROUP BY is not supported in map-reduce queries");
     }
 
-    auto parsedQueryInfo = std::make_pair(ast, astHead.second);
-
-    auto unlimited = std::numeric_limits<i64>::max();
-
-    auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
+    auto query = New<TQuery>(
+        std::numeric_limits<i64>::max(),
+        std::numeric_limits<i64>::max(),
+        TGuid::Create());
     query->OriginalSchema = tableSchema;
 
     TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
@@ -2402,19 +2445,19 @@ TQueryPtr PrepareJobQuery(
         TString(),
         &query->SchemaMapping);
 
-    auto functionNames = ExtractFunctionNames(parsedQueryInfo);
+    auto functionNames = ExtractFunctionNames(ast, aliasMap);
 
     auto functions = New<TTypeInferrerMap>();
-    fetchFunctions(functionNames, functions);
+    functionsFetcher(functionNames, functions);
 
     TTypedExpressionBuilder builder{
         source,
         functions,
-        parsedQueryInfo.second};
+        aliasMap};
 
     PrepareQuery(
         query,
-        parsedQueryInfo.first,
+        ast,
         schemaProxy,
         builder);
 
@@ -2423,25 +2466,26 @@ TQueryPtr PrepareJobQuery(
 
 TConstExpressionPtr PrepareExpression(
     const TString& source,
-    TTableSchema tableSchema,
+    const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
     yhash_set<TString>* references)
 {
-    NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>(), NAst::TAliasMap()};
+    auto astHead = NAst::TAstHead::MakeExpression();
     ParseQueryString(
         &astHead,
         source,
         NAst::TParser::token::StrayWillParseExpression);
 
-    auto& expr = astHead.first.As<NAst::TExpressionPtr>();
+    auto& expr = astHead.Ast.As<NAst::TExpressionPtr>();
+    const auto& aliasMap = astHead.AliasMap;
 
     std::vector<TColumnDescriptor> mapping;
-    auto schemaProxy = New<TScanSchemaProxy>(tableSchema, "", &mapping);
+    auto schemaProxy = New<TScanSchemaProxy>(tableSchema, TString(), &mapping);
 
     TTypedExpressionBuilder builder{
         source,
         functions,
-        astHead.second};
+        aliasMap};
 
     auto result = builder.BuildTypedExpression(expr.Get(), schemaProxy);
 

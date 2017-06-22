@@ -42,11 +42,11 @@ protected:
 
     std::vector<TKeyRange> Coordinate(const TString& source, ui64 rangeExpansionLimit = 1000)
     {
-        TQueryPtr query;
-        TDataRanges dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(
+        auto fragment = PreparePlanFragment(
             &PrepareMock_,
             source);
+        const auto& query = fragment->Query;
+        const auto& dataSource = fragment->Ranges;
 
         auto rowBuffer = New<TRowBuffer>();
 
@@ -68,11 +68,10 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const TString& source)
     {
-        TQueryPtr query;
-        TDataRanges dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(
+        auto fragment = PreparePlanFragment(
             &PrepareMock_,
             source);
+        const auto& query = fragment->Query;
 
         auto buffer = New<TRowBuffer>();
         TRowRanges foreignSplits{{

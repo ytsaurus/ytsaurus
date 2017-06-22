@@ -308,7 +308,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
             "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString).first;
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 3);
         const auto& joinClauses = query->JoinClauses;
@@ -329,7 +329,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
             "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString).first;
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 3);
         const auto& joinClauses = query->JoinClauses;
@@ -350,7 +350,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
             "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString).first;
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 3);
         const auto& joinClauses = query->JoinClauses;
@@ -377,12 +377,12 @@ class TJobQueryPrepareTest
 
 TEST_F(TJobQueryPrepareTest, TruePredicate)
 {
-    ParseJobQuery("* where true");
+    ParseSource("* where true", EParseMode::JobQuery);
 }
 
 TEST_F(TJobQueryPrepareTest, FalsePredicate)
 {
-    ParseJobQuery("* where false");
+    ParseSource("* where false", EParseMode::JobQuery);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -404,9 +404,7 @@ protected:
 
     void Coordinate(const TString& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
-        TQueryPtr query;
-        TDataRanges dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(
+        auto fragment = PreparePlanFragment(
             &PrepareMock_,
             source);
 
@@ -426,7 +424,7 @@ protected:
         options.VerboseLogging = true;
 
         auto prunedRanges = GetPrunedRanges(
-            query,
+            fragment->Query,
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe),
             MakeSharedRange(std::move(sources), buffer),
             rowBuffer,
@@ -834,10 +832,13 @@ protected:
         };
 
         auto prepareAndExecute = [&] () {
-            TQueryPtr primaryQuery;
-            TDataRanges primaryDataSource;
-            std::tie(primaryQuery, primaryDataSource) = PreparePlanFragment(
-                &PrepareMock_, query, fetchFunctions, inputRowLimit, outputRowLimit);
+            auto fragment = PreparePlanFragment(
+                &PrepareMock_,
+                query,
+                fetchFunctions,
+                inputRowLimit,
+                outputRowLimit);
+            const auto& primaryQuery = fragment->Query;
 
             auto executeCallback = [&] (
                 const TQueryPtr& subquery,
@@ -867,7 +868,8 @@ protected:
                 writer,
                 executeCallback);
 
-            auto resultRowset = WaitFor(asyncResultRowset).ValueOrThrow();
+            auto resultRowset = WaitFor(asyncResultRowset)
+                .ValueOrThrow();
             resultMatcher(resultRowset->GetRows(), TTableSchema(primaryQuery->GetTableSchema()));
 
             return primaryQuery;
