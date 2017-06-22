@@ -45,6 +45,10 @@ private:
     TNullable<TString> PartIndexColumnName;
     TNullable<TString> DataColumnName;
 
+    i64 StartPartIndex;
+    i64 Offset;
+    i64 PartSize;
+
     virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
