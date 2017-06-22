@@ -400,7 +400,7 @@ void TDnsResolver::TImpl::OnNameResolution(
     // We will be setting promise indirectly to avoid calling arbitrary code in resolver thread.
     if (status != ARES_SUCCESS) {
         LOG_WARNING("DNS resolve failed (HostName: %v)", request->HostName);
-        request->Promise.Set(TError(ares_strerror(status)));
+        request->Promise.Set(TError(ares_strerror(status)) << TErrorAttribute("host_name", request->HostName));
         return;
     }
 
