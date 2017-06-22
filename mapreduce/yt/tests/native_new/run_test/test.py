@@ -1,4 +1,5 @@
 import subprocess
+import sys
 import pytest
 
 import yatest.common
@@ -18,4 +19,4 @@ def yt_config(request):
 def test(yt_config, yt_stuff, test_name):
     yatest.common.execute(
         [BINARY_PATH,  test_name],
-        env={"YT_PROXY": yt_stuff.get_server()})
+        env={"YT_PROXY": yt_stuff.get_server()}, stderr=sys.stderr)

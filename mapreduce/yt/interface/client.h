@@ -26,6 +26,15 @@ enum ELockMode : int
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class ILock
+    : public TThrRefBase
+{
+public:
+    virtual ~ILock() = default;
+
+    virtual const TLockId& GetId() const = 0;
+};
+
 class IClientBase
     : public TThrRefBase
     , public ICypressClient
@@ -47,7 +56,7 @@ class ITransaction
 public:
     virtual const TTransactionId& GetId() const = 0;
 
-    virtual TLockId Lock(
+    virtual ILockPtr Lock(
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) = 0;

@@ -40,6 +40,9 @@ namespace NYT {
 
     struct TCreateClientOptions;
 
+    class ILock;
+    using ILockPtr = ::TIntrusivePtr<ILock>;
+
     class ITransaction;
     using ITransactionPtr = ::TIntrusivePtr<ITransaction>;
 

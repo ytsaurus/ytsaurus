@@ -29,12 +29,12 @@ namespace {
             return TransactionId_;
         }
 
-        TLockId Lock(
+        ILockPtr Lock(
             const TYPath&,
             ELockMode,
             const TLockOptions&) override
         {
-            return GetDefaultGuid();
+            ythrow yexception() << "not implemented";
         }
 
         void AlterTable(
