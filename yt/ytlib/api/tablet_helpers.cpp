@@ -4,18 +4,25 @@
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 
+#include <yt/ytlib/table_client/name_table.h>
+
 #include <yt/core/rpc/latency_taming_channel.h>
 
 namespace NYT {
 namespace NApi {
 
 using namespace NTabletClient;
+using namespace NTableClient;
+using namespace NHiveClient;
+using namespace NRpc;
+using namespace NHydra;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SmallVector<const TCellPeerDescriptor*, 3> GetValidPeers(const TCellDescriptor& cellDescriptor)
+SmallVector<const TCellPeerDescriptor*, TypicalPeerCount> GetValidPeers(const TCellDescriptor& cellDescriptor)
 {
-    SmallVector<const TCellPeerDescriptor*, 3> peers;
+    SmallVector<const TCellPeerDescriptor*, TypicalPeerCount> peers;
     for (const auto& peer : cellDescriptor.Peers) {
         if (!peer.IsNull()) {
             peers.push_back(&peer);
@@ -122,8 +129,6 @@ IChannelPtr CreateTabletReadChannel(
         *options.BackupRequestDelay);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateTabletMountedOrFrozen(const TTableMountInfoPtr& tableInfo, const TTabletInfoPtr& tabletInfo)
 {
     auto state = tabletInfo->State;
@@ -151,6 +156,90 @@ void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInf
             tabletInfo->State)
             << TErrorAttribute("tablet_id", tabletInfo->TabletId);
     }
+}
+
+TNameTableToSchemaIdMapping BuildColumnIdMapping(
+    const TTableSchema& schema,
+    const TNameTablePtr& nameTable)
+{
+    for (const auto& name : schema.GetKeyColumns()) {
+        // We shouldn't consider computed columns below because client doesn't send them.
+        if (!nameTable->FindId(name) && !schema.GetColumnOrThrow(name).Expression) {
+            THROW_ERROR_EXCEPTION("Missing key column %Qv",
+                name);
+        }
+    }
+
+    TNameTableToSchemaIdMapping mapping;
+    mapping.resize(nameTable->GetSize());
+    for (int nameTableId = 0; nameTableId < nameTable->GetSize(); ++nameTableId) {
+        const auto& name = nameTable->GetName(nameTableId);
+        const auto* columnSchema = schema.FindColumn(name);
+        mapping[nameTableId] = columnSchema ? schema.GetColumnIndex(*columnSchema) : -1;
+    }
+    return mapping;
+}
+
+namespace {
+
+template <class TRow>
+TTabletInfoPtr GetSortedTabletForRowImpl(
+    const TTableMountInfoPtr& tableInfo,
+    TRow row)
+{
+    Y_ASSERT(tableInfo->IsSorted());
+
+    auto tabletInfo = tableInfo->GetTabletForRow(row);
+    ValidateTabletMounted(tableInfo, tabletInfo);
+    return tabletInfo;
+}
+
+} // namespace
+
+TTabletInfoPtr GetSortedTabletForRow(
+    const TTableMountInfoPtr& tableInfo,
+    TUnversionedRow row)
+{
+    return GetSortedTabletForRowImpl(tableInfo, row);
+}
+
+TTabletInfoPtr GetSortedTabletForRow(
+    const TTableMountInfoPtr& tableInfo,
+    TVersionedRow row)
+{
+    return GetSortedTabletForRowImpl(tableInfo, row);
+}
+
+TTabletInfoPtr GetOrderedTabletForRow(
+    const TTableMountInfoPtr& tableInfo,
+    const TTabletInfoPtr& randomTabletInfo,
+    TNullable<int> tabletIndexColumnId,
+    TUnversionedRow row)
+{
+    Y_ASSERT(!tableInfo->IsSorted());
+
+    i64 tabletIndex = -1;
+    for (const auto& value : row) {
+        if (tabletIndexColumnId && value.Id == *tabletIndexColumnId) {
+            Y_ASSERT(value.Type == EValueType::Null || value.Type == EValueType::Int64);
+            if (value.Type == EValueType::Int64) {
+                tabletIndex = value.Data.Int64;
+                if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
+                    THROW_ERROR_EXCEPTION("Invalid tablet index: actual %v, expected in range [0, %v]",
+                        tabletIndex,
+                        tableInfo->Tablets.size() - 1);
+                }
+            }
+        }
+    }
+
+    if (tabletIndex < 0) {
+        return randomTabletInfo;
+    }
+
+    auto tabletInfo = tableInfo->Tablets[tabletIndex];
+    ValidateTabletMounted(tableInfo, tabletInfo);
+    return tabletInfo;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
