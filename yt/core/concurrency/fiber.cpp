@@ -86,9 +86,10 @@ TFiberId TFiber::GetId() const
     return Id_;
 }
 
-void TFiber::RegenerateId()
+TFiberId TFiber::RegenerateId()
 {
     Id_ = GenerateFiberId();
+    return Id_;
 }
 
 EFiberState TFiber::GetState() const
