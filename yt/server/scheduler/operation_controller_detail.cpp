@@ -3791,8 +3791,11 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 *attributes,
                 0); // Here we assume zero row count, we will do additional check later.
 
-            //TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
+            // TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
             table->Timestamp = OutputTransaction->GetStartTimestamp();
+
+            // NB(psushin): This option must be set before PrepareOutputTables call.
+            table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
             LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
                 path,
@@ -3939,7 +3942,6 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table->Options->Account = attributes->Get<TString>("account");
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
                 table->Options->OptimizeFor = table->TableUploadOptions.OptimizeFor;
-                table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
                 // Workaround for YT-5827.
                 if (table->TableUploadOptions.TableSchema.Columns().empty() &&
