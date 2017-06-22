@@ -40,6 +40,11 @@ void FormatValue(TStringBuilder* builder, __int128 value, const TStringBuf& form
 // TStringBuf
 inline void FormatValue(TStringBuilder* builder, const TStringBuf& value, const TStringBuf& format)
 {
+    if (!format) {
+        builder->AppendString(value);
+        return;
+    }
+
     // Parse alignment.
     bool alignLeft = false;
     const char* current = format.begin();
