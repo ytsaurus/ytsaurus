@@ -371,7 +371,7 @@ public:
     // IPrepareCallbacks implementation.
 
     virtual TFuture<TDataSplit> GetInitialSplit(
-        const TRichYPath& path,
+        const TYPath& path,
         TTimestamp timestamp) override
     {
         return BIND(&TQueryPreparer::DoGetInitialSplit, MakeStrong(this))

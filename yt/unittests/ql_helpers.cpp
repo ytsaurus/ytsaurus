@@ -2,8 +2,6 @@
 
 #include <yt/ytlib/table_client/helpers.h>
 
-#include <yt/ytlib/ypath/rich.h>
-
 #include <yt/core/yson/public.h>
 #include <yt/core/yson/string.h>
 
@@ -109,7 +107,7 @@ TTableSchema GetSampleTableSchema()
     return tableSchema;
 }
 
-TDataSplit MakeSimpleSplit(const TRichYPath& /*path*/, ui64 counter)
+TDataSplit MakeSimpleSplit(const TYPath& /*path*/, ui64 counter)
 {
     TDataSplit dataSplit;
 
@@ -136,13 +134,11 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter)
     return dataSplit;
 }
 
-TFuture<TDataSplit> RaiseTableNotFound(
-    const TRichYPath& path,
-    TTimestamp)
+TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path, TTimestamp /*timestamp*/)
 {
     return MakeFuture<TDataSplit>(TError(
         "Could not find table %v",
-        path.GetPath()));
+        path));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
