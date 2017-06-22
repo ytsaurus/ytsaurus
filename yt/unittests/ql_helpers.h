@@ -74,7 +74,7 @@ class TPrepareCallbacksMock
 {
 public:
     MOCK_METHOD2(GetInitialSplit, TFuture<TDataSplit>(
-        const TRichYPath&,
+        const TYPath&,
         TTimestamp));
 };
 
@@ -159,9 +159,9 @@ MATCHER_P(HasSchema, expectedSchema, "")
     auto schema = GetTableSchemaFromDataSplit(arg);
 
     if (schema != expectedSchema) {
-        //*result_listener
-        //    << "actual counter id is " << schema << " while "
-        //    << "expected counter id is " << expectedSchema;
+        *result_listener
+            << "actual schema is " << ToString(schema) << " while "
+            << "expected schema is " << ToString(expectedSchema);
         return false;
     }
 
@@ -172,13 +172,10 @@ TKeyColumns GetSampleKeyColumns();
 TKeyColumns GetSampleKeyColumns2();
 TTableSchema GetSampleTableSchema();
 
-
-TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter = 0);
+TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0);
 TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter = 0);
 
-TFuture<TDataSplit> RaiseTableNotFound(
-    const TRichYPath& path,
-    TTimestamp);
+TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path, TTimestamp);
 
 template <class TFunctor, class TMatcher>
 void EXPECT_THROW_THAT(TFunctor functor, TMatcher matcher)

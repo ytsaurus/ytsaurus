@@ -2046,9 +2046,9 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         }));
 
     std::vector<TFuture<TDataSplit>> asyncDataSplits;
-    asyncDataSplits.push_back(callbacks->GetInitialSplit(table.Path, timestamp));
+    asyncDataSplits.push_back(callbacks->GetInitialSplit(table.Path.GetPath(), timestamp));
     for (const auto& join : ast.Joins) {
-        asyncDataSplits.push_back(callbacks->GetInitialSplit(join.Table.Path, timestamp));
+        asyncDataSplits.push_back(callbacks->GetInitialSplit(join.Table.Path.GetPath(), timestamp));
     }
 
     auto dataSplits = WaitFor(Combine(asyncDataSplits))

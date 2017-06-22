@@ -57,7 +57,7 @@ struct IPrepareCallbacks
 
     //! Returns the initial split for a given path.
     virtual TFuture<TDataSplit> GetInitialSplit(
-        const NYPath::TRichYPath& path,
+        const NYPath::TYPath& path,
         TTimestamp timestamp) = 0;
 };
 
