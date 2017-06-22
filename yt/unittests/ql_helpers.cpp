@@ -109,12 +109,7 @@ TTableSchema GetSampleTableSchema()
     return tableSchema;
 }
 
-TFuture<void> WrapVoidInFuture()
-{
-    return MakeFuture(TErrorOr<void>());
-}
-
-TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter)
+TDataSplit MakeSimpleSplit(const TRichYPath& /*path*/, ui64 counter)
 {
     TDataSplit dataSplit;
 
@@ -145,9 +140,9 @@ TFuture<TDataSplit> RaiseTableNotFound(
     const TRichYPath& path,
     TTimestamp)
 {
-    return MakeFuture(TErrorOr<TDataSplit>(TError(Format(
+    return MakeFuture<TDataSplit>(TError(
         "Could not find table %v",
-        path.GetPath()))));
+        path.GetPath()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

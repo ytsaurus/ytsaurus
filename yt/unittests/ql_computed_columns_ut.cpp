@@ -143,7 +143,7 @@ private:
             SetTableSchema(&dataSplit, SecondarySchema_);
         }
 
-        return WrapInFuture(dataSplit);
+        return MakeFuture(dataSplit);
     }
 
     std::vector<TKeyRange> GetRangesFromSources(const TRowRanges& rowRanges)

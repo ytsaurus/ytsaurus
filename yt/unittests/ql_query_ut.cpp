@@ -79,7 +79,7 @@ TEST_F(TQueryPrepareTest, Simple)
     auto tableWithSchema = TString("<schema=[{name=a;type=int64;}; {name=b;type=int64;}; {name=k;type=int64;}]>//t");
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath::Parse(tableWithSchema), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath::Parse(tableWithSchema)))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath::Parse(tableWithSchema)))));
 
     PreparePlanFragment(
         &PrepareMock_,
@@ -106,7 +106,7 @@ TEST_F(TQueryPrepareTest, BadTableName)
 TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "foo from [//t]",
@@ -116,7 +116,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where bar = 1",
@@ -126,7 +126,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 TEST_F(TQueryPrepareTest, BadTypecheck)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where a > \"xyz\"",
@@ -142,7 +142,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
     query += " > 0";
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         query,
@@ -158,7 +158,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     query += ")";
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     PreparePlanFragment(&PrepareMock_, query);
 }
@@ -173,14 +173,14 @@ TEST_F(TQueryPrepareTest, ResultSchemaCollision)
 TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(sum(a)) from [//t] group by k",
         ContainsRegex("Misuse of aggregate function .*"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(a) from [//t]",
@@ -190,20 +190,20 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 TEST_F(TQueryPrepareTest, JoinColumnCollision)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//s"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//s")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//s")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//t] join [//s] using b",
         ContainsRegex("Column \"a\" occurs both in main and joined tables"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//s"), _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//s")))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//s")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] join [//s] using b",
@@ -236,7 +236,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         SetTableSchema(&dataSplit, tableSchema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//bids"), _))
-            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
     {
@@ -265,7 +265,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         SetTableSchema(&dataSplit, tableSchema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//DirectPhraseStat"), _))
-            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
     {
@@ -289,7 +289,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         SetTableSchema(&dataSplit, tableSchema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//phrases"), _))
-            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
     {
@@ -313,7 +313,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         SetTableSchema(&dataSplit, tableSchema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//campaigns"), _))
-            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
     }
 
     {
@@ -408,7 +408,7 @@ protected:
     virtual void SetUp() override
     {
         EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
-            .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+            .WillOnce(Return(MakeFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
@@ -839,7 +839,7 @@ protected:
         size_t index = 0;
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath(dataSplit.first), _))
-                .WillOnce(Return(WrapInFuture(dataSplit.second)));
+                .WillOnce(Return(MakeFuture(dataSplit.second)));
             sourceGuids.emplace(NYT::FromProto<TGuid>(dataSplit.second.chunk_id()), index++);
         }
 

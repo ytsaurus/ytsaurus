@@ -364,8 +364,7 @@ class TQueryPreparer
     , public IPrepareCallbacks
 {
 public:
-    explicit TQueryPreparer(
-        INativeConnectionPtr connection)
+    explicit TQueryPreparer(INativeConnectionPtr connection)
         : Connection_(std::move(connection))
     { }
 

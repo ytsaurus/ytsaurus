@@ -2037,19 +2037,18 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     auto functions = New<TTypeInferrerMap>();
     fetchFunctions(functionNames, functions);
 
-    TDataSplit selfDataSplit;
-
-    TSchemaProxyPtr schemaProxy;
-
-    auto table = ast.Table;
+    const auto& table = ast.Table;
     LOG_DEBUG("Getting initial data split (Path: %v)", table.Path);
 
-    selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
+    auto selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
         .ValueOrThrow();
+
+    LOG_DEBUG("Initial data splits received");
+
     auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
     query->OriginalSchema = tableSchema;
 
-    schemaProxy = New<TScanSchemaProxy>(
+    TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
         tableSchema,
         table.Alias,
         &query->SchemaMapping);
@@ -2069,7 +2068,6 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         auto foreignKeyColumnsCount = foreignTableSchema.GetKeyColumns().size();
 
         auto joinClause = New<TJoinClause>();
-
         joinClause->OriginalSchema = foreignTableSchema;
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
