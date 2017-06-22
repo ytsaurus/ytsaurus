@@ -33,7 +33,7 @@ public:
         IConnectionPtr directoryConnection,
         TClusterDirectoryPtr clusterDirectory)
         : Config_(std::move(config))
-        , DirectoryClient_(directoryConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName)))
+        , DirectoryConnection_(std::move(directoryConnection))
         , ClusterDirectory_(std::move(clusterDirectory))
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
@@ -51,7 +51,7 @@ public:
 
 private:
     const TClusterDirectorySynchronizerConfigPtr Config_;
-    const IClientPtr DirectoryClient_;
+    const TWeakPtr<IConnection> DirectoryConnection_;
     const TClusterDirectoryPtr ClusterDirectory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
@@ -63,13 +63,18 @@ private:
     void DoSync()
     {
         try {
+            auto connection = DirectoryConnection_.Lock();
+            if (!connection) {
+                THROW_ERROR_EXCEPTION("Directory connection is not available");
+            }
 
+            auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
             LOG_DEBUG("Started updating cluster directory");
 
             TGetClusterMetaOptions options;
             options.PopulateClusterDirectory = true;
             options.ReadFrom = EMasterChannelKind::Follower;
-            auto meta = WaitFor(DirectoryClient_->GetClusterMeta(options))
+            auto meta = WaitFor(client->GetClusterMeta(options))
                 .ValueOrThrow();
 
             ClusterDirectory_->UpdateDirectory(*meta.ClusterDirectory);
