@@ -3699,17 +3699,18 @@ private:
             return result;
         };
 
-        std::set<TCellKey> cellKeys;
+        std::vector<TCellKey> cellKeys;
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             if (!IsObjectAlive(cell)) {
                 continue;
             }
             if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
-                YCHECK(cellKeys.insert(TCellKey{getCellSize(cell), cell}).second);
+                cellKeys.push_back(TCellKey{getCellSize(cell), cell});
             }
         }
         YCHECK(!cellKeys.empty());
+        std::sort(cellKeys.begin(), cellKeys.end());
 
         auto getTabletSize = [&] (const TTablet* tablet) -> i64 {
             i64 result = 0;
@@ -3739,19 +3740,14 @@ private:
                     std::make_tuple(getTabletSize(rhs), rhs->GetId());
             });
 
-        auto chargeCell = [&] (std::set<TCellKey>::iterator it, TTablet* tablet) {
-            const auto& existingKey = *it;
-            auto newKey = TCellKey{existingKey.Size + getTabletSize(tablet), existingKey.Cell};
-            cellKeys.erase(it);
-            YCHECK(cellKeys.insert(newKey).second);
-        };
-
-        // Iteratively assign tablets to least-loaded cells.
+        // Assign tablets to cells iteratively looping over cell array.
+        int cellIndex = 0;
         std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
         for (auto* tablet : tabletsToMount) {
-            auto it = cellKeys.begin();
-            assignment.emplace_back(tablet, it->Cell);
-            chargeCell(it, tablet);
+            assignment.emplace_back(tablet, cellKeys[cellIndex].Cell);
+            if (++cellIndex == cellKeys.size()) {
+                cellIndex = 0;
+            }
         }
 
         return assignment;

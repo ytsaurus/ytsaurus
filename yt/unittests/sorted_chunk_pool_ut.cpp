@@ -79,6 +79,8 @@ protected:
             0 /* maxDataSizePerJob_ */,
             InputSliceDataSize_,
             Inf64 /* inputSliceRowCount */);
+
+        Options_.SortedJobOptions.UseNewEndpointKeys = true;
     }
 
     struct TMockChunkSliceFetcherBuilder

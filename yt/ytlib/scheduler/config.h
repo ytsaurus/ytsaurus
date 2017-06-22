@@ -252,6 +252,9 @@ public:
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
 
+    //! Generic map to turn on/off different experimental options.
+    NYTree::IMapNodePtr NightlyOptions;
+
     TOperationSpecBase();
 };
 
