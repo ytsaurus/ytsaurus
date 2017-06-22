@@ -80,7 +80,7 @@ TEST_F(TQueryPrepareTest, Simple)
 
     std::vector<TRichYPath> paths{TRichYPath::Parse(tableWithSchema)};
     EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplits(paths))));
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
 
     PreparePlanFragment(
         &PrepareMock_,
@@ -120,7 +120,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 {
     std::vector<TRichYPath> paths{TRichYPath("//t")};
     EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplits(paths))));
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "foo from [//t]",
@@ -131,7 +131,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 {
     std::vector<TRichYPath> paths{TRichYPath("//t")};
     EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplits(paths))));
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where bar = 1",
@@ -142,7 +142,7 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
 {
     std::vector<TRichYPath> paths{TRichYPath("//t")};
     EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplits(paths))));
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where a > \"xyz\"",
@@ -159,7 +159,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
 
     std::vector<TRichYPath> paths{TRichYPath("//t")};
     EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplits(paths))));
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
 
     ExpectPrepareThrowsWithDiagnostics(
         query,
@@ -176,7 +176,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
 
     std::vector<TRichYPath> paths{TRichYPath("//t")};
     EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplits(paths))));
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
 
     PreparePlanFragment(&PrepareMock_, query);
 }
@@ -192,7 +192,7 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 {
     std::vector<TRichYPath> paths{TRichYPath("//t")};
     EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillRepeatedly(Return(MakeFuture(MakeSimpleSplits(paths))));
+        .WillRepeatedly(Return(WrapInFuture(MakeSimpleSplits(paths))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(sum(a)) from [//t] group by k",
@@ -210,7 +210,7 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
         TRichYPath("//s")
     };
     EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillRepeatedly(Return(MakeFuture(MakeSimpleSplits(paths))));
+        .WillRepeatedly(Return(WrapInFuture(MakeSimpleSplits(paths))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//t] join [//s] using b",
@@ -313,7 +313,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
 
     {
         EXPECT_CALL(PrepareMock_, GetInitialSplits(std::vector<TRichYPath>{bidsPath, campaignsPath, directPhraseStatPath, phrasesPath}, _))
-            .WillOnce(Return(MakeFuture(std::vector<TDataSplit>{bidsSplit, campaignsSplit, directPhraseStatSplit, phrasesSplit})));
+            .WillOnce(Return(WrapInFuture(std::vector<TDataSplit>{bidsSplit, campaignsSplit, directPhraseStatSplit, phrasesSplit})));
 
         TString queryString = "* from [//bids] D\n"
             "left join [//campaigns] C on D.cid = C.cid\n"
@@ -337,7 +337,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
 
     {
         EXPECT_CALL(PrepareMock_, GetInitialSplits(std::vector<TRichYPath>{bidsPath, campaignsPath, directPhraseStatPath, phrasesPath}, _))
-            .WillOnce(Return(MakeFuture(std::vector<TDataSplit>{bidsSplit, campaignsSplit, directPhraseStatSplit, phrasesSplit})));
+            .WillOnce(Return(WrapInFuture(std::vector<TDataSplit>{bidsSplit, campaignsSplit, directPhraseStatSplit, phrasesSplit})));
 
         TString queryString = "* from [//bids] D\n"
             "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
@@ -361,7 +361,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
 
     {
         EXPECT_CALL(PrepareMock_, GetInitialSplits(std::vector<TRichYPath>{bidsPath, directPhraseStatPath, campaignsPath, phrasesPath}, _))
-            .WillOnce(Return(MakeFuture(std::vector<TDataSplit>{bidsSplit, directPhraseStatSplit, campaignsSplit, phrasesSplit})));
+            .WillOnce(Return(WrapInFuture(std::vector<TDataSplit>{bidsSplit, directPhraseStatSplit, campaignsSplit, phrasesSplit})));
 
         TString queryString = "* from [//bids] D\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
@@ -411,7 +411,7 @@ protected:
     {
         std::vector<TRichYPath> paths{TRichYPath("//t")};
         EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-            .WillOnce(Return(MakeFuture(MakeSimpleSplits(paths))));
+            .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
@@ -846,7 +846,7 @@ protected:
             sourceGuids.emplace(NYT::FromProto<TGuid>(pair.second.chunk_id()), index++);
         }
         EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-            .WillOnce(Return(MakeFuture(dataSplits)));
+            .WillOnce(Return(WrapInFuture(dataSplits)));
 
         auto fetchFunctions = [&] (const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
             MergeFrom(typeInferrers.Get(), *TypeInferers_);
