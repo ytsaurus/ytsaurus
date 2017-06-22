@@ -268,7 +268,7 @@ private:
         transaction->WriteRows(
             GetOperationsArchiveJobsPath(),
             Table_.NameTable,
-            MakeSharedRange(std::move(rows)));
+            MakeSharedRange(std::move(rows), std::move(rowBuffer)));
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
