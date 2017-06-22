@@ -321,7 +321,6 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
             break;
         case EBeginExecuteResult::Terminated:
             return false;
-            break;
     }
 
     // Reuse the fiber but regenerate its id.
