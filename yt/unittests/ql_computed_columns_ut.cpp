@@ -35,8 +35,8 @@ protected:
     {
         SetUpSchema();
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplits(_, _))
-            .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplits));
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(_, _))
+            .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
@@ -129,25 +129,21 @@ private:
         SetSchema(tableSchema);
     }
 
-    TFuture<std::vector<TDataSplit>> MakeSimpleSplits(const std::vector<NYPath::TRichYPath>& paths, TTimestamp timestamp)
+    TFuture<TDataSplit> MakeSimpleSplit(const NYPath::TRichYPath& path, ui64 counter = 0)
     {
-        std::vector<TDataSplit> splits;
-        for (const auto& path : paths) {
-            TDataSplit dataSplit;
+        TDataSplit dataSplit;
 
-            ToProto(
-                dataSplit.mutable_chunk_id(),
-                MakeId(EObjectType::Table, 0x42, timestamp, 0xdeadbabe));
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
-            if (path.GetPath() == "//t") {
-                SetTableSchema(&dataSplit, Schema_);
-            } else {
-                SetTableSchema(&dataSplit, SecondarySchema_);
-            }
-
-            splits.push_back(dataSplit);
+        if (path.GetPath() == "//t") {
+            SetTableSchema(&dataSplit, Schema_);
+        } else {
+            SetTableSchema(&dataSplit, SecondarySchema_);
         }
-        return WrapInFuture(splits);
+
+        return WrapInFuture(dataSplit);
     }
 
     std::vector<TKeyRange> GetRangesFromSources(const TRowRanges& rowRanges)

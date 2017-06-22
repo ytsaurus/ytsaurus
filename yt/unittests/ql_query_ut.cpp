@@ -78,9 +78,8 @@ TEST_F(TQueryPrepareTest, Simple)
 {
     auto tableWithSchema = TString("<schema=[{name=a;type=int64;}; {name=b;type=int64;}; {name=k;type=int64;}]>//t");
 
-    std::vector<TRichYPath> paths{TRichYPath::Parse(tableWithSchema)};
-    EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath::Parse(tableWithSchema), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath::Parse(tableWithSchema)))));
 
     PreparePlanFragment(
         &PrepareMock_,
@@ -96,20 +95,8 @@ TEST_F(TQueryPrepareTest, BadSyntax)
 
 TEST_F(TQueryPrepareTest, BadTableName)
 {
-    auto raiseTableNotFound = [] (
-        const std::vector<TRichYPath>& paths,
-        TTimestamp) ->
-        TFuture<std::vector<TDataSplit>>
-    {
-        YCHECK(paths.size() == 1);
-        return MakeFuture<std::vector<TDataSplit>>(TError(
-            "Could not find table %v",
-            paths[0].GetPath()));
-    };
-
-    std::vector<TRichYPath> paths{TRichYPath("//bad/table")};
-    EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Invoke(raiseTableNotFound));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//bad/table"), _))
+        .WillOnce(Invoke(&RaiseTableNotFound));
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//bad/table]",
@@ -118,9 +105,8 @@ TEST_F(TQueryPrepareTest, BadTableName)
 
 TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 {
-    std::vector<TRichYPath> paths{TRichYPath("//t")};
-    EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "foo from [//t]",
@@ -129,9 +115,8 @@ TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 
 TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 {
-    std::vector<TRichYPath> paths{TRichYPath("//t")};
-    EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where bar = 1",
@@ -140,9 +125,8 @@ TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 
 TEST_F(TQueryPrepareTest, BadTypecheck)
 {
-    std::vector<TRichYPath> paths{TRichYPath("//t")};
-    EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where a > \"xyz\"",
@@ -157,9 +141,8 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
     }
     query += " > 0";
 
-    std::vector<TRichYPath> paths{TRichYPath("//t")};
-    EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         query,
@@ -174,9 +157,8 @@ TEST_F(TQueryPrepareTest, BigQuery)
     }
     query += ")";
 
-    std::vector<TRichYPath> paths{TRichYPath("//t")};
-    EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     PreparePlanFragment(&PrepareMock_, query);
 }
@@ -190,13 +172,15 @@ TEST_F(TQueryPrepareTest, ResultSchemaCollision)
 
 TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 {
-    std::vector<TRichYPath> paths{TRichYPath("//t")};
-    EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillRepeatedly(Return(WrapInFuture(MakeSimpleSplits(paths))));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(sum(a)) from [//t] group by k",
         ContainsRegex("Misuse of aggregate function .*"));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(a) from [//t]",
@@ -205,16 +189,21 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 
 TEST_F(TQueryPrepareTest, JoinColumnCollision)
 {
-    std::vector<TRichYPath> paths{
-        TRichYPath("//t"),
-        TRichYPath("//s")
-    };
-    EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-        .WillRepeatedly(Return(WrapInFuture(MakeSimpleSplits(paths))));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//s"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//s")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//t] join [//s] using b",
         ContainsRegex("Column \"a\" occurs both in main and joined tables"));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//s"), _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//s")))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] join [//s] using b",
@@ -223,98 +212,111 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
 TEST_F(TQueryPrepareTest, SortMergeJoin)
 {
-    TDataSplit bidsSplit;
-    TRichYPath bidsPath("//bids");
+    {
+        TDataSplit dataSplit;
 
-    ToProto(
-        bidsSplit.mutable_chunk_id(),
-        MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-    TTableSchema bidsSchema({
-        TColumnSchema("hash", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(cid))")),
-        TColumnSchema("cid", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("pid", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("id", EValueType::Int64),
-        TColumnSchema("__shard__", EValueType::Int64),
-        TColumnSchema("PhraseID", EValueType::Int64),
-        TColumnSchema("price", EValueType::Int64),
-    });
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("int64(farm_hash(cid))")),
+            TColumnSchema("cid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("pid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("id", EValueType::Int64),
+            TColumnSchema("__shard__", EValueType::Int64),
+            TColumnSchema("PhraseID", EValueType::Int64),
+            TColumnSchema("price", EValueType::Int64),
+        });
 
-    SetTableSchema(&bidsSplit, bidsSchema);
+        SetTableSchema(&dataSplit, tableSchema);
 
-    TDataSplit directPhraseStatSplit;
-    TRichYPath directPhraseStatPath("//DirectPhraseStat");
-
-    ToProto(
-        directPhraseStatSplit.mutable_chunk_id(),
-        MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
-
-    TTableSchema directPhraseStatSchema({
-        TColumnSchema("ExportIDHash", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(ExportID))")),
-        TColumnSchema("ExportID", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("GroupExportID", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("PhraseID", EValueType::Uint64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("UpdateTime", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("Shows", EValueType::Int64),
-        TColumnSchema("Clicks", EValueType::Int64),
-    });
-
-    SetTableSchema(&directPhraseStatSplit, directPhraseStatSchema);
-
-    TDataSplit phrasesSplit;
-    TRichYPath phrasesPath("//phrases");
-
-    ToProto(
-        phrasesSplit.mutable_chunk_id(),
-        MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
-
-    TTableSchema phrasesSchema({
-        TColumnSchema("hash", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(pid))")),
-        TColumnSchema("pid", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("__shard__", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("status", EValueType::Int64),
-    });
-
-    SetTableSchema(&phrasesSplit, phrasesSchema);
-
-    TDataSplit campaignsSplit;
-    TRichYPath campaignsPath("//campaigns");
-
-    ToProto(
-        campaignsSplit.mutable_chunk_id(),
-        MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
-
-    TTableSchema campaignsSchema({
-        TColumnSchema("hash", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(cid))")),
-        TColumnSchema("cid", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("__shard__", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("value", EValueType::Int64),
-    });
-
-    SetTableSchema(&campaignsSplit, campaignsSchema);
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//bids"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
 
     {
-        EXPECT_CALL(PrepareMock_, GetInitialSplits(std::vector<TRichYPath>{bidsPath, campaignsPath, directPhraseStatPath, phrasesPath}, _))
-            .WillOnce(Return(WrapInFuture(std::vector<TDataSplit>{bidsSplit, campaignsSplit, directPhraseStatSplit, phrasesSplit})));
+        TDataSplit dataSplit;
 
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("ExportIDHash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("int64(farm_hash(ExportID))")),
+            TColumnSchema("ExportID", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("GroupExportID", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("PhraseID", EValueType::Uint64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("UpdateTime", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Shows", EValueType::Int64),
+            TColumnSchema("Clicks", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//DirectPhraseStat"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("int64(farm_hash(pid))")),
+            TColumnSchema("pid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("__shard__", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("status", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//phrases"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("int64(farm_hash(cid))")),
+            TColumnSchema("cid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("__shard__", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("value", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//campaigns"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
         TString queryString = "* from [//bids] D\n"
             "left join [//campaigns] C on D.cid = C.cid\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
@@ -336,9 +338,6 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        EXPECT_CALL(PrepareMock_, GetInitialSplits(std::vector<TRichYPath>{bidsPath, campaignsPath, directPhraseStatPath, phrasesPath}, _))
-            .WillOnce(Return(WrapInFuture(std::vector<TDataSplit>{bidsSplit, campaignsSplit, directPhraseStatSplit, phrasesSplit})));
-
         TString queryString = "* from [//bids] D\n"
             "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
@@ -360,9 +359,6 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        EXPECT_CALL(PrepareMock_, GetInitialSplits(std::vector<TRichYPath>{bidsPath, directPhraseStatPath, campaignsPath, phrasesPath}, _))
-            .WillOnce(Return(WrapInFuture(std::vector<TDataSplit>{bidsSplit, directPhraseStatSplit, campaignsSplit, phrasesSplit})));
-
         TString queryString = "* from [//bids] D\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
             "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
@@ -382,6 +378,8 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
         EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
     }
+
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,9 +407,8 @@ class TQueryCoordinateTest
 protected:
     virtual void SetUp() override
     {
-        std::vector<TRichYPath> paths{TRichYPath("//t")};
-        EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-            .WillOnce(Return(WrapInFuture(MakeSimpleSplits(paths))));
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
+            .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
@@ -764,13 +761,14 @@ protected:
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         std::vector<std::vector<TString>> owningSources(1, owningSource);
-        std::vector<std::pair<TString, TDataSplit>> namedSplits{{"//t", dataSplit}};
+        std::map<TString, TDataSplit> dataSplits;
+        dataSplits["//t"] = dataSplit;
 
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
-                namedSplits,
+                dataSplits,
                 owningSources,
                 resultMatcher,
                 inputRowLimit,
@@ -782,7 +780,7 @@ protected:
 
     TQueryPtr Evaluate(
         const TString& query,
-        const std::vector<std::pair<TString, TDataSplit>>& namedSplits,
+        const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
@@ -792,7 +790,7 @@ protected:
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
-                namedSplits,
+                dataSplits,
                 owningSources,
                 resultMatcher,
                 inputRowLimit,
@@ -811,13 +809,14 @@ protected:
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         std::vector<std::vector<TString>> owningSources(1, owningSource);
-        std::vector<std::pair<TString, TDataSplit>> namedSplits{{"//t", dataSplit}};
+        std::map<TString, TDataSplit> dataSplits;
+        dataSplits["//t"] = dataSplit;
 
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
-                namedSplits,
+                dataSplits,
                 owningSources,
                 [] (TRange<TRow>, const TTableSchema&) { },
                 inputRowLimit,
@@ -829,7 +828,7 @@ protected:
 
     TQueryPtr DoEvaluate(
         const TString& query,
-        const std::vector<std::pair<TString, TDataSplit>>& namedSplits,
+        const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit,
@@ -838,15 +837,11 @@ protected:
     {
         yhash<TGuid, size_t> sourceGuids;
         size_t index = 0;
-        std::vector<TRichYPath> paths;
-        std::vector<TDataSplit> dataSplits;
-        for (const auto& pair : namedSplits) {
-            paths.push_back(pair.first);
-            dataSplits.push_back(pair.second);
-            sourceGuids.emplace(NYT::FromProto<TGuid>(pair.second.chunk_id()), index++);
+        for (const auto& dataSplit : dataSplits) {
+            EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath(dataSplit.first), _))
+                .WillOnce(Return(WrapInFuture(dataSplit.second)));
+            sourceGuids.emplace(NYT::FromProto<TGuid>(dataSplit.second.chunk_id()), index++);
         }
-        EXPECT_CALL(PrepareMock_, GetInitialSplits(paths, _))
-            .WillOnce(Return(WrapInFuture(dataSplits)));
 
         auto fetchFunctions = [&] (const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
             MergeFrom(typeInferrers.Get(), *TypeInferers_);
@@ -938,9 +933,7 @@ TEST_F(TQueryEvaluateTest, Simple)
         "a=10;b=11"
     }, split);
 
-    Evaluate(
-        "a, b FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("a, b FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SelectAll)
@@ -960,9 +953,7 @@ TEST_F(TQueryEvaluateTest, SelectAll)
         "a=10;b=11"
     }, split);
 
-    Evaluate(
-        "* FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("* FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, FilterNulls1)
@@ -983,9 +974,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls1)
         "a=10;b=11"
     }, split);
 
-    Evaluate(
-        "a, b FROM [//t] where b > 0",
-        split, source, ResultMatcher(result));
+    Evaluate("a, b FROM [//t] where b > 0", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, FilterNulls2)
@@ -1007,9 +996,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls2)
         "a=10;b=11"
     }, split);
 
-    Evaluate(
-        "a, b FROM [//t] where b > 0 or is_null(b)",
-        split, source, ResultMatcher(result));
+    Evaluate("a, b FROM [//t] where b > 0 or is_null(b)", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)
@@ -1037,9 +1024,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpInt)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
     }, resultSplit);
 
-    Evaluate(
-        "a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpString)
@@ -1067,9 +1052,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpString)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
     }, resultSplit);
 
-    Evaluate(
-        "a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
@@ -1089,9 +1072,7 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
         "a=10;b=11"
     }, split);
 
-    Evaluate(
-        "a, b FROM [//t] where a between 9 and 11",
-        split, source, ResultMatcher(result));
+    Evaluate("a, b FROM [//t] where a between 9 and 11", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleIn)
@@ -1112,9 +1093,7 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
         "a=-10;b=11"
     }, split);
 
-    Evaluate(
-        "a, b FROM [//t] where a in (4.0, -10)",
-        split, source, ResultMatcher(result));
+    Evaluate("a, b FROM [//t] where a in (4.0, -10)", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleInWithNull)
@@ -1136,9 +1115,7 @@ TEST_F(TQueryEvaluateTest, SimpleInWithNull)
         "a=2",
     }, split);
 
-    Evaluate(
-        "a, b FROM [//t] where (a, b) in ((null, 1), (2, null))",
-        split, source, ResultMatcher(result));
+    Evaluate("a, b FROM [//t] where (a, b) in ((null, 1), (2, null))", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
@@ -1161,9 +1138,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
         "a=16"
     }, split);
 
-    Evaluate(
-        "a, b, c FROM [//t] where a > 3",
-        split, source, ResultMatcher(result));
+    Evaluate("a, b, c FROM [//t] where a > 3", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull2)
@@ -1195,9 +1170,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
         "a=7;"
     }, resultSplit);
 
-    Evaluate(
-        "a, b + c as x FROM [//t] where a < 10",
-        split, source, ResultMatcher(result));
+    Evaluate("a, b + c as x FROM [//t] where a < 10", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleStrings)
@@ -1218,9 +1191,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
         "s=baz"
     }, split);
 
-    Evaluate(
-        "s FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("s FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleStrings2)
@@ -1242,9 +1213,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
         "s=baz; u=x"
     }, split);
 
-    Evaluate(
-        "s, u FROM [//t] where u = \"x\"",
-        split, source, ResultMatcher(result));
+    Evaluate("s, u FROM [//t] where u = \"x\"", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, IsPrefixStrings)
@@ -1263,9 +1232,7 @@ TEST_F(TQueryEvaluateTest, IsPrefixStrings)
         "s=foobar"
     }, split);
 
-    Evaluate(
-        "s FROM [//t] where is_prefix(\"foo\", s)",
-        split, source, ResultMatcher(result));
+    Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, IsSubstrStrings)
@@ -1291,9 +1258,7 @@ TEST_F(TQueryEvaluateTest, IsSubstrStrings)
         "s=baz"
     }, split);
 
-    Evaluate(
-        "s FROM [//t] where is_substr(\"foo\", s) or is_substr(s, \"XX baz YY\")",
-        split, source, ResultMatcher(result));
+    Evaluate("s FROM [//t] where is_substr(\"foo\", s) or is_substr(s, \"XX baz YY\")", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, GroupByBool)
@@ -1325,9 +1290,7 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
         "x=%true;t=240"
     }, resultSplit);
 
-    Evaluate(
-        "x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x",
-        split, source, ResultMatcher(result));
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1362,27 +1325,24 @@ TEST_F(TQueryEvaluateTest, GroupWithTotals)
         "t=440"
     }, resultSplit);
 
-    Evaluate(
-        "x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals",
-        split, source, ResultMatcher(resultWithTotals));
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals", split,
+        source, ResultMatcher(resultWithTotals));
 
     auto resultWithTotalsAfterHaving = YsonToRows({
         "x=%true;t=240",
         "t=240"
     }, resultSplit);
 
-    Evaluate(
-        "x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x having t > 200 with totals",
-        split, source, ResultMatcher(resultWithTotalsAfterHaving));
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x having t > 200 with totals", split,
+        source, ResultMatcher(resultWithTotalsAfterHaving));
 
     auto resultWithTotalsBeforeHaving = YsonToRows({
         "x=%true;t=240",
         "t=440"
     }, resultSplit);
 
-    Evaluate(
-        "x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals having t > 200",
-        split, source, ResultMatcher(resultWithTotalsBeforeHaving));
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals having t > 200", split,
+        source, ResultMatcher(resultWithTotalsBeforeHaving));
 
     SUCCEED();
 }
@@ -1409,9 +1369,8 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
 
     EXPECT_THROW_THAT(
         [&] {
-            Evaluate(
-                "x, sum(b) as t FROM [//t] group by a % 2 as x with totals",
-                split, source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
+            Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
+                source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
         },
         HasSubstr("Null values in group key"));
 
@@ -1436,9 +1395,8 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsEmpty)
     auto resultWithTotals = YsonToRows({
     }, resultSplit);
 
-    Evaluate(
-        "x, sum(b) as t FROM [//t] group by a % 2 as x with totals",
-        split, source, ResultMatcher(resultWithTotals));
+    Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
+        source, ResultMatcher(resultWithTotals));
 
     SUCCEED();
 }
@@ -1472,9 +1430,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithAliases)
         "x=1;t=241"
     }, resultSplit);
 
-    Evaluate(
-        "a % 2 as x, sum(b) + x as t FROM [//t] where a > 1 group by x",
-        split, source, ResultMatcher(result));
+    Evaluate("a % 2 as x, sum(b) + x as t FROM [//t] where a > 1 group by x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1508,9 +1464,7 @@ TEST_F(TQueryEvaluateTest, Complex)
         "x=1;t=241"
     }, resultSplit);
 
-    Evaluate(
-        "x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x",
-        split, source, ResultMatcher(result));
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1545,9 +1499,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
         "x=1;q=0;t=241"
     }, resultSplit);
 
-    Evaluate(
-        "x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q",
-        split, source, ResultMatcher(result));
+    Evaluate("x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1575,9 +1527,7 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
         result.push_back(YsonToRow(TString() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), resultSplit, false));
     }
 
-    Evaluate(
-        "x, sum(b) + x as t FROM [//t] where a > 1 group by a as x",
-        split, source, ResultMatcher(result));
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, ComplexWithNull)
@@ -1615,9 +1565,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         "y=6"
     }, resultSplit);
 
-    Evaluate(
-        "x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x",
-        split, source, ResultMatcher(result));
+    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1645,9 +1593,7 @@ TEST_F(TQueryEvaluateTest, HavingClause1)
         "x=1;t=20",
     }, resultSplit);
 
-    Evaluate(
-        "a as x, sum(b) as t FROM [//t] group by a having a = 1",
-        split, source, ResultMatcher(result));
+    Evaluate("a as x, sum(b) as t FROM [//t] group by a having a = 1", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1675,9 +1621,7 @@ TEST_F(TQueryEvaluateTest, HavingClause2)
         "x=1;t=20",
     }, resultSplit);
 
-    Evaluate(
-        "a as x, sum(b) as t FROM [//t] group by a having sum(b) = 20",
-        split, source, ResultMatcher(result));
+    Evaluate("a as x, sum(b) as t FROM [//t] group by a having sum(b) = 20", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1704,9 +1648,7 @@ TEST_F(TQueryEvaluateTest, HavingClause3)
         "x=1",
     }, resultSplit);
 
-    Evaluate(
-        "a as x FROM [//t] group by a having sum(b) = 20",
-        split, source, ResultMatcher(result));
+    Evaluate("a as x FROM [//t] group by a having sum(b) = 20", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1738,9 +1680,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
         "b=3"
     }, resultSplit);
 
-    Evaluate(
-        "b FROM [//t] where is_null(a)",
-        split, source, ResultMatcher(result));
+    Evaluate("b FROM [//t] where is_null(a)", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1766,9 +1706,7 @@ TEST_F(TQueryEvaluateTest, DoubleSum)
         "x=2.;t=3"
     }, resultSplit);
 
-    Evaluate(
-        "sum(a) as x, sum(1) as t FROM [//t] group by 1",
-        split, source, ResultMatcher(result));
+    Evaluate("sum(a) as x, sum(1) as t FROM [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, ComplexStrings)
@@ -1805,9 +1743,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         "x=z;t=160"
     }, resultSplit);
 
-    Evaluate(
-        "x, sum(a) as t FROM [//t] where a > 10 group by s as x",
-        split, source, ResultMatcher(result));
+    Evaluate("x, sum(a) as t FROM [//t] where a > 10 group by s as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1839,9 +1775,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
         "s=five"
     }, resultSplit);
 
-    Evaluate(
-        "s FROM [//t] where lower(a) in (\"xyz\",\"ab1c\",\"hds\",\"kiu\")",
-        split, source, ResultMatcher(result));
+    Evaluate("s FROM [//t] where lower(a) in (\"xyz\",\"ab1c\",\"hds\",\"kiu\")", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1875,9 +1809,8 @@ TEST_F(TQueryEvaluateTest, TestIf)
         "x=a;t=201."
     }, resultSplit);
 
-    Evaluate(
-        "if(q = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as q",
-        split, source, ResultMatcher(result));
+    Evaluate("if(q = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as"
+                 " q", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1906,9 +1839,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
         "a=3;b=30"
     }, split);
 
-    Evaluate(
-        "a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9",
-        split, source, ResultMatcher(result), 3);
+    Evaluate("a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9", split, source, ResultMatcher(result), 3);
 
     SUCCEED();
 }
@@ -1938,9 +1869,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
         "a=4;b=40"
     }, split);
 
-    Evaluate(
-        "a, b FROM [//t] where a > 1 and a < 9",
-        split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), 3);
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), 3);
 
     SUCCEED();
 }
@@ -1964,9 +1893,8 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
     std::vector<TOwningRow> result;
     result.push_back(YsonToRow(TString() + "x=" + ToString(10000), resultSplit, false));
 
-    Evaluate(
-        "sum(1) as x FROM [//t] group by 0 as q",
-        split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), 100);
+    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(),
+             100);
 
     SUCCEED();
 }
@@ -2000,17 +1928,15 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         "x=a;t=201."
     }, resultSplit);
 
-    Evaluate(
-        "if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1)) + 1 as t FROM [//t] group by if "
-        "(a % 2 = 0, double(4), 5) as q",
-        split, source, ResultMatcher(result));
+    Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1)) + 1 as t FROM [//t] group by if"
+                 "(a % 2 = 0, double(4), 5) as q", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinEmpty)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
@@ -2018,7 +1944,7 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
         {"b", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1;b=10",
         "a=3;b=30",
@@ -2032,7 +1958,7 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
         {"c", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "c=2;b=20",
         "c=4;b=40",
@@ -2048,23 +1974,21 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
 
     auto result = YsonToRows({ }, resultSplit);
 
-    Evaluate(
-        "sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z",
-        namedSplits, sources, ResultMatcher(result));
+    Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinSimple2)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
         "a=2"
@@ -2074,7 +1998,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
         {"a", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "a=2",
         "a=1"
@@ -2089,23 +2013,22 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
         "x=2"
     }, resultSplit);
 
-    Evaluate(
-        "a as x FROM [//left] join [//right] using a",
-        namedSplits, sources, OrderedResultMatcher(result, {"x"}));
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources,
+             OrderedResultMatcher(result, {"x"}));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinSimple3)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
         "a=1"
@@ -2115,7 +2038,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple3)
         {"a", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "a=2",
         "a=1"
@@ -2130,23 +2053,21 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple3)
         "x=1"
     }, resultSplit);
 
-    Evaluate(
-        "a as x FROM [//left] join [//right] using a",
-        namedSplits,  sources, ResultMatcher(result));
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinSimple4)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
         "a=2"
@@ -2156,7 +2077,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple4)
         {"a", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "a=1",
         "a=1"
@@ -2171,23 +2092,21 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple4)
         "x=1"
     }, resultSplit);
 
-    Evaluate(
-        "a as x FROM [//left] join [//right] using a",
-        namedSplits,  sources, ResultMatcher(result));
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinSimple5)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
         "a=1",
@@ -2198,7 +2117,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
         {"a", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "a=1",
         "a=1",
@@ -2221,23 +2140,21 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
         "x=1"
     }, resultSplit);
 
-    Evaluate(
-        "a as x FROM [//left] join [//right] using a",
-        namedSplits,  sources, ResultMatcher(result));
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinLimit)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
         "a=2",
@@ -2250,7 +2167,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit)
         {"a", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "a=2",
         "a=3",
@@ -2271,21 +2188,24 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit)
 
     Evaluate(
         "a as x FROM [//left] join [//right] using a",
-        namedSplits,  sources, ResultMatcher(result), std::numeric_limits<i64>::max(), 4);
+        splits,
+        sources,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(), 4);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinLimit2)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
         "a=1"
@@ -2295,7 +2215,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit2)
         {"a", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "a=1",
         "a=1",
@@ -2316,21 +2236,24 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit2)
 
     Evaluate(
         "a as x FROM [//left] join [//right] using a",
-        namedSplits,  sources, ResultMatcher(result), std::numeric_limits<i64>::max(), 5);
+        splits,
+        sources,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(), 5);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinLimit3)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
         "a=2",
@@ -2345,7 +2268,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
         {"a", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "a=7",
         "a=5",
@@ -2364,7 +2287,10 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
 
     Evaluate(
         "a as x FROM [//left] join [//right] using a",
-        namedSplits,  sources, ResultMatcher(result), std::numeric_limits<i64>::max(), 4);
+        splits,
+        sources,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(), 4);
 
     result = YsonToRows({
         "x=1",
@@ -2375,14 +2301,16 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
 
     Evaluate(
         "a as x FROM [//left] join [//right] using a limit 4",
-        namedSplits,  sources, ResultMatcher(result));
+        splits,
+        sources,
+        ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinLimit4)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
@@ -2392,7 +2320,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
         {"v", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1;ut=123456;b=10"
     });
@@ -2402,7 +2330,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
         {"c", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "b=10;c=100"
     });
@@ -2420,14 +2348,16 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
 
     Evaluate(
         "a.ut, b.c, a.b, b.b FROM [//left] a join [//right] b on a.b=b.b limit 1",
-        namedSplits,  sources, ResultMatcher(result));
+        splits,
+        sources,
+        ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
@@ -2435,7 +2365,7 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
         TColumnSchema("y", EValueType::String)
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "x=a",
         "x=b",
@@ -2447,7 +2377,7 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
         TColumnSchema("x", EValueType::String)
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "a=1;x=a",
         "a=2;x=b",
@@ -2466,33 +2396,32 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
         "a=3;x=c"
     }, resultSplit);
 
-    Evaluate(
-        "x, a, y FROM [//left] join [//right] using x",
-        namedSplits,  sources, OrderedResultMatcher(result, {"a"}));
+    Evaluate("x, a, y FROM [//left] join [//right] using x", splits, sources,
+             OrderedResultMatcher(result, {"a"}));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinManySimple)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
-    namedSplits.emplace_back("//a", MakeSplit({
+    splits["//a"] = MakeSplit({
         {"a", EValueType::Int64},
         {"c", EValueType::String}
-    }, 0));
+    }, 0);
     sources.push_back({
         "a=2;c=b",
         "a=3;c=c",
         "a=4;c=a"
     });
 
-    namedSplits.emplace_back("//b", MakeSplit({
+    splits["//b"] = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::String},
         {"d", EValueType::String}
-    }, 1));
+    }, 1);
     sources.push_back({
         "b=100;c=a;d=X",
         "b=200;c=b;d=Y",
@@ -2502,10 +2431,10 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
         "b=600;c=c;d=Y"
     });
 
-    namedSplits.emplace_back("//c", MakeSplit({
+    splits["//c"] = MakeSplit({
         {"d", EValueType::String},
         {"e", EValueType::Int64},
-    }, 2));
+    }, 2);
     sources.push_back({
         "d=X;e=1234",
         "d=Y;e=5678"
@@ -2531,14 +2460,16 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
 
     Evaluate(
         "a, c, b, d, e from [//a] join [//b] using c join [//c] using d",
-        namedSplits,  sources, OrderedResultMatcher(result, {"a", "b"}));
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"a", "b"}));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
@@ -2546,7 +2477,7 @@ TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
         {"b", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1;b=10",
         "a=3;b=30",
@@ -2560,7 +2491,7 @@ TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
         {"d", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "c=1;d=10",
         "c=2;d=20",
@@ -2582,9 +2513,7 @@ TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
         "a=7;b=70;d=70"
     }, resultSplit);
 
-    auto query = Evaluate(
-        "a, b, d FROM [//left] join [//right] on a = c",
-        namedSplits, sources, ResultMatcher(result));
+    auto query = Evaluate("a, b, d FROM [//left] join [//right] on a = c", splits, sources, ResultMatcher(result));
 
     EXPECT_EQ(query->JoinClauses.size(), 1);
     const auto& joinClauses = query->JoinClauses;
@@ -2597,7 +2526,7 @@ TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
 
 TEST_F(TQueryEvaluateTest, TestJoin)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
@@ -2605,7 +2534,7 @@ TEST_F(TQueryEvaluateTest, TestJoin)
         {"b", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1;b=10",
         "a=2;b=20",
@@ -2623,7 +2552,7 @@ TEST_F(TQueryEvaluateTest, TestJoin)
         {"c", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "c=1;b=10",
         "c=2;b=20",
@@ -2646,22 +2575,16 @@ TEST_F(TQueryEvaluateTest, TestJoin)
         "x=20;z=0",
     }, resultSplit);
 
-    Evaluate(
-        "sum(a) as x, z FROM [//left] join [//right] using b group by c % 2 as z",
-        namedSplits,  sources, ResultMatcher(result));
-    Evaluate(
-        "sum(a) as x, z FROM [//left] join [//right] on b = b group by c % 2 as z",
-        namedSplits,  sources, ResultMatcher(result));
-    Evaluate(
-        "sum(l.a) as x, z FROM [//left] as l join [//right] as r on l.b = r.b group by r.c % 2 as z",
-        namedSplits,  sources, ResultMatcher(result));
+    Evaluate("sum(a) as x, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, ResultMatcher(result));
+    Evaluate("sum(a) as x, z FROM [//left] join [//right] on b = b group by c % 2 as z", splits, sources, ResultMatcher(result));
+    Evaluate("sum(l.a) as x, z FROM [//left] as l join [//right] as r on l.b = r.b group by r.c % 2 as z", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestLeftJoin)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
@@ -2669,7 +2592,7 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
         {"b", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1;b=10",
         "a=2;b=20",
@@ -2687,7 +2610,7 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
         {"c", EValueType::Int64}
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "c=1;b=10",
         "c=3;b=30",
@@ -2716,21 +2639,23 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
 
     Evaluate(
         "a, b, c FROM [//left] left join [//right] using b",
-        namedSplits,  sources, OrderedResultMatcher(result, {"a"}));
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"a"}));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestLeftJoinWithCondition)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     }, 0);
 
-    namedSplits.emplace_back("//left", leftSplit);
+    splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
         "a=2",
@@ -2744,7 +2669,7 @@ TEST_F(TQueryEvaluateTest, TestLeftJoinWithCondition)
         {"c", EValueType::Int64},
     }, 1);
 
-    namedSplits.emplace_back("//right", rightSplit);
+    splits["//right"] = rightSplit;
     sources.push_back({
         "a=1;b=1;c=1",
         "a=1;b=2;c=1",
@@ -2766,7 +2691,9 @@ TEST_F(TQueryEvaluateTest, TestLeftJoinWithCondition)
 
     Evaluate(
         "a, sum(c) as s FROM [//left] left join [//right] using a where b = 2 or b = # group by a",
-        namedSplits, sources, OrderedResultMatcher(result, {"a"}));
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"a"}));
 
     auto result2 = YsonToRows({
         "a=1;s=1",
@@ -2777,7 +2704,9 @@ TEST_F(TQueryEvaluateTest, TestLeftJoinWithCondition)
 
     Evaluate(
         "a, sum(c) as s FROM [//left] left join [//right] using a and b = 2 group by a",
-        namedSplits, sources, OrderedResultMatcher(result2, {"a"}));
+        splits,
+        sources,
+        OrderedResultMatcher(result2, {"a"}));
 
     SUCCEED();
 }
@@ -2816,22 +2745,20 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
         "x=z;t=160"
     }, resultSplit);
 
-    Evaluate(
-        "x, sum(p.a) as t FROM [//t] as p where p.a > 10 group by p.s as x",
-        split, source, ResultMatcher(result));
+    Evaluate("x, sum(p.a) as t FROM [//t] as p where p.a > 10 group by p.s as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinMany)
 {
-    std::vector<std::pair<TString, TDataSplit>> namedSplits;
+    std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
 
-    namedSplits.emplace_back("//primary", MakeSplit({
+    splits["//primary"] = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    }, 0));
+    }, 0);
     sources.push_back({
         "a=1;b=10",
         "a=2;b=20",
@@ -2844,10 +2771,10 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
         "a=9;b=90"
     });
 
-    namedSplits.emplace_back("//secondary", MakeSplit({
+    splits["//secondary"] = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::Int64}
-    }, 1));
+    }, 1);
     sources.push_back({
         "c=1;b=10",
         "c=2;b=20",
@@ -2860,10 +2787,10 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
         "c=9;b=90"
     });
 
-    namedSplits.emplace_back("//tertiary", MakeSplit({
+    splits["//tertiary"] = MakeSplit({
         {"c", EValueType::Int64},
         {"d", EValueType::Int64}
-    }, 2));
+    }, 2);
     sources.push_back({
         "c=1;d=10",
         "c=2;d=20",
@@ -2890,7 +2817,9 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
 
     Evaluate(
         "sum(a) as x, sum(d) as y, z FROM [//primary] join [//secondary] using b join [//tertiary] using c group by c % 2 as z",
-        namedSplits, sources, OrderedResultMatcher(result, {"x"}));
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"x"}));
 
     SUCCEED();
 }
@@ -2923,15 +2852,12 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
 
     std::sort(result.begin(), result.end());
     limitedResult.assign(result.begin(), result.begin() + 100);
-    Evaluate(
-        "* FROM [//t] order by a * a limit 100",
-        split, source, ResultMatcher(limitedResult));
+    Evaluate("* FROM [//t] order by a * a limit 100", split, source, ResultMatcher(limitedResult));
 
     std::reverse(result.begin(), result.end());
     limitedResult.assign(result.begin(), result.begin() + 100);
-    Evaluate(
-        "* FROM [//t] order by a * 3 - 1 desc limit 100",
-        split, source, ResultMatcher(limitedResult));
+    Evaluate("* FROM [//t] order by a * 3 - 1 desc limit 100", split, source, ResultMatcher(limitedResult));
+
 
     source.clear();
     for (int i = 0; i < 10; ++i) {
@@ -2946,9 +2872,7 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
 
     EXPECT_THROW_THAT(
         [&] {
-            Evaluate(
-                "* FROM [//t] order by 0.0 / double(a) limit 100",
-                split, source, ResultMatcher(result));
+            Evaluate("* FROM [//t] order by 0.0 / double(a) limit 100", split, source, ResultMatcher(result));
         },
         HasSubstr("Comparison with NaN"));
 
@@ -3008,8 +2932,7 @@ TEST_F(TQueryEvaluateTest, TestGroupByTotalsOrderBy)
         result.push_back(YsonToRow(resultRow, resultSplit, false));
     }
 
-    Evaluate(
-        "x, sum(b) as y FROM [//t] group by a % 200 as x with totals order by y limit 50",
+    Evaluate("x, sum(b) as y FROM [//t] group by a % 200 as x with totals order by y limit 50",
         split, source, ResultMatcher(result));
 
     SUCCEED();
@@ -3040,9 +2963,7 @@ TEST_F(TQueryEvaluateTest, TestUdf)
         "x=10"
     }, resultSplit);
 
-    Evaluate(
-        "abs_udf(a) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("abs_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3071,9 +2992,7 @@ TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
         "a=75u"
     }, resultSplit);
 
-    Evaluate(
-        "a FROM [//t] where a = seventyfive()",
-        split, source, ResultMatcher(result));
+    Evaluate("a FROM [//t] where a = seventyfive()", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3146,9 +3065,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
         "x=10"
     }, resultSplit);
 
-    Evaluate(
-        "abs_udf(b) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("abs_udf(b) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3178,9 +3095,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
         ""
     }, resultSplit);
 
-    Evaluate(
-        "exp_udf(a, b) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("exp_udf(a, b) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3209,9 +3124,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
         ""
     }, resultSplit);
 
-    Evaluate(
-        "strtol_udf(a) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("strtol_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3240,9 +3153,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
         ""
     }, resultSplit);
 
-    Evaluate(
-        "tolower_udf(a) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("tolower_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3269,9 +3180,7 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
         "x=%true"
     }, resultSplit);
 
-    Evaluate(
-        "is_null_udf(a) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("is_null_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3305,9 +3214,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "try_get_int64(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("try_get_int64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3339,9 +3246,7 @@ TEST_F(TQueryEvaluateTest, YPathGetInt64)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "get_int64(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("get_int64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3398,9 +3303,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetUint64)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "try_get_uint64(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("try_get_uint64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3432,9 +3335,7 @@ TEST_F(TQueryEvaluateTest, YPathGetUint64)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "get_uint64(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("get_uint64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3491,9 +3392,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetDouble)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "try_get_double(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("try_get_double(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3525,9 +3424,7 @@ TEST_F(TQueryEvaluateTest, YPathGetDouble)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "get_double(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("get_double(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3584,9 +3481,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetBoolean)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "try_get_boolean(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("try_get_boolean(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3618,9 +3513,7 @@ TEST_F(TQueryEvaluateTest, YPathGetBoolean)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "get_boolean(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("get_boolean(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3677,9 +3570,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetString)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "try_get_string(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("try_get_string(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3711,9 +3602,7 @@ TEST_F(TQueryEvaluateTest, YPathGetString)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "get_string(yson, ypath) as result FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("get_string(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3762,9 +3651,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
         "x=2"
     }, resultSplit);
 
-    Evaluate(
-        "a as x FROM [//t] where sum_udf(7, 3, a) in (11u, 12)",
-        split, source, ResultMatcher(result));
+    Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11u, 12)", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3791,9 +3678,7 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
         "x=1607147011416532415u"
     }, resultSplit);
 
-    Evaluate(
-        "farm_hash(a, b, c) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3845,9 +3730,7 @@ TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
         "x=%false",
     }, resultSplit);
 
-    Evaluate(
-        "regex_full_match(\"hel[a-z]\", a) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3874,9 +3757,7 @@ TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
         "x=%false",
     }, resultSplit);
 
-    Evaluate(
-        "regex_partial_match(\"[0-9]+\", a) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3901,9 +3782,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3928,9 +3807,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3955,9 +3832,7 @@ TEST_F(TQueryEvaluateTest, TestRegexExtract)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3982,9 +3857,7 @@ TEST_F(TQueryEvaluateTest, TestRegexEscape)
         "",
     }, resultSplit);
 
-    Evaluate(
-        "regex_escape(a) as x FROM [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("regex_escape(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -4012,9 +3885,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg)
         "x=24.2",
     }, resultSplit);
 
-    Evaluate(
-        "avg(a) as x from [//t] group by 1",
-        split, source, ResultMatcher(result));
+    Evaluate("avg(a) as x from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestAverageAgg2)
@@ -4049,9 +3920,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg2)
         "r1=35.5;x=0;r2=9;r3=3.5;r4=23"
     }, resultSplit);
 
-    Evaluate(
-        "avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x",
-        split, source, ResultMatcher(result));
+    Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestAverageAgg3)
@@ -4078,9 +3947,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg3)
         "b=0"
     }, resultSplit);
 
-    Evaluate(
-        "b, avg(a) as x from [//t] group by b",
-        split, source, ResultMatcher(result));
+    Evaluate("b, avg(a) as x from [//t] group by b", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestStringAgg)
@@ -4105,9 +3972,7 @@ TEST_F(TQueryEvaluateTest, TestStringAgg)
         "b=\"fo\";c=\"two\"",
     }, resultSplit);
 
-    Evaluate(
-        "min(a) as b, max(a) as c from [//t] group by 1",
-        split, source, ResultMatcher(result));
+    Evaluate("min(a) as b, max(a) as c from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
@@ -4145,9 +4010,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         "upper=%true;lower=%true"
     }, resultSplit);
 
-    Evaluate(
-        "cardinality(a) < 2020 as upper, cardinality(a) > 1980 as lower from [//t] group by 1",
-        split, source, ResultMatcher(result));
+    Evaluate("cardinality(a) < 2020 as upper, cardinality(a) > 1980 as lower from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestLinkingError1)
@@ -4222,9 +4085,7 @@ TEST_F(TQueryEvaluateTest, TestCasts)
         "r1=5",
     }, resultSplit);
 
-    Evaluate(
-        "int64(a) as r1, double(b) as r2, uint64(c) as r3 from [//t]",
-        split, source, ResultMatcher(result));
+    Evaluate("int64(a) as r1, double(b) as r2, uint64(c) as r3 from [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestUdfException)
@@ -4244,9 +4105,7 @@ TEST_F(TQueryEvaluateTest, TestUdfException)
     auto result = YsonToRows({
     }, resultSplit);
 
-    EvaluateExpectingError(
-        "throw_if_negative_udf(a) from [//t]",
-        split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source, EFailureLocation::Execution);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

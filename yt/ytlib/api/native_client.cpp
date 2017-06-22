@@ -364,19 +364,20 @@ class TQueryPreparer
     , public IPrepareCallbacks
 {
 public:
-    explicit TQueryPreparer(INativeConnectionPtr connection)
+    explicit TQueryPreparer(
+        INativeConnectionPtr connection)
         : Connection_(std::move(connection))
     { }
 
     // IPrepareCallbacks implementation.
 
-    virtual TFuture<std::vector<TDataSplit>> GetInitialSplits(
-        const std::vector<TRichYPath>& paths,
+    virtual TFuture<TDataSplit> GetInitialSplit(
+        const TRichYPath& path,
         TTimestamp timestamp) override
     {
-        return BIND(&TQueryPreparer::DoGetInitialSplits, MakeStrong(this))
+        return BIND(&TQueryPreparer::DoGetInitialSplit, MakeStrong(this))
             .AsyncVia(Connection_->GetLightInvoker())
-            .Run(paths, timestamp);
+            .Run(path, timestamp);
     }
 
 private:
@@ -396,34 +397,21 @@ private:
         return tableInfo->Schemas[ETableSchemaKind::Query];
     }
 
-    std::vector<TDataSplit> DoGetInitialSplits(
-        const std::vector<TRichYPath>& paths,
+    TDataSplit DoGetInitialSplit(
+        const TRichYPath& path,
         TTimestamp timestamp)
     {
         const auto& tableMountCache = Connection_->GetTableMountCache();
-
-        std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
-        for (const auto& path : paths) {
-            asyncTableInfos.push_back(tableMountCache->GetTableInfo(path.GetPath()));
-        }
-
-        auto tableInfos = WaitFor(Combine(asyncTableInfos))
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
-        std::vector<TDataSplit> splits;
-        for (size_t index = 0; index < paths.size(); ++index) {
-            const auto& path = paths[index];
-            const auto& tableInfo = tableInfos[index];
+        tableInfo->ValidateNotReplicated();
 
-            tableInfo->ValidateNotReplicated();
-
-            TDataSplit split;
-            SetObjectId(&split, tableInfo->TableId);
-            SetTableSchema(&split, GetTableSchema(path, tableInfo));
-            SetTimestamp(&split, timestamp);
-            splits.push_back(split);
-        }
-        return splits;
+        TDataSplit result;
+        SetObjectId(&result, tableInfo->TableId);
+        SetTableSchema(&result, GetTableSchema(path, tableInfo));
+        SetTimestamp(&result, timestamp);
+        return result;
     }
 };
 
