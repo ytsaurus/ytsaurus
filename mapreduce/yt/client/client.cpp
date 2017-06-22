@@ -505,6 +505,23 @@ private:
 
 const size_t TClientBase::BUFFER_SIZE = 64 << 20;
 
+class TLock
+    : public ILock
+{
+public:
+    TLock(const TLockId& lockId)
+        : LockId_(lockId)
+    { }
+
+    virtual const TLockId& GetId() const override
+    {
+        return LockId_;
+    }
+
+private:
+    const TLockId LockId_;
+};
+
 class TTransaction
     : public ITransaction
     , public TClientBase
@@ -533,7 +550,7 @@ public:
         return TransactionId_;
     }
 
-    TLockId Lock(
+    ILockPtr Lock(
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options) override
@@ -551,7 +568,7 @@ public:
         if (options.ChildKey_) {
             header.AddParam("child_key", *options.ChildKey_);
         }
-        return ParseGuidFromResponse(RetryRequest(Auth_, header));
+        return ::MakeIntrusive<TLock>(ParseGuidFromResponse(RetryRequest(Auth_, header)));
     }
 
     void Commit() override
