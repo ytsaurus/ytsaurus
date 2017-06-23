@@ -431,6 +431,8 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
+    TDuration ClusterDirectorySynchronizerCheckPeriod;
+
     TDuration NodeShardsUpdatePeriod;
 
     TDuration ResourceDemandSanityCheckPeriod;
