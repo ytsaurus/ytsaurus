@@ -259,7 +259,9 @@ private:
             auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
             PreloadInMemoryStore(tabletSnapshot, store, CompressionInvoker_);
             finalizer.Release();
-            storeManager->EndStorePreload(store);
+            if (storeManager->GetInMemoryConfigRevision() == revision) {
+                storeManager->EndStorePreload(store);
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error preloading tablet store, backed off");
         }
