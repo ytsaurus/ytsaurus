@@ -333,7 +333,7 @@ class OperationArchiver(object):
             value_columns.append("events")
         if self.version >= 10:
             value_columns.append("alerts")
-        if self.version >= 11:
+        if self.version >= 13:
             value_columns.append("slot_index")
 
         by_id_row = {}
