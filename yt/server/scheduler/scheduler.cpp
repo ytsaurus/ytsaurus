@@ -2437,8 +2437,6 @@ private:
     {
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
-        // COMPAT(babenko)
-        dynamicOrchidService->AddChild("job_by_id", New<TJobsService>(this));
         dynamicOrchidService->AddChild("jobs", New<TJobsService>(this));
         return dynamicOrchidService;
     }
