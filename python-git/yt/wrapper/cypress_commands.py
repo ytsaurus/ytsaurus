@@ -411,12 +411,12 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             self.content = content
             self.force_search = force_search
 
-    def process_response_error(error, map_node):
-        map_node.content = None
+    def process_response_error(error, node):
+        node.content = None
         if error.is_access_denied():
-            logger.warning("Cannot traverse %s, access denied" % map_node.path)
-        elif error.is_resolve_error() and map_node.ignore_resolve_error:
-            logger.warning("Path %s is missing" % map_node.path)
+            logger.warning("Cannot traverse %s, access denied" % node.path)
+        elif error.is_resolve_error() and node.ignore_resolve_error:
+            logger.warning("Path %s is missing" % node.path)
         else:
             raise
 
@@ -425,87 +425,86 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
         return content.attributes.get("opaque", False) and content.attributes["type"] != "document" or \
                content.attributes["type"] in ("account_map", "tablet_cell")
 
-    def safe_batch_get(map_nodes, batch_client):
+    def safe_batch_get(nodes, batch_client):
         get_result = []
-        for map_node in map_nodes:
-            get_result.append(batch_client.get(map_node.path, attributes=request_attributes, read_from=read_from))
+        for node in nodes:
+            get_result.append(batch_client.get(node.path, attributes=request_attributes, read_from=read_from))
         batch_client.commit_batch()
 
-        for content, map_node in zip(get_result, map_nodes):
+        for content, node in zip(get_result, nodes):
             try:
                 if content.get_error():
                     raise YtResponseError(content.get_error())
-                map_node.content = content.get_result()
+                node.content = content.get_result()
             except YtResponseError as rsp:
-                process_response_error(rsp, map_node)
-            yield map_node
+                process_response_error(rsp, node)
+            yield node
 
-    def safe_get(map_nodes, client):
-        for map_node in map_nodes:
+    def safe_get(nodes, client):
+        for node in nodes:
             try:
-                map_node.content = get(map_node.path, attributes=request_attributes, client=client, read_from=read_from)
+                node.content = get(node.path, attributes=request_attributes, client=client, read_from=read_from)
             except YtResponseError as rsp:
-                process_response_error(rsp, map_node)
-            yield map_node
+                process_response_error(rsp, node)
+            yield node
 
     if enable_batch_mode:
         batch_client = create_batch_client(client=client)
 
     ignore_root_path_resolve_error = get_config(client)["ignore_root_path_resolve_error_in_search"]
 
-    def process_node(map_node, nodes_to_request):
-        if map_node.content is None:
+    def process_node(node, nodes_to_request):
+        if node.content is None:
             return
-        if map_node.path in exclude or (depth_bound is not None and map_node.depth > depth_bound):
+        if node.path in exclude or (depth_bound is not None and node.depth > depth_bound):
             return
-        if subtree_filter is not None and not subtree_filter(map_node.path, map_node.content):
+        if subtree_filter is not None and not subtree_filter(node.path, node.content):
             return
 
         # If content is YsonEntity and does not have attributes at all
         # (even "type") then user does not have permission to access it.
-        if isinstance(map_node.content, yson.YsonEntity) and not map_node.content.attributes:
-            logger.warning("Access to %s is denied", map_node.path)
+        if isinstance(node.content, yson.YsonEntity) and not node.content.attributes:
+            logger.warning("Access to %s is denied", node.path)
             return
 
-        if is_opaque(map_node.content) and not map_node.ignore_opaque:
-            map_node.ignore_opaque = True
-            nodes_to_request.append(map_node)
+        if is_opaque(node.content) and not node.ignore_opaque:
+            node.ignore_opaque = True
+            nodes_to_request.append(node)
             return
 
-        object_type = map_node.content.attributes["type"]
+        object_type = node.content.attributes["type"]
         if object_type == "link" and follow_links:
-            map_node.ignore_opaque = False
-            nodes_to_request.append(map_node)
+            node.ignore_opaque = False
+            nodes_to_request.append(node)
             return
 
         if (node_type is None or object_type in flatten(node_type)) and \
-                (object_filter is None or object_filter(map_node.content)) and \
-                (path_filter is None or path_filter(map_node.path)):
+                (object_filter is None or object_filter(node.content)) and \
+                (path_filter is None or path_filter(node.path)):
             yson_path_attributes = dict(ifilter(lambda item: item[0] in attributes,
-                                                iteritems(map_node.content.attributes)))
-            yson_path = yson.to_yson_type(map_node.path, attributes=yson_path_attributes)
+                                                iteritems(node.content.attributes)))
+            yson_path = yson.to_yson_type(node.path, attributes=yson_path_attributes)
             yield yson_path
 
-        if isinstance(map_node.content, dict):
+        if isinstance(node.content, dict):
             if map_node_order is not None:
-                items_iter = ((key, map_node.content[key]) for key in map_node_order(map_node.path,
-                                                                                     map_node.content))
+                items_iter = ((key, node.content[key]) for key in map_node_order(node.path, node.content))
             else:
-                items_iter = iteritems(map_node.content)
+                items_iter = iteritems(node.content)
             for key, value in items_iter:
-                path = "{0}/{1}".format(map_node.path, escape_ypath_literal(key))
-                for yson_path in process_node(CompositeNode(path, map_node.depth + 1, value), nodes_to_request):
+                path = "{0}/{1}".format(node.path, escape_ypath_literal(key))
+                for yson_path in process_node(CompositeNode(path, node.depth + 1, value), nodes_to_request):
                     yield yson_path
 
-        if isinstance(map_node.content, builtins.list):
+        if isinstance(node.content, builtins.list):
             if list_node_order is not None:
-                enumeration = ((index, map_node.content[index]) for index in list_node_order(
-                    map_node.path, map_node.content))
+                enumeration = ((index, node.content[index]) for index in list_node_order(
+                    node.path, node.content))
             else:
-                enumeration = enumerate(map_node.content)
+                enumeration = enumerate(node.content)
             for index, value in enumeration:
-                path = ypath_join(map_node.path, str(index))
-                for yson_path in process_node(CompositeNode(path, map_node.depth + 1, value), nodes_to_request):
+                path = ypath_join(node.path, str(index))
+                for yson_path in process_node(CompositeNode(path, node.depth + 1, value), nodes_to_request):
                     yield yson_path
 
     nodes_to_request = []
@@ -518,8 +517,8 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             nodes_to_process = safe_get(nodes_to_request, client)
         nodes_to_request = []
 
-        for map_node in nodes_to_process:
-            for yson_path in process_node(map_node, nodes_to_request):
+        for node in nodes_to_process:
+            for yson_path in process_node(node, nodes_to_request):
                 yield yson_path
 
 def remove_with_empty_dirs(path, force=True, client=None):
