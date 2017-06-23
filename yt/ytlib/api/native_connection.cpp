@@ -353,6 +353,13 @@ public:
     {
         LightPool_.Reset();
         HeavyPool_.Reset();
+
+        ClusterDirectory_.Reset();
+
+        {
+            auto guard = Guard(CellDirectorySynchronizerLock_);
+            ClusterDirectorySynchronizer_.Reset();
+        }
     }
 
 private:
@@ -380,7 +387,7 @@ private:
     TSpinLock CellDirectorySynchronizerLock_;
     TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
 
-    const TClusterDirectoryPtr ClusterDirectory_ = New<TClusterDirectory>();
+    TClusterDirectoryPtr ClusterDirectory_ = New<TClusterDirectory>();
     TSpinLock ClusterDirectorySynchronizerLock_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
