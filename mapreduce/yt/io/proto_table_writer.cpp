@@ -6,6 +6,7 @@
 
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/interface/protos/extension.pb.h>
+#include <contrib/libs/protobuf/unknown_field_set.h>
 
 namespace NYT {
 
@@ -141,6 +142,10 @@ TOutputStream* TLenvalProtoTableWriter::GetStream(size_t tableIndex) const
 void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 {
     ValidateProtoDescriptor(row, tableIndex, Descriptors_, false);
+
+    Y_VERIFY(row.GetReflection()->GetUnknownFields(row).empty(),
+        "Message has unknown fields. This probably means bug in client code.\n"
+        "Message: %s", ~row.DebugString());
 
     auto* stream = GetStream(tableIndex);
     i32 size = row.ByteSize();
