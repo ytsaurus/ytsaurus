@@ -52,7 +52,7 @@ public:
 private:
     const TClusterDirectorySynchronizerConfigPtr Config_;
     const TWeakPtr<IConnection> DirectoryConnection_;
-    const TClusterDirectoryPtr ClusterDirectory_;
+    const TWeakPtr<TClusterDirectory> ClusterDirectory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
@@ -77,7 +77,12 @@ private:
             auto meta = WaitFor(client->GetClusterMeta(options))
                 .ValueOrThrow();
 
-            ClusterDirectory_->UpdateDirectory(*meta.ClusterDirectory);
+            auto clusterDirectory = ClusterDirectory_.Lock();
+            if (!clusterDirectory) {
+                THROW_ERROR_EXCEPTION("Directory is not available");
+            }
+
+            clusterDirectory->UpdateDirectory(*meta.ClusterDirectory);
 
             LOG_DEBUG("Finished updating cluster directory");
         } catch (const std::exception& ex) {
