@@ -955,7 +955,7 @@ public:
         RegisterParameter("max_job_nodes_per_operation", MaxJobNodesPerOperation)
             .Default(200)
             .GreaterThanOrEqual(0)
-            .LessThanOrEqual(200);
+            .LessThanOrEqual(250);
 
         RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
             .Default(128)
