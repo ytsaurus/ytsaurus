@@ -790,7 +790,7 @@ private:
                 return nullptr;
             }
             try {
-                auto connection = GetConnectionOrThrow(CellTagFromId(transactionId));
+                auto connection = Bootstrap->GetRemoteConnectionOrThrow(CellTagFromId(transactionId));
                 auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
 
                 TTransactionAttachOptions options;
@@ -1206,22 +1206,6 @@ private:
     {
         auto error = WaitFor(Bootstrap->GetMasterClient()->GetNativeConnection()->SyncClusterDirectory());
         SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
-    }
-
-    INativeConnectionPtr FindConnection(TCellTag cellTag)
-    {
-        auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
-        return cellTag == localConnection->GetCellTag()
-            ? localConnection
-            : localConnection->GetClusterDirectory()->FindConnection(cellTag);
-    }
-
-    INativeConnectionPtr GetConnectionOrThrow(TCellTag cellTag)
-    {
-        auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
-        return cellTag == localConnection->GetCellTag()
-            ? localConnection
-            : localConnection->GetClusterDirectory()->GetConnectionOrThrow(cellTag);
     }
 };
 

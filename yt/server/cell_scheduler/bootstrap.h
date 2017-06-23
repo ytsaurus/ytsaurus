@@ -48,6 +48,9 @@ public:
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
     const TCoreDumperPtr& GetCoreDumper() const;
 
+    NApi::INativeConnectionPtr FindRemoteConnection(NObjectClient::TCellTag cellTag);
+    NApi::INativeConnectionPtr GetRemoteConnectionOrThrow(NObjectClient::TCellTag cellTag);
+
     void Run();
 
 private:
@@ -60,7 +63,8 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     std::unique_ptr<NHttp::TServer> HttpServer_;
-    NApi::INativeClientPtr MasterClient_;
+    NApi::INativeConnectionPtr Connection_;
+    NApi::INativeClientPtr Client_;
     NScheduler::TSchedulerPtr Scheduler_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;

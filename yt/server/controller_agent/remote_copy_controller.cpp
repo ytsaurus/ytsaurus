@@ -277,20 +277,11 @@ private:
 
     virtual void InitializeConnections() override
     {
+        auto connection = GetRemoteConnection();
+
         TClientOptions options;
         options.User = AuthenticatedUser;
-
-        if (Spec_->ClusterConnection) {
-            auto connection = CreateNativeConnection(*Spec_->ClusterConnection);
-            AuthenticatedInputMasterClient = connection->CreateNativeClient(options);
-        } else {
-            AuthenticatedInputMasterClient = Host
-                ->GetMasterClient()
-                ->GetNativeConnection()
-                ->GetClusterDirectory()
-                ->GetConnectionOrThrow(*Spec_->ClusterName)
-                ->CreateNativeClient(options);
-        }
+        AuthenticatedInputMasterClient = connection->CreateNativeClient(options);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -300,12 +291,12 @@ private:
 
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
-        return std::vector<TRichYPath>(1, Spec_->OutputTablePath);
+        return {Spec_->OutputTablePath};
     }
 
     virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
-        return std::vector<TPathWithStage>();
+        return {};
     }
 
     virtual void PrepareOutputTables() override
@@ -515,20 +506,9 @@ private:
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
         schedulerJobSpecExt->set_table_reader_options("");
-
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
-        const auto& clusterDirectory = Host
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetClusterDirectory();
-        TNativeConnectionConfigPtr connectionConfig;
-        if (Spec_->ClusterConnection) {
-            connectionConfig = *Spec_->ClusterConnection;
-        } else {
-            auto connection = clusterDirectory->GetConnectionOrThrow(*Spec_->ClusterName);
-            connectionConfig = CloneYsonSerializable(connection->GetConfig());
-        }
+        auto connectionConfig = CloneYsonSerializable(GetRemoteConnectionConfig());
         if (Spec_->NetworkName) {
             connectionConfig->Networks = {*Spec_->NetworkName};
         }
@@ -539,6 +519,40 @@ private:
         remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
     }
 
+
+    INativeConnectionPtr GetRemoteConnection()
+    {
+        if (Spec_->ClusterConnection) {
+            return CreateNativeConnection(*Spec_->ClusterConnection);
+        } else if (Spec_->ClusterName) {
+            auto connection = Host
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetClusterDirectory()
+                ->GetConnectionOrThrow(*Spec_->ClusterName);
+
+            auto* nativeConnection = dynamic_cast<INativeConnection*>(connection.Get());
+            if (!nativeConnection) {
+                THROW_ERROR_EXCEPTION("No native connection could be established with cluster %Qv",
+                    *Spec_->ClusterName);
+            }
+
+            return nativeConnection;
+        } else {
+            THROW_ERROR_EXCEPTION("No remote cluster is specified");
+        }
+    }
+
+    TNativeConnectionConfigPtr GetRemoteConnectionConfig()
+    {
+        if (Spec_->ClusterConnection) {
+            return *Spec_->ClusterConnection;
+        } else if (Spec_->ClusterName) {
+            return GetRemoteConnection()->GetConfig();
+        } else {
+            THROW_ERROR_EXCEPTION("No remote cluster is specified");
+        }
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
