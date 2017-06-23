@@ -9,6 +9,7 @@ from yt.packages.six.moves import map as imap
 import yt.wrapper as yt
 
 import os
+import stat
 import sys
 import tempfile
 import shutil
@@ -83,6 +84,18 @@ for line in sys.stdin:
 class TestJobTool(object):
     JOB_TOOL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt-job-tool")
 
+    TEXT_YSON = "<format=pretty>yson"
+
+    def get_failing_command(self):
+        return "cat > {tmpdir}/$YT_JOB_ID.input && echo ERROR_INTENDED_BY_TEST >&2 && exit 1".format(tmpdir=self._tmpdir)
+
+    def get_ok_command(self):
+        return "cat > {tmpdir}/$YT_JOB_ID.input && echo OK_COMMAND >&2".format(tmpdir=self._tmpdir)
+
+    def setup(self):
+        self._tmpdir = tempfile.mkdtemp(dir=TESTS_SANDBOX)
+        os.chmod(self._tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO) # allow user job to write to this directory
+
     def _prepare_job_environment(self, yt_env_job_archive, operation_id, job_id, full=False):
         args = [
             sys.executable,
@@ -116,7 +129,8 @@ class TestJobTool(object):
         job_path = self._prepare_job_environment(yt_env_job_archive, operation_id, job_id, full)
 
         assert open(os.path.join(job_path, "sandbox", "_test_file")).read().strip() == "stringdata"
-        assert "1\t2\n" == open(os.path.join(job_path, "input")).read()
+        with open(os.path.join(self._tmpdir, job_id + ".input")) as canonical_input:
+            assert canonical_input.read() == open(os.path.join(job_path, "input")).read()
 
         run_config = os.path.join(job_path, "run_config")
         assert os.path.exists(run_config)
@@ -133,17 +147,12 @@ class TestJobTool(object):
                 assert proc.returncode == 0
             else:
                 assert proc.returncode != 0
-                assert "RuntimeError" in to_native_str(proc.stderr.read())
-                assert "RuntimeError" in open(os.path.join(job_path, "output", "2")).read()
+                assert "ERROR_INTENDED_BY_TEST" in to_native_str(proc.stderr.read())
+                assert "ERROR_INTENDED_BY_TEST" in open(os.path.join(job_path, "output", "2")).read()
 
         shutil.rmtree(job_path)
 
     def test_job_tool(self, yt_env_job_archive):
-        def failing_mapper(rec):
-            raise RuntimeError("error")
-        def failing_reducer(key, recs):
-            raise RuntimeError("error")
-
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
         yt.run_sort(table, sort_by=["key"])
@@ -151,75 +160,77 @@ class TestJobTool(object):
         file_ = TEST_DIR + "/_test_file"
         yt.write_file(file_, b"stringdata")
 
-        op = yt.run_map(failing_mapper, table, TEST_DIR + "/output", format="yamr",
+        op = yt.run_map(self.get_failing_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON,
                         yt_files=[file_], sync=False)
         op.wait(check_result=False)
         self._check(op.id, yt_env_job_archive)
 
-        op = yt.run_reduce(failing_reducer, table, TEST_DIR + "/output", format="yamr",
+        op = yt.run_reduce(self.get_failing_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON,
                            yt_files=[file_], sync=False, reduce_by=["key"])
         op.wait(check_result=False)
         self._check(op.id, yt_env_job_archive)
 
-        op = yt.run_map_reduce(failing_mapper, "cat", table, TEST_DIR + "/output", format="yamr",
+        op = yt.run_map_reduce(self.get_failing_command(), "cat", table, TEST_DIR + "/output", format=self.TEXT_YSON,
                                map_yt_files=[file_], reduce_by=["key"], sync=False)
         op.wait(check_result=False)
         self._check(op.id, yt_env_job_archive)
 
-        op = yt.run_map_reduce("cat", failing_reducer, table, TEST_DIR + "/output", format="yamr",
+        op = yt.run_map_reduce("cat", self.get_failing_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON,
                                reduce_yt_files=[file_], reduce_by=["key"], sync=False)
         op.wait(check_result=False)
         self._check(op.id, yt_env_job_archive)
 
         # Should fallback on using input context
-        op = yt.run_map("sleep 1000; cat", table, TEST_DIR + "/output", format="yamr",
+        op = yt.run_map(self.get_ok_command() + "; sleep 1000", table, TEST_DIR + "/output", format=self.TEXT_YSON,
                         yt_files=[file_], sync=False)
         self._check(op.id, yt_env_job_archive, check_running=True)
         op.abort()
 
     def test_job_tool_full(self, yt_env_job_archive):
-        def copy_mapper(rec):
-            # We write something to stderr to make sure that job appears in cypress
-            sys.stderr.write("vzshukh")
-            sys.stderr.flush()
-            yield rec
-
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
 
         file_ = TEST_DIR + "/_test_file"
         yt.write_file(file_, b"stringdata")
 
-        op = yt.run_map(copy_mapper, table, TEST_DIR + "/output", format="yamr", yt_files=[file_])
+        op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_])
+        self._check(op.id, yt_env_job_archive, full=True, expect_ok_return_code=True)
+
+    def test_job_tool_full_join_reduce(self, yt_env_job_archive):
+        primary_table = TEST_DIR + "/primary"
+        yt.write_table(yt.TablePath(primary_table, sorted_by=["key", "subkey"]), [{"key": "1", "subkey": "2", "value": "2"}])
+        foreign_table = TEST_DIR + "/foreign"
+        yt.write_table(yt.TablePath(foreign_table, sorted_by=["key"]), [{"key": "1"}])
+
+        file_ = TEST_DIR + "/_test_file"
+        yt.write_file(file_, b"stringdata")
+
+        op = yt.run_join_reduce(
+            self.get_ok_command(),
+            source_table=[yt.TablePath(foreign_table, attributes={"foreign": True}),
+                          yt.TablePath(primary_table)],
+            destination_table=TEST_DIR + "/output",
+            join_by=["key"],
+            format="yson",
+            yt_files=[file_])
         self._check(op.id, yt_env_job_archive, full=True, expect_ok_return_code=True)
 
     def test_run_sh(self, yt_env_job_archive):
-        def copy_mapper(rec):
-            sys.stderr.write("vzshukh")
-            sys.stderr.flush()
-            yield rec
-
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
 
         file_ = TEST_DIR + "/_test_file"
         yt.write_file(file_, b"stringdata")
 
-        op = yt.run_map(copy_mapper, table, TEST_DIR + "/output", format="yamr", yt_files=[file_])
+        op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_])
         job_id = yt.list("//sys/operations/{0}/jobs".format(op.id))[0]
         path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
         p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
-        assert p_stderr == u"vzshukh".encode("ascii")
+        assert p_stderr == u"OK_COMMAND\n".encode("ascii")
 
     def test_environment(self, yt_env_job_archive):
-        def copy_mapper(rec):
-            import os
-            if os.environ["YT_JOB_TOOL_TEST_VARIABLE"] != "present":
-                raise RuntimeError
-            sys.stderr.write("vzshukh")
-            sys.stderr.flush()
-            yield rec
+        command = self.get_ok_command() + """ ; if [ "$YT_JOB_TOOL_TEST_VARIABLE" != "present" ] ; then echo "BAD VARIABLE" >&2 ; exit 1 ; fi """
 
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
@@ -227,10 +238,10 @@ class TestJobTool(object):
         file_ = TEST_DIR + "/_test_file"
         yt.write_file(file_, b"stringdata")
 
-        op = yt.run_map(copy_mapper, table, TEST_DIR + "/output", format="yamr", yt_files=[file_],
+        op = yt.run_map(command, table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_],
                         spec={"mapper": {"environment": {"YT_JOB_TOOL_TEST_VARIABLE": "present"}}})
         job_id = yt.list("//sys/operations/{0}/jobs".format(op.id))[0]
         path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
         p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
-        assert p_stderr == u"vzshukh".encode("ascii")
+        assert p_stderr == u"OK_COMMAND\n".encode("ascii")
