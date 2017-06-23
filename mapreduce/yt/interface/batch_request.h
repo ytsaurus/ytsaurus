@@ -11,6 +11,7 @@ namespace NYT {
 
 namespace NDetail {
     class TBatchRequestImpl;
+    class TClient;
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////
@@ -135,7 +136,7 @@ private:
     THolder<TBatchRequest> TmpWithTransaction_;
 
 private:
-    friend class TClient;
+    friend class NYT::NDetail::TClient;
 };
 
 ////////////////////////////////////////////////////////////////////
