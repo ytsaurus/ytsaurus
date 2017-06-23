@@ -17,8 +17,6 @@ import devtools.swag.ports
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
 
-DEFAULT_YT_VERSION = "18_5"
-
 def get_value(value, default):
     if value is None:
         return default
@@ -70,7 +68,17 @@ class YtConfig(object):
         self.operations_memory_limit = get_value(operations_memory_limit, 25 * 1024 ** 3)
         self.forbid_chunk_storage_in_tmpfs = forbid_chunk_storage_in_tmpfs
 
-        self.yt_version = get_value(yt_version, DEFAULT_YT_VERSION)
+        yt_package_versions = os.listdir(yatest.common.build_path("yt/packages"))
+        if len(yt_package_versions) != 1:
+            raise RuntimeError("Test should specify exactly one version of YT package in DEPENDS")
+
+        if yt_version is None:
+            self.yt_version = yt_package_versions[-1]
+        else:
+            if yt_version not in yt_package_versions:
+                raise RuntimeError("YT package version mismatch (version in DEPENDS: {0}, version in YtConfig: {1}) "
+                                   .format(yt_package_versions[-1], yt_version))
+            self.yt_version = yt_version
 
 class YtStuff(object):
     def __init__(self, config=None):
