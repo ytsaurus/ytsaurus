@@ -470,33 +470,6 @@ ACTIONS[11] = [
     set_table_ttl_2years("ordered_by_start_time"),
 ]
 
-TRANSFORMS[11] = [
-    Convert(
-        "ordered_by_id",
-        table_info=TableInfo([
-                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("operation_type", "string"),
-                ("progress", "any"),
-                ("spec", "any"),
-                ("brief_progress", "any"),
-                ("brief_spec", "any"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("filter_factors", "string"),
-                ("result", "any"),
-                ("events", "any"),
-                ("alerts", "any"),
-                ("slot_index", "int64")
-            ],
-            in_memory=True,
-            get_pivot_keys=get_default_pivots))
-]
-
 def add_attributes(path, attributes):
     table = "{}/{}".format(BASE_PATH, path)
 
@@ -522,6 +495,33 @@ ACTIONS[12] = [
     add_sys_bundle("ordered_by_start_time"),
     add_sys_bundle("jobs"),
     add_sys_bundle("stderrs"),
+]
+
+TRANSFORMS[13] = [
+    Convert(
+        "ordered_by_id",
+        table_info=TableInfo([
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any"),
+                ("spec", "any"),
+                ("brief_progress", "any"),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64")
+            ],
+            in_memory=True,
+            get_pivot_keys=get_default_pivots))
 ]
 
 def swap_table(client, target, source, version):
