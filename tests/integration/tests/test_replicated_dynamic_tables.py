@@ -85,51 +85,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self.sync_create_cells(1, driver=self.replica_driver)
 
 
-    # def test_replication_mode_validation_on_create(self):
-    #    with pytest.raises(YtError): create("table", "//tmp/t", attributes={
-    #        "replication_mode": "source"
-    #    })
-    #    with pytest.raises(YtError): create("table", "//tmp/t", attributes={
-    #        "replication_mode": "source",
-    #        "schema": self.SIMPLE_SCHEMA
-    #    })
-    #    with pytest.raises(YtError): create("table", "//tmp/t", attributes={
-    #        "replication_mode": "source",
-    #        "dynamic": True,
-    #        "schema": [
-    #            {"name": "value1", "type": "string"},
-    #            {"name": "value2", "type": "int64"}
-    #        ]
-    #    })
-
-    # def test_default_replication_mode(self):
-    #     create("table", "//tmp/t", attributes={
-    #         "dynamic": True,
-    #         "schema": self.SIMPLE_SCHEMA
-    #     })
-    #     assert get("//tmp/t/@replication_mode") == "none"
-    #
-    # def test_replication_mode_change_sanity(self):
-    #    create("table", "//tmp/t", attributes={
-    #        "dynamic": True,
-    #        "schema": self.SIMPLE_SCHEMA
-    #    })
-    #    with pytest.raises(YtError): alter_table("//tmp/t", replication_mode="source")
-    #    alter_table("//tmp/t", replication_mode="asynchronous_sink")
-    #    assert get("//tmp/t/@replication_mode") == "asynchronous_sink"
-    #    alter_table("//tmp/t", replication_mode="none")
-    #    assert get("//tmp/t/@replication_mode") == "none"
-
-    # def test_replication_mode_change_must_be_unmounted(self):
-    #     self._create_cells()
-    #     create("table", "//tmp/t", attributes={
-    #         "dynamic": True,
-    #         "schema": self.SIMPLE_SCHEMA
-    #     })
-    #     self.sync_mount_table("//tmp/t")
-    #     with pytest.raises(YtError): alter_table("//tmp/t", replication_mode="asynchronous_sink")
-
-
     def test_replicated_table_must_be_dynamic(self):
         with pytest.raises(YtError): create("replicated_table", "//tmp/t")
 
