@@ -2743,6 +2743,7 @@ class TestSchedulerAlerts(YTEnvSetup):
             "alerts_update_period": 100,
             "watchers_update_period": 100,
             "fair_share_update_period": 100,
+            "cluster_directory_synchronizer_check_period": 100,
         }
     }
 
@@ -2783,6 +2784,20 @@ class TestSchedulerAlerts(YTEnvSetup):
 
         time.sleep(0.5)
         assert get("//sys/scheduler/@alerts") == []
+
+    def test_cluster_directory(self):
+        assert get("//sys/scheduler/@alerts") == []
+
+        set("//sys/clusters/banach", {})
+
+        time.sleep(1.0)
+        assert len(get("//sys/scheduler/@alerts")) == 1
+
+        set("//sys/clusters", {})
+
+        time.sleep(1.0)
+        assert get("//sys/scheduler/@alerts") == []
+
 
 class TestSchedulerCaching(YTEnvSetup):
     NUM_MASTERS = 1

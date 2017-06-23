@@ -285,6 +285,7 @@ private:
 
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr AlertsExecutor;
+    TPeriodicExecutorPtr ClusterDirectorySynchronizerCheckExecutor;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
@@ -524,8 +525,7 @@ private:
 
         void SyncClusterDirectory()
         {
-            WaitFor(Owner->Bootstrap->GetMasterClient()->GetNativeConnection()->SyncClusterDirectory())
-                .ThrowOnError();
+            Owner->SyncClusterDirectory();
         }
 
         // - Request operations and their states.
@@ -729,7 +729,6 @@ private:
         }
     };
 
-
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
         TCellTag cellTag = PrimaryMasterCellTag)
@@ -892,6 +891,13 @@ private:
             Config->AlertsUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
         AlertsExecutor->Start();
+
+        ClusterDirectorySynchronizerCheckExecutor = New<TPeriodicExecutor>(
+            CancelableControlInvoker,
+            BIND(&TImpl::SyncClusterDirectory, MakeWeak(this)),
+            Config->ClusterDirectorySynchronizerCheckPeriod,
+            EPeriodicExecutorMode::Automatic);
+        ClusterDirectorySynchronizerCheckExecutor->Start();
     }
 
     void StopPeriodicActivities()
@@ -904,6 +910,11 @@ private:
         if (AlertsExecutor) {
             AlertsExecutor->Stop();
             AlertsExecutor.Reset();
+        }
+
+        if (ClusterDirectorySynchronizerCheckExecutor) {
+            ClusterDirectorySynchronizerCheckExecutor->Stop();
+            ClusterDirectorySynchronizerCheckExecutor.Reset();
         }
     }
 
@@ -1189,6 +1200,12 @@ private:
         if (!rspOrError.IsOK()) {
             LOG_WARNING(rspOrError, "Error updating scheduler alerts");
         }
+    }
+
+    void SyncClusterDirectory()
+    {
+        auto error = WaitFor(Bootstrap->GetMasterClient()->GetNativeConnection()->SyncClusterDirectory());
+        SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
     }
 
     INativeConnectionPtr FindConnection(TCellTag cellTag)
