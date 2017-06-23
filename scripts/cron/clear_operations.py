@@ -327,10 +327,14 @@ class OperationArchiver(object):
         logger.info("Archiving operation %s", op_id)
 
         index_columns = ["state", "authenticated_user", "operation_type"]
-        value_columns = ["progress", "brief_progress", "spec", "brief_spec", "result", "alerts", "slot_index"]
+        value_columns = ["progress", "brief_progress", "spec", "brief_spec", "result"]
 
         if self.version >= 5:
             value_columns.append("events")
+        if self.version >= 10:
+            value_columns.append("alerts")
+        if self.version >= 11:
+            value_columns.append("slot_index")
 
         by_id_row = {}
         for key in index_columns + value_columns:
