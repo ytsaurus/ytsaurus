@@ -36,6 +36,7 @@ JOB_TYPE_TO_SPEC_TYPE = {
     "partition_map": "mapper",
     "ordered_map": "mapper",
     "reduce_combiner": "reducer",
+    "join_reduce": "reducer",
     "sorted_reduce": "reducer",
     "map": "mapper"
 }
@@ -80,7 +81,7 @@ export YT_STARTED_BY_JOB_TOOL=1
 
 INPUT_DATA="{input}"
 
-{command} < $INPUT_DATA {output_descriptors_spec}
+({command}) < $INPUT_DATA {output_descriptors_spec}
 """.format(
     sandbox_path=sandbox_path,
     operation_id=operation_id,
