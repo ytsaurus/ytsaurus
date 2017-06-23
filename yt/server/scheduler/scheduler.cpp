@@ -2324,10 +2324,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& clusterDirectory = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetClusterDirectory();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("connected").Value(MasterConnector_->IsConnected())
@@ -2368,27 +2364,9 @@ private:
                         }
                     })
                 .EndMap()
-                .Item("clusters").DoMapFor(clusterDirectory->GetClusterNames(), [=] (TFluentMap fluent, const TString& clusterName) {
-                    BuildClusterYson(clusterName, fluent);
-                })
                 .Item("config").Value(Config_)
                 .DoIf(Strategy_.operator bool(), BIND(&ISchedulerStrategy::BuildOrchid, Strategy_))
             .EndMap();
-    }
-
-    void BuildClusterYson(const TString& clusterName, IYsonConsumer* consumer)
-    {
-        const auto& clusterDirectory = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetClusterDirectory();
-        auto connection = clusterDirectory->FindConnection(clusterName);
-        if (!connection) {
-            return;
-        }
-        BuildYsonMapFluently(consumer)
-            .Item(clusterName)
-            .Value(connection->GetConfig());
     }
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer) const

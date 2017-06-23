@@ -101,7 +101,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(Controllers_.emplace(operationId, controller).second);
+        YCHECK(ControllerMap_.emplace(operationId, controller).second);
         OperationNodesUpdateExecutor_.AddUpdate(operationId, TOperationNodeUpdate(operationId));
     }
 
@@ -113,7 +113,7 @@ public:
         // NB: Method can be called more than one time.
         {
             TGuard<TSpinLock> guard(ControllersLock_);
-            Controllers_.erase(operationId);
+            ControllerMap_.erase(operationId);
         }
     }
 
@@ -216,7 +216,7 @@ private:
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     TSpinLock ControllersLock_;
-    yhash<TOperationId, IOperationControllerPtr> Controllers_;
+    yhash<TOperationId, IOperationControllerPtr> ControllerMap_;
 
     struct TLivePreviewRequest
     {
@@ -270,14 +270,6 @@ private:
         return proxy.ExecuteBatch();
     }
 
-    INativeConnectionPtr FindConnection(TCellTag cellTag)
-    {
-        auto localConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-        return cellTag == localConnection->GetCellTag()
-            ? localConnection
-            : localConnection->GetClusterDirectory()->FindConnection(cellTag);
-    }
-
     void RefreshTransactions()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
@@ -287,7 +279,7 @@ private:
 
         {
             TGuard<TSpinLock> guard(ControllersLock_);
-            for (auto pair : Controllers_) {
+            for (auto pair : ControllerMap_) {
                 const auto& controller = pair.second;
                 for (const auto& transaction : controller->GetTransactions()) {
                     watchSet.insert(transaction->GetId());
@@ -300,7 +292,7 @@ private:
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);
             if (batchReqs.find(cellTag) == batchReqs.end()) {
-                auto connection = FindConnection(cellTag);
+                auto connection = Bootstrap_->FindRemoteConnection(cellTag);
                 if (!connection) {
                     continue;
                 }
@@ -339,7 +331,7 @@ private:
                 const auto& batchRsp = it->second;
                 auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
                 if (!rspOrError.IsOK()) {
-                    LOG_ERROR(rspOrError, "Found dead transaction %v", id);
+                    LOG_DEBUG(rspOrError, "Found dead transaction (TransactionId: %v)", id);
                     deadTransactionIds.insert(id);
                 }
             }
@@ -350,7 +342,7 @@ private:
         // Check every operation's transactions and raise appropriate notifications.
         {
             TGuard<TSpinLock> guard(ControllersLock_);
-            for (auto pair : Controllers_) {
+            for (auto pair : ControllerMap_) {
                 const auto& controller = pair.second;
                 for (const auto& transaction : controller->GetTransactions()) {
                     if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
@@ -950,8 +942,8 @@ private:
 
         TGuard<TSpinLock> guard(ControllersLock_);
 
-        auto it = Controllers_.find(operationId);
-        if (it == Controllers_.end()) {
+        auto it = ControllerMap_.find(operationId);
+        if (it == ControllerMap_.end()) {
             return nullptr;
         } else {
             return it->second;

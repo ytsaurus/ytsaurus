@@ -21,15 +21,15 @@ class TClusterDirectory
 public:
     //! Returns the connection to cluster with a given #cellTag.
     //! Only applies to native connections. Returns |nullptr| if no connection is found.
-    NApi::INativeConnectionPtr FindConnection(NObjectClient::TCellTag cellTag) const;
+    NApi::IConnectionPtr FindConnection(NObjectClient::TCellTag cellTag) const;
     //! Same as #FindConnection but throws instead of failing.
-    NApi::INativeConnectionPtr GetConnectionOrThrow(NObjectClient::TCellTag cellTag) const;
+    NApi::IConnectionPtr GetConnectionOrThrow(NObjectClient::TCellTag cellTag) const;
 
     //! Returns the connection to cluster with a given #clusterName.
     //! Returns |nullptr| if no connection is found.
-    NApi::INativeConnectionPtr FindConnection(const TString& clusterName) const;
+    NApi::IConnectionPtr FindConnection(const TString& clusterName) const;
     //! Same as #FindConnection but throws instead of failing.
-    NApi::INativeConnectionPtr GetConnectionOrThrow(const TString& clusterName) const;
+    NApi::IConnectionPtr GetConnectionOrThrow(const TString& clusterName) const;
 
     //! Returns the list of names of all registered clusters.
     std::vector<TString> GetClusterNames() const;
@@ -49,7 +49,7 @@ private:
     struct TCluster
     {
         NYTree::INodePtr Config;
-        NApi::INativeConnectionPtr Connection;
+        NApi::IConnectionPtr Connection;
     };
 
     TSpinLock Lock_;
