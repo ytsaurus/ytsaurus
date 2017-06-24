@@ -621,8 +621,6 @@ private:
 
     bool Finalized_ = false;
 
-    NJobTrackerClient::TStatistics ControllerTimeStatistics_;
-
     void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
 };
 
