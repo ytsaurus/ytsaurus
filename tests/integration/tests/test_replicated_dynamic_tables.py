@@ -581,6 +581,45 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         lock("//tmp/t", mode="exclusive", tx=tx2)
         with pytest.raises(YtError): remove_table_replica(replica_id)
 
+    def test_lookup(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"})
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA)
+
+        self.sync_enable_table_replica(replica_id1)
+        self.sync_enable_table_replica(replica_id2)
+
+        for i in xrange(10):
+            insert_rows("//tmp/t", [{"key": i, "value1": "test" + str(i)}])
+
+        for i in xrange(9):
+            assert lookup_rows("//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]) == \
+                               [{"key": i, "value1": "test" + str(i)}, {"key": i + 1, "value1": "test" + str(i + 1)}]
+
+        assert lookup_rows("//tmp/t", [{"key": 100000}]) == []
+
+        self.sync_disable_table_replica(replica_id2)
+        alter_table_replica(replica_id2, mode="async")
+        clear_metadata_caches()
+        sleep(1.0)
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}])
+        insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}], require_sync_replica=False)
+
+        alter_table_replica(replica_id2, mode="sync")
+        sleep(1.0)
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key": 666}]) == []
+
+        self.sync_enable_table_replica(replica_id2)
+        sleep(1.0)
+        assert lookup_rows("//tmp/t", [{"key": 666}], column_names=["key", "value1"]) == [{"key": 666, "value1": "hello"}]
+
+        alter_table_replica(replica_id2, mode="async")
+        sleep(1.0)
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key": 666}]) == []
+
 ##################################################################
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):

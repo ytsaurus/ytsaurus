@@ -199,27 +199,25 @@ private:
         for (const auto& tabletId : tabletIds) {
             const auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
-            auto* protoTabletInfo = response->add_tablet_info();
+            auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
+            protoTabletInfo->set_total_row_count(tabletSnapshot->RuntimeData->TotalRowCount.load());
 
             for (const auto& replicaPair : tabletSnapshot->Replicas) {
                 const auto& replicaId = replicaPair.first;
                 const auto& replicaSnapshot = replicaPair.second;
 
-                auto lastReplicationTimestamp =
-                    replicaSnapshot->RuntimeData->LastReplicationTimestamp.load(std::memory_order_relaxed);
+                auto lastReplicationTimestamp = replicaSnapshot->RuntimeData->LastReplicationTimestamp.load();
                 if (lastReplicationTimestamp == NullTimestamp) {
-                    auto replicationTimestamp =
-                        replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load(std::memory_order_relaxed);
+                    auto replicationTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
                     lastReplicationTimestamp = replicationTimestamp;
                 }
 
-                auto* protoReplicaInfo = protoTabletInfo->add_replica_info();
+                auto* protoReplicaInfo = protoTabletInfo->add_replicas();
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
                 protoReplicaInfo->set_last_replication_timestamp(lastReplicationTimestamp);
-
-                auto mode = replicaSnapshot->RuntimeData->Mode.load(std::memory_order_relaxed);
-                protoReplicaInfo->set_mode(static_cast<int>(mode));
+                protoReplicaInfo->set_mode(static_cast<int>(replicaSnapshot->RuntimeData->Mode.load()));
+                protoReplicaInfo->set_current_replication_row_index(replicaSnapshot->RuntimeData->CurrentReplicationRowIndex.load());
             }
         }
         context->Reply();
