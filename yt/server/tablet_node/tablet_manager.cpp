@@ -1963,11 +1963,7 @@ private:
             }
         }
 
-        // XXX(sandello): This is a _temporary_ workaround for recent failures on Alyx.
-        // This is no-op for non-replicated writes.
-        if (syncReplicatedRowCount > 0) {
-            YCHECK(!transaction->GetReplicatedRowsPrepared());
-        }
+        YCHECK(!transaction->GetReplicatedRowsPrepared());
         for (const auto& pair : replicaToRowCount) {
             auto* replicaInfo = pair.first;
             auto rowCount = pair.second;
