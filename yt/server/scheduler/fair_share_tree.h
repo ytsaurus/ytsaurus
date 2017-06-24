@@ -111,7 +111,7 @@ protected:
     TJobResources TotalResourceLimits_;
 
     int PendingJobCount_ = 0;
-    TInstant StartTime_ = TInstant();
+    TInstant StartTime_;
 
     int TreeIndex_ = UnassignedTreeIndex;
 
@@ -487,7 +487,7 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    TJobResources AddJob(const TJobId& jobId, const TJobResources resourceUsage);
+    TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage);
     TJobResources RemoveJob(const TJobId& jobId);
 
     bool IsBlocked(
@@ -612,24 +612,6 @@ private:
         TJobIdList::iterator JobIdListIterator;
 
         TJobResources ResourceUsage;
-
-        static void SetPreemptable(TJobProperties* properties)
-        {
-            properties->Preemptable = true;
-            properties->AggressivelyPreemptable = true;
-        }
-
-        static void SetAggressivelyPreemptable(TJobProperties* properties)
-        {
-            properties->Preemptable = false;
-            properties->AggressivelyPreemptable = true;
-        }
-
-        static void SetNonPreemptable(TJobProperties* properties)
-        {
-            properties->Preemptable = false;
-            properties->AggressivelyPreemptable = false;
-        }
     };
 
     yhash<TJobId, TJobProperties> JobPropertiesMap_;
@@ -640,13 +622,15 @@ private:
 
     bool Finalized_ = false;
 
-    NJobTrackerClient::TStatistics ControllerTimeStatistics_;
-
-    void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
-
     NConcurrency::TReaderWriterSpinLock CachedMinNeededJobResourcesLock_;
     std::vector<TJobResources> CachedMinNeededJobResourcesList_;
     TJobResources CachedMinNeededJobResources_;
+
+
+    void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
+
+    TJobProperties* GetJobProperties(const TJobId& jobId);
+    const TJobProperties* GetJobProperties(const TJobId& jobId) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
