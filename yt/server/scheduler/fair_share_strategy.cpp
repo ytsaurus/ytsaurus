@@ -319,7 +319,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TRootElementSnapshotPtr rootElementSnapshot = GetRootSnapshot();
+        auto rootElementSnapshot = GetRootSnapshot();
 
         for (const auto& job : updatedJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job.OperationId);
@@ -893,7 +893,7 @@ private:
             LastSchedulingInformationLoggedTime_ = now;
         }
 
-        auto logAndCleanSchedulingStatistics = [&] (const TString& stageName) {
+        auto logAndCleanSchedulingStatistics = [&] (const TStringBuf& stageName) {
             if (!enableSchedulingInfoLogging) {
                 return;
             }
@@ -931,7 +931,7 @@ private:
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
 
             if (nonPreemptiveScheduleJobCount > 0) {
-                logAndCleanSchedulingStatistics("Non preemtive");
+                logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
             }
         }
 
@@ -1000,7 +1000,7 @@ private:
                 preemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
             if (preemptiveScheduleJobCount > 0) {
-                logAndCleanSchedulingStatistics("Preemtive");
+                logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
             }
         }
 
@@ -1727,7 +1727,8 @@ private:
             tags);
     }
 
-    TRootElementSnapshotPtr GetRootSnapshot() const {
+    TRootElementSnapshotPtr GetRootSnapshot() const
+    {
         TReaderGuard guard(RootElementSnapshotLock);
         return RootElementSnapshot;
     }

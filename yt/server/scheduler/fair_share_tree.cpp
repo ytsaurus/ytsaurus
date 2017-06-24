@@ -1308,7 +1308,7 @@ TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
         return ZeroJobResources();
     }
 
-    IncreaseJobResourceUsage(JobPropertiesMap_.at(jobId), resourcesDelta);
+    IncreaseJobResourceUsage(GetJobProperties(jobId), resourcesDelta);
     return resourcesDelta;
 }
 
@@ -1334,18 +1334,18 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     {
         while (!left->empty()) {
             auto jobId = left->back();
-            auto& jobProperties = JobPropertiesMap_.at(jobId);
+            auto* jobProperties = GetJobProperties(jobId);
 
-            if (getUsageRatio(resourceUsage - jobProperties.ResourceUsage) < fairShareRatioBound) {
+            if (getUsageRatio(resourceUsage - jobProperties->ResourceUsage) < fairShareRatioBound) {
                 break;
             }
 
             left->pop_back();
             right->push_front(jobId);
-            jobProperties.JobIdListIterator = right->begin();
-            onMovedLeftToRight(&jobProperties);
+            jobProperties->JobIdListIterator = right->begin();
+            onMovedLeftToRight(jobProperties);
 
-            resourceUsage -= jobProperties.ResourceUsage;
+            resourceUsage -= jobProperties->ResourceUsage;
         }
 
         while (!right->empty()) {
@@ -1354,20 +1354,35 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             }
 
             auto jobId = right->front();
-            auto& jobProperties = JobPropertiesMap_.at(jobId);
+            auto* jobProperties = GetJobProperties(jobId);
 
             right->pop_front();
             left->push_back(jobId);
-            jobProperties.JobIdListIterator = --left->end();
-            onMovedRightToLeft(&jobProperties);
+            jobProperties->JobIdListIterator = --left->end();
+            onMovedRightToLeft(jobProperties);
 
-            resourceUsage += jobProperties.ResourceUsage;
+            resourceUsage += jobProperties->ResourceUsage;
         }
 
         return resourceUsage;
     };
 
-    // NB: We need 2 iteration since thresholds may change significantly such that we need
+    auto setPreemptable = [] (TJobProperties* properties) {
+        properties->Preemptable = true;
+        properties->AggressivelyPreemptable = true;
+    };
+
+    auto setAggressivelyPreemptable = [] (TJobProperties* properties) {
+        properties->Preemptable = false;
+        properties->AggressivelyPreemptable = true;
+    };
+
+    auto setNonPreemptable = [] (TJobProperties* properties) {
+        properties->Preemptable = false;
+        properties->AggressivelyPreemptable = false;
+    };
+
+    // NB: We need 2 iterations since thresholds may change significantly such that we need
     // to move job from preemptable list to non-preemptable list through aggressively preemptable list.
     for (int iteration = 0; iteration < 2; ++iteration) {
         auto startNonPreemptableAndAggressivelyPreemptableResourceUsage_ = NonpreemptableResourceUsage_ + AggressivelyPreemptableResourceUsage_;
@@ -1377,16 +1392,16 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             &AggressivelyPreemptableJobs_,
             NonpreemptableResourceUsage_,
             fairShareRatio * aggressivePreemptionSatisfactionThreshold,
-            TJobProperties::SetAggressivelyPreemptable,
-            TJobProperties::SetNonPreemptable);
+            setAggressivelyPreemptable,
+            setNonPreemptable);
 
         auto nonpreemptableAndAggressivelyPreemptableResourceUsage_ = balanceLists(
             &AggressivelyPreemptableJobs_,
             &PreemptableJobs_,
             startNonPreemptableAndAggressivelyPreemptableResourceUsage_,
             fairShareRatio * preemptionSatisfactionThreshold,
-            TJobProperties::SetPreemptable,
-            TJobProperties::SetAggressivelyPreemptable);
+            setPreemptable,
+            setAggressivelyPreemptable);
 
         AggressivelyPreemptableResourceUsage_ = nonpreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
     }
@@ -1403,11 +1418,8 @@ bool TOperationElementSharedState::IsJobPreemptable(const TJobId& jobId, bool ag
 {
     TReaderGuard guard(JobPropertiesMapLock_);
 
-    if (aggressivePreemptionEnabled) {
-        return JobPropertiesMap_.at(jobId).AggressivelyPreemptable;
-    } else {
-        return JobPropertiesMap_.at(jobId).Preemptable;
-    }
+    const auto* properties = GetJobProperties(jobId);
+    return aggressivePreemptionEnabled ? properties->AggressivelyPreemptable : properties->Preemptable;
 }
 
 int TOperationElementSharedState::GetRunningJobCount() const
@@ -1429,7 +1441,7 @@ int TOperationElementSharedState::GetAggressivelyPreemptableJobCount() const
     return AggressivelyPreemptableJobs_.size();
 }
 
-TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources resourceUsage)
+TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
@@ -1450,7 +1462,7 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
 
     ++RunningJobCount_;
 
-    IncreaseJobResourceUsage(it.first->second, resourceUsage);
+    IncreaseJobResourceUsage(&it.first->second, resourceUsage);
     return resourceUsage;
 }
 
@@ -1493,18 +1505,18 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
     auto it = JobPropertiesMap_.find(jobId);
     YCHECK(it != JobPropertiesMap_.end());
 
-    auto& properties = it->second;
-    if (properties.Preemptable) {
-        PreemptableJobs_.erase(properties.JobIdListIterator);
-    } else if (properties.AggressivelyPreemptable) {
-        AggressivelyPreemptableJobs_.erase(properties.JobIdListIterator);
+    auto* properties = &it->second;
+    if (properties->Preemptable) {
+        PreemptableJobs_.erase(properties->JobIdListIterator);
+    } else if (properties->AggressivelyPreemptable) {
+        AggressivelyPreemptableJobs_.erase(properties->JobIdListIterator);
     } else {
-        NonpreemptableJobs_.erase(properties.JobIdListIterator);
+        NonpreemptableJobs_.erase(properties->JobIdListIterator);
     }
 
     --RunningJobCount_;
 
-    auto resourceUsage = properties.ResourceUsage;
+    auto resourceUsage = properties->ResourceUsage;
     IncreaseJobResourceUsage(properties, -resourceUsage);
 
     JobPropertiesMap_.erase(it);
@@ -1574,17 +1586,31 @@ void TOperationElement::FinishScheduleJob(
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(
-    TJobProperties& properties,
+    TJobProperties* properties,
     const TJobResources& resourcesDelta)
 {
-    properties.ResourceUsage += resourcesDelta;
-    if (!properties.Preemptable) {
-        if (properties.AggressivelyPreemptable) {
+    properties->ResourceUsage += resourcesDelta;
+    if (!properties->Preemptable) {
+        if (properties->AggressivelyPreemptable) {
             AggressivelyPreemptableResourceUsage_ += resourcesDelta;
         } else {
             NonpreemptableResourceUsage_ += resourcesDelta;
         }
     }
+}
+
+TOperationElementSharedState::TJobProperties* TOperationElementSharedState::GetJobProperties(const TJobId& jobId)
+{
+    auto it = JobPropertiesMap_.find(jobId);
+    Y_ASSERT(it != JobPropertiesMap_.end());
+    return &it->second;
+}
+
+const TOperationElementSharedState::TJobProperties* TOperationElementSharedState::GetJobProperties(const TJobId& jobId) const
+{
+    auto it = JobPropertiesMap_.find(jobId);
+    Y_ASSERT(it != JobPropertiesMap_.end());
+    return &it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2207,7 +2207,7 @@ private:
             auto controller = operation->GetController();
             Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
             if (controller->IsForgotten()) {
-                // Master disconnected happend while committing controller.
+                // Master disconnect happened while committing controller.
                 return;
             }
         }
