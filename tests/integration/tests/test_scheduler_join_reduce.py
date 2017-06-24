@@ -707,7 +707,7 @@ echo {v = 2} >&7
 
         create("table", "//tmp/out")
         op = join_reduce(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             in_=["<foreign=true>//tmp/in2", "//tmp/in1"],
             out="<row_count_limit=5>//tmp/out",
@@ -863,7 +863,7 @@ echo {v = 2} >&7
 
         op = join_reduce(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="interrupt_job",
             in_=["<foreign=true>//tmp/input2", "//tmp/input1"],
             out="<sorted_by=[key]>//tmp/output",

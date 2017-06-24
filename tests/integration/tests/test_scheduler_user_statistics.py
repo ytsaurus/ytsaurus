@@ -125,7 +125,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="job_statistics_progress",
             in_="//tmp/t1",
             out="//tmp/t2",

@@ -96,7 +96,7 @@ class TestStderrTable(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command="""echo GG >&2 ; cat ; if [ "$YT_JOB_INDEX" == "0" ] ; then sleep 1000 ; fi""",
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
@@ -386,7 +386,7 @@ class TestStderrTable(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command=(
                 # one job completes before scheduler is dead
                 # second job completes while scheduler is dead
@@ -510,7 +510,7 @@ class TestCoreTable(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command=command,
             in_=[in_table],
             out=out_table,

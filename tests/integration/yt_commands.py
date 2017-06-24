@@ -597,7 +597,7 @@ class Operation(object):
 
     def resume_jobs(self):
         if self.jobs is None:
-            raise RuntimeError('"ensure_running" must be called before resuming jobs')
+            raise RuntimeError('"resume_jobs" must be called before resuming jobs')
 
         for job in self.jobs:
             self._remove_job_files(job)
@@ -730,8 +730,8 @@ def start_op(op_type, **kwargs):
 
     operation = Operation()
 
-    waiting_jobs = kwargs.get("waiting_jobs", False)
-    if "command" in kwargs and waiting_jobs:
+    wait_for_jobs = kwargs.get("wait_for_jobs", False)
+    if "command" in kwargs and wait_for_jobs:
         label = kwargs.get("label", "test")
         operation._tmpdir = create_tmpdir(label)
         kwargs["command"] = (
@@ -765,9 +765,9 @@ def start_op(op_type, **kwargs):
     if "dont_track" in kwargs:
         del kwargs["dont_track"]
 
-    operation.id = execute_command(op_type, kwargs).strip().replace('"', '')
+    operation.id = yson.loads(execute_command(op_type, kwargs))
 
-    if waiting_jobs:
+    if wait_for_jobs:
         wait_timeout = kwargs.get("wait_timeout", 20)
         if "wait_timeout" in kwargs:
             del kwargs["wait_timeout"]
