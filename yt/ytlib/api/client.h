@@ -316,7 +316,7 @@ struct TTabletReadOptions
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
 };
 
-struct TLookupRowsOptions
+struct TLookupRowsOptionsBase
     : public TTimeoutOptions
     , public TTabletReadOptions
 {
@@ -324,13 +324,13 @@ struct TLookupRowsOptions
     bool KeepMissingRows = false;
 };
 
+struct TLookupRowsOptions
+    : public TLookupRowsOptionsBase
+{ };
+
 struct TVersionedLookupRowsOptions
-    : public TTimeoutOptions
-    , public TTabletReadOptions
-{
-    NTableClient::TColumnFilter ColumnFilter;
-    bool KeepMissingRows = false;
-};
+    : public TLookupRowsOptionsBase
+{ };
 
 struct TSelectRowsOptions
     : public TTimeoutOptions

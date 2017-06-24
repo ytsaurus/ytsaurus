@@ -1055,8 +1055,7 @@ private:
             TNativeConnectionConfigPtr config,
             const TNetworkPreferenceList& networks,
             const TCellId& cellId,
-            const TTabletReadOptions& options,
-            const TNullable<TDuration>& timeout,
+            const TLookupRowsOptionsBase& options,
             TTableMountInfoPtr tableInfo,
             TEncoder encoder,
             TDecoder decoder)
@@ -1064,7 +1063,6 @@ private:
             , Networks_(networks)
             , CellId_(cellId)
             , Options_(options)
-            , Timeout_(timeout)
             , TableInfo_(std::move(tableInfo))
             , Encoder_(std::move(encoder))
             , Decoder_(std::move(decoder))
@@ -1101,7 +1099,7 @@ private:
                 Networks_);
 
             InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
-            InvokeProxy_->SetDefaultTimeout(Timeout_);
+            InvokeProxy_->SetDefaultTimeout(Options_.Timeout);
             InvokeProxy_->SetDefaultRequestAck(false);
 
             InvokeNextBatch();
@@ -1127,8 +1125,7 @@ private:
         const TNativeConnectionConfigPtr Config_;
         const TNetworkPreferenceList Networks_;
         const TCellId CellId_;
-        const TTabletReadOptions Options_;
-        const TNullable<TDuration> Timeout_;
+        const TLookupRowsOptionsBase Options_;
         const TTableMountInfoPtr TableInfo_;
         const TEncoder Encoder_;
         const TDecoder Decoder_;
@@ -1186,10 +1183,16 @@ private:
     };
 
     using TTabletCellLookupSessionPtr = TIntrusivePtr<TTabletCellLookupSession>;
-    using TEncoderWithMapping = std::function<
-        std::vector<TSharedRef>(const NTableClient::TColumnFilter&, const std::vector<TUnversionedRow>&)>;
-    using TDecoderWithMapping = std::function<
-        TTypeErasedRow(const TSchemaData&, TWireProtocolReader*)>;
+    using TEncoderWithMapping = std::function<std::vector<TSharedRef>(
+        const NTableClient::TColumnFilter&,
+        const std::vector<TUnversionedRow>&)>;
+    using TDecoderWithMapping = std::function<TTypeErasedRow(
+        const TSchemaData&,
+        TWireProtocolReader*)>;
+    template <class TResult>
+    using TReplicaFallbackHandler = std::function<TFuture<TResult>(
+        const IClientPtr&,
+        const TTableReplicaInfoPtr&)>;
 
     static NTableClient::TColumnFilter RemapColumnFilter(
         const NTableClient::TColumnFilter& columnFilter,
@@ -1244,20 +1247,22 @@ private:
             return reader->ReadSchemafulRow(schemaData, true).ToTypeErasedRow();
         };
 
+        TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
+            const IClientPtr& replicaClient,
+            const TTableReplicaInfoPtr& replicaInfo)
+        {
+            return replicaClient->LookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
+        };
+
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
-            TTableSchema schema;
-            TSharedRange<TTypeErasedRow> rows;
-            std::tie(schema, rows) = DoLookupRowsOnce(
+            return DoLookupRowsOnce<IUnversionedRowsetPtr, TUnversionedRow>(
                 path,
                 nameTable,
                 keys,
                 options,
-                options.Timeout,
-                options.ColumnFilter,
-                options.KeepMissingRows,
                 encoder,
-                decoder);
-            return CreateRowset(schema, ReinterpretCastRange<TUnversionedRow>(rows));
+                decoder,
+                fallbackHandler);
         });
     }
 
@@ -1291,33 +1296,134 @@ private:
             return reader->ReadVersionedRow(schemaData, true).ToTypeErasedRow();
         };
 
+        TReplicaFallbackHandler<IVersionedRowsetPtr> fallbackHandler = [&] (
+            const IClientPtr& replicaClient,
+            const TTableReplicaInfoPtr& replicaInfo)
+        {
+            return replicaClient->VersionedLookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
+        };
+
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
-            TTableSchema schema;
-            TSharedRange<TTypeErasedRow> rows;
-            std::tie(schema, rows) = DoLookupRowsOnce(
+            return DoLookupRowsOnce<IVersionedRowsetPtr, TVersionedRow>(
                 path,
                 nameTable,
                 keys,
                 options,
-                options.Timeout,
-                options.ColumnFilter,
-                options.KeepMissingRows,
                 encoder,
-                decoder);
-            return CreateRowset(schema, ReinterpretCastRange<TVersionedRow>(rows));
+                decoder,
+                fallbackHandler);
         });
     }
 
-    std::tuple< TTableSchema, TSharedRange<TTypeErasedRow> > DoLookupRowsOnce(
+
+    TTableReplicaInfoPtr PickInSyncReplica(
+        const TTableMountInfoPtr& tableInfo,
+        const TLookupRowsOptionsBase& options,
+        const std::vector<std::pair<NTableClient::TKey, int>>& keys)
+    {
+        yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        for (const auto& pair : keys) {
+            auto key = pair.first;
+            auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
+            cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+        }
+        return PickInSyncReplica(tableInfo, options, cellIdToTabletIds);
+    }
+
+    TTableReplicaInfoPtr PickInSyncReplica(
+        const TTableMountInfoPtr& tableInfo,
+        const TLookupRowsOptionsBase& options,
+        const yhash<TCellId, std::vector<TTabletId>>& cellIdToTabletIds)
+    {
+        size_t cellCount = cellIdToTabletIds.size();
+        size_t tabletCount = 0;
+        for (const auto& pair : cellIdToTabletIds) {
+            tabletCount += pair.second.size();
+        }
+
+        LOG_DEBUG("Looking for in-sync replicas (CellCount: %v, TabletCount: %v)",
+            cellCount,
+            tabletCount);
+
+        const auto& channelFactory = Connection_->GetLightChannelFactory();
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncResults;
+        for (const auto& pair : cellIdToTabletIds) {
+            const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(pair.first);
+            auto channel = CreateTabletReadChannel(
+                channelFactory,
+                cellDescriptor,
+                options,
+                Connection_->GetNetworks());
+
+            TQueryServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(options.Timeout);
+
+            auto req = proxy.GetTabletInfo();
+            ToProto(req->mutable_tablet_ids(), pair.second);
+            asyncResults.push_back(req->Invoke());
+        }
+
+        auto results = WaitFor(Combine(asyncResults))
+            .ValueOrThrow();
+
+        yhash<TTableReplicaId, int> replicaIdToCount;
+        for (const auto& rsp : results) {
+            for (const auto& protoTabletInfo : rsp->tablets()) {
+                for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
+                    if (ETableReplicaMode(protoReplicaInfo.mode()) == ETableReplicaMode::Sync &&
+                        protoReplicaInfo.current_replication_row_index() >= protoTabletInfo.total_row_count())
+                    {
+                        ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+                    }
+                }
+            }
+        }
+
+        for (const auto& replicaInfo : tableInfo->Replicas) {
+            auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
+            if (it != replicaIdToCount.end() && it->second == tabletCount) {
+                LOG_DEBUG("In-sync replica found (ReplicaId: %v, ClusterName: %v)",
+                    replicaInfo->ReplicaId,
+                    replicaInfo->ClusterName);
+                return replicaInfo;
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("No in-sync replicas found");
+    }
+
+
+    IConnectionPtr GetReplicaConnectionOrThrow(const TTableReplicaInfoPtr& replicaInfo)
+    {
+        const auto& clusterDirectory = Connection_->GetClusterDirectory();
+        auto replicaConnection = clusterDirectory->FindConnection(replicaInfo->ClusterName);
+        if (replicaConnection) {
+            return replicaConnection;
+        }
+
+        WaitFor(Connection_->SyncClusterDirectory())
+            .ThrowOnError();
+
+        return clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
+    }
+
+    IClientPtr CreateReplicaClient(const TTableReplicaInfoPtr& replicaInfo)
+    {
+        auto replicaConnection = GetReplicaConnectionOrThrow(replicaInfo);
+        return replicaConnection->CreateClient(Options_);
+    }
+
+
+    template <class TRowset, class TRow>
+    TRowset DoLookupRowsOnce(
         const TYPath& path,
         const TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
-        const TTabletReadOptions& options,
-        const TNullable<TDuration>& timeout,
-        const NTableClient::TColumnFilter& columnFilter,
-        bool keepMissingRows,
-        const TEncoderWithMapping& encoderWithMapping,
-        const TDecoderWithMapping& decoderWithMapping)
+        const TLookupRowsOptionsBase& options,
+        TEncoderWithMapping encoderWithMapping,
+        TDecoderWithMapping decoderWithMapping,
+        TReplicaFallbackHandler<TRowset> replicaFallbackHandler)
     {
         const auto& tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
@@ -1325,13 +1431,16 @@ private:
 
         tableInfo->ValidateDynamic();
         tableInfo->ValidateSorted();
-        tableInfo->ValidateNotReplicated();
 
         const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
         auto idMapping = BuildColumnIdMapping(schema, nameTable);
-        auto remappedColumnFilter = RemapColumnFilter(columnFilter, idMapping, nameTable);
+        auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
         auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary].Filter(remappedColumnFilter);
         auto resultSchemaData = TWireProtocolReader::GetSchemaData(schema, remappedColumnFilter);
+
+        if (keys.Empty()) {
+            return CreateRowset(resultSchema, TSharedRange<TRow>());
+        }
 
         // NB: The server-side requires the keys to be sorted.
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
@@ -1350,6 +1459,14 @@ private:
             }
 
             sortedKeys.emplace_back(capturedKey, index);
+        }
+
+        if (tableInfo->IsReplicated()) {
+            auto replicaInfo = PickInSyncReplica(tableInfo, options, sortedKeys);
+            auto replicaClient = CreateReplicaClient(replicaInfo);
+            auto asyncResult = replicaFallbackHandler(replicaClient, replicaInfo);
+            return WaitFor(asyncResult)
+                .ValueOrThrow();
         }
 
         // TODO(sandello): Use code-generated comparer here.
@@ -1376,7 +1493,6 @@ private:
                         Connection_->GetNetworks(),
                         cellId,
                         options,
-                        timeout,
                         tableInfo,
                         boundEncoder,
                         boundDecoder);
@@ -1418,7 +1534,7 @@ private:
             resultRows[index] = uniqueResultRows[keyIndexToResultIndex[index]];
         }
 
-        if (!keepMissingRows) {
+        if (!options.KeepMissingRows) {
             resultRows.erase(
                 std::remove_if(
                     resultRows.begin(),
@@ -1429,7 +1545,8 @@ private:
                 resultRows.end());
         }
 
-        return std::make_tuple(resultSchema, MakeSharedRange(std::move(resultRows), outputRowBuffer));
+        auto rowRange = ReinterpretCastRange<TRow>(MakeSharedRange(std::move(resultRows), outputRowBuffer));
+        return CreateRowset(resultSchema, std::move(rowRange));
     }
 
     TSelectRowsResult DoSelectRows(
@@ -1545,7 +1662,7 @@ private:
         } else {
             yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
             yhash_set<TTabletId> tabletIds;
-            for (const auto& key : keys) {
+            for (auto key : keys) {
                 auto tabletInfo = tableInfo->GetTabletForRow(key);
                 if (tabletIds.count(tabletInfo->TabletId) == 0) {
                     tabletIds.insert(tabletInfo->TabletId);
@@ -1572,8 +1689,8 @@ private:
 
             yhash<TTableReplicaId, int> replicaIdToCount;
             for (const auto& response : responses) {
-                for (const auto& protoTabletInfo : response->tablet_info()) {
-                    for (const auto& protoReplicaInfo : protoTabletInfo.replica_info()) {
+                for (const auto& protoTabletInfo : response->tablets()) {
+                    for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
                         if (protoReplicaInfo.last_replication_timestamp() >= options.Timestamp ||
                             ETableReplicaMode(protoReplicaInfo.mode()) == ETableReplicaMode::Sync)
                         {
