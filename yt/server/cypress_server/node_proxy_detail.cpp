@@ -1145,6 +1145,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
             ? Bootstrap_->GetCellTag()
             : node->GetExternalCellTag());
+        context->SetResponseInfo("ExistingNodeId: %v",
+            node->GetId());
         context->Reply();
         return;
     }
