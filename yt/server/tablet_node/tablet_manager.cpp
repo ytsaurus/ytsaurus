@@ -1882,11 +1882,16 @@ private:
         switch (replicaInfo.GetMode()) {
             case ETableReplicaMode::Sync:
                 if (currentReplicationRowIndex < totalRowCount) {
-                    THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not synchronously writeable: some rows are not replicated yet",
+                    THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
                         replicaInfo.GetId(),
                         tablet->GetId())
                         << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
                         << TErrorAttribute("total_row_count", totalRowCount);
+                }
+                if (replicaInfo.GetState() != ETableReplicaState::Enabled) {
+                    THROW_ERROR_EXCEPTION("Replica %v is not synchronously writeable since it is in %Qlv state",
+                        replicaInfo.GetId(),
+                        replicaInfo.GetState());
                 }
                 YCHECK(!replicaInfo.GetPreparedReplicationTransactionId());
                 break;

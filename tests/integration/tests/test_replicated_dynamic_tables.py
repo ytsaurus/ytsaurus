@@ -320,6 +320,13 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         _do()
 
+    def test_cannot_sync_write_into_disabled_replica(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id)
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
+
     def test_upstream_replica_id_check1(self):
         self._create_cells()
         self._create_replica_table("//tmp/r", "1-2-3-4")
