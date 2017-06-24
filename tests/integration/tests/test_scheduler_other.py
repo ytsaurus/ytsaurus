@@ -617,7 +617,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command="cat",
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
@@ -714,7 +714,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             get("//sys/scheduler/orchid/scheduler/pools/{0}/fair_share_ratio".format(pool))
 
         op1 = map(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             command="cat",
             in_="//tmp/t_in",
@@ -722,7 +722,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             spec={"job_count": 1, "pool": "subpool_1"})
 
         op2 = map(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             command="cat",
             in_="//tmp/t_in",
@@ -759,7 +759,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         write_table("//tmp/t_in", data);
 
         op = map(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             command="cat",
             in_="//tmp/t_in",
@@ -1319,7 +1319,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         write_table("//tmp/in", data)
 
         op = map(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             command="cat",
             in_="//tmp/in",
@@ -1372,7 +1372,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         op1 = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command="cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out1",
@@ -1387,7 +1387,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         op3 = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command="cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out3",
@@ -1449,7 +1449,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("table", "//tmp/out3")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        op1 = map(dont_track=True, waiting_jobs=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
+        op1 = map(dont_track=True, wait_for_jobs=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
         op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
         op3 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out3")
 
@@ -1478,7 +1478,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         op1 = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command="cat",
             in_=["//tmp/in"],
             out="//tmp/out1",
@@ -1909,14 +1909,14 @@ class TestSchedulerPools(YTEnvSetup):
 
         op1 = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command="cat",
             in_="//tmp/t_in",
             out="//tmp/t_out1")
 
         op2 = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command="cat",
             in_="//tmp/t_in",
             out="//tmp/t_out2",
@@ -1955,7 +1955,7 @@ class TestSchedulerPools(YTEnvSetup):
         for i in xrange(1, 4):
             ops.append(map(
                 dont_track=True,
-                waiting_jobs=True,
+                wait_for_jobs=True,
                 command="cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(i),
@@ -2017,7 +2017,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command="cat",
             in_="//tmp/in",
             out="//tmp/out",
@@ -2050,7 +2050,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
             create("table", output)
             ops.append(
                 map(dont_track=True,
-                    waiting_jobs=True,
+                    wait_for_jobs=True,
                     command="cat",
                     in_="//tmp/input",
                     out=[output],
@@ -2223,7 +2223,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec.update(min_share_spec)
             op = map(
                 dont_track=True,
-                waiting_jobs=True,
+                wait_for_jobs=True,
                 command="cat",
                 in_=["//tmp/t_in"],
                 out="//tmp/t_out",
@@ -2525,7 +2525,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
@@ -2554,7 +2554,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
@@ -3251,7 +3251,7 @@ class TestMainNodesFilter(YTEnvSetup):
         write_table("//tmp/input", [{"foo": i} for i in xrange(2)])
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             command="sleep 10",
             in_="//tmp/input",
             out="//tmp/output",
@@ -3323,14 +3323,14 @@ class TestNewPoolMetrics(YTEnvSetup):
         op11 = map(
             in_="//t_input",
             out="//t_output",
-            waiting_jobs=False,
+            wait_for_jobs=False,
             command=map_cmd,
             spec={"job_count": 2, "pool": "child1"},
         )
         op12 = map(
             in_="//t_input",
             out="//t_output",
-            waiting_jobs=False,
+            wait_for_jobs=False,
             command=map_cmd,
             spec={"job_count": 2, "pool": "child1"},
         )
@@ -3338,7 +3338,7 @@ class TestNewPoolMetrics(YTEnvSetup):
         op2 = map(
             in_="//t_input",
             out="//t_output",
-            waiting_jobs=False,
+            wait_for_jobs=False,
             command=map_cmd,
             spec={"job_count": 2, "pool": "child2"},
         )

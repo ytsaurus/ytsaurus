@@ -972,7 +972,7 @@ echo {v = 2} >&7
 
         create("table", "//tmp/output")
         op = reduce(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
@@ -1210,7 +1210,7 @@ echo {v = 2} >&7
 
         op = reduce(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="interrupt_job",
             in_=in_,
             out="<sorted_by=[key]>//tmp/output",

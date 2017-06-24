@@ -202,7 +202,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="strace_job",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -227,7 +227,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="signal_job_with_no_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -259,7 +259,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -297,7 +297,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="abandon_job",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -320,7 +320,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="abandon_job",
             in_="//tmp/t1",
             out="<sorted_by=[key]>//tmp/t2",
@@ -344,7 +344,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="abandon_job",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -394,7 +394,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -429,7 +429,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -463,7 +463,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -517,7 +517,7 @@ class TestJobProber(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="abort_job",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -858,7 +858,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(110)])
 
         # All jobs with index < 109 will successfuly finish on "exit 0;"
-        # The job with index 109 will be waiting because of waiting_jobs=True
+        # The job with index 109 will be waiting because of wait_for_jobs=True
         # until it is manualy resumed.
         command = """grep -v row_109 > /dev/null;
             IS_FAILING_JOB=$?;
@@ -872,7 +872,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         op = map(
             dont_track=True,
             wait_timeout=120,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="stderr_of_failed_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -927,7 +927,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1026,7 +1026,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="dump_job_context",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1059,7 +1059,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1125,7 +1125,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="list_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1659,7 +1659,7 @@ cat > /dev/null; echo {hello=world}
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1843,7 +1843,7 @@ print row + table_index
         alter_table("//tmp/t2", schema=schema)
 
         op = map(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             command="cat",
             in_="//tmp/t1",
@@ -1987,7 +1987,7 @@ print row + table_index
 
         create("table", "//tmp/output")
         op = map(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
@@ -2015,7 +2015,7 @@ print row + table_index
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
         op = map(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/input",
             out=["//tmp/out_1", "<row_count_limit=3>//tmp/out_2"],
@@ -2043,7 +2043,7 @@ print row + table_index
 
         create("table", "//tmp/output")
         op = map(
-            waiting_jobs=True,
+            wait_for_jobs=True,
             dont_track=True,
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
@@ -2550,7 +2550,7 @@ print row + table_index
         op = map(
             ordered=ordered,
             dont_track=True,
-            waiting_jobs=True,
+            wait_for_jobs=True,
             label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
