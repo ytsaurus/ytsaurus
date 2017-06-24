@@ -49,6 +49,7 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 
 class TFairShareStrategy
     : public ISchedulerStrategy
+    , public IFairShareStrategy
 {
 public:
     TFairShareStrategy(
@@ -58,9 +59,11 @@ public:
         , Host(host)
         , NonPreemptiveProfilingCounters("/non_preemptive")
         , PreemptiveProfilingCounters("/preemptive")
+        , PreemptableListUpdateTimeCounter("/preemptable_list_update_time")
+        , PreemptableListUpdateMoveCountCounter("/preemptable_list_update_move_count")
         , LastProfilingTime_(TInstant::Zero())
     {
-        RootElement = New<TRootElement>(Host, GetPoolProfilingTag(RootPoolName), config);
+        RootElement = New<TRootElement>(Host, this, GetPoolProfilingTag(RootPoolName), config);
 
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
             GetCurrentInvoker(),
@@ -145,6 +148,7 @@ public:
             spec,
             params,
             Host,
+            this,
             operation);
 
         int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(spec->SchedulingTagFilter));
@@ -157,7 +161,7 @@ public:
         auto poolId = spec->Pool ? *spec->Pool : userName;
         auto pool = FindPool(poolId);
         if (!pool) {
-            pool = New<TPool>(Host, poolId, GetPoolProfilingTag(poolId), Config);
+            pool = New<TPool>(Host, this, poolId, GetPoolProfilingTag(poolId), Config);
             pool->SetUserName(userName);
             UserToEphemeralPools[userName].insert(poolId);
             RegisterPool(pool);
@@ -330,7 +334,7 @@ public:
                             YCHECK(orphanPoolIds.erase(childId) == 1);
                         } else {
                             // Create new pool.
-                            pool = New<TPool>(Host, childId, GetPoolProfilingTag(childId), Config);
+                            pool = New<TPool>(Host, this, childId, GetPoolProfilingTag(childId), Config);
                             pool->SetConfig(config);
                             RegisterPool(pool, parent);
                         }
@@ -679,6 +683,10 @@ private:
 
     TProfilingCounters NonPreemptiveProfilingCounters;
     TProfilingCounters PreemptiveProfilingCounters;
+
+    TSpinLock UpdatePreemtableListCountersLock;
+    TAggregateCounter PreemptableListUpdateTimeCounter;
+    TAggregateCounter PreemptableListUpdateMoveCountCounter;
 
     TInstant LastProfilingTime_;
 
@@ -1450,6 +1458,14 @@ private:
         const auto& user = operation->GetAuthenticatedUser();
 
         Host->ValidatePoolPermission(poolPath, user, EPermission::Use);
+    }
+
+    virtual void UpdatePreemtableListCounters(const TDuration& duration, int moveCount) override
+    {
+        TGuard<TSpinLock> guard(UpdatePreemtableListCountersLock);
+
+        Profiler.Update(PreemptableListUpdateTimeCounter, duration.MicroSeconds());
+        Profiler.Update(PreemptableListUpdateMoveCountCounter, moveCount);
     }
 
     void ProfileSchedulerElement(TCompositeSchedulerElementPtr element)

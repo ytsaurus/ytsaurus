@@ -14,6 +14,7 @@ using namespace NConcurrency;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -76,11 +77,13 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributes(TSchedulerElement
 
 TSchedulerElementFixedState::TSchedulerElementFixedState(
     ISchedulerStrategyHost* host,
+    IFairShareStrategy* strategy,
     const TFairShareStrategyConfigPtr& strategyConfig)
     : ResourceDemand_(ZeroJobResources())
     , ResourceLimits_(InfiniteJobResources())
     , MaxPossibleResourceUsage_(ZeroJobResources())
     , Host_(host)
+    , Strategy_(strategy)
     , StrategyConfig_(strategyConfig)
     , TotalResourceLimits_(host->GetMainNodesResourceLimits())
 { }
@@ -269,8 +272,9 @@ void TSchedulerElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 
 TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
+    IFairShareStrategy* strategy,
     const TFairShareStrategyConfigPtr& strategyConfig)
-    : TSchedulerElementFixedState(host, strategyConfig)
+    : TSchedulerElementFixedState(host, strategy, strategyConfig)
     , SharedState_(New<TSchedulerElementSharedState>())
 { }
 
@@ -369,9 +373,10 @@ void TSchedulerElement::CheckForStarvationImpl(
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     ISchedulerStrategyHost* host,
+    IFairShareStrategy* strategy,
     TFairShareStrategyConfigPtr strategyConfig,
     NProfiling::TTagId profilingTag)
-    : TSchedulerElement(host, strategyConfig)
+    : TSchedulerElement(host, strategy, strategyConfig)
     , ProfilingTag_(profilingTag)
 { }
 
@@ -1010,10 +1015,11 @@ TPoolFixedState::TPoolFixedState(const Stroka& id)
 
 TPool::TPool(
     ISchedulerStrategyHost* host,
+    IFairShareStrategy* strategy,
     const Stroka& id,
     NProfiling::TTagId profilingTag,
     TFairShareStrategyConfigPtr strategyConfig)
-    : TCompositeSchedulerElement(host, strategyConfig, profilingTag)
+    : TCompositeSchedulerElement(host, strategy, strategyConfig, profilingTag)
     , TPoolFixedState(id)
 {
     SetDefaultConfig();
@@ -1257,7 +1263,8 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     double fairShareRatio,
     const TJobResources& totalResourceLimits,
     double preemptionSatisfactionThreshold,
-    double aggressivePreemptionSatisfactionThreshold)
+    double aggressivePreemptionSatisfactionThreshold,
+    int* moveCount)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
@@ -1287,6 +1294,8 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             onMovedLeftToRight(&jobProperties);
 
             resourceUsage -= jobProperties.ResourceUsage;
+
+            ++(*moveCount);
         }
 
         while (!right->empty()) {
@@ -1303,6 +1312,8 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             onMovedRightToLeft(&jobProperties);
 
             resourceUsage += jobProperties.ResourceUsage;
+
+            ++(*moveCount);
         }
 
         return resourceUsage;
@@ -1486,8 +1497,9 @@ TOperationElement::TOperationElement(
     TStrategyOperationSpecPtr spec,
     TOperationRuntimeParamsPtr runtimeParams,
     ISchedulerStrategyHost* host,
+    IFairShareStrategy* strategy,
     TOperationPtr operation)
-    : TSchedulerElement(host, strategyConfig)
+    : TSchedulerElement(host, strategy, strategyConfig)
     , TOperationElementFixedState(operation)
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
@@ -1552,7 +1564,7 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 
     TSchedulerElement::UpdateTopDown(dynamicAttributesList);
 
-    SharedState_->UpdatePreemptableJobsList(
+    UpdatePreemptableJobsList(
         Attributes_.FairShareRatio,
         TotalResourceLimits_,
         StrategyConfig_->PreemptionSatisfactionThreshold,
@@ -1791,7 +1803,7 @@ void TOperationElement::IncreaseJobResourceUsage(const TJobId& jobId, const TJob
 {
     auto delta = SharedState_->IncreaseJobResourceUsage(jobId, resourcesDelta);
     IncreaseResourceUsage(delta);
-    SharedState_->UpdatePreemptableJobsList(
+    UpdatePreemptableJobsList(
         Attributes_.FairShareRatio,
         TotalResourceLimits_,
         StrategyConfig_->PreemptionSatisfactionThreshold,
@@ -1828,7 +1840,7 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
     auto delta = SharedState_->AddJob(jobId, resourceUsage);
     IncreaseResourceUsage(delta);
 
-    SharedState_->UpdatePreemptableJobsList(
+    UpdatePreemptableJobsList(
         Attributes_.FairShareRatio,
         TotalResourceLimits_,
         StrategyConfig_->PreemptionSatisfactionThreshold,
@@ -1840,7 +1852,7 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
     auto resourceUsage = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-resourceUsage);
 
-    SharedState_->UpdatePreemptableJobsList(
+    UpdatePreemptableJobsList(
         Attributes_.FairShareRatio,
         TotalResourceLimits_,
         StrategyConfig_->PreemptionSatisfactionThreshold,
@@ -1991,14 +2003,46 @@ int TOperationElement::ComputePendingJobCount() const
     return Controller_->GetPendingJobCount();
 }
 
+void TOperationElement::UpdatePreemptableJobsList(
+    double fairShareRatio,
+    const TJobResources& totalResourceLimits,
+    double preemptionSatisfactionThreshold,
+    double aggressivePreemptionSatisfactionThreshold)
+{
+    TScopedTimer timer;
+    int moveCount = 0;
+
+    SharedState_->UpdatePreemptableJobsList(
+        fairShareRatio,
+        totalResourceLimits,
+        preemptionSatisfactionThreshold,
+        aggressivePreemptionSatisfactionThreshold,
+        &moveCount);
+
+    auto elapsed = timer.GetElapsed();
+
+    {
+        Strategy_->UpdatePreemtableListCounters(elapsed, moveCount);
+    }
+
+    if (elapsed > StrategyConfig_->MinUpdatePreemptableListDurationToLog) {
+        LOG_DEBUG("Preemptable list update takes %v milliseconds, %v moves were performed (OperationId: %v)",
+            elapsed.MilliSeconds(),
+            moveCount,
+            OperationId_);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
+    IFairShareStrategy* strategy,
     NProfiling::TTagId profilingTag,
     TFairShareStrategyConfigPtr strategyConfig)
     : TCompositeSchedulerElement(
         host,
+        strategy,
         strategyConfig,
         profilingTag)
 {
