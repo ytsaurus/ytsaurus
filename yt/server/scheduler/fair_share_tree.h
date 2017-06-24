@@ -24,6 +24,13 @@ DEFINE_ENUM(EDeactivationReason,
 
 ////////////////////////////////////////////////////////////////////
 
+struct IFairShareStrategy
+{
+    virtual void UpdatePreemtableListCounters(const TDuration& duration, int moveCount) = 0;
+};
+
+////////////////////////////////////////////////////////////////////
+
 struct TSchedulableAttributes
 {
     NNodeTrackerClient::EResourceType DominantResource = NNodeTrackerClient::EResourceType::Cpu;
@@ -94,9 +101,11 @@ public:
 protected:
     explicit TSchedulerElementFixedState(
         ISchedulerStrategyHost* host,
+        IFairShareStrategy* strategy,
         const TFairShareStrategyConfigPtr& strategyConfig);
 
     ISchedulerStrategyHost* const Host_;
+    IFairShareStrategy* Strategy_;
 
     TFairShareStrategyConfigPtr StrategyConfig_;
 
@@ -217,6 +226,7 @@ protected:
 
     TSchedulerElement(
         ISchedulerStrategyHost* host,
+        IFairShareStrategy* strategy,
         const TFairShareStrategyConfigPtr& strategyConfig);
     TSchedulerElement(
         const TSchedulerElement& other,
@@ -265,6 +275,7 @@ class TCompositeSchedulerElement
 public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
+        IFairShareStrategy* strategy,
         TFairShareStrategyConfigPtr strategyConfig,
         NProfiling::TTagId profilingTag);
     TCompositeSchedulerElement(
@@ -367,6 +378,7 @@ class TPool
 public:
     TPool(
         ISchedulerStrategyHost* host,
+        IFairShareStrategy* strategy,
         const Stroka& id,
         NProfiling::TTagId profilingTag,
         TFairShareStrategyConfigPtr strategyConfig);
@@ -458,7 +470,8 @@ public:
         double fairShareRatio,
         const TJobResources& totalResourceLimits,
         double preemptionSatisfactionThreshold,
-        double aggressivePreemptionSatisfactionThreshold);
+        double aggressivePreemptionSatisfactionThreshold,
+        int* moveCount);
 
     bool IsJobExisting(const TJobId& jobId) const;
 
@@ -636,6 +649,7 @@ public:
         TStrategyOperationSpecPtr spec,
         TOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
+        IFairShareStrategy* strategy,
         TOperationPtr operation);
     TOperationElement(
         const TOperationElement& other,
@@ -711,6 +725,11 @@ private:
     TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
 
+    void UpdatePreemptableJobsList(
+        double fairShareRatio,
+        const TJobResources& totalResourceLimits,
+        double preemptionSatisfactionThreshold,
+        double aggressivePreemptionSatisfactionThreshold);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)
@@ -730,6 +749,7 @@ class TRootElement
 public:
     TRootElement(
         ISchedulerStrategyHost* host,
+        IFairShareStrategy* strategy,
         NProfiling::TTagId profilingTag,
         TFairShareStrategyConfigPtr strategyConfig);
     TRootElement(const TRootElement& other);
