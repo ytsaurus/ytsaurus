@@ -75,10 +75,10 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , OperationNodesUpdateExecutor_(
-            BIND(&TImpl::UpdateOperationNode, MakeStrong(this)),
-            BIND(&TImpl::IsOperationInFinishedState, MakeStrong(this)),
-            Logger)
+        , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
+            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
+            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            Logger))
     {
         Bootstrap
             ->GetMasterClient()
@@ -232,7 +232,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        return OperationNodesUpdateExecutor_.ExecuteUpdate(operation->GetId());
+        return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
     }
 
 
@@ -310,7 +310,7 @@ private:
         TOperationPtr Operation;
     };
 
-    TUpdateExecutor<TOperationId, TOperationNodeUpdate> OperationNodesUpdateExecutor_;
+    TIntrusivePtr<TUpdateExecutor<TOperationId, TOperationNodeUpdate>> OperationNodesUpdateExecutor_;
 
     struct TWatcherList
     {
@@ -380,7 +380,7 @@ private:
         const auto& result = resultOrError.Value();
         for (auto operationReport : result.OperationReports) {
             const auto& operation = operationReport.Operation;
-            OperationNodesUpdateExecutor_.AddUpdate(
+            OperationNodesUpdateExecutor_->AddUpdate(
                 operation->GetId(),
                 TOperationNodeUpdate(operation));
         }
@@ -772,8 +772,8 @@ private:
 
         LockTransaction.Reset();
 
-        OperationNodesUpdateExecutor_.Clear();
-        OperationNodesUpdateExecutor_.StopPeriodicUpdates();
+        OperationNodesUpdateExecutor_->Clear();
+        OperationNodesUpdateExecutor_->StopPeriodicUpdates();
 
         ClearWatcherLists();
 
@@ -887,7 +887,7 @@ private:
 
     void StartPeriodicActivities()
     {
-        OperationNodesUpdateExecutor_.StartPeriodicUpdates(
+        OperationNodesUpdateExecutor_->StartPeriodicUpdates(
             CancelableControlInvoker,
             Config->OperationsUpdatePeriod);
 
@@ -1043,7 +1043,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
             operationId);
 
-        OperationNodesUpdateExecutor_.AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
+        OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
 
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
