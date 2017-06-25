@@ -1,7 +1,6 @@
 #!/usr/bin/python2
 
 from yt.tools.atomic import process_tasks_from_list
-from yt.tools.conversion_tools import convert_to_erasure
 
 import yt.logger as yt_logger
 
@@ -34,11 +33,15 @@ def compress(task):
             yt.copy(table, temp_table, preserve_account=True)
             yt.run_erase(temp_table)
 
-            convert_to_erasure(table,
-                               temp_table,
-                               erasure_codec=task["erasure_codec"],
-                               compression_codec=task["compression_codec"],
-                               spec=spec)
+            transformed = yt.transform(table,
+                                       temp_table,
+                                       erasure_codec=task["erasure_codec"],
+                                       compression_codec=task["compression_codec"],
+                                       spec=spec)
+
+            if not transformed:
+                logger.info("Table %s is not transformed, skipping it", table)
+                return
 
             if yt.exists(table):
                 client = yt.YtClient(config=yt.config.config)
@@ -79,11 +82,12 @@ def main():
     parser = ArgumentParser(description="Run compression")
     parser.add_argument("--tasks-path", required=True, help="path to compression tasks list")
     parser.add_argument("--id", required=True, help="worker id, useful for logging")
+    parser.add_argument("--process-tasks-and-exit", action="store_true", default=False, help="do not run forever")
     args = parser.parse_args()
 
     configure_client()
     configure_logging(args)
-    process_tasks_from_list(args.tasks_path, compress, process_forever=True)
+    process_tasks_from_list(args.tasks_path, compress, process_forever=not args.process_tasks_and_exit)
 
 if __name__ == "__main__":
     main()
