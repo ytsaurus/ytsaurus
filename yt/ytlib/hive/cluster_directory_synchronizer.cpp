@@ -49,6 +49,8 @@ public:
         return SyncPromise_.ToFuture();
     }
 
+    DEFINE_SIGNAL(void(const TError&), Synchronized);
+
 private:
     const TClusterDirectorySynchronizerConfigPtr Config_;
     const TWeakPtr<IConnection> DirectoryConnection_;
@@ -96,8 +98,10 @@ private:
         TError error;
         try {
             DoSync();
+            Synchronized_.Fire(TError());
         } catch (const std::exception& ex) {
             error = TError(ex);
+            Synchronized_.Fire(error);
             LOG_DEBUG(error);
         }
 
@@ -127,6 +131,8 @@ TFuture<void> TClusterDirectorySynchronizer::Sync()
 {
     return Impl_->Sync();
 }
+
+DELEGATE_SIGNAL(TClusterDirectorySynchronizer, void(const TError&), Synchronized, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
