@@ -31,6 +31,8 @@
 #include <yt/ytlib/election/config.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
@@ -344,7 +346,7 @@ void TMasterConnector::SyncDirectories()
     const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
 
     LOG_INFO("Synchronizing cell directory");
-    WaitFor(connection->SyncCellDirectory())
+    WaitFor(connection->GetCellDirectorySynchronizer()->Sync())
         .ThrowOnError();
     LOG_INFO("Cell directory synchronized");
 

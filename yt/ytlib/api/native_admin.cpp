@@ -7,6 +7,7 @@
 #include <yt/ytlib/admin/admin_service_proxy.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
@@ -167,7 +168,7 @@ private:
             return channel;
         }
 
-        WaitFor(Connection_->SyncCellDirectory())
+        WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
             .ThrowOnError();
 
        return cellDirectory->GetChannelOrThrow(cellId);

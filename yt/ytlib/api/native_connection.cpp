@@ -268,9 +268,17 @@ public:
         return CellDirectory_;
     }
 
-    virtual TFuture<void> SyncCellDirectory() override
+    virtual const TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() override
     {
-        return GetCellDirectorySynchronizer()->Sync();
+        auto guard = Guard(CellDirectorySynchronizerLock_);
+        if (!CellDirectorySynchronizer_) {
+            CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
+                Config_->CellDirectorySynchronizer,
+                CellDirectory_,
+                PrimaryMasterCellId_,
+                Logger);
+        }
+        return CellDirectorySynchronizer_;
     }
 
 
@@ -409,20 +417,6 @@ private:
 
     TReaderWriterSpinLock StickyTransactionLock_;
     yhash<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
-
-
-    const TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer()
-    {
-        auto guard = Guard(CellDirectorySynchronizerLock_);
-        if (!CellDirectorySynchronizer_) {
-            CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
-                Config_->CellDirectorySynchronizer,
-                CellDirectory_,
-                PrimaryMasterCellId_,
-                Logger);
-        }
-        return CellDirectorySynchronizer_;
-    }
 
 
     IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
