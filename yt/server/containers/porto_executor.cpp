@@ -188,7 +188,7 @@ private:
 
     static TError ConvertPortoError(int errorCode, const TString& message)
     {
-        return TError(errorCode + ContainerErrorCodeBase, "Porto api error")
+        return TError(errorCode + ContainerErrorCodeBase, "Porto API error")
             << TErrorAttribute("original_porto_error_code", errorCode)
             << TErrorAttribute("porto_error_message", message);
     }
@@ -203,7 +203,7 @@ private:
         int error;
         TString message;
         Api_->GetLastError(error, message);
-        LOG_ERROR("Porto api error (Error: %v, Command: %v, Message: %v)",
+        LOG_ERROR("Porto API error (Error: %v, Command: %v, Message: %v)",
             error,
             command,
             message);
