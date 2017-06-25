@@ -19,6 +19,12 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
+static const auto& Profiler = SchedulerProfiler;
+
+////////////////////////////////////////////////////////////////////
+
+static TAggregateCounter PreemptableListUpdateTimeCounter("/preemptable_list_update_time");
+static TAggregateCounter PreemptableListUpdateMoveCountCounter("/preemptable_list_update_move_count");
 
 ////////////////////////////////////////////////////////////////////
 
@@ -77,13 +83,11 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributes(TSchedulerElement
 
 TSchedulerElementFixedState::TSchedulerElementFixedState(
     ISchedulerStrategyHost* host,
-    IFairShareStrategy* strategy,
     const TFairShareStrategyConfigPtr& strategyConfig)
     : ResourceDemand_(ZeroJobResources())
     , ResourceLimits_(InfiniteJobResources())
     , MaxPossibleResourceUsage_(ZeroJobResources())
     , Host_(host)
-    , Strategy_(strategy)
     , StrategyConfig_(strategyConfig)
     , TotalResourceLimits_(host->GetMainNodesResourceLimits())
 { }
@@ -272,9 +276,8 @@ void TSchedulerElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 
 TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
-    IFairShareStrategy* strategy,
     const TFairShareStrategyConfigPtr& strategyConfig)
-    : TSchedulerElementFixedState(host, strategy, strategyConfig)
+    : TSchedulerElementFixedState(host, strategyConfig)
     , SharedState_(New<TSchedulerElementSharedState>())
 { }
 
@@ -373,10 +376,9 @@ void TSchedulerElement::CheckForStarvationImpl(
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     ISchedulerStrategyHost* host,
-    IFairShareStrategy* strategy,
     TFairShareStrategyConfigPtr strategyConfig,
     NProfiling::TTagId profilingTag)
-    : TSchedulerElement(host, strategy, strategyConfig)
+    : TSchedulerElement(host, strategyConfig)
     , ProfilingTag_(profilingTag)
 { }
 
@@ -1015,11 +1017,10 @@ TPoolFixedState::TPoolFixedState(const Stroka& id)
 
 TPool::TPool(
     ISchedulerStrategyHost* host,
-    IFairShareStrategy* strategy,
     const Stroka& id,
     NProfiling::TTagId profilingTag,
     TFairShareStrategyConfigPtr strategyConfig)
-    : TCompositeSchedulerElement(host, strategy, strategyConfig, profilingTag)
+    : TCompositeSchedulerElement(host, strategyConfig, profilingTag)
     , TPoolFixedState(id)
 {
     SetDefaultConfig();
@@ -1497,9 +1498,8 @@ TOperationElement::TOperationElement(
     TStrategyOperationSpecPtr spec,
     TOperationRuntimeParamsPtr runtimeParams,
     ISchedulerStrategyHost* host,
-    IFairShareStrategy* strategy,
     TOperationPtr operation)
-    : TSchedulerElement(host, strategy, strategyConfig)
+    : TSchedulerElement(host, strategyConfig)
     , TOperationElementFixedState(operation)
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
@@ -2021,12 +2021,11 @@ void TOperationElement::UpdatePreemptableJobsList(
 
     auto elapsed = timer.GetElapsed();
 
-    {
-        Strategy_->UpdatePreemtableListCounters(elapsed, moveCount);
-    }
+    Profiler.Update(PreemptableListUpdateTimeCounter, DurationToValue(elapsed));
+    Profiler.Update(PreemptableListUpdateMoveCountCounter, moveCount);
 
-    if (elapsed > StrategyConfig_->MinUpdatePreemptableListDurationToLog) {
-        LOG_DEBUG("Preemptable list update takes %v milliseconds, %v moves were performed (OperationId: %v)",
+    if (elapsed > StrategyConfig_->UpdatePreemptableListDurationLoggingThreshold) {
+        LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v)",
             elapsed.MilliSeconds(),
             moveCount,
             OperationId_);
@@ -2037,12 +2036,10 @@ void TOperationElement::UpdatePreemptableJobsList(
 
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
-    IFairShareStrategy* strategy,
     NProfiling::TTagId profilingTag,
     TFairShareStrategyConfigPtr strategyConfig)
     : TCompositeSchedulerElement(
         host,
-        strategy,
         strategyConfig,
         profilingTag)
 {
