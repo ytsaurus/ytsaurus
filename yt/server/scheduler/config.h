@@ -98,7 +98,7 @@ public:
 
     //! If update of preemtable lists of operation takes more than that duration
     //! then this event will be logged.
-    TDuration MinUpdatePreemptableListDurationToLog;
+    TDuration UpdatePreemptableListDurationLoggingThreshold;
 
     TFairShareStrategyConfig()
     {
@@ -199,7 +199,7 @@ public:
             .GreaterThanOrEqual(1)
             .Default(5);
 
-        RegisterParameter("min_update_preemptable_list_duration_to_log", MinUpdatePreemptableListDurationToLog)
+        RegisterParameter("update_preemptable_list_duration_logging_threshold", UpdatePreemptableListDurationLoggingThreshold)
             .Default(TDuration::MilliSeconds(100));
 
         RegisterValidator([&] () {
