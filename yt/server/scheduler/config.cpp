@@ -364,8 +364,6 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(1));
     RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("cluster_directory_synchronizer_check_period", ClusterDirectorySynchronizerCheckPeriod)
-        .Default(TDuration::Seconds(30));
     RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
         .Default(TDuration::Seconds(10));
 

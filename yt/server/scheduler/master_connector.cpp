@@ -23,6 +23,7 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -78,7 +79,14 @@ public:
             BIND(&TImpl::UpdateOperationNode, MakeStrong(this)),
             BIND(&TImpl::IsOperationInFinishedState, MakeStrong(this)),
             Logger)
-    { }
+    {
+        Bootstrap
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectorySynchronizer()
+            ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
+                .Via(Bootstrap->GetControlInvoker()));
+    }
 
     void Start()
     {
@@ -285,7 +293,6 @@ private:
 
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr AlertsExecutor;
-    TPeriodicExecutorPtr ClusterDirectorySynchronizerCheckExecutor;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
@@ -525,7 +532,13 @@ private:
 
         void SyncClusterDirectory()
         {
-            Owner->SyncClusterDirectory();
+            WaitFor(Owner
+                ->Bootstrap
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetClusterDirectorySynchronizer()
+                ->Sync())
+                .ThrowOnError();
         }
 
         // - Request operations and their states.
@@ -891,13 +904,6 @@ private:
             Config->AlertsUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
         AlertsExecutor->Start();
-
-        ClusterDirectorySynchronizerCheckExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
-            BIND(&TImpl::SyncClusterDirectory, MakeWeak(this)),
-            Config->ClusterDirectorySynchronizerCheckPeriod,
-            EPeriodicExecutorMode::Automatic);
-        ClusterDirectorySynchronizerCheckExecutor->Start();
     }
 
     void StopPeriodicActivities()
@@ -910,11 +916,6 @@ private:
         if (AlertsExecutor) {
             AlertsExecutor->Stop();
             AlertsExecutor.Reset();
-        }
-
-        if (ClusterDirectorySynchronizerCheckExecutor) {
-            ClusterDirectorySynchronizerCheckExecutor->Stop();
-            ClusterDirectorySynchronizerCheckExecutor.Reset();
         }
     }
 
@@ -1202,10 +1203,12 @@ private:
         }
     }
 
-    void SyncClusterDirectory()
+    void OnClusterDirectorySynchronized(const TError& error)
     {
-        auto error = WaitFor(Bootstrap->GetMasterClient()->GetNativeConnection()->SyncClusterDirectory());
-        SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        if (!error.IsOK()) {
+            SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
+        }
     }
 };
 

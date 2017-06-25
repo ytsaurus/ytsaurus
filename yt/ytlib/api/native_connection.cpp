@@ -279,9 +279,16 @@ public:
         return ClusterDirectory_;
     }
 
-    virtual TFuture<void> SyncClusterDirectory() override
+    virtual const TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
     {
-        return GetClusterDirectorySynchronizer()->Sync();
+        auto guard = Guard(ClusterDirectorySynchronizerLock_);
+        if (!ClusterDirectorySynchronizer_) {
+            ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
+                Config_->ClusterDirectorySynchronizer,
+                this,
+                ClusterDirectory_);
+        }
+        return ClusterDirectorySynchronizer_;
     }
 
 
@@ -415,18 +422,6 @@ private:
                 Logger);
         }
         return CellDirectorySynchronizer_;
-    }
-
-    const TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer()
-    {
-        auto guard = Guard(ClusterDirectorySynchronizerLock_);
-        if (!ClusterDirectorySynchronizer_) {
-            ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
-                Config_->ClusterDirectorySynchronizer,
-                this,
-                ClusterDirectory_);
-        }
-        return ClusterDirectorySynchronizer_;
     }
 
 

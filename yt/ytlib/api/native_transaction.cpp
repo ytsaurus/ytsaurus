@@ -20,6 +20,7 @@
 #include <yt/ytlib/table_client/row_merger.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
@@ -1252,7 +1253,7 @@ private:
         if (!connection) {
             if (!*clusterDirectorySynched) {
                 LOG_DEBUG("Replica cluster is not known; synchronizing cluster directory");
-                WaitFor(Client_->GetNativeConnection()->SyncClusterDirectory())
+                WaitFor(Client_->GetNativeConnection()->GetClusterDirectorySynchronizer()->Sync())
                     .ThrowOnError();
                 *clusterDirectorySynched = true;
             }
