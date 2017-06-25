@@ -1206,9 +1206,8 @@ private:
     void OnClusterDirectorySynchronized(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        if (!error.IsOK()) {
-            SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
-        }
+
+        SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
     }
 };
 

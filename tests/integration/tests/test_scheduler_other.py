@@ -2743,7 +2743,6 @@ class TestSchedulerAlerts(YTEnvSetup):
             "alerts_update_period": 100,
             "watchers_update_period": 100,
             "fair_share_update_period": 100,
-            "cluster_directory_synchronizer_check_period": 100,
         }
     }
 
