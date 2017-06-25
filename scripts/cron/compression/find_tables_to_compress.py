@@ -284,7 +284,11 @@ def main():
         tasks_per_worker = max(1, len(queue) / worker_count)
         for i in xrange(worker_count):
             begin_index = i * tasks_per_worker
-            end_index = begin_index + tasks_per_worker
+
+            if i == worker_count - 1:
+                end_index = len(queue)
+            else:
+                end_index = begin_index + tasks_per_worker
 
             tasks.append(queue[begin_index:end_index])
 

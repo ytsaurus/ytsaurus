@@ -1,0 +1,10 @@
+{
+    "type" = "map_node";
+    "attributes" = {
+        "nightly_compression_settings" = {
+            "enabled" = %true;
+            "compression_codec" = "none";
+            "erasure_codec" = "none";
+        }
+    }
+}
