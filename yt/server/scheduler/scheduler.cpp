@@ -1332,6 +1332,8 @@ private:
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
+        ConnectionTime_ = TInstant::Now();
+
         auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
@@ -1339,8 +1341,6 @@ private:
             .ThrowOnError();
 
         Strategy_->StartPeriodicActivity();
-
-        ConnectionTime_ = TInstant::Now();
     }
 
     void OnMasterDisconnected()
