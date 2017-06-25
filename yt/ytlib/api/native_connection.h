@@ -27,7 +27,7 @@ struct INativeConnection
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;
 
     virtual const NHiveClient::TCellDirectoryPtr& GetCellDirectory() = 0;
-    virtual TFuture<void> SyncCellDirectory() = 0;
+    virtual const NHiveClient::TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() = 0;
 
     virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;
     virtual const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() = 0;
