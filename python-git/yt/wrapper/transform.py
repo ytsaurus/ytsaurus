@@ -70,8 +70,8 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
     if desired_chunk_size is None:
         desired_chunk_size = get_config(client)["transform_options"]["desired_chunk_size"]
 
-    if not exists(src, client=client) or get(src + "/@row_count", client=client) == 0:
-        logger.debug("Table %s is empty", src)
+    if not exists(src, client=client):
+        logger.debug("Source table %s does not exist", src)
         return False
 
     with Transaction(client=client):
@@ -93,6 +93,10 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
             # NOTE: Currently there is no way to check if chunks are actually in specified format
             # (optimized for scan or lookup) so operation is always started if optimize_for is specified.
             check_codecs = False
+
+        if get(src + "/@row_count", client=client) == 0:
+            logger.debug("Table %s is empty", src)
+            return False
 
         if check_codecs and \
                 _check_codec(dst, "compression", compression_codec, client=client) and \

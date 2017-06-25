@@ -434,6 +434,11 @@ test_transform()
     $YT transform //home/wrapper_test/table_to_transform //home/wrapper_test/other_table --optimize-for scan
     check '"scan"' "$($YT get //home/wrapper_test/other_table/@optimize_for)"
 
+    $YT create table //home/wrapper_test/empty_table_to_transform
+    $YT transform //home/wrapper_test/empty_table_to_transform --compression-codec brotli_8 --optimize-for scan
+    check '"scan"' "$($YT get //home/wrapper_test/empty_table_to_transform/@optimize_for)"
+    check '"brotli_8"' "$($YT get //home/wrapper_test/empty_table_to_transform/@compression_codec)"
+
     unset YT_TABULAR_DATA_FORMAT
 }
 
