@@ -5,6 +5,7 @@
 #include <yt/ytlib/api/public.h>
 
 #include <yt/core/actions/future.h>
+#include <yt/core/actions/signal.h>
 
 namespace NYT {
 namespace NHiveClient {
@@ -23,6 +24,9 @@ public:
 
     //! Returns a future that gets set with the next sync.
     TFuture<void> Sync();
+
+    //! Raised with each synchronization (either successful or not).
+    DECLARE_SIGNAL(void(const TError&), Synchronized);
 
 private:
     class TImpl;
