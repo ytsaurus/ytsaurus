@@ -134,3 +134,5 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
             client.run_merge(src, dst, spec=spec)
         else:
             run_merge(src, dst, spec=spec)
+
+    return True
