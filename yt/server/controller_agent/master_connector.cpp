@@ -68,10 +68,10 @@ public:
         : Invoker_(invoker)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , OperationNodesUpdateExecutor_(
-            BIND(&TImpl::UpdateOperationNode, MakeStrong(this)),
-            BIND(&TImpl::IsOperationInFinishedState, MakeStrong(this)),
-            Logger)
+        , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
+            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
+            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            Logger))
         , TransactionRefreshExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TImpl::RefreshTransactions, MakeStrong(this)),
@@ -83,7 +83,7 @@ public:
             Config_->SnapshotPeriod,
             EPeriodicExecutorMode::Automatic))
     {
-        OperationNodesUpdateExecutor_.StartPeriodicUpdates(
+        OperationNodesUpdateExecutor_->StartPeriodicUpdates(
             Invoker_,
             Config_->OperationsUpdatePeriod);
         TransactionRefreshExecutor_->Start();
@@ -102,7 +102,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(ControllerMap_.emplace(operationId, controller).second);
-        OperationNodesUpdateExecutor_.AddUpdate(operationId, TOperationNodeUpdate(operationId));
+        OperationNodesUpdateExecutor_->AddUpdate(operationId, TOperationNodeUpdate(operationId));
     }
 
     void UnregisterOperation(const TOperationId& operationId)
@@ -128,7 +128,7 @@ public:
             createJobNodeRequest.FailContextChunkId);
 
         Invoker_->Invoke(BIND([this, this_ = MakeStrong(this), request = std::move(createJobNodeRequest)] {
-            auto* updateParameters = OperationNodesUpdateExecutor_.GetUpdate(request.OperationId);
+            auto* updateParameters = OperationNodesUpdateExecutor_->GetUpdate(request.OperationId);
             updateParameters->JobRequests.emplace_back(std::move(request));
         }));
     }
@@ -141,7 +141,7 @@ public:
             operationId);
 
         return BIND([=] {
-                WaitFor(OperationNodesUpdateExecutor_.ExecuteUpdate(operationId))
+                WaitFor(OperationNodesUpdateExecutor_->ExecuteUpdate(operationId))
                     .ThrowOnError();
             })
             .AsyncVia(Invoker_)
@@ -244,7 +244,7 @@ private:
         std::vector<TLivePreviewRequest> LivePreviewRequests;
     };
 
-    TUpdateExecutor<TOperationId, TOperationNodeUpdate> OperationNodesUpdateExecutor_;
+    TIntrusivePtr<TUpdateExecutor<TOperationId, TOperationNodeUpdate>> OperationNodesUpdateExecutor_;
 
     TPeriodicExecutorPtr TransactionRefreshExecutor_;
     TPeriodicExecutorPtr SnapshotExecutor_;
@@ -667,7 +667,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto* list = OperationNodesUpdateExecutor_.FindUpdate(operationId);
+        auto* list = OperationNodesUpdateExecutor_->FindUpdate(operationId);
         if (!list) {
             LOG_DEBUG("Operation node is not registered, omitting live preview attach (OperationId: %v)",
                 operationId);
