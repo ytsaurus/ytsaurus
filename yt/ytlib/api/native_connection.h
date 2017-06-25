@@ -30,7 +30,7 @@ struct INativeConnection
     virtual TFuture<void> SyncCellDirectory() = 0;
 
     virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;
-    virtual TFuture<void> SyncClusterDirectory() = 0;
+    virtual const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() = 0;
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,

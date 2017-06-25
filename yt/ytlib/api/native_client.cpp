@@ -26,6 +26,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
@@ -1402,7 +1403,7 @@ private:
             return replicaConnection;
         }
 
-        WaitFor(Connection_->SyncClusterDirectory())
+        WaitFor(Connection_->GetClusterDirectorySynchronizer()->Sync())
             .ThrowOnError();
 
         return clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
