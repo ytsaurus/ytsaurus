@@ -464,7 +464,8 @@ public:
         double fairShareRatio,
         const TJobResources& totalResourceLimits,
         double preemptionSatisfactionThreshold,
-        double aggressivePreemptionSatisfactionThreshold);
+        double aggressivePreemptionSatisfactionThreshold,
+        int* moveCount);
 
     bool IsJobExisting(const TJobId& jobId) const;
 
@@ -627,8 +628,6 @@ private:
 
     bool Finalized_ = false;
 
-    NJobTrackerClient::TStatistics ControllerTimeStatistics_;
-
     void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
 };
 
@@ -723,6 +722,11 @@ private:
     TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
 
+    void UpdatePreemptableJobsList(
+        double fairShareRatio,
+        const TJobResources& totalResourceLimits,
+        double preemptionSatisfactionThreshold,
+        double aggressivePreemptionSatisfactionThreshold);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)
