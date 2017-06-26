@@ -2024,6 +2024,8 @@ private:
                     table.TableUploadOptions.TableSchema =
                         table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
 
+                    auto hasComputedColumn = table.TableUploadOptions.TableSchema.HasComputedColumns();
+
                     for (const auto& inputTable : InputTables) {
                         if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
                             ValidateTableSchemaCompatibility(
@@ -2031,6 +2033,11 @@ private:
                                 table.TableUploadOptions.TableSchema,
                                 /* ignoreSortOrder */ true)
                             .ThrowOnError();
+                        } else if (hasComputedColumn) {
+                            // Input table has weak schema, so we cannot check if all
+                            // computed columns were already computed. At least this is weird.
+                            THROW_ERROR_EXCEPTION("Output table in \"sort\" operation cannot have computed "
+                                "columns, which are not present in all input tables");
                         }
                     }
                 }
