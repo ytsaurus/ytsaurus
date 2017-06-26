@@ -14,10 +14,17 @@ using namespace NConcurrency;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
+static const auto& Profiler = SchedulerProfiler;
+
+////////////////////////////////////////////////////////////////////
+
+static TAggregateCounter PreemptableListUpdateTimeCounter("/preemptable_list_update_time");
+static TAggregateCounter PreemptableListUpdateMoveCountCounter("/preemptable_list_update_move_count");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1268,7 +1275,8 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     double fairShareRatio,
     const TJobResources& totalResourceLimits,
     double preemptionSatisfactionThreshold,
-    double aggressivePreemptionSatisfactionThreshold)
+    double aggressivePreemptionSatisfactionThreshold,
+    int* moveCount)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
@@ -1298,6 +1306,8 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             onMovedLeftToRight(&jobProperties);
 
             resourceUsage -= jobProperties.ResourceUsage;
+
+            ++(*moveCount);
         }
 
         while (!right->empty()) {
@@ -1314,6 +1324,8 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             onMovedRightToLeft(&jobProperties);
 
             resourceUsage += jobProperties.ResourceUsage;
+
+            ++(*moveCount);
         }
 
         return resourceUsage;
@@ -1563,7 +1575,7 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 
     TSchedulerElement::UpdateTopDown(dynamicAttributesList);
 
-    SharedState_->UpdatePreemptableJobsList(
+    UpdatePreemptableJobsList(
         Attributes_.FairShareRatio,
         TotalResourceLimits_,
         StrategyConfig_->PreemptionSatisfactionThreshold,
@@ -1808,7 +1820,7 @@ void TOperationElement::IncreaseJobResourceUsage(const TJobId& jobId, const TJob
 {
     auto delta = SharedState_->IncreaseJobResourceUsage(jobId, resourcesDelta);
     IncreaseResourceUsage(delta);
-    SharedState_->UpdatePreemptableJobsList(
+    UpdatePreemptableJobsList(
         Attributes_.FairShareRatio,
         TotalResourceLimits_,
         StrategyConfig_->PreemptionSatisfactionThreshold,
@@ -1850,7 +1862,7 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
     auto delta = SharedState_->AddJob(jobId, resourceUsage);
     IncreaseResourceUsage(delta);
 
-    SharedState_->UpdatePreemptableJobsList(
+    UpdatePreemptableJobsList(
         Attributes_.FairShareRatio,
         TotalResourceLimits_,
         StrategyConfig_->PreemptionSatisfactionThreshold,
@@ -1862,7 +1874,7 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
     auto resourceUsage = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-resourceUsage);
 
-    SharedState_->UpdatePreemptableJobsList(
+    UpdatePreemptableJobsList(
         Attributes_.FairShareRatio,
         TotalResourceLimits_,
         StrategyConfig_->PreemptionSatisfactionThreshold,
@@ -2013,7 +2025,36 @@ int TOperationElement::ComputePendingJobCount() const
     return Controller_->GetPendingJobCount();
 }
 
-////////////////////////////////////////////////////////////////////////////////
+void TOperationElement::UpdatePreemptableJobsList(
+    double fairShareRatio,
+    const TJobResources& totalResourceLimits,
+    double preemptionSatisfactionThreshold,
+    double aggressivePreemptionSatisfactionThreshold)
+{
+    TScopedTimer timer;
+    int moveCount = 0;
+
+    SharedState_->UpdatePreemptableJobsList(
+        fairShareRatio,
+        totalResourceLimits,
+        preemptionSatisfactionThreshold,
+        aggressivePreemptionSatisfactionThreshold,
+        &moveCount);
+
+    auto elapsed = timer.GetElapsed();
+
+    Profiler.Update(PreemptableListUpdateTimeCounter, DurationToValue(elapsed));
+    Profiler.Update(PreemptableListUpdateMoveCountCounter, moveCount);
+
+    if (elapsed > StrategyConfig_->UpdatePreemptableListDurationLoggingThreshold) {
+        LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v)",
+            elapsed.MilliSeconds(),
+            moveCount,
+            OperationId_);
+    }
+}
+
+////////////////////////////////////////////////////////////////////
 
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,

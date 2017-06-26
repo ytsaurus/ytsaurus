@@ -1714,7 +1714,7 @@ void TNodeShard::DoInterruptJob(
 
     if (interruptTimeout != 0) {
         auto interruptDeadline = GetCpuInstant() + interruptTimeout;
-        if (interruptDeadline < job->GetInterruptDeadline()) {
+        if (job->GetInterruptDeadline() == 0 || interruptDeadline < job->GetInterruptDeadline()) {
             job->SetInterruptDeadline(interruptDeadline);
         }
     }

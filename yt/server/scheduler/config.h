@@ -96,6 +96,10 @@ public:
     //! Maximum number of ephemeral pools that can be created by user.
     int MaxEphemeralPoolsPerUser;
 
+    //! If update of preemtable lists of operation takes more than that duration
+    //! then this event will be logged.
+    TDuration UpdatePreemptableListDurationLoggingThreshold;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -194,6 +198,9 @@ public:
         RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
             .GreaterThanOrEqual(1)
             .Default(5);
+
+        RegisterParameter("update_preemptable_list_duration_logging_threshold", UpdatePreemptableListDurationLoggingThreshold)
+            .Default(TDuration::MilliSeconds(100));
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -955,7 +962,7 @@ public:
         RegisterParameter("max_job_nodes_per_operation", MaxJobNodesPerOperation)
             .Default(200)
             .GreaterThanOrEqual(0)
-            .LessThanOrEqual(200);
+            .LessThanOrEqual(250);
 
         RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
             .Default(128)
