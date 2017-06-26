@@ -348,11 +348,13 @@ class UserJobSpecBuilder(object):
             memory_limit = int(memory_limit)
         if memory_limit is None and get_config(client)["yamr_mode"]["use_yamr_defaults"]:
             memory_limit = 4 * GB
-        if get_config(client)["pickling"]["add_tmpfs_archive_size_to_memory_limit"]:
+
+        tmpfs_size = spec.get("tmpfs_size", 0)
+        if get_config(client)["pickling"]["add_tmpfs_archive_size_to_memory_limit"] and tmpfs_size > 0:
             if memory_limit is None:
                 # Guess that memory limit is 512 MB.
                 memory_limit = 512 * MB
-            memory_limit += spec.get("tmpfs_size", 0)
+            memory_limit += tmpfs_size
 
         if "memory_limit" not in spec:
             spec["memory_limit"] = memory_limit
