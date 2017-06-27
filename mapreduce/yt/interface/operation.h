@@ -41,6 +41,8 @@ template <class TDerived>
 struct TOperationIOSpec
     : public TOperationIOSpecBase
 {
+    using TSelf = TDerived;
+
     template <class T>
     TDerived& AddInput(const TRichYPath& path);
 
@@ -52,6 +54,10 @@ struct TOperationIOSpec
 
     template <class T>
     TDerived& SetOutput(size_t tableIndex, const TRichYPath& path);
+
+    // Ensure output tables exist before starting operation.
+    // If set to false, it is caller's responsibility to ensure output tables exist.
+    FLUENT_FIELD_DEFAULT(bool, CreateOutputTables, true);
 };
 
 template <class TDerived>
@@ -69,6 +75,10 @@ struct TUserOperationSpecBase
     // Table to save coredumps of operation
     // https://clubs.at.yandex-team.ru/yt/1045
     FLUENT_FIELD_OPTION(TYPath, CoreTablePath);
+
+    // Ensure stderr, core tables exist before starting operation.
+    // If set to false, it is caller's responsibility to ensure these tables exist.
+    FLUENT_FIELD_DEFAULT(bool, CreateDebugOutputTables, true);
 };
 
 template <class TDerived>
