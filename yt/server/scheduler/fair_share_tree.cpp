@@ -1575,11 +1575,7 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 
     TSchedulerElement::UpdateTopDown(dynamicAttributesList);
 
-    UpdatePreemptableJobsList(
-        Attributes_.FairShareRatio,
-        TotalResourceLimits_,
-        StrategyConfig_->PreemptionSatisfactionThreshold,
-        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
+    UpdatePreemptableJobsList();
 }
 
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
@@ -1820,11 +1816,8 @@ void TOperationElement::IncreaseJobResourceUsage(const TJobId& jobId, const TJob
 {
     auto delta = SharedState_->IncreaseJobResourceUsage(jobId, resourcesDelta);
     IncreaseResourceUsage(delta);
-    UpdatePreemptableJobsList(
-        Attributes_.FairShareRatio,
-        TotalResourceLimits_,
-        StrategyConfig_->PreemptionSatisfactionThreshold,
-        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
+
+    UpdatePreemptableJobsList();
 }
 
 bool TOperationElement::IsJobExisting(const TJobId& jobId) const
@@ -1862,11 +1855,7 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
     auto delta = SharedState_->AddJob(jobId, resourceUsage);
     IncreaseResourceUsage(delta);
 
-    UpdatePreemptableJobsList(
-        Attributes_.FairShareRatio,
-        TotalResourceLimits_,
-        StrategyConfig_->PreemptionSatisfactionThreshold,
-        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
+    UpdatePreemptableJobsList();
 }
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
@@ -1874,11 +1863,7 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
     auto resourceUsage = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-resourceUsage);
 
-    UpdatePreemptableJobsList(
-        Attributes_.FairShareRatio,
-        TotalResourceLimits_,
-        StrategyConfig_->PreemptionSatisfactionThreshold,
-        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
+    UpdatePreemptableJobsList();
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
@@ -2025,20 +2010,16 @@ int TOperationElement::ComputePendingJobCount() const
     return Controller_->GetPendingJobCount();
 }
 
-void TOperationElement::UpdatePreemptableJobsList(
-    double fairShareRatio,
-    const TJobResources& totalResourceLimits,
-    double preemptionSatisfactionThreshold,
-    double aggressivePreemptionSatisfactionThreshold)
+void TOperationElement::UpdatePreemptableJobsList()
 {
     TScopedTimer timer;
     int moveCount = 0;
 
     SharedState_->UpdatePreemptableJobsList(
-        fairShareRatio,
-        totalResourceLimits,
-        preemptionSatisfactionThreshold,
-        aggressivePreemptionSatisfactionThreshold,
+        Attributes_.FairShareRatio,
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold,
         &moveCount);
 
     auto elapsed = timer.GetElapsed();
