@@ -43,6 +43,7 @@ public:
     void Read(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
         NTabletClient::TWireProtocolReader* reader,
         NTabletClient::TWireProtocolWriter* writer);

@@ -121,6 +121,9 @@ struct TTabletSnapshot
 
     yhash<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
 
+    //! Profiler tags is empty iff EnableProfiling is false.
+    NProfiling::TTagIdList ProfilerTags;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TKey& lowerBound,
@@ -138,6 +141,7 @@ struct TTabletSnapshot
 
     void ValidateCellId(const NElection::TCellId& cellId);
     void ValidateMountRevision(i64 mountRevision);
+    bool IsProfilingEnabled() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
@@ -232,6 +236,7 @@ class TTablet
 public:
     DEFINE_BYVAL_RO_PROPERTY(i64, MountRevision);
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
+    DEFINE_BYVAL_RO_PROPERTY(NYPath::TYPath, TablePath);
 
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, TableSchema);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, PhysicalSchema);
@@ -269,6 +274,8 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
 
+    DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagIdList, ProfilerTags);
+
 public:
     TTablet(
         const TTabletId& tabletId,
@@ -276,11 +283,12 @@ public:
     TTablet(
         TTableMountConfigPtr config,
         TTabletChunkReaderConfigPtr readerConfig,
-        TTabletChunkWriterConfigPtr rriterConfig,
+        TTabletChunkWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions,
         const TTabletId& tabletId,
         i64 mountRevision,
         const NObjectClient::TObjectId& tableId,
+        const NYPath::TYPath& path,
         ITabletContext* context,
         const NTableClient::TTableSchema& schema,
         TOwningKey pivotKey,
@@ -372,6 +380,9 @@ public:
     i64 Unlock();
     i64 GetTabletLockCount() const;
 
+    void FillProfilerTags(const TCellId& cellId);
+    bool IsProfilingEnabled() const;
+
 private:
     const TRuntimeTabletDataPtr RuntimeData_ = New<TRuntimeTabletData>();
 
@@ -409,7 +420,7 @@ private:
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 
- 	void UpdateOverlappingStoreCount();
+    void UpdateOverlappingStoreCount();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

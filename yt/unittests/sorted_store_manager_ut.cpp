@@ -142,6 +142,7 @@ protected:
             LookupRows(
                 Tablet_->BuildSnapshot(nullptr),
                 timestamp,
+                "ut",
                 TWorkloadDescriptor(),
                 &reader,
                 &writer);

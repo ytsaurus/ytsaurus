@@ -50,6 +50,7 @@ message TReqMountTablet
     required bool freeze = 13;
     repeated TTableReplicaDescriptor replicas = 14;
     optional NYT.NProto.TGuid upstream_replica_id = 18;
+    optional string path = 19;
 }
 
 message TReqUnmountTablet

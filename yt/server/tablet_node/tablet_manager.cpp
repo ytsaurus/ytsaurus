@@ -220,6 +220,7 @@ public:
     void Read(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -233,6 +234,7 @@ public:
             ExecuteSingleRead(
                 tabletSnapshot,
                 timestamp,
+                user,
                 workloadDescriptor,
                 reader,
                 writer);
@@ -666,6 +668,7 @@ private:
             auto* tablet = pair.second;
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
+            tablet->FillProfilerTags(Slot_->GetCellId());
         }
 
         const auto& transactionManager = Slot_->GetTransactionManager();
@@ -811,6 +814,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
+        auto path = request->has_path() ? request->path() : "";
         auto schema = FromProto<TTableSchema>(request->schema());
         auto pivotKey = request->has_pivot_key() ? FromProto<TOwningKey>(request->pivot_key()) : TOwningKey();
         auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TOwningKey>(request->next_pivot_key()) : TOwningKey();
@@ -833,6 +837,7 @@ private:
             tabletId,
             mountRevision,
             tableId,
+            path,
             &TabletContext_,
             schema,
             pivotKey,
@@ -840,6 +845,7 @@ private:
             atomicity,
             commitOrdering,
             upstreamReplicaId);
+        tabletHolder->FillProfilerTags(Slot_->GetCellId());
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         if (!tablet->IsPhysicallySorted()) {
@@ -2325,6 +2331,7 @@ private:
     void ExecuteSingleRead(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -2335,6 +2342,7 @@ private:
                 LookupRows(
                     std::move(tabletSnapshot),
                     timestamp,
+                    user,
                     workloadDescriptor,
                     reader,
                     writer);
@@ -2344,6 +2352,7 @@ private:
                 VersionedLookupRows(
                     std::move(tabletSnapshot),
                     timestamp,
+                    user,
                     workloadDescriptor,
                     reader,
                     writer);
@@ -3129,6 +3138,7 @@ TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 void TTabletManager::Read(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
+    const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -3136,6 +3146,7 @@ void TTabletManager::Read(
     Impl_->Read(
         std::move(tabletSnapshot),
         timestamp,
+        user,
         workloadDescriptor,
         reader,
         writer);

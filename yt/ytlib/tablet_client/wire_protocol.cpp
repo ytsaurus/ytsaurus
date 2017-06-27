@@ -85,7 +85,7 @@ public:
         Current_ += AlignUp(size);
     }
 
-    void WriteSchemafulRow(
+    size_t WriteSchemafulRow(
         TUnversionedRow row,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
@@ -94,14 +94,15 @@ public:
 
         if (!row) {
             UnsafeWriteUint64(MinusOne);
-            return;
+            return bytes;
         }
 
         UnsafeWriteUint64(row.GetCount());
         UnsafeWriteSchemafulValueRange(TRange<TUnversionedValue>(row.Begin(), row.End()), idMapping);
+        return bytes;
     }
 
-    void WriteUnversionedRow(
+    size_t WriteUnversionedRow(
         TUnversionedRow row,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
@@ -110,21 +111,22 @@ public:
 
         if (!row) {
             UnsafeWriteUint64(MinusOne);
-            return;
+            return bytes;
         }
 
         UnsafeWriteUint64(row.GetCount());
         UnsafeWriteUnversionedValueRange(TRange<TUnversionedValue>(row.Begin(), row.End()), idMapping);
+        return bytes;
     }
 
-    void WriteVersionedRow(TVersionedRow row)
+    size_t WriteVersionedRow(TVersionedRow row)
     {
         size_t bytes = EstimateVersionedRowByteSize(row);
         EnsureCapacity(bytes);
 
         if (!row) {
             UnsafeWriteUint64(MinusOne);
-            return;
+            return bytes;
         }
 
         UnsafeWriteRaw(row.GetHeader(), sizeof(TVersionedRowHeader));
@@ -133,6 +135,7 @@ public:
 
         UnsafeWriteSchemafulValueRange(TRange<TUnversionedValue>(row.BeginKeys(), row.EndKeys()), nullptr);
         UnsafeWriteVersionedValueRange(TRange<TVersionedValue>(row.BeginValues(), row.EndValues()));
+        return bytes;
     }
 
     void WriteUnversionedValueRange(
@@ -474,24 +477,24 @@ void TWireProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& me
     Impl_->WriteMessage(message);
 }
 
-void TWireProtocolWriter::WriteSchemafulRow(
+size_t TWireProtocolWriter::WriteSchemafulRow(
     TUnversionedRow row,
     const TNameTableToSchemaIdMapping* idMapping)
 {
-    Impl_->WriteSchemafulRow(row, idMapping);
+    return Impl_->WriteSchemafulRow(row, idMapping);
 }
 
-void TWireProtocolWriter::WriteUnversionedRow(
+size_t TWireProtocolWriter::WriteUnversionedRow(
     TUnversionedRow row,
     const TNameTableToSchemaIdMapping* idMapping)
 {
-    Impl_->WriteUnversionedRow(row, idMapping);
+    return Impl_->WriteUnversionedRow(row, idMapping);
 }
 
-void TWireProtocolWriter::WriteVersionedRow(
+size_t TWireProtocolWriter::WriteVersionedRow(
     TVersionedRow row)
 {
-    Impl_->WriteVersionedRow(row);
+    return Impl_->WriteVersionedRow(row);
 }
 
 void TWireProtocolWriter::WriteUnversionedValueRange(

@@ -94,13 +94,13 @@ public:
 
     void WriteMessage(const ::google::protobuf::MessageLite& message);
 
-    void WriteUnversionedRow(
+    size_t WriteUnversionedRow(
         NTableClient::TUnversionedRow row,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
-    void WriteSchemafulRow(
+    size_t WriteSchemafulRow(
         NTableClient::TUnversionedRow row,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
-    void WriteVersionedRow(
+    size_t WriteVersionedRow(
         NTableClient::TVersionedRow row);
 
     void WriteUnversionedValueRange(
