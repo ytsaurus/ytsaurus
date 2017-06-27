@@ -85,6 +85,7 @@ if(_is_gcc)
     # Disable some annoying warnings.
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-c++1y-extensions")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-deprecated-register")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-deprecated-declarations")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-logical-op-parentheses")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-bitwise-op-parentheses")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-shift-op-parentheses")
