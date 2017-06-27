@@ -93,6 +93,72 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
+
+    SIMPLE_UNIT_TEST(CreateDebugOutputTables)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        // stderr table does not exist => should fail
+        try {
+            client->Map(
+                TMapOperationSpec().CreateDebugOutputTables(false)
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .StderrTablePath("//testing/stderr"),
+                new TMapperThatWritesStderr);
+            UNIT_FAIL("operation expected to fail");
+        } catch (const TOperationFailedError& e) {
+        }
+
+        client->Create("//testing/stderr", NT_TABLE);
+
+        // stderr table exists => should pass
+        client->Map(
+            TMapOperationSpec().CreateDebugOutputTables(false)
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .StderrTablePath("//testing/stderr"),
+            new TMapperThatWritesStderr);
+    }
+
+    SIMPLE_UNIT_TEST(CreateOutputTables)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        // output tablee does not exist => should fail
+        try {
+            client->Map(
+                TMapOperationSpec().CreateOutputTables(false)
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .StderrTablePath("//testing/stderr"),
+                new TMapperThatWritesStderr);
+            UNIT_FAIL("operation expected to fail");
+        } catch (const TOperationFailedError& e) {
+        }
+
+        client->Create("//testing/output", NT_TABLE);
+
+        // output table exists => should pass
+        client->Map(
+            TMapOperationSpec().CreateDebugOutputTables(false)
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .StderrTablePath("//testing/stderr"),
+            new TMapperThatWritesStderr);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -878,8 +878,12 @@ TOperationId ExecuteMap(
         format = GetTableFormats(auth, transactionId, inputs);
     }
 
-    CreateDebugOutputTables(spec, auth);
-    CreateOutputTables(auth, transactionId, outputs);
+    if (spec.CreateDebugOutputTables_) {
+        CreateDebugOutputTables(spec, auth);
+    }
+    if (spec.CreateOutputTables_) {
+        CreateOutputTables(auth, transactionId, outputs);
+    }
 
     TJobPreparer map(
         auth,
@@ -953,8 +957,12 @@ TOperationId ExecuteReduce(
         format = GetTableFormats(auth, transactionId, inputs);
     }
 
-    CreateDebugOutputTables(spec, auth);
-    CreateOutputTables(auth, transactionId, outputs);
+    if (spec.CreateDebugOutputTables_) {
+        CreateDebugOutputTables(spec, auth);
+    }
+    if (spec.CreateOutputTables_) {
+        CreateOutputTables(auth, transactionId, outputs);
+    }
 
     TJobPreparer reduce(
         auth,
@@ -1031,8 +1039,12 @@ TOperationId ExecuteJoinReduce(
         format = GetTableFormats(auth, transactionId, inputs);
     }
 
-    CreateDebugOutputTables(spec, auth);
-    CreateOutputTables(auth, transactionId, outputs);
+    if (spec.CreateDebugOutputTables_) {
+        CreateDebugOutputTables(spec, auth);
+    }
+    if (spec.CreateOutputTables_) {
+        CreateOutputTables(auth, transactionId, outputs);
+    }
 
     TJobPreparer reduce(
         auth,
@@ -1111,8 +1123,12 @@ TOperationId ExecuteMapReduce(
         format = GetTableFormats(auth, transactionId, inputs);
     }
 
-    CreateDebugOutputTables(spec, auth);
-    CreateOutputTables(auth, transactionId, outputs);
+    if (spec.CreateDebugOutputTables_) {
+        CreateDebugOutputTables(spec, auth);
+    }
+    if (spec.CreateOutputTables_) {
+        CreateOutputTables(auth, transactionId, outputs);
+    }
 
     TKeyColumns sortBy(spec.SortBy_);
     TKeyColumns reduceBy(spec.ReduceBy_);
