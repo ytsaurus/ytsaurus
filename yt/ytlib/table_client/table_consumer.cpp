@@ -29,7 +29,7 @@ TTableConsumer::TTableConsumer(IValueConsumer* valueConsumer)
     : TTableConsumer(std::vector<IValueConsumer*>(1, valueConsumer))
 { }
 
-TError TTableConsumer::AttachLocationAttributes(TError error)
+TError TTableConsumer::AttachLocationAttributes(TError error) const
 {
     return error << TErrorAttribute("row_index", RowIndex_);
 }
@@ -64,6 +64,8 @@ void TTableConsumer::OnStringScalar(const TStringBuf& value)
         OnControlStringScalar(value);
         ControlState_ = EControlState::ExpectEndAttributes;
         return;
+    } else if (ControlState_ == EControlState::ExpectEntity) {
+        ThrowEntityExpected();
     }
 
     Y_ASSERT(ControlState_ == EControlState::None);
@@ -84,6 +86,8 @@ void TTableConsumer::OnInt64Scalar(i64 value)
         OnControlInt64Scalar(value);
         ControlState_ = EControlState::ExpectEndAttributes;
         return;
+    } else if (ControlState_ == EControlState::ExpectEntity) {
+        ThrowEntityExpected();
     }
 
     Y_ASSERT(ControlState_ == EControlState::None);
@@ -101,6 +105,8 @@ void TTableConsumer::OnUint64Scalar(ui64 value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
         ThrowInvalidControlAttribute("be an unsigned integer");
+    } else if (ControlState_ == EControlState::ExpectEntity) {
+        ThrowEntityExpected();
     }
 
     Y_ASSERT(ControlState_ == EControlState::None);
@@ -120,6 +126,8 @@ void TTableConsumer::OnDoubleScalar(double value)
         Y_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a double value");
         return;
+    } else if (ControlState_ == EControlState::ExpectEntity) {
+        ThrowEntityExpected();
     }
 
     Y_ASSERT(ControlState_ == EControlState::None);
@@ -146,6 +154,8 @@ void TTableConsumer::OnBooleanScalar(bool value)
         Y_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a boolean value");
         return;
+    } else if (ControlState_ == EControlState::ExpectEntity) {
+        ThrowEntityExpected();
     }
 
     Y_ASSERT(ControlState_ == EControlState::None);
@@ -194,6 +204,8 @@ void TTableConsumer::OnBeginList()
         Y_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a list");
         return;
+    } else if (ControlState_ == EControlState::ExpectEntity) {
+        ThrowEntityExpected();
     }
 
     Y_ASSERT(ControlState_ == EControlState::None);
@@ -226,17 +238,22 @@ void TTableConsumer::OnBeginAttributes()
     ++Depth_;
 }
 
-void TTableConsumer::ThrowControlAttributesNotSupported()
+void TTableConsumer::ThrowControlAttributesNotSupported() const
 {
     THROW_ERROR AttachLocationAttributes(TError("Control attributes are not supported"));
 }
 
-void TTableConsumer::ThrowMapExpected()
+void TTableConsumer::ThrowMapExpected() const
 {
     THROW_ERROR AttachLocationAttributes(TError("Invalid row format, map expected"));
 }
 
-void TTableConsumer::ThrowInvalidControlAttribute(const TString& whatsWrong)
+void TTableConsumer::ThrowEntityExpected() const
+{
+    THROW_ERROR AttachLocationAttributes(TError("Invalid control attributes syntax, entity expected"));
+}
+
+void TTableConsumer::ThrowInvalidControlAttribute(const TString& whatsWrong) const
 {
     THROW_ERROR AttachLocationAttributes(TError("Control attribute %Qlv cannot %v",
         ControlAttribute_,
@@ -259,6 +276,8 @@ void TTableConsumer::OnBeginMap()
     if (ControlState_ == EControlState::ExpectValue) {
         Y_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a map");
+    } else if (ControlState_ == EControlState::ExpectEntity) {
+        ThrowEntityExpected();
     }
 
     Y_ASSERT(ControlState_ == EControlState::None);
@@ -302,7 +321,7 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
             try {
                 ColumnIndex_ = CurrentNameTableWriter_->GetIdOrRegisterName(name);
             } catch (const std::exception& ex) {
-                THROW_ERROR AttachLocationAttributes(TError("Failed to add column to name table for table writer") 
+                THROW_ERROR AttachLocationAttributes(TError("Failed to add column to name table for table writer")
                     << ex);
             }
         } else {
