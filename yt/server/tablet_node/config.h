@@ -95,6 +95,8 @@ public:
     i64 MaxDataWeightPerReplicationCommit;
     bool EnableReplicationLogging;
 
+    bool EnableProfiling;
+
     bool DisableCompactionAndPartitioning;
 
     TTableMountConfig()
@@ -196,6 +198,9 @@ public:
         RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
             .Default((i64) 128 * 1024 * 1024);
         RegisterParameter("enable_replication_logging", EnableReplicationLogging)
+            .Default(false);
+
+        RegisterParameter("enable_profiling", EnableProfiling)
             .Default(false);
 
         RegisterParameter("disable_compaction_and_partitioning", DisableCompactionAndPartitioning)

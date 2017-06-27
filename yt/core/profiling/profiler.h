@@ -67,6 +67,27 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Simple timer to measure the CPU time.
+/*!
+ *  Returns duration between Start and Stop.
+ *  Start and Stop methods can be invoked arbitrary number of times.
+ */
+class TSimpleTimer
+{
+public:
+    explicit TSimpleTimer(bool started = true);
+
+    void Start();
+    void Stop();
+    TValue GetElapsedValue() const;
+
+private:
+    TCpuDuration Duration_ = 0;
+    TCpuInstant Start_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Base class for all counters.
 /*!
  *  Maintains the profiling path and timing information.
@@ -157,7 +178,6 @@ public:
         TDuration interval = TDuration::MilliSeconds(1000));
     TSimpleCounter(const TSimpleCounter& other);
     TSimpleCounter& operator = (const TSimpleCounter& other);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

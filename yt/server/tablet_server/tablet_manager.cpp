@@ -1127,6 +1127,7 @@ public:
                         }
 
                         DoMountTablets(
+                            table,
                             assignment,
                             mountConfig->InMemoryMode,
                             action->GetFreeze(),
@@ -1334,6 +1335,7 @@ public:
             std::move(tabletsToMount));
 
         DoMountTablets(
+            table,
             assignment,
             mountConfig->InMemoryMode,
             freeze,
@@ -1369,6 +1371,7 @@ public:
             std::vector<TTablet*>{tablet});
 
         DoMountTablets(
+            table,
             assignment,
             mountConfig->InMemoryMode,
             freeze,
@@ -1379,6 +1382,7 @@ public:
     }
 
     void DoMountTablets(
+        TTableNode* table,
         const std::vector<std::pair<TTablet*, TTabletCell*>>& assignment,
         EInMemoryMode inMemoryMode,
         bool freeze,
@@ -1387,13 +1391,16 @@ public:
         const TYsonString& serializedWriterConfig,
         const TYsonString& serializedWriterOptions)
     {
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto nodeProxy = cypressManager->GetNodeProxy(table);
+        TYPath path = nodeProxy->GetPath();
+        const auto& allTablets = table->Tablets();
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
             auto* cell = pair.second;
-            const auto& objectManager = Bootstrap_->GetObjectManager();
             int tabletIndex = tablet->GetIndex();
-            auto* table = tablet->GetTable();
-            const auto& allTablets = table->Tablets();
             const auto& chunkLists = table->GetChunkList()->Children();
             YCHECK(allTablets.size() == chunkLists.size());
 
@@ -1408,11 +1415,11 @@ public:
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
 
-            const auto& hiveManager = Bootstrap_->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
 
             {
                 TReqMountTablet req;
+                req.set_path(path);
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 req.set_mount_revision(tablet->GetMountRevision());
                 ToProto(req.mutable_table_id(), table->GetId());

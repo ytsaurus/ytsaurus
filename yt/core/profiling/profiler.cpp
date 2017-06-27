@@ -47,6 +47,30 @@ TTimer::TTimer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSimpleTimer::TSimpleTimer(bool started)
+{
+    if (started) {
+        Start();
+    }
+}
+
+void TSimpleTimer::Start()
+{
+    Start_ = GetCpuInstant();
+}
+
+void TSimpleTimer::Stop()
+{
+    Duration_ += GetCpuInstant() - Start_;
+}
+
+TValue TSimpleTimer::GetElapsedValue() const
+{
+    return CpuDurationToValue(GetCpuInstant() - Start_ + Duration_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCounterBase::TCounterBase(
     const TYPath& path,
     const TTagIdList& tagIds,
@@ -288,13 +312,13 @@ TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta) const
 
 void TProfiler::Update(TSimpleCounter& counter, TValue value) const
 {
-    counter.Current_ = value;
+    counter.Current_.store(value, std::memory_order_relaxed);
     OnUpdated(counter);
 }
 
 TValue TProfiler::Increment(TSimpleCounter& counter, TValue delta) const
 {
-    auto result = (counter.Current_ += delta);
+    auto result = counter.Current_.fetch_add(delta, std::memory_order_relaxed) + delta;
     OnUpdated(counter);
     return result;
 }
@@ -393,23 +417,21 @@ void TProfiler::OnUpdated(TSimpleCounter& counter) const
         return;
     }
 
+    auto deadline = counter.Deadline_.load(std::memory_order_relaxed);
     auto now = GetCpuInstant();
-    if (now < counter.Deadline_.load(std::memory_order_relaxed)) {
+    if (now < deadline) {
         return;
     }
 
-    TGuard<TSpinLock> guard(counter.SpinLock_);
-
-    if (now < counter.Deadline_) {
+    if (!counter.Deadline_.compare_exchange_strong(deadline, now + counter.Interval_, std::memory_order_relaxed)) {
         return;
     }
 
-    auto current = counter.Current_.load();
-    counter.Deadline_ = now + counter.Interval_;
-
-    guard.Release();
-
-    Enqueue(counter.Path_, current, EMetricType::Counter, counter.TagIds_);
+    Enqueue(
+        counter.Path_,
+        counter.Current_.load(std::memory_order_relaxed),
+        EMetricType::Counter,
+        counter.TagIds_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

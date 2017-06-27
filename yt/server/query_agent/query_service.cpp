@@ -179,6 +179,7 @@ private:
                 tabletManager->Read(
                     tabletSnapshot,
                     timestamp,
+                    user,
                     workloadDescriptor,
                     &reader,
                     &writer);

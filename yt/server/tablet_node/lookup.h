@@ -16,6 +16,7 @@ namespace NTabletNode {
 void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
+    const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
     NTabletClient::TWireProtocolReader* reader,
     NTabletClient::TWireProtocolWriter* writer);
@@ -23,6 +24,7 @@ void LookupRows(
 void VersionedLookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
+    const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
     NTabletClient::TWireProtocolReader* reader,
     NTabletClient::TWireProtocolWriter* writer);

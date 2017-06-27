@@ -22,6 +22,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/async_semaphore.h>
 
@@ -40,6 +42,12 @@ using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NQueryClient;
+using namespace NProfiling;
+using namespace NYPath;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,6 +157,11 @@ void TTabletSnapshot::ValidateMountRevision(i64 mountRevision)
             mountRevision)
             << TErrorAttribute("tablet_id", TabletId);
     }
+}
+
+bool TTabletSnapshot::IsProfilingEnabled() const
+{
+    return !ProfilerTags.empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,6 +279,7 @@ TTablet::TTablet(
     const TTabletId& tabletId,
     i64 mountRevision,
     const TObjectId& tableId,
+    const TYPath& path,
     ITabletContext* context,
     const TTableSchema& schema,
     TOwningKey pivotKey,
@@ -276,6 +290,7 @@ TTablet::TTablet(
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
+    , TablePath_(path)
     , TableSchema_(schema)
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
@@ -377,6 +392,7 @@ void TTablet::Save(TSaveContext& context) const
 
     Save(context, TableId_);
     Save(context, MountRevision_);
+    Save(context, TablePath_);
     Save(context, GetPersistentState());
     Save(context, TableSchema_);
     Save(context, Atomicity_);
@@ -419,6 +435,9 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, TableId_);
     Load(context, MountRevision_);
+    if (context.GetVersion() > 100004) {
+        Load(context, TablePath_);
+    }
     Load(context, State_);
     Load(context, TableSchema_);
     Load(context, Atomicity_);
@@ -1020,6 +1039,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
 
     UpdateUnflushedTimestamp();
 
+    snapshot->ProfilerTags = ProfilerTags_;
+
     return snapshot;
 }
 
@@ -1073,6 +1094,30 @@ void TTablet::Initialize()
     ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(PhysicalSchema_);
 
     StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
+}
+
+void TTablet::FillProfilerTags(const TCellId& cellId)
+{
+    if (!Config_->EnableProfiling) {
+        return;
+    }
+    if (TablePath_.empty()) {
+        LOG_WARNING("Table path is empty, profiling will be disabled (TabletId: %v, CellId: %v)",
+            Id_,
+            cellId);
+        return;
+    }
+    ProfilerTags_.assign({
+        // tablet_id must be the first. See tablet_profiling.cpp for details.
+        TProfileManager::Get()->RegisterTag("tablet_id", Id_),
+        TProfileManager::Get()->RegisterTag("cell_id", cellId),
+        TProfileManager::Get()->RegisterTag("table_path", TablePath_)
+    });
+}
+
+bool TTablet::IsProfilingEnabled() const
+{
+    return !ProfilerTags_.empty();
 }
 
 TPartition* TTablet::GetContainingPartition(const ISortedStorePtr& store)
