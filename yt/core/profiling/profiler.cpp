@@ -47,30 +47,6 @@ TTimer::TTimer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleTimer::TSimpleTimer(bool started)
-{
-    if (started) {
-        Start();
-    }
-}
-
-void TSimpleTimer::Start()
-{
-    Start_ = GetCpuInstant();
-}
-
-void TSimpleTimer::Stop()
-{
-    Duration_ += GetCpuInstant() - Start_;
-}
-
-TValue TSimpleTimer::GetElapsedValue() const
-{
-    return CpuDurationToValue(GetCpuInstant() - Start_ + Duration_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCounterBase::TCounterBase(
     const TYPath& path,
     const TTagIdList& tagIds,
