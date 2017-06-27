@@ -92,7 +92,24 @@ bool TInputDataSlice::IsTrivial() const
 
 bool TInputDataSlice::IsEmpty() const
 {
-    return LowerLimit_.Key >= UpperLimit_.Key;
+    if (LowerLimit_.Key && UpperLimit_.Key && LowerLimit_.Key >= UpperLimit_.Key) {
+        return true;
+    }
+
+    if (IsTrivial() && (LowerLimit_.Key || UpperLimit_.Key)) {
+        const auto& boundaryKeys = GetSingleUnversionedChunkOrThrow()->BoundaryKeys();
+        if (boundaryKeys) {
+            if (LowerLimit_.Key && LowerLimit_.Key > boundaryKeys->MaxKey) {
+                return true;
+            }
+
+            if (UpperLimit_.Key && UpperLimit_.Key <= boundaryKeys->MinKey) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 std::pair<TInputDataSlicePtr, TInputDataSlicePtr> TInputDataSlice::SplitByRowIndex(i64 rowIndex) const
