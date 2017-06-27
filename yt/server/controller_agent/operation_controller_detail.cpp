@@ -6052,6 +6052,8 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
                 joblet,
                 EJobState::Running,
                 outputStatistics);
+        } else {
+            attributesBuilder = BIND([] (IYsonConsumer*) {});
         }
     }
 
@@ -6065,7 +6067,6 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
     //        attributesBuilder = BIND(&TOperationControllerBase::BuildFinishedJobAttributes, MakeStrong(this), job);
     //    }
     //}
-    attributesBuilder = BIND([] (IYsonConsumer*) {});
 
     YCHECK(attributesBuilder);
 
