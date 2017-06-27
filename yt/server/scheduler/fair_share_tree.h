@@ -722,11 +722,7 @@ private:
     TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
 
-    void UpdatePreemptableJobsList(
-        double fairShareRatio,
-        const TJobResources& totalResourceLimits,
-        double preemptionSatisfactionThreshold,
-        double aggressivePreemptionSatisfactionThreshold);
+    void UpdatePreemptableJobsList();
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)
