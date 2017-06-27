@@ -791,7 +791,7 @@ private:
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
-        auto prepareTimestamp = request->prepare_timestamp();
+        auto prepareTimestamp = request->has_prepare_timestamp() ? request->prepare_timestamp() : MinTimestamp;
 
         // Ensure commit existence (possibly moving it from transient to persistent).
         auto* commit = GetOrCreatePersistentCommit(
