@@ -143,9 +143,6 @@ class EmptyResponseStream(Iterator):
     def __next__(self):
         raise StopIteration()
 
-    def read_rows(self):
-        raise StopIteration()
-
 class ResponseStreamWithDel(ResponseStream):
     def __init__(self, *args, **kwargs):
         super(ResponseStreamWithDel, self).__init__(*args, **kwargs)
