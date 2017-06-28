@@ -649,8 +649,10 @@ public:
                     ProfileCompositeSchedulerElement(pair.second);
                 }
                 ProfileCompositeSchedulerElement(RootElement);
-                for (const auto& pair : OperationIdToElement) {
-                    ProfileOperationElement(pair.second);
+                if (Config->EnableOperationsProfiling) {
+                    for (const auto& pair : OperationIdToElement) {
+                        ProfileOperationElement(pair.second);
+                    }
                 }
             }
         }
