@@ -1,6 +1,8 @@
 #include "client.h"
 
 #include "batch_request_impl.h"
+#include "lock.h"
+#include "lock_waiter.h"
 #include "mock_client.h"
 #include "operation.h"
 #include "rpc_parameters_serialization.h"
@@ -50,7 +52,7 @@ TClientBase::TClientBase(
 ITransactionPtr TClientBase::StartTransaction(
     const TStartTransactionOptions& options)
 {
-    return MakeIntrusive<TTransaction>(Auth_, TransactionId_, true, options);
+    return MakeIntrusive<TTransaction>(GetParentClient(), Auth_, TransactionId_, true, options);
 }
 
 TNodeId TClientBase::Create(
@@ -479,26 +481,8 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLock
-    : public ILock
-{
-public:
-    TLock(const TLockId& lockId)
-        : LockId_(lockId)
-    { }
-
-    virtual const TLockId& GetId() const override
-    {
-        return LockId_;
-    }
-
-private:
-    const TLockId LockId_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTransaction::TTransaction(
+    TClientPtr parentClient,
     const TAuth& auth,
     const TTransactionId& transactionId,
     bool isOwning,
@@ -512,6 +496,7 @@ TTransaction::TTransaction(
             options.PingAncestors_,
             options.Attributes_)
         : nullptr)
+    , ParentClient_(parentClient)
 {
     TransactionId_ = isOwning ? PingableTx_->GetId() : transactionId;
 }
@@ -539,7 +524,13 @@ ILockPtr TTransaction::Lock(
     if (options.ChildKey_) {
         header.AddParam("child_key", *options.ChildKey_);
     }
-    return ::MakeIntrusive<TLock>(ParseGuidFromResponse(RetryRequest(Auth_, header)));
+
+    auto lockId = ParseGuidFromResponse(RetryRequest(Auth_, header));
+    if (options.Waitable_) {
+        return ::MakeIntrusive<TLock>(lockId, GetParentClient());
+    } else {
+        return ::MakeIntrusive<TLock>(lockId);
+    }
 }
 
 void TTransaction::Commit()
@@ -560,6 +551,11 @@ void TTransaction::Abort()
     }
 }
 
+TClientPtr TTransaction::GetParentClient()
+{
+    return ParentClient_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TClient::TClient(
@@ -568,10 +564,12 @@ TClient::TClient(
     : TClientBase(auth, globalId)
 { }
 
+TClient::~TClient() = default;
+
 ITransactionPtr TClient::AttachTransaction(
     const TTransactionId& transactionId)
 {
-    return MakeIntrusive<TTransaction>(Auth_, transactionId, false, TStartTransactionOptions());
+    return MakeIntrusive<TTransaction>(this, Auth_, transactionId, false, TStartTransactionOptions());
 }
 
 void TClient::MountTable(
@@ -771,6 +769,20 @@ void TClient::ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOpti
 
         *request.Impl_ = std::move(retryBatch);
     }
+}
+
+TLockWaiter& TClient::GetLockWaiter()
+{
+
+    if (!LockWaiter_) {
+        LockWaiter_ = MakeHolder<TLockWaiter>(this);
+    }
+    return *LockWaiter_;
+}
+
+TClientPtr TClient::GetParentClient()
+{
+    return this;
 }
 
 template <class TOptions>

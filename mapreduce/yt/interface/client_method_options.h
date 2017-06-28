@@ -145,7 +145,14 @@ struct TLockOptions
 {
     using TSelf = TLockOptions;
 
+    // If `Waitable' is set to true Lock method will create
+    // waitable lock, that will be taken once other transactions
+    // that hold lock to that node are commited / aborted.
+    //
+    // NOTE: Lock method DOES NOT wait until lock is actually acquired.
+    // Waiting should be done using corresponding methods of ILock.
     FLUENT_FIELD_DEFAULT(bool, Waitable, false);
+
     FLUENT_FIELD_OPTION(TString, AttributeKey);
     FLUENT_FIELD_OPTION(TString, ChildKey);
 };

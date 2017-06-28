@@ -9,6 +9,8 @@
 #include "node.h"
 #include "operation.h"
 
+#include <library/threading/future/future.h>
+
 #include <util/datetime/base.h>
 #include <util/generic/maybe.h>
 #include <util/system/compiler.h>
@@ -33,6 +35,17 @@ public:
     virtual ~ILock() = default;
 
     virtual const TLockId& GetId() const = 0;
+
+    // Returns future that will be set once lock is in "acquired" state.
+    //
+    // Note that future might contain exception if some error occurred
+    // e.g. lock transaction was aborted.
+    virtual const NThreading::TFuture<void>& GetAcquiredFuture() const = 0;
+
+    // Convenient wrapper that waits until lock is in "aquired" state.
+    // Throws exception if timeout exceeded or some error occurred
+    // e.g. lock transaction was aborted.
+    void Wait(TDuration timeout = TDuration::Max());
 };
 
 class IClientBase

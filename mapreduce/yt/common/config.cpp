@@ -146,6 +146,8 @@ void TConfig::LoadTimings()
     PingInterval = GetDuration("YT_PING_INTERVAL",
         TDuration::Seconds(5));
 
+    WaitLockPollInterval = TDuration::Seconds(5);
+
     RetryInterval = GetDuration("YT_RETRY_INTERVAL",
         TDuration::Seconds(3));
 

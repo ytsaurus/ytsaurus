@@ -35,6 +35,9 @@ struct TConfig
     TDuration PingTimeout;
     TDuration PingInterval;
 
+    // How often should we poll for lock state
+    TDuration WaitLockPollInterval;
+
     TDuration RetryInterval;
     TDuration ChunkErrorsRetryInterval;
 
