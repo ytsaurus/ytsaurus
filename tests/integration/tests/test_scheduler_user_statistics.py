@@ -1,7 +1,7 @@
 import pytest
 import os
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges
 from yt_commands import *
 
 ##################################################################
@@ -20,16 +20,12 @@ class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    # This is a mix of options for 18.3 and 18.4
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "enable_cgroups": True,                                       # <= 18.3
-            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.3
             "slot_manager": {
-                "enforce_job_control": True,                              # <= 18.3
                 "job_environment" : {
-                    "type" : "cgroups",                                   # >= 18.4
-                    "supported_cgroups": [                                # >= 18.4
+                    "type" : "cgroups",
+                    "supported_cgroups": [
                         "cpuacct",
                         "blkio",
                         "memory",
@@ -39,6 +35,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         }
     }
 
+    @require_ytserver_root_privileges
     def test_job_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -54,6 +51,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         assert get_statistics(statistics, "custom.k2.$.completed.map.count") == 2
         assert get_statistics(statistics, "custom.k2.$.completed.map.max") == 1
 
+    @require_ytserver_root_privileges
     def test_tricky_names(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -76,6 +74,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 spec={"max_failed_job_count": 1},
                 command='cat; echo "{\\"\\"=42}">&5')
 
+    @require_ytserver_root_privileges
     def test_name_is_too_long(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -90,6 +89,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 spec={"max_failed_job_count": 1},
                 command='cat; echo "{ ' + long_name + '=42};">&5')
 
+    @require_ytserver_root_privileges
     def test_too_many_custom_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -106,7 +106,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 spec={"max_failed_job_count": 1, "mapper":{"custom_statistics_count_limit": custom_statistics_count_limit}},
                 command="cat; " + write_line)
 
-
+    @require_ytserver_root_privileges
     def test_multiple_job_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -116,6 +116,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
         assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.count") == 2
 
+    @require_ytserver_root_privileges
     def test_job_statistics_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
