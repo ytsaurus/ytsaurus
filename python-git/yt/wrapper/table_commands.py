@@ -1,5 +1,5 @@
 from .common import flatten, require, update, parse_bool, get_value, set_param, datetime_to_string, \
-                    MB, EMPTY_GENERATOR
+                    MB
 from .config import get_config, get_option
 from .cypress_commands import exists, remove, get_attribute, copy, \
                               move, mkdir, find_free_subpath, create, get, has_attribute
@@ -8,6 +8,7 @@ from .errors import YtIncorrectResponse, YtError, YtRetriableError
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
+from .response_stream import EmptyResponseStream
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, \
                            _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format
 from .ypath import TablePath, ypath_join
@@ -211,7 +212,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     table = TablePath(table, client=client)
     format = _prepare_format(format, raw, client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
-        return BytesIO() if raw else EMPTY_GENERATOR
+        return EmptyResponseStream()
     attributes = get(table + "/@", client=client)
     if attributes.get("type") != "table":
         raise YtError("Command read is supported only for tables")
