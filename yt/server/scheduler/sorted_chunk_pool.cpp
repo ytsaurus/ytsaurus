@@ -1470,7 +1470,7 @@ private:
                         chunkSliceFetcher->AddChunk(inputChunk);
                     } else {
                         auto chunkSlice = CreateInputChunkSlice(inputChunk);
-                        InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+                        InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, PrimaryPrefixLength_);
                         unversionedChunkSlices.emplace_back(std::move(chunkSlice));
                     }
 

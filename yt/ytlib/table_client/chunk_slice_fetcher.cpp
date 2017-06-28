@@ -136,10 +136,9 @@ private:
             if (chunkDataSize < ChunkSliceSize_ ||
                 (SliceByKeys_ && CompareRows(minKey, maxKey, keyColumnCount) == 0))
             {
-                auto slice = CreateInputChunkSlice(
-                    chunk,
-                    GetStrictKey(minKey, keyColumnCount, RowBuffer_),
-                    GetStrictKeySuccessor(maxKey, keyColumnCount, RowBuffer_));
+                auto slice = CreateInputChunkSlice(chunk);
+                InferLimitsFromBoundaryKeys(slice, RowBuffer_, keyColumnCount);
+
                 if (SlicesByChunkIndex_.size() <= index) {
                     SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputChunkSlicePtr>());
                 }
