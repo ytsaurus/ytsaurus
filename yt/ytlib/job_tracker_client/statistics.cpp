@@ -5,9 +5,11 @@
 #include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/ypath/token.h>
+#include <yt/core/ypath/tokenizer.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/helpers.h>
+#include <yt/core/ytree/serialize.h>
 
 #include <util/string/util.h>
 
@@ -174,17 +176,91 @@ void TStatistics::Persist(NPhoenix::TPersistenceContext& context)
 
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    auto root = GetEphemeralNodeFactory()->CreateMap();
+    using NYT::Serialize;
+
     if (statistics.GetTimestamp()) {
-        root->MutableAttributes()->Set("timestamp", *statistics.GetTimestamp());
+        consumer->OnBeginAttributes();
+        consumer->OnKeyedItem("timestamp");
+        NYTree::Serialize(*statistics.GetTimestamp(), consumer);
+        consumer->OnEndAttributes();
     }
+    consumer->OnBeginMap();
+
+    // Depth of the previous key defined as a number of nested maps before the summary itself.
+    int previousDepth = 0;
+    TYPath previousKey;
     for (const auto& pair : statistics.Data()) {
-        ForceYPath(root, pair.first);
-        auto value = ConvertToNode(pair.second);
-        SetNodeByYPath(root, pair.first, std::move(value));
+        const auto& currentKey = pair.first;
+        NYPath::TTokenizer previousTokenizer(previousKey);
+        NYPath::TTokenizer currentTokenizer(currentKey);
+
+        // The depth of the common part of two keys, needed to determine the number of maps to close.
+        int commonDepth = 0;
+
+        if (previousKey) {
+            // First we find the position in which current key is different from the
+            // previous one in order to close necessary number of maps.
+            commonDepth = 0;
+            while (true)
+            {
+                currentTokenizer.Advance();
+                previousTokenizer.Advance();
+                // Note that both tokenizers can't reach EndOfStream token, because it would mean that
+                // currentKey is prefix of prefixKey or vice versa that is prohibited in TStatistics.
+                currentTokenizer.Expect(NYPath::ETokenType::Slash);
+                previousTokenizer.Expect(NYPath::ETokenType::Slash);
+
+                currentTokenizer.Advance();
+                previousTokenizer.Advance();
+                currentTokenizer.Expect(NYPath::ETokenType::Literal);
+                previousTokenizer.Expect(NYPath::ETokenType::Literal);
+                if (currentTokenizer.GetLiteralValue() == previousTokenizer.GetLiteralValue()) {
+                    ++commonDepth;
+                } else {
+                    break;
+                }
+            }
+            // Close all redundant maps.
+            while (previousDepth > commonDepth) {
+                consumer->OnEndMap();
+                --previousDepth;
+            }
+        } else {
+            currentTokenizer.Advance();
+            currentTokenizer.Expect(NYPath::ETokenType::Slash);
+            currentTokenizer.Advance();
+            currentTokenizer.Expect(NYPath::ETokenType::Literal);
+        }
+
+        int currentDepth = commonDepth;
+        // Open all newly appeared maps.
+        while (true) {
+            consumer->OnKeyedItem(currentTokenizer.GetLiteralValue());
+            currentTokenizer.Advance();
+            if (currentTokenizer.GetType() == NYPath::ETokenType::Slash) {
+                consumer->OnBeginMap();
+                ++currentDepth;
+                currentTokenizer.Advance();
+                currentTokenizer.Expect(NYPath::ETokenType::Literal);
+            } else if (currentTokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                break;
+            } else {
+                YCHECK(false && "Wrong token type in statistics key");
+            }
+        }
+        // Serialize summary.
+        Serialize(pair.second, consumer);
+
+        previousDepth = currentDepth;
+        previousKey = currentKey;
+    }
+    while (previousDepth > 0) {
+        consumer->OnEndMap();
+        --previousDepth;
     }
 
-    Serialize(*root, consumer);
+    // This OnEndMap is complementary to the OnBeginMap before the main loop.
+    consumer->OnEndMap();
 }
 
 // Helper function for GetNumericValue.
