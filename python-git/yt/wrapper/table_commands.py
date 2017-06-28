@@ -8,7 +8,7 @@ from .errors import YtIncorrectResponse, YtError, YtRetriableError
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
-from .response_stream import EmptyResponseStream
+from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, \
                            _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format
 from .ypath import TablePath, ypath_join
@@ -212,7 +212,11 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     table = TablePath(table, client=client)
     format = _prepare_format(format, raw, client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
-        return EmptyResponseStream()
+        return ResponseStreamWithReadRow(get_response=lambda: None,
+                                         iter_content=iter(EmptyResponseStream()),
+                                         close=lambda: None,
+                                         process_error=lambda response: None,
+                                         get_response_parameters=lambda: None)
     attributes = get(table + "/@", client=client)
     if attributes.get("type") != "table":
         raise YtError("Command read is supported only for tables")
