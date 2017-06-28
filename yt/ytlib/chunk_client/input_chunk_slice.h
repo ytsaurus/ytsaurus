@@ -156,7 +156,10 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     const TInputChunkPtr& inputChunk,
     NErasure::ECodec codecId);
 
-void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice, const NTableClient::TRowBufferPtr& rowBuffer);
+void InferLimitsFromBoundaryKeys(
+    const TInputChunkSlicePtr& chunkSlice,
+    const NTableClient::TRowBufferPtr& rowBuffer,
+    int keyColumnCount);
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,
