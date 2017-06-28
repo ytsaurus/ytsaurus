@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/rpc_proxy/api_service.pb.h>
+#include <yt/ytlib/api_proto/api_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
