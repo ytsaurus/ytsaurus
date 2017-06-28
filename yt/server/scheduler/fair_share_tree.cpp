@@ -1068,8 +1068,8 @@ TPoolFixedState::TPoolFixedState(const TString& id)
 TPool::TPool(
     ISchedulerStrategyHost* host,
     const TString& id,
-    NProfiling::TTagId profilingTag,
-    TFairShareStrategyConfigPtr strategyConfig)
+    TFairShareStrategyConfigPtr strategyConfig,
+    NProfiling::TTagId profilingTag)
     : TCompositeSchedulerElement(host, strategyConfig, profilingTag)
     , TPoolFixedState(id)
 {
@@ -1274,11 +1274,11 @@ TJobResources TPool::ComputeResourceLimits() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationElementFixedState::TOperationElementFixedState(TOperationPtr operation)
-    : Controller_(operation->GetController())
+TOperationElementFixedState::TOperationElementFixedState(IOperationStrategyHost* operation)
+    : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
     , Schedulable_(operation->IsSchedulable())
-    , Operation_(operation.Get())
+    , Operation_(operation)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1622,7 +1622,7 @@ TOperationElement::TOperationElement(
     TStrategyOperationSpecPtr spec,
     TOperationRuntimeParamsPtr runtimeParams,
     ISchedulerStrategyHost* host,
-    TOperationPtr operation)
+    IOperationStrategyHost* operation)
     : TSchedulerElement(host, strategyConfig)
     , TOperationElementFixedState(operation)
     , RuntimeParams_(runtimeParams)
@@ -2080,7 +2080,7 @@ TJobResources TOperationElement::GetHierarchicalResourceLimits(const TFairShareC
 
 TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits, const TJobResources& jobResourceDiscount)
 {
-    auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationController::ScheduleJob, Controller_)
+    auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationControllerStrategyHost::ScheduleJob, Controller_)
         .AsyncVia(Controller_->GetCancelableInvoker())
         .Run(context.SchedulingContext, jobLimits);
 
@@ -2137,7 +2137,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
                 OperationId_);
 
             Controller_->GetCancelableInvoker()->Invoke(BIND(
-                &NControllerAgent::IOperationController::OnJobAborted,
+                &NControllerAgent::IOperationControllerStrategyHost::OnJobAborted,
                 Controller_,
                 Passed(std::make_unique<TAbortedJobSummary>(
                     jobId,
@@ -2206,8 +2206,8 @@ void TOperationElement::UpdatePreemptableJobsList()
 
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
-    NProfiling::TTagId profilingTag,
-    TFairShareStrategyConfigPtr strategyConfig)
+    TFairShareStrategyConfigPtr strategyConfig,
+    NProfiling::TTagId profilingTag)
     : TCompositeSchedulerElement(
         host,
         strategyConfig,

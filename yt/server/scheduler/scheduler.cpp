@@ -362,7 +362,7 @@ public:
         return execNodeCount;
     }
 
-    virtual int GetTotalNodeCount() const override
+    int GetTotalNodeCount() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

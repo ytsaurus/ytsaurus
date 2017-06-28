@@ -20,6 +20,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ordered_chunk_pool_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/erasure_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/fair_share_tree_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/file_changelog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/integer_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_size_adjuster_ut.cpp

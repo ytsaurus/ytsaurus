@@ -95,6 +95,11 @@ bool TOperation::IsSchedulable() const
     return State_ == EOperationState::Running && !Suspended_;
 }
 
+IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
+{
+    return Controller_;
+}
+
 void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
 {
     ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());
