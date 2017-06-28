@@ -6,8 +6,14 @@
 #include <mapreduce/yt/io/client_writer.h>
 
 namespace NYT {
-
 namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLockWaiter;
+
+class TClient;
+using TClientPtr = ::TIntrusivePtr<TClient>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,6 +144,9 @@ public:
         const TAlterTableOptions& options) override;
 
 protected:
+    virtual TClientPtr GetParentClient() = 0;
+
+protected:
     const TAuth Auth_;
     TTransactionId TransactionId_;
 
@@ -188,6 +197,7 @@ class TTransaction
 {
 public:
     TTransaction(
+        TClientPtr parentClient,
         const TAuth& auth,
         const TTransactionId& transactionId,
         bool isOwning,
@@ -204,8 +214,11 @@ public:
 
     void Abort() override;
 
+    TClientPtr GetParentClient() override;
+
 private:
     THolder<TPingableTransaction> PingableTx_;
+    TClientPtr ParentClient_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,6 +231,8 @@ public:
     TClient(
         const TAuth& auth,
         const TTransactionId& globalId);
+
+    ~TClient();
 
     ITransactionPtr AttachTransaction(
         const TTransactionId& transactionId) override;
@@ -271,12 +286,20 @@ public:
 
     void ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOptions& options) override;
 
+    // Helper methods
+    TLockWaiter& GetLockWaiter();
+
+protected:
+    TClientPtr GetParentClient() override;
+
 private:
     template <class TOptions>
     void SetTabletParams(
         THttpHeader& header,
         const TYPath& path,
         const TOptions& options);
+
+    THolder<TLockWaiter> LockWaiter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
