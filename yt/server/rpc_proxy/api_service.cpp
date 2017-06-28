@@ -1183,7 +1183,30 @@ private:
         }
 
         TSelectRowsOptions options; // TODO: Fill all options.
-        options.Timestamp = NTransactionClient::AsyncLastCommittedTimestamp;
+        if (request->has_timestamp()) {
+            options.Timestamp = request->timestamp();
+        }
+        if (request->has_input_row_limit()) {
+            options.InputRowLimit = request->input_row_limit();
+        }
+        if (request->has_output_row_limit()) {
+            options.OutputRowLimit = request->output_row_limit();
+        }
+        if (request->has_range_expansion_limit()) {
+            options.RangeExpansionLimit = request->range_expansion_limit();
+        }
+        if (request->has_fail_on_incomplete_result()) {
+            options.FailOnIncompleteResult = request->fail_on_incomplete_result();
+        }
+        if (request->has_verbose_logging()) {
+            options.VerboseLogging = request->verbose_logging();
+        }
+        if (request->has_enable_code_cache()) {
+            options.EnableCodeCache = request->enable_code_cache();
+        }
+        if (request->has_max_subqueries()) {
+            options.MaxSubqueries = request->max_subqueries();
+        }
 
         client->SelectRows(request->query(), options)
             .Subscribe(BIND([=] (const TErrorOr<TSelectRowsResult>& result) {
