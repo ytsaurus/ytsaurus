@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -36,6 +37,7 @@ public class BalancingRpcClient implements RpcClient {
     final private Destination[] destinations;
     final private Random rnd = new Random();
     final private ScheduledExecutorService executorService;
+    final private RpcFailoverPolicy failoverPolicy;
 
     private int aliveCount;
 
@@ -128,9 +130,27 @@ public class BalancingRpcClient implements RpcClient {
         }
     }
 
-    public BalancingRpcClient(Duration failoverTimeout, Duration globalTimeout, Duration pingTimeout, BusConnector connector, RpcClient ... destinations) {
+    public BalancingRpcClient(
+        Duration failoverTimeout,
+        Duration globalTimeout,
+        Duration pingTimeout,
+        BusConnector connector,
+        RpcClient ... destinations) {
+
+        this(failoverTimeout, globalTimeout, pingTimeout, connector, new DefaultRpcFailoverPolicy(), destinations);
+    }
+
+    public BalancingRpcClient(
+        Duration failoverTimeout,
+        Duration globalTimeout,
+        Duration pingTimeout,
+        BusConnector connector,
+        RpcFailoverPolicy failoverPolicy,
+        RpcClient ... destinations) {
+
         assert failoverTimeout.compareTo(globalTimeout) <= 0;
 
+        this.failoverPolicy = failoverPolicy;
         this.failoverTimeout = failoverTimeout;
         this.pingTimeout = pingTimeout;
         this.globalTimeout = globalTimeout;
@@ -161,6 +181,7 @@ public class BalancingRpcClient implements RpcClient {
         private int step;
         private final BalancingRpcClient parent;
         private final List<RpcClientRequestControl> cancelation;
+        private Future<?> timeoutFuture;
 
         private long timeout;
 
@@ -174,6 +195,7 @@ public class BalancingRpcClient implements RpcClient {
             timeout = parent.globalTimeout.toMillis();
 
             cancelation = new ArrayList<>();
+            timeoutFuture = CompletableFuture.completedFuture(0);
             step = 0;
             send();
         }
@@ -213,7 +235,11 @@ public class BalancingRpcClient implements RpcClient {
             synchronized (f) {
                 if (!f.isDone()) {
                     if (!clients.isEmpty()){
-                        send();
+                        if (parent.failoverPolicy.onTimeout()) {
+                            send();
+                        } else {
+                            f.completeExceptionally(new RuntimeException("timeout"));
+                        }
                     } else {
                         // global timeout
                     }
@@ -260,7 +286,12 @@ public class BalancingRpcClient implements RpcClient {
             synchronized (f) {
                 if (!f.isDone()) {
                     // maybe use other proxy here?
-                    f.completeExceptionally(error);
+                    if (parent.failoverPolicy.onError(request, error) && !clients.isEmpty()) {
+                        timeoutFuture.cancel(true);
+                        send();
+                    } else {
+                        f.completeExceptionally(error);
+                    }
                 }
             }
         }
