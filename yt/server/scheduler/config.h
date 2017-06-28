@@ -100,6 +100,9 @@ public:
     //! then this event will be logged.
     TDuration UpdatePreemptableListDurationLoggingThreshold;
 
+    //! Enables profiling strategy attributes for operations.
+    bool EnableOperationsProfiling;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -201,6 +204,9 @@ public:
 
         RegisterParameter("update_preemptable_list_duration_logging_threshold", UpdatePreemptableListDurationLoggingThreshold)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("enable_operations_profiling", EnableOperationsProfiling)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
