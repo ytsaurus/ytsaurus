@@ -124,7 +124,7 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
     OperationStates_.erase(it);
 }
 
-yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
+void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -175,7 +175,6 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
 
     response->set_enable_statistics_reporter(Config_->EnableStatisticsReporter);
 
-    yhash_set<TOperationId> operationsToLog;
     TFuture<void> scheduleJobsAsyncResult = VoidFuture;
 
     {
@@ -194,8 +193,7 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
                     request,
                     response,
                     &runningJobs,
-                    &hasWaitingJobs,
-                    &operationsToLog);
+                    &hasWaitingJobs);
             }
 
             if (hasWaitingJobs || isThrottlingActive) {
@@ -231,8 +229,7 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
 
                 scheduleJobsAsyncResult = ProcessScheduledJobs(
                     schedulingContext,
-                    context,
-                    &operationsToLog);
+                    context);
 
                 // NB: some jobs maybe considered aborted after processing scheduled jobs.
                 PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
@@ -258,8 +255,6 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
     }
 
     context->ReplyFrom(scheduleJobsAsyncResult);
-
-    return operationsToLog;
 }
 
 TExecNodeDescriptorListPtr TNodeShard::GetExecNodeDescriptors()
@@ -920,8 +915,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     NJobTrackerClient::NProto::TReqHeartbeat* request,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     std::vector<TJobPtr>* runningJobs,
-    bool* hasWaitingJobs,
-    yhash_set<TOperationId>* operationsToLog)
+    bool* hasWaitingJobs)
 {
     auto now = GetCpuInstant();
 
@@ -964,11 +958,6 @@ void TNodeShard::ProcessHeartbeatJobs(
                 job->SetFoundOnNode(true);
             }
             switch (job->GetState()) {
-                case EJobState::Completed:
-                case EJobState::Failed:
-                case EJobState::Aborted:
-                    operationsToLog->insert(job->GetOperationId());
-                    break;
                 case EJobState::Running:
                     runningJobs->push_back(job);
                     break;
@@ -1302,8 +1291,7 @@ void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
 
 TFuture<void> TNodeShard::ProcessScheduledJobs(
     const ISchedulingContextPtr& schedulingContext,
-    const TScheduler::TCtxHeartbeatPtr& rpcContext,
-    yhash_set<TOperationId>* operationsToLog)
+    const TScheduler::TCtxHeartbeatPtr& rpcContext)
 {
     auto* response = &rpcContext->Response();
 
@@ -1357,7 +1345,6 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 
         // Release to avoid circular references.
         job->SetSpecBuilder(TJobSpecBuilder());
-        operationsToLog->insert(job->GetOperationId());
     }
 
     for (const auto& job : schedulingContext->PreemptedJobs()) {

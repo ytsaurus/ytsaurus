@@ -1180,6 +1180,9 @@ private:
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
     std::unique_ptr<IHistogram> InputDataSizeHistogram_;
 
+    const NProfiling::TCpuDuration LogProgressBackoff;
+    NProfiling::TCpuInstant NextLogProgressDeadline = 0;
+
     NYson::TYsonString ProgressString_;
     NYson::TYsonString BriefProgressString_;
 
@@ -1203,6 +1206,8 @@ private:
     bool ShouldSkipSanityCheck();
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
+
+    void LogProgress(bool force = false);
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 

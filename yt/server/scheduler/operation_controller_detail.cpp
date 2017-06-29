@@ -1105,6 +1105,7 @@ TOperationControllerBase::TOperationControllerBase(
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
+    , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
@@ -1479,6 +1480,8 @@ void TOperationControllerBase::SafeMaterialize()
         }
 
         State = EControllerState::Running;
+
+        LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Materialization failed") << ex;
         LOG_ERROR(wrappedError);
@@ -2039,6 +2042,8 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant st
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType);
+
+    LogProgress();
 }
 
 void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics, bool resourceOverdraft)
@@ -2192,6 +2197,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     UpdateTask(joblet->Task);
 
+    LogProgress();
+
     if (IsCompleted()) {
         OnOperationCompleted(false /* interrupted */);
         return;
@@ -2243,6 +2250,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     RemoveJoblet(jobId);
 
+    LogProgress();
+
     if (error.Attributes().Get<bool>("fatal", false)) {
         auto wrappedError = TError("Job failed with fatal error") << error;
         OnOperationFailed(wrappedError);
@@ -2293,6 +2302,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     RemoveJoblet(jobId);
+    LogProgress();
 }
 
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TJobSummary> jobSummary)
@@ -2626,6 +2636,8 @@ void TOperationControllerBase::SafeAbort()
         .ThrowOnError();
 
     State = EControllerState::Finished;
+
+    LogProgress(/* force */ true);
 
     LOG_INFO("Operation controller aborted");
 }
@@ -3257,7 +3269,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     State = EControllerState::Finished;
 
     BuildAndSaveProgress();
-
+    LogProgress(/* force */ true);
     Host->OnOperationCompleted(OperationId);
 }
 
@@ -3273,6 +3285,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     State = EControllerState::Finished;
 
     BuildAndSaveProgress();
+    LogProgress(/* force */ true);
 
     Host->OnOperationFailed(OperationId, error);
 }
@@ -5284,6 +5297,19 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary
 
     statistics.AddSuffixToNames(jobSummary.StatisticsSuffix);
     JobStatistics.Update(statistics);
+}
+
+void TOperationControllerBase::LogProgress(bool force)
+{
+    if (!HasProgress()) {
+        return;
+    }
+
+    auto now = GetCpuInstant();
+    if (force || now > NextLogProgressDeadline) {
+        NextLogProgressDeadline = now + LogProgressBackoff;
+        LOG_DEBUG("Progress: %v", GetLoggingProgress());
+    }
 }
 
 void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const

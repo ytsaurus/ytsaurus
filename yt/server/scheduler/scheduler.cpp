@@ -172,6 +172,11 @@ public:
         for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
             JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
+
+        FairShareLoggingExecutor = New<TPeriodicExecutor>(
+            GetControlInvoker(),
+            BIND(&TImpl::LogOperationsFairShare, MakeStrong(this)),
+            Config_->OperationLogFairSharePeriod);
     }
 
     void Initialize()
@@ -771,19 +776,6 @@ public:
             .Run();
     }
 
-    void LogOperations(yhash_set<TOperationId> operationsToLog)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        for (const auto& operationId : operationsToLog) {
-            auto operation = FindOperation(operationId);
-            if (!operation) {
-                continue;
-            }
-            LogOperationProgress(operation);
-        }
-    }
-
     void ProcessHeartbeat(TCtxHeartbeatPtr context)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -792,16 +784,9 @@ public:
         auto nodeId = request->node_id();
 
         auto nodeShard = GetNodeShard(nodeId);
-        auto operationsToLog = WaitFor(
-            BIND(&TNodeShard::ProcessHeartbeat, nodeShard)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run(context))
-            .ValueOrThrow();
-
-        GetControlInvoker()->Invoke(BIND(
-            &TImpl::LogOperations,
-            MakeStrong(this),
-            Passed(std::move(operationsToLog))));
+        BIND(&TNodeShard::ProcessHeartbeat, nodeShard)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run(context);
     }
 
     // ISchedulerStrategyHost implementation
@@ -1059,6 +1044,8 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
+
+    TPeriodicExecutorPtr FairShareLoggingExecutor;
 
     TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
 
@@ -1418,6 +1405,21 @@ private:
         Strategy_->ResetState();
 
         LOG_INFO("Finished scheduler state cleanup");
+    }
+
+    void LogOperationsFairShare() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& pair : IdToOperation_) {
+            const auto& operationId = pair.first;
+            const auto& operation = pair.second;
+            if (operation->GetState() == EOperationState::Running) {
+                LOG_DEBUG("%v (OperationId: %v)",
+                    Strategy_->GetOperationLoggingProgress(operation->GetId()),
+                    operationId);
+            }
+        }
     }
 
     void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
@@ -1826,8 +1828,6 @@ private:
         LogEventFluently(ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId);
 
-        LogOperationProgress(operation);
-
         // From this moment on the controller is fully responsible for the
         // operation's fate. It will eventually call #OnOperationCompleted or
         // #OnOperationFailed to inform the scheduler about the outcome.
@@ -1990,33 +1990,6 @@ private:
             .Item("spec").Value(operation->GetSpec())
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
         Strategy_->BuildOperationInfoForEventLog(operation, consumer);
-    }
-
-    void LogOperationProgress(TOperationPtr operation)
-    {
-        if (operation->GetState() != EOperationState::Running)
-            return;
-
-        if (operation->GetLastLogProgressTime() + Config_->OperationLogProgressBackoff > TInstant::Now())
-            return;
-
-        operation->SetLastLogProgressTime(TInstant::Now());
-
-        auto controller = operation->GetController();
-        auto controllerLoggingProgress = WaitFor(
-            BIND(&IOperationController::GetLoggingProgress, controller)
-                .AsyncVia(controller->GetInvoker())
-                .Run())
-            .ValueOrThrow();
-
-        if (!FindOperation(operation->GetId())) {
-            return;
-        }
-
-        LOG_DEBUG("Progress: %v, %v (OperationId: %v)",
-            controllerLoggingProgress,
-            Strategy_->GetOperationLoggingProgress(operation->GetId()),
-            operation->GetId());
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
