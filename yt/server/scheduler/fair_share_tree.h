@@ -477,7 +477,8 @@ public:
         double fairShareRatio,
         const TJobResources& totalResourceLimits,
         double preemptionSatisfactionThreshold,
-        double aggressivePreemptionSatisfactionThreshold);
+        double aggressivePreemptionSatisfactionThreshold,
+        int* moveCount);
 
     bool IsJobExisting(const TJobId& jobId) const;
 
@@ -739,6 +740,8 @@ private:
     TJobResources ComputeResourceLimits() const;
     TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
+
+    void UpdatePreemptableJobsList();
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)

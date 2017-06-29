@@ -647,6 +647,17 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t/@schema/0") == {"name": "k1", "type": "int64", "expression": "k2 * 2", "sort_order": "ascending"}
         assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("//tmp/t2", {"k2" : i})
+
+        with pytest.raises(YtError):
+            # sort table with weak schema into table with computed column
+            sort(
+                in_="//tmp/t2",
+                out="//tmp/t",
+                sort_by="k1")
+
     def test_writer_config(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out",

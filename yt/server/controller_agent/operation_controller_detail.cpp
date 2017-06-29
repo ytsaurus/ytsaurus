@@ -4499,8 +4499,11 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 *attributes,
                 0); // Here we assume zero row count, we will do additional check later.
 
-            //TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
+            // TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
             table->Timestamp = OutputTransaction->GetStartTimestamp();
+
+            // NB(psushin): This option must be set before PrepareOutputTables call.
+            table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
             LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
                 path,
@@ -4630,7 +4633,6 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 table->Options->Account = attributes->Get<TString>("account");
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
                 table->Options->OptimizeFor = table->TableUploadOptions.OptimizeFor;
-                table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
                 // Workaround for YT-5827.
                 if (table->TableUploadOptions.TableSchema.Columns().empty() &&
@@ -6749,9 +6751,11 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
     }
 }
 
-void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder) const
+void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns) const
 {
     YCHECK(OutputTables.size() == 1);
+
+    auto hasComputedColumn = table.TableUploadOptions.TableSchema.HasComputedColumns();
 
     for (const auto& inputTable : InputTables) {
         if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
@@ -6760,6 +6764,11 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
                 OutputTables[0].TableUploadOptions.TableSchema,
                 ignoreSortOrder)
                 .ThrowOnError();
+        } else if (hasComputedColumn && validateComputedColumns) {
+            // Input table has weak schema, so we cannot check if all
+            // computed columns were already computed. At least this is weird.
+            THROW_ERROR_EXCEPTION("Output table cannot have computed "
+                "columns, which are not present in all input tables");
         }
     }
 }

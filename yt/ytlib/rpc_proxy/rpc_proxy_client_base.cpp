@@ -461,6 +461,19 @@ TFuture<NApi::TSelectRowsResult> TRpcProxyClientBase::SelectRows(
     req->set_query(query);
     req->SetTimeout(options.Timeout);
 
+    req->set_timestamp(options.Timestamp);
+    if (options.InputRowLimit) {
+        req->set_input_row_limit(*options.InputRowLimit);
+    }
+    if (options.OutputRowLimit) {
+        req->set_output_row_limit(*options.OutputRowLimit);
+    }
+    req->set_range_expansion_limit(options.RangeExpansionLimit);
+    req->set_fail_on_incomplete_result(options.FailOnIncompleteResult);
+    req->set_verbose_logging(options.VerboseLogging);
+    req->set_enable_code_cache(options.EnableCodeCache);
+    req->set_max_subqueries(options.MaxSubqueries);
+
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) -> NApi::TSelectRowsResult {
         const auto& rsp = rspOrError.ValueOrThrow();
         TSelectRowsResult result;

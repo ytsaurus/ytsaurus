@@ -1218,7 +1218,7 @@ protected:
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors();
     void ValidateOutputSchemaOrdered() const;
-    void ValidateOutputSchemaCompatibility(bool ignoreSortOrder) const;
+    void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
 
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
 

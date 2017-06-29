@@ -105,7 +105,7 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("max_stderr_count", MaxStderrCount)
         .Default(10)
         .GreaterThanOrEqual(0)
-        .LessThanOrEqual(100);
+        .LessThanOrEqual(150);
 
     RegisterParameter("job_proxy_memory_overcommit_limit", JobProxyMemoryOvercommitLimit)
         .Default()

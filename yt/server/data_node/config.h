@@ -493,7 +493,7 @@ public:
             .Default(TDuration::Hours(1));
 
         RegisterParameter("enable_write_direct_io", EnableWriteDirectIO)
-            .Default(false);
+            .Default(true);
 
         RegisterInitializer([&] () {
             ChunkMetaCache->Capacity = (i64) 1024 * 1024 * 1024;
