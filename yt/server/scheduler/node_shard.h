@@ -110,7 +110,7 @@ public:
     void RegisterOperation(const TOperationId& operationId, const IOperationControllerPtr& operationController);
     void UnregisterOperation(const TOperationId& operationId);
 
-    yhash_set<TOperationId> ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
+    void ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
 
     TExecNodeDescriptorListPtr GetExecNodeDescriptors();
     void RemoveOutdatedSchedulingTagFilter(const TSchedulingTagFilter& filter);
@@ -252,8 +252,7 @@ private:
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         std::vector<TJobPtr>* runningJobs,
-        bool* hasWaitingJobs,
-        yhash_set<TOperationId>* operationsToLog);
+        bool* hasWaitingJobs);
 
     TJobPtr ProcessJobHeartbeat(
         TExecNodePtr node,
@@ -275,8 +274,7 @@ private:
 
     TFuture<void> ProcessScheduledJobs(
         const ISchedulingContextPtr& schedulingContext,
-        const TScheduler::TCtxHeartbeatPtr& rpcContext,
-        yhash_set<TOperationId>* operationsToLog);
+        const TScheduler::TCtxHeartbeatPtr& rpcContext);
 
     void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);
     void OnJobFinished(const TJobPtr& job);
