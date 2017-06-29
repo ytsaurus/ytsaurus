@@ -416,7 +416,9 @@ protected:
                 lastLeftRowIndex = chunkSliceLowerRowIndex;
                 lastRightRowIndex = chunkSliceUpperRowIndex;
             }
-            EXPECT_EQ(lastUpperKey, chunkUpperKey);
+
+            // For InferLimitsFromBoundaryKeys, lastUpperKey can be larger than chunkUpperKey.
+            EXPECT_GE(lastUpperKey, chunkUpperKey);
             EXPECT_EQ(lastRightRowIndex, chunkUpperRowIndex);
         }
 

@@ -1283,6 +1283,8 @@ private:
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
+        ConnectionTime_ = TInstant::Now();
+
         auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
@@ -1290,8 +1292,6 @@ private:
             .ThrowOnError();
 
         Strategy_->StartPeriodicActivity();
-
-        ConnectionTime_ = TInstant::Now();
     }
 
     void OnMasterDisconnected()
@@ -1914,6 +1914,8 @@ private:
         if (operation->GetLastLogProgressTime() + Config_->OperationLogProgressBackoff > TInstant::Now())
             return;
 
+        operation->SetLastLogProgressTime(TInstant::Now());
+
         auto controller = operation->GetController();
         auto controllerLoggingProgress = WaitFor(
             BIND(&IOperationController::GetLoggingProgress, controller)
@@ -1929,8 +1931,6 @@ private:
             controllerLoggingProgress,
             Strategy_->GetOperationLoggingProgress(operation->GetId()),
             operation->GetId());
-
-        operation->SetLastLogProgressTime(TInstant::Now());
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)

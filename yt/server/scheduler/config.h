@@ -101,10 +101,13 @@ public:
     //! Maximum number of ephemeral pools that can be created by user.
     int MaxEphemeralPoolsPerUser;
 
-    //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
-    double ThresholdToEnableMaxPossibleUsageRegularization;
+    //! If update of preemtable lists of operation takes more than that duration
+    //! then this event will be logged.
+    TDuration UpdatePreemptableListDurationLoggingThreshold;
 
-    TFairShareStrategyConfig();
+    //! Enables profiling strategy attributes for operations.
+    bool EnableOperationsProfiling;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
