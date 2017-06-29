@@ -256,6 +256,51 @@ TNode::TMap& TNode::AsMap()
     return Value_.As<TMap>();
 }
 
+const TString& TNode::UncheckedAsString() const noexcept
+{
+    return Value_.As<TString>();
+}
+
+i64 TNode::UncheckedAsInt64() const noexcept
+{
+    return Value_.As<i64>();
+}
+
+ui64 TNode::UncheckedAsUint64() const noexcept
+{
+    return Value_.As<ui64>();
+}
+
+double TNode::UncheckedAsDouble() const noexcept
+{
+    return Value_.As<double>();
+}
+
+bool TNode::UncheckedAsBool() const noexcept
+{
+    return Value_.As<bool>();
+}
+
+const TNode::TList& TNode::UncheckedAsList() const noexcept
+{
+    return Value_.As<TList>();
+}
+
+const TNode::TMap& TNode::UncheckedAsMap() const noexcept
+{
+    return Value_.As<TMap>();
+}
+
+TNode::TList& TNode::UncheckedAsList() noexcept
+{
+    return Value_.As<TList>();
+}
+
+TNode::TMap& TNode::UncheckedAsMap() noexcept
+{
+    return Value_.As<TMap>();
+}
+
 TNode TNode::CreateList()
 {
     TNode node;

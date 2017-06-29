@@ -120,6 +120,16 @@ public:
     TList& AsList();
     TMap& AsMap();
 
+    const TString& UncheckedAsString() const noexcept;
+    i64 UncheckedAsInt64() const noexcept;
+    ui64 UncheckedAsUint64() const noexcept;
+    double UncheckedAsDouble() const noexcept;
+    bool UncheckedAsBool() const noexcept;
+    const TList& UncheckedAsList() const noexcept;
+    const TMap& UncheckedAsMap() const noexcept;
+    TList& UncheckedAsList() noexcept;
+    TMap& UncheckedAsMap() noexcept;
+
     template<typename T>
     T& As();
 
