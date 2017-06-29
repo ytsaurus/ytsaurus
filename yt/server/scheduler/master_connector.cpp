@@ -362,7 +362,7 @@ private:
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
 
-    bool Connected = false;
+    std::atomic<bool> Connected = {false};
 
     ITransactionPtr LockTransaction;
 
@@ -459,7 +459,7 @@ private:
         LOG_INFO("Master connected");
 
         YCHECK(!Connected);
-        Connected = true;
+        Connected.store(true);
 
         CancelableContext = New<TCancelableContext>();
         CancelableControlInvoker = CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker());
@@ -784,7 +784,7 @@ private:
 
         LOG_WARNING("Master disconnected");
 
-        Connected = false;
+        Connected.store(false);
 
         LockTransaction.Reset();
 
