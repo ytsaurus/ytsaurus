@@ -380,7 +380,8 @@ class TestRetries(object):
             "write_retries/enable": True,
             "write_retries/count": 10,
             "read_retries/enable": True,
-            "proxy/heavy_request_timeout": 1000
+            "proxy/heavy_request_timeout": 1000,
+            "dynamic_table_retries/count": 10,
         }
 
         try:
