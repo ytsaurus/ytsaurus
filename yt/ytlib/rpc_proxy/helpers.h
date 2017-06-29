@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/ytlib/api_proto/api_service.pb.h>
+#include <yt/ytlib/api/protos/api_service.pb.h>
 
 namespace NYT {
 namespace NRpcProxy {
