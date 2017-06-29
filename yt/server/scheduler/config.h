@@ -108,6 +108,10 @@ public:
     //! Enables profiling strategy attributes for operations.
     bool EnableOperationsProfiling;
 
+    //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
+    double ThresholdToEnableMaxPossibleUsageRegularization;
+
+    TFairShareStrategyConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
