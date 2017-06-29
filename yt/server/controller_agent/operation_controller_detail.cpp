@@ -6755,7 +6755,7 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
 {
     YCHECK(OutputTables.size() == 1);
 
-    auto hasComputedColumn = table.TableUploadOptions.TableSchema.HasComputedColumns();
+    auto hasComputedColumn = OutputTables[0].TableUploadOptions.TableSchema.HasComputedColumns();
 
     for (const auto& inputTable : InputTables) {
         if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
