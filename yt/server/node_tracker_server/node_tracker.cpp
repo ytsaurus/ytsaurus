@@ -76,6 +76,11 @@ static const auto& Logger = NodeTrackerServerLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(10);
 static const auto TotalNodeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
+static NProfiling::TAggregateCounter FullHeartbeatTimeCounter("/full_heartbeat_time");
+static NProfiling::TAggregateCounter IncrementalHeartbeatTimeCounter("/incremental_heartbeat_time");
+static NProfiling::TAggregateCounter NodeUnregisterTimeCounter("/node_unregister_time");
+static NProfiling::TAggregateCounter NodeDisposeTimeCounter("/node_dispose_time");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTracker::TClusterNodeTypeHandler
@@ -973,7 +978,7 @@ private:
                 node->GetLocalState());
         }
 
-        PROFILE_TIMING ("/full_heartbeat_time") {
+        PROFILE_AGGREGATED_TIMING (FullHeartbeatTimeCounter) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
@@ -1012,7 +1017,7 @@ private:
                 node->GetLocalState());
         }
 
-        PROFILE_TIMING ("/incremental_heartbeat_time") {
+        PROFILE_AGGREGATED_TIMING (IncrementalHeartbeatTimeCounter) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
@@ -1358,7 +1363,7 @@ private:
 
     void UnregisterNode(TNode* node, bool propagate)
     {
-        PROFILE_TIMING ("/node_unregister_time") {
+        PROFILE_AGGREGATED_TIMING (NodeUnregisterTimeCounter) {
             auto* transaction = UnregisterLeaseTransaction(node);
             if (IsObjectAlive(transaction)) {
                 const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1388,7 +1393,7 @@ private:
 
     void DisposeNode(TNode* node)
     {
-        PROFILE_TIMING ("/node_dispose_time") {
+        PROFILE_AGGREGATED_TIMING (NodeDisposeTimeCounter) {
             node->SetLocalState(ENodeState::Offline);
             NodeDisposed_.Fire(node);
 
