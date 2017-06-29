@@ -79,6 +79,9 @@ using NChunkClient::TReadLimit;
 static const auto& Logger = ChunkServerLogger;
 static const auto& Profiler = ChunkServerProfiler;
 
+static NProfiling::TAggregateCounter RefreshTimeCounter("/refresh_time");
+static NProfiling::TAggregateCounter PropertiesUpdateTimeCounter("/properties_update_time");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplicator::TPerMediumChunkStatistics::TPerMediumChunkStatistics()
@@ -1728,7 +1731,7 @@ void TChunkReplicator::OnRefresh()
 
     LOG_DEBUG("Incremental chunk refresh iteration started");
 
-    PROFILE_TIMING ("/refresh_time") {
+    PROFILE_AGGREGATED_TIMING (RefreshTimeCounter) {
         auto deadline = GetCpuInstant() - ChunkRefreshDelay_;
         while (totalCount < Config_->MaxChunksPerRefresh &&
                RefreshScanner_->HasUnscannedChunk(deadline))
@@ -1969,7 +1972,7 @@ void TChunkReplicator::OnPropertiesUpdate()
 
     LOG_DEBUG("Chunk properties update iteration started");
 
-    PROFILE_TIMING ("/properties_update_time") {
+    PROFILE_AGGREGATED_TIMING (PropertiesUpdateTimeCounter) {
         while (totalCount < Config_->MaxChunksPerPropertiesUpdate &&
                PropertiesUpdateScanner_->HasUnscannedChunk())
         {

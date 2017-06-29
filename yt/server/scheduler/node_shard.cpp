@@ -43,6 +43,10 @@ using NCypressClient::TObjectId;
 
 static const auto& Profiler = SchedulerProfiler;
 
+static NProfiling::TAggregateCounter AnalysisTimeCounter;
+static NProfiling::TAggregateCounter StrategyJobProcessingTimeCounter;
+static NProfiling::TAggregateCounter ScheduleTimeCounter;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeShard::TNodeShard(
@@ -184,7 +188,7 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
         try {
             std::vector<TJobPtr> runningJobs;
             bool hasWaitingJobs = false;
-            PROFILE_TIMING ("/analysis_time") {
+            PROFILE_AGGREGATED_TIMING (AnalysisTimeCounter) {
                 ProcessHeartbeatJobs(
                     node,
                     request,
@@ -210,11 +214,11 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
                     runningJobs,
                     PrimaryMasterCellTag_);
 
-                PROFILE_TIMING ("/strategy_job_processing_time") {
+                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
                     SubmitUpdatedAndCompletedJobsToStrategy();
                 }
 
-                PROFILE_TIMING ("/schedule_time") {
+                PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
                     node->SetHasOngoingJobsScheduling(true);
                     WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext))
                         .ThrowOnError();
@@ -231,7 +235,7 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
                     &operationsToLog);
 
                 // NB: some jobs maybe considered aborted after processing scheduled jobs.
-                PROFILE_TIMING ("/strategy_job_processing_time") {
+                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
                     SubmitUpdatedAndCompletedJobsToStrategy();
                 }
 

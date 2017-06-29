@@ -211,8 +211,7 @@ public:
         TCellTag cellTag);
 
     const NProfiling::TProfiler& GetProfiler();
-    NProfiling::TTagId GetTypeTagId(EObjectType type);
-    NProfiling::TTagId GetMethodTagId(const TString& method);
+    NProfiling::TAggregateCounter* GetMethodExecTimeCounter(EObjectType type, const TString& method);
 
     TEpoch GetCurrentEpoch();
 
@@ -233,13 +232,17 @@ private:
         IObjectTypeHandlerPtr Handler;
         TSchemaObject* SchemaObject = nullptr;
         IObjectProxyPtr SchemaProxy;
-        NProfiling::TTagId TagId;
     };
 
     std::set<EObjectType> RegisteredTypes_;
     TEnumIndexedVector<TTypeEntry, EObjectType, MinObjectType, MaxObjectType> TypeToEntry_;
 
-    yhash<TString, NProfiling::TTagId> MethodToTag_;
+    struct TMethodEntry
+    {
+        NProfiling::TAggregateCounter ExecTimeCounter;
+    };
+
+    yhash<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
 
     TRootServicePtr RootService_;
 
