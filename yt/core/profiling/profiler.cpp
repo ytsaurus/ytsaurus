@@ -346,7 +346,7 @@ void TProfiler::OnUpdated(TAggregateCounter& counter, TValue value) const
 
     TGuard<TSpinLock> guard(counter.SpinLock_);
 
-    if (now < counter.Deadline_ || counter.SampleCount_ == 0) {
+    if (now < counter.Deadline_) {
         return;
     }
 
