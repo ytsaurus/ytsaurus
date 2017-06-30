@@ -22,7 +22,6 @@ namespace NYT {
         switch (field.cpp_type()) {
         case FieldDescriptor::CPPTYPE_INT32:
         case FieldDescriptor::CPPTYPE_INT64:
-        case FieldDescriptor::CPPTYPE_ENUM:
             return EValueType::VT_INT64;
         case FieldDescriptor::CPPTYPE_UINT32:
         case FieldDescriptor::CPPTYPE_UINT64:
@@ -34,6 +33,7 @@ namespace NYT {
             return EValueType::VT_BOOLEAN;
         case FieldDescriptor::CPPTYPE_STRING:
         case FieldDescriptor::CPPTYPE_MESSAGE:
+        case FieldDescriptor::CPPTYPE_ENUM:
             return EValueType::VT_STRING;
         default:
             ythrow yexception() << "Unexpected field type '" << field.cpp_type_name() << "' for field " << field.name();

@@ -35,7 +35,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoSchemaTest) {
         TEST_FIELD(schema.Columns_[10], "Sfixed32Field", EValueType::VT_INT64);
         TEST_FIELD(schema.Columns_[11], "Sfixed64Field", EValueType::VT_INT64);
         TEST_FIELD(schema.Columns_[12], "BoolField", EValueType::VT_BOOLEAN);
-        TEST_FIELD(schema.Columns_[13], "EnumField", EValueType::VT_INT64);
+        TEST_FIELD(schema.Columns_[13], "EnumField", EValueType::VT_STRING);
     }
 
     SIMPLE_UNIT_TEST(TRepeated) {
