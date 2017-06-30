@@ -2741,10 +2741,9 @@ private:
         return jobInputReader;
     }
 
-    TSharedRef DoGetJobStderr(
+    TSharedRef DoGetJobStderrFromNode(
         const TOperationId& operationId,
-        const TJobId& jobId,
-        const TGetJobStderrOptions& /*options*/)
+        const TJobId& jobId)
     {
         try {
             NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
@@ -2775,6 +2774,13 @@ private:
             }
         }
 
+        return TSharedRef();
+    }
+
+    TSharedRef DoGetJobStderrFromCypress(
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
         try {
             auto path = NScheduler::GetStderrPath(operationId, jobId);
 
@@ -2814,6 +2820,13 @@ private:
             }
         }
 
+        return TSharedRef();
+    }
+
+    TSharedRef DoGetJobStderrFromArchive(
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
         try {
             auto nameTable = New<TNameTable>();
 
@@ -2876,6 +2889,26 @@ private:
                     << exception.Error();
             }
         }
+
+        return TSharedRef();
+    }
+
+    TSharedRef DoGetJobStderr(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobStderrOptions& /*options*/)
+    {
+        auto stderrRef = DoGetJobStderrFromNode(operationId, jobId);
+        if (stderrRef)
+            return stderrRef;
+
+        stderrRef = DoGetJobStderrFromCypress(operationId, jobId);
+        if (stderrRef)
+            return stderrRef;
+
+        stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
+        if (stderrRef)
+            return stderrRef;
 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
             << TErrorAttribute("operation_id", operationId)
