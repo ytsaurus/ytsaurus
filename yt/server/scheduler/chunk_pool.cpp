@@ -1647,7 +1647,9 @@ private:
             // Otherwise sort data size and row counters will be severely corrupted
             list->TotalDataSize = run.TotalDataSize;
             list->TotalRowCount = run.TotalRowCount;
-            // In shuffle chunk pools all stripes consist of a single data slice consisting of a single chunk.
+            // In shuffle chunk pools almost all stripes consist of a single data slice consisting of a single chunk.
+            // Sometimes during resume some elementary stripes may get more than one data slice.
+            // Still we don't care, since this counter is just for diagnostic and much cheaper.
             list->TotalChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
 
             list->IsApproximate = run.IsApproximate;
