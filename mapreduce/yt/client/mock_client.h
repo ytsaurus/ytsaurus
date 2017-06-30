@@ -80,6 +80,10 @@ public:
 
     void RemountTable(const TYPath&, const TRemountTableOptions&) override;
 
+    void FreezeTable(const TYPath&, const TFreezeTableOptions&) override;
+
+    void UnfreezeTable(const TYPath&, const TUnfreezeTableOptions&) override;
+
     void ReshardTable(const TYPath&, const yvector<TKey>&, const TReshardTableOptions&) override;
 
     void ReshardTable(const TYPath&, i32, const TReshardTableOptions&) override;

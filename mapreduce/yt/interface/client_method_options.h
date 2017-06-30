@@ -187,6 +187,14 @@ struct TReshardTableOptions
     : public TTabletOptions<TReshardTableOptions>
 { };
 
+struct TFreezeTableOptions
+    : public TTabletOptions<TFreezeTableOptions>
+{ };
+
+struct TUnfreezeTableOptions
+    : public TTabletOptions<TFreezeTableOptions>
+{ };
+
 struct TAlterTableOptions
 {
     using TSelf = TAlterTableOptions;

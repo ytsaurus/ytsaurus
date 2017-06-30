@@ -109,6 +109,32 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
 
         client->UnmountTable(tablePath);
         WaitForTableState(client, tablePath, "unmounted");
+
+        client->MountTable(tablePath, TMountTableOptions().Freeze(true));
+        WaitForTableState(client, tablePath, "frozen");
+
+        client->UnmountTable(tablePath);
+        WaitForTableState(client, tablePath, "unmounted");
+    }
+
+    SIMPLE_UNIT_TEST(TestFreezeUnfreeze)
+    {
+        TTabletFixture fixture;
+        auto client = fixture.Client();
+        const TString tablePath = "//testing/test-freeze-unfreeze-1";
+        CreateTestTable(client, tablePath);
+
+        client->MountTable(tablePath);
+        WaitForTableState(client, tablePath, "mounted");
+
+        client->FreezeTable(tablePath);
+        WaitForTableState(client, tablePath, "frozen");
+
+        client->UnfreezeTable(tablePath);
+        WaitForTableState(client, tablePath, "mounted");
+
+        client->UnmountTable(tablePath);
+        WaitForTableState(client, tablePath, "unmounted");
     }
 
     SIMPLE_UNIT_TEST(TestReshard)

@@ -97,6 +97,23 @@ public:
         const TYPath& path,
         const TRemountTableOptions& options = TRemountTableOptions()) = 0;
 
+    // Switch dynamic table from `mounted' into `frozen' state.
+    // When table is in frozen state all its data is flushed to disk and writes are disabled.
+    //
+    // NOTE: this function launches the process of switching, but doesn't wait until switching is acomplished.
+    // Waiting has to be performed by user.
+    virtual void FreezeTable(
+        const TYPath& path,
+        const TFreezeTableOptions& options = TFreezeTableOptions()) = 0;
+
+    // Switch dynamic table from `frozen' into `mounted' state.
+    //
+    // NOTE: this function launches the process of switching, but doesn't wait until switching is acomplished.
+    // Waiting has to be performed by user.
+    virtual void UnfreezeTable(
+        const TYPath& path,
+        const TUnfreezeTableOptions& options = TUnfreezeTableOptions()) = 0;
+
     virtual void ReshardTable(
         const TYPath& path,
         const yvector<TKey>& pivotKeys,
