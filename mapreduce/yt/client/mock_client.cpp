@@ -352,6 +352,12 @@ void TMockClient::UnmountTable(const TYPath&, const TUnmountTableOptions&) {
 void TMockClient::RemountTable(const TYPath&, const TRemountTableOptions&) {
 }
 
+void TMockClient::FreezeTable(const TYPath&, const TFreezeTableOptions&) {
+}
+
+void TMockClient::UnfreezeTable(const TYPath&, const TUnfreezeTableOptions&) {
+}
+
 void TMockClient::ReshardTable(const TYPath&, const yvector<TKey>&, const TReshardTableOptions&) {
 }
 

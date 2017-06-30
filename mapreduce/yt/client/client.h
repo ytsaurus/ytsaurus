@@ -249,6 +249,14 @@ public:
         const TYPath& path,
         const TRemountTableOptions& options) override;
 
+    void FreezeTable(
+        const TYPath& path,
+        const TFreezeTableOptions& options) override;
+
+    void UnfreezeTable(
+        const TYPath& path,
+        const TUnfreezeTableOptions& options) override;
+
     void ReshardTable(
         const TYPath& path,
         const yvector<TKey>& keys,

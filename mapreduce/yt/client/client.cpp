@@ -604,6 +604,24 @@ void TClient::RemountTable(
     RetryRequest(Auth_, header);
 }
 
+void TClient::FreezeTable(
+    const TYPath& path,
+    const TFreezeTableOptions& options)
+{
+    THttpHeader header("POST", "freeze_table");
+    SetTabletParams(header, path, options);
+    RetryRequest(Auth_, header);
+}
+
+void TClient::UnfreezeTable(
+    const TYPath& path,
+    const TUnfreezeTableOptions& options)
+{
+    THttpHeader header("POST", "unfreeze_table");
+    SetTabletParams(header, path, options);
+    RetryRequest(Auth_, header);
+}
+
 void TClient::ReshardTable(
     const TYPath& path,
     const yvector<TKey>& keys,
