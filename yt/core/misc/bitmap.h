@@ -49,7 +49,6 @@ class TAppendOnlyBitmap
 public:
     explicit TAppendOnlyBitmap(size_t bitCapacity = 0)
     {
-        YCHECK(bitCapacity >= 0);
         if (bitCapacity) {
             Chunks_.reserve(TTraits::GetChunkCapacity(bitCapacity));
         }
@@ -117,7 +116,6 @@ public:
     void Reset(const TChunkType* chunks, size_t bitSize)
     {
         YCHECK(chunks);
-        YCHECK(bitSize >= 0);
         Chunks_ = chunks;
         BitSize_ = bitSize;
     }
