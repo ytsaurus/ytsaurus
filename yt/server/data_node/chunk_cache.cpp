@@ -752,9 +752,16 @@ private:
             ? MakeNullable(FromProto<TTableSchema>(key.data_source().table_schema()))
             : Null;
 
+        auto columnFilter = MakeNullable(
+            key.data_source().has_column_filter(),
+            FromProto<std::vector<TString>>(key.data_source().columns()));
+
         switch (EDataSourceType(key.data_source().type())) {
             case EDataSourceType::UnversionedTable:
-                dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(CachedSourcePath, schema, Null));
+                dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+                    CachedSourcePath,
+                    schema,
+                    columnFilter));
 
                 for (const auto& chunkSpec : key.chunk_specs()) {
                     dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
@@ -766,7 +773,7 @@ private:
                 dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
                     CachedSourcePath,
                     *schema,
-                    Null,
+                    columnFilter,
                     key.data_source().timestamp()));
                 dataSliceDescriptors.push_back(TDataSliceDescriptor(FromProto<std::vector<TChunkSpec>>(key.chunk_specs())));
                 break;
