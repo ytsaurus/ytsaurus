@@ -1344,12 +1344,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
         link(file2, file3)
 
         create("table", "//tmp/table_file")
-        write_table("//tmp/table_file", {"text": "info"})
+        write_table("//tmp/table_file", {"text": "info", "other" : "trash"})
 
         map(in_="//tmp/input",
             out="//tmp/output",
             command="cat > /dev/null; cat some_file.txt; cat my_file.txt; cat table_file;",
-            file=[file1, "<file_name=my_file.txt>" + file2, "<format=yson>//tmp/table_file"])
+            file=[file1, "<file_name=my_file.txt>" + file2, "<format=yson; columns=[text]>//tmp/table_file"])
 
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}]
 

@@ -5003,7 +5003,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                 switch (file.Type) {
                     case EObjectType::File:
-                        file.Executable = attributes.Find<bool>("executable").Get(file.Executable);
+                        file.Executable = attributes.Get<bool>("executable", false);
                         file.Executable = file.Path.GetExecutable().Get(file.Executable);
                         break;
 
