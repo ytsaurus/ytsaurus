@@ -486,8 +486,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
         }
         schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto(controller->Spec->JobProxyRefCountedTrackerLogPeriod));
 
-        schedulerJobSpecExt->set_enable_sort_verification(controller->Spec->EnableSortVerification);
-
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
             schedulerJobSpecExt->set_input_uncompressed_data_size(static_cast<i64>(
