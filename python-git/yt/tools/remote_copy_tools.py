@@ -181,6 +181,7 @@ def _set_mapper_settings_for_read_from_yt(source_client=None, destination_client
         spec["mapper"]["environment"]["PYTHONPATH"] = ":".join(sys.path)
 
     spec["mapper"]["environment"]["YT_FORBID_REQUESTS_FROM_JOB"] = "0"
+    spec["mapper"]["environment"]["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = "0"
 
     if source_client is not None:
         spec.setdefault("secure_vault", {})
