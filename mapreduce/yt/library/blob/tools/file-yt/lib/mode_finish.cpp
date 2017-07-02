@@ -13,8 +13,8 @@
 
 #include <cstdlib>
 
-static NFileYTTool::TFinishConfig ParseOptions(const int argc, const char* argv[]) {
-    NFileYTTool::TFinishConfig c;
+static NFileYtTool::TFinishConfig ParseOptions(const int argc, const char* argv[]) {
+    NFileYtTool::TFinishConfig c;
     auto p = NLastGetopt::TOpts::Default();
     p.SetTitle("do preprocessing on YT file table to enable download from it");
     p.AddLongOption('p', "yt-proxy")
@@ -52,7 +52,7 @@ static NFileYTTool::TFinishConfig ParseOptions(const int argc, const char* argv[
     return c;
 }
 
-static int Main(const NFileYTTool::TFinishConfig& config) {
+static int Main(const NFileYtTool::TFinishConfig& config) {
     NYT::SetLogger(NYT::CreateStdErrLogger(NYT::ILogger::INFO));
     NYT::IClientBasePtr client = NYT::CreateClient(config.GetProxy());
     if (config.HasTransactionID()) {
@@ -74,6 +74,6 @@ static int Main(const int argc, const char* argv[]) {
     return Main(c);
 }
 
-int NFileYTTool::MainFinish(const int argc, const char* argv[]) {
+int NFileYtTool::MainFinish(const int argc, const char* argv[]) {
     return ::Main(argc, argv);
 }

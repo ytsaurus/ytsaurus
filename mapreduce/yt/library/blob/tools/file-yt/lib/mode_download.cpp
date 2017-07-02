@@ -16,8 +16,8 @@
 
 #include <cstdlib>
 
-static NFileYTTool::TDownloadConfig ParseOptions(const int argc, const char* argv[]) {
-    NFileYTTool::TDownloadConfig c;
+static NFileYtTool::TDownloadConfig ParseOptions(const int argc, const char* argv[]) {
+    NFileYtTool::TDownloadConfig c;
     auto p = NLastGetopt::TOpts::Default();
     p.SetTitle("download files from YT table");
     p.AddLongOption('p', "yt-proxy")
@@ -103,7 +103,7 @@ static void Download(
     Y_VERIFY(!failProgramOnDownloadFailure || downloaded, "name=\"%s\"", ~name);
 }
 
-static int Main(const NFileYTTool::TDownloadConfig& config) {
+static int Main(const NFileYtTool::TDownloadConfig& config) {
     NYT::SetLogger(NYT::CreateStdErrLogger(NYT::ILogger::INFO));
     NYT::IClientBasePtr client = NYT::CreateClient(config.GetProxy());
     if (config.HasTransactionID()) {
@@ -146,7 +146,7 @@ static int Main(const int argc, const char* argv[]) {
     return Main(c);
 }
 
-int NFileYTTool::MainDownload(const int argc, const char* argv[]) {
+int NFileYtTool::MainDownload(const int argc, const char* argv[]) {
     return ::Main(argc, argv);
 }
 

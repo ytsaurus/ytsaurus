@@ -2,7 +2,7 @@
 
 #include <library/getopt/small/modchooser.h>
 
-int NFileYTTool::Main(const int argc, const char* argv[]) {
+int NFileYtTool::Main(const int argc, const char* argv[]) {
     TModChooser app;
     app.SetDescription("utility to upload/download files stored in YT table");
     app.AddMode(

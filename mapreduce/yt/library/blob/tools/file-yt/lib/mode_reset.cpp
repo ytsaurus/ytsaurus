@@ -13,8 +13,8 @@
 
 #include <cstdlib>
 
-static NFileYTTool::TResetConfig ParseOptions(const int argc, const char* argv[]) {
-    NFileYTTool::TResetConfig c;
+static NFileYtTool::TResetConfig ParseOptions(const int argc, const char* argv[]) {
+    NFileYtTool::TResetConfig c;
     auto p = NLastGetopt::TOpts::Default();
     p.SetTitle("make table writable again (after `finish`)");
     p.AddLongOption('p', "yt-proxy")
@@ -44,7 +44,7 @@ static NFileYTTool::TResetConfig ParseOptions(const int argc, const char* argv[]
     return c;
 }
 
-static int Main(const NFileYTTool::TResetConfig& config) {
+static int Main(const NFileYtTool::TResetConfig& config) {
     NYT::SetLogger(NYT::CreateStdErrLogger(NYT::ILogger::INFO));
     NYT::IClientBasePtr client = NYT::CreateClient(config.GetProxy());
     if (config.HasTransactionID()) {
@@ -66,7 +66,7 @@ static int Main(const int argc, const char* argv[]) {
     return Main(c);
 }
 
-int NFileYTTool::MainReset(const int argc, const char* argv[]) {
+int NFileYtTool::MainReset(const int argc, const char* argv[]) {
     return ::Main(argc, argv);
 }
 

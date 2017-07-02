@@ -3,5 +3,5 @@
 
 int main(const int argc, const char* argv[]) {
     NYT::Initialize(argc, argv);
-    return NFileYTTool::Main(argc, argv);
+    return NFileYtTool::Main(argc, argv);
 }

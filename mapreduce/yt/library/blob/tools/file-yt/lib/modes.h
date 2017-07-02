@@ -1,6 +1,6 @@
 #pragma once
 
-namespace NFileYTTool {
+namespace NFileYtTool {
     int Main(const int argc, const char* argv[]);
     int MainUpload(const int argc, const char* argv[]);
     int MainDownload(const int argc, const char* argv[]);

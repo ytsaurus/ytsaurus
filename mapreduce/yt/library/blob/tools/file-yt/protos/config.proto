@@ -1,4 +1,4 @@
-package NFileYTTool;
+package NFileYtTool;
 
 message TUploadConfig {
     required string Proxy                   = 1;

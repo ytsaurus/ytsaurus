@@ -15,8 +15,8 @@
 
 #include <cstdlib>
 
-static NFileYTTool::TUploadConfig ParseOptions(const int argc, const char* argv[]) {
-    NFileYTTool::TUploadConfig c;
+static NFileYtTool::TUploadConfig ParseOptions(const int argc, const char* argv[]) {
+    NFileYtTool::TUploadConfig c;
     auto p = NLastGetopt::TOpts::Default();
     p.SetTitle("upload files to YT table");
     p.AddLongOption('p', "yt-proxy")
@@ -67,7 +67,7 @@ static NFileYTTool::TUploadConfig ParseOptions(const int argc, const char* argv[
     return c;
 }
 
-static int Main(const NFileYTTool::TUploadConfig& config) {
+static int Main(const NFileYtTool::TUploadConfig& config) {
     NYT::SetLogger(NYT::CreateStdErrLogger(NYT::ILogger::INFO));
     NYT::IClientBasePtr client = NYT::CreateClient(config.GetProxy());
     if (config.HasTransactionID()) {
@@ -112,6 +112,6 @@ static int Main(const int argc, const char* argv[]) {
     return Main(c);
 }
 
-int NFileYTTool::MainUpload(const int argc, const char* argv[]) {
+int NFileYtTool::MainUpload(const int argc, const char* argv[]) {
     return ::Main(argc, argv);
 }

@@ -16,8 +16,8 @@
 
 #include <cstdlib>
 
-static NFileYTTool::TListConfig ParseOptions(const int argc, const char* argv[]) {
-    NFileYTTool::TListConfig c;
+static NFileYtTool::TListConfig ParseOptions(const int argc, const char* argv[]) {
+    NFileYtTool::TListConfig c;
     auto p = NLastGetopt::TOpts::Default();
     p.SetTitle("list files in YT table, will write JSONs containing info about documents");
     p.AddLongOption('p', "yt-proxy")
@@ -53,7 +53,7 @@ static NFileYTTool::TListConfig ParseOptions(const int argc, const char* argv[])
     return c;
 }
 
-static int Main(const NFileYTTool::TListConfig& config) {
+static int Main(const NFileYtTool::TListConfig& config) {
     NYT::SetLogger(NYT::CreateStdErrLogger(NYT::ILogger::INFO));
     NYT::IClientBasePtr client = NYT::CreateClient(config.GetProxy());
     if (config.HasTransactionID()) {
@@ -78,7 +78,7 @@ static int Main(const int argc, const char* argv[]) {
     return Main(c);
 }
 
-int NFileYTTool::MainList(const int argc, const char* argv[]) {
+int NFileYtTool::MainList(const int argc, const char* argv[]) {
     return ::Main(argc, argv);
 }
 
