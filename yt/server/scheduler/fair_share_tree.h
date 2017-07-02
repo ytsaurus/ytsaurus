@@ -130,6 +130,9 @@ public:
     bool GetAlive() const;
     void SetAlive(bool alive);
 
+    double GetFairShareRatio() const;
+    void SetFairShareRatio(double fairShareRatio);
+
 private:
     TJobResources ResourceUsage_;
     NConcurrency::TReaderWriterSpinLock ResourceUsageLock_;
@@ -139,6 +142,7 @@ private:
 
     std::atomic<bool> Alive_ = {true};
 
+    std::atomic<double> FairShareRatio_ = {0.0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
@@ -180,6 +184,9 @@ public:
 
     bool IsAlive() const;
     void SetAlive(bool alive);
+
+    double GetFairShareRatio() const;
+    void SetFairShareRatio(double fairShareRatio);
 
     virtual TString GetId() const = 0;
 
