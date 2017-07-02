@@ -40,12 +40,25 @@ namespace NYT {
         }
     }
 
-    TTableSchema CreateTableSchema(const ::google::protobuf::Descriptor& tableProto, const TKeyColumns& keyColumns) {
+    bool HasExtension(const ::google::protobuf::FieldDescriptor& field) {
+        const auto& o = field.options();
+        return o.HasExtension(column_name) || o.HasExtension(key_column_name);
+    }
+
+    TTableSchema CreateTableSchema(
+        const ::google::protobuf::Descriptor& tableProto,
+        const TKeyColumns& keyColumns,
+        const bool keepFieldsWithoutExtension) {
+
         TTableSchema result;
         auto keyIt = keyColumns.Parts_.begin();
         const auto keyLim = keyColumns.Parts_.end();
         for (int idx = 0, lim = tableProto.field_count(); idx < lim; ++idx) {
             const auto field = tableProto.field(idx);
+            if (!keepFieldsWithoutExtension && !HasExtension(*field)) {
+                continue;
+            }
+
             const auto name = GetColumnName(*field);
             TColumnSchema column;
             column.Name(name);

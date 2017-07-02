@@ -4,6 +4,8 @@
 
 #include <library/unittest/registar.h>
 
+#include <algorithm>
+
 using namespace NYT;
 
 #define TEST_FIELD(field, name, type) \
@@ -15,6 +17,12 @@ using namespace NYT;
     UNIT_ASSERT_EQUAL(name, field.Name_);\
     UNIT_ASSERT_EQUAL(type, field.Type_);\
     UNIT_ASSERT_EQUAL(SO_ASCENDING, field.SortOrder_);
+
+#define TEST_FIELD_PRESENT(schema, name) \
+    UNIT_ASSERT(std::find_if(cbegin(schema.Columns_), cend(schema.Columns_), [&](const auto& v){ return v.Name_ == name; }) != cend(schema.Columns_));
+
+#define TEST_FIELD_NOT_PRESENT(schema, name) \
+    UNIT_ASSERT(std::find_if(cbegin(schema.Columns_), cend(schema.Columns_), [&](const auto& v){ return v.Name_ == name; }) == cend(schema.Columns_));
 
 SIMPLE_UNIT_TEST_SUITE(ProtoSchemaTest) {
     SIMPLE_UNIT_TEST(TIntegral) {
@@ -88,5 +96,19 @@ SIMPLE_UNIT_TEST_SUITE(ProtoSchemaTest) {
     SIMPLE_UNIT_TEST(KeyColumnsInvalid) {
         UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"subkey"}), yexception);
         UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"key", "Data"}), yexception);
+    }
+
+    SIMPLE_UNIT_TEST(KeepFieldsWithoutExtensionTrue) {
+        const auto s = CreateTableSchema<NTesting::TAliased>({}, true);
+        TEST_FIELD_PRESENT(s, "key");
+        TEST_FIELD_PRESENT(s, "subkey");
+        TEST_FIELD_PRESENT(s, "Data");
+    }
+
+    SIMPLE_UNIT_TEST(KeepFieldsWithoutExtensionFalse) {
+        const auto s = CreateTableSchema<NTesting::TAliased>({}, false);
+        TEST_FIELD_PRESENT(s, "key");
+        TEST_FIELD_PRESENT(s, "subkey");
+        TEST_FIELD_NOT_PRESENT(s, "Data");
     }
 }
