@@ -23,8 +23,8 @@
 
 #include <cstdlib>
 
-static NFileYTTool::TDownloadAllConfig ParseOptions(const int argc, const char* argv[]) {
-    NFileYTTool::TDownloadAllConfig c;
+static NFileYtTool::TDownloadAllConfig ParseOptions(const int argc, const char* argv[]) {
+    NFileYtTool::TDownloadAllConfig c;
     auto p = NLastGetopt::TOpts::Default();
     p.SetTitle("download all files from YT table");
     p.AddLongOption('p', "yt-proxy")
@@ -92,7 +92,7 @@ static void Download(
 }
 
 static int Main(
-    const NFileYTTool::TDownloadAllConfig& config,
+    const NFileYtTool::TDownloadAllConfig& config,
     NYT::IClientBasePtr client) {
 
     const auto q = CreateMtpQueue(config.GetDownloadThreadCount(), 10);
@@ -117,7 +117,7 @@ static int Main(
     return EXIT_SUCCESS;
 }
 
-static int Main(const NFileYTTool::TDownloadAllConfig& config) {
+static int Main(const NFileYtTool::TDownloadAllConfig& config) {
     NYT::SetLogger(NYT::CreateStdErrLogger(NYT::ILogger::INFO));
     NYT::IClientBasePtr client = NYT::CreateClient(config.GetProxy());
     if (config.HasTransactionID()) {
@@ -136,6 +136,6 @@ static int Main(const int argc, const char* argv[]) {
     return Main(c);
 }
 
-int NFileYTTool::MainDownloadAll(const int argc, const char* argv[]) {
+int NFileYtTool::MainDownloadAll(const int argc, const char* argv[]) {
     return ::Main(argc, argv);
 }
