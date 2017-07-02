@@ -1328,6 +1328,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto registerFuture = BIND(&TImpl::RegisterRevivingOperations, MakeStrong(this), result.OperationReports)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+        WaitFor(registerFuture)
+            .ThrowOnError();
+
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
 
@@ -1833,7 +1839,7 @@ private:
         // #OnOperationFailed to inform the scheduler about the outcome.
     }
 
-    void ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
+    void RegisterRevivingOperation(const TOperationPtr& operation)
     {
         auto codicilGuard = operation->MakeCodicilGuard();
 
@@ -1870,6 +1876,10 @@ private:
         }
 
         RegisterOperation(operation);
+    }
+
+    void ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
+    {
 
         auto controller = operation->GetController();
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
@@ -2346,9 +2356,28 @@ private:
 
             if (operationReport.UserTransactionAborted) {
                 OnUserTransactionAborted(operation);
-            } else {
-                ReviveOperation(operation, operationReport.ControllerTransactions);
+                continue;
             }
+
+            ReviveOperation(operation, operationReport.ControllerTransactions);
+        }
+    }
+
+    void RegisterRevivingOperations(const std::vector<TOperationReport>& operationReports)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& operationReport : operationReports) {
+            const auto& operation = operationReport.Operation;
+
+            if (operationReport.IsCommitted ||
+                operation->GetState() == EOperationState::Aborting ||
+                operationReport.UserTransactionAborted)
+            {
+                continue;
+            }
+
+            RegisterRevivingOperation(operation);
         }
     }
 
