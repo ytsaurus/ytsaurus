@@ -93,6 +93,11 @@ TYPath GetOperationsArchiveJobsPath()
     return "//sys/operations_archive/jobs";
 }
 
+TYPath GetOperationsArchiveVersionPath()
+{
+    return "//sys/operations_archive/@version";
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return
