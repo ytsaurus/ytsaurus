@@ -1,22 +1,12 @@
 #!/bin/bash
 
-
 usage() {
-    echo "Usage: copy_packages.sh <action> <params...>"
+    echo "Usage: copy_packages.sh <version> <source repository> <destination repository>"
     echo
-    echo "Actions:"
-    echo "    download <repository> <version>  - download .deb packages, where <repository> is yt-precise or yt-trusty"
-    echo "    upload <repository> <version>    - upload .deb packages, where <repository> is yabs-precise or yabs-trusty"
-    echo "    clean                            - clean current dirctory"
+    echo "Source repository: yt-precise or yt-trusty"
+    echo "Destination repository: yabs-precise or yabs-trusty"
     echo
     exit 1
-}
-
-clean()
-{
-    rm *.deb
-    rm *.changes
-    rm -rf debian
 }
 
 CONTROL='''Source: yandex-yt
@@ -27,13 +17,18 @@ Standards-Version: 3.9.1
 Homepage: http://wiki.yandex-team.ru/YT
 '''
 
+get_changes_filename()
+{
+    local verison=$1
+    echo "yandex-yt_${version}_amd64.changes"
+}
+
 download() {
     local repository=$1
     local verison=$2
 
     local urls="$(curl -s http://dist.yandex.ru/$repository/unstable/amd64/Packages.bz2 | bzip2 -d -c | fgrep $version | fgrep Filename | cut -d' ' -f 2)"
 
-    mkdir -p $version
     cd $version
     mkdir -p debian
 
@@ -51,21 +46,22 @@ download() {
             dpkg --fsys-tarfile "${name}.deb" | tar xOf - ./usr/share/doc/yandex-yt/changelog.Debian.gz | zcat > debian/changelog
         fi
 
-        echo "" >> debian/control        
+        echo "" >> debian/control
         dpkg-deb -f "${name}.deb" Package Architecture Depends Description Conflicts >> debian/control
 
         dpkg-distaddfile "${name}.deb" unknown extra
     done
 
-    local changes_file="yandex-yt_${version}.changes"
+    local changes_file=$(get_changes_filename $version) #"yandex-yt_${version}_amd64.changes"
 
     echo "Generating changes..."
     dpkg-genchanges -b -u. > $changes_file
 
     echo "Generating signature..."
-    gpg --utf8-strings --clearsign --armor --textmode $changes_file
+    gpg --utf8-strings --clearsign --armor --textmode -u $USER $changes_file
     mv "${changes_file}.asc" $changes_file
 }
+
 
 upload() {
     local repository=$1
@@ -73,57 +69,39 @@ upload() {
 
     cd $version
 
-    local changes_file="yandex-yt_${version}.changes"
+    local changes_file=$(get_changes_filename $version) #"yandex-yt_${version}.changes"
 
     dupload --to $repository --nomail --force $changes_file
 }
 
-while [ $# -gt 0 ]; do
-  case $1 in
-    download)
-      repository=$2
-      version=$3
+if [ "$1" == "--help" ]; then
+  usage
+fi
 
-      if [ -z "${repository}" -o -z "${version}" ]; then
-          echo "Error: Repository or version is not defined"
-          echo
-          usage
-      fi
-      download $repository $version
+version=$1
+src_repository=$2
+dst_repository=$3
 
-      shift; shift; shift
-      ;;
-    upload)
-      repository=$2
-      version=$3
+if [ -z "$version" ]; then
+  echo "Error: Version is not defined"
+  echo
+  usage
+fi
 
-      if [ -z "${repository}" -o -z "${version}" ]; then
-          echo "Error: Repository or version is not defined"
-          echo
-          usage
-      fi
+if [ -z "$src_repository" ]; then
+  echo "Error: Source repository is not defined"
+  echo
+  usage
+fi
 
-      upload $repository $version
+if [ -z "$dst_repository" ]; then
+  echo "Error: Destination repository is not defined"
+  echo
+  usage
+fi
 
-      shift; shift; shift
-      ;;
-    clean)
-      clean
-      shift
-      ;;
-   
-    --help)
-      usage
-      shift
-    ;;
-    *)
-      action=$1
-      echo "Error: Unknown action ${action}."
-      echo
-      usage
-
-      shift
-    ;;
-  esac
-done
+mkdir -p $version
+download $src_repository $version
+upload $dst_repository $version
+rm -rf $version
 
