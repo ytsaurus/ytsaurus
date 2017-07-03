@@ -127,9 +127,10 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
 
 void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TInstant expirationTime)
 {
-    Y_ASSERT(ExpiredNodes_.find(trunkNode) == ExpiredNodes_.end());
-    auto it = ExpirationMap_.insert(std::make_pair(expirationTime, trunkNode));
-    trunkNode->SetExpirationIterator(it);
+    if (ExpiredNodes_.find(trunkNode) == ExpiredNodes_.end()) {
+        auto it = ExpirationMap_.emplace(expirationTime, trunkNode);
+        trunkNode->SetExpirationIterator(it);
+    }
 }
 
 void TExpirationTracker::UnregisterNodeExpiration(TCypressNodeBase* trunkNode)
