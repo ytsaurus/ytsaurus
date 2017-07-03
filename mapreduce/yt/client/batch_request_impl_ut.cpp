@@ -1,4 +1,5 @@
 #include <mapreduce/yt/client/batch_request_impl.h>
+#include <mapreduce/yt/client/client.h>
 
 #include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/http/error.h>
@@ -103,6 +104,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestImpl) {
                 "<no-request-id>",
                 testRetryPolicy,
                 &retryBatch,
+                nullptr,
                 now);
 
         UNIT_ASSERT_VALUES_EQUAL(batchRequest.BatchSize(), 0);

@@ -25,7 +25,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLockWaiter::TLockWaiter(IClient* client)
+TLockWaiter::TLockWaiter(IClientPtr client)
     : Client_(client)
     , WaiterThread_(&TLockWaiter::WatchLoopProc, this)
 {
@@ -109,9 +109,12 @@ void* TLockWaiter::WatchLoopProc(void* data)
 
 void TLockWaiter::Stop()
 {
-    auto g = Guard(Lock_);
-    IsRunning_ = false;
-    HasData_.Signal();
+    {
+        auto g = Guard(Lock_);
+        IsRunning_ = false;
+        HasData_.Signal();
+    }
+    WaiterThread_.Join();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

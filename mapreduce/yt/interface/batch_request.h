@@ -57,7 +57,7 @@ struct IBatchRequest {
         const TYPath& linkPath,
         const TLinkOptions& options = TLinkOptions()) = 0;
 
-    virtual NThreading::TFuture<TLockId> Lock(
+    virtual NThreading::TFuture<ILockPtr> Lock(
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) = 0;
@@ -122,7 +122,7 @@ public:
         const TYPath& linkPath,
         const TLinkOptions& options = TLinkOptions()) override;
 
-    virtual NThreading::TFuture<TLockId> Lock(
+    virtual NThreading::TFuture<ILockPtr> Lock(
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) override;

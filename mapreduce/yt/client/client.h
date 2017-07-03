@@ -301,6 +301,9 @@ protected:
     TClientPtr GetParentClient() override;
 
 private:
+    IClientPtr Clone();
+
+private:
     template <class TOptions>
     void SetTabletParams(
         THttpHeader& header,

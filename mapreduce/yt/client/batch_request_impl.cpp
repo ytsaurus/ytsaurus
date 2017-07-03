@@ -1,4 +1,6 @@
 #include "batch_request_impl.h"
+
+#include "lock.h"
 #include "rpc_parameters_serialization.h"
 
 #include <mapreduce/yt/common/helpers.h>
@@ -18,9 +20,9 @@ namespace NDetail {
 using NThreading::TFuture;
 using NThreading::TPromise;
 using NThreading::NewPromise;
+using TResponseContext = TBatchRequestImpl::TResponseContext;
 
 ////////////////////////////////////////////////////////////////////
-
 
 static TString RequestInfo(const TNode& request)
 {
@@ -67,6 +69,13 @@ static void EnsureType(const TMaybe<TNode>& node, TNode::EType type)
 
 ////////////////////////////////////////////////////////////////////
 
+struct TBatchRequestImpl::TResponseContext
+{
+    TClientPtr Client;
+};
+
+////////////////////////////////////////////////////////////////////
+
 template <typename TReturnType>
 class TResponseParserBase
     : public TBatchRequestImpl::IResponseItemParser
@@ -100,7 +109,7 @@ class TGetResponseParser
     : public TResponseParserBase<TNode>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    virtual void SetResponse(TMaybe<TNode> node, const TResponseContext&) override
     {
         EnsureSomething(node);
         Result.SetValue(std::move(*node));
@@ -113,7 +122,7 @@ class TVoidResponseParser
     : public TResponseParserBase<void>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    virtual void SetResponse(TMaybe<TNode> node, const TResponseContext&) override
     {
         EnsureNothing(node);
         Result.SetValue();
@@ -126,7 +135,7 @@ class TListResponseParser
     : public TResponseParserBase<TNode::TList>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    virtual void SetResponse(TMaybe<TNode> node, const TResponseContext&) override
     {
         EnsureType(node, TNode::LIST);
         Result.SetValue(std::move(node->AsList()));
@@ -139,7 +148,7 @@ class TExistsResponseParser
     : public TResponseParserBase<bool>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    virtual void SetResponse(TMaybe<TNode> node, const TResponseContext&) override
     {
         EnsureType(node, TNode::BOOL);
         Result.SetValue(std::move(node->AsBool()));
@@ -152,11 +161,36 @@ class TGuidResponseParser
     : public TResponseParserBase<TGUID>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    virtual void SetResponse(TMaybe<TNode> node, const TResponseContext&) override
     {
         EnsureType(node, TNode::STRING);
         Result.SetValue(GetGuid(node->AsString()));
     }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TLockResponseParser
+    : public TResponseParserBase<ILockPtr>
+{
+public:
+    explicit TLockResponseParser(bool waitable)
+        : Waitable_(waitable)
+    { }
+
+    virtual void SetResponse(TMaybe<TNode> node, const TResponseContext& responseContext) override
+    {
+        EnsureType(node, TNode::STRING);
+
+        auto lockId = GetGuid(node->AsString());
+        if (Waitable_) {
+            Result.SetValue(MakeIntrusive<TLock>(lockId, responseContext.Client));
+        } else {
+            Result.SetValue(MakeIntrusive<TLock>(lockId));
+        }
+    }
+private:
+    const bool Waitable_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -195,6 +229,16 @@ typename TResponseParser::TFutureResult TBatchRequestImpl::AddRequest(
     TNode parameters,
     TMaybe<TNode> input)
 {
+    return AddRequest(command, parameters, input, MakeIntrusive<TResponseParser>());
+}
+
+template <typename TResponseParser>
+typename TResponseParser::TFutureResult TBatchRequestImpl::AddRequest(
+    const TString& command,
+    TNode parameters,
+    TMaybe<TNode> input,
+    TIntrusivePtr<TResponseParser> parser)
+{
     if (Executed_) {
         ythrow yexception() << "Cannot add request: batch request is already executed";
     }
@@ -204,7 +248,6 @@ typename TResponseParser::TFutureResult TBatchRequestImpl::AddRequest(
     if (input) {
         request["input"] = std::move(*input);
     }
-    auto parser = MakeIntrusive<TResponseParser>();
     BatchItemList_.emplace_back(std::move(request), parser);
     return parser->GetFuture();
 }
@@ -317,16 +360,17 @@ TFuture<TNodeId> TBatchRequestImpl::Link(
         Nothing());
 }
 
-TFuture<TLockId> TBatchRequestImpl::Lock(
+TFuture<ILockPtr> TBatchRequestImpl::Lock(
     const TTransactionId& transaction,
     const TYPath& path,
     ELockMode mode,
     const TLockOptions& options)
 {
-    return AddRequest<TGuidResponseParser>(
+    return AddRequest<TLockResponseParser>(
         "lock",
         SerializeParamsForLock(transaction, path, mode, options),
-        Nothing());
+        Nothing(),
+        MakeIntrusive<TLockResponseParser>(options.Waitable_));
 }
 
 void TBatchRequestImpl::FillParameterList(size_t maxSize, TNode* result, TInstant* nextTry) const
@@ -350,10 +394,11 @@ void TBatchRequestImpl::ParseResponse(
     const TResponseInfo& requestResult,
     const IRetryPolicy& retryPolicy,
     TBatchRequestImpl* retryBatch,
+    const TClientPtr& client,
     TInstant now)
 {
     TNode node = NodeFromYsonString(requestResult.Response);
-    return ParseResponse(node, requestResult.RequestId, retryPolicy, retryBatch, now);
+    return ParseResponse(node, requestResult.RequestId, retryPolicy, retryBatch, client, now);
 }
 
 void TBatchRequestImpl::ParseResponse(
@@ -361,9 +406,13 @@ void TBatchRequestImpl::ParseResponse(
     const TString& requestId,
     const IRetryPolicy& retryPolicy,
     TBatchRequestImpl* retryBatch,
+    const TClientPtr& client,
     TInstant now)
 {
     Y_VERIFY(retryBatch);
+
+    TResponseContext responseContext;
+    responseContext.Client = client;
 
     EnsureType(node, TNode::LIST);
     auto& responseList = node.AsList();
@@ -380,11 +429,11 @@ void TBatchRequestImpl::ParseResponse(
             auto& responseNode = responseList[i].AsMap();
             const auto outputIt = responseNode.find("output");
             if (outputIt != responseNode.end()) {
-                BatchItemList_[i].ResponseParser->SetResponse(std::move(outputIt->second));
+                BatchItemList_[i].ResponseParser->SetResponse(std::move(outputIt->second), responseContext);
             } else {
                 const auto errorIt = responseNode.find("error");
                 if (errorIt == responseNode.end()) {
-                    BatchItemList_[i].ResponseParser->SetResponse(Nothing());
+                    BatchItemList_[i].ResponseParser->SetResponse(Nothing(), responseContext);
                 } else {
                     TErrorResponse error(400, requestId);
                     error.SetError(TError(errorIt->second));

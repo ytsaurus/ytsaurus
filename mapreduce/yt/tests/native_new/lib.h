@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mapreduce/yt/interface/client.h>
+#include <util/datetime/base.h>
 
 ////////////////////////////////////////////////////////////////////
 
@@ -20,6 +21,19 @@ namespace NTesting {
 IClientPtr CreateTestClient();
 
 ////////////////////////////////////////////////////////////////////
+
+class TZeroWaitLockPollIntervalGuard
+{
+public:
+    TZeroWaitLockPollIntervalGuard();
+
+    ~TZeroWaitLockPollIntervalGuard();
+
+private:
+    TDuration OldWaitLockPollInterval_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTesting
 } // namespace NYT

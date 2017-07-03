@@ -68,7 +68,7 @@ TFuture<bool> TBatchRequest::Exists(const TYPath& path)
     return Impl_->Exists(DefaultTransaction_, path);
 }
 
-TFuture<TLockId> TBatchRequest::Lock(
+TFuture<ILockPtr> TBatchRequest::Lock(
     const TYPath& path,
     ELockMode mode,
     const TLockOptions& options)
