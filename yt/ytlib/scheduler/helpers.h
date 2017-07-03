@@ -23,6 +23,7 @@ NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
 NYPath::TYPath GetPoolsPath();
 NYPath::TYPath GetOperationsArchiveJobsPath();
+NYPath::TYPath GetOperationsArchiveVersionPath();
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
