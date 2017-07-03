@@ -184,6 +184,8 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
 
     SIMPLE_UNIT_TEST(TestLock)
     {
+        TZeroWaitLockPollIntervalGuard g;
+
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
         auto otherTx = client->StartTransaction();
@@ -223,8 +225,8 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
 
         UNIT_ASSERT_EXCEPTION(badLockRes.GetValue(), TErrorResponse);
 
-        auto getLockAttr = [&] (const TLockId& lockId, const TString& attrName) {
-            return client->Get("//sys/locks/" + GetGuidAsString(lockId) + "/@" + attrName).AsString();
+        auto getLockAttr = [&] (const ILockPtr& lock, const TString& attrName) {
+            return client->Get("//sys/locks/" + GetGuidAsString(lock->GetId()) + "/@" + attrName).AsString();
         };
         UNIT_ASSERT_VALUES_EQUAL(
             getLockAttr(exclusiveLockRes.GetValue(), "mode"),
@@ -245,10 +247,57 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
             getLockAttr(waitableLockRes.GetValue(), "state"),
             "pending");
 
+        auto waitableAcquired = waitableLockRes.GetValue()->GetAcquiredFuture();
+        UNIT_ASSERT(!waitableAcquired.Wait(TDuration::MilliSeconds(500)));
+
         otherTx->Abort();
-        UNIT_ASSERT_VALUES_EQUAL(
-            getLockAttr(waitableLockRes.GetValue(), "state"),
-            "acquired");
+
+        UNIT_ASSERT_NO_EXCEPTION(waitableAcquired.GetValue(TDuration::MilliSeconds(500)));
+    }
+
+    SIMPLE_UNIT_TEST(TestWaitableLock)
+    {
+        TZeroWaitLockPollIntervalGuard g;
+
+        auto client = CreateTestClient();
+        client->Set("//testing/one", 1);
+        client->Set("//testing/two", 2);
+        client->Set("//testing/three", 3);
+        client->Set("//testing/four", 4);
+
+        auto tx = client->StartTransaction();
+        auto otherTx1 = client->StartTransaction();
+        auto otherTx2 = client->StartTransaction();
+
+        otherTx1->Lock("//testing/one", LM_EXCLUSIVE);
+        otherTx1->Lock("//testing/three", LM_EXCLUSIVE);
+
+        otherTx2->Lock("//testing/two", LM_EXCLUSIVE);
+        otherTx2->Lock("//testing/four", LM_EXCLUSIVE);
+
+        TBatchRequest batch;
+        auto res1 = batch.WithTransaction(tx).Lock("//testing/one", LM_EXCLUSIVE, TLockOptions().Waitable(true));
+        auto res2 = batch.WithTransaction(tx).Lock("//testing/two", LM_EXCLUSIVE, TLockOptions().Waitable(true));
+        auto res3 = batch.WithTransaction(tx).Lock("//testing/three", LM_EXCLUSIVE, TLockOptions().Waitable(true));
+        auto res4 = batch.WithTransaction(tx).Lock("//testing/four", LM_EXCLUSIVE, TLockOptions().Waitable(true));
+        client->ExecuteBatch(batch);
+
+        UNIT_ASSERT(!res1.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT(!res2.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT(!res3.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT(!res4.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
+
+        otherTx1->Abort();
+
+        UNIT_ASSERT_NO_EXCEPTION(res1.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT(!res2.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT_NO_EXCEPTION(res3.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT(!res4.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
+
+        otherTx2->Abort();
+
+        UNIT_ASSERT_NO_EXCEPTION(res2.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT_NO_EXCEPTION(res4.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(100)));
     }
 
     SIMPLE_UNIT_TEST(TestCreate)

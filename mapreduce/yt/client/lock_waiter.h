@@ -20,7 +20,7 @@ class TLockWaiter
     : public TThrRefBase
 {
 public:
-    explicit TLockWaiter(IClient* Client_);
+    explicit TLockWaiter(IClientPtr Client_);
     ~TLockWaiter();
 
     void Watch(const TLockId& lockId, NThreading::TPromise<void> acquired);
@@ -33,7 +33,7 @@ private:
 private:
     struct TItem;
 
-    IClient* const Client_;
+    IClientPtr const Client_;
 
     ylist<TItem> InProgress_;
     ylist<TItem> Pending_;

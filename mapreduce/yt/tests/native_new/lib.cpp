@@ -1,3 +1,6 @@
+#include "lib.h"
+
+#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/interface/client.h>
 
@@ -37,6 +40,19 @@ IClientPtr CreateTestClient()
 }
 
 ////////////////////////////////////////////////////////////////////
+
+TZeroWaitLockPollIntervalGuard::TZeroWaitLockPollIntervalGuard()
+    : OldWaitLockPollInterval_(TConfig::Get()->WaitLockPollInterval)
+{
+    TConfig::Get()->WaitLockPollInterval = TDuration::Zero();
+}
+
+TZeroWaitLockPollIntervalGuard::~TZeroWaitLockPollIntervalGuard()
+{
+    TConfig::Get()->WaitLockPollInterval = OldWaitLockPollInterval_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTesting
 } // namespace NYT

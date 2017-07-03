@@ -12,8 +12,12 @@
 namespace NYT {
 namespace NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct IRetryPolicy;
 struct TResponseInfo;
+class TClient;
+using TClientPtr = ::TIntrusivePtr<TClient>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,12 +25,13 @@ class TBatchRequestImpl
     : public TThrRefBase
 {
 public:
+    struct TResponseContext;
     struct IResponseItemParser
         : public TThrRefBase
     {
         ~IResponseItemParser() = default;
 
-        virtual void SetResponse(TMaybe<TNode> node) = 0;
+        virtual void SetResponse(TMaybe<TNode> node, const TResponseContext&) = 0;
         virtual void SetException(std::exception_ptr e) = 0;
     };
 
@@ -45,12 +50,14 @@ public:
         const TResponseInfo& requestResult,
         const IRetryPolicy& retryPolicy,
         TBatchRequestImpl* retryBatch,
+        const TClientPtr& client,
         TInstant now = TInstant::Now());
     void ParseResponse(
         TNode response,
         const TString& requestId,
         const IRetryPolicy& retryPolicy,
         TBatchRequestImpl* retryBatch,
+        const TClientPtr& client,
         TInstant now = TInstant::Now());
     void SetErrorResult(std::exception_ptr e) const;
 
@@ -93,7 +100,7 @@ public:
         const TYPath& targetPath,
         const TYPath& linkPath,
         const TLinkOptions& options);
-    NThreading::TFuture<TLockId> Lock(
+    NThreading::TFuture<ILockPtr> Lock(
         const TTransactionId& transaction,
         const TYPath& path,
         ELockMode mode, const TLockOptions& options);
@@ -115,6 +122,13 @@ private:
         const TString& command,
         TNode parameters,
         TMaybe<TNode> input);
+
+    template <typename TResponseParser>
+    typename TResponseParser::TFutureResult AddRequest(
+        const TString& command,
+        TNode parameters,
+        TMaybe<TNode> input,
+        TIntrusivePtr<TResponseParser> parser);
 
     void AddRequest(TBatchItem batchItem);
 

@@ -1,33 +1,12 @@
 #include "lib.h"
 
 #include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/http/error.h>
 
 #include <library/unittest/registar.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TZeroWaitLockPollIntervalGuard
-{
-public:
-    TZeroWaitLockPollIntervalGuard()
-        : OldWaitLockPollInterval_(TConfig::Get()->WaitLockPollInterval)
-    {
-        TConfig::Get()->WaitLockPollInterval = TDuration::Zero();
-    }
-
-    ~TZeroWaitLockPollIntervalGuard()
-    {
-        TConfig::Get()->WaitLockPollInterval = OldWaitLockPollInterval_;
-    }
-
-private:
-    TDuration OldWaitLockPollInterval_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

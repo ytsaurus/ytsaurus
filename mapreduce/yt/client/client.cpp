@@ -782,7 +782,7 @@ void TClient::ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOpti
                 retryBatch.SetErrorResult(std::current_exception());
                 throw;
             }
-            request.Impl_->ParseResponse(std::move(result), retryPolicy, &retryBatch);
+            request.Impl_->ParseResponse(std::move(result), retryPolicy, &retryBatch, this);
         }
 
         *request.Impl_ = std::move(retryBatch);
@@ -793,9 +793,17 @@ TLockWaiter& TClient::GetLockWaiter()
 {
 
     if (!LockWaiter_) {
-        LockWaiter_ = MakeHolder<TLockWaiter>(this);
+        // We don't use current clinet and create new client because LockWaiter might use
+        // this client during current client shutdown.
+        // That might lead to incrementing of current client refcount and double delete of current client object.
+        LockWaiter_ = MakeHolder<TLockWaiter>(Clone());
     }
     return *LockWaiter_;
+}
+
+IClientPtr TClient::Clone()
+{
+    return MakeIntrusive<TClient>(Auth_, TransactionId_);
 }
 
 TClientPtr TClient::GetParentClient()
