@@ -195,6 +195,10 @@ public:
 
         AssignOperationSlotIndex(operation, poolId);
 
+        LOG_DEBUG("Slot index assigned to operation (SlotIndex: %v, OperationId: %v)",
+            operation->GetSlotIndex(),
+            operation->GetId());
+
         if (CanAddOperationToPool(pool.Get())) {
             ActivateOperation(operation->GetId());
         } else {
