@@ -240,6 +240,11 @@ def get(path, is_raw=False, **kwargs):
     result = execute_command('get', kwargs)
     return result if is_raw else yson.loads(result)
 
+def get_operation(operationId, is_raw=False,  **kwargs):
+    kwargs["operation_id"] = operationId
+    result = execute_command("get_operation", kwargs)
+    return result if is_raw else yson.loads(result)
+
 def set(path, value, is_raw=False, **kwargs):
     if not is_raw:
         value = yson.dumps(value)

@@ -21,6 +21,12 @@ TYsonString::TYsonString(const TString& data, EYsonType type)
     , Type_(type)
 { }
 
+TYsonString::TYsonString(const char* data, const size_t length, EYsonType type)
+    : Null_(false)
+    , Data_(data, length)
+    , Type_(type)
+{ }
+
 TYsonString::operator bool() const
 {
     return !Null_;

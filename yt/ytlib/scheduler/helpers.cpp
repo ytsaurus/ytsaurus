@@ -20,6 +20,20 @@ TYPath GetOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
+TYPath GetOperationAttributesPath(const TOperationId& operationId)
+{
+    return
+        GetOperationPath(operationId) + "/@";
+}
+
+TYPath GetOperationsProgressFromScheduler(const TOperationId& operationId)
+{
+    return
+        "//sys/scheduler/orchid/scheduler/operations/" +
+        ToYPathLiteral(ToString(operationId)) +
+        "/progress";
+}
+
 TYPath GetJobsPath(const TOperationId& operationId)
 {
     return

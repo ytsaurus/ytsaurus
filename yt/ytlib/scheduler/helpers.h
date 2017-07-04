@@ -12,6 +12,8 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 NYPath::TYPath GetOperationPath(const TOperationId& operationId);
+NYPath::TYPath GetOperationAttributesPath(const TOperationId& operationId);
+NYPath::TYPath GetOperationsProgressFromScheduler(const TOperationId& operationId);
 NYPath::TYPath GetJobsPath(const TOperationId& operationId);
 NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId);

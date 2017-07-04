@@ -438,5 +438,21 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetOperationCommand::TGetOperationCommand()
+{   
+    RegisterParameter("operation_id", OperationId);
+}
+
+void TGetOperationCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->GetOperation(OperationId);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
