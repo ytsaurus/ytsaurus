@@ -1136,7 +1136,7 @@ private:
         return GetNodeShard(nodeId);
     }
 
-    
+
     void ReleaseStderrChunk(const TOperationPtr& operation, const TChunkId& chunkId)
     {
         auto cellTag = CellTagFromId(chunkId);
@@ -1763,6 +1763,8 @@ private:
         LOG_INFO("Reviving operation (OperationId: %v)",
             operationId);
 
+        operation->SetState(EOperationState::Reviving);
+
         if (operation->GetMutationId()) {
             TRspStartOperation response;
             ToProto(response.mutable_operation_id(), operationId);
@@ -1793,7 +1795,6 @@ private:
 
     void ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
     {
-
         auto controller = operation->GetController();
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
             .Via(operation->GetCancelableControlInvoker())
@@ -2281,8 +2282,6 @@ private:
 
         for (const auto& operationReport : operationReports) {
             const auto& operation = operationReport.Operation;
-
-            operation->SetState(EOperationState::Reviving);
 
             if (operationReport.IsCommitted) {
                 CompleteCompletingOperation(operationReport);
