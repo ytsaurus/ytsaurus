@@ -545,12 +545,16 @@ YtCommand.prototype._redirectHeavyRequests = function() {
 YtCommand.prototype._getHeaderFormat = function() {
     this.__DBG("_getHeaderFormat");
 
-    var header = this.req.headers["x-yt-header-format"];
-    if (typeof(header) === "string") {
-        this.header_format = new binding.TNodeWrap(
-            header.trim(),
-            binding.ECompression_None,
-            _PREDEFINED_YSON_FORMAT);
+    try {
+        var header = this.req.headers["x-yt-header-format"];
+        if (typeof(header) === "string") {
+            this.header_format = new binding.TNodeWrap(
+                header.trim(),
+                binding.ECompression_None,
+                _PREDEFINED_YSON_FORMAT);
+        }
+    } catch (err) {
+        throw new YtError("Unable to parse X-YT-Header-Format header", err);
     }
 };
 
