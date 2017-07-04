@@ -120,8 +120,6 @@ class TSchedulerElementSharedState
     : public TIntrinsicRefCounted
 {
 public:
-    TSchedulerElementSharedState();
-
     TJobResources GetResourceUsage();
     void IncreaseResourceUsage(const TJobResources& delta);
 
@@ -461,8 +459,6 @@ class TOperationElementSharedState
     : public TIntrinsicRefCounted
 {
 public:
-    TOperationElementSharedState();
-
     TJobResources IncreaseJobResourceUsage(
         const TJobId& jobId,
         const TJobResources& resourcesDelta);

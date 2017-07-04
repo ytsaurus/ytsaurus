@@ -94,10 +94,6 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerElementSharedState::TSchedulerElementSharedState()
-    : ResourceUsage_(ZeroJobResources())
-{ }
-
 TJobResources TSchedulerElementSharedState::GetResourceUsage()
 {
     TReaderGuard guard(ResourceUsageLock_);
