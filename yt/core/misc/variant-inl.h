@@ -45,6 +45,16 @@ struct TStorageTraits<T, Ts...>
             TStorageTraits<Ts...>::MoveConstruct(tag - 1, storage, other);
         }
     }
+
+    template <class V>
+    static bool Equals(int tag, const V& lhs, const V& rhs)
+    {
+        if (tag == 0) {
+            return lhs.template As<T>() == rhs.template As<T>();
+        } else {
+            return TStorageTraits<Ts...>::Equals(tag - 1, lhs, rhs);
+        }
+    }
 };
 
 template <>
@@ -67,6 +77,12 @@ struct TStorageTraits<>
     static void MoveConstruct(int /*tag*/, void* /*storage*/, V&& /*other*/)
     {
         // Invalid TVariant tag.
+        Y_UNREACHABLE();
+    }
+
+    template <class V>
+    static bool Equals(int /*tag*/, const V& /*lhs*/, const V& /*rhs*/)
+    {
         Y_UNREACHABLE();
     }
 };
@@ -308,6 +324,14 @@ template <class... Ts>
 int TVariant<Ts...>::Tag() const
 {
     return Tag_;
+}
+
+template <class... Ts>
+bool operator==(const TVariant<Ts...>& lhs, const TVariant<Ts...>& rhs)
+{
+    return
+        lhs.Tag() == rhs.Tag() &&
+        ::NYT::NDetail::NVariant::TStorageTraits<Ts...>::Equals(lhs.Tag(), lhs, rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
