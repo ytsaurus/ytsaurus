@@ -114,9 +114,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("job_proxy_ref_counted_tracker_log_period", JobProxyRefCountedTrackerLogPeriod)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("enable_sort_verification", EnableSortVerification)
-        .Default(true);
-
     RegisterParameter("title", Title)
         .Default();
 

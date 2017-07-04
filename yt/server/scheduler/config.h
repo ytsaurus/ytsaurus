@@ -457,6 +457,8 @@ public:
 
     TDuration OperationLogProgressBackoff;
 
+    TDuration OperationLogFairSharePeriod;
+
     TDuration ClusterInfoLoggingPeriod;
 
     TDuration PendingEventLogRowsFlushPeriod;

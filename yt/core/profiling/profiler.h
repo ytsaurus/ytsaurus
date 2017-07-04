@@ -75,9 +75,9 @@ class TCounterBase
 {
 public:
     TCounterBase(
-        const NYPath::TYPath& path = NYPath::TYPath(),
-        const TTagIdList& tagIds = EmptyTagIds,
-        TDuration interval = TDuration::MilliSeconds(100));
+        const NYPath::TYPath& path,
+        const TTagIdList& tagIds,
+        TDuration interval);
     TCounterBase(const TCounterBase& other);
     TCounterBase& operator = (const TCounterBase& other);
 

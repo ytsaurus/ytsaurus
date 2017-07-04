@@ -30,6 +30,10 @@ using namespace NProfiling;
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
 
+static NProfiling::TAggregateCounter FairShareUpdateTimeCounter("/fair_share_update_time");
+static NProfiling::TAggregateCounter FairShareLogTimeCounter("/fair_share_log_time");
+static NProfiling::TAggregateCounter AnalyzePreemptableJobsTimeCounter("/analyze_preemptable_jobs_time");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -197,6 +201,10 @@ public:
         operationElement->SetParent(pool.Get());
 
         AssignOperationSlotIndex(operation, poolId);
+
+        LOG_DEBUG("Slot index assigned to operation (SlotIndex: %v, OperationId: %v)",
+            operation->GetSlotIndex(),
+            operation->GetId());
 
         if (CanAddOperationToPool(pool.Get())) {
             ActivateOperation(operation->GetId());
@@ -638,7 +646,7 @@ public:
         LOG_INFO("Starting fair share update");
 
         // Run periodic update.
-        PROFILE_TIMING ("/fair_share_update_time") {
+        PROFILE_AGGREGATED_TIMING (FairShareUpdateTimeCounter) {
             // The root element gets the whole cluster.
             RootElement->Update(GlobalDynamicAttributes_);
 
@@ -695,7 +703,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        PROFILE_TIMING ("/fair_share_log_time") {
+        PROFILE_AGGREGATED_TIMING (FairShareLogTimeCounter) {
             // Log pools information.
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)));
@@ -941,7 +949,7 @@ private:
         LOG_TRACE("Looking for preemptable jobs");
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
-        PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
+        PROFILE_AGGREGATED_TIMING (AnalyzePreemptableJobsTimeCounter) {
             for (const auto& job : schedulingContext->RunningJobs()) {
                 auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
