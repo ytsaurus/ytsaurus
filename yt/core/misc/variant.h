@@ -159,6 +159,9 @@ private:
 
 };
 
+template <class... Ts>
+bool operator==(const TVariant<Ts...>& lhs, const TVariant<Ts...>& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
