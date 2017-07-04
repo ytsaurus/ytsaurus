@@ -209,7 +209,7 @@ void FormatLiteralValue(TStringBuilder* builder, const TLiteralValue& value)
     }
 }
 
-bool IsValidId(TStringBuf str)
+bool IsValidId(const TStringBuf& str)
 {
     if (str.empty()) {
         return false;
