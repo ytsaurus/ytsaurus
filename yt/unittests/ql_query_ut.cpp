@@ -364,16 +364,13 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
         EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
     }
-
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest
     : public ::testing::Test
-{
-};
+{ };
 
 TEST_F(TJobQueryPrepareTest, TruePredicate)
 {

@@ -184,14 +184,14 @@ parse-expression
             if ($expr.size() != 1) {
                 THROW_ERROR_EXCEPTION("Expected scalar expression, got %Qv", GetSource(@$, source));
             }
-            head->first.As<TExpressionPtr>() = $expr.front();
+            head->Ast.As<TExpressionPtr>() = $expr.front();
         }
 ;
 
 select-clause
     : comma-expr[projections]
         {
-            head->first.As<TQuery>().SelectExprs = $projections;
+            head->Ast.As<TQuery>().SelectExprs = $projections;
         }
     | Asterisk
         { }
@@ -208,14 +208,14 @@ table-descriptor
         }
     |   Identifier[path]
         {
-            $$ = TTableDescriptor(TString($path), TString());
+            $$ = TTableDescriptor(TString($path));
         }
 ;
 
 from-clause
     : KwFrom table-descriptor[table] join-clause
         {
-            head->first.As<TQuery>().Table = $table;
+            head->Ast.As<TQuery>().Table = $table;
         }
 ;
 
@@ -230,11 +230,11 @@ join-predicate
 join-clause
     : join-clause is-left[isLeft] KwJoin table-descriptor[table] KwUsing identifier-list[fields] join-predicate[predicate]
         {
-            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $fields, $predicate);
+            head->Ast.As<TQuery>().Joins.emplace_back($isLeft, $table, $fields, $predicate);
         }
     | join-clause is-left[isLeft] KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs] join-predicate[predicate]
         {
-            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $lhs, $rhs, $predicate);
+            head->Ast.As<TQuery>().Joins.emplace_back($isLeft, $table, $lhs, $rhs, $predicate);
         }
     |
 ;
@@ -253,7 +253,7 @@ is-left
 where-clause
     : KwWhere or-op-expr[predicate]
         {
-            head->first.As<TQuery>().WherePredicate = $predicate;
+            head->Ast.As<TQuery>().WherePredicate = $predicate;
         }
     |
 ;
@@ -261,7 +261,7 @@ where-clause
 group-by-clause
     : KwGroupBy comma-expr[exprs] group-by-clause-tail[totalsMode]
         {
-            head->first.As<TQuery>().GroupExprs = std::make_pair($exprs, $totalsMode);
+            head->Ast.As<TQuery>().GroupExprs = std::make_pair($exprs, $totalsMode);
         }
     |
 ;
@@ -292,14 +292,14 @@ group-by-clause-tail
 having-clause
     : KwHaving or-op-expr[predicate]
         {
-            head->first.As<TQuery>().HavingPredicate = $predicate;
+            head->Ast.As<TQuery>().HavingPredicate = $predicate;
         }
 ;
 
 order-by-clause
     : KwOrderBy order-expr-list[exprs]
         {
-            head->first.As<TQuery>().OrderExpressions = $exprs;
+            head->Ast.As<TQuery>().OrderExpressions = $exprs;
         }
     |
 ;
@@ -334,7 +334,7 @@ is-desc
 limit-clause
     : KwLimit Int64Literal[limit]
         {
-            head->first.As<TQuery>().Limit = $limit;
+            head->Ast.As<TQuery>().Limit = $limit;
         }
     |
 ;
@@ -359,18 +359,18 @@ expression
             if ($expr.size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(@$, source));
             }
-            auto inserted = head->second.insert(std::make_pair(TString($name), $expr.front()));
-            if (!inserted.second) {
+            auto inserted = head->AliasMap.insert(std::make_pair(TString($name), $expr.front())).second;
+            if (!inserted) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", $name);
             }
-            $$ = MakeExpr<TReferenceExpression>(@$, $name);
+            $$ = MakeExpression<TReferenceExpression>(@$, $name);
         }
 ;
 
 or-op-expr
     : or-op-expr[lhs] KwOr and-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
+            $$ = MakeExpressionession<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
         }
     | and-op-expr
         { $$ = $1; }
@@ -380,7 +380,7 @@ and-op-expr
 
     : and-op-expr[lhs] KwAnd not-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+            $$ = MakeExpressionession<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
         }
     | not-op-expr
         { $$ = $1; }
@@ -389,7 +389,7 @@ and-op-expr
 not-op-expr
     : KwNot equal-op-expr[expr]
         {
-            $$ = MakeExpr<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
+            $$ = MakeExpressionession<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
         }
     | equal-op-expr
         { $$ = $1; }
@@ -398,12 +398,12 @@ not-op-expr
 equal-op-expr
     : equal-op-expr[lhs] OpEqual relational-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::Equal, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::Equal, $lhs, $rhs);
         }
 
     | equal-op-expr[lhs] OpNotEqual relational-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::NotEqual, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::NotEqual, $lhs, $rhs);
         }
     | relational-op-expr
         { $$ = $1; }
@@ -412,18 +412,18 @@ equal-op-expr
 relational-op-expr
     : relational-op-expr[lhs] relational-op[opcode] bitor-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | unary-expr[expr] KwBetween unary-expr[lbexpr] KwAnd unary-expr[rbexpr]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::And,
-                MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, $lbexpr),
-                MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::And,
+                MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, $lbexpr),
+                MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
 
         }
     | unary-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
-            $$ = MakeExpr<TInExpression>(@$, $expr, $args);
+            $$ = MakeExpression<TInOpExpression>(@$, $expr, $args);
         }
     | bitor-op-expr
         { $$ = $1; }
@@ -443,7 +443,7 @@ relational-op
 bitor-op-expr
     : bitor-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitOr, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::BitOr, $lhs, $rhs);
         }
     | bitand-op-expr
         { $$ = $1; }
@@ -452,7 +452,7 @@ bitor-op-expr
 bitand-op-expr
     : bitand-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitAnd, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::BitAnd, $lhs, $rhs);
         }
     | shift-op-expr
         { $$ = $1; }
@@ -461,11 +461,11 @@ bitand-op-expr
 shift-op-expr
     : shift-op-expr[lhs] OpLeftShift additive-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::LeftShift, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::LeftShift, $lhs, $rhs);
         }
     | shift-op-expr[lhs] OpRightShift additive-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::RightShift, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::RightShift, $lhs, $rhs);
         }
     | additive-op-expr
         { $$ = $1; }
@@ -474,7 +474,7 @@ shift-op-expr
 additive-op-expr
     : additive-op-expr[lhs] additive-op[opcode] multiplicative-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | multiplicative-op-expr
         { $$ = $1; }
@@ -490,7 +490,7 @@ additive-op
 multiplicative-op-expr
     : multiplicative-op-expr[lhs] multiplicative-op[opcode] unary-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | unary-expr
         { $$ = $1; }
@@ -518,7 +518,7 @@ comma-expr
 unary-expr
     : unary-op[opcode] atomic-expr[rhs]
         {
-            $$ = MakeExpr<TUnaryOpExpression>(@$, $opcode, $rhs);
+            $$ = MakeExpression<TUnaryOpExpression>(@$, $opcode, $rhs);
         }
     | atomic-expr
         { $$ = $1; }
@@ -551,11 +551,11 @@ atomic-expr
         }
     | Identifier[name] LeftParenthesis RightParenthesis
         {
-            $$ = MakeExpr<TFunctionExpression>(@$, $name, TExpressionList());
+            $$ = MakeExpression<TFunctionExpression>(@$, $name, TExpressionList());
         }
     | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
         {
-            $$ = MakeExpr<TFunctionExpression>(@$, $name, $args);
+            $$ = MakeExpression<TFunctionExpression>(@$, $name, $args);
         }
     | LeftParenthesis comma-expr[expr] RightParenthesis
         {
@@ -563,7 +563,7 @@ atomic-expr
         }
     | literal-value[value]
         {
-            $$ = MakeExpr<TLiteralExpression>(@$, *$value);
+            $$ = MakeExpression<TLiteralExpression>(@$, *$value);
         }
 ;
 
