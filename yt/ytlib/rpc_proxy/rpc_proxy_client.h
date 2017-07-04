@@ -150,6 +150,13 @@ public:
     {
         Y_UNIMPLEMENTED();
     }
+    
+    virtual TFuture<NYson::TYsonString> GetOperation(
+        const NScheduler::TOperationId& operationId,
+        const NApi::TGetOperationOptions& options) override
+    {
+        Y_UNIMPLEMENTED();
+    }
 
     virtual TFuture<void> DumpJobContext(
         const NJobTrackerClient::TJobId& jobId,

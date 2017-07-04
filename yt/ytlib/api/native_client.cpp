@@ -769,7 +769,10 @@ public:
         const TOperationId& operationId,
         const TCompleteOperationOptions& options),
         (operationId, options))
-
+    IMPLEMENT_METHOD(TYsonString, GetOperation, (
+        const NScheduler::TOperationId& operationId,
+        const TGetOperationOptions& options),
+        (operationId, options))
     IMPLEMENT_METHOD(void, DumpJobContext, (
         const TJobId& jobId,
         const TYPath& path,
@@ -2745,6 +2748,231 @@ private:
             .ThrowOnError();
     }
 
+    int DoGetOperationsArchiveVersion() 
+    {
+        auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
+        auto versionNodeOrError = WaitFor(asyncVersionResult);
+        int version = 0;
+
+        if (versionNodeOrError.IsOK()) { 
+            try {
+                version = ConvertTo<int>(versionNodeOrError.Value());
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to parse operations archive version");
+            }
+        } else {
+            LOG_DEBUG(versionNodeOrError, "Failed to get operations archive version");
+        }
+
+        return version;
+    }
+
+    TYsonString DoGetOperationFromArchive(
+        const NScheduler::TOperationId& operationId,
+        const TGetOperationOptions& options)
+    {
+        TNullable<TInstant> deadline;
+        if (options.Timeout) {
+            deadline = options.Timeout->ToDeadLine();
+        }
+
+        auto nameTable = New<TNameTable>();
+
+        struct TOrderedByIdArchiveIds
+        {
+            explicit TOrderedByIdArchiveIds(const TNameTablePtr& nameTable)
+                : IdHash(nameTable->RegisterName("id_hash"))
+                , IdHi(nameTable->RegisterName("id_hi"))
+                , IdLo(nameTable->RegisterName("id_lo"))
+                , State(nameTable->RegisterName("state"))
+                , AuthenticatedUser(nameTable->RegisterName("authenticated_user"))
+                , OperationType(nameTable->RegisterName("operation_type"))
+                , Progress(nameTable->RegisterName("progress"))
+                , Spec(nameTable->RegisterName("spec"))
+                , BriefProgress(nameTable->RegisterName("brief_progress"))
+                , BriefSpec(nameTable->RegisterName("brief_spec"))
+                , StartTime(nameTable->RegisterName("start_time"))
+                , FinishTime(nameTable->RegisterName("finish_time"))
+                , FilterFactors(nameTable->RegisterName("filter_factors"))
+                , Result(nameTable->RegisterName("result"))
+                , Events(nameTable->RegisterName("events"))
+            { }
+
+            const int IdHash;
+            const int IdHi;
+            const int IdLo;
+            const int State;
+            const int AuthenticatedUser;
+            const int OperationType;
+            const int Progress;
+            const int Spec;
+            const int BriefProgress;
+            const int BriefSpec;
+            const int StartTime;
+            const int FinishTime;
+            const int FilterFactors;
+            const int Result;
+            const int Events;
+        };
+
+        TOrderedByIdArchiveIds ids(nameTable);
+        auto rowBuffer = New<TRowBuffer>();
+
+        std::vector<TUnversionedRow> keys;
+        auto key = rowBuffer->AllocateUnversioned(2);
+        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], ids.IdHi);
+        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], ids.IdLo);
+        keys.push_back(key);
+
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({
+            ids.IdHi,
+            ids.IdLo,
+            ids.State,
+            ids.AuthenticatedUser,
+            ids.OperationType,
+            ids.Progress,
+            ids.Spec,
+            ids.BriefProgress,
+            ids.BriefSpec,
+            ids.StartTime,
+            ids.FinishTime,
+            ids.Result,
+            ids.Events
+        });
+        lookupOptions.KeepMissingRows = true;
+        if (deadline)
+            lookupOptions.Timeout = *deadline - Now();
+
+        auto rowset = WaitFor(LookupRows(
+            "//sys/operations_archive/ordered_by_id",
+            nameTable,
+            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+            lookupOptions))
+            .ValueOrThrow();
+
+        auto rows = rowset->GetRows();
+        YCHECK(!rows.Empty());
+
+        if (rows[0]) {
+#define SET_ITEM_STRING_VALUE(itemKey, index) \
+            SET_ITEM_VALUE(itemKey, index, TString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_YSON_STRING_VALUE(itemKey, index) \ 
+            SET_ITEM_VALUE(itemKey, index, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_INSTANT_VALUE(itemKey, index) \ 
+            SET_ITEM_VALUE(itemKey, index, TInstant(rows[0][index].Data.Int64))
+
+#define SET_ITEM_VALUE(itemKey, index, operation) \
+            .DoIf(rows[0][index].Type != EValueType::Null, [&] (TFluentMap fluent) { \
+                fluent \
+                    .Item(#itemKey).Value(operation); \
+            })
+
+            auto ysonResult = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("id").Value(TGuid(rows[0][0].Data.Uint64, rows[0][1].Data.Uint64))
+                    SET_ITEM_STRING_VALUE("state", 2) 
+                    SET_ITEM_STRING_VALUE("authenticated_user", 3)
+                    SET_ITEM_STRING_VALUE("operation_type", 4)
+                    SET_ITEM_YSON_STRING_VALUE("progress", 5)
+                    SET_ITEM_YSON_STRING_VALUE("spec", 6)
+                    SET_ITEM_YSON_STRING_VALUE("brief_progress", 7)
+                    SET_ITEM_YSON_STRING_VALUE("brief_spec", 8)
+                    SET_ITEM_INSTANT_VALUE("start_time", 9)
+                    SET_ITEM_INSTANT_VALUE("finish_time", 10)
+                    SET_ITEM_YSON_STRING_VALUE("result", 11)
+                    SET_ITEM_YSON_STRING_VALUE("events", 12)
+                .EndMap();
+
+#undef SET_ITEM_STRING_VALUE
+#undef SET_ITEM_YSON_STRING_VALUE
+#undef SET_ITEM_INSTANT_VALUE
+#undef SET_ITEM_VALUE
+            return ysonResult;
+        }
+
+        return TYsonString();
+    }
+
+    TYsonString DoGetOperation(
+        const NScheduler::TOperationId& operationId,
+        const TGetOperationOptions& options)
+    {
+        TNullable<TInstant> deadline;
+        if (options.Timeout) {
+            deadline = options.Timeout->ToDeadLine();
+        }
+
+        TGetNodeOptions optionsToCypress;
+        optionsToCypress.Attributes = {
+            "authenticated_user",
+            "brief_progress",
+            "brief_spec",
+            "finish_time",
+            "operation_type",
+            "start_time",
+            "state",
+            "suspended",
+            "title",
+            "weight"
+        };
+        if (deadline) {
+            optionsToCypress.Timeout = *deadline - Now();
+        }
+
+        auto asyncAttrResult = GetNode(GetOperationAttributesPath(operationId), optionsToCypress);
+        auto attrNodeOrError = WaitFor(asyncAttrResult);
+
+        if (attrNodeOrError.GetCode() == NYT::EErrorCode::OK) {
+            auto attrNodeValue = attrNodeOrError.Value();
+
+            TGetNodeOptions optionsToScheduler;
+            if (deadline) {
+                optionsToScheduler.Timeout = *deadline - Now();
+            }
+
+            auto asyncSchedulerProgressValue = GetNode(GetOperationsProgressFromScheduler(operationId), optionsToScheduler);
+            auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
+    
+            if (schedulerProgressValueOrError.GetCode() == NYT::EErrorCode::OK) {
+                auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
+                auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
+                attrNode->AddChild(schedulerProgressNode, "progress");
+
+                attrNodeValue = ConvertToYsonString(attrNode);
+            } else if (schedulerProgressValueOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+                LOG_DEBUG("No such operation %v in the scheduler", operationId);
+            } else {
+                THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId);
+            }
+           
+            return attrNodeValue;
+        } else if (attrNodeOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+            LOG_DEBUG("No such operation %v in Cypress", operationId);
+
+            int version = DoGetOperationsArchiveVersion();
+
+            if (version < 7) {
+                THROW_ERROR_EXCEPTION("Failed to get operation: operations archive version is too old: expected >= 7, got %v", version);
+            }
+
+            try {
+                auto result = DoGetOperationFromArchive(operationId, TGetOperationOptions());
+                if (result)
+                    return result;
+            } catch (const TErrorException& exception) {
+                auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
+
+                if (!matchedError) {
+                    THROW_ERROR_EXCEPTION("Failed to get operation from archive")
+                        << TErrorAttribute("operation_id", operationId)
+                        << exception.Error();
+                }    
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("No such operation %v", operationId);
+    }
 
     void DoDumpJobContext(
         const TJobId& jobId,
@@ -2757,25 +2985,6 @@ private:
 
         WaitFor(req->Invoke())
             .ThrowOnError();
-    }
-    
-    int DoGetOperationsArchiveVersion() 
-    {
-        auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
-        auto versionNodeOrError = WaitFor(asyncVersionResult);
-        int version = 0;
-        
-        if (versionNodeOrError.IsOK()) { 
-            try {
-                version = ConvertTo<int>(versionNodeOrError.Value());
-            } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to parse operations archive version");
-            }
-        } else {
-            LOG_DEBUG(versionNodeOrError, "Failed to get operations archive version");
-        }
-        
-        return version;
     }
 
     IAsyncZeroCopyInputStreamPtr DoGetJobInput(
@@ -3283,7 +3492,6 @@ private:
 
                 resultJobs.push_back(job);
             }
-
             sortJobs(&resultJobs);
         }
 
@@ -3373,7 +3581,6 @@ private:
             std::vector<TJob> runtimeJobs;
             for (const auto& item : items->GetChildren()) {
                 auto values = item.second->AsMap();
-
                 auto jobType = ParseEnum<NJobTrackerClient::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
                 auto jobState = ParseEnum<NJobTrackerClient::EJobState>(values->GetChild("state")->AsString()->GetValue());
 

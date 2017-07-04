@@ -628,6 +628,10 @@ struct TAbortJobOptions
     TNullable<TDuration> InterruptTimeout;
 };
 
+struct TGetOperationOptions 
+    : public TTimeoutOptions
+{ };
+
 struct TSelectRowsResult
 {
     IUnversionedRowsetPtr Rowset;
@@ -914,6 +918,10 @@ struct IClient
     virtual TFuture<void> CompleteOperation(
         const NScheduler::TOperationId& operationId,
         const TCompleteOperationOptions& options = TCompleteOperationOptions()) = 0;
+    
+    virtual TFuture<NYson::TYsonString> GetOperation(
+        const NScheduler::TOperationId& operationId,
+        const TGetOperationOptions& options = TGetOperationOptions()) = 0;
 
     virtual TFuture<void> DumpJobContext(
         const NJobTrackerClient::TJobId& jobId,

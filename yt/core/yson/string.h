@@ -23,6 +23,11 @@ public:
         const TString& data,
         EYsonType type = EYsonType::Node);
 
+    TYsonString(
+        const char* data,
+        const size_t length, 
+        EYsonType type = EYsonType::Node);
+
     //! Returns |true| if the instance is not null.
     explicit operator bool() const;
 
