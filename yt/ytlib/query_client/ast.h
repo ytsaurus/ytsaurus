@@ -6,10 +6,27 @@
 #include <yt/ytlib/ypath/rich.h>
 
 #include <yt/core/misc/variant.h>
+#include <yt/core/misc/hash.h>
 
 namespace NYT {
 namespace NQueryClient {
 namespace NAst {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TExpression)
+DECLARE_REFCOUNTED_STRUCT(TReferenceExpression)
+DECLARE_REFCOUNTED_STRUCT(TLiteralExpression)
+DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
+DECLARE_REFCOUNTED_STRUCT(TUnaryOpExpression)
+DECLARE_REFCOUNTED_STRUCT(TBinaryOpExpression)
+DECLARE_REFCOUNTED_STRUCT(TInOpExpression)
+
+using TIdentifierList = std::vector<TReferenceExpressionPtr>;
+using TExpressionList = std::vector<TExpressionPtr>;
+using TNullableExpressionList = TNullable<TExpressionList>;
+using TNullableIdentifierList = TNullable<TIdentifierList>;
+using TOrderExpressionList = std::vector<std::pair<TExpressionList, bool>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,10 +40,32 @@ using TLiteralValue = TVariant<
     double,
     bool,
     TString>;
-using TLiteralValueList = std::vector<TLiteralValue>;
-using TLiteralValueTupleList = std::vector<std::vector<TLiteralValue>>;
 
-TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source);
+using TLiteralValueList = std::vector<TLiteralValue>;
+using TLiteralValueTuple = std::vector<TLiteralValue>;
+using TLiteralValueTupleList = std::vector<TLiteralValueTuple>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReference
+{
+    TReference() = default;
+
+    TReference(const TString& columnName, const TNullable<TString>& tableName = Null)
+        : ColumnName(columnName)
+        , TableName(tableName)
+    { }
+
+    TString ColumnName;
+    TNullable<TString> TableName;
+
+    operator size_t() const;
+};
+
+bool operator == (const TReference& lhs, const TReference& rhs);
+bool operator != (const TReference& lhs, const TReference& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TExpression
     : public TIntrinsicRefCounted
@@ -52,17 +91,18 @@ struct TExpression
     TSourceLocation SourceLocation;
 };
 
-DECLARE_REFCOUNTED_STRUCT(TExpression)
 DEFINE_REFCOUNTED_TYPE(TExpression)
 
-typedef std::vector<TExpressionPtr> TExpressionList;
-typedef TNullable<TExpressionList> TNullableExpressionList;
-
 template <class T, class... TArgs>
-TExpressionList MakeExpr(TArgs&&... args)
+TExpressionList MakeExpression(TArgs&& ... args)
 {
-    return TExpressionList(1, New<T>(args...));
+    return TExpressionList(1, New<T>(std::forward<TArgs>(args)...));
 }
+
+bool operator == (const TExpression& lhs, const TExpression& rhs);
+bool operator != (const TExpression& lhs, const TExpression& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TLiteralExpression
     : public TExpression
@@ -77,24 +117,34 @@ struct TLiteralExpression
     TLiteralValue Value;
 };
 
+DEFINE_REFCOUNTED_TYPE(TLiteralExpression)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TReferenceExpression
     : public TExpression
 {
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
-        TStringBuf columnName,
-        TStringBuf tableName = TStringBuf())
+        const TStringBuf& columnName)
         : TExpression(sourceLocation)
-        , ColumnName(columnName)
-        , TableName(tableName)
+        , Reference(TString(columnName))
     { }
 
-    TString ColumnName;
-    TString TableName;
+    TReferenceExpression(
+        const TSourceLocation& sourceLocation,
+        const TStringBuf& columnName,
+        const TStringBuf& tableName)
+        : TExpression(sourceLocation)
+        , Reference(TString(columnName), TString(tableName))
+    { }
+
+    TReference Reference;
 };
 
-DECLARE_REFCOUNTED_STRUCT(TReferenceExpression)
 DEFINE_REFCOUNTED_TYPE(TReferenceExpression)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TFunctionExpression
     : public TExpression
@@ -112,6 +162,10 @@ struct TFunctionExpression
     TExpressionList Arguments;
 };
 
+DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUnaryOpExpression
     : public TExpression
 {
@@ -127,6 +181,10 @@ struct TUnaryOpExpression
     EUnaryOp Opcode;
     TExpressionList Operand;
 };
+
+DEFINE_REFCOUNTED_TYPE(TUnaryOpExpression)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TBinaryOpExpression
     : public TExpression
@@ -147,10 +205,14 @@ struct TBinaryOpExpression
     TExpressionList Rhs;
 };
 
-struct TInExpression
+DEFINE_REFCOUNTED_TYPE(TBinaryOpExpression)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInOpExpression
     : public TExpression
 {
-    TInExpression(
+    TInOpExpression(
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
         const TLiteralValueTupleList& values)
@@ -163,83 +225,91 @@ struct TInExpression
     TLiteralValueTupleList Values;
 };
 
-TString FormatColumn(const TStringBuf& name, const TStringBuf& tableName = TStringBuf());
-TString InferName(const TExpressionList& exprs, bool omitValues = false);
-TString InferName(const TExpression* expr, bool omitValues = false);
+DEFINE_REFCOUNTED_TYPE(TInOpExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using TIdentifierList = std::vector<TReferenceExpressionPtr>;
-using TNullableIdentifierList = TNullable<TIdentifierList>;
-
-using TOrderExpressionList = std::vector<std::pair<TExpressionList, bool>>;
 
 struct TTableDescriptor
 {
     TTableDescriptor() = default;
 
-    TTableDescriptor(
-        const TString& path,
-        const TString& alias)
-        : Path(NYPath::TRichYPath::Parse(path))
+    explicit TTableDescriptor(
+        const NYPath::TYPath& path,
+        const TNullable<TString>& alias = Null)
+        : Path(path)
         , Alias(alias)
     { }
 
-    NYPath::TRichYPath Path;
-    TString Alias;
+    NYPath::TYPath Path;
+    TNullable<TString> Alias;
 };
+
+bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs);
+bool operator != (const TTableDescriptor& lhs, const TTableDescriptor& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJoin
+{
+    TJoin(
+        bool isLeft,
+        const TTableDescriptor& table,
+        const TIdentifierList& fields,
+        const TNullableExpressionList& predicate)
+        : IsLeft(isLeft)
+        , Table(table)
+        , Fields(fields)
+        , Predicate(predicate)
+    { }
+
+    TJoin(
+        bool isLeft,
+        const TTableDescriptor& table,
+        const TExpressionList& lhs,
+        const TExpressionList& rhs,
+        const TNullableExpressionList& predicate)
+        : IsLeft(isLeft)
+        , Table(table)
+        , Lhs(lhs)
+        , Rhs(rhs)
+        , Predicate(predicate)
+    { }
+
+    bool IsLeft;
+    TTableDescriptor Table;
+    TIdentifierList Fields;
+
+    TExpressionList Lhs;
+    TExpressionList Rhs;
+
+    TNullableExpressionList Predicate;
+};
+
+bool operator == (const TJoin& lhs, const TJoin& rhs);
+bool operator != (const TJoin& lhs, const TJoin& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TQuery
 {
     TTableDescriptor Table;
-
-    struct TJoin
-    {
-        TJoin(
-            bool isLeft,
-            const TTableDescriptor& table,
-            const TIdentifierList& fields,
-            const TNullableExpressionList& predicate)
-            : IsLeft(isLeft)
-            , Table(table)
-            , Fields(fields)
-            , Predicate(predicate)
-        { }
-
-        TJoin(
-            bool isLeft,
-            const TTableDescriptor& table,
-            const TExpressionList& left,
-            const TExpressionList& right,
-            const TNullableExpressionList& predicate)
-            : IsLeft(isLeft)
-            , Table(table)
-            , Left(left)
-            , Right(right)
-            , Predicate(predicate)
-        { }
-
-        bool IsLeft;
-        TTableDescriptor Table;
-        TIdentifierList Fields;
-
-        TExpressionList Left;
-        TExpressionList Right;
-
-        TNullableExpressionList Predicate;
-    };
-
     std::vector<TJoin> Joins;
 
     TNullableExpressionList SelectExprs;
     TNullableExpressionList WherePredicate;
+
     TNullable<std::pair<TExpressionList, ETotalsMode>> GroupExprs;
     TNullableExpressionList HavingPredicate;
 
     TOrderExpressionList OrderExpressions;
 
-    i64 Limit = 0;
+    TNullable<i64> Limit;
 };
+
+bool operator == (const TQuery& lhs, const TQuery& rhs);
+bool operator != (const TQuery& lhs, const TQuery& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
 
 using TAliasMap = yhash<TString, TExpressionPtr>;
 
@@ -258,6 +328,18 @@ struct TAstHead
     TVariant<TQuery, TExpressionPtr> Ast;
     TAliasMap AliasMap;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source);
+
+TString FormatId(const TStringBuf& id);
+TString FormatLiteralValue(const TLiteralValue& value);
+TString FormatReference(const TReference& ref);
+TString FormatExpression(const TExpression& expr);
+TString FormatExpression(const TExpressionList& exprs);
+TString FormatQuery(const TQuery& query);
+TString InferName(const TExpression& expr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
