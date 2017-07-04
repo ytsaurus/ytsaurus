@@ -1235,11 +1235,6 @@ TOperationElementFixedState::TOperationElementFixedState(TOperationPtr operation
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationElementSharedState::TOperationElementSharedState()
-    : NonpreemptableResourceUsage_(ZeroJobResources())
-    , AggressivelyPreemptableResourceUsage_(ZeroJobResources())
-{ }
-
 TJobResources TOperationElementSharedState::Finalize()
 {
     TWriterGuard guard(JobPropertiesMapLock_);
