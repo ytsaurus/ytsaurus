@@ -234,8 +234,6 @@ public:
 
     TDuration JobProxyRefCountedTrackerLogPeriod;
 
-    bool EnableSortVerification;
-
     TNullable<TString> Title;
 
     //! Limit on operation execution time.

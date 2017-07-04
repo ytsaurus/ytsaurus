@@ -178,6 +178,11 @@ public:
         for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
             JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
+
+        FairShareLoggingExecutor = New<TPeriodicExecutor>(
+            GetControlInvoker(),
+            BIND(&TImpl::LogOperationsFairShare, MakeStrong(this)),
+            Config_->OperationLogFairSharePeriod);
     }
 
     void Initialize()
@@ -468,7 +473,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return CreateJobHost(jobId, nodeShard);
     }
 
@@ -717,7 +722,7 @@ public:
 
     TFuture<TYsonString> Strace(const TJobId& jobId, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::StraceJob, nodeShard, jobId, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -725,7 +730,7 @@ public:
 
     TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::DumpJobInputContext, nodeShard, jobId, path, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -733,7 +738,7 @@ public:
 
     TFuture<TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::GetJobNode, nodeShard, jobId, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -741,7 +746,7 @@ public:
 
     TFuture<void> SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::SignalJob, nodeShard, jobId, signalName, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -749,7 +754,7 @@ public:
 
     TFuture<void> AbandonJob(const TJobId& jobId, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::AbandonJob, nodeShard, jobId, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -757,7 +762,7 @@ public:
 
     TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::PollJobShell, nodeShard, jobId, parameters, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -765,7 +770,7 @@ public:
 
     TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         // A neat way to choose the proper overload.
         typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TNullable<TDuration>&, const TString&);
         return BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), nodeShard, jobId, interruptTimeout, user)
@@ -773,37 +778,15 @@ public:
             .Run();
     }
 
-    void LogOperations(yhash_set<TOperationId> operationsToLog)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        for (const auto& operationId : operationsToLog) {
-            auto operation = FindOperation(operationId);
-            if (!operation) {
-                continue;
-            }
-            LogOperationProgress(operation);
-        }
-    }
-
-    void ProcessHeartbeat(TCtxHeartbeatPtr context)
+    void ProcessHeartbeat(const TCtxHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
-        auto nodeShard = GetNodeShard(nodeId);
-        auto operationsToLog = WaitFor(
-            BIND(&TNodeShard::ProcessHeartbeat, nodeShard)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run(context))
-            .ValueOrThrow();
-
-        GetControlInvoker()->Invoke(BIND(
-            &TImpl::LogOperations,
-            MakeStrong(this),
-            Passed(std::move(operationsToLog))));
+        const auto& nodeShard = GetNodeShard(nodeId);
+        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
     }
 
     // ISchedulerStrategyHost implementation
@@ -835,7 +818,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto totalResourceUsage = ZeroJobResources();
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             totalResourceUsage += nodeShard->GetTotalResourceUsage();
         }
         return totalResourceUsage;
@@ -1060,6 +1043,8 @@ private:
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
+    TPeriodicExecutorPtr FairShareLoggingExecutor;
+
     TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
 
     struct TExecNodeDescriptorsEntry
@@ -1140,17 +1125,18 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    TNodeShardPtr GetNodeShard(TNodeId nodeId) const
+    const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
     {
         return NodeShards_[GetNodeShardId(nodeId)];
     }
 
-    TNodeShardPtr GetNodeShardByJobId(TJobId jobId) const
+    const TNodeShardPtr& GetNodeShardByJobId(TJobId jobId) const
     {
         auto nodeId = NodeIdFromJobId(jobId);
         return GetNodeShard(nodeId);
     }
 
+    
     void ReleaseStderrChunk(const TOperationPtr& operation, const TChunkId& chunkId)
     {
         auto cellTag = CellTagFromId(chunkId);
@@ -1277,6 +1263,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto registerFuture = BIND(&TImpl::RegisterRevivingOperations, MakeStrong(this), result.OperationReports)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+        WaitFor(registerFuture)
+            .ThrowOnError();
+
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
 
@@ -1355,6 +1347,21 @@ private:
         Strategy_->ResetState();
 
         LOG_INFO("Finished scheduler state cleanup");
+    }
+
+    void LogOperationsFairShare() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& pair : IdToOperation_) {
+            const auto& operationId = pair.first;
+            const auto& operation = pair.second;
+            if (operation->GetState() == EOperationState::Running) {
+                LOG_DEBUG("%v (OperationId: %v)",
+                    Strategy_->GetOperationLoggingProgress(operation->GetId()),
+                    operationId);
+            }
+        }
     }
 
     void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
@@ -1742,14 +1749,12 @@ private:
         LogEventFluently(ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId);
 
-        LogOperationProgress(operation);
-
         // From this moment on the controller is fully responsible for the
         // operation's fate. It will eventually call #OnOperationCompleted or
         // #OnOperationFailed to inform the scheduler about the outcome.
     }
 
-    void ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
+    void RegisterRevivingOperation(const TOperationPtr& operation)
     {
         auto codicilGuard = operation->MakeCodicilGuard();
 
@@ -1784,6 +1789,10 @@ private:
         }
 
         RegisterOperation(operation);
+    }
+
+    void ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
+    {
 
         auto controller = operation->GetController();
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
@@ -1904,33 +1913,6 @@ private:
             .Item("spec").Value(operation->GetSpec())
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
         Strategy_->BuildOperationInfoForEventLog(operation, consumer);
-    }
-
-    void LogOperationProgress(TOperationPtr operation)
-    {
-        if (operation->GetState() != EOperationState::Running)
-            return;
-
-        if (operation->GetLastLogProgressTime() + Config_->OperationLogProgressBackoff > TInstant::Now())
-            return;
-
-        operation->SetLastLogProgressTime(TInstant::Now());
-
-        auto controller = operation->GetController();
-        auto controllerLoggingProgress = WaitFor(
-            BIND(&IOperationController::GetLoggingProgress, controller)
-                .AsyncVia(controller->GetInvoker())
-                .Run())
-            .ValueOrThrow();
-
-        if (!FindOperation(operation->GetId())) {
-            return;
-        }
-
-        LOG_DEBUG("Progress: %v, %v (OperationId: %v)",
-            controllerLoggingProgress,
-            Strategy_->GetOperationLoggingProgress(operation->GetId()),
-            operation->GetId());
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
@@ -2314,9 +2296,28 @@ private:
 
             if (operationReport.UserTransactionAborted) {
                 OnUserTransactionAborted(operation);
-            } else {
-                ReviveOperation(operation, operationReport.ControllerTransactions);
+                continue;
             }
+
+            ReviveOperation(operation, operationReport.ControllerTransactions);
+        }
+    }
+
+    void RegisterRevivingOperations(const std::vector<TOperationReport>& operationReports)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& operationReport : operationReports) {
+            const auto& operation = operationReport.Operation;
+
+            if (operationReport.IsCommitted ||
+                operation->GetState() == EOperationState::Aborting ||
+                operationReport.UserTransactionAborted)
+            {
+                continue;
+            }
+
+            RegisterRevivingOperation(operation);
         }
     }
 
@@ -2531,7 +2532,7 @@ private:
     private:
         void BuildControllerJobYson(const TJobId& jobId, IYsonConsumer* consumer) const
         {
-            auto nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
+            const auto& nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
 
             auto getOperationIdCallback = BIND(&TNodeShard::GetOperationIdByJobId, nodeShard, jobId)
                 .AsyncVia(nodeShard->GetInvoker())

@@ -832,8 +832,8 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttri
     for (const auto& child : children) {
         auto& childAttributes = child->Attributes();
         childAttributes.AdjustedMinShareRatio = 0.0;
-        childAttributes.FairShareRatio = 0.0;
         childAttributes.FifoIndex = index;
+        child->SetFairShareRatio(0.0);
         ++index;
     }
 }
@@ -904,6 +904,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         }
     }
 
+
     // Compute fair shares.
     ComputeByFitting(
         [&] (double fitFactor, const TSchedulerElementPtr& child) -> double {
@@ -918,10 +919,10 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             return result;
         },
         [&] (const TSchedulerElementPtr& child, double value) {
-            auto& attributes = child->Attributes();
-            attributes.FairShareRatio = value;
+            child->SetFairShareRatio(value);
         },
         Attributes_.FairShareRatio);
+
 
     // Compute guaranteed shares.
     ComputeByFitting(
@@ -1354,6 +1355,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             onMovedLeftToRight(jobProperties);
 
             resourceUsage -= jobProperties->ResourceUsage;
+            ++(*moveCount);
         }
 
         while (!right->empty()) {
@@ -1370,6 +1372,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             onMovedRightToLeft(jobProperties);
 
             resourceUsage += jobProperties->ResourceUsage;
+            ++(*moveCount);
         }
 
         return resourceUsage;
@@ -2189,7 +2192,7 @@ void TOperationElement::UpdatePreemptableJobsList()
     int moveCount = 0;
 
     SharedState_->UpdatePreemptableJobsList(
-        Attributes_.FairShareRatio,
+        GetFairShareRatio(),
         TotalResourceLimits_,
         StrategyConfig_->PreemptionSatisfactionThreshold,
         StrategyConfig_->AggressivePreemptionSatisfactionThreshold,
@@ -2219,7 +2222,7 @@ TRootElement::TRootElement(
         strategyConfig,
         profilingTag)
 {
-    Attributes_.FairShareRatio = 1.0;
+    SetFairShareRatio(1.0);
     Attributes_.GuaranteedResourcesRatio = 1.0;
     Attributes_.AdjustedMinShareRatio = 1.0;
     Attributes_.RecursiveMinShareRatio = 1.0;

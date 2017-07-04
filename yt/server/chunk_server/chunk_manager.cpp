@@ -98,6 +98,8 @@ static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 // NB: Changing this value will invalidate all changelogs!
 static const auto ReplicaApproveTimeout = TDuration::Seconds(60);
 
+static NProfiling::TAggregateCounter ChunkTreeRebalacnceTimeCounter("/chunk_tree_rebalance_time");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkToAllLinkedListNode
@@ -686,7 +688,7 @@ public:
         if (!ChunkTreeBalancer_.IsRebalanceNeeded(chunkList))
             return;
 
-        PROFILE_TIMING ("/chunk_tree_rebalance_time") {
+        PROFILE_AGGREGATED_TIMING (ChunkTreeRebalacnceTimeCounter) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %v)",
                 chunkList->GetId());
             ChunkTreeBalancer_.Rebalance(chunkList);

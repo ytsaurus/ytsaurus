@@ -17,6 +17,7 @@
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <yt/core/rpc/rpc.pb.h>
 
@@ -303,7 +304,7 @@ private:
                     return;
                 }
 
-                requestControl->TimingCheckpoint(STRINGBUF("cancel"));
+                requestControl->ProfileCancel();
                 requestControl->Finalize(guard, &responseHandler);
                 ActiveRequestMap_.erase(it);
             }
@@ -362,7 +363,7 @@ private:
                     return;
                 }
 
-                requestControl->TimingCheckpoint(STRINGBUF("timeout"));
+                requestControl->ProfileTimeout();
                 requestControl->Finalize(guard, &responseHandler);
                 ActiveRequestMap_.erase(it);
             }
@@ -408,7 +409,7 @@ private:
                 }
 
                 requestControl = std::move(it->second);
-                requestControl->TimingCheckpoint(STRINGBUF("reply"));
+                requestControl->ProfileReply();
                 requestControl->Finalize(guard, &responseHandler);
                 ActiveRequestMap_.erase(it);
             }
@@ -441,10 +442,14 @@ private:
         //! Cached method metdata.
         struct TMethodMetadata
         {
-            NProfiling::TTagIdList TagIds;
+            NProfiling::TAggregateCounter AckTimeCounter;
+            NProfiling::TAggregateCounter ReplyTimeCounter;
+            NProfiling::TAggregateCounter TimeoutTimeCounter;
+            NProfiling::TAggregateCounter CancelTimeCounter;
+            NProfiling::TAggregateCounter TotalTimeCounter;
         };
 
-        const TMethodMetadata& GetMethodMetadata(const TString& service, const TString& method)
+        TMethodMetadata* GetMethodMetadata(const TString& service, const TString& method)
         {
             auto key = std::make_pair(service, method);
 
@@ -452,18 +457,26 @@ private:
                 TReaderGuard guard(CachedMethodMetadataLock_);
                 auto it = CachedMethodMetadata_.find(key);
                 if (it != CachedMethodMetadata_.end()) {
-                    return it->second;
+                    return it->second.get();
                 }
             }
 
             {
-                TMethodMetadata descriptor;
                 auto* profilingManager = NProfiling::TProfileManager::Get();
-                descriptor.TagIds.push_back(profilingManager->RegisterTag("service", TYsonString(service)));
-                descriptor.TagIds.push_back(profilingManager->RegisterTag("method", TYsonString(method)));
+                auto metadata = std::make_unique<TMethodMetadata>();
+                NProfiling::TTagIdList tagIds{
+                    profilingManager->RegisterTag("service", TYsonString(service)),
+                    profilingManager->RegisterTag("method", TYsonString(method))
+                };
+                metadata->AckTimeCounter = NProfiling::TAggregateCounter("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
+                metadata->ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
+                metadata->TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
+                metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
+                metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
+
                 TWriterGuard guard(CachedMethodMetadataLock_);
-                auto pair = CachedMethodMetadata_.insert(std::make_pair(key, descriptor));
-                return pair.first->second;
+                auto pair = CachedMethodMetadata_.emplace(key, std::move(metadata));
+                return pair.first->second.get();
             }
         }
 
@@ -477,7 +490,7 @@ private:
         TActiveRequestMap ActiveRequestMap_;
 
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
-        yhash<std::pair<TString, TString>, TMethodMetadata> CachedMethodMetadata_;
+        yhash<std::pair<TString, TString>, std::unique_ptr<TMethodMetadata>> CachedMethodMetadata_;
 
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
@@ -589,7 +602,7 @@ private:
                 }
 
                 requestControl = it->second;
-                requestControl->TimingCheckpoint(STRINGBUF("ack"));
+                requestControl->ProfileAck();
                 if (!error.IsOK()) {
                     requestControl->Finalize(guard, &responseHandler);
                     ActiveRequestMap_.erase(it);
@@ -678,14 +691,9 @@ private:
             , Method_(request->GetMethod())
             , RequestId_(request->GetRequestId())
             , Timeout_(timeout)
+            , MethodMetadata_(Session_->GetMethodMetadata(Service_, Method_))
             , ResponseHandler_(std::move(responseHandler))
-        {
-            const auto& descriptor = Session_->GetMethodMetadata(Service_, Method_);
-            Timer_ = Profiler.TimingStart(
-                "/request_time",
-                descriptor.TagIds,
-                NProfiling::ETimerMode::Sequential);
-        }
+        { }
 
         ~TClientRequestControl()
         {
@@ -741,15 +749,31 @@ private:
         void Finalize(const TGuard<TSpinLock>&, IClientResponseHandlerPtr* responseHandler)
         {
             *responseHandler = std::move(ResponseHandler_);
-            TotalTime_ = Profiler.TimingStop(Timer_, STRINGBUF("total"));
+            TotalTime_ = DoProfile(MethodMetadata_->TotalTimeCounter);
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
         }
 
-        void TimingCheckpoint(const TStringBuf& key)
+        void ProfileReply()
         {
-            Profiler.TimingCheckpoint(Timer_, key);
+            DoProfile(MethodMetadata_->ReplyTimeCounter);
         }
 
+        void ProfileAck()
+        {
+            DoProfile(MethodMetadata_->AckTimeCounter);
+        }
+
+        void ProfileCancel()
+        {
+            DoProfile(MethodMetadata_->CancelTimeCounter);
+        }
+
+        void ProfileTimeout()
+        {
+            DoProfile(MethodMetadata_->TimeoutTimeCounter);
+        }
+
+        // IClientRequestControl overrides
         virtual void Cancel() override
         {
             // YT-1639: Avoid calling TSession::Cancel directly as this may lead
@@ -765,14 +789,22 @@ private:
         const TString Method_;
         const TRequestId RequestId_;
         const TNullable<TDuration> Timeout_;
+        TSession::TMethodMetadata* const MethodMetadata_;
 
         TDelayedExecutorCookie TimeoutCookie_;
         IClientResponseHandlerPtr ResponseHandler_;
 
-        NProfiling::TTimer Timer_;
+        NProfiling::TScopedTimer Timer_;
         TDuration TotalTime_;
-    };
 
+
+        TDuration DoProfile(NProfiling::TAggregateCounter& counter)
+        {
+            auto elapsed = Timer_.GetElapsed();
+            Profiler.Update(counter, NProfiling::DurationToValue(elapsed));
+            return elapsed;
+        }
+    };
 };
 
 IChannelPtr CreateBusChannel(IBusClientPtr client)

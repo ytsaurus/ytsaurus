@@ -610,9 +610,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
             schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*controller->Spec->JobProxyMemoryOvercommitLimit);
         }
         schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto(controller->Spec->JobProxyRefCountedTrackerLogPeriod));
-
-        schedulerJobSpecExt->set_enable_sort_verification(controller->Spec->EnableSortVerification);
-
         schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(controller->Spec->SuspendOperationIfAccountLimitExceeded);
 
         // Adjust sizes if approximation flag is set.
@@ -1233,6 +1230,7 @@ TOperationControllerBase::TOperationControllerBase(
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
+    , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
@@ -1630,6 +1628,8 @@ void TOperationControllerBase::SafeMaterialize()
         }
 
         State = EControllerState::Running;
+
+        LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Materialization failed") << ex;
         LOG_ERROR(wrappedError);
@@ -2264,6 +2264,8 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant st
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType);
+
+    LogProgress();
 }
 
 void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics, bool resourceOverdraft)
@@ -2427,6 +2429,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     UpdateTask(joblet->Task);
 
+    LogProgress();
+
     if (IsCompleted()) {
         OnOperationCompleted(/* interrupted */ false);
         return;
@@ -2484,6 +2488,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
     RemoveJoblet(jobId);
+
+    LogProgress();
 
     if (error.Attributes().Get<bool>("fatal", false)) {
         auto wrappedError = TError("Job failed with fatal error") << error;
@@ -2550,6 +2556,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     CheckFailedJobsStatusReceived();
+    LogProgress();
 }
 
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
@@ -2998,6 +3005,7 @@ void TOperationControllerBase::SafeAbort()
     State = EControllerState::Finished;
 
     MasterConnector->UnregisterOperation(OperationId);
+    LogProgress(/* force */ true);
 
     LOG_INFO("Operation controller aborted");
 }
@@ -3933,6 +3941,8 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
         OnOperationFailed(flushResult, /* flush */ false);
     }
 
+    LogProgress(/* force */ true);
+    
     Host->OnOperationCompleted(OperationId);
 }
 
@@ -3946,6 +3956,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
     }
 
     BuildAndSaveProgress();
+    LogProgress(/* force */ true);
 
     if (flush) {
         // NB: Error ignored since we cannot do anything with it.
@@ -6225,6 +6236,19 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, con
     auto statisticsSuffix = JobHelper.GetStatisticsSuffix(statisticsState, joblet->JobType);
     statistics.AddSuffixToNames(statisticsSuffix);
     JobStatistics.Update(statistics);
+}
+
+void TOperationControllerBase::LogProgress(bool force)
+{
+    if (!HasProgress()) {
+        return;
+    }
+
+    auto now = GetCpuInstant();
+    if (force || now > NextLogProgressDeadline) {
+        NextLogProgressDeadline = now + LogProgressBackoff;
+        LOG_DEBUG("Progress: %v", GetLoggingProgress());
+    }
 }
 
 void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
