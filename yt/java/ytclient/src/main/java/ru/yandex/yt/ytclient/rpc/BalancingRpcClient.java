@@ -26,7 +26,7 @@ import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.proxy.ApiService;
 
 /**
- * Created by aozeritsky on 24.05.2017.
+ * @author aozeritsky
  */
 public class BalancingRpcClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
