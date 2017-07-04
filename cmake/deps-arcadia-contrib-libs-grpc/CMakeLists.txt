@@ -317,7 +317,7 @@ if (${YT_BUILD_ENABLE_PYTHON_2_7} AND ${YT_BUILD_HAVE_CYTHON})
   )
 
   exec_program(
-    ${CMAKE_COMMAND} ARGS -E copy_directory
+    ${CMAKE_COMMAND} ARGS -E create_symlink
     ${BASE}/src/python/grpcio/grpc
     ${CMAKE_SOURCE_DIR}/python/grpc
   )
