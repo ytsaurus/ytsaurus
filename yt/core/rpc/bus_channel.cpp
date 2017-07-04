@@ -596,7 +596,7 @@ private:
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
                     // This one may easily get the actual response before the acknowledgment.
-                    LOG_DEBUG("Acknowledgment received for an unknown request, ignored (RequestId: %v)",
+                    LOG_DEBUG(error, "Acknowledgment received for an unknown request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }
