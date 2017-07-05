@@ -719,7 +719,7 @@ private:
         }
 
         try {
-            TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+            TForbidContextSwitchGuard contextSwitchGuard;
             action();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error preparing scheduler job");

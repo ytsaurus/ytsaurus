@@ -71,7 +71,7 @@ void TAsyncReaderWriterLock::ReleaseWriter()
                 };
                 if (TryGetCurrentScheduler()) {
                     // Promise subscribers must be synchronous to avoid hanging on some reader.
-                    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+                    TForbidContextSwitchGuard contextSwitchGuard;
                     setPromises();
                 } else {
                     setPromises();
