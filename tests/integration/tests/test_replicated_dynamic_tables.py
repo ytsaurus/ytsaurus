@@ -627,6 +627,32 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         sleep(1.0)
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key": 666}]) == []
 
+    def test_select(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"})
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA)
+
+        self.sync_enable_table_replica(replica_id1)
+        self.sync_enable_table_replica(replica_id2)
+
+        rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("key, value1 from [//tmp/t]"), rows)
+        assert_items_equal(select_rows("sum(key) from [//tmp/t] group by 0"), [{"sum(key)": 45}])
+
+        create("table", "//tmp/z", attributes={
+            "dynamic": True,
+            "schema": self.SIMPLE_SCHEMA
+        })
+        with pytest.raises(YtError): select_rows("* from [//tmp/t] as t1 join [//tmp/z] as t2 on t1.key = t2.key")
+
+        alter_table_replica(replica_id2, mode="async")
+        sleep(1.0)
+        with pytest.raises(YtError): select_rows("* from [//tmp/t]")
+
 ##################################################################
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):

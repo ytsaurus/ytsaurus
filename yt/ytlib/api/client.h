@@ -310,6 +310,7 @@ struct TTransactionAbortOptions
 };
 
 struct TTabletReadOptions
+    : public TTimeoutOptions
 {
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
     TNullable<TDuration> BackupRequestDelay;
@@ -318,8 +319,7 @@ struct TTabletReadOptions
 };
 
 struct TLookupRowsOptionsBase
-    : public TTimeoutOptions
-    , public TTabletReadOptions
+    : public TTabletReadOptions
 {
     NTableClient::TColumnFilter ColumnFilter;
     bool KeepMissingRows = false;
@@ -334,8 +334,7 @@ struct TVersionedLookupRowsOptions
 { };
 
 struct TSelectRowsOptions
-    : public TTimeoutOptions
-    , public TTabletReadOptions
+    : public TTabletReadOptions
 {
     //! If null then connection defaults are used.
     TNullable<i64> InputRowLimit;
