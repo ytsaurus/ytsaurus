@@ -880,6 +880,7 @@ private:
         result.Operation->SetSecureVault(std::move(secureVault));
 
         result.UserTransactionAborted = !userTransaction && userTransactionId;
+        result.IsAborting = result.Operation->GetState() == EOperationState::Aborting;
 
         return result;
     }

@@ -1763,8 +1763,6 @@ private:
         LOG_INFO("Reviving operation (OperationId: %v)",
             operationId);
 
-        operation->SetState(EOperationState::Reviving);
-
         if (operation->GetMutationId()) {
             TRspStartOperation response;
             ToProto(response.mutable_operation_id(), operationId);
@@ -2288,7 +2286,7 @@ private:
                 continue;
             }
 
-            if (operation->GetState() == EOperationState::Aborting) {
+            if (operationReport.IsAborting) {
                 AbortAbortingOperation(operation, operationReport.ControllerTransactions);
                 continue;
             }
@@ -2309,8 +2307,10 @@ private:
         for (const auto& operationReport : operationReports) {
             const auto& operation = operationReport.Operation;
 
+            operation->SetState(EOperationState::Reviving);
+
             if (operationReport.IsCommitted ||
-                operation->GetState() == EOperationState::Aborting ||
+                operationReport.IsAborting ||
                 operationReport.UserTransactionAborted)
             {
                 continue;
