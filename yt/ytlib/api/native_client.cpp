@@ -47,6 +47,7 @@
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/ast.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job.pb.h>
@@ -121,6 +122,8 @@ using NTableClient::TColumnSchema;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::CreateNodeChannelFactory;
 using NNodeTrackerClient::TNetworkPreferenceList;
+
+using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplicaCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1325,9 +1328,9 @@ private:
     }
 
 
-    TTableReplicaInfoPtr PickInSyncReplica(
+    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         const TTableMountInfoPtr& tableInfo,
-        const TLookupRowsOptionsBase& options,
+        const TTabletReadOptions& options,
         const std::vector<std::pair<NTableClient::TKey, int>>& keys)
     {
         yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
@@ -1336,12 +1339,23 @@ private:
             auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
             cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
         }
-        return PickInSyncReplica(tableInfo, options, cellIdToTabletIds);
+        return PickInSyncReplicas(tableInfo, options, cellIdToTabletIds);
     }
 
-    TTableReplicaInfoPtr PickInSyncReplica(
+    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         const TTableMountInfoPtr& tableInfo,
-        const TLookupRowsOptionsBase& options,
+        const TTabletReadOptions& options)
+    {
+        yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        for (const auto& tabletInfo : tableInfo->Tablets) {
+            cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+        }
+        return PickInSyncReplicas(tableInfo, options, cellIdToTabletIds);
+    }
+
+    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+        const TTableMountInfoPtr& tableInfo,
+        const TTabletReadOptions& options,
         const yhash<TCellId, std::vector<TTabletId>>& cellIdToTabletIds)
     {
         size_t cellCount = cellIdToTabletIds.size();
@@ -1350,7 +1364,8 @@ private:
             tabletCount += pair.second.size();
         }
 
-        LOG_DEBUG("Looking for in-sync replicas (CellCount: %v, TabletCount: %v)",
+        LOG_DEBUG("Looking for in-sync replicas (Path: %v, CellCount: %v, TabletCount: %v)",
+            tableInfo->Path,
             cellCount,
             tabletCount);
 
@@ -1373,40 +1388,139 @@ private:
             asyncResults.push_back(req->Invoke());
         }
 
-        auto results = WaitFor(Combine(asyncResults))
-            .ValueOrThrow();
-
-        yhash<TTableReplicaId, int> replicaIdToCount;
-        for (const auto& rsp : results) {
-            for (const auto& protoTabletInfo : rsp->tablets()) {
-                for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
-                    if (ETableReplicaMode(protoReplicaInfo.mode()) == ETableReplicaMode::Sync &&
-                        protoReplicaInfo.current_replication_row_index() >= protoTabletInfo.total_row_count())
-                    {
-                        ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+        return Combine(asyncResults).Apply(
+            BIND([=, this_ = MakeStrong(this)] (const std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>& rsps) {
+                yhash<TTableReplicaId, int> replicaIdToCount;
+                for (const auto& rsp : rsps) {
+                    for (const auto& protoTabletInfo : rsp->tablets()) {
+                        for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
+                            if (ETableReplicaMode(protoReplicaInfo.mode()) == ETableReplicaMode::Sync &&
+                                protoReplicaInfo.current_replication_row_index() >= protoTabletInfo.total_row_count())
+                            {
+                                ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+                            }
+                        }
                     }
                 }
+
+                TTableReplicaInfoPtrList inSyncReplicaInfos;
+                for (const auto& replicaInfo : tableInfo->Replicas) {
+                    auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
+                    if (it != replicaIdToCount.end() && it->second == tabletCount) {
+                        LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
+                            tableInfo->Path,
+                            replicaInfo->ReplicaId,
+                            replicaInfo->ClusterName);
+                        inSyncReplicaInfos.push_back(replicaInfo);
+                    }
+                }
+
+                if (inSyncReplicaInfos.empty()) {
+                    THROW_ERROR_EXCEPTION("No in-sync replicas found for table %v",
+                        tableInfo->Path);
+                }
+
+                return inSyncReplicaInfos;
+            }));
+    }
+
+    TNullable<TString> PickInSyncClusterAndPatchQuery(
+        const TTabletReadOptions& options,
+        NAst::TQuery* query)
+    {
+        std::vector<TYPath> paths{query->Table.Path};
+        for (const auto& join : query->Joins) {
+            paths.push_back(join.Table.Path);
+        }
+
+        const auto& tableMountCache = Connection_->GetTableMountCache();
+        std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
+        for (const auto& path : paths) {
+            asyncTableInfos.push_back(tableMountCache->GetTableInfo(path));
+        }
+
+        auto tableInfos = WaitFor(Combine(asyncTableInfos))
+            .ValueOrThrow();
+
+        bool someReplicated = false;
+        bool someNotReplicated = false;
+        for (const auto& tableInfo : tableInfos) {
+            if (tableInfo->IsReplicated()) {
+                someReplicated = true;
+            } else {
+                someNotReplicated = true;
             }
         }
 
-        for (const auto& replicaInfo : tableInfo->Replicas) {
-            auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
-            if (it != replicaIdToCount.end() && it->second == tabletCount) {
-                LOG_DEBUG("In-sync replica found (ReplicaId: %v, ClusterName: %v)",
-                    replicaInfo->ReplicaId,
-                    replicaInfo->ClusterName);
-                return replicaInfo;
+        if (someReplicated && someNotReplicated) {
+            THROW_ERROR_EXCEPTION("Query involves both replicated and non-replicated tables");
+        }
+
+        if (!someReplicated) {
+            return Null;
+        }
+
+        std::vector<TFuture<TTableReplicaInfoPtrList>> asyncCandidates;
+        for (size_t tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
+            asyncCandidates.push_back(PickInSyncReplicas(tableInfos[tableIndex], options));
+        }
+
+        auto candidates = WaitFor(Combine(asyncCandidates))
+            .ValueOrThrow();
+
+        yhash<TString, int> clusterNameToCount;
+        for (const auto& replicaInfos : candidates) {
+            SmallVector<TString, TypicalReplicaCount> clusterNames;
+            for (const auto& replicaInfo : replicaInfos) {
+                clusterNames.push_back(replicaInfo->ClusterName);
+            }
+            std::sort(clusterNames.begin(), clusterNames.end());
+            clusterNames.erase(std::unique(clusterNames.begin(), clusterNames.end()), clusterNames.end());
+            for (const auto& clusterName : clusterNames) {
+                ++clusterNameToCount[clusterName];
             }
         }
 
-        THROW_ERROR_EXCEPTION("No in-sync replicas found");
+        SmallVector<TString, TypicalReplicaCount> inSyncClusterNames;
+        for (const auto& pair : clusterNameToCount) {
+            if (pair.second == paths.size()) {
+                inSyncClusterNames.push_back(pair.first);
+            }
+        }
+
+        if (inSyncClusterNames.empty()) {
+            THROW_ERROR_EXCEPTION("No single cluster contains in-sync replicas for all involved tables %v",
+                paths);
+        }
+
+        // TODO(babenko): break ties in a smarter way
+        const auto& inSyncClusterName = inSyncClusterNames[0];
+        LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v)",
+            paths,
+            inSyncClusterName);
+
+        auto patchTableDescriptor = [&] (NAst::TTableDescriptor* descriptor, const TTableReplicaInfoPtrList& replicaInfos) {
+            for (const auto& replicaInfo : replicaInfos) {
+                if (replicaInfo->ClusterName == inSyncClusterName) {
+                    descriptor->Path = replicaInfo->ReplicaPath;
+                    return;
+                }
+            }
+            Y_UNREACHABLE();
+        };
+
+        patchTableDescriptor(&query->Table, candidates[0]);
+        for (size_t index = 0; index < query->Joins.size(); ++index) {
+            patchTableDescriptor(&query->Joins[index].Table, candidates[index + 1]);
+        }
+        return inSyncClusterName;
     }
 
 
-    IConnectionPtr GetReplicaConnectionOrThrow(const TTableReplicaInfoPtr& replicaInfo)
+    IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName)
     {
         const auto& clusterDirectory = Connection_->GetClusterDirectory();
-        auto replicaConnection = clusterDirectory->FindConnection(replicaInfo->ClusterName);
+        auto replicaConnection = clusterDirectory->FindConnection(clusterName);
         if (replicaConnection) {
             return replicaConnection;
         }
@@ -1414,12 +1528,12 @@ private:
         WaitFor(Connection_->GetClusterDirectorySynchronizer()->Sync())
             .ThrowOnError();
 
-        return clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
+        return clusterDirectory->GetConnectionOrThrow(clusterName);
     }
 
-    IClientPtr CreateReplicaClient(const TTableReplicaInfoPtr& replicaInfo)
+    IClientPtr CreateReplicaClient(const TString& clusterName)
     {
-        auto replicaConnection = GetReplicaConnectionOrThrow(replicaInfo);
+        auto replicaConnection = GetReplicaConnectionOrThrow(clusterName);
         return replicaConnection->CreateClient(Options_);
     }
 
@@ -1471,9 +1585,12 @@ private:
         }
 
         if (tableInfo->IsReplicated()) {
-            auto replicaInfo = PickInSyncReplica(tableInfo, options, sortedKeys);
-            auto replicaClient = CreateReplicaClient(replicaInfo);
-            auto asyncResult = replicaFallbackHandler(replicaClient, replicaInfo);
+            auto inSyncReplicaInfos = WaitFor(PickInSyncReplicas(tableInfo, options, sortedKeys))
+                .ValueOrThrow();
+            // TODO(babenko): break ties in a smarter way
+            const auto& inSyncReplicaInfo = inSyncReplicaInfos[0];
+            auto replicaClient = CreateReplicaClient(inSyncReplicaInfo->ClusterName);
+            auto asyncResult = replicaFallbackHandler(replicaClient, inSyncReplicaInfo);
             return WaitFor(asyncResult)
                 .ValueOrThrow();
         }
@@ -1571,6 +1688,17 @@ private:
         const TString& queryString,
         const TSelectRowsOptions& options)
     {
+        auto parsedQuery = ParseSource(queryString, EParseMode::Query);
+        auto* astQuery = &parsedQuery->AstHead.Ast.As<NAst::TQuery>();
+        auto maybeClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
+        if (maybeClusterName) {
+            auto replicaClient = CreateReplicaClient(*maybeClusterName);
+            auto updatedQueryString = NAst::FormatQuery(*astQuery);
+            auto asyncResult = replicaClient->SelectRows(updatedQueryString, options);
+            return WaitFor(asyncResult)
+                .ValueOrThrow();
+        }
+
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
 
@@ -1601,7 +1729,7 @@ private:
 
         auto fragment = PreparePlanFragment(
             queryPreparer.Get(),
-            queryString,
+            *parsedQuery,
             fetchFunctions,
             inputRowLimit,
             outputRowLimit,
