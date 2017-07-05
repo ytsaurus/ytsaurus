@@ -198,7 +198,7 @@ private:
         invocationGuard.Activate();
 
         TCurrentInvokerGuard currentInvokerGuard(this);
-        TOneShotContextSwitchGuard contextSwitchGuard([&] {
+        TContextSwitchGuard contextSwitchGuard([&] {
             invocationGuard.Reset();
             OnFinished(true);
         });
@@ -556,7 +556,7 @@ private:
     void RunCallback(TClosure callback, TInvocationGuard invocationGuard)
     {
         TCurrentInvokerGuard currentInvokerGuard(this);
-        TOneShotContextSwitchGuard contextSwitchGuard([&] {
+        TContextSwitchGuard contextSwitchGuard([&] {
             invocationGuard.Reset();
             OnFinished();
         });

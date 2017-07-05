@@ -235,31 +235,6 @@ void TFiber::Trampoline(void* opaque)
     Y_UNREACHABLE();
 }
 
-void TFiber::PushContextHandler(std::function<void()> out, std::function<void()> in)
-{
-    SwitchHandlers_.push_front({std::move(out), std::move(in)});
-}
-
-void TFiber::PopContextHandler()
-{
-    YCHECK(!SwitchHandlers_.empty());
-    SwitchHandlers_.pop_front();
-}
-
-void TFiber::InvokeContextOutHandlers()
-{
-    for (auto& handler : SwitchHandlers_) {
-        handler.Out();
-    }
-}
-
-void TFiber::InvokeContextInHandlers()
-{
-    for (auto& handler : SwitchHandlers_) {
-        handler.In();
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static std::atomic<int> SmallFiberStackPoolSize = {1024};

@@ -273,67 +273,6 @@ TEST_F(TSchedulerTest, CurrentInvokerInActionQueue)
     .Get();
 }
 
-TEST_F(TSchedulerTest, Intercept)
-{
-    auto invoker = Queue1->GetInvoker();
-    int counter1 = 0;
-    int counter2 = 0;
-    BIND([&] () {
-        TContextSwitchGuard guard(
-            [&] {
-                EXPECT_EQ(counter1, 0);
-                EXPECT_EQ(counter2, 0);
-                ++counter1;
-            },
-            [&] {
-                EXPECT_EQ(counter1, 1);
-                EXPECT_EQ(counter2, 0);
-                ++counter2;
-            });
-        WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-            .ThrowOnError();
-    })
-    .AsyncVia(invoker).Run()
-    .Get();
-    EXPECT_EQ(counter1, 1);
-    EXPECT_EQ(counter2, 1);
-}
-
-TEST_F(TSchedulerTest, InterceptEnclosed)
-{
-    auto invoker = Queue1->GetInvoker();
-    int counter1 = 0;
-    int counter2 = 0;
-    int counter3 = 0;
-    int counter4 = 0;
-    BIND([&] () {
-        {
-            TContextSwitchGuard guard(
-                [&] { ++counter1; },
-                [&] { ++counter2; });
-            WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-                .ThrowOnError();
-            {
-                TContextSwitchGuard guard2(
-                    [&] { ++counter3; },
-                    [&] { ++counter4; });
-                WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-                    .ThrowOnError();
-            }
-            WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-                .ThrowOnError();
-        }
-        WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
-            .ThrowOnError();
-    })
-    .AsyncVia(invoker).Run()
-    .Get();
-    EXPECT_EQ(counter1, 3);
-    EXPECT_EQ(counter2, 3);
-    EXPECT_EQ(counter3, 1);
-    EXPECT_EQ(counter4, 1);
-}
-
 TEST_F(TSchedulerTest, CurrentInvokerConcurrent)
 {
     auto invoker1 = Queue1->GetInvoker();
