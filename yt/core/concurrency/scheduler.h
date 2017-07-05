@@ -32,17 +32,17 @@ struct IScheduler
     //! fiber via the specified invoker.
     virtual void SwitchTo(IInvokerPtr invoker) = 0;
 
-    //! Installs a new context switch handler.
+    //! Installs a new context switch handlers.
     /*!
-     *  The provided #handler will be invoked in the scheduler's context
-     *  when the current control context is switched. This happens on
-     *  #Yield or #SwitchTo calls, when the fiber is canceled, terminates,
-     *  or crashes due to an unhandled exception. Once invoked, the callback
-     *  is discarded.
+     *  Specified handlers are invoked during context switching inside the fiber.
+     *  #out handler is invoked on context switch from current fiber.
+     *  #in handler is invoked on context switch to current fiber.
+     *
+     *  Those handlers are always invoked in specified cases until #PopInterceptHandlers is invoked.
      */
-    virtual void PushContextSwitchHandler(std::function<void()> callback) = 0;
+    virtual void PushContextSwitchHandler(std::function<void()> out, std::function<void()> in) = 0;
 
-    //! Removes the top switch handler.
+    //! Removes the top switch handlers.
     virtual void PopContextSwitchHandler() = 0;
 
     //! Transfers control back to the scheduler and puts currently executing fiber
@@ -84,13 +84,29 @@ void SwitchTo(IInvokerPtr invoker);
 class TContextSwitchGuard
 {
 public:
-    explicit TContextSwitchGuard(std::function<void()> handler);
+    TContextSwitchGuard(std::function<void()> out, std::function<void()> in);
     TContextSwitchGuard(const TContextSwitchGuard& other) = delete;
     ~TContextSwitchGuard();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOneShotContextSwitchGuard
+    : public TContextSwitchGuard
+{
+public:
+    explicit TOneShotContextSwitchGuard(std::function<void()> handler);
 
 private:
     bool Active_;
 
+};
+
+class TForbidContextSwitchGuard
+    : public TOneShotContextSwitchGuard
+{
+public:
+    TForbidContextSwitchGuard();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
