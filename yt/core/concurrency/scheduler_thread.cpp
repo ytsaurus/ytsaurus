@@ -198,6 +198,9 @@ void TSchedulerThread::ThreadMainStep()
 
     SetCurrentFiberId(InvalidFiberId);
 
+    // Notify context switch subscribers.
+    OnContextSwitch();
+
     auto maybeReleaseIdleFiber = [&] () {
         if (CurrentFiber_ == IdleFiber_) {
             // Advance epoch as this (idle) fiber might be rescheduled elsewhere.
@@ -351,6 +354,14 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
     }
 }
 
+void TSchedulerThread::OnContextSwitch()
+{
+    for (auto it = ContextSwitchCallbacks_.rbegin(); it != ContextSwitchCallbacks_.rend(); ++it) {
+        (*it)();
+    }
+    ContextSwitchCallbacks_.clear();
+}
+
 TThreadId TSchedulerThread::GetId() const
 {
     return ThreadId_;
@@ -388,14 +399,18 @@ void TSchedulerThread::Return()
     Y_UNREACHABLE();
 }
 
-void TSchedulerThread::PushContextSwitchHandler(std::function<void()> out, std::function<void()> in)
+void TSchedulerThread::PushContextSwitchHandler(std::function<void()> callback)
 {
-    CurrentFiber_->PushContextHandler(std::move(out), std::move(in));
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    ContextSwitchCallbacks_.emplace_back(std::move(callback));
 }
 
 void TSchedulerThread::PopContextSwitchHandler()
 {
-    CurrentFiber_->PopContextHandler();
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    ContextSwitchCallbacks_.pop_back();
 }
 
 void TSchedulerThread::YieldTo(TFiberPtr&& other)
@@ -449,10 +464,15 @@ void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
 
     fiber->SetSleeping();
 
-    SwitchContextFrom(fiber);
+    SwitchExecutionContext(
+        fiber->GetContext(),
+        &SchedulerContext_,
+        nullptr);
 
     // Cannot access |this| from this point as the fiber might be resumed
     // in other scheduler.
+
+    CheckForCanceledFiber(fiber);
 }
 
 void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
@@ -472,10 +492,15 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 
     fiber->SetSleeping(WaitForFuture_);
 
-    SwitchContextFrom(fiber);
+    SwitchExecutionContext(
+        fiber->GetContext(),
+        &SchedulerContext_,
+        nullptr);
 
     // Cannot access |this| from this point as the fiber might be resumed
     // in other scheduler.
+
+    CheckForCanceledFiber(fiber);
 }
 
 void TSchedulerThread::OnStart()
@@ -499,15 +524,6 @@ void TSchedulerThread::OnThreadStart()
 
 void TSchedulerThread::OnThreadShutdown()
 { }
-
-void TSchedulerThread::SwitchContextFrom(TFiber* currentFiber)
-{
-    currentFiber->InvokeContextOutHandlers();
-    SwitchExecutionContext(currentFiber->GetContext(), &SchedulerContext_, nullptr);
-    currentFiber->InvokeContextInHandlers();
-
-    CheckForCanceledFiber(currentFiber);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

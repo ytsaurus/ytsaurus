@@ -33,8 +33,6 @@ TTagIdList GetUserProfilerTags(TTagIdList tags, const TString& user)
     return tags;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 ui64 TTabletProfilerTraitBase::ToKey(const TTagIdList& list)
 {
     /*

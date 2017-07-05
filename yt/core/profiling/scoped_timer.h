@@ -3,8 +3,6 @@
 #include "timing.h"
 #include "profiler.h"
 
-#include <yt/core/concurrency/scheduler.h>
-
 namespace NYT {
 namespace NProfiling {
 
@@ -26,59 +24,18 @@ public:
 
     TDuration GetElapsed() const
     {
-        return CpuDurationToDuration(Duration_ + GetCurrentDuration());
-    }
-
-    TValue GetElapsedValue() const
-    {
-        return DurationToValue(GetElapsed());
-    }
-
-    void Start()
-    {
-        StartTime_ = GetCpuInstant();
-    }
-
-    void Stop()
-    {
-        Duration_ += GetCurrentDuration();
-        StartTime_ = 0;
+        auto cpuDuration = static_cast<TCpuDuration>(GetCpuInstant() - StartTime_);
+        return cpuDuration < 0 ? TDuration::Zero() : CpuDurationToDuration(cpuDuration);
     }
 
     void Restart()
     {
-        Duration_ = 0;
-        Start();
+        StartTime_ = GetCpuInstant();
     }
 
 private:
-    TCpuDuration GetCurrentDuration() const
-    {
-        return Max<TCpuDuration>(GetCpuInstant() - StartTime_, 0);
-    }
-
     TCpuInstant StartTime_;
-    TCpuDuration Duration_;
 
-};
-
-class TCpuTimer
-    : private NConcurrency::TContextSwitchGuard
-{
-public:
-    TCpuTimer()
-        : NConcurrency::TContextSwitchGuard(
-            [this] () noexcept { Timer_.Stop(); },
-            [this] () noexcept { Timer_.Start(); })
-    { }
-
-    TValue GetCpuValue()
-    {
-        return Timer_.GetElapsedValue();
-    }
-
-private:
-    TScopedTimer Timer_;
 };
 
 class TAggregatingTimingGuard
