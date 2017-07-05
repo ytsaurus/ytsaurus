@@ -25,6 +25,7 @@ struct TOperationReport
     TOperationPtr Operation;
     NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
     bool UserTransactionAborted = false;
+    bool IsAborting = false;
     bool IsCommitted = false;
     bool ShouldCommitOutputTransaction = false;
 };
