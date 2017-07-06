@@ -22,7 +22,14 @@ public:
         TClusterDirectoryPtr clusterDirectory);
     ~TClusterDirectorySynchronizer();
 
+    //! Starts periodic syncs.
+    void Start();
+
+    //! Stops periodic syncs.
+    void Stop();
+
     //! Returns a future that gets set with the next sync.
+    //! Starts the synchronizer if not started yet.
     TFuture<void> Sync();
 
     //! Raised with each synchronization (either successful or not).

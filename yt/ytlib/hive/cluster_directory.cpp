@@ -77,6 +77,13 @@ void TClusterDirectory::RemoveCluster(const TString& name)
         name);
 }
 
+void TClusterDirectory::Clear()
+{
+    TGuard<TSpinLock> guard(Lock_);
+    CellTagToCluster_.clear();
+    NameToCluster_.clear();
+}
+
 void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {

@@ -38,6 +38,9 @@ public:
     //! Does nothing if no such cluster is registered.
     void RemoveCluster(const TString& name);
 
+    //! Drops all directory entries.
+    void Clear();
+
     //! Updates the configuration of a cluster with a given #name, recreates the connection.
     void UpdateCluster(const TString& name, NYTree::INodePtr config);
 
