@@ -106,7 +106,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
         return format.load_rows(response)
 
 def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None, durability=None,
-                format=None, raw=None, client=None):
+                format=None, raw=None, require_sync=None, client=None):
     """Inserts rows from input_stream to dynamic table.
 
     :param table: output table path.
@@ -117,6 +117,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     :param bool raw: if `raw` is specified stream with unparsed records (strings) \
     in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>` \
     are expected.
+    :param bool require_sync: require sync replica write.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
@@ -131,6 +132,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     set_param(params, "aggregate", aggregate, transform=bool_to_string)
     set_param(params, "atomicity", atomicity)
     set_param(params, "durability", durability)
+    set_param(params, "require_sync", require_sync)
 
     input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
                                            chunk_size=get_config(client)["write_retries"]["chunk_size"]))
@@ -148,7 +150,8 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
         data=input_data,
         client=client).run()
 
-def delete_rows(table, input_stream, atomicity=None, durability=None, format=None, raw=None, client=None):
+def delete_rows(table, input_stream, atomicity=None, durability=None, format=None, raw=None,
+                require_sync=None, client=None):
     """Deletes rows with keys from input_stream from dynamic table.
 
     :param table: table to remove rows from.
@@ -159,6 +162,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     :param bool raw: if `raw` is specified stream with unparsed records (strings) \
     in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>` \
     are expected.
+    :param bool require_sync: require sync replica write.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
@@ -171,6 +175,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     params["input_format"] = format.to_yson_type()
     set_param(params, "atomicity", atomicity)
     set_param(params, "durability", durability)
+    set_param(params, "require_sync", require_sync)
 
     input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
                                            chunk_size=get_config(client)["write_retries"]["chunk_size"]))
