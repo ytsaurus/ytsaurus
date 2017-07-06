@@ -22,7 +22,14 @@ public:
         const NLogging::TLogger& logger);
     ~TCellDirectorySynchronizer();
 
+    //! Starts periodic syncs.
+    void Start();
+
+    //! Stops periodic syncs.
+    void Stop();
+
     //! Returns a future that gets set with the next sync.
+    //! Starts the synchronizer if not started yet.
     TFuture<void> Sync();
 
 private:

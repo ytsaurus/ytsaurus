@@ -39,13 +39,27 @@ public:
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
+    { }
+
+    void Start()
     {
-        SyncExecutor_->Start();
+        auto guard = Guard(SpinLock_);
+        DoStart();
+    }
+
+    void Stop()
+    {
+        auto guard = Guard(SpinLock_);
+        DoStop();
     }
 
     TFuture<void> Sync()
     {
-        auto guard = Guard(SyncPromiseLock_);
+        auto guard = Guard(SpinLock_);
+        if (Stopped_) {
+            return MakeFuture(TError("Cluster directory synchronizer is stopped"));
+        }
+        DoStart();
         return SyncPromise_.ToFuture();
     }
 
@@ -58,9 +72,29 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
-    TSpinLock SyncPromiseLock_;
+    TSpinLock SpinLock_;
+    bool Started_ = false;
+    bool Stopped_= false;
     TPromise<void> SyncPromise_ = NewPromise<void>();
 
+
+    void DoStart()
+    {
+        if (Started_) {
+            return;
+        }
+        Started_ = true;
+        SyncExecutor_->Start();
+    }
+
+    void DoStop()
+    {
+        if (Stopped_) {
+            return;
+        }
+        Stopped_ = true;
+        SyncExecutor_->Stop();
+    }
 
     void DoSync()
     {
@@ -105,7 +139,7 @@ private:
             LOG_DEBUG(error);
         }
 
-        auto guard = Guard(SyncPromiseLock_);
+        auto guard = Guard(SpinLock_);
         auto syncPromise = NewPromise<void>();
         std::swap(syncPromise, SyncPromise_);
         guard.Release();
@@ -126,6 +160,16 @@ TClusterDirectorySynchronizer::TClusterDirectorySynchronizer(
 { }
 
 TClusterDirectorySynchronizer::~TClusterDirectorySynchronizer() = default;
+
+void TClusterDirectorySynchronizer::Start()
+{
+    Impl_->Start();
+}
+
+void TClusterDirectorySynchronizer::Stop()
+{
+    Impl_->Stop();
+}
 
 TFuture<void> TClusterDirectorySynchronizer::Sync()
 {
