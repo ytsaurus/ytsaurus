@@ -825,6 +825,8 @@ private:
         const TOwningKey& nextTabletPivotKey,
         NLogging::TLogger Logger)
     {
+        auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
+        writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
 
@@ -835,7 +837,7 @@ private:
             Bootstrap_->GetInMemoryManager(),
             tabletSnapshot,
             writerPoolSize,
-            tabletSnapshot->WriterConfig,
+            writerConfig,
             writerOptions,
             Bootstrap_->GetMasterClient(),
             transaction->GetId());
@@ -1168,6 +1170,8 @@ private:
         bool isEden,
         NLogging::TLogger Logger)
     {
+        auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
+        writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = isEden;
         writerOptions->ValidateResourceUsageIncrease = false;
@@ -1176,7 +1180,7 @@ private:
             Bootstrap_->GetInMemoryManager(),
             tabletSnapshot,
             1,
-            tabletSnapshot->WriterConfig,
+            writerConfig,
             writerOptions,
             Bootstrap_->GetMasterClient(),
             transaction->GetId());
