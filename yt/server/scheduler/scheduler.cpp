@@ -300,7 +300,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return MasterConnector_->IsConnected();
+        return IsConnected_ && MasterConnector_->IsConnected();
     }
 
     void ValidateConnected()
@@ -1032,6 +1032,7 @@ private:
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
+    std::atomic<bool> IsConnected_ = {false};
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1272,6 +1273,8 @@ private:
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
 
+        IsConnected_.store(true);
+
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
@@ -1291,6 +1294,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Starting scheduler state cleanup");
+
+        IsConnected_.store(false);
 
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
