@@ -110,7 +110,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates(IInvokerPtr invoke
         RemoveUpdate(key);
     }
 
-    auto result = NConcurrency::WaitFor(Combine(asyncResults));
+    auto result = NConcurrency::WaitFor(CombineAll(asyncResults));
     if (!result.IsOK()) {
         LOG_ERROR(result, "Update failed");
         return;
