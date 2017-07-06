@@ -41,15 +41,16 @@ private:
 protected:
     NLogging::TLogger Logger;
 
-    void InitializeAttributes(NYTree::IAttributeDictionary* attributes);
-
-    virtual std::unique_ptr<TChunkOwner> DoCreate(
+    std::unique_ptr<TChunkOwner> DoCreateImpl(
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes,
         NSecurityServer::TAccount* account,
-        bool enableAccounting) override;
+        bool enableAccounting,
+        int replicationFactor,
+        NCompression::ECodec compressionCodec,
+        NErasure::ECodec erasureCodec);
 
     virtual void DoDestroy(TChunkOwner* node) override;
 
@@ -77,8 +78,6 @@ protected:
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
-
-    virtual int GetDefaultReplicationFactor() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

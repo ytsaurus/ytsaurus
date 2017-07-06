@@ -68,24 +68,24 @@ protected:
         TAccount* account,
         bool enableAccounting) override
     {
-        TBase::InitializeAttributes(attributes);
+        const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
 
-        if (!attributes->Contains("compression_codec")) {
-            attributes->Set("compression_codec", NCompression::ECodec::None);
-        }
+        auto replicationFactor = attributes->GetAndRemove("replication_factor", config->DefaultFileReplicationFactor);
+        auto compressionCodec = attributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::None);
+        auto erasureCodec = attributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 
-        return TBase::DoCreate(
+        ValidateReplicationFactor(replicationFactor);
+
+        return DoCreateImpl(
             id,
             cellTag,
             transaction,
             attributes,
             account,
-            enableAccounting);
-    }
-
-    virtual int GetDefaultReplicationFactor() const override
-    {
-        return Bootstrap_->GetConfig()->CypressManager->DefaultFileReplicationFactor;
+            enableAccounting,
+            replicationFactor,
+            compressionCodec,
+            erasureCodec);
     }
 };
 
