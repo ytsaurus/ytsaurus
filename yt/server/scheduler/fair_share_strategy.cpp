@@ -906,7 +906,7 @@ private:
                     continue;
                 }
 
-                if (operationElement->HasStarvingParent()) {
+                if (!operationElement->IsPreemptionAllowed(context)) {
                     continue;
                 }
 

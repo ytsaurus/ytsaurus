@@ -680,7 +680,7 @@ public:
 
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
-    bool HasStarvingParent() const;
+    bool IsPreemptionAllowed(const TFairShareContext& context) const;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
 
