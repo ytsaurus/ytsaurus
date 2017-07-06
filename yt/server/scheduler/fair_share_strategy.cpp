@@ -206,7 +206,7 @@ public:
         }
     }
 
-    void OccupyPoolSlotIndex(const TString& poolName, int slotIndex)
+    bool TryOccupyPoolSlotIndex(const TString& poolName, int slotIndex)
     {
         auto minUnusedIndexIt = PoolToMinUnusedSlotIndex.find(poolName);
         YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex.end());
@@ -219,8 +219,10 @@ public:
             }
 
             minUnusedIndexIt->second = slotIndex + 1;
+
+            return true;
         } else {
-            YCHECK(spareSlotIndices.erase(slotIndex) == 1);
+            return spareSlotIndices.erase(slotIndex) == 1;
         }
     }
 
@@ -231,8 +233,13 @@ public:
 
         if (slotIndex != -1) {
             // Revive case
-            OccupyPoolSlotIndex(poolName, slotIndex);
-            return;
+            if (TryOccupyPoolSlotIndex(poolName, slotIndex)) {
+                return;
+            } else {
+                LOG_ERROR("Failed to assign slot index to operation during revive (OperationId: %v, SlotIndex: %v)",
+                    operation->GetId(),
+                    slotIndex);
+            }
         }
 
         if (it == PoolToSpareSlotIndices.end() || it->second.empty()) {
