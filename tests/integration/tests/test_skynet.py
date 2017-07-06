@@ -23,7 +23,7 @@ class TestSkynet(YTEnvSetup):
         write_table("//tmp/table", {"a": 1})
 
         chunk = get("//tmp/table/@chunk_ids")[0]
-        
+
         info = locate_skynet_share("//tmp/table[#0:#1]")
 
         chunk_specs = info["chunk_specs"]
@@ -46,7 +46,7 @@ class TestSkynet(YTEnvSetup):
         assert 3 == len(chunk_specs)
         for spec in chunk_specs:
             spec.pop("replicas")
-        
+
         assert chunk_specs[0] == {'chunk_id': chunks[0], 'lower_limit': {'row_index': 1}, 'upper_limit': {'row_index': 2}, 'row_index': 0, 'range_index': 0}
         assert chunk_specs[1] == {'chunk_id': chunks[1], 'row_index': 2, 'range_index': 0}
         assert chunk_specs[2] == {'chunk_id': chunks[2], 'lower_limit': {'row_index': 0}, 'upper_limit': {'row_index': 1}, 'row_index': 4, 'range_index': 0}
@@ -92,7 +92,7 @@ class TestSkynet(YTEnvSetup):
                 break
         else:
             raise KeyError(node_id)
-        
+
         url = "http://{}/read_skynet_part/?{}".format(
             http_address,
             "&".join("{}={}".format(k, v) for k, v in kwargs.items()))
@@ -135,7 +135,7 @@ class TestSkynet(YTEnvSetup):
             {"filename": "c", "part_index": 4, "data": "c5"},
             {"filename": "c", "part_index": 5, "data": "c6"},
         ])
-        
+
         info = locate_skynet_share("//tmp/table[#0:#9]")
 
         chunk_1 = info["chunk_specs"][0]["chunk_id"]
@@ -149,7 +149,7 @@ class TestSkynet(YTEnvSetup):
             (node_1, chunk_1, "c1c2c3", 3, 6, 0),
             (node_2, chunk_2, "c4c5c6", 0, 3, 3)
         ]
-        
+
         for node, chunk, result, lower_row_index, upper_row_index, part_index in test_queries:
             assert result == self.get_skynet_part(node, info["nodes"], chunk_id=chunk,
                                                   lower_row_index=lower_row_index,
