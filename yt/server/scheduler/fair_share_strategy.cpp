@@ -243,9 +243,11 @@ public:
             if (TryOccupyPoolSlotIndex(poolName, slotIndex)) {
                 return;
             } else {
-                LOG_ERROR("Failed to assign slot index to operation during revive (OperationId: %v, SlotIndex: %v)",
-                    operation->GetId(),
-                    slotIndex);
+                auto error = TError("Failed to assign slot index to operation during revive")
+                    << TErrorAttribute("operation_id", operation->GetId())
+                    << TErrorAttribute("slot_index", slotIndex);
+                Host->SetOperationAlert(operation->GetId(), EOperationAlertType::SlotIndexCollision, error);
+                LOG_ERROR(error);
             }
         }
 
