@@ -310,7 +310,7 @@ def locate_skynet_share(path, **kwargs):
 
     output = StringIO()
     execute_command("locate_skynet_share", kwargs, output_stream=output)
-    return yson.loads(output.getvalue(), yson_type="map")
+    return yson.loads(output.getvalue())
 
 def select_rows(query, **kwargs):
     kwargs["query"] = query
