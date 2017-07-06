@@ -2005,7 +2005,8 @@ private:
             // state is changed to Completing.
             {
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-                WaitFor(asyncResult);
+                WaitFor(asyncResult)
+                    .ThrowOnError();
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }
@@ -2042,7 +2043,8 @@ private:
             // Second flush: ensure that state is changed to Completed.
             {
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-                WaitFor(asyncResult);
+                WaitFor(asyncResult)
+                    .ThrowOnError();
                 YCHECK(operation->GetState() == EOperationState::Completed);
             }
 
