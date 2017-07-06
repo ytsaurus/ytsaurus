@@ -301,6 +301,26 @@ class TestMedia(YTEnvSetup):
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
         
+    def test_file_medium(self):
+        create("file", "//tmp/f", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
+        assert exists("//tmp/f/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
+        write_file("//tmp/f", "payload")
+        chunk_ids = get("//tmp/f/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        for replica in get("#{0}/@stored_replicas".format(chunk_id)):
+            assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
+
+    def test_table_medium(self):
+        create("table", "//tmp/t", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
+        assert exists("//tmp/t/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
+        write_table("//tmp/t", [{"key": "value"}])
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        for replica in get("#{0}/@stored_replicas".format(chunk_id)):
+            assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
+
     def test_chunk_statuses_1_media(self):
         codec = "reed_solomon_6_3"
         codec_replica_count = 9

@@ -85,28 +85,22 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetChunk
 }
 
 template <class TChunkOwner>
-void TChunkOwnerTypeHandler<TChunkOwner>::InitializeAttributes(NYTree::IAttributeDictionary* attributes)
-{
-    if (!attributes->Contains("replication_factor")) {
-        attributes->Set("replication_factor", GetDefaultReplicationFactor());
-    }
-
-    if (!attributes->Contains("erasure_codec")) {
-        attributes->Set("erasure_codec", NErasure::ECodec::None);
-    }
-}
-
-template <class TChunkOwner>
-std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
+std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     const NCypressServer::TVersionedNodeId& id,
     NObjectClient::TCellTag externalCellTag,
     NTransactionServer::TTransaction* transaction,
     NYTree::IAttributeDictionary* attributes,
     NSecurityServer::TAccount* account,
-    bool enableAccounting)
+    bool enableAccounting,
+    int replicationFactor,
+    NCompression::ECodec compressionCodec,
+    NErasure::ECodec erasureCodec)
 {
     const auto& chunkManager = this->Bootstrap_->GetChunkManager();
     const auto& objectManager = this->Bootstrap_->GetObjectManager();
+
+    auto primaryMediumName = attributes->GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
+    auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
 
     auto nodeHolder = TBase::DoCreate(
         id,
@@ -117,12 +111,22 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
         enableAccounting);
     auto* node = nodeHolder.get();
 
-    if (!node->IsExternal()) {
-        // Create an empty chunk list and reference it from the node.
-        auto* chunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
-        node->SetChunkList(chunkList);
-        chunkList->AddOwningNode(node);
-        objectManager->RefObject(chunkList);
+    try {
+        node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
+        node->Properties()[primaryMedium->GetIndex()].SetReplicationFactor(replicationFactor);
+        node->SetCompressionCodec(compressionCodec);
+        node->SetErasureCodec(erasureCodec);
+
+        if (!node->IsExternal()) {
+            // Create an empty chunk list and reference it from the node.
+            auto* chunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+            node->SetChunkList(chunkList);
+            chunkList->AddOwningNode(node);
+            objectManager->RefObject(chunkList);
+        }
+    } catch (const std::exception&) {
+        DoDestroy(node);
+        throw;
     }
 
     return nodeHolder;

@@ -235,6 +235,8 @@ private:
                         addReplica(nodeId, GenericChunkReplicaIndex);
                     }
                 }
+                std::sort(replicas.begin(), replicas.end());
+                replicas.erase(std::unique(replicas.begin(), replicas.end()), replicas.end());
                 serializeLastSeenReplicas(consumer, replicas);
                 return true;
             }
