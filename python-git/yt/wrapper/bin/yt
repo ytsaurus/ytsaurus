@@ -612,20 +612,40 @@ def add_lookup_rows_parser(add_parser):
         add_format_argument(parser, help="input format")
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin))
 
+@copy_docstring_from(yt.insert_rows)
+def insert_rows(**args):
+    if "no_require_sync" in args:
+        args["require_sync"] = not args["no_require_sync"]
+        del args["no_require_sync"]
+
+    yt.insert_rows(**args)
+
 def add_insert_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
     for name in ("insert", "insert-rows"):
-        parser = add_parser(name, yt.insert_rows)
+        parser = add_parser(name, insert_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
+        parser.add_argument("--no-require-sync", action="store_true",
+                            help="do not require sync replication")
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
+
+@copy_docstring_from(yt.delete_rows)
+def delete_rows(**args):
+    if "no_require_sync" in args:
+        args["require_sync"] = not args["no_require_sync"]
+        del args["no_require_sync"]
+
+    yt.delete_rows(**args)
 
 def add_delete_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
     for name in ("delete", "delete-rows"):
-        parser = add_parser(name, yt.delete_rows)
+        parser = add_parser(name, delete_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
+        parser.add_argument("--no-require-sync", action="store_true",
+                            help="do not require sync replication")
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
 
 def add_src_arg(parser, **kwargs):
