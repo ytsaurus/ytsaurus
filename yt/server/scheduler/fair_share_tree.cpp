@@ -98,10 +98,6 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerElementSharedState::TSchedulerElementSharedState()
-    : ResourceUsage_(ZeroJobResources())
-{ }
-
 TJobResources TSchedulerElementSharedState::GetResourceUsage()
 {
     TReaderGuard guard(ResourceUsageLock_);
@@ -1286,11 +1282,6 @@ TOperationElementFixedState::TOperationElementFixedState(TOperationPtr operation
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TOperationElementSharedState::TOperationElementSharedState()
-    : NonpreemptableResourceUsage_(ZeroJobResources())
-    , AggressivelyPreemptableResourceUsage_(ZeroJobResources())
-{ }
 
 TJobResources TOperationElementSharedState::Finalize()
 {
