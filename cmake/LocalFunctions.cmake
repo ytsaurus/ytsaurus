@@ -174,11 +174,12 @@ endfunction()
 
 function(PROTOC_PYTHON proto output prefix)
   get_filename_component(_proto_realpath ${proto} REALPATH)
+  get_filename_component(_prefix_realpath ${prefix} REALPATH)
   get_filename_component(_proto_dirname  ${_proto_realpath} PATH)
   get_filename_component(_proto_basename ${_proto_realpath} NAME_WE)
   get_filename_component(_source_realpath ${CMAKE_SOURCE_DIR} REALPATH)
   string(REPLACE "${_source_realpath}" "" _relative_path "${_proto_dirname}")
-  string(REPLACE "${_source_realpath}" "" _prefix_relative_path "${prefix}")
+  string(REPLACE "${_source_realpath}" "" _prefix_relative_path "${_prefix_realpath}")
 
   # Specify custom command how to generate _pb2.py and _py2_grpc.py
   add_custom_command(
@@ -189,7 +190,7 @@ function(PROTOC_PYTHON proto output prefix)
       ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}${_relative_path}
     COMMAND
     $<TARGET_FILE:protoc>
-      -I${prefix}
+      -I${_prefix_realpath}
       -I${CMAKE_SOURCE_DIR}/contrib/libs/protobuf
       --python_out=${CMAKE_BINARY_DIR}${_prefix_relative_path}
       --grpc_py_out=${CMAKE_BINARY_DIR}${_prefix_relative_path}
