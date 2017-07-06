@@ -780,7 +780,7 @@ TSchedulableConfig::TSchedulableConfig()
         .Default();
 
     RegisterParameter("allow_aggressive_starvation_preemption", AllowAggressiveStarvationPreemption)
-        .Default();
+        .Default(true);
 }
 
 TPoolConfig::TPoolConfig()

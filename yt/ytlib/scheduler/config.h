@@ -628,7 +628,7 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeoutLimit;
     TNullable<double> FairShareStarvationToleranceLimit;
 
-    TNullable<bool> AllowAggressiveStarvationPreemption;
+    bool AllowAggressiveStarvationPreemption;
 
     TSchedulableConfig();
 };
