@@ -484,6 +484,7 @@ private:
 
             auto attributes = ConvertToAttributes(request.Attributes);
             auto req = TCypressYPathProxy::Create(jobPath);
+            GenerateMutationId(req);
             req->set_type(static_cast<int>(EObjectType::MapNode));
             ToProto(req->mutable_node_attributes(), *attributes);
             batchReq->AddRequest(req, "create");
