@@ -87,22 +87,42 @@ void SwitchTo(IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TContextSwitchGuard::TContextSwitchGuard(std::function<void()> handler)
-    : Active_(true)
+TContextSwitchGuard::TContextSwitchGuard(std::function<void()> out, std::function<void()> in)
 {
-    GetCurrentScheduler()->PushContextSwitchHandler([this, handler = std::move(handler)] () noexcept {
-        Y_ASSERT(Active_);
-        handler();
-        Active_ = false;
-    });
+    auto* scheduler = TryGetCurrentScheduler();
+    if (scheduler) {
+        scheduler->PushContextSwitchHandler(std::move(out), std::move(in));
+    }
 }
 
 TContextSwitchGuard::~TContextSwitchGuard()
 {
-    if (Active_) {
-        GetCurrentScheduler()->PopContextSwitchHandler();
+    auto* scheduler = TryGetCurrentScheduler();
+    if (scheduler) {
+        scheduler->PopContextSwitchHandler();
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOneShotContextSwitchGuard::TOneShotContextSwitchGuard(std::function<void()> handler)
+    : TContextSwitchGuard(
+        [this, handler = std::move(handler)] () noexcept {
+            if (!Active_) {
+                return;
+            }
+            Active_ = false;
+            handler();
+        },
+        [] () noexcept { })
+    , Active_(true)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TForbidContextSwitchGuard::TForbidContextSwitchGuard()
+    : TOneShotContextSwitchGuard( [] { Y_UNREACHABLE(); })
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
