@@ -702,7 +702,7 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     // Context switches are not allowed during sync phase.
-    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+    TForbidContextSwitchGuard contextSwitchGuard;
     return Automaton_->SaveSnapshot(writer);
 }
 
@@ -962,7 +962,7 @@ bool TDecoratedAutomaton::HasReadyMutations() const
 
 void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 {
-    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+    TForbidContextSwitchGuard contextSwitchGuard;
 
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {

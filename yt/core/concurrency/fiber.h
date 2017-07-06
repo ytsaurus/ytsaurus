@@ -9,6 +9,7 @@
 #include <yt/core/misc/small_vector.h>
 
 #include <atomic>
+#include <forward_list>
 
 namespace NYT {
 namespace NConcurrency {
@@ -21,6 +22,14 @@ DEFINE_ENUM(EFiberState,
     (Running)     // Currently executing.
     (Terminated)  // Terminated.
 );
+
+struct TContextSwitchHandlers
+{
+    std::function<void()> Out;
+    std::function<void()> In;
+};
+
+using TContextSwitchHandlersList = std::forward_list<TContextSwitchHandlers>;
 
 //! A fiber :)
 /*!
@@ -117,6 +126,30 @@ public:
      */
     uintptr_t& FsdAt(int index);
 
+    //! Pushes the context handlers.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
+    void PushContextHandler(std::function<void()> out, std::function<void()> in);
+
+    //! Pops the context handlers.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
+    void PopContextHandler();
+
+    //! Invokes all out handlers.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
+    void InvokeContextOutHandlers();
+
+    //! Invokes all in handlers.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
+    void InvokeContextInHandlers();
+
 private:
     TFiberId Id_;
 #ifdef DEBUG
@@ -137,6 +170,9 @@ private:
     void Cancel();
 
     SmallVector<uintptr_t, 8> Fsd_;
+
+    TContextSwitchHandlersList SwitchHandlers_;
+
     void FsdResize();
 
     static void Trampoline(void*);

@@ -3349,7 +3349,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     }
 
     // SafeScheduleJob must be synchronous; context switches are prohibited.
-    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+    TForbidContextSwitchGuard contextSwitchGuard;
 
     TScopedTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();

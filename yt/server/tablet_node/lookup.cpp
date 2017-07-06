@@ -21,6 +21,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -54,10 +55,12 @@ struct TLookupProfilerTrait
         TValue(const TTagIdList& list)
             : Rows("/lookup/rows", list)
             , Bytes("/lookup/bytes", list)
+            , CpuTime("/lookup/cpu_time", list)
         { }
 
         TSimpleCounter Rows;
         TSimpleCounter Bytes;
+        TSimpleCounter CpuTime;
     };
 
     static TValue ToValue(const TTagIdList& list)
@@ -103,6 +106,8 @@ public:
             TabletSnapshot_->CellId,
             LookupKeys_.Size());
 
+        TCpuTimer timer;
+
         CreateReadSessions(&EdenSessions_, TabletSnapshot_->GetEdenStores(), LookupKeys_);
 
         auto currentIt = LookupKeys_.Begin();
@@ -128,17 +133,21 @@ public:
             currentIt = nextIt;
         }
 
+        auto cpuTime = timer.GetCpuValue();
+
         if (IsProfilingEnabled()) {
             auto& counters = GetLocallyGloballyCachedValue<TLookupProfilerTrait>(Tags_);
             TabletNodeProfiler.Increment(counters.Rows, FoundRowCount_);
             TabletNodeProfiler.Increment(counters.Bytes, Bytes_);
+            TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
         }
 
-        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, Bytes: %v)",
+        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, Bytes: %v, CpuTime: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             FoundRowCount_,
-            Bytes_);
+            Bytes_,
+            ValueToDuration(cpuTime));
     }
 
 private:
