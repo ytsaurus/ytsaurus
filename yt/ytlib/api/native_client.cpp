@@ -2907,16 +2907,39 @@ private:
         const TGetJobStderrOptions& /*options*/)
     {
         auto stderrRef = DoGetJobStderrFromNode(operationId, jobId);
-        if (stderrRef)
+        if (stderrRef) {
             return stderrRef;
+        }
 
         stderrRef = DoGetJobStderrFromCypress(operationId, jobId);
-        if (stderrRef)
+        if (stderrRef) {
             return stderrRef;
+        }
 
-        stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
-        if (stderrRef)
-            return stderrRef;
+        auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
+        auto versionNodeOrError = WaitFor(asyncVersionResult); 
+
+        if (versionNodeOrError.IsOK()) {    
+            int version = 0;
+                      
+            try {    
+                version = ConvertTo<int>(versionNodeOrError.Value());
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to parse operations archive version");
+            }    
+
+            if (version >= 7) { 
+                stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
+                if (stderrRef) {
+                    return stderrRef;
+                }
+            } else {
+                LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
+            }
+             
+        } else {   
+            LOG_DEBUG(versionNodeOrError, "Failed to get operations archive version");
+        }
 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
             << TErrorAttribute("operation_id", operationId)
