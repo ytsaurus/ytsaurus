@@ -2995,7 +2995,10 @@ void TOperationControllerBase::SafeAbort()
         }
     };
 
-    abortTransaction(InputTransaction);
+    // NB: We do not abort input transaction synchronously since
+    // it can be located in remote cluster that can be unavailable.
+    // Moreover if input transaction abort failed it does not harm anything.
+    abortTransaction(InputTransaction, /* sync */ false);
     abortTransaction(OutputTransaction);
     abortTransaction(AsyncSchedulerTransaction, /* sync */ false);
 
