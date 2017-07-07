@@ -73,7 +73,12 @@ class TestSkynet(YTEnvSetup):
         write_table("//tmp/table", [{"a": 1}])
         write_table("<append=%true>//tmp/table", [{"a": 2}])
 
-        wait(lambda: not ls("//sys/underreplicated_chunks"))
+        def table_fully_replicated():
+            for chunk_id in get("//tmp/table/@chunk_ids"):
+                if len(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) != 5:
+                    return False
+            return True
+        wait(table_fully_replicated)
 
         info = locate_skynet_share("//tmp/table[#0:#2]")
 
