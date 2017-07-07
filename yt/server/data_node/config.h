@@ -406,7 +406,7 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
-        
+
         RegisterParameter("chunk_meta_cache", ChunkMetaCache)
             .DefaultNew();
         RegisterParameter("block_cache", BlockCache)
@@ -488,7 +488,7 @@ public:
         RegisterParameter("write_thread_count", WriteThreadCount)
             .Default(1)
             .GreaterThanOrEqual(1);
-            
+
         RegisterParameter("max_write_sessions", MaxWriteSessions)
             .Default(1000)
             .GreaterThanOrEqual(1);
@@ -510,7 +510,7 @@ public:
             .Default(TDuration::Hours(1));
 
         RegisterParameter("enable_write_direct_io", EnableWriteDirectIO)
-            .Default(true);
+            .Default(false);
 
         RegisterInitializer([&] () {
             ChunkMetaCache->Capacity = (i64) 1024 * 1024 * 1024;
