@@ -17,6 +17,7 @@ import yt.logger as logger
 from yt.packages.six.moves import zip as izip
 
 import os
+import shutil
 from copy import deepcopy
 
 def _check_columns(columns, type):
@@ -84,8 +85,12 @@ class Finalizer(object):
 
     def __call__(self, state):
         if get_config(self.client)["clear_local_temp_files"]:
-            for file in self.local_files_to_remove:
-                os.remove(file)
+            for file_path in self.local_files_to_remove:
+                if os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+                else:
+                    os.remove(file_path)
+
         if state == "completed":
             for table in imap(lambda table: TablePath(table, client=self.client), self.output_tables):
                 self.check_for_merge(table)
