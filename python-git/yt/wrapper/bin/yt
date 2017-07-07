@@ -581,12 +581,13 @@ def add_alter_table_parser(add_parser):
 
 @copy_docstring_from(yt.alter_table_replica)
 def alter_table_replica(**args):
-    if "enable" in args:
+    if args["enable"]:
         args["enabled"] = True
-        args.pop("enable")
-    if "disable" in args:
+    if args["disable"]:
         args["enabled"] = False
-        args.pop("disable")
+
+    args.pop("enable")
+    args.pop("disable")
 
     yt.alter_table_replica(**args)
 
@@ -627,9 +628,7 @@ def add_lookup_rows_parser(add_parser):
 
 @copy_docstring_from(yt.insert_rows)
 def insert_rows(**args):
-    if "no_require_sync_replica" in args:
-        args["require_sync_replica"] = not args.pop("no_require_sync_replica")
-
+    args["require_sync_replica"] = not args.pop("no_require_sync_replica")
     yt.insert_rows(**args)
 
 def add_insert_rows_parser(add_parser):
