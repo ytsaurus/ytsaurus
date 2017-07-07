@@ -145,6 +145,17 @@ public:
             true);
     }
 
+    virtual TFuture<void> SetQuota(const TNullable<i64>& diskSpaceLimit, const TNullable<i64>& inodeLimit) override
+    {
+        return RunPrepareAction<void>([&] () {
+            return Location_->SetQuota(
+                SlotIndex_,
+                diskSpaceLimit,
+                inodeLimit,
+                JobEnvironment_->GetUserId(SlotIndex_));
+        });
+    }
+
     virtual IJobProbePtr GetJobProberClient() override
     {
         YCHECK(JobProberClient_);

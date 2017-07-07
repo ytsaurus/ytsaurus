@@ -207,6 +207,33 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
     .Run();
 }
 
+TFuture<void> TSlotLocation::SetQuota(int slotIndex, const TNullable<i64>& diskSpaceLimit, const TNullable<i64>& inodeLimit, int userId)
+{
+    return BIND([=, this_ = MakeStrong(this)] () {
+        ValidateEnabled();
+        auto slotPath = GetSlotPath(slotIndex);
+        auto config = New<TFSQuotaConfig>();
+        config->DiskSpaceLimit = diskSpaceLimit;
+        config->InodeLimit = inodeLimit;
+        config->UserId = userId;
+        config->SlotPath = slotPath;
+
+        try {
+            RunTool<TFSQuotaTool>(config);
+        } catch (const std::exception& ex) {
+            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set quota")
+                << TErrorAttribute("UserId", userId)
+                << TErrorAttribute("DiskSpaceLimit", diskSpaceLimit.Get(0))
+                << TErrorAttribute("INodeLimit", inodeLimit.Get(0))
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    })
+    .AsyncVia(LocationQueue_->GetInvoker())
+    .Run();
+}
+
 TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
     int slotIndex,
     ESandboxKind kind,
