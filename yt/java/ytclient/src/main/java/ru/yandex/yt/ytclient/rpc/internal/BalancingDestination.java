@@ -19,6 +19,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
  * @author aozeritsky
  */
 public class BalancingDestination {
+    private final String dc;
     private final RpcClient client;
     private boolean isAlive;
     private int index;
@@ -26,11 +27,16 @@ public class BalancingDestination {
     final ApiService service;
     YtGuid transaction = null;
 
-    public BalancingDestination(RpcClient client, int index) {
+    public BalancingDestination(String dc, RpcClient client, int index) {
+        this.dc = dc;
         this.client = Objects.requireNonNull(client);
         isAlive = true;
         this.index = index;
         service = client.getService(ApiService.class);
+    }
+
+    public String dataCenter() {
+        return dc;
     }
 
     public int getIndex() {
