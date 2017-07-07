@@ -376,6 +376,9 @@ public:
     //! Maximum number of bytes to fetch via a single range request.
     i64 MaxBytesPerRead;
 
+    //! Desired number of bytes per disk write in a blob chunks.
+    i64 BytesPerWrite;
+
     //! Enables block checksums validation.
     bool ValidateBlockChecksums;
 
@@ -496,6 +499,10 @@ public:
         RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
             .GreaterThan(0)
             .Default((i64) 64 * 1024 * 1024);
+        RegisterParameter("bytes_per_write", BytesPerWrite)
+            .GreaterThan(0)
+            .Default((i64) 16 * 1024 * 1024);
+
         RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
             .Default(true);
 
