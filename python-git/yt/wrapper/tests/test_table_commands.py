@@ -607,29 +607,28 @@ class TestTableCommands(object):
                                                                 "cluster_name": "second_cluster",
                                                                 "replica_path": table + "_replica"})
 
-            tablet_id = yt.get(table + "/@tablets/0/tablet_id")
             attributes = yt.get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
             assert attributes["state"] == "disabled"
             assert len(attributes["tablets"]) == 1
-            assert attributes["tablets"][tablet_id]["state"] == "none"
+            assert attributes["tablets"][0]["state"] == "none"
 
             yt.alter_table_replica(replica_id, enabled=True)
             attributes = yt.get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
             assert attributes["state"] == "enabled"
             assert len(attributes["tablets"]) == 1
-            assert attributes["tablets"][tablet_id]["state"] == "none"
+            assert attributes["tablets"][0]["state"] == "none"
 
             yt.alter_table_replica(replica_id, enabled=False)
             attributes = yt.get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
             assert attributes["state"] == "disabled"
             assert len(attributes["tablets"]) == 1
-            assert attributes["tablets"][tablet_id]["state"] == "none"
+            assert attributes["tablets"][0]["state"] == "none"
 
             yt.alter_table_replica(replica_id, enabled=True, mode="sync")
             attributes = yt.get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
             assert attributes["state"] == "enabled"
             assert len(attributes["tablets"]) == 1
-            assert attributes["tablets"][tablet_id]["state"] == "none"
+            assert attributes["tablets"][0]["state"] == "none"
 
         finally:
             stop(instance.id, path=dir)
