@@ -438,9 +438,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         return;
     }
 
-    joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
-
-    int sliceCount = joblet->InputStripeList->TotalChunkCount;
+    int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
     const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
     if (sliceCount > Controller->Config->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
@@ -454,6 +452,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobSpecSliceThrottler->Acquire(sliceCount);
     }
 
+    joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
     auto estimatedResourceUsage = GetNeededResources(joblet);
     auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
 
