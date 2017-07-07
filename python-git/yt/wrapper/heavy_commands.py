@@ -215,6 +215,8 @@ class ReadIterator(IteratorRetrier):
         self.response = None
         if isinstance(exception, YtResponseError) and not exception.is_chunk_unavailable():
             raise
+        else:
+            logger.warning("Read request failed with error: %s", str(exception))
 
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client):
     if not get_config(client)["read_retries"]["enable"]:

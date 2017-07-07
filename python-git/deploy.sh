@@ -49,6 +49,11 @@ init_vars() {
     fi
     export CREATE_CONDUCTOR_TICKET
 
+    if [ -z "$EXTRA_REPOSITORIES" ]; then
+        EXTRA_REPOSITORIES=""
+    fi
+    export EXTRA_REPOSITORIES
+
     set -u
 }
 
@@ -100,6 +105,8 @@ case $PACKAGE in
         REPOS="yandex-$CODENAME yt-$CODENAME"
         ;;
 esac
+
+REPOS="$REPOS $EXTRA_REPOSITORIES"
 
 REPOS_TO_UPLOAD=""
 if [ -z "$FORCE_DEPLOY" ]; then
