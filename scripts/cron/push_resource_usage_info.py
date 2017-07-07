@@ -3,7 +3,10 @@
 from yt.wrapper.client import Yt
 from yt.wrapper.http_helpers import get_retriable_errors
 from yt.common import YtError
+
+from yt.packages.six.moves import xrange
 import yt.packages.requests as requests
+
 
 import simplejson as json
 import logging
@@ -72,7 +75,7 @@ def push_data_with_retries(url, data, headers):
             logging.warning('HTTP POST request (url: %s) failed with error %s, message: "%s"',
                 url, str(type(error)), error.message)
             now = datetime.now()
-            backoff = max(0.0, PUSH_REQUEST_TIMEOUT / 1000.0 - total_seconds(now - request_start_time))
+            backoff = max(0.0, PUSH_REQUEST_TIMEOUT / 1000.0 - (now - request_start_time).total_seconds())
             if backoff:
                 logging.warning("Sleep for %.2lf seconds before next retry", backoff)
                 time.sleep(backoff)
