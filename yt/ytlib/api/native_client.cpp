@@ -2750,6 +2750,26 @@ private:
         const TJobId& jobId,
         const TGetJobInputOptions& /*options*/)
     {
+        auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
+        auto versionNodeOrError = WaitFor(asyncVersionResult); 
+
+        if (versionNodeOrError.IsOK()) {    
+            int version = 0; 
+     
+            try {    
+                version = ConvertTo<int>(versionNodeOrError.Value());
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to parse operations archive version");
+            }    
+
+            if (version < 7) { 
+                LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
+            }    
+     
+        } else {    
+            LOG_DEBUG(versionNodeOrError, "Failed to get operations archive version");
+        }
+
         auto nameTable = New<TNameTable>();
 
         TLookupRowsOptions lookupOptions;
