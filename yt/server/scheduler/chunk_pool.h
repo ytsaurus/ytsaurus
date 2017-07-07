@@ -184,6 +184,11 @@ struct IChunkPoolOutput
 
     virtual TChunkStripeListPtr GetStripeList(TCookie cookie) = 0;
 
+    //! The main purpose of this method is to be much cheaper than #GetStripeList,
+    //! and to eliminate creation/desctuction of a stripe list if we have already reached
+    //! JobSpecSliceThrottler limit. This is particularly useful for a shuffle chunk pool.
+    virtual int GetStripeListSliceCount(TCookie cookie) const = 0;
+
     virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const = 0;
 
     virtual void Completed(TCookie cookie, const TCompletedJobSummary& jobSummary) = 0;
