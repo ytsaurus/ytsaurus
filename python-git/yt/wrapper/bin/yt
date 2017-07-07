@@ -643,10 +643,7 @@ def add_insert_rows_parser(add_parser):
 
 @copy_docstring_from(yt.delete_rows)
 def delete_rows(**args):
-    if "no_require_sync" in args:
-        args["require_sync"] = not args["no_require_sync"]
-        del args["no_require_sync"]
-
+    args["require_sync_replica"] = not args.pop("no_require_sync_replica")
     yt.delete_rows(**args)
 
 def add_delete_rows_parser(add_parser):
