@@ -140,19 +140,19 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "disabled"
         assert len(attributes["tablets"]) == 1
-        assert attributes["tablets"][tablet_id]["state"] == "none"
+        assert attributes["tablets"][0]["state"] == "none"
 
         alter_table_replica(replica_id, enabled=True)
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "enabled"
         assert len(attributes["tablets"]) == 1
-        assert attributes["tablets"][tablet_id]["state"] == "none"
+        assert attributes["tablets"][0]["state"] == "none"
 
         alter_table_replica(replica_id, enabled=False)
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "disabled"
         assert len(attributes["tablets"]) == 1
-        assert attributes["tablets"][tablet_id]["state"] == "none"
+        assert attributes["tablets"][0]["state"] == "none"
 
     def test_enable_disable_replica_mounted(self):
         self._create_cells()
@@ -273,12 +273,12 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         tablet_id = tablets[0]["tablet_id"]
 
         def _do():
-            before_index1 = get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id1, tablet_id))
-            before_index2 = get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id2, tablet_id))
+            before_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
+            before_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
             assert before_index1 == before_index2
 
-            before_ts1 = get("#{0}/@tablets/{1}/current_replication_timestamp".format(replica_id1, tablet_id))
-            before_ts2 = get("#{0}/@tablets/{1}/current_replication_timestamp".format(replica_id2, tablet_id))
+            before_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            before_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
             assert before_ts1 == before_ts2
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
@@ -301,13 +301,13 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             sleep(1.0)
             assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == []
 
-            after_index1 = get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id1, tablet_id))
-            after_index2 = get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id2, tablet_id))
+            after_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
+            after_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
             assert after_index1 == after_index2
             assert after_index1 == before_index1 + 4
 
-            after_ts1 = get("#{0}/@tablets/{1}/current_replication_timestamp".format(replica_id1, tablet_id))
-            after_ts2 = get("#{0}/@tablets/{1}/current_replication_timestamp".format(replica_id2, tablet_id))
+            after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
             assert after_ts1 == after_ts2
             assert after_ts1 > before_ts1
 
@@ -381,7 +381,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         self.sync_enable_table_replica(replica_id)
    
-        assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 0
+        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
         sleep(1.0)
@@ -389,7 +389,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         self.sync_disable_table_replica(replica_id)
 
-        assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 1
+        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 1
 
     def test_unmount_propagates_replication_row_index(self):
         self._create_cells()
@@ -400,7 +400,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         self.sync_enable_table_replica(replica_id)
    
-        assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 0
+        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
         sleep(1.0)
@@ -408,7 +408,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         self.sync_unmount_table("//tmp/t")
 
-        assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 1
+        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 1
 
     @pytest.mark.parametrize("with_data", [False, True])
     def test_start_replication_timestamp(self, with_data):
