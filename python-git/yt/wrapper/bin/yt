@@ -627,9 +627,8 @@ def add_lookup_rows_parser(add_parser):
 
 @copy_docstring_from(yt.insert_rows)
 def insert_rows(**args):
-    if "no_require_sync" in args:
-        args["require_sync"] = not args["no_require_sync"]
-        del args["no_require_sync"]
+    if "no_require_sync_replica" in args:
+        args["require_sync_replica"] = not args.pop("no_require_sync_replica")
 
     yt.insert_rows(**args)
 
@@ -639,7 +638,7 @@ def add_insert_rows_parser(add_parser):
         parser = add_parser(name, insert_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
-        parser.add_argument("--no-require-sync", action="store_true",
+        parser.add_argument("--no-require-sync-replica", action="store_true",
                             help="do not require sync replication")
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
 
@@ -657,7 +656,7 @@ def add_delete_rows_parser(add_parser):
         parser = add_parser(name, delete_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
-        parser.add_argument("--no-require-sync", action="store_true",
+        parser.add_argument("--no-require-sync-replica", action="store_true",
                             help="do not require sync replication")
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
 
