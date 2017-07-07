@@ -584,11 +584,9 @@ def alter_table_replica(**args):
     if "enable" in args:
         args["enabled"] = True
         args.pop("enable")
-    elif "disable" in args:
+    if "disable" in args:
         args["enabled"] = False
         args.pop("disable")
-    else:
-        assert False, 'Both "enable" and "disable" are specified'
 
     yt.alter_table_replica(**args)
 
