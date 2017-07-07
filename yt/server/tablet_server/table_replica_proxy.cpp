@@ -6,6 +6,8 @@
 
 #include <yt/server/cypress_server/cypress_manager.h>
 
+#include <yt/server/chunk_server/chunk_list.h>
+
 #include <yt/server/table_server/replicated_table_node.h>
 
 #include <yt/server/cell_master/bootstrap.h>
@@ -108,15 +110,18 @@ private:
 
         if (key == "tablets") {
             BuildYsonFluently(consumer)
-                .DoMapFor(table->Tablets(), [=] (TFluentMap fluent, TTablet* tablet) {
+                .DoListFor(table->Tablets(), [=] (TFluentList fluent, TTablet* tablet) {
+                    const auto* chunkList = tablet->GetChunkList();
                     const auto& replicaInfo = tablet->GetReplicaInfo(replica);
                     fluent
-                        .Item(ToString(tablet->GetId()))
-                        .BeginMap()
+                        .Item().BeginMap()
+                            .Item("tablet_id").Value(tablet->GetId())
                             .Item("state").Value(replicaInfo->GetState())
                             .Item("current_replication_row_index").Value(replicaInfo->GetCurrentReplicationRowIndex())
                             .Item("current_replication_timestamp").Value(replicaInfo->GetCurrentReplicationTimestamp())
                             .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(*replicaInfo))
+                            .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
+                            .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount)
                         .EndMap();
                 });
             return true;
