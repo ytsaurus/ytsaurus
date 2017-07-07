@@ -345,9 +345,12 @@ def trim_rows(path, tablet_index, trimmed_row_count, client=None):
 
     make_request("trim_rows", params, client=client)
 
-def alter_table_replica(replica_id, enabled, mode="async", client=None):
+def alter_table_replica(replica_id, enabled, mode=None, client=None):
     """TODO"""
-    require(mode in ("sync", "async"), lambda: YtError("Invalid mode. Expected sync or async"))
-    return make_request("alter_table_replica",
-                        params={"replica_id": replica_id, "enabled": enabled, "mode": mode},
-                        client=client)
+    if mode is not None:
+        require(mode in ("sync", "async"), lambda: YtError("Invalid mode. Expected sync or async"))
+
+    params = {"replica_id": replica_id, "enabled": enabled}
+    set_param(params, "mode", mode)
+
+    return make_request("alter_table_replica", params, client=client)

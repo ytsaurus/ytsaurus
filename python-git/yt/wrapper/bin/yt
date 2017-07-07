@@ -583,7 +583,7 @@ def add_alter_table_replica_parser(add_parser):
     parser = add_parser("alter-table-replica", yt.alter_table_replica)
     parser.add_argument("replica_id")
     parser.add_argument("--enabled", default=False, action="store_true")
-    parser.add_argument("--mode", default="async")
+    parser.add_argument("--mode", help='alternation mode, can be "sync" or "async"')
 
 @copy_docstring_from(yt.select_rows)
 def select_rows(**args):
