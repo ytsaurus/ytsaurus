@@ -3,8 +3,8 @@ from .config import get_config, get_option
 from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param
 from .errors import YtError, YtResponseError
 from .heavy_commands import make_write_request, make_read_request
-from .cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, \
-                              create, link, get, set
+from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
+                               create, link, get, set)
 from .ypath import FilePath, ypath_join
 from .local_mode import is_local_mode
 

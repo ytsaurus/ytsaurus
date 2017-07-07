@@ -2,8 +2,8 @@ from . import yson
 from .config import get_config, get_option, get_command_param
 from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param
 from .errors import YtResponseError
-from .transaction_commands import _make_transactional_request, \
-                                  _make_formatted_transactional_request
+from .transaction_commands import (_make_transactional_request,
+                                   _make_formatted_transactional_request)
 from .ypath import YPath, escape_ypath_literal, ypath_join
 from .format import create_format
 from .batch_response import apply_function_to_result

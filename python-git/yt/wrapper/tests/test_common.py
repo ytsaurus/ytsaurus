@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from yt.wrapper.errors import YtHttpResponseError
-from yt.wrapper.common import update, unlist, parse_bool, dict_depth, bool_to_string, \
-                              is_prefix, prefix, first_not_none, group_blobs_by_size, \
-                              datetime_to_string, date_string_to_timestamp
+from yt.wrapper.common import (update, unlist, parse_bool, dict_depth, bool_to_string,
+                               is_prefix, prefix, first_not_none, group_blobs_by_size,
+                               datetime_to_string, date_string_to_timestamp)
 
 from yt.packages.six.moves import xrange, cPickle as pickle
 

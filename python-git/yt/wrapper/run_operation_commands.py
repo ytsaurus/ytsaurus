@@ -42,9 +42,9 @@ from .cypress_commands import remove, _make_formatted_transactional_request
 from .errors import YtError, YtConcurrentOperationsLimitExceeded
 from .exceptions_catcher import KeyboardInterruptsCatcher
 from .operation_commands import Operation
-from .spec_builders import ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder, \
-                           EraseSpecBuilder, MapReduceSpecBuilder, RemoteCopySpecBuilder, \
-                           JoinReduceSpecBuilder, MapSpecBuilder
+from .spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
+                            EraseSpecBuilder, MapReduceSpecBuilder, RemoteCopySpecBuilder,
+                            JoinReduceSpecBuilder, MapSpecBuilder)
 from .table_commands import create_temp_table, get_sorted_by
 from .table_helpers import _prepare_job_io, _prepare_local_files
 from .transaction import Transaction

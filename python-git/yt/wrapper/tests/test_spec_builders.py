@@ -2,8 +2,8 @@ from .helpers import TEST_DIR, check, get_test_file_path
 
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
-from yt.wrapper.spec_builders import ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder, \
-                                     MapReduceSpecBuilder, MapSpecBuilder
+from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
+                                      MapReduceSpecBuilder, MapSpecBuilder)
 
 import yt.wrapper as yt
 

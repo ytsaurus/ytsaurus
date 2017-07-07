@@ -1,5 +1,5 @@
-from .config import get_option, set_option, get_config, get_total_request_timeout, \
-                    get_request_retry_count, get_command_param, set_command_param
+from .config import (get_option, set_option, get_config, get_total_request_timeout,
+                     get_request_retry_count, get_command_param, set_command_param)
 import yt.logger as logger
 from .common import get_value
 from .errors import YtResponseError, YtError, YtTransactionPingError
