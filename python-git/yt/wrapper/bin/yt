@@ -579,10 +579,25 @@ def add_alter_table_parser(add_parser):
     dynamic_parser.add_argument("--dynamic", dest="dynamic", default=None, action="store_true")
     dynamic_parser.add_argument("--static", dest="dynamic", default=None, action="store_false")
 
+@copy_docstring_from(yt.alter_table_replica)
+def alter_table_replica(**args):
+    if "enable" in args:
+        args["enabled"] = True
+        args.pop("enable")
+    elif "disable" in args:
+        args["enabled"] = False
+        args.pop("disable")
+    else:
+        assert False, 'Both "enable" and "disable" are specified'
+
+    yt.alter_table_replica(**args)
+
 def add_alter_table_replica_parser(add_parser):
-    parser = add_parser("alter-table-replica", yt.alter_table_replica)
+    parser = add_parser("alter-table-replica", alter_table_replica)
     parser.add_argument("replica_id")
-    parser.add_argument("--enabled", default=False, action="store_true")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--enable", action="store_true", help="enable table replica")
+    group.add_argument("--disable", action="store_true", help="disable table replica")
     parser.add_argument("--mode", help='alternation mode, can be "sync" or "async"')
 
 @copy_docstring_from(yt.select_rows)
