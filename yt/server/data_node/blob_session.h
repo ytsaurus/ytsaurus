@@ -1,5 +1,4 @@
 #pragma once
-
 #include "public.h"
 #include "location.h"
 #include "session_detail.h"
@@ -97,8 +96,11 @@ private:
     void DoCloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     IChunkPtr OnWriterClosed(const TError& error);
 
-    void DoWriteBlock(const NChunkClient::TBlock& block, int blockIndex);
-    void OnBlockWritten(int blockIndex, const TError& error);
+    void DoWriteBlocks(
+        const std::vector<NChunkClient::TBlock>& blocks,
+        int beginBlockIndex,
+        int endBlockIndex);
+    void OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const TError& error);
 
     void OnBlockFlushed(int blockIndex, const TError& error);
 
