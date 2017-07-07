@@ -561,7 +561,12 @@ def wrap(client, **kwargs):
 
     with TempfilesManager(remove_temp_files, get_config(client)["local_temp_directory"]) as tempfiles_manager:
         result = do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
-        result.local_files_to_remove = tempfiles_manager._tempfiles_pool if enable_local_files_usage_in_job(client) else []
+        if enable_local_files_usage_in_job(client):
+            # NOTE: Some temp files can be created inside tmp dir so it is necessary that _tmp_dir goes
+            # after all files from tempfiles pool to ensure their successful removal.
+            result.local_files_to_remove = tempfiles_manager._tempfiles_pool + [tempfiles_manager._tmp_dir]
+        else:
+            result.local_files_to_remove = []
         return result
 
 def enable_python_job_processing_for_standalone_binary():
