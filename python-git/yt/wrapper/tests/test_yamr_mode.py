@@ -1,5 +1,5 @@
-from .helpers import TEST_DIR, TESTS_LOCATION, TESTS_SANDBOX, get_test_file_path, \
-                     get_environment_for_binary_test, set_config_option
+from .helpers import (TEST_DIR, TESTS_LOCATION, TESTS_SANDBOX, get_test_file_path,
+                      get_environment_for_binary_test, set_config_option)
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message

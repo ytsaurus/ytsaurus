@@ -1,16 +1,16 @@
-from .common import flatten, require, update, parse_bool, get_value, set_param, datetime_to_string, \
-                    MB
+from .common import (flatten, require, update, parse_bool, get_value, set_param, datetime_to_string,
+                     MB)
 from .config import get_config, get_option
-from .cypress_commands import exists, remove, get_attribute, copy, \
-                              move, mkdir, find_free_subpath, create, get, has_attribute
+from .cypress_commands import (exists, remove, get_attribute, copy,
+                               move, mkdir, find_free_subpath, create, get, has_attribute)
 from .driver import make_request
 from .errors import YtIncorrectResponse, YtError, YtRetriableError
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
-from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, \
-                           _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format
+from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
+                            _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format)
 from .ypath import TablePath, ypath_join
 
 import yt.json as json

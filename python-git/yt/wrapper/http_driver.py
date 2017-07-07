@@ -3,8 +3,8 @@ from .config import get_config, get_option, set_option
 from .compression import get_compressor
 from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job, get_value
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
-from .http_helpers import make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, \
-                          parse_error_from_headers, get_header_format, ProxyProvider
+from .http_helpers import (make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url,
+                           parse_error_from_headers, get_header_format, ProxyProvider)
 from .response_stream import ResponseStream
 
 import yt.logger as logger

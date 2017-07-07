@@ -1,8 +1,8 @@
 from __future__ import print_function
 
-from .helpers import TEST_DIR, PYTHONPATH, get_test_dir_path, get_test_file_path, check, \
-                     set_config_option, build_python_egg, TESTS_SANDBOX, run_python_script_with_check, \
-                     ENABLE_JOB_CONTROL, dumps_yt_config
+from .helpers import (TEST_DIR, PYTHONPATH, get_test_dir_path, get_test_file_path, check,
+                      set_config_option, build_python_egg, TESTS_SANDBOX, run_python_script_with_check,
+                      ENABLE_JOB_CONTROL, dumps_yt_config)
 
 # Necessary for tests.
 try:

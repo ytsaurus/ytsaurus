@@ -1,16 +1,16 @@
 from .batch_helpers import batch_apply
 from .batch_response import apply_function_to_result
 from .config import get_config
-from .common import flatten, imap, round_up_to, iteritems, GB, MB, \
-                    get_value, unlist, get_started_by, bool_to_string, \
-                    parse_bool, is_prefix, require, YtError, update
+from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
+                     get_value, unlist, get_started_by, bool_to_string,
+                     parse_bool, is_prefix, require, YtError, update)
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .ypath import TablePath
 from .table_commands import is_empty, is_sorted
-from .table_helpers import FileUploader, _prepare_formats, _is_python_function, \
-                           _prepare_binary, _prepare_source_tables, _prepare_destination_tables, \
-                           _prepare_table_writer, _prepare_stderr_table
+from .table_helpers import (FileUploader, _prepare_formats, _is_python_function,
+                            _prepare_binary, _prepare_source_tables, _prepare_destination_tables,
+                            _prepare_table_writer, _prepare_stderr_table)
 
 import yt.logger as logger
 

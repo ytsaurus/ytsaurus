@@ -1,5 +1,5 @@
-from yt.common import require, flatten, update, which, YtError, update_from_env, \
-                      unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string
+from yt.common import (require, flatten, update, which, YtError, update_from_env,
+                       unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string)
 import yt.yson as yson
 
 from yt.packages.decorator import decorator
@@ -18,8 +18,8 @@ import sys
 import threading
 
 from multiprocessing.pool import ThreadPool
-from multiprocessing.dummy import Process as DummyProcess, \
-                                  current_process as dummy_current_process
+from multiprocessing.dummy import (Process as DummyProcess,
+                                   current_process as dummy_current_process)
 from collections import Mapping
 from itertools import chain
 from functools import reduce

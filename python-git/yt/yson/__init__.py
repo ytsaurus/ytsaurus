@@ -55,8 +55,8 @@ if TYPE is None:
     from .writer import dump, dumps
     TYPE = "PYTHON"
 
-from .yson_types import YsonString, YsonUnicode, YsonInt64, YsonUint64, YsonDouble, \
-                        YsonBoolean, YsonList, YsonMap, YsonEntity, YsonType
+from .yson_types import (YsonString, YsonUnicode, YsonInt64, YsonUint64, YsonDouble,
+                         YsonBoolean, YsonList, YsonMap, YsonEntity, YsonType)
 
 from .convert import to_yson_type, yson_to_json, json_to_yson
 from .common import YsonError

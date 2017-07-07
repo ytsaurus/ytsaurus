@@ -1,6 +1,6 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
-from .common import group_blobs_by_size, YtError, update, remove_nones_from_dict, \
-                    get_value
+from .common import (group_blobs_by_size, YtError, update, remove_nones_from_dict,
+                     get_value)
 from .retries import Retrier, IteratorRetrier
 from .errors import YtResponseError, YtMasterCommunicationError
 from .ypath import YPathSupportingAppend

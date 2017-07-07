@@ -14,8 +14,8 @@ from yt.common import to_native_str
 import yt.logger as logger
 import yt.json as json
 
-from yt.packages.six import iteritems, Iterator, add_metaclass, PY3, binary_type, text_type, \
-                            indexbytes, int2byte
+from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
+                             indexbytes, int2byte)
 from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as ifilter
 
 import os
