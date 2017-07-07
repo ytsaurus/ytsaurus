@@ -466,6 +466,10 @@ void LoadLlvmBitcode(
     std::vector<TString> requiredSymbols,
     TSharedRef implementationFile)
 {
+    if (builder.Module->ModuleIsLoaded(implementationFile)) {
+        return;
+    }
+
     auto diag = SMDiagnostic();
 
     auto implBuffer = MemoryBufferRef(ToStringRef(implementationFile), StringRef("implementation"));
@@ -521,6 +525,8 @@ void LoadLlvmBitcode(
             functionName)
             << TErrorAttribute("message", what.c_str());
     }
+
+    builder.Module->AddLoadedModule(implementationFile);
 }
 
 void LoadLlvmFunctions(

@@ -207,6 +207,16 @@ public:
         LoadedFunctions_.insert(function);
     }
 
+    bool ModuleIsLoaded(const TSharedRef& data) const
+    {
+        return LoadedModules_.count(TStringBuf(data.Begin(), data.Size())) != 0;
+    }
+
+    void AddLoadedModule(const TSharedRef& data)
+    {
+        LoadedModules_.insert(TString(TStringBuf(data.Begin(), data.Size())));
+    }
+
 private:
     void Finalize()
     {
@@ -366,6 +376,8 @@ private:
     std::set<TString> LoadedFunctions_;
     std::set<TString> LoadedSymbols_;
 
+    yhash_set<TString> LoadedModules_;
+
     bool Compiled_ = false;
 };
 
@@ -431,6 +443,16 @@ bool TCGModule::FunctionIsLoaded(const TString& function) const
 void TCGModule::AddLoadedFunction(const TString& function)
 {
     Impl_->AddLoadedFunction(function);
+}
+
+bool TCGModule::ModuleIsLoaded(const TSharedRef& data) const
+{
+    return Impl_->ModuleIsLoaded(data);
+}
+
+void TCGModule::AddLoadedModule(const TSharedRef& data)
+{
+    Impl_->AddLoadedModule(data);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
