@@ -3,6 +3,7 @@
 from yt.wrapper.client import Yt
 from yt.wrapper.http_helpers import get_retriable_errors
 from yt.common import YtError
+from yt.wrapper.common import GB
 
 from yt.packages.six.moves import xrange
 import yt.packages.requests as requests
@@ -43,14 +44,30 @@ def get_account_statistics(account):
 
     result = {}
     result["account"] = account
-    result["disk_space_in_gb"] = float(resource_usage["disk_space"]) / 1024 ** 3
-    result["disk_space_limit_in_gb"] = float(resource_limits["disk_space"]) / 1024 ** 3
+
+    if "disk_space_per_medium" not in resource_limits:
+        result["disk_space_in_gb"] = float(resource_usage["disk_space"]) / GB
+        result["disk_space_limit_in_gb"] = float(resource_limits["disk_space"]) / GB
+    else:
+        result["disk_space_in_gb"] = {}
+        result["disk_space_limit_in_gb"] = {}
+
+        for medium in resource_limits["disk_space_per_medium"]:
+            result["disk_space_in_gb"][medium] = float(resource_usage["disk_space_per_medium"][medium]) / GB
+            result["disk_space_limit_in_gb"][medium] = float(resource_limits["disk_space_per_medium"][medium]) / GB
+
     result["node_count"] = resource_usage["node_count"]
     result["node_count_limit"] = resource_limits["node_count"]
-    # Only for YT clusters with version >= 17.1
-    if "chunk_count" in resource_usage:
-        result["chunk_count"] = resource_usage["chunk_count"]
-        result["chunk_count_limit"] = resource_limits["chunk_count"]
+    result["chunk_count"] = resource_usage["chunk_count"]
+    result["chunk_count_limit"] = resource_limits["chunk_count"]
+
+    if "tablet_static_memory" in resource_limits:
+        result["tablet_static_memory_in_gb"] = float(resource_usage["tablet_static_memory"]) / GB
+        result["tablet_static_memory_limit_in_gb"] = float(resource_limits["tablet_static_memory"]) / GB
+
+    if "tablet_count" in resource_limits:
+        result["tablet_count"] = resource_usage["tablet_count"]
+        result["tablet_count_limit"] = resource_limits["tablet_count"]
 
     return result
 
@@ -84,6 +101,10 @@ def push_data_with_retries(url, data, headers):
 def convert_data_to_statface_format(cluster, accounts_data):
     converted_accounts_data = deepcopy(accounts_data)
     for account_data in converted_accounts_data:
+        # NOTE: Only default medium is supported in Statface.
+        if isinstance(account_data["disk_space_in_gb"], dict):
+            account_data["disk_space_in_gb"] = account_data["disk_space_in_gb"]["default"]
+            account_data["disk_space_limit_in_gb"] = account_data["disk_space_limit_in_gb"]["default"]
         account_data["fielddate"] = NOW_STR
         account_data["cluster"] = cluster
     return converted_accounts_data
@@ -97,6 +118,14 @@ def push_cluster_data_to_statface(cluster, accounts_data, headers):
     })
     push_data_with_retries(STATFACE_PUSH_URL, data, headers)
 
+def make_sensor(value, **labels):
+    sensor = {
+        "ts": UTC_NOW_TS,
+        "value": value,
+        "labels": deepcopy(labels)
+    }
+    return sensor
+
 def convert_data_to_solomon_format(accounts_data):
     sensors = []
     for account_data in accounts_data:
@@ -105,11 +134,15 @@ def convert_data_to_solomon_format(accounts_data):
             if key == "account":
                 continue
 
-            sensors.append({
-                "labels": {"account": str(account), "sensor": key},
-                "ts": UTC_NOW_TS,
-                "value": value
-            })
+            if key in ("disk_space_in_gb", "disk_space_limit_in_gb") and isinstance(value, dict):
+                for medium in value:
+                    sensors.append(make_sensor(value[medium], account=str(account), sensor=key, medium=medium))
+                # COMPAT: Default medium is also added as separate sensor without any additional tags.
+                sensors.append(make_sensor(value["default"], account=str(account), sensor=key))
+                continue
+
+            sensors.append(make_sensor(value, account=str(account), sensor=key))
+
     return sensors
 
 def push_cluster_data_to_solomon(cluster, accounts_data, headers):
