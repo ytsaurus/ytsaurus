@@ -176,7 +176,7 @@ class YTEnvSetup(object):
             return "remote_" + str(cluster_index - 1)
 
     @classmethod
-    def setup_class(cls, test_name=None):
+    def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
         if test_name is None:
@@ -189,7 +189,7 @@ class YTEnvSetup(object):
 
         cls.path_to_test = path_to_test
         # For running in parallel
-        cls.run_id = "run_" + uuid.uuid4().hex[:8]
+        cls.run_id = "run_" + uuid.uuid4().hex[:8] if not run_id else run_id
         cls.path_to_run = os.path.join(path_to_test, cls.run_id)
 
         primary_cluster_path = cls.path_to_run

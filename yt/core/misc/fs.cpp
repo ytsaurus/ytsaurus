@@ -21,6 +21,8 @@
 #if defined(_linux_)
     #include <mntent.h>
     #include <sys/vfs.h>
+    #include <sys/quota.h>
+    #include <sys/types.h>
     #include <sys/sendfile.h>
 #elif defined(_freebsd_) || defined(_darwin_)
     #include <sys/param.h>
@@ -537,6 +539,83 @@ void Umount(const TString& path, bool detach)
         THROW_ERROR error;
     }
 
+#else
+    ThrowNotSupported();
+#endif
+}
+
+struct stat Stat(const TStringBuf& path)
+{
+    struct stat statInfo;
+    int result = ::stat(path.c_str(), &statInfo);
+    if (result != 0) {
+        THROW_ERROR_EXCEPTION("Failed to execute ::stat for %v", path)
+            << TError::FromSystem();
+    }
+    return statInfo;
+}
+
+i64 GetBlockSize(const TStringBuf& device)
+{
+    struct stat statInfo = Stat(device);
+    return static_cast<i64>(statInfo.st_blksize);
+}
+
+TString GetFilesystemName(const TStringBuf& path)
+{
+    struct stat statInfo = Stat(path);
+    auto dev = statInfo.st_dev;
+
+    for (const auto& mountPoint : GetMountPoints()) {
+        struct stat currentStatInfo;
+        if (::stat(mountPoint.Path.c_str(), &currentStatInfo) != 0) {
+            continue;
+        }
+
+        if (currentStatInfo.st_dev == dev) {
+            return mountPoint.Name;
+        }
+    }
+
+    THROW_ERROR_EXCEPTION("Failed to find mount point for %v", path);
+}
+
+void SetQuota(
+    int userId,
+    const TStringBuf& path,
+    TNullable<i64> diskSpaceLimit,
+    TNullable<i64> inodeLimit)
+{
+#ifdef _linux_
+    dqblk info;
+    const i64 blockSize = GetBlockSize(path);
+    const auto filesystem = GetFilesystemName(path);
+    u_int32_t flags = 0;
+    if (diskSpaceLimit) {
+        const auto diskSpaceLimitValue = (*diskSpaceLimit + blockSize - 1) / blockSize;
+        info.dqb_bhardlimit = static_cast<u_int64_t>(diskSpaceLimitValue);
+        info.dqb_bsoftlimit = info.dqb_bhardlimit;
+        flags |= QIF_BLIMITS;
+    }
+    if (inodeLimit) {
+        info.dqb_ihardlimit = static_cast<u_int64_t>(*inodeLimit);
+        info.dqb_isoftlimit = info.dqb_ihardlimit;
+        flags |= QIF_ILIMITS;
+    }
+    info.dqb_valid = flags;
+    int result = ::quotactl(
+        QCMD(Q_SETQUOTA, USRQUOTA),
+        filesystem.c_str(),
+        userId,
+        reinterpret_cast<caddr_t>(&info));
+    if (result < 0) {
+        THROW_ERROR_EXCEPTION("Failed to set quota user")
+            << TErrorAttribute("UserId", userId)
+            << TErrorAttribute("DiskSpaceLimit", diskSpaceLimit.Get(0))
+            << TErrorAttribute("InodeLimit", inodeLimit.Get(0))
+            << TErrorAttribute("Path", path)
+            << TError::FromSystem();
+    }
 #else
     ThrowNotSupported();
 #endif
