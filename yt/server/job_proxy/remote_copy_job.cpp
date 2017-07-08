@@ -482,6 +482,10 @@ private:
 
             auto blocks = result.Value();
 
+            // Reader may return less blocks than requested so
+            // index may be moved back here.
+            blockIndex -= blocksToRead - blocks.size();
+
             i64 blocksSize = 0;
             for (const auto& block : blocks) {
                 blocksSize += block.Size();
