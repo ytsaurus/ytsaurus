@@ -586,28 +586,6 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const TStrin
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(key);
 }
 
-void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
-    const TString& key,
-    const TYsonString& /*oldValue*/,
-    const TYsonString& newValue)
-{
-    if (key == "compression_codec") {
-        if (!newValue) {
-            ThrowCannotRemoveAttribute(key);
-        }
-        ConvertTo<NCompression::ECodec>(newValue);
-        return;
-    }
-
-    if (key == "erasure_codec") {
-        if (!newValue) {
-            ThrowCannotRemoveAttribute(key);
-        }
-        ConvertTo<NErasure::ECodec>(newValue);
-        return;
-    }
-}
-
 bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     const TString& key,
     const TYsonString& value)
