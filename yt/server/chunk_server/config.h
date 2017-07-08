@@ -21,7 +21,7 @@ public:
     explicit TInterDCLimitsConfig()
     {
         RegisterParameter("default_capacity", DefaultCapacity)
-            .Default(1_TB)
+            .Default(std::numeric_limits<i64>::max())
             .GreaterThanOrEqual(0);
 
         RegisterParameter("update_interval", UpdateInterval)

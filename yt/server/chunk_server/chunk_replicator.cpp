@@ -2200,6 +2200,8 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
     InterDCEdgeCapacities.clear();
 
     auto capacities = Config_->InterDCLimits->GetCapacities();
+    auto secondaryCellCount = Bootstrap_->GetSecondaryCellTags().size();
+    secondaryCellCount = std::max<int>(secondaryCellCount, 1);
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
@@ -2210,7 +2212,7 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
         auto updateForDstDC = [&] (const TDataCenter* dstDataCenter, const TNullable<TString>& dstDataCenterName) {
             auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
             if (it != newInterDCEdgeCapacities.end()) {
-                interDCEdgeCapacities[dstDataCenter] = it->second;
+                interDCEdgeCapacities[dstDataCenter] = it->second / secondaryCellCount;
             }
         };
 
@@ -2238,13 +2240,16 @@ void TChunkReplicator::UpdateUnsaturatedInterDCEdges()
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
+    const auto defaultCapacity =
+        Config_->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+
     auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
         auto& interDCEdgeConsumption = InterDCEdgeConsumption[srcDataCenter];
         const auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
 
         auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
             if (interDCEdgeConsumption.Value(dstDataCenter, 0) <
-                interDCEdgeCapacities.Value(dstDataCenter, Config_->InterDCLimits->GetDefaultCapacity()))
+                interDCEdgeCapacities.Value(dstDataCenter, defaultCapacity))
             {
                 UnsaturatedInterDCEdges[srcDataCenter].insert(dstDataCenter);
             }
@@ -2278,6 +2283,9 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(const TJobPtr& job, int size
     auto& interDCEdgeConsumption = InterDCEdgeConsumption[srcDataCenter];
     const auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
 
+    const auto defaultCapacity =
+        Config_->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+
     for (const auto& nodePtrWithIndexes : job->TargetReplicas()) {
         const auto* dstDataCenter = nodePtrWithIndexes.GetPtr()->GetDataCenter();
 
@@ -2296,7 +2304,7 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(const TJobPtr& job, int size
         auto& consumption = interDCEdgeConsumption[dstDataCenter];
         consumption += sizeMultiplier * chunkPartSize;
 
-        if (consumption < interDCEdgeCapacities.Value(dstDataCenter, Config_->InterDCLimits->GetDefaultCapacity())) {
+        if (consumption < interDCEdgeCapacities.Value(dstDataCenter, defaultCapacity)) {
             UnsaturatedInterDCEdges[srcDataCenter].insert(dstDataCenter);
         } else {
             auto it = UnsaturatedInterDCEdges.find(srcDataCenter);
