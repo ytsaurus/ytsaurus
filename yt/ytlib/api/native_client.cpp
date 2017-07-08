@@ -1394,9 +1394,7 @@ private:
                 for (const auto& rsp : rsps) {
                     for (const auto& protoTabletInfo : rsp->tablets()) {
                         for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
-                            if (ETableReplicaMode(protoReplicaInfo.mode()) == ETableReplicaMode::Sync &&
-                                protoReplicaInfo.current_replication_row_index() >= protoTabletInfo.total_row_count())
-                            {
+                            if (IsReplicaInSync(protoReplicaInfo, protoTabletInfo)) {
                                 ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
                             }
                         }
@@ -1774,6 +1772,27 @@ private:
         return TSelectRowsResult{rowset, statistics};
     }
 
+
+    static bool IsReplicaInSync(
+        const NQueryClient::NProto::TReplicaInfo& replicaInfo,
+        const NQueryClient::NProto::TTabletInfo& tabletInfo)
+    {
+        return
+            ETableReplicaMode(replicaInfo.mode()) == ETableReplicaMode::Sync &&
+            replicaInfo.current_replication_row_index() >= tabletInfo.total_row_count();
+    }
+
+    static bool IsReplicaInSync(
+        const NQueryClient::NProto::TReplicaInfo& replicaInfo,
+        const NQueryClient::NProto::TTabletInfo& tabletInfo,
+        TTimestamp timestamp)
+    {
+        return
+            replicaInfo.last_replication_timestamp() >= timestamp ||
+            IsReplicaInSync(replicaInfo, tabletInfo);
+    }
+
+
     std::vector<TTableReplicaId> DoGetInSyncReplicas(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -1828,9 +1847,7 @@ private:
             for (const auto& response : responses) {
                 for (const auto& protoTabletInfo : response->tablets()) {
                     for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
-                        if (protoReplicaInfo.last_replication_timestamp() >= options.Timestamp ||
-                            ETableReplicaMode(protoReplicaInfo.mode()) == ETableReplicaMode::Sync)
-                        {
+                        if (IsReplicaInSync(protoReplicaInfo, protoTabletInfo, options.Timestamp)) {
                             ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
                         }
                     }
