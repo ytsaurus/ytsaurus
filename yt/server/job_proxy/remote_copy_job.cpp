@@ -451,27 +451,28 @@ private:
 
         int blockCount = static_cast<int>(blockSizes.size());
 
-        for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
-            int startBlockIndex = blockIndex;
+        int blockIndex = 0;
+        while (blockIndex < blockCount) {
+            int beginBlockIndex = blockIndex;
+            int endBlockIndex = blockIndex;
             i64 sizeToRead = 0;
 
-            while (blockIndex < blockCount && sizeToRead <= RemoteCopyJobSpecExt_.block_buffer_size()) {
-                sizeToRead += blockSizes[blockIndex];
-                blockIndex += 1;
+            while (endBlockIndex < blockCount && sizeToRead <= RemoteCopyJobSpecExt_.block_buffer_size()) {
+                sizeToRead += blockSizes[endBlockIndex];
+                endBlockIndex += 1;
             }
 
-            int blocksToRead = blockIndex - startBlockIndex;
             // This can happen if we encounter block which is bigger than block buffer size.
             // In this case at least one block should be read (this memory overhead is taken
             // into account in operation controller)
-            if (blocksToRead == 0) {
-                blocksToRead += 1;
+            if (endBlockIndex == beginBlockIndex) {
+                endBlockIndex += 1;
             }
 
             auto asyncResult = reader->ReadBlocks(
                 ReaderConfig_->WorkloadDescriptor,
-                startBlockIndex,
-                blocksToRead);
+                beginBlockIndex,
+                endBlockIndex - beginBlockIndex);
 
             auto result = WaitFor(asyncResult);
 
@@ -481,10 +482,6 @@ private:
             }
 
             auto blocks = result.Value();
-
-            // Reader may return less blocks than requested so
-            // index may be moved back here.
-            blockIndex -= blocksToRead - blocks.size();
 
             i64 blocksSize = 0;
             for (const auto& block : blocks) {
@@ -499,6 +496,8 @@ private:
             }
 
             DataStatistics_.set_compressed_data_size(DataStatistics_.compressed_data_size() + blocksSize);
+
+            blockIndex += blocks.size();
         }
 
         {
