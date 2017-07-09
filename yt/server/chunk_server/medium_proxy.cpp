@@ -36,6 +36,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(TAttributeDescriptor("name")
+            .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
         descriptors->push_back(TAttributeDescriptor("index")
@@ -45,6 +46,7 @@ private:
         descriptors->push_back(TAttributeDescriptor("cache")
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("priority")
+            .SetWritable(true)
             .SetReplicated(true));
     }
 

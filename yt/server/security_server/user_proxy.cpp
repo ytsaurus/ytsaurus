@@ -46,10 +46,13 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(TAttributeDescriptor("banned")
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("request_rate_limit")
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("request_queue_size_limit")
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back("access_time");
         descriptors->push_back("request_count");
