@@ -2771,137 +2771,135 @@ private:
     {
         int version = DoGetOperationsArchiveVersion();
 
-        if (version >= 7) {
-            auto nameTable = New<TNameTable>();
+        if (version < 7) {
+            THROW_ERROR_EXCEPTION("Failed to get job input: operations archive version is too old: expected >= 7, got %v", version);
+        }
+    
+        auto nameTable = New<TNameTable>();
 
-            TLookupRowsOptions lookupOptions;
-            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({nameTable->RegisterName("spec")});
-            lookupOptions.KeepMissingRows = true;
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({nameTable->RegisterName("spec")});
+        lookupOptions.KeepMissingRows = true;
 
-            auto owningKey = CreateOperationJobKey(operationId, jobId, nameTable);
+        auto owningKey = CreateOperationJobKey(operationId, jobId, nameTable);
 
-            std::vector<TUnversionedRow> keys;
-            keys.push_back(owningKey);
+        std::vector<TUnversionedRow> keys;
+        keys.push_back(owningKey);
 
-            auto lookupResult = WaitFor(LookupRows(
-                GetOperationsArchiveJobsPath(),
-                nameTable,
-                MakeSharedRange(keys, owningKey),
-                lookupOptions));
+        auto lookupResult = WaitFor(LookupRows(
+            GetOperationsArchiveJobsPath(),
+            nameTable,
+            MakeSharedRange(keys, owningKey),
+            lookupOptions));
 
-            if (!lookupResult.IsOK()) {
-                THROW_ERROR_EXCEPTION(lookupResult)
-                    .Wrap("Lookup job spec in operation archive failed")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("operation_id", operationId);
-            }
-
-            auto rows = lookupResult.Value()->GetRows();
-            YCHECK(!rows.Empty());
-
-            if (!rows[0]) {
-                THROW_ERROR_EXCEPTION("Missing job spec in job archive table")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("operation_id", operationId);
-            }
-
-            auto value = rows[0][0];
-
-            if (value.Type != EValueType::String) {
-                THROW_ERROR_EXCEPTION("Found job spec has unexpected value type")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("operation_id", operationId)
-                    << TErrorAttribute("value_type", value.Type);
-            }
-
-            NJobTrackerClient::NProto::TJobSpec jobSpec;
-            bool ok = jobSpec.ParseFromArray(value.Data.String, value.Length);
-            if (!ok) {
-                THROW_ERROR_EXCEPTION("Cannot parse job spec")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("operation_id", operationId);
-            }
-
-            if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
-                THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("operation_id", operationId)
-                    << TErrorAttribute("found_version", jobSpec.version())
-                    << TErrorAttribute("supported_version", GetJobSpecVersion());
-            }
-
-            auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
-
-            auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-            auto locateChunks = BIND([=] {
-                std::vector<TChunkSpec*> chunkSpecList;
-                for (auto& tableSpec : *schedulerJobSpecExt->mutable_input_table_specs()) {
-                    if (tableSpec.chunk_specs_size() == 0) {
-                        // COMPAT(psushin): don't forget to promote job spec version after removing this compat.
-                        for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
-                            for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
-                                chunkSpecList.push_back(&chunkSpec);
-                            }
-                        }
-                    } else {
-                        for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
-                            chunkSpecList.push_back(&chunkSpec);
-                        }
-                    }
-                }
-
-                for (auto& tableSpec : *schedulerJobSpecExt->mutable_foreign_input_table_specs()) {
-                    if (tableSpec.chunk_specs_size() == 0) {
-                        // COMPAT(psushin): don't forget to promote job spec version after removing this compat.
-                        for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
-                            for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
-                                chunkSpecList.push_back(&chunkSpec);
-                            }
-                        }
-                    } else {
-                        for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
-                            chunkSpecList.push_back(&chunkSpec);
-                        }
-                    }
-                }
-
-                LocateChunks(
-                    MakeStrong(this),
-                    New<TMultiChunkReaderConfig>()->MaxChunksPerLocateRequest,
-                    chunkSpecList,
-                    nodeDirectory,
-                    Logger);
-                nodeDirectory->DumpTo(schedulerJobSpecExt->mutable_input_node_directory());
-            });
-
-            auto locateChunksResult = WaitFor(locateChunks
-                .AsyncVia(GetConnection()->GetHeavyInvoker())
-                .Run());
-
-            if (!locateChunksResult.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to locate chunks used in job input")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("operation_id", operationId);
-            }
-
-            auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
-
-            auto userJobReader = CreateUserJobReadController(
-                jobSpecHelper,
-                MakeStrong(this),
-                GetConnection()->GetHeavyInvoker(),
-                NNodeTrackerClient::TNodeDescriptor(),
-                BIND([] { }),
-                Null);
-
-            auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetHeavyInvoker());
-            jobInputReader->Open();
-            return jobInputReader;
-        } else {
-            LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
+        if (!lookupResult.IsOK()) {
+            THROW_ERROR_EXCEPTION(lookupResult)
+                .Wrap("Lookup job spec in operation archive failed")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId);
         }
 
-        return IAsyncZeroCopyInputStreamPtr();
+        auto rows = lookupResult.Value()->GetRows();
+        YCHECK(!rows.Empty());
+
+        if (!rows[0]) {
+            THROW_ERROR_EXCEPTION("Missing job spec in job archive table")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId);
+        }
+
+        auto value = rows[0][0];
+
+        if (value.Type != EValueType::String) {
+            THROW_ERROR_EXCEPTION("Found job spec has unexpected value type")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId)
+                << TErrorAttribute("value_type", value.Type);
+        }
+
+        NJobTrackerClient::NProto::TJobSpec jobSpec;
+        bool ok = jobSpec.ParseFromArray(value.Data.String, value.Length);
+        if (!ok) {
+            THROW_ERROR_EXCEPTION("Cannot parse job spec")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId);
+        }
+
+        if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
+            THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId)
+                << TErrorAttribute("found_version", jobSpec.version())
+                << TErrorAttribute("supported_version", GetJobSpecVersion());
+        }
+
+        auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        auto locateChunks = BIND([=] {
+            std::vector<TChunkSpec*> chunkSpecList;
+            for (auto& tableSpec : *schedulerJobSpecExt->mutable_input_table_specs()) {
+                if (tableSpec.chunk_specs_size() == 0) {
+                    // COMPAT(psushin): don't forget to promote job spec version after removing this compat.
+                    for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
+                        for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
+                            chunkSpecList.push_back(&chunkSpec);
+                        }
+                    }
+                } else {
+                    for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
+                        chunkSpecList.push_back(&chunkSpec);
+                    }
+                }
+            }
+
+            for (auto& tableSpec : *schedulerJobSpecExt->mutable_foreign_input_table_specs()) {
+                if (tableSpec.chunk_specs_size() == 0) {
+                    // COMPAT(psushin): don't forget to promote job spec version after removing this compat.
+                    for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
+                        for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
+                            chunkSpecList.push_back(&chunkSpec);
+                        }
+                    }
+                } else {
+                    for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
+                        chunkSpecList.push_back(&chunkSpec);
+                    }
+                }
+            }
+
+            LocateChunks(
+                MakeStrong(this),
+                New<TMultiChunkReaderConfig>()->MaxChunksPerLocateRequest,
+                chunkSpecList,
+                nodeDirectory,
+                Logger);
+            nodeDirectory->DumpTo(schedulerJobSpecExt->mutable_input_node_directory());
+        });
+
+        auto locateChunksResult = WaitFor(locateChunks
+            .AsyncVia(GetConnection()->GetHeavyInvoker())
+            .Run());
+
+        if (!locateChunksResult.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to locate chunks used in job input")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId);
+        }
+
+        auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
+
+        auto userJobReader = CreateUserJobReadController(
+            jobSpecHelper,
+            MakeStrong(this),
+            GetConnection()->GetHeavyInvoker(),
+            NNodeTrackerClient::TNodeDescriptor(),
+            BIND([] { }),
+            Null);
+
+        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetHeavyInvoker());
+        jobInputReader->Open();
+        return jobInputReader;
     }
 
     TSharedRef DoGetJobStderrFromNode(
