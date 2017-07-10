@@ -19,14 +19,11 @@ import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
 public final class DataCenter {
     private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
 
-    private BalancingRpcClient balancingRpcClient;
     private final String dc;
     private final BalancingDestination[] backends;
     private int aliveCount;
-    final private Random rnd = new Random();
 
-    public DataCenter(BalancingRpcClient balancingRpcClient, String dc, BalancingDestination[] backends) {
-        this.balancingRpcClient = balancingRpcClient;
+    public DataCenter(String dc, BalancingDestination[] backends) {
         this.dc = dc;
         this.backends = backends;
         this.aliveCount = backends.length;
@@ -67,7 +64,7 @@ public final class DataCenter {
         }
     }
 
-    public List<BalancingDestination> selectDestinations(final int maxSelect) {
+    public List<BalancingDestination> selectDestinations(final int maxSelect, Random rnd) {
         final ArrayList<BalancingDestination> result = new ArrayList<>();
         result.ensureCapacity(maxSelect);
 
