@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.rpc.internal.BalancingDestination;
 import ru.yandex.yt.ytclient.rpc.internal.BalancingResponseHandler;
+import ru.yandex.yt.ytclient.rpc.internal.DataCenter;
 
 import static java.lang.Integer.min;
 
@@ -31,109 +32,11 @@ public class BalancingRpcClient implements RpcClient {
     final private Duration pingTimeout;
     final private Duration globalTimeout;
     final private String dataCenterName;
-    final private DataCenter [] dataCenters;
+    final private DataCenter[] dataCenters;
     private DataCenter localDataCenter;
     final private Random rnd = new Random();
     final private ScheduledExecutorService executorService;
     final private RpcFailoverPolicy failoverPolicy;
-
-    final private class DataCenter {
-        private final String dc;
-        private final BalancingDestination[] backends;
-        private int aliveCount;
-
-        DataCenter(String dc, BalancingDestination[] backends) {
-            this.dc = dc;
-            this.backends = backends;
-            this.aliveCount = backends.length;
-        }
-
-        void setAlive(BalancingDestination dst) {
-            synchronized (backends) {
-                if (dst.getIndex() >= aliveCount) {
-                    BalancingDestination t = backends[aliveCount];
-                    backends[aliveCount] = backends[dst.getIndex()];
-                    backends[dst.getIndex()] = t;
-                    dst.setIndex(aliveCount);
-                    aliveCount ++;
-
-                    logger.info("backend `{}` is alive", dst);
-                }
-            }
-        }
-
-        void setDead(BalancingDestination dst) {
-            synchronized (backends) {
-                if (dst.getIndex() < aliveCount) {
-                    aliveCount --;
-                    BalancingDestination t = backends[aliveCount];
-                    backends[aliveCount] = backends[dst.getIndex()];
-                    backends[dst.getIndex()] = t;
-                    dst.setIndex(aliveCount);
-
-                    logger.info("backend `{}` is dead", dst);
-                    dst.resetTransaction();
-                }
-            }
-        }
-
-        void close() {
-            for (BalancingDestination client : backends) {
-                client.close();
-            }
-        }
-
-        List<BalancingDestination> selectDestinations(final int maxSelect) {
-            final ArrayList<BalancingDestination> result = new ArrayList<>();
-            result.ensureCapacity(maxSelect);
-
-            rnd.ints(maxSelect);
-
-            synchronized (backends) {
-                int count = aliveCount;
-
-                while (count != 0 && result.size() < maxSelect) {
-                    int idx = rnd.nextInt(count);
-                    BalancingDestination t = backends[idx];
-                    backends[idx] = backends[count-1];
-                    backends[count-1] = t;
-                    result.add(t);
-                    --count;
-                }
-            }
-
-            return result;
-        }
-
-        private CompletableFuture<Void> ping(BalancingDestination client) {
-            CompletableFuture<Void> f = client.createTransaction().thenCompose(id -> client.pingTransaction(id))
-                .thenAccept(unused -> setAlive(client))
-                .exceptionally(unused -> {
-                    setDead(client);
-                    return null;
-                });
-
-            executorService.schedule(
-                () -> {
-                    if (!f.isDone()) { f.cancel(true); }
-                },
-                pingTimeout.toMillis(), TimeUnit.MILLISECONDS
-            );
-
-            return f;
-        }
-
-        CompletableFuture<Void> ping() {
-            synchronized (backends) {
-                CompletableFuture<Void> futures[] = new CompletableFuture[backends.length];
-                for (int i = 0; i < backends.length; ++i) {
-                    futures[i] = ping(backends[i]);
-                }
-
-                return CompletableFuture.allOf(futures);
-            }
-        }
-    }
 
     public BalancingRpcClient(
         Duration failoverTimeout,
@@ -197,7 +100,7 @@ public class BalancingRpcClient implements RpcClient {
                 index = j++;
                 destinations[index] = new BalancingDestination(dcName, client, index);
             }
-            DataCenter dc = new DataCenter(dcName, destinations);
+            DataCenter dc = new DataCenter(this, dcName, destinations);
 
 
             index = i++;
@@ -223,25 +126,36 @@ public class BalancingRpcClient implements RpcClient {
         int maxSelect = 3;
 
         List<BalancingDestination> r = new ArrayList<>();
-        for (DataCenter dc : dataCenters) {
+
+        int n = dataCenters.length;
+        int [] idx = new int[n];
+
+        for (int i = 0; i < n; ++i) {
+            idx[i] = i;
+        }
+
+        int from = 0;
+        if (localDataCenter != null) {
+            from = 1;
+        }
+
+        for (int i = from; i < n; ++i) {
+            int j = rnd.nextInt(n - i);
+            int t = idx[j];
+            idx[j] = idx[i];
+            idx[i] = t;
+        }
+
+        for (int i = 0; i < n; ++i) {
+            DataCenter dc = dataCenters[idx[i]];
+
             List<BalancingDestination> select = dc.selectDestinations(min(maxSelect, 2));
             maxSelect -= select.size();
 
             r.addAll(select);
-        }
 
-        synchronized (dataCenters) {
-            // randomize
-            int from = 0;
-            if (localDataCenter != null) {
-                from = 1;
-            }
-
-            for (int i = from; i < dataCenters.length; ++i) {
-                int j = rnd.nextInt(dataCenters.length - i);
-                DataCenter t = dataCenters[j];
-                dataCenters[j] = dataCenters[i];
-                dataCenters[i] = t;
+            if (maxSelect <= 0) {
+                break;
             }
         }
 
@@ -261,7 +175,7 @@ public class BalancingRpcClient implements RpcClient {
         CompletableFuture<Void> futures[] = new CompletableFuture[dataCenters.length];
         int i = 0;
         for (DataCenter entry : dataCenters) {
-            futures[i++] = entry.ping();
+            futures[i++] = entry.ping(executorService, pingTimeout);
         }
 
         CompletableFuture.allOf(futures).whenComplete((a, b) -> {
