@@ -64,5 +64,23 @@ public class BalancingRpcClientTest {
 
         res = BalancingRpcClient.selectDestinations(dcs, 6, false, rnd);
         assertThat(res.toString(), is("[dc2/3, dc2/0, dc3/6, dc3/3, dc1/8, dc1/1]"));
+
+        // filter dead proxies
+        k = testData.get(dcs[0].getName());
+        for (int i = 0; i < k; ++i) {
+            dcs[0].setDead(0);
+        }
+        assertThat(dcs[0].isAlive(), is(false));
+        res = BalancingRpcClient.selectDestinations(dcs, 6, true, rnd);
+        assertThat(res.toString(), is("[dc2/2, dc2/4, dc3/7, dc3/6]"));
+
+        dcs[0].setAlive(0);
+        dcs[0].setAlive(1);
+        assertThat(dcs[0].isAlive(), is(true));
+        res = BalancingRpcClient.selectDestinations(dcs, 6, true, rnd);
+        assertThat(res.toString(), is("[dc1/9, dc1/6, dc3/5, dc3/6, dc2/4, dc2/9]"));
+        res = BalancingRpcClient.selectDestinations(dcs, 6, true, rnd);
+        assertThat(res.toString(), is("[dc1/6, dc1/9, dc2/6, dc2/4, dc3/3, dc3/2]"));
+
     }
 }

@@ -29,15 +29,15 @@ public final class DataCenter {
         this.aliveCount = backends.length;
     }
 
+    public String getName() {
+        return dc;
+    }
+
     void setAlive(BalancingDestination dst) {
         synchronized (backends) {
             if (dst.getIndex() >= aliveCount) {
-                BalancingDestination t = backends[aliveCount];
-                backends[aliveCount] = backends[dst.getIndex()];
-                backends[dst.getIndex()] = t;
-                dst.setIndex(aliveCount);
+                swap(aliveCount, dst.getIndex());
                 aliveCount++;
-
                 logger.info("backend `{}` is alive", dst);
             }
         }
@@ -47,21 +47,38 @@ public final class DataCenter {
         synchronized (backends) {
             if (dst.getIndex() < aliveCount) {
                 aliveCount--;
-                BalancingDestination t = backends[aliveCount];
-                backends[aliveCount] = backends[dst.getIndex()];
-                backends[dst.getIndex()] = t;
-                dst.setIndex(aliveCount);
-
+                swap(aliveCount, dst.getIndex());
                 logger.info("backend `{}` is dead", dst);
                 dst.resetTransaction();
             }
         }
     }
 
+    public boolean isAlive() {
+        return aliveCount > 0;
+    }
+
+    public void setDead(int index) {
+        setDead(backends[index]);
+    }
+
+    public void setAlive(int index) {
+        setAlive(backends[index]);
+    }
+
     public void close() {
         for (BalancingDestination client : backends) {
             client.close();
         }
+    }
+
+    private void swap(int i, int j) {
+        BalancingDestination t = backends[i];
+        backends[i] = backends[j];
+        backends[j] = t;
+
+        backends[i].setIndex(i);
+        backends[j].setIndex(j);
     }
 
     public List<BalancingDestination> selectDestinations(final int maxSelect, Random rnd) {
@@ -75,10 +92,8 @@ public final class DataCenter {
 
             while (count != 0 && result.size() < maxSelect) {
                 int idx = rnd.nextInt(count);
-                BalancingDestination t = backends[idx];
-                backends[idx] = backends[count - 1];
-                backends[count - 1] = t;
-                result.add(t);
+                result.add(backends[idx]);
+                swap(idx, count-1);
                 --count;
             }
         }
