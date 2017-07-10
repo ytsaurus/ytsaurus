@@ -21,7 +21,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 public class BalancingDestination {
     private final String dc;
     private final RpcClient client;
-    private boolean isAlive;
+    private final String id;
     private int index;
 
     final ApiService service;
@@ -30,9 +30,17 @@ public class BalancingDestination {
     public BalancingDestination(String dc, RpcClient client, int index) {
         this.dc = dc;
         this.client = Objects.requireNonNull(client);
-        isAlive = true;
         this.index = index;
+        this.id = String.format("%s/%s", dc, client.toString());
         service = client.getService(ApiService.class);
+    }
+
+    public BalancingDestination(String dc, int index) {
+        this.dc = dc;
+        this.client = null;
+        this.id = String.format("%s/%d", dc, index);
+        this.index = index;
+        service = null;
     }
 
     public String dataCenter() {
@@ -85,6 +93,6 @@ public class BalancingDestination {
     }
 
     public String toString() {
-        return client.toString();
+        return id;
     }
 }

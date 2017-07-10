@@ -100,7 +100,7 @@ public class BalancingRpcClient implements RpcClient {
                 index = j++;
                 destinations[index] = new BalancingDestination(dcName, client, index);
             }
-            DataCenter dc = new DataCenter(this, dcName, destinations);
+            DataCenter dc = new DataCenter(dcName, destinations);
 
 
             index = i++;
@@ -122,9 +122,7 @@ public class BalancingRpcClient implements RpcClient {
         }
     }
 
-    private List<BalancingDestination> selectDestinations() {
-        int maxSelect = 3;
-
+    static List<BalancingDestination> selectDestinations(DataCenter [] dataCenters, int maxSelect, boolean hasLocal, Random rnd) {
         List<BalancingDestination> r = new ArrayList<>();
 
         int n = dataCenters.length;
@@ -135,12 +133,12 @@ public class BalancingRpcClient implements RpcClient {
         }
 
         int from = 0;
-        if (localDataCenter != null) {
+        if (hasLocal) {
             from = 1;
         }
 
         for (int i = from; i < n; ++i) {
-            int j = rnd.nextInt(n - i);
+            int j = i + rnd.nextInt(n - i);
             int t = idx[j];
             idx[j] = idx[i];
             idx[i] = t;
@@ -149,7 +147,7 @@ public class BalancingRpcClient implements RpcClient {
         for (int i = 0; i < n; ++i) {
             DataCenter dc = dataCenters[idx[i]];
 
-            List<BalancingDestination> select = dc.selectDestinations(min(maxSelect, 2));
+            List<BalancingDestination> select = dc.selectDestinations(min(maxSelect, 2), rnd);
             maxSelect -= select.size();
 
             r.addAll(select);
@@ -185,7 +183,7 @@ public class BalancingRpcClient implements RpcClient {
 
     @Override
     public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
-        List<BalancingDestination> destinations = selectDestinations();
+        List<BalancingDestination> destinations = selectDestinations(dataCenters, 3, localDataCenter != null, rnd);
 
         CompletableFuture<List<byte[]>> f = new CompletableFuture<>();
 
