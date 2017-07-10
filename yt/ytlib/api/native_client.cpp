@@ -3079,7 +3079,7 @@ private:
         } else {
             LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
         }
-        
+ 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
             << TErrorAttribute("operation_id", operationId)
             << TErrorAttribute("job_id", jobId);
