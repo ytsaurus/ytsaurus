@@ -2,9 +2,9 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import com.google.common.collect.ImmutableMap;
-import java.util.Random;
 import org.junit.Test;
 
 import ru.yandex.yt.ytclient.rpc.internal.BalancingDestination;
