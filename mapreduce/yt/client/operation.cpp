@@ -780,6 +780,49 @@ void BuildCommonUserOperationPart(const TSpec& baseSpec, TNode* spec)
     }
 }
 
+template <typename TSpec>
+void BuildJobCountOperationPart(const TSpec& spec, TNode* nodeSpec)
+{
+    if (spec.JobCount_.Defined()) {
+        (*nodeSpec)["job_count"] = *spec.JobCount_;
+    }
+    if (spec.DataSizePerJob_.Defined()) {
+        (*nodeSpec)["data_size_per_job"] = *spec.DataSizePerJob_;
+    }
+}
+
+template <typename TSpec>
+void BuildPartitionCountOperationPart(const TSpec& spec, TNode* nodeSpec)
+{
+    if (spec.PartitionCount_.Defined()) {
+        (*nodeSpec)["partition_count"] = *spec.PartitionCount_;
+    }
+    if (spec.PartitionDataSize_.Defined()) {
+        (*nodeSpec)["partition_data_size"] = *spec.PartitionDataSize_;
+    }
+}
+
+template <typename TSpec>
+void BuildPartitionJobCountOperationPart(const TSpec& spec, TNode* nodeSpec)
+{
+    if (spec.PartitionJobCount_.Defined()) {
+        (*nodeSpec)["partition_job_count"] = *spec.PartitionJobCount_;
+    }
+    if (spec.DataSizePerPartitionJob_.Defined()) {
+        (*nodeSpec)["data_size_per_partition_job"] = *spec.DataSizePerPartitionJob_;
+    }
+}
+
+template <typename TSpec>
+void BuildMapJobCountOperationPart(const TSpec& spec, TNode* nodeSpec)
+{
+    if (spec.MapJobCount_.Defined()) {
+        (*nodeSpec)["map_job_count"] = *spec.MapJobCount_;
+    }
+    if (spec.DataSizePerMapJob_.Defined()) {
+        (*nodeSpec)["data_size_per_map_job"] = *spec.DataSizePerMapJob_;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -923,6 +966,7 @@ TOperationId ExecuteMap(
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
+    BuildJobCountOperationPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
         auth,
@@ -1005,6 +1049,7 @@ TOperationId ExecuteReduce(
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
+    BuildJobCountOperationPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
         auth,
@@ -1083,6 +1128,7 @@ TOperationId ExecuteJoinReduce(
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
+    BuildJobCountOperationPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
         auth,
@@ -1286,6 +1332,8 @@ TOperationId ExecuteMapReduce(
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
+    BuildMapJobCountOperationPart(spec, &specNode["spec"]);
+    BuildPartitionCountOperationPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
         auth,
@@ -1325,6 +1373,9 @@ TOperationId ExecuteSort(
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
+    BuildPartitionCountOperationPart(spec, &specNode["spec"]);
+    BuildPartitionJobCountOperationPart(spec, &specNode["spec"]);
+
     auto operationId = StartOperation(
         auth,
         transactionId,
@@ -1361,6 +1412,8 @@ TOperationId ExecuteMerge(
         .Item("merge_by").Value(spec.MergeBy_)
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
+
+    BuildJobCountOperationPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
         auth,

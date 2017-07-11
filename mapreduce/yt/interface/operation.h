@@ -145,6 +145,8 @@ struct TUserJobSpec
     FLUENT_FIELD_OPTION(TString, JobBinary);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TMapOperationSpec
     : public TOperationIOSpec<TMapOperationSpec>
     , public TUserOperationSpecBase<TMapOperationSpec>
@@ -153,6 +155,12 @@ struct TMapOperationSpec
 
     FLUENT_FIELD(TUserJobSpec, MapperSpec);
     FLUENT_FIELD_OPTION(bool, Ordered);
+
+    // `JobCount' and `DataSizePerJob' options affect how many jobs will be launched.
+    // These options only provide recommendations and YT might ignore them if they conflict with YT internal limits.
+    // `JobCount' has higher priority than `DataSizePerJob'.
+    FLUENT_FIELD_OPTION(ui32, JobCount);
+    FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
 struct TReduceOperationSpec
@@ -165,6 +173,10 @@ struct TReduceOperationSpec
     FLUENT_FIELD(TKeyColumns, SortBy);
     FLUENT_FIELD(TKeyColumns, ReduceBy);
     FLUENT_FIELD_OPTION(TKeyColumns, JoinBy);
+
+    // Similar to corresponding options in `TMapOperationSpec'.
+    FLUENT_FIELD_OPTION(ui32, JobCount);
+    FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
 struct TMapReduceOperationSpec
@@ -179,6 +191,13 @@ struct TMapReduceOperationSpec
     FLUENT_FIELD(TUserJobSpec, ReduceCombinerSpec);
     FLUENT_FIELD(TKeyColumns, SortBy);
     FLUENT_FIELD(TKeyColumns, ReduceBy);
+
+    // Similar to `JobCount' / `DataSizePerJob'.
+    FLUENT_FIELD_OPTION(ui64, MapJobCount);
+    FLUENT_FIELD_OPTION(ui64, DataSizePerMapJob);
+
+    FLUENT_FIELD_OPTION(ui64, PartitionCount);
+    FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
 };
 
 struct TJoinReduceOperationSpec
@@ -189,6 +208,10 @@ struct TJoinReduceOperationSpec
 
     FLUENT_FIELD(TUserJobSpec, ReducerSpec);
     FLUENT_FIELD(TKeyColumns, JoinBy);
+
+    // Similar to corresponding options in `TMapOperationSpec'.
+    FLUENT_FIELD_OPTION(ui32, JobCount);
+    FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +223,12 @@ struct TSortOperationSpec
     FLUENT_VECTOR_FIELD(TRichYPath, Input);
     FLUENT_FIELD(TRichYPath, Output);
     FLUENT_FIELD(TKeyColumns, SortBy);
+
+    FLUENT_FIELD_OPTION(ui64, PartitionCount);
+    FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
+
+    FLUENT_FIELD_OPTION(ui64, PartitionJobCount);
+    FLUENT_FIELD_OPTION(ui64, DataSizePerPartitionJob);
 };
 
 enum EMergeMode : int
@@ -219,6 +248,10 @@ struct TMergeOperationSpec
     FLUENT_FIELD_DEFAULT(EMergeMode, Mode, MM_UNORDERED);
     FLUENT_FIELD_DEFAULT(bool, CombineChunks, false);
     FLUENT_FIELD_DEFAULT(bool, ForceTransform, false);
+
+    // Similar to `JobCount' / `DataSizePerJob'.
+    FLUENT_FIELD_OPTION(ui64, JobCount);
+    FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
 struct TEraseOperationSpec
