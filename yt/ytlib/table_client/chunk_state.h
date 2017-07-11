@@ -30,14 +30,8 @@ struct TChunkState
         , KeyComparer(std::move(keyComparer))
     { }
 
-    TChunkState(const TChunkState& other)
-        : BlockCache(other.BlockCache)
-        , ChunkSpec(other.ChunkSpec)
-        , ChunkMeta(other.ChunkMeta)
-        , LookupHashTable(other.LookupHashTable)
-        , PerformanceCounters(other.PerformanceCounters)
-        , KeyComparer(other.KeyComparer)
-    { }
+    TChunkState(const TChunkState& other) = default;
+    TChunkState(TChunkState&& other) = default;
 
     NChunkClient::IBlockCachePtr BlockCache;
     NChunkClient::NProto::TChunkSpec ChunkSpec;

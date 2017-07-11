@@ -188,11 +188,14 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     auto orderedDynamicStore = store->AsOrderedDynamic();
     auto reader = orderedDynamicStore->CreateFlushReader();
 
+    auto inMemoryMode = GetInMemoryMode();
+    auto inMemoryConfigRevision = GetInMemoryConfigRevision();
+
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
 
-        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
+        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode, inMemoryConfigRevision);
 
         auto chunkWriter = CreateConfirmingWriter(
             tabletSnapshot->WriterConfig,

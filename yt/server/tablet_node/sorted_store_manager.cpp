@@ -410,6 +410,9 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     // NB: Memory store reader is always synchronous.
     YCHECK(reader->Open().Get().IsOK());
 
+    auto inMemoryMode = GetInMemoryMode();
+    auto inMemoryConfigRevision = GetInMemoryConfigRevision();
+
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
@@ -418,7 +421,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         // TODO(sandello): Introduce a new workload descriptor for the flushes.
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
 
-        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
+        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(inMemoryMode, inMemoryConfigRevision);
 
         auto chunkWriter = CreateConfirmingWriter(
             writerConfig,

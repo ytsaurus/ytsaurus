@@ -4,6 +4,7 @@
 #include "tablet.h"
 #include "config.h"
 #include "in_memory_manager.h"
+#include "store_manager.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
@@ -375,24 +376,13 @@ public:
     TPreloadedBlockCache(
         TIntrusivePtr<TChunkStoreBase> owner,
         const TChunkId& chunkId,
-        EBlockType type,
+        EInMemoryMode mode,
         IBlockCachePtr underlyingCache)
         : Owner_(owner)
         , ChunkId_(chunkId)
-        , Type_(type)
+        , BlockType_(MapInMemoryModeToBlockType(mode))
         , UnderlyingCache_(std::move(underlyingCache))
     { }
-
-    DEFINE_BYVAL_RO_PROPERTY(IChunkLookupHashTablePtr, LookupHashTable);
-
-    ~TPreloadedBlockCache()
-    {
-        auto owner = Owner_.Lock();
-        if (!owner)
-            return;
-
-        owner->SetMemoryUsage(0);
-    }
 
     virtual void Put(
         const TBlockId& id,
@@ -407,11 +397,10 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        Y_ASSERT(id.ChunkId == ChunkId_);
-
-        if (type == Type_ && IsPreloaded()) {
-            Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
-            return Blocks_[id.BlockIndex];
+        if (type == BlockType_ && IsPreloaded()) {
+            Y_ASSERT(id.ChunkId == ChunkId_);
+            Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < ChunkData_->Blocks.size());
+            return ChunkData_->Blocks[id.BlockIndex];
         } else {
             return UnderlyingCache_->Find(id, type);
         }
@@ -419,41 +408,43 @@ public:
 
     virtual EBlockType GetSupportedBlockTypes() const override
     {
-        return Type_;
+        return BlockType_;
     }
 
     void Preload(TInMemoryChunkDataPtr chunkData)
     {
-        auto owner = Owner_.Lock();
-        if (!owner)
+        // This method must be idempotent: preloads may be retried due to synchronization
+        // with the config version. However, once the store is preloaded -- we keep it that way.
+        auto preloaded = Preloaded_.load(std::memory_order_relaxed);
+        if (preloaded != EState::NotPreloaded) {
             return;
-
-        Blocks_ = std::move(chunkData->Blocks);
-        LookupHashTable_ = chunkData->LookupHashTable;
-
-        i64 dataSize = GetByteSize(Blocks_);
-        if (LookupHashTable_) {
-            dataSize += LookupHashTable_->GetByteSize();
         }
-
-        owner->SetMemoryUsage(dataSize);
-
-        Preloaded_ = true;
+        if (Preloaded_.compare_exchange_strong(preloaded, EState::InProgress)) {
+            ChunkData_ = std::move(chunkData);
+            YCHECK(Preloaded_.exchange(EState::Preloaded) == EState::InProgress);
+        }
     }
 
     bool IsPreloaded() const
     {
-        return Preloaded_.load();
+        return Preloaded_.load(std::memory_order_acquire) == EState::Preloaded;
     }
 
 private:
     const TWeakPtr<TChunkStoreBase> Owner_;
     const TChunkId ChunkId_;
-    const EBlockType Type_;
+    const EBlockType BlockType_;
     const IBlockCachePtr UnderlyingCache_;
 
-    std::vector<TBlock> Blocks_;
-    std::atomic<bool> Preloaded_ = {false};
+    TInMemoryChunkDataPtr ChunkData_;
+
+    enum EState {
+        NotPreloaded,
+        InProgress,
+        Preloaded,
+    };
+
+    std::atomic<EState> Preloaded_ = {EState::NotPreloaded};
 };
 
 DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
@@ -486,7 +477,9 @@ TChunkStoreBase::TChunkStoreBase(
 
 void TChunkStoreBase::Initialize(const TAddStoreDescriptor* descriptor)
 {
-    SetInMemoryMode(Tablet_->GetConfig()->InMemoryMode);
+    const auto& storeManager = Tablet_->GetStoreManager();
+
+    SetInMemoryMode(storeManager->GetInMemoryMode(), storeManager->GetInMemoryConfigRevision());
 
     if (descriptor) {
         ChunkMeta_->CopyFrom(descriptor->chunk_meta());
@@ -765,15 +758,19 @@ EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
     return InMemoryMode_;
 }
 
-void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
+void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode, ui64 configRevision)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TWriterGuard guard(SpinLock_);
 
+    InMemoryConfigRevision_ = configRevision; // Unconditionally. Consumes the new revision.
+
     if (InMemoryMode_ == mode) {
         return;
     }
+
+    InMemoryMode_ = mode;
 
     ChunkState_.Reset();
     PreloadedBlockCache_.Reset();
@@ -786,14 +783,10 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
     if (mode == EInMemoryMode::None) {
         PreloadState_ = EStorePreloadState::Disabled;
     } else {
-        auto blockType =
-               mode == EInMemoryMode::Compressed      ? EBlockType::CompressedData :
-            /* mode == EInMemoryMode::Uncompressed */   EBlockType::UncompressedData;
-
         PreloadedBlockCache_ = New<TPreloadedBlockCache>(
             this,
             StoreId_,
-            blockType,
+            mode,
             BlockCache_);
 
         switch (PreloadState_) {
@@ -805,14 +798,10 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
             case EStorePreloadState::None:
             case EStorePreloadState::Scheduled:
                 break;
-            default:
-                Y_UNREACHABLE();
         }
     }
 
     ChunkReader_.Reset();
-
-    InMemoryMode_ = mode;
 }
 
 void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
@@ -821,19 +810,18 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 
     TWriterGuard guard(SpinLock_);
 
-    if (chunkData->InMemoryMode != InMemoryMode_) {
-        return;
-    }
-
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+
+    YCHECK(chunkData->InMemoryMode == InMemoryMode_);
+    YCHECK(chunkData->InMemoryConfigRevision == InMemoryConfigRevision_);
 
     PreloadedBlockCache_->Preload(chunkData);
     ChunkState_ = New<TChunkState>(
         PreloadedBlockCache_,
         chunkSpec,
         chunkData->ChunkMeta,
-        PreloadedBlockCache_->GetLookupHashTable(),
+        chunkData->LookupHashTable,
         PerformanceCounters_,
         GetKeyComparer());
 }

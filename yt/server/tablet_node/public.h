@@ -103,21 +103,22 @@ DEFINE_ENUM(ETabletState,
     ((Mounted)                  (0))
 
     // Unmount workflow.
+    ((UnmountFirst)             (1)) // sentinel
     ((UnmountWaitingForLocks)   (1))
     ((UnmountFlushPending)      (2)) // transient, transition to UnmountFlushing is pending
     ((UnmountFlushing)          (3))
     ((UnmountPending)           (4)) // transient, transition to Unmounted is pending
     ((Unmounted)                (5))
-    ((UnmountFirst)             (1))
-    ((UnmountLast)              (5))
+    ((UnmountLast)              (5)) // sentinel
 
+    // Freeze workflow.
+    ((FreezeFirst)              (6)) // sentinel
     ((FreezeWaitingForLocks)    (6))
     ((FreezeFlushPending)       (7)) // transient, transition to UnmountFlushing is pending
     ((FreezeFlushing)           (8))
     ((FreezePending)            (9)) // transient, transition to Unmounted is pending
     ((Frozen)                  (10))
-    ((FreezeFirst)              (6))
-    ((FreezeLast)              (10))
+    ((FreezeLast)              (10)) // sentinel
 
     ((Orphaned)               (100))
 );
@@ -173,6 +174,11 @@ DEFINE_ENUM(EInMemoryMode,
     (Compressed)
     (Uncompressed)
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsInUnmountWorkflow(ETabletState state);
+bool IsInFreezeWorkflow(ETabletState state);
 
 ////////////////////////////////////////////////////////////////////////////////
 

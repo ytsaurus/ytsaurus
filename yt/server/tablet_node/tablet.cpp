@@ -973,6 +973,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->StoreCount = static_cast<int>(StoreIdMap_.size());
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
+    snapshot->InMemoryConfigRevision = StoreManager_ ? StoreManager_->GetInMemoryConfigRevision() : 0;
 
     auto addStoreStatistics = [&] (const IStorePtr& store) {
         if (store->IsChunk()) {

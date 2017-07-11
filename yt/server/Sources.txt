@@ -390,6 +390,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/ordered_store_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/sorted_store_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/ordered_chunk_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_compactor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_detail.cpp
