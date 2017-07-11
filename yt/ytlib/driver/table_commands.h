@@ -286,7 +286,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEnableTableReplicaCommand
-    : public TTypedCommand<NApi::TEnableTableReplicaOptions>
+    : public TTypedCommand<NApi::TAlterTableReplicaOptions>
 {
 public:
     TEnableTableReplicaCommand();
@@ -300,7 +300,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDisableTableReplicaCommand
-    : public TTypedCommand<NApi::TDisableTableReplicaOptions>
+    : public TTypedCommand<NApi::TAlterTableReplicaOptions>
 {
 public:
     TDisableTableReplicaCommand();

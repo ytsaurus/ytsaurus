@@ -402,9 +402,10 @@ TFuture<NApi::IUnversionedRowsetPtr> TRpcProxyClientBase::LookupRows(
     TApiServiceProxy proxy(GetChannel());
 
     auto req = proxy.LookupRows();
+    req->SetTimeout(options.Timeout);
+
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
-    req->SetTimeout(options.Timeout);
 
     if (!options.ColumnFilter.All) {
         for (auto id : options.ColumnFilter.Indexes) {
@@ -431,9 +432,10 @@ TFuture<NApi::IVersionedRowsetPtr> TRpcProxyClientBase::VersionedLookupRows(
     TApiServiceProxy proxy(GetChannel());
 
     auto req = proxy.VersionedLookupRows();
+    req->SetTimeout(options.Timeout);
+
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
-    req->SetTimeout(options.Timeout);
 
     if (!options.ColumnFilter.All) {
         for (auto id : options.ColumnFilter.Indexes) {
@@ -458,8 +460,9 @@ TFuture<NApi::TSelectRowsResult> TRpcProxyClientBase::SelectRows(
     TApiServiceProxy proxy(GetChannel());
 
     auto req = proxy.SelectRows();
-    req->set_query(query);
     req->SetTimeout(options.Timeout);
+
+    req->set_query(query);
 
     req->set_timestamp(options.Timestamp);
     if (options.InputRowLimit) {

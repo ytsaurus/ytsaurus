@@ -610,9 +610,69 @@ message TRspUnfreezeTable
 message TReqReshardTable
 {
     required string path = 1; // ypath
+
+    optional int32 tablet_count = 3;
+
+    optional TMutatingOptions mutating_options = 103;
+    optional TTabletRangeOptions tablet_range_options = 104;
+
+    optional TRowsetDescriptor rowset_descriptor = 200;
 }
 
 message TRspReshardTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqTrimTable
+{
+    required string path = 1; // ypath
+    required int32 tablet_index = 2;
+    required uint64 trimmed_row_count = 3;
+
+    // XXX(sandello): Mutating?
+}
+
+message TRspTrimTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqAlterTable
+{
+    required string path = 1; // ypath
+
+    optional bytes schema = 2; // yson string
+    optional bool dynamic = 3;
+    optional NYT.NProto.TGuid upstream_replica_id = 4;
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TMutatingOptions mutating_options = 103;
+    // XXX(sandello): Prerequisite?
+}
+
+message TRspAlterTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqAlterTableReplica
+{
+    enum ETableReplicaMode {
+        SYNC = 0;
+        ASYNC = 1;
+    }
+
+    required NYT.NProto.TGuid replica_id = 1;
+
+    optional bool enabled = 2;
+    optional ETableReplicaMode mode = 3;
+}
+
+message TRspAlterTableReplica
 {
 }
 
