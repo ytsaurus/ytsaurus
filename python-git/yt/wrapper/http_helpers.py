@@ -255,7 +255,7 @@ class RequestRetrier(Retrier):
                 response_format = "json"
             check_response_is_decodable(response, response_format)
 
-        logger.debug("Response headers %r", response.headers)
+        logger.debug("Response headers %r", hide_token(dict(response.headers)))
 
         _raise_for_status(response, request_info)
         return response
