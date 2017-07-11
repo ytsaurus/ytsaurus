@@ -65,28 +65,19 @@ public:
         int tabletCount,
         const NApi::TReshardTableOptions& options) override;
 
-    virtual TFuture<void> AlterTable(
-        const NYPath::TYPath& path,
-        const NApi::TAlterTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
     virtual TFuture<void> TrimTable(
         const NYPath::TYPath& path,
         int tabletIndex,
         i64 trimmedRowCount,
-        const NApi::TTrimTableOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TTrimTableOptions& options) override;
+
+    virtual TFuture<void> AlterTable(
+        const NYPath::TYPath& path,
+        const NApi::TAlterTableOptions& options) override;
 
     virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
-        const NApi::TAlterTableReplicaOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TAlterTableReplicaOptions& options) override;
 
     // Security
     virtual TFuture<void> AddMember(

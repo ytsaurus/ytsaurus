@@ -186,14 +186,6 @@ struct TTrimTableOptions
     : public TTimeoutOptions
 { };
 
-struct TEnableTableReplicaOptions
-    : public TTimeoutOptions
-{ };
-
-struct TDisableTableReplicaOptions
-    : public TTimeoutOptions
-{ };
-
 struct TAlterTableReplicaOptions
     : public TTimeoutOptions
 {
@@ -861,15 +853,15 @@ struct IClient
         int tabletCount,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
-    virtual TFuture<void> AlterTable(
-        const NYPath::TYPath& path,
-        const TAlterTableOptions& options = TAlterTableOptions()) = 0;
-
     virtual TFuture<void> TrimTable(
         const NYPath::TYPath& path,
         int tabletIndex,
         i64 trimmedRowCount,
         const TTrimTableOptions& options = TTrimTableOptions()) = 0;
+
+    virtual TFuture<void> AlterTable(
+        const NYPath::TYPath& path,
+        const TAlterTableOptions& options = TAlterTableOptions()) = 0;
 
     virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,

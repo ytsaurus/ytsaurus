@@ -32,6 +32,7 @@ namespace NYT {
 namespace NRpcProxy {
 
 using namespace NApi;
+using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NRpc;
@@ -85,6 +86,9 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FreezeTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnfreezeTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReshardTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TrimTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
@@ -500,7 +504,7 @@ private:
         }
 
         client->GetNode(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<NYson::TYsonString>& result) {
+            .Subscribe(BIND([=] (const TErrorOr<TYsonString>& result) {
                 if (!result.IsOK()) {
                     context->Reply(result);
                 } else {
@@ -553,7 +557,7 @@ private:
         }
 
         client->ListNode(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<NYson::TYsonString>& result) {
+            .Subscribe(BIND([=] (const TErrorOr<TYsonString>& result) {
                 if (!result.IsOK()) {
                     context->Reply(result);
                 } else {
@@ -581,7 +585,7 @@ private:
             auto attributes = std::shared_ptr<IAttributeDictionary>(CreateEphemeralAttributes());
             for (int i = 0; i < protoAttributes.attributes_size(); ++i) {
                 const auto& protoItem = protoAttributes.attributes(i);
-                attributes->SetYson(protoItem.key(), NYson::TYsonString(protoItem.value()));
+                attributes->SetYson(protoItem.key(), TYsonString(protoItem.value()));
             }
             options.Attributes = std::move(attributes);
         }
@@ -663,7 +667,7 @@ private:
         }
 
         auto&& path = request->path();
-        NYson::TYsonString value(request->value());
+        TYsonString value(request->value());
 
         TSetNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1074,7 +1078,147 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ReshardTable)
     {
-        Y_UNREACHABLE();
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TReshardTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        TFuture<void> result;
+
+        if (request->has_tablet_count()) {
+            result = client->ReshardTable(path, request->tablet_count(), options);
+        } else {
+            struct TTag {};
+            TWireProtocolReader reader(MergeRefsToRef<TTag>(request->Attachments()));
+            auto keyRange = reader.ReadUnversionedRowset(false);
+            std::vector<TOwningKey> keys;
+            for (const auto& key : keyRange) {
+                keys.push_back(TOwningKey(key));
+            }
+            result = client->ReshardTable(path, keys, options);
+        }
+
+        result
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, TrimTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+        auto&& tabletIndex = request->tablet_index();
+        auto&& trimmedRowCount = request->trimmed_row_count();
+
+        TTrimTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        client->TrimTable(path, tabletIndex, trimmedRowCount, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AlterTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TAlterTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_schema()) {
+            options.Schema = ConvertTo<TTableSchema>(TYsonString(request->schema()));
+        }
+        if (request->has_dynamic()) {
+            options.Dynamic = request->dynamic();
+        }
+        if (request->has_upstream_replica_id()) {
+            options.UpstreamReplicaId.Emplace();
+            NYT::FromProto(options.UpstreamReplicaId.GetPtr(), request->upstream_replica_id());
+        }
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        client->AlterTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AlterTableReplica)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        NTabletClient::TTableReplicaId replicaId;
+        NYT::FromProto(&replicaId, request->replica_id());
+
+        TAlterTableReplicaOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_enabled()) {
+            options.Enabled = request->enabled();
+        }
+        if (request->has_mode()) {
+            switch (request->mode()) {
+                case NProto::TReqAlterTableReplica_ETableReplicaMode_SYNC:
+                    options.Mode = ETableReplicaMode::Sync;
+                    break;
+                case NProto::TReqAlterTableReplica_ETableReplicaMode_ASYNC:
+                    options.Mode = ETableReplicaMode::Async;
+                    break;
+            }
+        }
+
+        client->AlterTableReplica(replicaId, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
     }
 
     ////////////////////////////////////////////////////////////////////////////////

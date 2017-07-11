@@ -41,6 +41,9 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, FreezeTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnfreezeTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReshardTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, TrimTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AlterTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AlterTableReplica);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LookupRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, VersionedLookupRows);
