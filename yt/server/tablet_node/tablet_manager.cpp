@@ -978,7 +978,7 @@ private:
             }
         } else {
             auto state = tablet->GetState();
-            if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+            if (IsInUnmountWorkflow(state)) {
                 LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in %Qlv state, ignored (TabletId: %v)",
                     state,
                     tabletId);
@@ -1030,9 +1030,7 @@ private:
         }
 
         auto state = tablet->GetState();
-        if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast ||
-            state >= ETabletState::FreezeFirst && state <= ETabletState::FreezeLast)
-        {
+        if (IsInUnmountWorkflow(state) || IsInFreezeWorkflow(state)) {
             LOG_INFO_UNLESS(IsRecovery(), "Requested to freeze a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
@@ -1096,7 +1094,7 @@ private:
         switch (requestedState) {
             case ETabletState::FreezeFlushing: {
                 auto state = tablet->GetState();
-                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                if (IsInUnmountWorkflow(state)) {
                     LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
                         requestedState,
                         state,
@@ -1151,7 +1149,7 @@ private:
 
             case ETabletState::Frozen: {
                 auto state = tablet->GetState();
-                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                if (IsInUnmountWorkflow(state)) {
                     LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
                         requestedState,
                         state,

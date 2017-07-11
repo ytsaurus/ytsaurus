@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/block_cache.h>
 
 #include <yt/core/misc/linear_probe.h>
@@ -26,7 +27,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkLookupHashTable)
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkLookupHashTablePtr CreateChunkLookupHashTable(
-    const std::vector<TSharedRef>& blocks,
+    const std::vector<NChunkClient::TBlock>& blocks,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TKeyComparer keyComparer);
 

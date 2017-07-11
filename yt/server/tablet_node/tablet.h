@@ -95,6 +95,7 @@ struct TTabletSnapshot
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
+    ui64 InMemoryConfigRevision = 0;
 
     TPartitionSnapshotPtr Eden;
 

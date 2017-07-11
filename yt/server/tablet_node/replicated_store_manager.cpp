@@ -177,6 +177,11 @@ void TReplicatedStoreManager::BackoffStorePreload(IChunkStorePtr store)
     LogStoreManager_->BackoffStorePreload(std::move(store));
 }
 
+EInMemoryMode TReplicatedStoreManager::GetInMemoryMode() const
+{
+    return LogStoreManager_->GetInMemoryMode();
+}
+
 ui64 TReplicatedStoreManager::GetInMemoryConfigRevision() const
 {
     return LogStoreManager_->GetInMemoryConfigRevision();

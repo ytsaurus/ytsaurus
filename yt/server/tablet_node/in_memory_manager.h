@@ -18,12 +18,18 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NChunkClient::EBlockType MapInMemoryModeToBlockType(EInMemoryMode mode);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Contains all relevant data (e.g. blocks) for in-memory chunks.
 struct TInMemoryChunkData
     : public TIntrinsicRefCounted
 {
-    std::vector<NChunkClient::TBlock> Blocks;
     EInMemoryMode InMemoryMode = EInMemoryMode::None;
+    ui64 InMemoryConfigRevision = 0;
+
+    std::vector<NChunkClient::TBlock> Blocks;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
     NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
@@ -49,7 +55,7 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TInMemoryManager();
 
-    NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode);
+    NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode, ui64 configRevision);
     TInMemoryChunkDataPtr EvictInterceptedChunkData(const NChunkClient::TChunkId& chunkId);
     void FinalizeChunk(
         const NChunkClient::TChunkId& chunkId,
@@ -67,9 +73,10 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Preload specified store into memory.
-void PreloadInMemoryStore(
+TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
+    TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////

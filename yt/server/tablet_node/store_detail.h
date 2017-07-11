@@ -232,7 +232,7 @@ public:
     virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
 
     virtual EInMemoryMode GetInMemoryMode() const override;
-    virtual void SetInMemoryMode(EInMemoryMode mode) override;
+    virtual void SetInMemoryMode(EInMemoryMode mode, ui64 configRevision) override;
 
     virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
 
@@ -244,6 +244,7 @@ protected:
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
+    ui64 InMemoryConfigRevision_ = 0;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
     TInstant AllowedPreloadTimestamp_;
