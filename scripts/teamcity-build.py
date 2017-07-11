@@ -5,15 +5,15 @@ import sys
 # TODO(asaitgalin): Maybe replace it with PYTHONPATH=... in teamcity command?
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "python"))
 
-from teamcity import build_step, cleanup_step, teamcity_main, \
-                     teamcity_message, teamcity_interact, \
-                     StepFailedWithNonCriticalError
+from teamcity import (build_step, cleanup_step, teamcity_main,
+                      teamcity_message, teamcity_interact,
+                      StepFailedWithNonCriticalError)
 
-from helpers import mkdirp, run, run_captured, cwd, copytree, \
-                    kill_by_name, sudo_rmtree, ls, get_size, \
-                    rmtree, rm_content, clear_system_tmp, \
-                    format_yes_no, parse_yes_no_bool, cleanup_cgroups, \
-                    ChildHasNonZeroExitCode
+from helpers import (mkdirp, run, run_captured, cwd, copytree,
+                     kill_by_name, sudo_rmtree, ls, get_size,
+                     rmtree, rm_content, clear_system_tmp,
+                     format_yes_no, parse_yes_no_bool, cleanup_cgroups,
+                     ChildHasNonZeroExitCode)
 
 from pytest_helpers import get_sandbox_dirs, save_failed_test, find_and_report_core_dumps
 
