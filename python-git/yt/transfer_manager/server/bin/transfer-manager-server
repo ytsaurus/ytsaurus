@@ -917,7 +917,7 @@ class Application(object):
 
     def _abort_running_operations(self, running_tasks):
         self.logger.info("Aborting running operations and transactions of tasks")
-        clusters = self._clusters_configuration.clusters
+        clusters = self._get_clusters_configuration().clusters
 
         def do_abort(task, object_dict, abort_func, type_):
             cluster_name, object_id = object_dict["cluster_name"], object_dict["id"]
