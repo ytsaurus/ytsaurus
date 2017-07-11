@@ -745,7 +745,7 @@ private:
 
         if (Slot_) {
             try {
-                LOG_DEBUG("Cleanup (slot: %v)", Slot_->GetSlotIndex());
+                LOG_DEBUG("Cleanup (SlotIndex: %v)", Slot_->GetSlotIndex());
                 Slot_->Cleanup();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
