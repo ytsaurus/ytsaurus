@@ -707,8 +707,11 @@ while True:
                 # 3) In some corner cases yt2 can use above than 1GB.
                 # 4) Other processes uses less than 100 MB.
                 "memory_limit": 4 * GB,
-                "memory_reserve_factor": 0.35
-            }
+                "memory_reserve_factor": 0.35,
+                "environment": {
+                    "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB": "1",
+                },
+            },
         },
         spec)
 
