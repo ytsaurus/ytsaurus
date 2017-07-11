@@ -17,6 +17,15 @@ def yt_config(request):
 
 @pytest.mark.parametrize("test_name", TESTS_LIST)
 def test(yt_config, yt_stuff, test_name):
-    yatest.common.execute(
-        [BINARY_PATH,  test_name],
-        env={"YT_PROXY": yt_stuff.get_server()}, stderr=sys.stderr)
+    # We save stderr of our test to file, so it's easy to find it on sandbox.
+    stderr_file_name = yatest.common.output_path(test_name + '.stderr')
+
+    try:
+        with open(stderr_file_name, 'w') as stderr_file:
+            yatest.common.execute(
+                [BINARY_PATH,  test_name],
+                env={"YT_PROXY": yt_stuff.get_server()}, stderr=stderr_file)
+    except:
+        with open(stderr_file_name) as inf:
+            sys.stderr.write(inf.read())
+        raise
