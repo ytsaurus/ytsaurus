@@ -207,7 +207,11 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
     .Run();
 }
 
-TFuture<void> TSlotLocation::SetQuota(int slotIndex, const TNullable<i64>& diskSpaceLimit, const TNullable<i64>& inodeLimit, int userId)
+TFuture<void> TSlotLocation::SetQuota(
+    int slotIndex,
+    TNullable<i64> diskSpaceLimit,
+    TNullable<i64> inodeLimit,
+    int userId)
 {
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();

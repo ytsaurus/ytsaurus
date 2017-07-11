@@ -145,7 +145,7 @@ public:
             true);
     }
 
-    virtual TFuture<void> SetQuota(const TNullable<i64>& diskSpaceLimit, const TNullable<i64>& inodeLimit) override
+    virtual TFuture<void> SetQuota(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) override
     {
         return RunPrepareAction<void>([&] () {
                 return Location_->SetQuota(
