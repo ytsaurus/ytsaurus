@@ -609,11 +609,11 @@ void SetQuota(
         userId,
         reinterpret_cast<caddr_t>(&info));
     if (result < 0) {
-        THROW_ERROR_EXCEPTION("Failed to set quota user")
-            << TErrorAttribute("UserId", userId)
-            << TErrorAttribute("DiskSpaceLimit", diskSpaceLimit.Get(0))
-            << TErrorAttribute("InodeLimit", inodeLimit.Get(0))
-            << TErrorAttribute("Path", path)
+        THROW_ERROR_EXCEPTION("Failed to set FS quota for user")
+            << TErrorAttribute("user_id", userId)
+            << TErrorAttribute("disk_space_limit", diskSpaceLimit.Get(0))
+            << TErrorAttribute("inode_limit", inodeLimit.Get(0))
+            << TErrorAttribute("path", path)
             << TError::FromSystem();
     }
 #else
