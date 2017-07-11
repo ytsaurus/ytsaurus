@@ -5,13 +5,13 @@
 
 #include <llvm/ADT/Triple.h>
 
-#if !( \
-    defined(LLVM_VERSION_MAJOR) && LLVM_VERSION_MAJOR == 3 && \
-    defined(LLVM_VERSION_MINOR) && LLVM_VERSION_MINOR == 7)
-#error "LLVM 3.7 is required."
+#define LLVM_TEST(major, minor) (\
+    defined(LLVM_VERSION_MAJOR) && LLVM_VERSION_MAJOR == (major) && \
+    defined(LLVM_VERSION_MINOR) && LLVM_VERSION_MINOR == (minor))
+#if !(LLVM_TEST(3, 7) || LLVM_TEST(3, 9))
+#error "LLVM 3.7 or 3.9 is required."
 #endif
 
-#include <llvm/Config/config.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
@@ -146,7 +146,12 @@ public:
                 << TError(TString(what));
         }
 
+#if LLVM_TEST(3, 7)
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
+#else
+        Module_->setDataLayout(Engine_->getDataLayout().getStringRepresentation());
+#endif
+
     }
 
     llvm::LLVMContext& GetContext()
@@ -217,8 +222,8 @@ private:
 
     void Compile()
     {
-        using namespace llvm;
-        using namespace llvm::legacy;
+        using PassManager = llvm::legacy::PassManager;
+        using FunctionPassManager = llvm::legacy::FunctionPassManager;
 
         LOG_DEBUG("Started compiling module");
 
@@ -237,12 +242,19 @@ private:
         // Run DCE pass to strip unused code.
         LOG_DEBUG("Pruning dead code (ExportedSymbols: %v)", ExportedSymbols_);
 
+        modulePassManager = std::make_unique<PassManager>();
+#if LLVM_TEST(3, 7)
         std::vector<const char*> exportedNames;
         for (const auto& exportedSymbol : ExportedSymbols_) {
             exportedNames.emplace_back(exportedSymbol.c_str());
         }
-        modulePassManager = std::make_unique<PassManager>();
         modulePassManager->add(llvm::createInternalizePass(exportedNames));
+#else
+        modulePassManager->add(llvm::createInternalizePass([&] (const llvm::GlobalValue& gv) -> bool {
+            auto name = TString(gv.getName().str());
+            return ExportedSymbols_.count(name) > 0;
+        }));
+#endif
         modulePassManager->add(llvm::createGlobalDCEPass());
         modulePassManager->run(*Module_);
 
