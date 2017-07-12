@@ -180,7 +180,8 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
             Config_->SoftConcurrentHeartbeatLimit);
     }
 
-    response->set_enable_statistics_reporter(Config_->EnableStatisticsReporter);
+    response->set_enable_job_reporter(Config_->EnableJobReporter);
+    response->set_enable_job_spec_reporter(Config_->EnableJobSpecReporter);
 
     auto scheduleJobsAsyncResult = VoidFuture;
 

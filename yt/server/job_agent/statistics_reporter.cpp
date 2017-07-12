@@ -39,83 +39,106 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NProfiling;
 using namespace NScheduler;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TJobTag
+{ };
+
+struct TJobSpecTag
+{ };
+
+namespace {
 
 static const auto& Logger = JobTrackerServerLogger;
-static const TProfiler StatisticsProfiler("/statistics_reporter");
+static const TProfiler JobProfiler("/statistics_reporter/jobs");
+static const TProfiler JobSpecProfiler("/statistics_reporter/job_specs");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStatisticsTableDescriptor::TStatisticsTableDescriptor()
-    : NameTable(New<TNameTable>())
-    , Ids(NameTable)
-{ }
-
-TStatisticsTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
-    : OperationIdHi(n->RegisterName("operation_id_hi"))
-    , OperationIdLo(n->RegisterName("operation_id_lo"))
-    , JobIdHi(n->RegisterName("job_id_hi"))
-    , JobIdLo(n->RegisterName("job_id_lo"))
-    , Type(n->RegisterName("type"))
-    , State(n->RegisterName("state"))
-    , StartTime(n->RegisterName("start_time"))
-    , FinishTime(n->RegisterName("finish_time"))
-    , Address(n->RegisterName("address"))
-    , Error(n->RegisterName("error"))
-    , Spec(n->RegisterName("spec"))
-    , SpecVersion(n->RegisterName("spec_version"))
-    , Statistics(n->RegisterName("statistics"))
-    , Events(n->RegisterName("events"))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TryDecNonnegativeCounter(std::atomic<int>& counter, int dec)
+bool IsSpecEntry(const TJobStatistics& stat)
 {
-    if (counter.fetch_sub(dec, std::memory_order_relaxed) < dec) {
-        // rollback operation on negative result
-        // negative result can be in case of batcher data dropping and on-the-fly transaction
-        counter.fetch_add(dec, std::memory_order_relaxed);
-    }
+    return stat.Spec().HasValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobStatisticsTag
-{ };
+class TLimiter
+{
+public:
+    TLimiter(ui64 maxValue)
+        : MaxValue_(maxValue)
+    { }
 
-class TStatisticsReporter::TImpl
+    bool TryIncrease(ui64 delta)
+    {
+        if (Value_.fetch_add(delta, std::memory_order_relaxed) + delta <= MaxValue_) {
+            return true;
+        }
+        Decrease(delta);
+        return false;
+    }
+
+    void Decrease(ui64 delta)
+    {
+        if (Value_.fetch_sub(delta, std::memory_order_relaxed) < delta) {
+            // rollback operation on negative result
+            // negative result can be in case of batcher data dropping and on-the-fly transaction
+            Value_.fetch_add(delta, std::memory_order_relaxed);
+        }
+    }
+
+    void Reset()
+    {
+        Value_.store(0, std::memory_order_relaxed);
+    }
+
+private:
+    const ui64 MaxValue_;
+    std::atomic<ui64> Value_ = {0};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TBatch = std::vector<TJobStatistics>;
+
+class THandlerBase
     : public TRefCounted
 {
 public:
-    TImpl(
-        TStatisticsReporterConfigPtr reporterConfig,
-        TBootstrap* bootstrap)
-        : Config_(std::move(reporterConfig))
-        , Client_(bootstrap->GetMasterClient())
-        , DefaultLocalAddress_(bootstrap->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress())
-        , NormalPriorityCounter_(Config_->MaxItemsInProgressNormalPriority)
-        , LowPriorityCounter_(Config_->MaxItemsInProgressLowPriority)
-        , Batcher_(New<TNonblockingBatch<TJobStatistics>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
+    THandlerBase(
+        const TStatisticsReporterConfigPtr& config,
+        const TString& reporterName,
+        INativeClientPtr client,
+        IInvokerPtr invoker,
+        const TProfiler& profiler,
+        ui64 maxInProgressDataSize)
+        : Config_(config)
+        , Client_(std::move(client))
+        , Profiler_(profiler)
+        , Limiter_(maxInProgressDataSize)
+        , Batcher_(Config_->MaxItemsInBatch, Config_->ReportingPeriod)
     {
-        Reporter_->GetInvoker()->Invoke(BIND(&TImpl::OnReporting, MakeWeak(this)));
+        BIND(&THandlerBase::Loop, MakeWeak(this))
+            .Via(invoker)
+            .Run();
         EnableSemaphore_.Acquire();
+        Logger.AddTag("Reporter: %v", reporterName);
     }
 
-    void ReportStatistics(TJobStatistics&& statistics)
+    void Enqueue(TJobStatistics&& statistics)
     {
         if (!IsEnabled()) {
             return;
         }
-        auto& counter = GetCounter(statistics.Priority());
-        if (++counter.InProgressCount > counter.MaxInProgressCount) {
-            ++DroppedCount_;
-            --counter.InProgressCount;
-            StatisticsProfiler.Increment(DroppedCounter_);
+        if (Limiter_.TryIncrease(statistics.EstimateSize())) {
+            Batcher_.Enqueue(std::move(statistics));
+            PendingCount_.fetch_add(1, std::memory_order_relaxed);
+            Profiler_.Increment(EnqueuedCounter_);
         } else {
-            Batcher_->Enqueue(std::move(statistics));
-            StatisticsProfiler.Increment(EnqueuedCounter_);
+            DroppedCount_.fetch_add(1, std::memory_order_relaxed);
+            Profiler_.Increment(DroppedCounter_);
         }
     }
 
@@ -128,51 +151,32 @@ public:
     }
 
 private:
-    using TStatisticsBatch = std::vector<TJobStatistics>;
-
-    struct TPriorityCounter
-    {
-        TPriorityCounter(int maxInProgressCount)
-            : MaxInProgressCount(maxInProgressCount)
-        { }
-
-        const int MaxInProgressCount;
-        std::atomic<int> InProgressCount = {0};
-    };
-
-    const TStatisticsReporterConfigPtr Config_;
-    const INativeClientPtr Client_;
-    const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
-    const TString DefaultLocalAddress_;
-    const TStatisticsTableDescriptor Table_;
-
-    std::atomic<bool> Enabled_ = {false};
-
-    TPriorityCounter NormalPriorityCounter_;
-    TPriorityCounter LowPriorityCounter_;
-    std::atomic<int> DroppedCount_ = {0};
-    const TNonblockingBatchPtr<TJobStatistics> Batcher_;
-
+    TLogger Logger;
     TSimpleCounter EnqueuedCounter_ = {"/enqueued"};
     TSimpleCounter DequeuedCounter_ = {"/dequeued"};
     TSimpleCounter DroppedCounter_ = {"/dropped"};
     TSimpleCounter CommittedCounter_ = {"/committed"};
     TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
+    const TStatisticsReporterConfigPtr Config_;
+    const INativeClientPtr Client_;
+    const TProfiler& Profiler_;
+    TLimiter Limiter_;
+    TNonblockingBatch<TJobStatistics> Batcher_;
+
     TAsyncSemaphore EnableSemaphore_ {1};
+    std::atomic<bool> Enabled_ = {false};
+    std::atomic<ui64> DroppedCount_ = {0};
+    std::atomic<ui64> PendingCount_ = {0};
 
-    TPriorityCounter& GetCounter(EReportPriority priority)
-    {
-        return priority == EReportPriority::Normal
-            ? NormalPriorityCounter_
-            : LowPriorityCounter_;
-    }
+    // Must return dataweight of written batch inside transaction.
+    virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) = 0;
 
-    void OnReporting()
+    void Loop()
     {
         while (true) {
-            WaitEnabling();
-            auto asyncBatch = Batcher_->DequeueBatch();
+            WaitForEnabled();
+            auto asyncBatch = Batcher_.DequeueBatch();
             auto batchOrError = WaitFor(asyncBatch);
             auto batch = batchOrError.ValueOrThrow();
 
@@ -180,12 +184,13 @@ private:
                 continue; // reporting has been disabled
             }
 
-            StatisticsProfiler.Increment(DequeuedCounter_, batch.size());
+            PendingCount_.fetch_sub(1, std::memory_order_relaxed);
+            Profiler_.Increment(DequeuedCounter_, batch.size());
             WriteBatchWithExpBackoff(batch);
         }
     }
 
-    void WriteBatchWithExpBackoff(const TStatisticsBatch& batch)
+    void WriteBatchWithExpBackoff(const TBatch& batch)
     {
         auto delay = Config_->MinRepeatDelay;
         while (IsEnabled()) {
@@ -194,10 +199,17 @@ private:
                 LOG_WARNING("Maximum items reached, dropping job statistics (DroppedItems: %v)", dropped);
             }
             try {
-                TryWriteBatch(batch);
+                TryHandleBatch(batch);
+                ui64 dataSize = 0;
+                for (auto& stat : batch) {
+                    dataSize += stat.EstimateSize();
+                }
+                Limiter_.Decrease(dataSize);
                 return;
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v)", delay.Seconds());
+                LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v, PendingItems: %v)",
+                    delay.Seconds(),
+                    GetPendingCount());
             }
             WaitFor(TDelayedExecutor::MakeDelayed(RandomDuration(delay)));
             delay *= 2;
@@ -207,27 +219,104 @@ private:
         }
     }
 
-    void TryWriteBatch(const TStatisticsBatch& batch)
+    void TryHandleBatch(const TBatch& batch)
     {
-        LOG_DEBUG("Job statistics transaction starting "
-            "(ItemCount: %v, PendingItemsNormalPriority: %v, PendingItemsLowPriority: %v)",
-            batch.size(),
-            NormalPriorityCounter_.InProgressCount.load(std::memory_order_relaxed),
-            LowPriorityCounter_.InProgressCount.load(std::memory_order_relaxed));
+        LOG_DEBUG("Job statistics transaction starting (Items: %v, PendingItems: %v)",
+            batch.size(), GetPendingCount());
         auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet);
         auto transactionOrError = WaitFor(asyncTransaction);
         auto transaction = transactionOrError.ValueOrThrow();
-        LOG_DEBUG("Job statistics transaction started (TransactionId: %v, ItemCount: %v)",
+        LOG_DEBUG("Job statistics transaction started (TransactionId: %v, Items: %v)",
             transaction->GetId(),
             batch.size());
 
+        size_t dataWeight = HandleBatchTransaction(*transaction, batch);
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+
+        JobProfiler.Increment(CommittedCounter_, batch.size());
+        JobProfiler.Increment(CommittedDataWeightCounter_, dataWeight);
+
+        LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
+            "CommittedItems: %v, CommittedDataWeight: %v)",
+            transaction->GetId(),
+            batch.size(),
+            dataWeight);
+    }
+
+    ui64 GetPendingCount()
+    {
+        return PendingCount_.load(std::memory_order_relaxed);
+    }
+
+    void DoEnable()
+    {
+        EnableSemaphore_.Release();
+        LOG_INFO("Job statistics reporter enabled");
+    }
+
+    void DoDisable()
+    {
+        EnableSemaphore_.Acquire();
+        Batcher_.Drop();
+        Limiter_.Reset();
+        DroppedCount_.store(0, std::memory_order_relaxed);
+        PendingCount_.store(0, std::memory_order_relaxed);
+        LOG_INFO("Job statistics reporter disabled");
+    }
+
+    bool IsEnabled()
+    {
+        return EnableSemaphore_.IsReady();
+    }
+
+    void WaitForEnabled()
+    {
+        if (IsEnabled()) {
+            return;
+        }
+        LOG_INFO("Waiting for job statistics reporter to become enabled");
+        auto event = EnableSemaphore_.GetReadyEvent();
+        WaitFor(event).ThrowOnError();
+        LOG_INFO("Job statistics reporter became enabled, resuming statistics writing");
+    }
+};
+
+DECLARE_REFCOUNTED_TYPE(THandlerBase)
+DEFINE_REFCOUNTED_TYPE(THandlerBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobHandler
+    : public THandlerBase
+{
+public:
+    TJobHandler(
+        const TStatisticsReporterConfigPtr& config,
+        TBootstrap* bootstrap,
+        IInvokerPtr invoker)
+        : THandlerBase(
+            config,
+            "jobs",
+            bootstrap->GetMasterClient(),
+            invoker,
+            JobProfiler,
+            config->MaxInProgressJobDataSize)
+        , DefaultLocalAddress_(bootstrap->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress())
+    { }
+
+private:
+    const TJobTableDescriptor Table_;
+    const TString DefaultLocalAddress_;
+
+    virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) override
+    {
         std::vector<TUnversionedRow> rows;
-        auto rowBuffer = New<TRowBuffer>(TJobStatisticsTag());
+        auto rowBuffer = New<TRowBuffer>(TJobTag());
 
         size_t dataWeight = 0;
-        TEnumIndexedVector<int, EReportPriority> counters = {0, 0};
         for (auto&& statistics : batch) {
-            ++counters[statistics.Priority()];
             TUnversionedRowBuilder builder;
             builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Ids.OperationIdHi));
             builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Ids.OperationIdLo));
@@ -249,12 +338,6 @@ private:
             if (statistics.Error()) {
                 builder.AddValue(MakeUnversionedAnyValue(*statistics.Error(), Table_.Ids.Error));
             }
-            if (statistics.Spec()) {
-                builder.AddValue(MakeUnversionedStringValue(*statistics.Spec(), Table_.Ids.Spec));
-            }
-            if (statistics.SpecVersion()) {
-                builder.AddValue(MakeUnversionedInt64Value(*statistics.SpecVersion(), Table_.Ids.SpecVersion));
-            }
             if (statistics.Statistics()) {
                 builder.AddValue(MakeUnversionedAnyValue(*statistics.Statistics(), Table_.Ids.Statistics));
             }
@@ -265,58 +348,139 @@ private:
             dataWeight += GetDataWeight(rows.back());
         }
 
-        transaction->WriteRows(
+        transaction.WriteRows(
             GetOperationsArchiveJobsPath(),
             Table_.NameTable,
             MakeSharedRange(std::move(rows), std::move(rowBuffer)));
 
-        WaitFor(transaction->Commit())
-            .ThrowOnError();
-
-        TryDecNonnegativeCounter(NormalPriorityCounter_.InProgressCount, counters[EReportPriority::Normal]);
-        TryDecNonnegativeCounter(LowPriorityCounter_.InProgressCount, counters[EReportPriority::Low]);
-
-        StatisticsProfiler.Increment(CommittedCounter_, batch.size());
-        StatisticsProfiler.Increment(CommittedDataWeightCounter_, dataWeight);
-
-        LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
-            "CommittedItemsNormalPriority: %v, CommittedItemsLowPriority: %v, CommittedDataWeight: %v)",
-            transaction->GetId(),
-            counters[EReportPriority::Normal],
-            counters[EReportPriority::Low],
-            dataWeight);
+        return dataWeight;
     }
+};
 
-    void DoEnable()
-    {
-        EnableSemaphore_.Release();
-        LOG_INFO("Job statistics reporter enabled");
-    }
+class TJobSpecHandler
+    : public THandlerBase
+{
+public:
+    TJobSpecHandler(
+        const TStatisticsReporterConfigPtr& config,
+        TBootstrap* bootstrap,
+        IInvokerPtr invoker)
+        : THandlerBase(
+            config,
+            "job_specs",
+            bootstrap->GetMasterClient(),
+            invoker,
+            JobSpecProfiler,
+            config->MaxInProgressJobSpecDataSize)
+    { }
 
-    void DoDisable()
-    {
-        EnableSemaphore_.Acquire();
-        Batcher_->Drop();
-        NormalPriorityCounter_.InProgressCount = 0;
-        LowPriorityCounter_.InProgressCount = 0;
-        LOG_INFO("Job statistics reporter disabled");
-    }
+private:
+    const TJobSpecTableDescriptor Table_;
 
-    bool IsEnabled()
+    virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) override
     {
-        return EnableSemaphore_.IsReady();
-    }
+        std::vector<TUnversionedRow> rows;
+        auto rowBuffer = New<TRowBuffer>(TJobSpecTag());
 
-    void WaitEnabling()
-    {
-        if (IsEnabled()) {
-            return;
+        size_t dataWeight = 0;
+        for (auto&& statistics : batch) {
+            TUnversionedRowBuilder builder;
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Ids.JobIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Ids.JobIdLo));
+            if (statistics.Spec()) {
+                builder.AddValue(MakeUnversionedStringValue(*statistics.Spec(), Table_.Ids.Spec));
+            }
+            if (statistics.SpecVersion()) {
+                builder.AddValue(MakeUnversionedInt64Value(*statistics.SpecVersion(), Table_.Ids.SpecVersion));
+            }
+            rows.push_back(rowBuffer->Capture(builder.GetRow()));
+            dataWeight += GetDataWeight(rows.back());
         }
-        LOG_INFO("Waiting for job statistics reporter to become enabled");
-        auto event = EnableSemaphore_.GetReadyEvent();
-        WaitFor(event).ThrowOnError();
-        LOG_INFO("Job statistics reporter became enabled, resuming statistics writing");
+
+        transaction.WriteRows(
+            GetOperationsArchiveJobSpecsPath(),
+            Table_.NameTable,
+            MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+
+        return dataWeight;
     }
+};
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobTableDescriptor::TJobTableDescriptor()
+    : NameTable(New<TNameTable>())
+    , Ids(NameTable)
+{ }
+
+TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
+    : OperationIdHi(n->RegisterName("operation_id_hi"))
+    , OperationIdLo(n->RegisterName("operation_id_lo"))
+    , JobIdHi(n->RegisterName("job_id_hi"))
+    , JobIdLo(n->RegisterName("job_id_lo"))
+    , Type(n->RegisterName("type"))
+    , State(n->RegisterName("state"))
+    , StartTime(n->RegisterName("start_time"))
+    , FinishTime(n->RegisterName("finish_time"))
+    , Address(n->RegisterName("address"))
+    , Error(n->RegisterName("error"))
+    , Spec(n->RegisterName("spec"))
+    , SpecVersion(n->RegisterName("spec_version"))
+    , Statistics(n->RegisterName("statistics"))
+    , Events(n->RegisterName("events"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobSpecTableDescriptor::TJobSpecTableDescriptor()
+    : NameTable(New<TNameTable>())
+    , Ids(NameTable)
+{ }
+
+TJobSpecTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
+    : JobIdHi(n->RegisterName("job_id_hi"))
+    , JobIdLo(n->RegisterName("job_id_lo"))
+    , Spec(n->RegisterName("spec"))
+    , SpecVersion(n->RegisterName("spec_version"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStatisticsReporter::TImpl
+    : public TRefCounted
+{
+public:
+    TImpl(
+        TStatisticsReporterConfigPtr reporterConfig,
+        TBootstrap* bootstrap)
+        : JobHandler_(New<TJobHandler>(reporterConfig, bootstrap, Reporter_->GetInvoker()))
+        , JobSpecHandler_(New<TJobSpecHandler>(reporterConfig, bootstrap, Reporter_->GetInvoker()))
+    { }
+
+    void ReportStatistics(TJobStatistics&& statistics)
+    {
+        if (IsSpecEntry(statistics)) {
+            JobSpecHandler_->Enqueue(statistics.ExtractSpec());
+        }
+        JobHandler_->Enqueue(std::move(statistics));
+    }
+
+    void SetEnabled(bool enable)
+    {
+        JobHandler_->SetEnabled(enable);
+    }
+
+    void SetSpecEnabled(bool enable)
+    {
+        JobSpecHandler_->SetEnabled(enable);
+    }
+
+private:
+    const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
+    const THandlerBasePtr JobHandler_;
+    const THandlerBasePtr JobSpecHandler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -341,6 +505,13 @@ void TStatisticsReporter::SetEnabled(bool enable)
 {
     if (Impl_) {
         Impl_->SetEnabled(enable);
+    }
+}
+
+void TStatisticsReporter::SetSpecEnabled(bool enable)
+{
+    if (Impl_) {
+        Impl_->SetSpecEnabled(enable);
     }
 }
 

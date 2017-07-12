@@ -17,6 +17,7 @@ FORMAT_LIST = [
 ]
 
 OPERATION_JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
+OPERATION_JOB_SPEC_ARCHIVE_TABLE = "//sys/operations_archive/job_specs"
 
 def get_stderr_dict_from_table(table_path):
     result = {}
@@ -33,13 +34,23 @@ def get_job_rows_for_operation(operation_id):
     return select_rows("* from [{0}] where operation_id_lo = {1}u and operation_id_hi = {2}u".format(
         OPERATION_JOB_ARCHIVE_TABLE,  hash_pair.lo, hash_pair.hi))
 
-def check_all_jobs_in_operation_archive(job_id_list):
-    rows = select_rows("job_id_hi,job_id_lo from [{0}]".format(OPERATION_JOB_ARCHIVE_TABLE))
+def get_job_spec_rows_for_job(job_id_list):
+    def generate_keys(job_id):
+        pair = uuid_hash_pair(job_id)
+        return {
+            "job_id_hi": pair.hi,
+            "job_id_lo": pair.lo}
+
+    return lookup_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [generate_keys(job_id) for job_id in job_id_list])
+
+def check_all_jobs_in_operation_archive(job_id_list, table):
+    rows = select_rows("job_id_hi,job_id_lo from [{0}]".format(table))
     job_ids_in_archive = __builtin__.set(get_guid_from_parts(r["job_id_lo"], r["job_id_hi"]) for r in rows)
     return all(job_id in job_ids_in_archive for job_id in job_id_list)
 
 def wait_data_in_operation_table_archive(job_id_list):
-    wait(lambda: check_all_jobs_in_operation_archive(job_id_list))
+    wait(lambda: check_all_jobs_in_operation_archive(job_id_list, OPERATION_JOB_ARCHIVE_TABLE))
+    wait(lambda: check_all_jobs_in_operation_archive(job_id_list, OPERATION_JOB_SPEC_ARCHIVE_TABLE))
 
 class TestGetJobInput(YTEnvSetup):
     NUM_MASTERS = 1
@@ -71,7 +82,8 @@ class TestGetJobInput(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "enable_statistics_reporter": True,
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
         },
     }
 
@@ -110,7 +122,7 @@ class TestGetJobInput(YTEnvSetup):
             with open(input_file) as inf:
                 actual_input = inf.read()
             assert actual_input
-            assert get_job_input(op.id, job_id) == actual_input
+            assert get_job_input(job_id) == actual_input
 
     def test_map_reduce(self):
         create("table", "//tmp/t_input")
@@ -150,7 +162,7 @@ class TestGetJobInput(YTEnvSetup):
             with open(input_file) as inf:
                 actual_input = inf.read()
             assert actual_input
-            assert get_job_input(op.id, job_id) == actual_input
+            assert get_job_input(job_id) == actual_input
         events.notify_event("continue_reducer")
         op.track()
 
@@ -221,7 +233,7 @@ class TestGetJobInput(YTEnvSetup):
             with open(input_file) as inf:
                 actual_input = inf.read()
             assert actual_input
-            assert get_job_input(op.id, job_id) == actual_input
+            assert get_job_input(job_id) == actual_input
 
     def test_nonuser_job_type(self):
         create("table", "//tmp/t_input")
@@ -247,7 +259,7 @@ class TestGetJobInput(YTEnvSetup):
             hi=rows[0]["job_id_hi"])
 
         with pytest.raises(YtError):
-            get_job_input(op_id, job_id)
+            get_job_input(job_id)
 
 
     def test_table_is_rewritten(self):
@@ -282,7 +294,7 @@ class TestGetJobInput(YTEnvSetup):
                 actual_input = inf.read()
             assert actual_input
             with pytest.raises(YtError):
-                get_job_input(op.id, job_id)
+                get_job_input(job_id)
 
 
     def test_wrong_spec_version(self):
@@ -301,15 +313,15 @@ class TestGetJobInput(YTEnvSetup):
         assert job_id_list
         wait_data_in_operation_table_archive(job_id_list)
 
-        rows = get_job_rows_for_operation(op.id)
+        rows = get_job_spec_rows_for_job(job_id_list)
         updated = []
         for r in rows:
             new_r = {}
-            for key in ["operation_id_hi", "operation_id_lo", "job_id_hi", "job_id_lo"]:
+            for key in ["job_id_hi", "job_id_lo"]:
                 new_r[key] = r[key]
             new_r["spec"] = "junk"
             updated.append(new_r)
-        insert_rows(OPERATION_JOB_ARCHIVE_TABLE, updated, update=True)
+        insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True)
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
@@ -319,7 +331,7 @@ class TestGetJobInput(YTEnvSetup):
                 actual_input = inf.read()
             assert actual_input
             with pytest.raises(YtError):
-                get_job_input(op.id, job_id)
+                get_job_input(job_id)
 
 
     def test_map_with_query(self):
@@ -353,4 +365,4 @@ class TestGetJobInput(YTEnvSetup):
             with open(input_file) as inf:
                 actual_input = inf.read()
             assert actual_input
-            assert get_job_input(op.id, job_id) == actual_input
+            assert get_job_input(job_id) == actual_input

@@ -921,7 +921,6 @@ struct IClient
         const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
 
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
-        const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;
 

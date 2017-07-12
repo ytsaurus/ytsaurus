@@ -10,6 +10,48 @@ namespace NJobAgent {
 using namespace NYTree;
 using namespace NYson;
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+constexpr size_t EstimatedValueSize = 16;
+
+size_t EstimateSize(const TString& s)
+{
+    return EstimatedValueSize + s.size();
+}
+
+size_t EstimateSize(i64)
+{
+    return EstimatedValueSize;
+}
+
+size_t EstimateSize(const TGuid& id)
+{
+    return id.IsEmpty() ? 0 : EstimatedValueSize * 2;
+}
+
+template <typename T>
+size_t EstimateSize(const TNullable<T>& v)
+{
+    return v ? EstimateSize(*v) : 0;
+}
+
+size_t EstimateSizes()
+{
+    return 0;
+}
+
+template <typename T, typename... U>
+size_t EstimateSizes(T&& t, U&& ... u)
+{
+    return EstimateSize(std::forward<T>(t)) + EstimateSizes(std::forward<U>(u)...);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
@@ -28,6 +70,8 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
         })
         .EndList();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TYsonAtributesStripper
     : public IYsonConsumer
@@ -154,13 +198,29 @@ TYsonString StripAttributes(const TYsonString& yson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobStatistics::TJobStatistics()
-    : Priority_(EReportPriority::Normal)
-{ }
-
-void TJobStatistics::SetPriority(EReportPriority priority)
+size_t TJobStatistics::EstimateSize() const
 {
-    Priority_ = priority;
+    return EstimateSizes(
+        OperationId_,
+        JobId_,
+        Type_,
+        State_,
+        StartTime_,
+        FinishTime_,
+        Error_,
+        Spec_,
+        SpecVersion_,
+        Statistics_,
+        Events_);
+}
+
+TJobStatistics TJobStatistics::ExtractSpec()
+{
+    TJobStatistics copy;
+    copy.JobId_ = JobId_;
+    copy.Spec_ = std::move(Spec_);
+    copy.SpecVersion_ = std::move(SpecVersion_);
+    return copy;
 }
 
 void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)

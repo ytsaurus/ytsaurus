@@ -181,8 +181,7 @@ def dump_job_context(job_id, path, **kwargs):
     kwargs["path"] = path
     return execute_command("dump_job_context", kwargs)
 
-def get_job_input(operation_id, job_id, **kwargs):
-    kwargs["operation_id"] = operation_id
+def get_job_input(job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_input", kwargs)
 
