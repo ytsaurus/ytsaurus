@@ -1113,7 +1113,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         remove("//sys/operations/{}".format(op.id))
         
         set("//sys/operations_archive/@version", 9)
-        
+
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
         self.sync_unmount_table(stderrs_archive_path)
