@@ -406,7 +406,7 @@ def get_token(token=None, client=None):
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
 
-    if get_config(client=client)["cache_token"]:
+    if token is not None and get_config(client=client)["cache_token"]:
         set_option("_token", token, client=client)
         set_option("_token_cached", True, client=client)
 
