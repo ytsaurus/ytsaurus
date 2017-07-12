@@ -2744,12 +2744,37 @@ private:
         WaitFor(req->Invoke())
             .ThrowOnError();
     }
+    
+    int DoGetOperationsArchiveVersion() 
+    {
+        auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
+        auto versionNodeOrError = WaitFor(asyncVersionResult);
+        int version = 0;
+        
+        if (versionNodeOrError.IsOK()) { 
+            try {
+                version = ConvertTo<int>(versionNodeOrError.Value());
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to parse operations archive version");
+            }
+        } else {
+            LOG_DEBUG(versionNodeOrError, "Failed to get operations archive version");
+        }
+        
+        return version;
+    }
 
     IAsyncZeroCopyInputStreamPtr DoGetJobInput(
         const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobInputOptions& /*options*/)
     {
+        int version = DoGetOperationsArchiveVersion();
+
+        if (version < 7) {
+            THROW_ERROR_EXCEPTION("Failed to get job input: operations archive version is too old: expected >= 7, got %v", version);
+        }
+    
         auto nameTable = New<TNameTable>();
 
         TLookupRowsOptions lookupOptions;
@@ -3044,31 +3069,17 @@ private:
             return stderrRef;
         }
 
-        auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
-        auto versionNodeOrError = WaitFor(asyncVersionResult); 
+        int version = DoGetOperationsArchiveVersion();
 
-        if (versionNodeOrError.IsOK()) {    
-            int version = 0;
-                      
-            try {    
-                version = ConvertTo<int>(versionNodeOrError.Value());
-            } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to parse operations archive version");
-            }    
-
-            if (version >= 7) { 
-                stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
-                if (stderrRef) {
-                    return stderrRef;
-                }
-            } else {
-                LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
+        if (version >= 7) {
+            stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
+            if (stderrRef) {
+                return stderrRef;
             }
-             
-        } else {   
-            LOG_DEBUG(versionNodeOrError, "Failed to get operations archive version");
+        } else {
+            LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
         }
-
+ 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
             << TErrorAttribute("operation_id", operationId)
             << TErrorAttribute("job_id", jobId);
