@@ -120,6 +120,10 @@ namespace NYT {
 
     enum ESortOrder : int;
 
+    enum EOptimizeForAttr : i8;
+
+    enum EErasureCodecAttr : i8;
+
     struct TColumnSchema;
 
     struct TTableSchema;
