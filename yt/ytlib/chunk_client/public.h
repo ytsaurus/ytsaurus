@@ -150,6 +150,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchMedium)             (719))
     ((OptimisticLockFailure)    (720))
     ((InvalidBlockChecksum)     (721))
+    ((BlockOutOfRange)          (722))
 );
 
 //! Values must be contiguous.

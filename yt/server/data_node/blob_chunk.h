@@ -78,6 +78,9 @@ private:
     NChunkClient::NProto::TBlocksExt CachedBlocksExt_;
     bool HasCachedBlocksExt_ = false;
 
+    //! Returns true if location must be disabled.
+    bool IsFatalError(const TError& error) const;
+
 
     TFuture<void> LoadBlocksExt(const TWorkloadDescriptor& workloadDescriptor);
     const NChunkClient::NProto::TBlocksExt& GetBlocksExt();
