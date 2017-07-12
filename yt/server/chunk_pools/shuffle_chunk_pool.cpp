@@ -360,6 +360,12 @@ private:
             return list;
         }
 
+        virtual int GetStripeListSliceCount(TCookie cookie) const override
+        {
+            const auto& run = Runs[cookie];
+            return run.ElementaryIndexEnd - run.ElementaryIndexBegin;
+        }
+
         virtual void Completed(TCookie cookie, const TCompletedJobSummary& /* jobSummary */) override
         {
             auto& run = Runs[cookie];

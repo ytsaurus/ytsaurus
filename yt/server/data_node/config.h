@@ -366,6 +366,9 @@ public:
     //! Maximum number of bytes to fetch via a single range request.
     i64 MaxBytesPerRead;
 
+    //! Desired number of bytes per disk write in a blob chunks.
+    i64 BytesPerWrite;
+
     //! Enables block checksums validation.
     bool ValidateBlockChecksums;
 
@@ -395,7 +398,7 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
-        
+
         RegisterParameter("chunk_meta_cache", ChunkMetaCache)
             .DefaultNew();
         RegisterParameter("block_cache", BlockCache)
@@ -477,7 +480,7 @@ public:
         RegisterParameter("write_thread_count", WriteThreadCount)
             .Default(1)
             .GreaterThanOrEqual(1);
-            
+
         RegisterParameter("max_write_sessions", MaxWriteSessions)
             .Default(1000)
             .GreaterThanOrEqual(1);
@@ -488,6 +491,10 @@ public:
         RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
             .GreaterThan(0)
             .Default((i64) 64 * 1024 * 1024);
+        RegisterParameter("bytes_per_write", BytesPerWrite)
+            .GreaterThan(0)
+            .Default((i64) 16 * 1024 * 1024);
+
         RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
             .Default(true);
 
@@ -495,7 +502,7 @@ public:
             .Default(TDuration::Hours(1));
 
         RegisterParameter("enable_write_direct_io", EnableWriteDirectIO)
-            .Default(true);
+            .Default(false);
 
         RegisterParameter("enable_experimental_skynet_http_api", EnableExperimentalSkynetHttpApi)
             .Default(false);

@@ -1122,8 +1122,7 @@ void TPool::SetDefaultConfig()
 
 bool TPool::IsAggressiveStarvationPreemptionAllowed() const
 {
-    return Config_->AllowAggressiveStarvationPreemption.Get(
-        GetParent()->IsAggressiveStarvationPreemptionAllowed());
+    return Config_->AllowAggressiveStarvationPreemption;
 }
 
 bool TPool::IsExplicit() const
@@ -1873,8 +1872,8 @@ TString TOperationElement::GetId() const
 
 bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 {
-    return Spec_->AllowAggressiveStarvationPreemption.Get(
-        GetParent()->IsAggressiveStarvationPreemptionAllowed());
+    return Spec_->AllowAggressiveStarvationPreemption &&
+        GetParent()->IsAggressiveStarvationPreemptionAllowed();
 }
 
 double TOperationElement::GetWeight() const
@@ -1951,16 +1950,25 @@ void TOperationElement::CheckForStarvation(TInstant now)
         now);
 }
 
-bool TOperationElement::HasStarvingParent() const
+bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context) const
 {
-    auto* parent = GetParent();
-    while (parent) {
-        if (parent->GetStarving()) {
-            return true;
-        }
-        parent = parent->GetParent();
-    }
-    return false;
+   auto* parent = GetParent();
+
+   while (parent) {
+       if (parent->GetStarving()) {
+           return false;
+       }
+
+       if (context.DynamicAttributes(parent).SatisfactionRatio < (1.0 + RatioComputationPrecision) &&
+           !parent->IsAggressiveStarvationPreemptionAllowed())
+       {
+           return false;
+       }
+
+       parent = parent->GetParent();
+   }
+
+   return true;
 }
 
 void TOperationElement::IncreaseResourceUsage(const TJobResources& delta)

@@ -149,6 +149,15 @@ public:
         return ExtractedList;
     }
 
+    virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
+    {
+        YCHECK(cookie == 0);
+        YCHECK(ExtractedList);
+        YCHECK(Finished);
+
+        return ExtractedList->TotalChunkCount;
+    }
+
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         YCHECK(cookie == 0);

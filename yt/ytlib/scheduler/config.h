@@ -91,7 +91,7 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeoutLimit;
     TNullable<double> FairShareStarvationToleranceLimit;
 
-    TNullable<bool> AllowAggressiveStarvationPreemption;
+    bool AllowAggressiveStarvationPreemption;
 
     TSchedulableConfig();
 };
@@ -765,7 +765,6 @@ public:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec, 0x3c0ce9c0);
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec);
 

@@ -661,6 +661,12 @@ public:
         return ApplyChunkMappingToStripe(JobManager_->GetStripeList(cookie), InputChunkMapping_);
     }
 
+    virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
+    {
+        auto stripeList = JobManager_->GetStripeList(cookie);
+        return stripeList->TotalChunkCount;
+    }
+
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         if (jobSummary.InterruptReason != EInterruptReason::None) {
