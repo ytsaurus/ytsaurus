@@ -211,6 +211,12 @@ TUserJobSpec::TUserJobSpec()
         .GreaterThan(0);
     RegisterParameter("tmpfs_path", TmpfsPath)
         .Default(Null);
+    RegisterParameter("disk_space_limit", DiskSpaceLimit)
+        .Default(Null)
+        .GreaterThanOrEqual(0);
+    RegisterParameter("inode_limit", InodeLimit)
+        .Default(Null)
+        .GreaterThanOrEqual(0);
     RegisterParameter("copy_files", CopyFiles)
         .Default(false);
 

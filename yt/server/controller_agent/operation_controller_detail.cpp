@@ -6328,6 +6328,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_tmpfs_path(*config->TmpfsPath);
     }
 
+    if (config->DiskSpaceLimit) {
+        jobSpec->set_disk_space_limit(*config->DiskSpaceLimit);
+    }
+    if (config->InodeLimit) {
+        jobSpec->set_inode_limit(*config->InodeLimit);
+    }
+
     if (Config->IopsThreshold) {
         jobSpec->set_iops_threshold(*Config->IopsThreshold);
         if (Config->IopsThrottlerLimit) {

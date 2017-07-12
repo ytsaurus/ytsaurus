@@ -433,15 +433,21 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetPresent(node->HasDataWeight()));
     descriptors->push_back("compression_ratio");
     descriptors->push_back("update_mode");
-    descriptors->push_back(TAttributeDescriptor("replication_factor"));
+    descriptors->push_back(TAttributeDescriptor("replication_factor")
+        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor("vital")
+        .SetWritable(true)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("media")
+        .SetWritable(true)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("primary_medium")
+        .SetWritable(true)
         .SetReplicated(true));
-    descriptors->push_back("compression_codec");
-    descriptors->push_back("erasure_codec");
+    descriptors->push_back(TAttributeDescriptor("compression_codec")
+        .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor("erasure_codec")
+        .SetWritable(true));
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -584,28 +590,6 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const TStrin
     }
 
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(key);
-}
-
-void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
-    const TString& key,
-    const TYsonString& /*oldValue*/,
-    const TYsonString& newValue)
-{
-    if (key == "compression_codec") {
-        if (!newValue) {
-            ThrowCannotRemoveAttribute(key);
-        }
-        ConvertTo<NCompression::ECodec>(newValue);
-        return;
-    }
-
-    if (key == "erasure_codec") {
-        if (!newValue) {
-            ThrowCannotRemoveAttribute(key);
-        }
-        ConvertTo<NErasure::ECodec>(newValue);
-        return;
-    }
 }
 
 bool TChunkOwnerNodeProxy::SetBuiltinAttribute(

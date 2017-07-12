@@ -362,7 +362,7 @@ public:
         return execNodeCount;
     }
 
-    virtual int GetTotalNodeCount() const override
+    int GetTotalNodeCount() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1363,7 +1363,7 @@ private:
             const auto& operation = pair.second;
             if (operation->GetState() == EOperationState::Running) {
                 LOG_DEBUG("%v (OperationId: %v)",
-                    Strategy_->GetOperationLoggingProgress(operation->GetId()),
+                    Strategy_->GetOperationLoggingProgress(operationId),
                     operationId);
             }
         }

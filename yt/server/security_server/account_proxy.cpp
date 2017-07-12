@@ -53,6 +53,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(TAttributeDescriptor("name")
+            .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
         descriptors->push_back("resource_usage");
@@ -60,6 +61,7 @@ private:
         descriptors->push_back(TAttributeDescriptor("multicell_statistics")
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("resource_limits")
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back("violated_resource_limits");
     }
@@ -150,7 +152,6 @@ private:
         BuildYsonFluently(consumer)
             .Value(resourceSerializer);
     }
-
 };
 
 IObjectProxyPtr CreateAccountProxy(

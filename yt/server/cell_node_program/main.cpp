@@ -35,6 +35,7 @@ protected:
         ConfigureUids();
         ConfigureSignals();
         ConfigureCrashHandler();
+        ConfigureExitZeroOnSigterm();
 
         if (HandlePdeathsigOptions()) {
             return;

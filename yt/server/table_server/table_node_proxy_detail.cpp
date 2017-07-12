@@ -116,11 +116,14 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
+        .SetWritable(true)
         .SetPresent(table->GetTrunkNode()->GetTabletCellBundle()));
     descriptors->push_back("atomicity");
     descriptors->push_back(TAttributeDescriptor("commit_ordering")
+        .SetWritable(true)
         .SetPresent(!isSorted));
-    descriptors->push_back(TAttributeDescriptor("optimize_for"));
+    descriptors->push_back(TAttributeDescriptor("optimize_for")
+        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
     descriptors->push_back(TAttributeDescriptor("chunk_writer")
         .SetCustom(true));

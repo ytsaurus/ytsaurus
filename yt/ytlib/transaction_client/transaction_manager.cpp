@@ -568,7 +568,9 @@ private:
             req->set_title(*maybeTitle);
         }
         ToProto(req->mutable_attributes(), *attributes);
-        req->set_timeout(ToProto(GetTimeout()));
+        auto timeout = ToProto(GetTimeout());
+        req->set_timeout_old(timeout); // will be removed in future versions
+        req->set_timeout_new(timeout);
         if (options.ParentId) {
             ToProto(req->mutable_parent_id(), options.ParentId);
         }
