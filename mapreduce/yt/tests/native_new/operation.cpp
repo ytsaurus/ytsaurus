@@ -66,6 +66,20 @@ REGISTER_MAPPER(TMapperThatWritesStderr);
 
 ////////////////////////////////////////////////////////////////////
 
+class TMapperThatWritesToIncorrectTable : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    void Do(TReader*, TWriter* writer) {
+        try {
+            writer->AddRow(TNode(), 100500);
+        } catch (...) {
+        }
+    }
+};
+REGISTER_MAPPER(TMapperThatWritesToIncorrectTable);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapperThatChecksFile : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
@@ -92,6 +106,24 @@ REGISTER_MAPPER(TMapperThatChecksFile);
 
 SIMPLE_UNIT_TEST_SUITE(Operations)
 {
+    SIMPLE_UNIT_TEST(IncorrectTableId)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .MaxFailedJobCount(1),
+            new TMapperThatWritesToIncorrectTable);
+    }
+
     SIMPLE_UNIT_TEST(MaxFailedJobCount)
     {
         auto client = CreateTestClient();
