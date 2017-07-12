@@ -659,8 +659,11 @@ public:
     // We use the same config for input chunk scraper and intermediate chunk scraper.
     NControllerAgent::TIntermediateChunkScraperConfigPtr ChunkScraper;
 
-    // Enables statistics reporter to send job events/statistics/specs etc.
-    bool EnableStatisticsReporter;
+    // Enables job reporter to send job events/statistics etc.
+    bool EnableJobReporter;
+
+    // Enables job spec reporter to send job specs.
+    bool EnableJobSpecReporter;
 
     // Timeout to try interrupt job before abort it.
     TDuration JobInterruptTimeout;

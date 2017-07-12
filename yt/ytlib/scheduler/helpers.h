@@ -21,9 +21,11 @@ NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId);
 NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
-NYPath::TYPath GetPoolsPath();
-NYPath::TYPath GetOperationsArchiveJobsPath();
-NYPath::TYPath GetOperationsArchiveVersionPath();
+
+const NYPath::TYPath& GetPoolsPath();
+const NYPath::TYPath& GetOperationsArchiveVersionPath();
+const NYPath::TYPath& GetOperationsArchiveJobsPath();
+const NYPath::TYPath& GetOperationsArchiveJobSpecsPath();
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);

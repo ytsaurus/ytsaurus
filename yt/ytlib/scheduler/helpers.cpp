@@ -62,11 +62,6 @@ TYPath GetSecureVaultPath(const TOperationId& operationId)
         + "/secure_vault";
 }
 
-TYPath GetPoolsPath()
-{
-    return "//sys/pools";
-}
-
 TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex)
 {
     return
@@ -88,14 +83,28 @@ TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
         + "/intermediate";
 }
 
-TYPath GetOperationsArchiveJobsPath()
+const TYPath& GetPoolsPath()
 {
-    return "//sys/operations_archive/jobs";
+    static TYPath path =  "//sys/pools";
+    return path;
 }
 
-TYPath GetOperationsArchiveVersionPath()
+const TYPath& GetOperationsArchiveVersionPath()
 {
-    return "//sys/operations_archive/@version";
+    static TYPath path = "//sys/operations_archive/@version";
+    return path;
+}
+
+const TYPath& GetOperationsArchiveJobsPath()
+{
+    static TYPath path = "//sys/operations_archive/jobs";
+    return path;
+}
+
+const TYPath& GetOperationsArchiveJobSpecsPath()
+{
+    static TYPath path =  "//sys/operations_archive/job_specs";
+    return path;
 }
 
 bool IsOperationFinished(EOperationState state)

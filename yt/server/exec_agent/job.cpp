@@ -345,7 +345,7 @@ public:
 
         if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
             Statistics_ = statistics;
-            ReportStatistics(TJobStatistics().Statistics(Statistics_).Priority(EReportPriority::Low));
+            ReportStatistics(TJobStatistics().Statistics(Statistics_));
         }
     }
 

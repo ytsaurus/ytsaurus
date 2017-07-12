@@ -160,7 +160,6 @@ public:
     }
 
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
-        const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const NApi::TGetJobInputOptions& options) override
     {

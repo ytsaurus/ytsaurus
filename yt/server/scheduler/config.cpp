@@ -621,7 +621,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("chunk_scraper", ChunkScraper)
         .DefaultNew();
 
-    RegisterParameter("enable_statistics_reporter", EnableStatisticsReporter)
+    RegisterParameter("enable_job_reporter", EnableJobReporter)
+        .Default(false);
+    RegisterParameter("enable_job_spec_reporter", EnableJobSpecReporter)
         .Default(false);
 
     RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)

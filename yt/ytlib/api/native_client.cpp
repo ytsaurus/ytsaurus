@@ -200,12 +200,10 @@ NRpc::TMutationId TMutatingOptions::GetOrGenerateMutationId() const
 
 namespace {
 
-TUnversionedOwningRow CreateOperationJobKey(const TOperationId& operationId, const TJobId& jobId, const TNameTablePtr& nameTable)
+TUnversionedOwningRow CreateJobKey(const TJobId& jobId, const TNameTablePtr& nameTable)
 {
-    TOwningRowBuilder keyBuilder(4);
+    TOwningRowBuilder keyBuilder(2);
 
-    keyBuilder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], nameTable->GetIdOrRegisterName("operation_id_hi")));
-    keyBuilder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], nameTable->GetIdOrRegisterName("operation_id_lo")));
     keyBuilder.AddValue(MakeUnversionedUint64Value(jobId.Parts64[0], nameTable->GetIdOrRegisterName("job_id_hi")));
     keyBuilder.AddValue(MakeUnversionedUint64Value(jobId.Parts64[1], nameTable->GetIdOrRegisterName("job_id_lo")));
 
@@ -778,10 +776,9 @@ public:
         const TDumpJobContextOptions& options),
         (jobId, path, options))
     IMPLEMENT_METHOD(IAsyncZeroCopyInputStreamPtr, GetJobInput, (
-        const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobInputOptions& options),
-        (operationId, jobId, options))
+        (jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
         const TOperationId& operationId,
         const TJobId& jobId,
@@ -2782,7 +2779,6 @@ private:
     }
 
     IAsyncZeroCopyInputStreamPtr DoGetJobInput(
-        const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobInputOptions& /*options*/)
     {
@@ -2798,13 +2794,13 @@ private:
         lookupOptions.ColumnFilter = NTableClient::TColumnFilter({nameTable->RegisterName("spec")});
         lookupOptions.KeepMissingRows = true;
 
-        auto owningKey = CreateOperationJobKey(operationId, jobId, nameTable);
+        auto owningKey = CreateJobKey(jobId, nameTable);
 
         std::vector<TUnversionedRow> keys;
         keys.push_back(owningKey);
 
         auto lookupResult = WaitFor(LookupRows(
-            GetOperationsArchiveJobsPath(),
+            GetOperationsArchiveJobSpecsPath(),
             nameTable,
             MakeSharedRange(keys, owningKey),
             lookupOptions));
@@ -2812,8 +2808,7 @@ private:
         if (!lookupResult.IsOK()) {
             THROW_ERROR_EXCEPTION(lookupResult)
                 .Wrap("Lookup job spec in operation archive failed")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId);
+                << TErrorAttribute("job_id", jobId);
         }
 
         auto rows = lookupResult.Value()->GetRows();
@@ -2821,8 +2816,7 @@ private:
 
         if (!rows[0]) {
             THROW_ERROR_EXCEPTION("Missing job spec in job archive table")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId);
+                << TErrorAttribute("job_id", jobId);
         }
 
         auto value = rows[0][0];
@@ -2830,7 +2824,6 @@ private:
         if (value.Type != EValueType::String) {
             THROW_ERROR_EXCEPTION("Found job spec has unexpected value type")
                 << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId)
                 << TErrorAttribute("value_type", value.Type);
         }
 
@@ -2838,14 +2831,12 @@ private:
         bool ok = jobSpec.ParseFromArray(value.Data.String, value.Length);
         if (!ok) {
             THROW_ERROR_EXCEPTION("Cannot parse job spec")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId);
+                << TErrorAttribute("job_id", jobId);
         }
 
         if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
             THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
                 << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId)
                 << TErrorAttribute("found_version", jobSpec.version())
                 << TErrorAttribute("supported_version", GetJobSpecVersion());
         }
@@ -2900,8 +2891,7 @@ private:
 
         if (!locateChunksResult.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to locate chunks used in job input")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId);
+                << TErrorAttribute("job_id", jobId);
         }
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);

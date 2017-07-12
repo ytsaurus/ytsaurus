@@ -133,9 +133,13 @@ void TSchedulerConnector::SendHeartbeat()
             timeBetweenFullyProcessedHeartbeats.MilliSeconds());
         LastFullyProcessedHeartbeatTime_ = now;
     }
-    if (rsp->has_enable_statistics_reporter()) {
+    if (rsp->has_enable_job_reporter()) {
         auto reporter = Bootstrap_->GetStatisticsReporter();
-        reporter->SetEnabled(rsp->enable_statistics_reporter());
+        reporter->SetEnabled(rsp->enable_job_reporter());
+    }
+    if (rsp->has_enable_job_spec_reporter()) {
+        auto reporter = Bootstrap_->GetStatisticsReporter();
+        reporter->SetSpecEnabled(rsp->enable_job_spec_reporter());
     }
     jobController->ProcessHeartbeatResponse(rsp);
 }
