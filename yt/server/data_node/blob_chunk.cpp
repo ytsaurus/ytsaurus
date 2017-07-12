@@ -137,6 +137,15 @@ void TBlobChunkBase::InitBlocksExt(const TChunkMeta& meta)
     }
 }
 
+bool TBlobChunkBase::IsFatalError(const TError& error) const
+{
+    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange)) {
+        return false;
+    }
+
+    return true;
+}
+
 void TBlobChunkBase::DoReadMeta(
     TChunkReadGuard /*readGuard*/,
     TCachedChunkMetaCookie cookie,
@@ -275,7 +284,10 @@ void TBlobChunkBase::DoReadBlockSet(
                 "Error reading blob chunk %v",
                 Id_)
                 << TError(blocksOrError);
-            Location_->Disable(error);
+            if (IsFatalError(blocksOrError)) {
+                Location_->Disable(error);
+                Y_UNREACHABLE();
+            }
             THROW_ERROR error;
         }
 
