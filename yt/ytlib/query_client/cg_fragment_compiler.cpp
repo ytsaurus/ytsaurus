@@ -1050,102 +1050,129 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
         auto lhsValue = CodegenFragment(builder, lhsId);
         auto rhsValue = CodegenFragment(builder, rhsId);
 
-        return CodegenIf<TCGExprContext, TCGValue>(
-            builder,
-            builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
-            [&] (TCGExprContext& builder) {
-                return TCGValue::CreateNull(builder, type);
-            },
-            [&] (TCGBaseContext& builder) {
-                YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
-                auto operandType = lhsValue.GetStaticType();
+        YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+        auto operandType = lhsValue.GetStaticType();
 
-                Value* lhsData = lhsValue.GetData(builder);
-                Value* rhsData = rhsValue.GetData(builder);
-                Value* evalData = nullptr;
+        #define OP(opcode, optype) \
+            case EBinaryOp::opcode: \
+                evalData = builder->Create##optype(lhsData, rhsData); \
+                break;
 
-                #define OP(opcode, optype) \
-                    case EBinaryOp::opcode: \
-                        evalData = builder->Create##optype(lhsData, rhsData); \
-                        break;
+        if ((opcode == EBinaryOp::Divide || opcode == EBinaryOp::Modulo) &&
+            (operandType == EValueType::Uint64 || operandType == EValueType::Int64))
+        {
+            return CodegenIf<TCGExprContext, TCGValue>(
+                builder,
+                builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
+                [&] (TCGExprContext& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                [&] (TCGBaseContext& builder) {
+                    Value* lhsData = lhsValue.GetData(builder);
+                    Value* rhsData = rhsValue.GetData(builder);
+                    Value* evalData = nullptr;
 
-                auto checkZero = [&] (Value* value) {
-                    CodegenIf<TCGBaseContext>(
+                    auto checkZero = [&] (Value* value) {
+                        CodegenIf<TCGBaseContext>(
+                            builder,
+                            builder->CreateIsNull(value),
+                            [] (TCGBaseContext& builder) {
+                                builder->CreateCall(
+                                    builder.Module->GetRoutine("ThrowQueryException"),
+                                    {
+                                        builder->CreateGlobalStringPtr("Division by zero")
+                                    });
+                            });
+                    };
+
+                    checkZero(rhsData);
+
+                    switch (operandType) {
+                        case EValueType::Int64:
+                            switch (opcode) {
+                                OP(Divide, SDiv)
+                                OP(Modulo, SRem)
+                                default:
+                                    Y_UNREACHABLE();
+                            }
+                            break;
+                        case EValueType::Uint64:
+                            switch (opcode) {
+                                OP(Divide, UDiv)
+                                OP(Modulo, URem)
+                                default:
+                                    Y_UNREACHABLE();
+                            }
+                            break;
+                        default:
+                            Y_UNREACHABLE();
+                    }
+
+                    return TCGValue::CreateFromValue(
                         builder,
-                        builder->CreateIsNull(value),
-                        [] (TCGBaseContext& builder) {
-                            builder->CreateCall(
-                                builder.Module->GetRoutine("ThrowQueryException"),
-                                {
-                                    builder->CreateGlobalStringPtr("Division by zero")
-                                });
-                        });
-                };
+                        builder->getFalse(),
+                        nullptr,
+                        evalData,
+                        type);
+                },
+                nameTwine);
+        } else {
+            Value* lhsData = lhsValue.GetData(builder);
+            Value* rhsData = rhsValue.GetData(builder);
+            Value* evalData = nullptr;
 
-                #define OP_ZERO_CHECKED(opcode, optype) \
-                    case EBinaryOp::opcode: \
-                        checkZero(rhsData); \
-                        evalData = builder->Create##optype(lhsData, rhsData); \
-                        break;
+            switch (operandType) {
+                case EValueType::Int64:
+                    switch (opcode) {
+                        OP(Plus, Add)
+                        OP(Minus, Sub)
+                        OP(Multiply, Mul)
+                        OP(BitAnd, And)
+                        OP(BitOr, Or)
+                        OP(LeftShift, Shl)
+                        OP(RightShift, LShr)
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                    break;
+                case EValueType::Uint64:
+                    switch (opcode) {
+                        OP(Plus, Add)
+                        OP(Minus, Sub)
+                        OP(Multiply, Mul)
+                        OP(BitAnd, And)
+                        OP(BitOr, Or)
+                        OP(And, And)
+                        OP(Or, Or)
+                        OP(LeftShift, Shl)
+                        OP(RightShift, LShr)
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                    break;
+                case EValueType::Double:
+                    switch (opcode) {
+                        OP(Plus, FAdd)
+                        OP(Minus, FSub)
+                        OP(Multiply, FMul)
+                        OP(Divide, FDiv)
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
 
-                switch (operandType) {
+            return TCGValue::CreateFromValue(
+                builder,
+                builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
+                nullptr,
+                evalData,
+                type);
+        }
 
-                    case EValueType::Int64:
-                        switch (opcode) {
-                            OP(Plus, Add)
-                            OP(Minus, Sub)
-                            OP(Multiply, Mul)
-                            OP_ZERO_CHECKED(Divide, SDiv)
-                            OP_ZERO_CHECKED(Modulo, SRem)
-                            OP(BitAnd, And)
-                            OP(BitOr, Or)
-                            OP(LeftShift, Shl)
-                            OP(RightShift, LShr)
-                            default:
-                                Y_UNREACHABLE();
-                        }
-                        break;
-                    case EValueType::Uint64:
-                        switch (opcode) {
-                            OP(Plus, Add)
-                            OP(Minus, Sub)
-                            OP(Multiply, Mul)
-                            OP_ZERO_CHECKED(Divide, UDiv)
-                            OP_ZERO_CHECKED(Modulo, URem)
-                            OP(BitAnd, And)
-                            OP(BitOr, Or)
-                            OP(And, And)
-                            OP(Or, Or)
-                            OP(LeftShift, Shl)
-                            OP(RightShift, LShr)
-                            default:
-                                Y_UNREACHABLE();
-                        }
-                        break;
-                    case EValueType::Double:
-                        switch (opcode) {
-                            OP(Plus, FAdd)
-                            OP(Minus, FSub)
-                            OP(Multiply, FMul)
-                            OP(Divide, FDiv)
-                            default:
-                                Y_UNREACHABLE();
-                        }
-                        break;
-                    default:
-                        Y_UNREACHABLE();
-                }
-
-                #undef OP
-
-                return TCGValue::CreateFromValue(
-                    builder,
-                    builder->getFalse(),
-                    nullptr,
-                    evalData,
-                    type);
-            },
-            nameTwine);
+        #undef OP
     };
 }
 
