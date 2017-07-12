@@ -524,6 +524,25 @@ TRANSFORMS[13] = [
             get_pivot_keys=get_default_pivots))
 ]
 
+TRANSFORMS[14] = [
+    Convert(
+        "job_specs",
+        table_info=TableInfo([
+                ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("spec", "string"),
+                ("spec_version", "int64"),
+            ],
+            get_pivot_keys=get_default_pivots))
+]
+
+ACTIONS[14] = [
+    set_table_ttl_1week("job_specs"),
+    add_sys_bundle("job_specs"),
+]
+
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{}".format(version)
     has_target = False
