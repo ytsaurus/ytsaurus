@@ -51,7 +51,11 @@ static bool IsIRDumpEnabled()
 
 #ifdef _linux_
 
-static int ProgramHeaderCallback(dl_phdr_info* info, size_t /*size*/, void* /*data*/)
+// This code works around NodeJS dlopen call.
+// By reopening library once again, we ensure global symbol visibility
+// required for the linker.
+
+static int OnHeaderCallback(dl_phdr_info* info, size_t /*size*/, void* /*data*/)
 {
     if (strstr(info->dlpi_name, "ytnode.node")) {
         dlopen(info->dlpi_name, RTLD_NOW | RTLD_GLOBAL);
@@ -62,7 +66,7 @@ static int ProgramHeaderCallback(dl_phdr_info* info, size_t /*size*/, void* /*da
 
 static void LoadDynamicLibrarySymbols()
 {
-    dl_iterate_phdr(ProgramHeaderCallback, nullptr);
+    dl_iterate_phdr(OnHeaderCallback, nullptr);
 }
 
 #endif
@@ -75,7 +79,7 @@ public:
         : RoutineRegistry_(routineRegistry)
     {
         static std::once_flag onceFlag;
-#ifdef _linux
+#ifdef _linux_
         std::call_once(onceFlag, &LoadDynamicLibrarySymbols);
 #endif
     }
