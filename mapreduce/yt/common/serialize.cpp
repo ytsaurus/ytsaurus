@@ -206,6 +206,53 @@ void Deserialize(ESortOrder& sortOrder, const TNode& node)
     }
 }
 
+TString ToString(EOptimizeForAttr optimizeFor)
+{
+    switch (optimizeFor) {
+        case OF_SCAN_ATTR: return "scan";
+        case OF_LOOKUP_ATTR: return "lookup";
+        default:
+            ythrow yexception() << "Invalid optimize for " << static_cast<int>(optimizeFor);
+    }
+}
+
+void Deserialize(EOptimizeForAttr& optimizeFor, const TNode& node)
+{
+    const auto& nodeStr = node.AsString();
+    if (nodeStr == "scan") {
+        optimizeFor = OF_SCAN_ATTR;
+    } else if (nodeStr == "lookup") {
+        optimizeFor = OF_LOOKUP_ATTR;
+    } else {
+        ythrow yexception() << "Invalid optimize for '" << nodeStr << "'";
+    }
+}
+
+TString ToString(EErasureCodecAttr erasureCodec)
+{
+    switch (erasureCodec) {
+        case EC_NONE_ATTR: return "none";
+        case EC_REED_SOLOMON_6_3_ATTR: return "reed_solomon_6_3";
+        case EC_LRC_12_2_2_ATTR: return "lrc_12_2_2";
+        default:
+            ythrow yexception() << "Invalid erasure codec " << static_cast<int>(erasureCodec);
+    }
+}
+
+void Deserialize(EErasureCodecAttr& erasureCodec, const TNode& node)
+{
+    const auto& nodeStr = node.AsString();
+    if (nodeStr == "none") {
+        erasureCodec = EC_NONE_ATTR;
+    } else if (nodeStr == "reed_solomon_6_3") {
+        erasureCodec = EC_REED_SOLOMON_6_3_ATTR;
+    } else if (nodeStr == "lrc_12_2_2") {
+        erasureCodec = EC_LRC_12_2_2_ATTR;
+    } else {
+        ythrow yexception() << "Invalid erasure codec '" << nodeStr << "'";
+    }
+}
+
 void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
@@ -348,6 +395,15 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(path.Timestamp_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("timestamp").Value(*path.Timestamp_);
         })
+        .DoIf(path.CompressionCodec_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("compression_codec").Value(*path.CompressionCodec_);
+        })
+        .DoIf(path.ErasureCodec_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("erasure_codec").Value(ToString(*path.ErasureCodec_));
+        })
+        .DoIf(path.OptimizeFor_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("optimize_for").Value(ToString(*path.OptimizeFor_));
+        })
     .EndAttributes()
     .Value(path.Path_);
 }
@@ -368,6 +424,9 @@ void Deserialize(TRichYPath& path, const TNode& node)
     DESERIALIZE_ATTR("format", path.Format_);
     DESERIALIZE_ATTR("schema", path.Schema_);
     DESERIALIZE_ATTR("timestamp", path.Timestamp_);
+    DESERIALIZE_ATTR("compression_codec", path.CompressionCodec_);
+    DESERIALIZE_ATTR("erasure_codec", path.ErasureCodec_);
+    DESERIALIZE_ATTR("optimize_for", path.OptimizeFor_);
     Deserialize(path.Path_, node);
 }
 

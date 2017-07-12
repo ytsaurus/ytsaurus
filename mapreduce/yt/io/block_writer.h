@@ -48,6 +48,9 @@ public:
         auto secondaryPath = path;
         secondaryPath.Append_ = true;
         secondaryPath.Schema_.Clear();
+        secondaryPath.CompressionCodec_.Clear();
+        secondaryPath.ErasureCodec_.Clear();
+        secondaryPath.OptimizeFor_.Clear();
         SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
     }
 

@@ -129,6 +129,19 @@ enum ESortOrder : int
     SO_DESCENDING
 };
 
+enum EOptimizeForAttr : i8
+{
+    OF_SCAN_ATTR,
+    OF_LOOKUP_ATTR
+};
+
+enum EErasureCodecAttr : i8
+{
+    EC_NONE_ATTR,
+    EC_REED_SOLOMON_6_3_ATTR,
+    EC_LRC_12_2_2_ATTR
+};
+
 struct TColumnSchema
 {
     using TSelf = TColumnSchema;
@@ -204,6 +217,10 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(bool, Executable);
     FLUENT_FIELD_OPTION(TNode, Format);
     FLUENT_FIELD_OPTION(TTableSchema, Schema);
+
+    FLUENT_FIELD_OPTION(TString, CompressionCodec);
+    FLUENT_FIELD_OPTION(EErasureCodecAttr, ErasureCodec);
+    FLUENT_FIELD_OPTION(EOptimizeForAttr, OptimizeFor);
 
     // Timestamp of dynamic table.
     // NOTE: it is _not_ unix timestamp
