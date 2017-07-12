@@ -155,6 +155,36 @@ struct TUmountAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFSQuotaConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TNullable<i64> DiskSpaceLimit;
+    TNullable<i64> InodeLimit;
+    int UserId;
+    TString SlotPath;
+
+    TFSQuotaConfig()
+    {
+        RegisterParameter("disk_space_limit", DiskSpaceLimit)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("inode_limit", InodeLimit)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("user_id", UserId)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("slot_path", SlotPath);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TFSQuotaConfig)
+
+struct TFSQuotaTool
+{
+    void operator()(TFSQuotaConfigPtr config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class F,  class... Args>
 auto HandleEintr(F f, Args&&... args) -> decltype(f(args...));
 

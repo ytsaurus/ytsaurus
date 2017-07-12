@@ -27,6 +27,7 @@ struct ISystemAttributeProvider
         bool Present = true;
         bool Opaque = false;
         bool Custom = false;
+        bool Writable = false;
         bool Removable = false;
         bool Replicated = false;
         bool Mandatory = false;
@@ -48,6 +49,12 @@ struct ISystemAttributeProvider
         TAttributeDescriptor& SetCustom(bool value)
         {
             Custom = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetWritable(bool value)
+        {
+            Writable = value;
             return *this;
         }
 

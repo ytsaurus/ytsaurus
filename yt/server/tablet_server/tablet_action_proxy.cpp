@@ -44,7 +44,8 @@ private:
 
         attributes->push_back("kind");
         attributes->push_back("state");
-        attributes->push_back("keep_finished");
+        attributes->push_back(TAttributeDescriptor("keep_finished")
+            .SetWritable(true));
         attributes->push_back("skip_freezing");
         attributes->push_back("freeze");
         attributes->push_back("tablet_ids");

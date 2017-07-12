@@ -41,6 +41,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(TAttributeDescriptor("name")
+            .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
         descriptors->push_back("racks");

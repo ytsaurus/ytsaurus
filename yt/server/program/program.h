@@ -77,6 +77,8 @@ void ConfigureSignals();
 //! Intercepts SIGSEGV with a nice handler.
 void ConfigureCrashHandler();
 
+void ConfigureExitZeroOnSigterm();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -392,8 +392,8 @@ public:
     TPool(
         ISchedulerStrategyHost* host,
         const TString& id,
-        NProfiling::TTagId profilingTag,
-        TFairShareStrategyConfigPtr strategyConfig);
+        TFairShareStrategyConfigPtr strategyConfig,
+        NProfiling::TTagId profilingTag);
     TPool(
         const TPool& other,
         TCompositeSchedulerElement* clonedParent);
@@ -459,14 +459,14 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 class TOperationElementFixedState
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerStrategyHostPtr, Controller);
 
 protected:
-    explicit TOperationElementFixedState(TOperationPtr operation);
+    explicit TOperationElementFixedState(IOperationStrategyHost* operation);
 
     const TOperationId OperationId_;
     bool Schedulable_;
-    TOperation* const Operation_;
+    IOperationStrategyHost* const Operation_;
 };
 
 class TOperationElementSharedState
@@ -649,7 +649,7 @@ public:
         TStrategyOperationSpecPtr spec,
         TOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
-        TOperationPtr operation);
+        IOperationStrategyHost* operation);
     TOperationElement(
         const TOperationElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -764,8 +764,8 @@ class TRootElement
 public:
     TRootElement(
         ISchedulerStrategyHost* host,
-        NProfiling::TTagId profilingTag,
-        TFairShareStrategyConfigPtr strategyConfig);
+        TFairShareStrategyConfigPtr strategyConfig,
+        NProfiling::TTagId profilingTag);
     TRootElement(const TRootElement& other);
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList) override;

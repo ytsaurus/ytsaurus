@@ -191,6 +191,18 @@ void ConfigureCrashHandler()
     InstallCrashSignalHandler();
 }
 
+void ExitZero(int /* unused */)
+{
+    _exit(0);
+}
+
+void ConfigureExitZeroOnSigterm()
+{
+#ifdef _unix_
+    signal(SIGTERM, ExitZero);
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

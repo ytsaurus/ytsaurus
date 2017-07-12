@@ -245,6 +245,12 @@ void UmountAsRoot(TUmountConfigPtr config)
     NFS::Umount(config->Path, config->Detach);
 }
 
+void SetQuota(TFSQuotaConfigPtr config)
+{
+    SafeSetUid(0);
+    NFS::SetQuota(config->UserId, config->SlotPath, config->DiskSpaceLimit, config->InodeLimit);
+}
+
 TError StatusToError(int status)
 {
     if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
@@ -839,5 +845,10 @@ void TUmountAsRootTool::operator()(TUmountConfigPtr arg) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void TFSQuotaTool::operator()(TFSQuotaConfigPtr arg) const
+{
+    SetQuota(arg);
+}
 
 } // namespace NYT

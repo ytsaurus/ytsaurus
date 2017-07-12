@@ -136,7 +136,6 @@ const struct {
     { SIGFPE,  "SIGFPE"  },
     { SIGABRT, "SIGABRT" },
     { SIGBUS,  "SIGBUS"  },
-    { SIGTERM, "SIGTERM" },
 };
 
 //! Returns the program counter from a signal context, NULL if unknown.
@@ -269,17 +268,6 @@ void InvokeDefaultSignalHandler(int signal)
     kill(getpid(), signal);
 }
 
-//! Terminate the program
-void Terminate(int signal)
-{
-    if (signal == SIGTERM) {
-        _exit(0);
-    } else {
-        // Invoke default handler to create core file.
-        InvokeDefaultSignalHandler(signal);
-    }
-}
-
 // Dumps signal and stack frame information, and invokes the default
 // signal handler once our job is done.
 void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
@@ -301,7 +289,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
             // It looks the current thread is reentering the signal handler.
             // Something must be going wrong (maybe we are reentering by another
             // type of signal?). Kill ourself by the default signal handler.
-            Terminate(signal);
+            InvokeDefaultSignalHandler(signal);
             // If we happen to fall through here, not being killed, we will probably end up
             // running out of stack entering CrashSignalHandler over and over again.
             // Not a bad thing, after all.
@@ -351,7 +339,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 
     // Kill ourself by the default signal handler.
-    Terminate(signal);
+    InvokeDefaultSignalHandler(signal);
 }
 #endif
 

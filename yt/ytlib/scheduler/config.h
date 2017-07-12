@@ -303,6 +303,9 @@ public:
     TNullable<i64> TmpfsSize;
     TNullable<TString> TmpfsPath;
 
+    TNullable<i64> DiskSpaceLimit;
+    TNullable<i64> InodeLimit;
+
     bool CopyFiles;
 
     TUserJobSpec();

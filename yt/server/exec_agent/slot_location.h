@@ -53,6 +53,12 @@ public:
         bool enable,
         IMounterPtr mounter);
 
+    TFuture<void> SetQuota(
+        int slotIndex,
+        TNullable<i64> diskSpaceLimit,
+        TNullable<i64> inodeLimit,
+        int userId);
+
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
     TFuture<void> CleanSandboxes(int slotIndex, IMounterPtr mounter);
