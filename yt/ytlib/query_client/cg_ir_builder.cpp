@@ -13,6 +13,7 @@ using llvm::Function;
 using llvm::BasicBlock;
 using llvm::TypeBuilder;
 using llvm::Value;
+using llvm::Type;
 using llvm::Twine;
 using llvm::Module;
 
@@ -72,21 +73,25 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
         InsertPoint currentIP = saveIP();
         SetInsertPoint(EntryBlock_, EntryBlock_->begin());
 
+        Types_.push_back(value->getType());
+        Type* closureType = llvm::StructType::get(Parent_->getContext(), Types_);
+
         // Load the value to the current context through the closure.
         Value* result = CreateLoad(
-            CreateLoad(
+            CreateStructGEP(
+                nullptr,
                 CreatePointerCast(
-                    CreateConstGEP1_32(ClosurePtr_, indexInClosure),
-                    value->getType()->getPointerTo()->getPointerTo(),
-                    resultingName + ".closureSlotPtr"
-                ),
-                resultingName + ".inParentPtr"
-            ),
+                    ClosurePtr_,
+                    llvm::PointerType::getUnqual(closureType),
+                    "castedClosure"),
+                indexInClosure,
+                resultingName + ".inParentPtr"),
             resultingName);
 
         restoreIP(currentIP);
 
         Mapping_[valueInParent] = std::make_pair(result, indexInClosure);
+
         return result;
     }
 }
@@ -95,35 +100,33 @@ Value* TCGIRBuilder::GetClosure()
 {
     // Save all values into the closure in the parent context.
 
-    Value* closure = Parent_->CreateAlloca(
-        TypeBuilder<void*, false>::get(getContext()),
-        getInt32(Mapping_.size()),
-        "closure");
+    Type* closureType = llvm::StructType::get(Parent_->getContext(), Types_);
+
+    Value* closure = llvm::UndefValue::get(closureType);
 
     for (auto& value : Mapping_) {
         Value* valueInParent = value.first;
         int indexInClosure = value.second.second;
-        auto name = value.second.first->getName();
 
-        Value* valueInParentPtr = Parent_->CreateAlloca(
-            valueInParent->getType(),
-            nullptr,
-            name + ".inParentPtr");
-
-        Parent_->CreateStore(
+        closure = Parent_->CreateInsertValue(
+            closure,
             valueInParent,
-            valueInParentPtr);
-        Parent_->CreateStore(
-            valueInParentPtr,
-            Parent_->CreatePointerCast(
-                Parent_->CreateConstGEP1_32(closure, indexInClosure),
-                valueInParentPtr->getType()->getPointerTo(),
-                name + ".closureSlotPtr"
-            )
-        );
+            indexInClosure);
     }
 
-    return closure;
+    Value* closurePtr = Parent_->CreateAlloca(
+        closureType,
+        nullptr,
+        "closure");
+
+    Parent_->CreateStore(
+        closure,
+        closurePtr);
+
+    return Parent_->CreatePointerCast(
+        closurePtr,
+        TypeBuilder<void**, false>::get(getContext()),
+        "uncastedClosure");
 }
 
 BasicBlock* TCGIRBuilder::CreateBBHere(const Twine& name)
@@ -140,21 +143,21 @@ Value* TCGIRBuilder::CreateStackSave(const Twine& name)
         name);
 }
 
-void TCGIRBuilder::CreateStackRestore(llvm::Value* ptr)
+void TCGIRBuilder::CreateStackRestore(Value* ptr)
 {
     Module* module = GetInsertBlock()->getParent()->getParent();
     CreateCall(llvm::Intrinsic::getDeclaration(module, llvm::Intrinsic::stackrestore), ptr);
 }
 
-llvm::Type* TCGIRBuilder::getSizeType() const
+Type* TCGIRBuilder::getSizeType() const
 {
     return TypeBuilder<size_t, false>::get(getContext());
 }
 
 llvm::AllocaInst* TCGIRBuilder::CreateAlignedAlloca(
-    llvm::Type *type,
+    Type *type,
     unsigned align,
-    llvm::Value* arraySize,
+    Value* arraySize,
     const llvm::Twine& name)
 {
     return Insert(new llvm::AllocaInst(type, arraySize, align), name);

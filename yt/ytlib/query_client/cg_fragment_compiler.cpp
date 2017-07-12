@@ -21,7 +21,6 @@
 //    * string expressions with references (just need to copy string data)
 //    It is possible to do better memory management here.
 //  - TBAA is a king
-//  - Capture pointers by value in ViaClosure
 
 namespace NYT {
 namespace NQueryClient {
