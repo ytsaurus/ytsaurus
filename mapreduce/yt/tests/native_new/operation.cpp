@@ -6,6 +6,7 @@
 #include <library/unittest/registar.h>
 
 #include <util/generic/maybe.h>
+#include <util/folder/path.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
@@ -62,6 +63,30 @@ public:
     }
 };
 REGISTER_MAPPER(TMapperThatWritesStderr);
+
+////////////////////////////////////////////////////////////////////
+
+class TMapperThatChecksFile : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    TMapperThatChecksFile() = default;
+    TMapperThatChecksFile(const TString& file)
+        : File_(file)
+    { }
+
+    virtual void Do(TReader*, TWriter*) override {
+        if (!TFsPath(File_).Exists()) {
+            Cerr << "File `" << File_ << "' does not exist." << Endl;
+            exit(1);
+        }
+    }
+
+    Y_SAVELOAD_JOB(File_);
+
+private:
+    TString File_;
+};
+REGISTER_MAPPER(TMapperThatChecksFile);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -246,6 +271,44 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             opId = runOperationFunc(0, 100500);
             UNIT_ASSERT_VALUES_EQUAL(getJobCount(opId), 1);
         }
+    }
+
+    SIMPLE_UNIT_TEST(TestFetchTable)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        // Expect operation to complete successfully
+        client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .MapperSpec(TUserJobSpec().AddFile(TRichYPath("//testing/input").Format("yson"))),
+            new TMapperThatChecksFile("input"));
+    }
+
+    SIMPLE_UNIT_TEST(TestFetchTableRange)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        // Expect operation to complete successfully
+        client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .MapperSpec(TUserJobSpec().AddFile(TRichYPath("//testing/input[#0]").Format("yson"))),
+            new TMapperThatChecksFile("input"));
     }
 }
 

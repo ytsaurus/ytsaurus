@@ -37,7 +37,7 @@ TString FormIORequestParameters(
     const TRichYPath& path,
     const TOptions& options)
 {
-    auto params = NodeFromYPath(path);
+    auto params = PathToParamNode(path);
     if (options.Config_) {
         params[TIOOptionsTraits<TOptions>::ConfigName] = *options.Config_;
     }
@@ -49,7 +49,7 @@ inline TString FormIORequestParameters(
     const TRichYPath& path,
     const TFileReaderOptions& options)
 {
-    auto params = NodeFromYPath(path);
+    auto params = PathToParamNode(path);
     if (options.Config_) {
         params[TIOOptionsTraits<TTableReaderOptions>::ConfigName] = *options.Config_;
     }
@@ -67,7 +67,7 @@ inline TString FormIORequestParameters<TTableWriterOptions>(
     const TRichYPath& path,
     const TTableWriterOptions& options)
 {
-    auto params = NodeFromYPath(path);
+    auto params = PathToParamNode(path);
     auto tableWriter = TConfig::Get()->TableWriter;
     if (options.Config_) {
         MergeNodes(tableWriter, *options.Config_);

@@ -7,6 +7,7 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/serialize.h>
+#include <mapreduce/yt/common/node_builder.h>
 
 #include <library/json/json_reader.h>
 
@@ -50,8 +51,12 @@ TRichYPath CanonizePath(const TAuth& auth, const TRichYPath& path)
     TRichYPath result;
     if (path.Path_.find_first_of("<>{}[]") != TString::npos) {
         THttpHeader header("GET", "parse_ypath");
-        header.SetParameters(NodeToYsonString(NodeFromYPath(path)));
+        auto pathNode = PathToNode(path);
+        header.SetParameters(TNode()("path", pathNode));
         auto response = NodeFromYsonString(RetryRequest(auth, header));
+        for (const auto& item : pathNode.GetAttributes().AsMap()) {
+            response.Attributes()[item.first] = item.second;
+        }
         Deserialize(result, response);
     } else {
         result = path;
