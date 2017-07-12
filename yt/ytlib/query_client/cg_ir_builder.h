@@ -49,6 +49,8 @@ private:
     //! Translates captured values in the parent context into their indexes in the closure.
     std::unordered_map<llvm::Value*, std::pair<llvm::Value*, int>> Mapping_;
 
+    std::vector<llvm::Type*> Types_;
+
     llvm::BasicBlock* EntryBlock_;
 
 public:
