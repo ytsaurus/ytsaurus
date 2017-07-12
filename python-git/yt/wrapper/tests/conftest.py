@@ -262,7 +262,9 @@ def test_environment_job_archive(request):
         },
         delta_scheduler_config={
             "scheduler": {
-                "enable_statistics_reporter": True,
+                "enable_statistics_reporter": True,  # obsolete, need to cleanup after merging changes related to job_specs
+                "enable_job_reporter": True,
+                "enable_job_spec_reporter": True,
             },
         }
     )
