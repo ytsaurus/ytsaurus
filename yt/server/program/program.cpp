@@ -191,7 +191,7 @@ void ConfigureCrashHandler()
     InstallCrashSignalHandler();
 }
 
-void ExitZero(int unused)
+void ExitZero(int /* unused */)
 {
     _exit(0);
 }
