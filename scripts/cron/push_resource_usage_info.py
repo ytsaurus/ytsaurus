@@ -32,7 +32,8 @@ STATFACE_REPORT_NAME = "YT/AccountsResourceUsage"
 def datetime_to_timestamp(dt):
     return (dt - datetime(1970, 1, 1)).total_seconds()
 
-NOW = datetime.now()
+TS = time.time()
+NOW = datetime.fromtimestamp(int(TS - (TS % 600)))
 NOW_STR = NOW.strftime("%Y-%m-%d %H:%M:%S")
 
 UTC_NOW = datetime.utcnow()
@@ -112,7 +113,7 @@ def convert_data_to_statface_format(cluster, accounts_data):
 def push_cluster_data_to_statface(cluster, accounts_data, headers):
     data = {}
     data["name"] = STATFACE_REPORT_NAME
-    data["scale"] = "h"
+    data["scale"] = "i"
     data["json_data"] = json.dumps({
         "values": convert_data_to_statface_format(cluster, accounts_data)
     })
