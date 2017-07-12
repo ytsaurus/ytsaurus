@@ -25,7 +25,8 @@ TNode NodeFromJsonValue(const NJson::TJsonValue& input);
 
 TString NodeListToYsonString(const TNode::TList& nodes);
 
-TNode NodeFromYPath(const TRichYPath& path);
+TNode PathToNode(const TRichYPath& path);
+TNode PathToParamNode(const TRichYPath& path);
 
 TString AttributesToYsonString(const TNode& attributes);
 

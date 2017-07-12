@@ -907,25 +907,27 @@ void LogYPath(const TOperationId& opId, const TRichYPath& output, const char* ty
 TOperationId ExecuteMap(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TMapOperationSpec& spec,
+    const TMapOperationSpec& uncanonizedSpec,
     IJob* mapper,
     const TOperationOptions& options)
 {
-    auto inputs = CanonizePaths(auth, spec.Inputs_);
-    auto outputs = CanonizePaths(auth, spec.Outputs_);
+    auto spec = uncanonizedSpec;
+    spec.Inputs_ = CanonizePaths(auth, spec.Inputs_);
+    spec.Outputs_ = CanonizePaths(auth, spec.Outputs_);
+    spec.MapperSpec_.Files_ = CanonizePaths(auth, spec.MapperSpec_.Files_);
 
     TMaybe<TNode> format;
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, transactionId, inputs);
+        format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
     if (spec.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
     if (spec.CreateOutputTables_) {
-        CreateOutputTables(auth, transactionId, outputs);
+        CreateOutputTables(auth, transactionId, spec.Outputs_);
     }
 
     TJobPreparer map(
@@ -934,7 +936,7 @@ TOperationId ExecuteMap(
         "--yt-map",
         spec.MapperSpec_,
         mapper,
-        outputs.size(),
+        spec.Outputs_.size(),
         spec.InputDesc_,
         spec.OutputDesc_,
         options);
@@ -948,8 +950,8 @@ TOperationId ExecuteMap(
             spec.InputDesc_,
             spec.OutputDesc_,
             std::placeholders::_1))
-        .Item("input_table_paths").List(inputs)
-        .Item("output_table_paths").List(outputs)
+        .Item("input_table_paths").List(spec.Inputs_)
+        .Item("output_table_paths").List(spec.Outputs_)
         .Item("job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
@@ -975,8 +977,8 @@ TOperationId ExecuteMap(
         MergeSpec(specNode, options));
 
     LogJob(operationId, mapper, "mapper");
-    LogYPaths(operationId, inputs, "input");
-    LogYPaths(operationId, outputs, "output");
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPaths(operationId, spec.Outputs_, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);
@@ -987,25 +989,27 @@ TOperationId ExecuteMap(
 TOperationId ExecuteReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TReduceOperationSpec& spec,
+    const TReduceOperationSpec& uncanonizedSpec,
     IJob* reducer,
     const TOperationOptions& options)
 {
-    auto inputs = CanonizePaths(auth, spec.Inputs_);
-    auto outputs = CanonizePaths(auth, spec.Outputs_);
+    auto spec = uncanonizedSpec;
+    spec.Inputs_ = CanonizePaths(auth, spec.Inputs_);
+    spec.Outputs_ = CanonizePaths(auth, spec.Outputs_);
+    spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
 
     TMaybe<TNode> format;
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, transactionId, inputs);
+        format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
     if (spec.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
     if (spec.CreateOutputTables_) {
-        CreateOutputTables(auth, transactionId, outputs);
+        CreateOutputTables(auth, transactionId, spec.Outputs_);
     }
 
     TJobPreparer reduce(
@@ -1014,7 +1018,7 @@ TOperationId ExecuteReduce(
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
-        outputs.size(),
+        spec.Outputs_.size(),
         spec.InputDesc_,
         spec.OutputDesc_,
         options);
@@ -1033,8 +1037,8 @@ TOperationId ExecuteReduce(
         .DoIf(spec.JoinBy_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("join_by").Value(spec.JoinBy_.GetRef());
         })
-        .Item("input_table_paths").List(inputs)
-        .Item("output_table_paths").List(outputs)
+        .Item("input_table_paths").List(spec.Inputs_)
+        .Item("output_table_paths").List(spec.Outputs_)
         .Item("job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
@@ -1058,8 +1062,8 @@ TOperationId ExecuteReduce(
         MergeSpec(specNode, options));
 
     LogJob(operationId, reducer, "reducer");
-    LogYPaths(operationId, inputs, "input");
-    LogYPaths(operationId, outputs, "output");
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPaths(operationId, spec.Outputs_, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);
@@ -1070,25 +1074,27 @@ TOperationId ExecuteReduce(
 TOperationId ExecuteJoinReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TJoinReduceOperationSpec& spec,
+    const TJoinReduceOperationSpec& uncanonizedSpec,
     IJob* reducer,
     const TOperationOptions& options)
 {
-    auto inputs = CanonizePaths(auth, spec.Inputs_);
-    auto outputs = CanonizePaths(auth, spec.Outputs_);
+    auto spec = uncanonizedSpec;
+    spec.Inputs_ = CanonizePaths(auth, spec.Inputs_);
+    spec.Outputs_ = CanonizePaths(auth, spec.Outputs_);
+    spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
 
     TMaybe<TNode> format;
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, transactionId, inputs);
+        format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
     if (spec.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
     if (spec.CreateOutputTables_) {
-        CreateOutputTables(auth, transactionId, outputs);
+        CreateOutputTables(auth, transactionId, spec.Outputs_);
     }
 
     TJobPreparer reduce(
@@ -1097,7 +1103,7 @@ TOperationId ExecuteJoinReduce(
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
-        outputs.size(),
+        spec.Outputs_.size(),
         spec.InputDesc_,
         spec.OutputDesc_,
         options);
@@ -1112,8 +1118,8 @@ TOperationId ExecuteJoinReduce(
             spec.OutputDesc_,
             std::placeholders::_1))
         .Item("join_by").Value(spec.JoinBy_)
-        .Item("input_table_paths").List(inputs)
-        .Item("output_table_paths").List(outputs)
+        .Item("input_table_paths").List(spec.Inputs_)
+        .Item("output_table_paths").List(spec.Outputs_)
         .Item("job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
@@ -1137,8 +1143,8 @@ TOperationId ExecuteJoinReduce(
         MergeSpec(specNode, options));
 
     LogJob(operationId, reducer, "reducer");
-    LogYPaths(operationId, inputs, "input");
-    LogYPaths(operationId, outputs, "output");
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPaths(operationId, spec.Outputs_, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);
@@ -1149,7 +1155,7 @@ TOperationId ExecuteJoinReduce(
 TOperationId ExecuteMapReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TMapReduceOperationSpec& spec,
+    const TMapReduceOperationSpec& uncanonizedSpec,
     IJob* mapper,
     IJob* reduceCombiner,
     IJob* reducer,
@@ -1159,21 +1165,25 @@ TOperationId ExecuteMapReduce(
     const TMultiFormatDesc& reducerClassInputDesc,
     const TOperationOptions& options)
 {
-    auto inputs = CanonizePaths(auth, spec.Inputs_);
-    auto outputs = CanonizePaths(auth, spec.Outputs_);
+    auto spec = uncanonizedSpec;
+    spec.Inputs_ = CanonizePaths(auth, spec.Inputs_);
+    spec.Outputs_ = CanonizePaths(auth, spec.Outputs_);
+    spec.MapperSpec_.Files_ = CanonizePaths(auth, spec.MapperSpec_.Files_);
+    spec.ReduceCombinerSpec_.Files_ = CanonizePaths(auth, spec.ReduceCombinerSpec_.Files_);
+    spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
 
     TMaybe<TNode> format;
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, transactionId, inputs);
+        format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
     if (spec.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
     if (spec.CreateOutputTables_) {
-        CreateOutputTables(auth, transactionId, outputs);
+        CreateOutputTables(auth, transactionId, spec.Outputs_);
     }
 
     TKeyColumns sortBy(spec.SortBy_);
@@ -1240,7 +1250,7 @@ TOperationId ExecuteMapReduce(
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
-        outputs.size(),
+        spec.Outputs_.size(),
         reduceInputDesc,
         reduceOutputDesc,
         options);
@@ -1301,8 +1311,8 @@ TOperationId ExecuteMapReduce(
             std::placeholders::_1))
         .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
-        .Item("input_table_paths").List(inputs)
-        .Item("output_table_paths").List(outputs)
+        .Item("input_table_paths").List(spec.Inputs_)
+        .Item("output_table_paths").List(spec.Outputs_)
         .Item("map_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
@@ -1344,8 +1354,8 @@ TOperationId ExecuteMapReduce(
     LogJob(operationId, mapper, "mapper");
     LogJob(operationId, reduceCombiner, "reduce_combiner");
     LogJob(operationId, reducer, "reducer");
-    LogYPaths(operationId, inputs, "input");
-    LogYPaths(operationId, outputs, "output");
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPaths(operationId, spec.Outputs_, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);

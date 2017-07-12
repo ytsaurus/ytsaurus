@@ -137,11 +137,17 @@ TString NodeListToYsonString(const TNode::TList& nodes)
     return stream.Str();
 }
 
-TNode NodeFromYPath(const TRichYPath& path)
+TNode PathToNode(const TRichYPath& path)
 {
-    return BuildYsonNodeFluently().BeginMap()
-        .Item("path").Value(path)
-    .EndMap();
+    TNode result;
+    TNodeBuilder builder(&result);
+    Serialize(path, &builder);
+    return result;
+}
+
+TNode PathToParamNode(const TRichYPath& path)
+{
+    return TNode()("path", PathToNode(path));
 }
 
 TString AttributesToYsonString(const TNode& node)
