@@ -375,6 +375,12 @@ public:
 
     void AddRow(const T& row, size_t tableIndex = 0)
     {
+        if (tableIndex >= Locks_->size()) {
+            ythrow TIOException() <<
+                "Table index " << tableIndex <<
+                " is out of range [0, " << Locks_->size() << ")";
+        }
+
         auto guard = Guard((*Locks_)[tableIndex]);
         Writer_->AddRow(row, tableIndex);
     }
