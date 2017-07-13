@@ -30,13 +30,10 @@ public:
 
     virtual bool IsJobSplittable(const TJobId& jobId) const override
     {
-        i64 runningJobCount = RunningJobs_.size();
-        i64 smallJobCount = static_cast<i64>(std::sqrt(static_cast<double>(MaxRunningJobCount_)));
-        bool isResidualJob = runningJobCount <= smallJobCount;
         auto it = RunningJobs_.find(jobId);
         YCHECK(it != RunningJobs_.end());
         auto& job = it->second;
-        return (isResidualJob || Statistics_.GetInterruptHint(jobId)) && job.IsSplittable(Config_);
+        return (IsResidual() || Statistics_.GetInterruptHint(jobId)) && job.IsSplittable(Config_);
     }
 
     virtual void OnJobStarted(
@@ -82,18 +79,30 @@ public:
         double prepareDuration = summary.PrepareDuration.Get(TDuration()).SecondsFloat() -
             summary.DownloadDuration.Get(TDuration()).SecondsFloat();
         double expectedExecDuration = execDuration / processedRowCount * unreadRowCount;
-        auto medianCompletionTime = Statistics_.GetMedianCompletionTime();
-        double medianCompletionDuration = medianCompletionTime
-            ? CpuDurationToDuration(medianCompletionTime).SecondsFloat() - CpuDurationToDuration(GetCpuInstant()).SecondsFloat()
-            : 0.0;
+
+        auto getMedianCompletionDuration = [&] () {
+            auto medianCompletionTime = Statistics_.GetMedianCompletionTime();
+            if (!IsResidual() && medianCompletionTime) {
+                return CpuDurationToDuration(medianCompletionTime).SecondsFloat() -
+                    CpuDurationToDuration(GetCpuInstant()).SecondsFloat();
+            }
+
+            // If running job count is small, we don't pay attention to median completion time
+            // and rely only on MinJobTime.
+            return 0.0;
+        };
+
+        double medianCompletionDuration = getMedianCompletionDuration();
         double minJobTime = std::max({
             Config_->MinJobTime.SecondsFloat(),
             Config_->ExecToPrepareTimeRatio * prepareDuration,
             medianCompletionDuration - prepareDuration});
+
         int jobCount = Clamp<int>(
             std::min(static_cast<i64>(expectedExecDuration / minJobTime), unreadRowCount),
             1,
             Config_->MaxJobsPerSplit);
+
         LOG_DEBUG("Estimated optimal job count for unread data slices "
             "(JobCount: %v, JobId: %v, PrepareDuration: %.6g, ExecDuration: %.6g, "
             "ProcessedRowCount: %v, MedianCompletionDuration: %.6g, MinJobTime: %v, "
@@ -289,6 +298,13 @@ private:
         Statistics_.RemoveSample(job.GetCompletionTime(), summary.Id);
         RunningJobs_.erase(it);
         Statistics_.Update();
+    }
+
+    bool IsResidual() const
+    {
+        i64 runningJobCount = RunningJobs_.size();
+        i64 smallJobCount = static_cast<i64>(std::sqrt(static_cast<double>(MaxRunningJobCount_)));
+        return runningJobCount <= smallJobCount;
     }
 };
 

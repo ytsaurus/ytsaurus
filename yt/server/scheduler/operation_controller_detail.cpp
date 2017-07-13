@@ -2178,7 +2178,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     UpdateJobStatistics(*jobSummary);
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
-        jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary);
+        jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary, joblet);
         LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
             jobSummary->Id,
             jobSummary->InterruptReason,
@@ -4776,13 +4776,25 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
     return dataSliceList;
 }
 
-int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary)
+int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)
 {
     const auto& inputDataSlices = jobSummary.UnreadInputDataSlices;
     int jobCount = 1;
 
-    if (JobSplitter_) {
-        i64 unreadRowCount = GetCumulativeRowCount(inputDataSlices);
+    if (JobSplitter_ && GetPendingJobCount() == 0) {
+        auto inputDataStatistics = GetTotalInputDataStatistics(jobSummary.Statistics);
+
+        // We don't estimate unread row count based on unread slices,
+        // because foreign slices are not passed back to scheduler.
+        // Instead, we take the difference between estimated row count and actual read row count.
+        i64 unreadRowCount = joblet->InputStripeList->TotalRowCount - inputDataStatistics.row_count();
+
+        if (unreadRowCount <= 0) {
+            // This is almost impossible, still we don't want to fail operation in this case.
+            LOG_WARNING("Estimated unread row count is negative (JobId: %v, UnreadRowCount: %v)", jobSummary.Id, unreadRowCount);
+            unreadRowCount = 1;
+        }
+
         jobCount = JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
     }
     return jobCount;
