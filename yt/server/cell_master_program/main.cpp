@@ -15,14 +15,13 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterProgram
-    : public TProgram
+    : public TYTProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<NCellMaster::TCellMasterConfig>
 {
 public:
     TCellMasterProgram()
-        : TProgram()
-        , TProgramPdeathsigMixin(Opts_)
+        : TProgramPdeathsigMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     {
         Opts_

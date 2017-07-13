@@ -12,17 +12,15 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellProxyProgram
-    : public TProgram
+    : public TYTProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<NCellProxy::TCellProxyConfig>
 {
 public:
     TCellProxyProgram()
-        : TProgram()
-        , TProgramPdeathsigMixin(Opts_)
+        : TProgramPdeathsigMixin(Opts_)
         , TProgramConfigMixin(Opts_)
-    {
-    }
+    { }
 
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
