@@ -61,6 +61,7 @@
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/schema_inferer.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
@@ -2412,6 +2413,7 @@ private:
             TCellTagList srcCellTags;
             TObjectId dstId;
             TCellTag dstCellTag;
+            std::unique_ptr<NTableClient::IOutputSchemaInferer> outputSchemaInferer;
             {
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>();
                 auto batchReq = proxy->ExecuteBatch();
@@ -2474,9 +2476,82 @@ private:
                     dstCellTag = rsp->cell_tag();
                     checkType(TypeFromId(dstId), dstPath);
                 }
-            }
 
-            auto dstIdPath = FromObjectId(dstId);
+                // Check table schemas.
+                if (*commonType == EObjectType::Table) {
+                    auto createGetSchemaRequest = [&] (const TObjectId& objectId) {
+                        auto req = TYPathProxy::Get(FromObjectId(objectId) + "/@");
+                        SetTransactionId(req, options, true);
+                        req->mutable_attributes()->add_keys("schema");
+                        req->mutable_attributes()->add_keys("schema_mode");
+                        return req;
+                    };
+
+                    TObjectServiceProxy::TRspExecuteBatchPtr getSchemasRsp;
+                    {
+                        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+                        auto getSchemasReq = proxy->ExecuteBatch();
+                        {
+                            auto req = createGetSchemaRequest(dstId);
+                            getSchemasReq->AddRequest(req, "get_dst_schema");
+                        }
+                        for (const auto& id : srcIds) {
+                            auto req = createGetSchemaRequest(id);
+                            getSchemasReq->AddRequest(req, "get_src_schema");
+                        }
+
+                        auto batchResponseOrError = WaitFor(getSchemasReq->Invoke());
+                        THROW_ERROR_EXCEPTION_IF_FAILED(batchResponseOrError, "Error fetching table schemas");
+
+                        getSchemasRsp = batchResponseOrError.Value();
+                    }
+
+                    {
+                        const auto& rspOrErrorList = getSchemasRsp->GetResponses<TYPathProxy::TRspGet>("get_dst_schema");
+                        YCHECK(rspOrErrorList.size() == 1);
+                        const auto& rspOrError = rspOrErrorList[0];
+                        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching schema for %v", dstPath);
+
+                        const auto& rsp = rspOrError.Value();
+                        const auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+                        const auto schema = attributes->Get<TTableSchema>("schema");
+                        const auto schemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
+                        switch (schemaMode) {
+                            case ETableSchemaMode::Strong:
+                                if (schema.IsSorted()) {
+                                    THROW_ERROR_EXCEPTION("Destination path %v has sorted schema, concatenation into sorted table is not supported",
+                                        dstPath);
+                                }
+                                outputSchemaInferer = CreateSchemaCompatibilityChecker(dstPath, schema);
+                                break;
+                            case ETableSchemaMode::Weak:
+                                outputSchemaInferer = CreateOutputSchemaInferer();
+                                if (options.Append) {
+                                    outputSchemaInferer->AddInputTableSchema(dstPath, schema, schemaMode);
+                                }
+                                break;
+                            default:
+                                Y_UNREACHABLE();
+                        }
+                    }
+
+                    {
+                        const auto& rspOrErrorList = getSchemasRsp->GetResponses<TYPathProxy::TRspGet>("get_src_schema");
+                        YCHECK(rspOrErrorList.size() == srcPaths.size());
+                        for (size_t i = 0; i < rspOrErrorList.size(); ++i) {
+                            const auto& path = srcPaths[i];
+                            const auto& rspOrError = rspOrErrorList[i];
+                            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching schema for %v", path);
+
+                            const auto& rsp = rspOrError.Value();
+                            const auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+                            const auto schema = attributes->Get<TTableSchema>("schema");
+                            const auto schemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
+                            outputSchemaInferer->AddInputTableSchema(path, schema, schemaMode);
+                        }
+                    }
+                }
+            }
 
             // Get source chunk ids.
             // Maps src index -> list of chunk ids for this src.
@@ -2523,6 +2598,7 @@ private:
 
             // Begin upload.
             TTransactionId uploadTransactionId;
+            const auto dstIdPath = FromObjectId(dstId);
             {
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>();
 
@@ -2617,6 +2693,10 @@ private:
 
                 auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
                 *req->mutable_statistics() = dataStatistics;
+                if (outputSchemaInferer) {
+                    ToProto(req->mutable_table_schema(), outputSchemaInferer->GetOutputTableSchema());
+                    req->set_schema_mode(static_cast<int>(outputSchemaInferer->GetOutputTableSchemaMode()));
+                }
                 req->set_chunk_properties_update_needed(true);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
                 NRpc::GenerateMutationId(req);
