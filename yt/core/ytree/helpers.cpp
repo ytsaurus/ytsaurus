@@ -182,9 +182,13 @@ void TAttributeDictionaryValueSerializer::Load(TStreamLoadContext& context, IAtt
 
 void ValidateYTreeKey(const TStringBuf& key)
 {
+    Y_UNUSED(key);
+    // XXX(vvvv): Disabled due to existing data with empty keys, see https://st.yandex-team.ru/YQL-2640
+#if 0
     if (key.empty()) {
         THROW_ERROR_EXCEPTION("Empty keys are not allowed in map nodes");
     }
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
