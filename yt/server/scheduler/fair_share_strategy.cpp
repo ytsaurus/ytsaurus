@@ -469,6 +469,13 @@ public:
             Host->RegisterAlert(EAlertType::UpdatePools, combinedError);
         } else {
             Host->UnregisterAlert(EAlertType::UpdatePools);
+            Host->LogEventFluently(ELogEventType::PoolsInfo)
+                .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
+                    const auto& id = pair.first;
+                    const auto& pool = pair.second;
+                    fluent
+                        .Item(id).Value(pool->GetConfig());
+                });
             LOG_INFO("Pools updated");
         }
     }
