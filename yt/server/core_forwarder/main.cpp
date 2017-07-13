@@ -27,11 +27,10 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoreForwarderProgram
-    : public TProgram
+    : public TYTProgram
 {
 public:
     TCoreForwarderProgram()
-        : TProgram()
     {
         Opts_.SetFreeArgsNum(6);
         Opts_.SetFreeArgTitle(0, "PID");

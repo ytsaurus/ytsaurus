@@ -24,20 +24,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintVersionAndExit()
-{
-    Cout << GetVersion() << Endl;
-    _exit(0);
-}
-
-static void PrintBuildAndExit()
-{
-    Cout << "Build Time: " << GetBuildTime() << Endl;
-    Cout << "Build Host: " << GetBuildHost() << Endl;
-    Cout << "Build Machine: " << GetBuildMachine() << Endl;
-    _exit(0);
-}
-
 class TProgram::TOptsParseResult
     : public NLastGetopt::TOptsParseResult
 {
@@ -60,15 +46,14 @@ private:
 };
 
 TProgram::TProgram()
-    : Opts_()
 {
     Opts_.AddHelpOption();
     Opts_.AddLongOption("version", "print version and exit")
         .NoArgument()
-        .Handler(&PrintVersionAndExit);
+        .Handler0(std::bind(&TProgram::PrintVersionAndExit, this));
     Opts_.AddLongOption("build", "print build information and exit")
         .NoArgument()
-        .Handler(&PrintBuildAndExit);
+        .Handler0(std::bind(&TProgram::PrintBuildAndExit, this));
     Opts_.SetFreeArgsNum(0);
 }
 
@@ -108,7 +93,6 @@ int TProgram::Exit(int code) const noexcept
     return -1;
 }
 
-
 void TProgram::OnError(const TString& message) const noexcept
 {
     try {
@@ -117,6 +101,20 @@ void TProgram::OnError(const TString& message) const noexcept
         // Just ignore it; STDERR might be closed already,
         // and write() would result in EPIPE.
     }
+}
+
+void TProgram::PrintVersionAndExit()
+{
+    Cout << GetVersion() << Endl;
+    _exit(0);
+}
+
+void TProgram::PrintBuildAndExit()
+{
+    Cout << "Build Time: " << GetBuildTime() << Endl;
+    Cout << "Build Host: " << GetBuildHost() << Endl;
+    Cout << "Build Machine: " << GetBuildMachine() << Endl;
+    _exit(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,6 +126,28 @@ TProgramException::TProgramException(TString what)
 const char* TProgramException::what() const noexcept
 {
     return What_.c_str();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const char* TYTProgram::GetVersion()
+{
+    return NYT::GetVersion();
+}
+
+const char* TYTProgram::GetBuildHost()
+{
+    return NYT::GetBuildHost();
+}
+
+const char* TYTProgram::GetBuildMachine()
+{
+    return NYT::GetBuildMachine();
+}
+
+const char* TYTProgram::GetBuildTime()
+{
+    return NYT::GetBuildTime();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

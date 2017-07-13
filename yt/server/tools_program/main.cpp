@@ -27,11 +27,10 @@ REGISTER_TOOL(TKillProcessGroupTool)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TToolsProgram
-    : public TProgram
+    : public TYTProgram
 {
 public:
     TToolsProgram()
-        : TProgram()
     {
         Opts_
             .AddLongOption("tool-name", "tool name to execute")
