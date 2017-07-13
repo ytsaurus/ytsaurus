@@ -257,6 +257,12 @@ TNode SerializeParametersForInsertRows(
 {
     TNode result;
     SetPathParam(&result, path);
+    if (options.Aggregate_) {
+        result["aggregate"] = *options.Aggregate_;
+    }
+    if (options.Update_) {
+        result["update"] = *options.Update_;
+    }
     if (options.Atomicity_) {
         result["atomicity"] = ToString(*options.Atomicity_);
     }
