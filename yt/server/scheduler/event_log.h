@@ -28,6 +28,7 @@ DEFINE_ENUM(ELogEventType,
     (FairShareInfo)
     (OperationPrepared)
     (ClusterInfo)
+    (PoolsInfo)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
