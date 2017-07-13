@@ -9,6 +9,7 @@
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/blob.h>
 
 #include <contrib/libs/pycxx/Extensions.hxx>
 #include <contrib/libs/pycxx/Objects.hxx>
@@ -18,6 +19,8 @@ namespace NPython {
 
 using namespace NYTree;
 using namespace NYPath;
+
+static const int BufferSize = 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,11 +82,11 @@ public:
         try {
             // Read unless we have whole row
             while (!Consumer_->HasObject() && !IsStreamRead_) {
-                int length = InputStream_->Read(Buffer_, BufferSize_);
+                int length = InputStream_->Read(Buffer_, BufferSize);
                 if (length != 0) {
                     Parser_->Read(TStringBuf(Buffer_, length));
                 }
-                if (BufferSize_ != length) {
+                if (BufferSize != length) {
                     IsStreamRead_ = true;
                     Parser_->Finish();
                 }
@@ -125,8 +128,7 @@ private:
     std::unique_ptr<NYTree::TPythonObjectBuilder> Consumer_;
     std::unique_ptr<NYson::TYsonParser> Parser_;
 
-    static const int BufferSize_ = 1024 * 1024;
-    char Buffer_[BufferSize_];
+    char Buffer_[BufferSize];
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,15 +368,14 @@ private:
             NYTree::TPythonObjectBuilder consumer(alwaysCreateAttributes, encoding);
             NYson::TYsonParser parser(&consumer, ysonType);
 
-            const int BufferSize = 1024 * 1024;
-            char buffer[BufferSize];
+            TBlob buffer(TDefaultBlobTag(), BufferSize, /*initiailizeStorage*/ false);
 
             if (ysonType == NYson::EYsonType::MapFragment) {
                 consumer.OnBeginMap();
             }
-            while (int length = inputStreamPtr->Read(buffer, BufferSize))
+            while (int length = inputStreamPtr->Read(buffer.Begin(), BufferSize))
             {
-                parser.Read(TStringBuf(buffer, length));
+                parser.Read(TStringBuf(buffer.Begin(), length));
                 if (BufferSize != length) {
                     break;
                 }
