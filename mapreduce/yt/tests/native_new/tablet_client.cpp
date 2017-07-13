@@ -70,6 +70,35 @@ void CreateTestTable(const IClientPtr& client, const TYPath& table)
              .Add(TNode()("name", "value")("type", "string")))));
 }
 
+void CreateTestMulticolumnTable(const IClientPtr& client, const TYPath& table)
+{
+    client->Create(
+        table,
+        NT_TABLE,
+        TCreateOptions()
+        .Attributes(
+            TNode()
+            ("dynamic", true)
+            ("schema", TNode()
+             .Add(TNode()("name", "key")("type", "int64")("sort_order", "ascending"))
+             .Add(TNode()("name", "value1")("type", "string"))
+             .Add(TNode()("name", "value2")("type", "string")))));
+}
+
+void CreateTestAggregatingTable(const IClientPtr& client, const TYPath& table)
+{
+    client->Create(
+        table,
+        NT_TABLE,
+        TCreateOptions()
+        .Attributes(
+            TNode()
+            ("dynamic", true)
+            ("schema", TNode()
+             .Add(TNode()("name", "key")("type", "string")("sort_order", "ascending"))
+             .Add(TNode()("name", "value")("type", "int64")("aggregate", "sum")))));
+}
+
 void WaitForTableState(const IClientPtr& client, const TYPath& table, TStringBuf state)
 {
     yvector<TYPath> tabletStatePathList;
@@ -270,6 +299,70 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
                     //return lhs["key"].AsInt64() < rhs["key"].AsInt64();
                 //});
             UNIT_ASSERT_VALUES_EQUAL(result, rows);
+        }
+
+        client->UnmountTable(tablePath);
+        WaitForTableState(client, tablePath, "unmounted");
+    }
+
+    SIMPLE_UNIT_TEST(TestUpdateInsert)
+    {
+        TTabletFixture fixture;
+        auto client = fixture.Client();
+        const TString tablePath = "//testing/test-update-insert";
+        CreateTestMulticolumnTable(client, tablePath);
+        client->MountTable(tablePath);
+        WaitForTableState(client, tablePath, "mounted");
+
+        client->InsertRows(tablePath, {TNode()("key", 1)("value1", "one")("value2", "odin")});
+
+        {
+            auto result = client->LookupRows(tablePath, {TNode()("key", 1)});
+            UNIT_ASSERT_VALUES_EQUAL(result, std::vector<TNode>{TNode()("key", 1)("value1", "one")("value2", "odin")});
+        }
+
+        client->InsertRows(tablePath, {TNode()("key", 1)("value1", "two")}, TInsertRowsOptions().Update(true));
+        {
+            auto result = client->LookupRows(tablePath, {TNode()("key", 1)});
+            UNIT_ASSERT_VALUES_EQUAL(result, std::vector<TNode>{TNode()("key", 1)("value1", "two")("value2", "odin")});
+        }
+
+        client->InsertRows(tablePath, {TNode()("key", 1)("value2", "dva")});
+        {
+            auto result = client->LookupRows(tablePath, {TNode()("key", 1)});
+            UNIT_ASSERT_VALUES_EQUAL(result, std::vector<TNode>{TNode()("key", 1)("value1", TNode::CreateEntity())("value2", "dva")});
+        }
+
+        client->UnmountTable(tablePath);
+        WaitForTableState(client, tablePath, "unmounted");
+    }
+
+    SIMPLE_UNIT_TEST(TestAggregateInsert)
+    {
+        TTabletFixture fixture;
+        auto client = fixture.Client();
+        const TString tablePath = "//testing/test-aggregate-insert";
+        CreateTestAggregatingTable(client, tablePath);
+        client->MountTable(tablePath);
+        WaitForTableState(client, tablePath, "mounted");
+
+        client->InsertRows(tablePath, {TNode()("key", "one")("value", 5)});
+
+        {
+            auto result = client->LookupRows(tablePath, {TNode()("key", "one")});
+            UNIT_ASSERT_VALUES_EQUAL(result, std::vector<TNode>{TNode()("key", "one")("value", 5)});
+        }
+
+        client->InsertRows(tablePath, {TNode()("key", "one")("value", 5)}, TInsertRowsOptions().Aggregate(true));
+        {
+            auto result = client->LookupRows(tablePath, {TNode()("key", "one")});
+            UNIT_ASSERT_VALUES_EQUAL(result, std::vector<TNode>{TNode()("key", "one")("value", 10)});
+        }
+
+        client->InsertRows(tablePath, {TNode()("key", "one")("value", 5)});
+        {
+            auto result = client->LookupRows(tablePath, {TNode()("key", "one")});
+            UNIT_ASSERT_VALUES_EQUAL(result, std::vector<TNode>{TNode()("key", "one")("value", 5)});
         }
 
         client->UnmountTable(tablePath);

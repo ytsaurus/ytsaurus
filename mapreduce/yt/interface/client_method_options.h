@@ -268,9 +268,20 @@ struct TTabletTransactionOptions
     FLUENT_FIELD_OPTION(EDurability, Durability);
 };
 
+// https://wiki.yandex-team.ru/yt/userdoc/api/#insertrows
 struct TInsertRowsOptions
     : public TTabletTransactionOptions<TInsertRowsOptions>
-{ };
+{
+    // By default all columns missing in input data are set to Null and overwrite currently stored value.
+    // If `Update' is set to true currently stored value will not be overwritten for columns that are missing in input data.
+    FLUENT_FIELD_OPTION(bool, Update);
+
+    // Used with aggregating columns.
+    // https://wiki.yandex-team.ru/yt/userdoc/dynamicsortedtables/#agregirujushhiekolonki
+    // By default value in aggregating column will be overwritten.
+    // If `Aggregate' is set to true row will be considered as delta and it will be aggregated with currently stored value.
+    FLUENT_FIELD_OPTION(bool, Aggregate);
+};
 
 struct TDeleteRowsOptions
     : public TTabletTransactionOptions<TDeleteRowsOptions>
