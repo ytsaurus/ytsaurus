@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <yt/server/chunk_pools/sorted_chunk_pool.h>
+#include <yt/ytlib/chunk_pools/public.h>
 
 namespace NYT {
 namespace NScheduler {
