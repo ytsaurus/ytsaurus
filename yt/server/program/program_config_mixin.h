@@ -15,7 +15,7 @@ template <class TConfig>
 class TProgramConfigMixin
 {
 protected:
-    TProgramConfigMixin(NLastGetopt::TOpts& opts, bool required = true)
+    explicit TProgramConfigMixin(NLastGetopt::TOpts& opts, bool required = true)
     {
         auto opt = opts
             .AddLongOption("config", "path to configuration file")
@@ -52,7 +52,7 @@ protected:
 
     bool HandleConfigOptions()
     {
-        auto print = [] (const TIntrusivePtr <TConfig>& config) {
+        auto print = [] (const TIntrusivePtr<TConfig>& config) {
             using namespace NYson;
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
@@ -73,12 +73,16 @@ private:
     {
         using namespace NYTree;
 
+        if (!ConfigPath_){
+            THROW_ERROR_EXCEPTION("Missing --config option");
+        }
+
         try {
             TIFStream stream(ConfigPath_);
             ConfigNode_ = ConvertToNode(&stream);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing configuration file")
-                << TErrorAttribute("config", ConfigPath_)
+            THROW_ERROR_EXCEPTION("Error parsing configuration file %v",
+                ConfigPath_)
                 << ex;
         }
 
@@ -86,8 +90,8 @@ private:
             Config_ = New<TConfig>();
             Config_->Load(ConfigNode_);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error loading configuration file")
-                << TErrorAttribute("config", ConfigPath_)
+            THROW_ERROR_EXCEPTION("Error loading configuration file %v",
+                ConfigPath_)
                 << ex;
         }
     }
