@@ -241,7 +241,7 @@ public:
 
     void MoveRow(T* result) const
     {
-        return TBase::MoveRow(result);
+        TBase::MoveRow(result);
     }
 };
 
