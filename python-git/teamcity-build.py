@@ -113,6 +113,8 @@ def checkout(options):
                 "clone",
                 "git@github.yandex-team.ru:yt/yt.git",
                 "--recurse-submodules",
+                "--branch",
+                "prestable/19.2",
                 options.yt_source_directory
             ],
             cwd=options.yt_build_directory)
