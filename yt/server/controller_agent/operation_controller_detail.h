@@ -992,7 +992,7 @@ protected:
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
     virtual bool IsJobInterruptible() const;
-    int EstimateSplitJobCount(const NScheduler::TCompletedJobSummary& jobSummary);
+    int EstimateSplitJobCount(const NScheduler::TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
     std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const NScheduler::TCompletedJobSummary& jobSummary) const;
     virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 

@@ -488,6 +488,13 @@ public:
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, combinedError);
         } else {
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, TError());
+            Host->LogEventFluently(ELogEventType::PoolsInfo)
+                .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
+                    const auto& id = pair.first;
+                    const auto& pool = pair.second;
+                    fluent
+                        .Item(id).Value(pool->GetConfig());
+                });
             LOG_INFO("Pools updated");
         }
     }
