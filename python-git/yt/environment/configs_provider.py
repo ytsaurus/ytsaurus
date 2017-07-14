@@ -604,31 +604,6 @@ class ConfigsProvider_18(ConfigsProvider):
                 .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
                 .replace("%%masters%%", masters)
 
-
-class ConfigsProvider_18_3_18_4(ConfigsProvider_18):
-    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
-        configs, addresses = super(ConfigsProvider_18_3_18_4, self)._build_node_configs(
-                provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
-
-        current_user = 10000
-
-        for i, config in enumerate(configs):
-            set_at(config, "exec_agent/slot_manager/start_uid", current_user)
-            set_at(config, "exec_agent/slot_manager/paths", [os.path.join(node_dirs[i], "slots")])
-
-            set_at(config, "exec_agent/enable_cgroups", False)
-            set_at(config, "exec_agent/environment_manager", {"environments": {"default": {"type": "unsafe"}}})
-
-            current_user += provision["node"]["jobs_resource_limits"]["user_slots"] + 1
-
-        return configs, addresses
-
-class ConfigsProvider_18_3(ConfigsProvider_18_3_18_4):
-    pass
-
-class ConfigsProvider_18_4(ConfigsProvider_18_3_18_4):
-    pass
-
 class ConfigsProvider_18_5(ConfigsProvider_18):
     def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
         configs, addresses = super(ConfigsProvider_18_5, self)._build_node_configs(
@@ -679,8 +654,6 @@ class ConfigsProvider_19_2(ConfigsProvider_19_1):
     pass
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
-    (18, 3): ConfigsProvider_18_3,
-    (18, 4): ConfigsProvider_18_4,
     (18, 5): ConfigsProvider_18_5,
     (19, 0): ConfigsProvider_19_0,
     (19, 1): ConfigsProvider_19_1,
