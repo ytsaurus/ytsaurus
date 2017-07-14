@@ -256,6 +256,13 @@ set(FOLDER_SRCS
   ${FOLDER_BASE}/tempdir.cpp
 )
 
+if(WIN32)
+  set(FOLDER_SRCS ${FOLDER_SRCS}
+    ${FOLDER_BASE}/dirent_win.c
+    ${FOLDER_BASE}/lstat_win.c
+  )
+endif()
+
 set(DATETIME_BASE ${CMAKE_SOURCE_DIR}/util/datetime)
 set(DATETIME_SRCS
   ${DATETIME_BASE}/base.cpp

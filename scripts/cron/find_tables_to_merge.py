@@ -21,6 +21,9 @@ def configure_logger():
     logger.handlers[0].setFormatter(formatter)
     logger = logging.LoggerAdapter(logger, extra={"yt_proxy": yt.config["proxy"]["url"]})
 
+def configure_client():
+    command_params = yt.config.get_option("COMMAND_PARAMS", None)
+    command_params["suppress_access_tracking"] = True
 
 def main():
     parser = ArgumentParser()
@@ -43,6 +46,7 @@ def main():
         yt.config.set_proxy(args.proxy)
 
     configure_logger()
+    configure_client()
 
     logger.info("Finding tables to merge")
 
@@ -60,7 +64,8 @@ def main():
                            subtree_filter=lambda path, obj:
                                args.ignore_suppress_nightly_merge or
                                not obj.attributes.get("suppress_nightly_merge", False),
-                           exclude=args.filter_out):
+                           exclude=args.filter_out,
+                           enable_batch_mode=True):
         chunk_count = int(table.attributes["chunk_count"])
         if chunk_count == 0:
             continue
@@ -92,7 +97,8 @@ def main():
             tables_to_merge = yt.get(args.queue_path) + tables_to_merge
         for index in xrange(5):
             try:
-                yt.set(args.queue_path, tables_to_merge)
+                # Hack to avoid failing merging processes
+                yt.set(args.queue_path, tables_to_merge[:45000])
                 break
             except yt.YtResponseError:
                 time.sleep(5)

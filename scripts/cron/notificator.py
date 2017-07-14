@@ -7,8 +7,6 @@ from email.mime.text import MIMEText
 from subprocess import Popen, PIPE
 import time
 
-import StringIO
-
 from argparse import ArgumentParser
 
 logger = logging.getLogger("notificator")
@@ -72,7 +70,7 @@ def process_email(config, dry_run):
         logger.info("Processing cluster %s", cluster)
         notifications = yt.get("//sys/notifications/local/" + cluster)
         for notification_id, notification in notifications.items(): 
-            if notification.get("sent_via_mail", False) or (not notification.get("published", True)):
+            if notification.get("sent_via_mail", False) or (not notification.get("published", False)):
                 continue
             logger.info("Sending notification %s", notification_id)
             send_notification(cluster, 
@@ -95,7 +93,7 @@ def main():
     logger.info("Reading configuration...")
     try:
         config = yt.get("//sys/notifications/config")
-    except Exception, err:
+    except Exception:
         logger.exception("Error while reading configuration. Didn't you forget to specify locke as YT_PROXY?")
         exit(1)
 

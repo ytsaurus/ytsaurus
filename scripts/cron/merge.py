@@ -90,6 +90,11 @@ def merge(table):
     except yt.YtError as e:
         logger.error("Failed to merge table %s with error %s", table, str(e))
 
+def configure_client():
+    command_params = yt.config.get_option("COMMAND_PARAMS", None)
+    command_params["suppress_access_tracking"] = True
+
 if __name__ == "__main__":
+    configure_client()
     process_tasks_from_list(sys.argv[1], merge)
 

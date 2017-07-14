@@ -9,6 +9,7 @@ import collections
 import hashlib
 import os
 import subprocess
+import sys
 
 def get_shasum(data):
     return hashlib.sha1(data).hexdigest()
@@ -53,6 +54,10 @@ def test_compression(yt_proxy, caching_file_getter, testcase_info):
     if yt_proxy is None:
         pytest.skip("yt is unavailable")
     uncompressed_data = caching_file_getter.get_file(testcase_info.uncompressed_file["yt_path"])
+    if get_shasum(uncompressed_data) != testcase_info.uncompressed_file["shasum"]:
+        print >>sys.stderr, "LENGTH OF UNCOMPRESSED DATA", len(uncompressed_data)
+        with open("/home/teamcity/failed_compression_test_file") as fout:
+            fout.write(uncompressed_data)
     assert get_shasum(uncompressed_data) == testcase_info.uncompressed_file["shasum"]
     compressed_data = yt_proxy.read_file(testcase_info.compressed_file["yt_path"]).read()
     assert get_shasum(compressed_data) == testcase_info.compressed_file["shasum"]
