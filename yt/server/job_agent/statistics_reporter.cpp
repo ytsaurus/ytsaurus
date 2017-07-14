@@ -151,7 +151,7 @@ public:
     }
 
 private:
-    TLogger Logger;
+    TLogger Logger = JobTrackerServerLogger;
     TSimpleCounter EnqueuedCounter_ = {"/enqueued"};
     TSimpleCounter DequeuedCounter_ = {"/dequeued"};
     TSimpleCounter DroppedCounter_ = {"/dropped"};
@@ -235,8 +235,8 @@ private:
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        JobProfiler.Increment(CommittedCounter_, batch.size());
-        JobProfiler.Increment(CommittedDataWeightCounter_, dataWeight);
+        Profiler_.Increment(CommittedCounter_, batch.size());
+        Profiler_.Increment(CommittedDataWeightCounter_, dataWeight);
 
         LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
             "CommittedItems: %v, CommittedDataWeight: %v)",
