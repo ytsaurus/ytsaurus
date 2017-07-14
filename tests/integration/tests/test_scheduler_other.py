@@ -1995,7 +1995,6 @@ class TestSchedulerPools(YTEnvSetup):
         assert events == ["operation_started", "operation_completed"]
         pools_info = [row for row in read_table("//sys/scheduler/event_log")
                       if row["event_type"] == "pools_info" and "custom_pool" in row["pools"]]
-        # One update on scheduler start and one update after custom pool creation.
         assert len(pools_info) == 1
         custom_pool_info = pools_info[-1]["pools"]["custom_pool"]
         assert custom_pool_info["min_share_resources"]["cpu"] == 1
