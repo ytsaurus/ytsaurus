@@ -130,18 +130,18 @@ EOF
 }
 
 YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-YANDEX_YT_PYTHON_VERSION="0.8.14-0"
+YANDEX_YT_PYTHON_VERSION="0.8.18-0"
 
 if [ "$UBUNTU_CODENAME" = "precise" ]; then
-    YANDEX_YT_VERSIONS="19.1.22136-prestable~bd2d4d9 19.2.22511-prestable~20f68c7"
+    YANDEX_YT_VERSIONS="19.1.22136-prestable~bd2d4d9 19.2.22846-prestable~4249782"
 elif [ "$UBUNTU_CODENAME" = "trusty" ]; then
-    YANDEX_YT_VERSIONS="19.1.22126-prestable~36fa536 19.2.22411-prestable~1804a04"
+    YANDEX_YT_VERSIONS="19.1.22126-prestable~36fa536 19.2.22846-prestable~4249782"
 else
     echo "Ubuntu $UBUNTU_CODENAME is not currently supported"
     exit 1
 fi
 
-YANDEX_YT_YSON_BINDINGS_VERSION="0.3.7-0"
+YANDEX_YT_YSON_BINDINGS_VERSION="0.3.7-1"
 
 create_and_upload_archive() {
     local yt_local_version="$1" && shift
