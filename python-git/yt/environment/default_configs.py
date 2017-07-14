@@ -208,7 +208,7 @@ b"""
         cluster_directory_synchronizer = {
             sync_period = 500;
         };
-                
+
         enable_udf = %true;
     };
 
