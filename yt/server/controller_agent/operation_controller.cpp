@@ -292,6 +292,11 @@ public:
         return Underlying_->BuildJobsYson();
     }
 
+    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override
+    {
+        return Underlying_->ExtractJobSpec(jobId);
+    }
+
     virtual TYsonString BuildSuspiciousJobsYson() const override
     {
         return Underlying_->BuildSuspiciousJobsYson();

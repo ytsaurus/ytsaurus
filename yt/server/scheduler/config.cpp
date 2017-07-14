@@ -348,9 +348,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("statistics_analyzer_thread_count", StatisticsAnalyzerThreadCount)
         .Default(2)
         .GreaterThan(0);
-    RegisterParameter("job_spec_builder_thread_count", JobSpecBuilderThreadCount)
-        .Default(8)
-        .GreaterThan(0);
     RegisterParameter("parallel_snapshot_builder_count", ParallelSnapshotBuilderCount)
         .Default(4)
         .GreaterThan(0);

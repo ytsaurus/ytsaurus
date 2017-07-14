@@ -7,6 +7,7 @@
 #include "scheduler_strategy.h"
 
 #include <yt/server/controller_agent/master_connector.h>
+#include <yt/server/controller_agent/controller_agent.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
@@ -109,11 +110,6 @@ public:
     IInvokerPtr GetCancelableControlInvoker() const
     {
         return CancelableControlInvoker;
-    }
-
-    NControllerAgent::TMasterConnectorPtr GetControllerAgentMasterConnector() const
-    {
-        return ControllerAgentMasterConnector;
     }
 
     TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
@@ -282,11 +278,7 @@ public:
 
         ScheduleTestingDisconnection();
 
-        // NB: this method could be called in disconnected state during registration pipeline.
-        // In such situation ControllersMasterConnector is not initialized.
-        if (ControllerAgentMasterConnector) {
-            ControllerAgentMasterConnector->UpdateConfig(config);
-        }
+        Bootstrap->GetControllerAgent()->UpdateConfig(config);
     }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
@@ -310,8 +302,6 @@ private:
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
 
     TEnumIndexedVector<TError, ESchedulerAlertType> Alerts;
-
-    NControllerAgent::TMasterConnectorPtr ControllerAgentMasterConnector;
 
     const TCallback<TFuture<void>()> VoidCallback_ = BIND([] {return VoidFuture;});
 
@@ -399,10 +389,7 @@ private:
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
                 .Via(CancelableControlInvoker));
 
-        ControllerAgentMasterConnector = New<NControllerAgent::TMasterConnector>(
-            CancelableControlInvoker,
-            Config,
-            Bootstrap);
+        Bootstrap->GetControllerAgent()->Connect(CancelableControlInvoker);
 
         StartPeriodicActivities();
 
@@ -778,7 +765,7 @@ private:
 
         Connected.store(false);
 
-        ControllerAgentMasterConnector.Reset();
+        Bootstrap->GetControllerAgent()->Disconnect();
 
         LockTransaction.Reset();
 
@@ -1258,11 +1245,6 @@ void TMasterConnector::Disconnect()
 IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
 {
     return Impl->GetCancelableControlInvoker();
-}
-
-NControllerAgent::TMasterConnectorPtr TMasterConnector::GetControllerAgentMasterConnector() const
-{
-    return Impl->GetControllerAgentMasterConnector();
 }
 
 TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)

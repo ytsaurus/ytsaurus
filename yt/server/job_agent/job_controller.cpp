@@ -11,6 +11,8 @@
 
 #include <yt/server/misc/memory_usage_tracker.h>
 
+#include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
@@ -25,10 +27,12 @@
 namespace NYT {
 namespace NJobAgent {
 
+using namespace NRpc;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NJobTrackerClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NCellNode;
@@ -73,7 +77,8 @@ public:
         const TReqHeartbeatPtr& request);
 
     void ProcessHeartbeatResponse(
-        const TRspHeartbeatPtr& response);
+        const TRspHeartbeatPtr& response,
+        NRpc::IChannelPtr jobSpecsProxyChannel);
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -365,7 +370,7 @@ void TJobController::TImpl::OnWaitingJobTimeout(TWeakPtr<IJob> weakJob)
     }
 
     if (strongJob->GetState() == EJobState::Waiting) {
-        strongJob->Abort(TError(NExecAgent::EErrorCode::WaitingJobTimeout, "Job waiting has timed out") 
+        strongJob->Abort(TError(NExecAgent::EErrorCode::WaitingJobTimeout, "Job waiting has timed out")
             << TErrorAttribute("timeout", Config_->WaitingJobsTimeout));
     }
 }
@@ -551,7 +556,9 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     }
 }
 
-void TJobController::TImpl::ProcessHeartbeatResponse(const TRspHeartbeatPtr& response)
+void TJobController::TImpl::ProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response,
+    NRpc::IChannelPtr jobSpecsProxyChannel)
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
@@ -597,20 +604,70 @@ void TJobController::TImpl::ProcessHeartbeatResponse(const TRspHeartbeatPtr& res
         }
     }
 
+    std::vector<TJobSpec> specs(response->jobs_to_start_size());
 
-    int attachmentIndex = 0;
-    for (auto& info : *response->mutable_jobs_to_start()) {
-        auto jobId = FromProto<TJobId>(info.job_id());
-        auto operationId = FromProto<TJobId>(info.operation_id());
-        const auto& resourceLimits = info.resource_limits();
-        TJobSpec spec;
-        if (info.has_spec()) {
-            spec.Swap(info.mutable_spec());
-        } else {
+    if (specs.empty()) {
+        return;
+    }
+
+    bool hasSpecsInAttachments = !response->Attachments().empty();
+
+    if (hasSpecsInAttachments) {
+        int attachmentIndex = 0;
+        for (const auto& info : response->jobs_to_start()) {
+            TJobSpec spec;
             const auto& attachment = response->Attachments()[attachmentIndex++];
             DeserializeFromProtoWithEnvelope(&spec, attachment);
+
+            auto jobId = FromProto<TJobId>(info.job_id());
+            auto operationId = FromProto<TJobId>(info.operation_id());
+            const auto& resourceLimits = info.resource_limits();
+
+            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
         }
-        CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+    } else {
+        YCHECK(jobSpecsProxyChannel);
+
+        TJobSpecServiceProxy jobSpecsServiceProxy(jobSpecsProxyChannel);
+
+        auto jobSpecsRequest = jobSpecsServiceProxy.GetJobSpecs();
+        for (const auto& info : response->jobs_to_start()) {
+            auto* jobSpecRequest = jobSpecsRequest->add_requests();
+            *jobSpecRequest->mutable_operation_id() = info.operation_id();
+            *jobSpecRequest->mutable_job_id() = info.job_id();
+
+            auto jobId = FromProto<TJobId>(info.job_id());
+            auto operationId = FromProto<TJobId>(info.operation_id());
+            LOG_DEBUG("Getting job spec (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+        }
+
+        jobSpecsRequest->SetTimeout(Config_->GetJobSpecsTimeout);
+        auto jobSpecsResponse = WaitFor(jobSpecsRequest->Invoke())
+            .ValueOrThrow();
+
+        for (int index = 0; index < response->jobs_to_start_size(); ++index) {
+            const auto& info = response->jobs_to_start(index);
+            auto jobId = FromProto<TJobId>(info.job_id());
+            auto operationId = FromProto<TJobId>(info.operation_id());
+            const auto& resourceLimits = info.resource_limits();
+
+            const auto& jobSpecResponse = jobSpecsResponse->mutable_responses(index);
+            if (jobSpecResponse->has_error()) {
+                auto error = FromProto<TError>(jobSpecsResponse->mutable_responses(index)->error());
+                if (!error.IsOK()) {
+                    LOG_DEBUG(error, "Failed to get job spec (OperationId: %v, JobId: %v)", operationId, jobId);
+                    continue;
+                }
+            }
+
+            TJobSpec spec;
+            const auto& attachment = jobSpecsResponse->Attachments()[index];
+            DeserializeFromProtoWithEnvelope(&spec, attachment);
+
+            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+        }
     }
 }
 
@@ -737,9 +794,10 @@ void TJobController::PrepareHeartbeatRequest(
 }
 
 void TJobController::ProcessHeartbeatResponse(
-    const TRspHeartbeatPtr& response)
+    const TRspHeartbeatPtr& response,
+    IChannelPtr jobSpecsProxyChannel)
 {
-    Impl_->ProcessHeartbeatResponse(response);
+    Impl_->ProcessHeartbeatResponse(response, jobSpecsProxyChannel);
 }
 
 IYPathServicePtr TJobController::GetOrchidService()

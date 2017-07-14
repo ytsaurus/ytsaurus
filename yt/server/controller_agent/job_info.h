@@ -61,6 +61,8 @@ public:
     i64 StartRowIndex;
     bool Restarted = false;
 
+    TFuture<TSharedRef> JobSpecProtoFuture;
+
     NScheduler::TExtendedJobResources EstimatedResourceUsage;
     TNullable<double> JobProxyMemoryReserveFactor;
     TNullable<double> UserJobMemoryReserveFactor;

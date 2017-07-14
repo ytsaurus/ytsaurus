@@ -36,8 +36,7 @@ TJob::TJob(
     TExecNodePtr node,
     TInstant startTime,
     const TJobResources& resourceLimits,
-    bool interruptible,
-    TJobSpecBuilder specBuilder)
+    bool interruptible)
     : Id_(id)
     , Type_(type)
     , OperationId_(operationId)
@@ -47,7 +46,6 @@ TJob::TJob(
     , State_(EJobState::None)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
-    , SpecBuilder_(std::move(specBuilder))
 { }
 
 TDuration TJob::GetDuration() const
@@ -172,13 +170,11 @@ TJobStartRequest::TJobStartRequest(
     TJobId id,
     EJobType type,
     const TJobResources& resourceLimits,
-    bool interruptible,
-    TJobSpecBuilder specBuilder)
+    bool interruptible)
     : Id(id)
     , Type(type)
     , ResourceLimits(resourceLimits)
     , Interruptible(interruptible)
-    , SpecBuilder(std::move(specBuilder))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

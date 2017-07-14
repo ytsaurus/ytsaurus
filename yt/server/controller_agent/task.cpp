@@ -272,49 +272,18 @@ void TTask::ScheduleJob(
         return;
     }
 
-    // Async part.
-    // NB: it is important to capture task host (Controller), by strong reference,
-    // since it can be dead otherwise.
-    auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this), taskHost = MakeStrong(TaskHost_)] (TJobSpec* jobSpec) {
-        BuildJobSpec(joblet, jobSpec);
-        jobSpec->set_version(GetJobSpecVersion());
-        TaskHost_->CustomizeJobSpec(joblet, jobSpec);
-
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (TaskHost_->Spec()->JobProxyMemoryOvercommitLimit) {
-            schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->Spec()->JobProxyMemoryOvercommitLimit);
-        }
-        schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->Spec()->JobProxyRefCountedTrackerLogPeriod));
-        schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->Spec()->SuspendOperationIfAccountLimitExceeded);
-
-        // Adjust sizes if approximation flag is set.
-        if (joblet->InputStripeList->IsApproximate) {
-            schedulerJobSpecExt->set_input_data_weight(static_cast<i64>(
-                schedulerJobSpecExt->input_data_weight() *
-                ApproximateSizesBoostFactor));
-            schedulerJobSpecExt->set_input_row_count(static_cast<i64>(
-                schedulerJobSpecExt->input_row_count() *
-                ApproximateSizesBoostFactor));
-        }
-
-        if (schedulerJobSpecExt->input_data_weight() > TaskHost_->Spec()->MaxDataWeightPerJob) {
-            TaskHost_->OnOperationFailed(TError(
-                "Maximum allowed data weight per job violated: %v > %v",
-                schedulerJobSpecExt->input_data_weight(),
-                TaskHost_->Spec()->MaxDataWeightPerJob));
-        }
-    });
-
     auto jobType = GetJobType();
     joblet->JobId = context->GenerateJobId();
     auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
     joblet->Account = TaskHost_->Spec()->JobNodeAccount;
+    joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
+        .AsyncVia(TaskHost_->GetCancelableInvoker())
+        .Run();
     scheduleJobResult->JobStartRequest.Emplace(
         joblet->JobId,
         jobType,
         neededResources,
-        TaskHost_->IsJobInterruptible(),
-        jobSpecBuilder);
+        TaskHost_->IsJobInterruptible());
 
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
@@ -726,6 +695,41 @@ void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& sta
     if (!MaximumUsedTmfpsSize_ || *MaximumUsedTmfpsSize_ < *maxUsedTmpfsSize) {
         MaximumUsedTmfpsSize_ = *maxUsedTmpfsSize;
     }
+}
+
+TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
+{
+    NJobTrackerClient::NProto::TJobSpec jobSpec;
+
+    BuildJobSpec(joblet, &jobSpec);
+    jobSpec.set_version(GetJobSpecVersion());
+    TaskHost_->CustomizeJobSpec(joblet, &jobSpec);
+
+    auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    if (TaskHost_->Spec()->JobProxyMemoryOvercommitLimit) {
+        schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->Spec()->JobProxyMemoryOvercommitLimit);
+    }
+    schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->Spec()->JobProxyRefCountedTrackerLogPeriod));
+    schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->Spec()->SuspendOperationIfAccountLimitExceeded);
+
+    // Adjust sizes if approximation flag is set.
+    if (joblet->InputStripeList->IsApproximate) {
+        schedulerJobSpecExt->set_input_data_weight(static_cast<i64>(
+            schedulerJobSpecExt->input_data_weight() *
+            ApproximateSizesBoostFactor));
+        schedulerJobSpecExt->set_input_row_count(static_cast<i64>(
+            schedulerJobSpecExt->input_row_count() *
+            ApproximateSizesBoostFactor));
+    }
+
+    if (schedulerJobSpecExt->input_data_weight() > TaskHost_->Spec()->MaxDataWeightPerJob) {
+        TaskHost_->OnOperationFailed(TError(
+            "Maximum allowed data weight per job violated: %v > %v",
+            schedulerJobSpecExt->input_data_weight(),
+            TaskHost_->Spec()->MaxDataWeightPerJob));
+    }
+
+    return SerializeToProtoWithEnvelope(jobSpec, TaskHost_->SchedulerConfig()->JobSpecCodec);
 }
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const

@@ -82,7 +82,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual TMasterConnector* GetMasterConnector() = 0;
+    virtual TMasterConnector* GetControllerAgentMasterConnector() = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -459,6 +459,9 @@ struct IOperationController
     //! Called to get a YSON string representing current job(s) state.
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
     virtual NYson::TYsonString BuildJobsYson() const = 0;
+
+    //! Builds job spec proto blob.
+    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
 
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;

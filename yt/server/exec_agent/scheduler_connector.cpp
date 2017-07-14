@@ -7,8 +7,6 @@
 
 #include <yt/server/data_node/master_connector.h>
 
-#include <yt/server/data_node/master_connector.h>
-
 #include <yt/server/job_agent/job_controller.h>
 
 #include <yt/ytlib/api/native_client.h>
@@ -141,7 +139,8 @@ void TSchedulerConnector::SendHeartbeat()
         auto reporter = Bootstrap_->GetStatisticsReporter();
         reporter->SetSpecEnabled(rsp->enable_job_spec_reporter());
     }
-    jobController->ProcessHeartbeatResponse(rsp);
+
+    jobController->ProcessHeartbeatResponse(rsp, client->GetSchedulerChannel());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
