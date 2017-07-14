@@ -254,7 +254,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
                 node->SetResourceUsage(schedulingContext->ResourceUsage());
                 TotalResourceUsage_ += node->GetResourceUsage();
 
-                scheduleJobsAsyncResult = ProcessScheduledJobs(
+                ProcessScheduledJobs(
                     schedulingContext,
                     context);
 
@@ -281,7 +281,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
         }
     }
 
-    context->ReplyFrom(scheduleJobsAsyncResult);
+    context->Reply();
 }
 
 TExecNodeDescriptorListPtr TNodeShard::GetExecNodeDescriptors()
@@ -1186,7 +1186,7 @@ void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
     }
 }
 
-TFuture<void> TNodeShard::ProcessScheduledJobs(
+void TNodeShard::ProcessScheduledJobs(
     const ISchedulingContextPtr& schedulingContext,
     const TScheduler::TCtxHeartbeatPtr& rpcContext)
 {
@@ -1226,22 +1226,6 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         ToProto(startInfo->mutable_job_id(), job->GetId());
         ToProto(startInfo->mutable_operation_id(), job->GetOperationId());
         *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
-
-        // Build spec asynchronously.
-        asyncJobSpecs.push_back(
-            BIND([=, this_ = MakeStrong(this), rpcContext = rpcContext, specBuilder = job->GetSpecBuilder()] () {
-                if (rpcContext->IsCanceled()) {
-                    THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "RPC request canceled");
-                }
-                NJobTrackerClient::NProto::TJobSpec spec;
-                specBuilder(&spec);
-                return SerializeToProtoWithEnvelope(spec, Config_->JobSpecCodec);
-            })
-            .AsyncVia(Host_->GetJobSpecBuilderInvoker())
-            .Run());
-
-        // Release to avoid circular references.
-        job->SetSpecBuilder(TJobSpecBuilder());
     }
 
     for (const auto& job : schedulingContext->PreemptedJobs()) {
@@ -1263,11 +1247,6 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
             ToProto(response->add_jobs_to_abort(), job->GetId());
         }
     }
-
-    return Combine(asyncJobSpecs).Apply(BIND([rpcContext] (const std::vector<TSharedRef>& jobSpecs) {
-        auto* response = &rpcContext->Response();
-        response->Attachments() = jobSpecs;
-    }));
 }
 
 void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)

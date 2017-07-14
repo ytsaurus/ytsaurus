@@ -5,7 +5,8 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
+#include <yt/ytlib/job_tracker_client/job_spec_service.pb.h>
+#include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 
 #include <yt/core/yson/consumer.h>
 
@@ -86,7 +87,8 @@ public:
 
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
     void ProcessHeartbeatResponse(
-        const TRspHeartbeatPtr& response);
+        const TRspHeartbeatPtr& response,
+        NRpc::IChannelPtr jobSpecsProxyChannel = nullptr);
 
     //! Orchid server.
     NYTree::IYPathServicePtr GetOrchidService();

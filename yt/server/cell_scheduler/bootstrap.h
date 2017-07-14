@@ -6,6 +6,8 @@
 
 #include <yt/server/scheduler/public.h>
 
+#include <yt/server/controller_agent/public.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/hive/public.h>
@@ -48,6 +50,7 @@ public:
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     const NScheduler::TSchedulerPtr& GetScheduler() const;
+    const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
     const TCoreDumperPtr& GetCoreDumper() const;
@@ -70,6 +73,7 @@ private:
     NApi::INativeConnectionPtr Connection_;
     NApi::INativeClientPtr Client_;
     NScheduler::TSchedulerPtr Scheduler_;
+    NControllerAgent::TControllerAgentPtr ControllerAgent_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;

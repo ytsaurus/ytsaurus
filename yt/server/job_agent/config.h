@@ -74,6 +74,7 @@ public:
     TResourceLimitsConfigPtr ResourceLimits;
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration WaitingJobsTimeout;
+    TDuration GetJobSpecsTimeout;
 
     TJobControllerConfig()
     {
@@ -85,6 +86,9 @@ public:
         // Make it greater than interrupt preemption timeout.
         RegisterParameter("waiting_jobs_timeout", WaitingJobsTimeout)
             .Default(TDuration::Seconds(30));
+
+        RegisterParameter("get_job_specs_timeout", GetJobSpecsTimeout)
+            .Default(TDuration::Seconds(5));
 
         RegisterInitializer([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to

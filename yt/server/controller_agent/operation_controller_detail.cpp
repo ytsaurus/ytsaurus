@@ -191,7 +191,7 @@ TOperationControllerBase::TOperationControllerBase(
     TOperation* operation)
     : Config(config)
     , Host(host)
-    , MasterConnector(Host->GetMasterConnector())
+    , MasterConnector(Host->GetControllerAgentMasterConnector())
     , OperationId(operation->GetId())
     , OperationType(operation->GetType())
     , StartTime(operation->GetStartTime())
@@ -5258,6 +5258,18 @@ TYsonString TOperationControllerBase::BuildJobsYson() const
         //     .EndMap();
         // })
         .Finish();
+}
+
+TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
+{
+    auto joblet = GetJobletOrThrow(jobId);
+    if (!joblet->JobSpecProtoFuture) {
+        THROW_ERROR_EXCEPTION("Spec of job %v is missing", jobId);
+    }
+    auto result = WaitFor(joblet->JobSpecProtoFuture)
+        .ValueOrThrow();
+    joblet->JobSpecProtoFuture.Reset();
+    return result;
 }
 
 TYsonString TOperationControllerBase::BuildSuspiciousJobsYson() const

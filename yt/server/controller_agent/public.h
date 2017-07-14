@@ -44,6 +44,8 @@ DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
 
 DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 
+DECLARE_REFCOUNTED_CLASS(TControllerAgent)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent

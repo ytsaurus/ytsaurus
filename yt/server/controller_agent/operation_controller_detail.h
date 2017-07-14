@@ -241,6 +241,8 @@ public:
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
     virtual NYson::TYsonString BuildJobsYson() const override;
 
+    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override;
+
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
@@ -436,7 +438,6 @@ protected:
     };
 
     TNullable<TInputQuery> InputQuery;
-
 
     //! All tasks declared by calling #RegisterTask, mostly for debugging purposes.
     std::vector<TTaskPtr> Tasks;

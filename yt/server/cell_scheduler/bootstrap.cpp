@@ -15,6 +15,9 @@
 #include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/scheduler_service.h>
 
+#include <yt/server/controller_agent/job_spec_service.h>
+#include <yt/server/controller_agent/controller_agent.h>
+
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
 
@@ -86,6 +89,7 @@ using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NApi;
 using namespace NNodeTrackerClient;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,6 +159,8 @@ void TBootstrap::DoRun()
         NodeDirectory_);
     NodeDirectorySynchronizer_->Start();
 
+    ControllerAgent_ = New<TControllerAgent>(Config_->Scheduler, this);
+
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
 
     ResponseKeeper_ = New<TResponseKeeper>(
@@ -212,6 +218,7 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
+    RpcServer_->RegisterService(CreateJobSpecsService(this));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -251,6 +258,11 @@ IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 const TSchedulerPtr& TBootstrap::GetScheduler() const
 {
     return Scheduler_;
+}
+
+const TControllerAgentPtr& TBootstrap::GetControllerAgent() const
+{
+    return ControllerAgent_;
 }
 
 const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const

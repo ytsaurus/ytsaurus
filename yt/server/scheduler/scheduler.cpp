@@ -13,6 +13,7 @@
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/master_connector.h>
+#include <yt/server/controller_agent/controller_agent.h>
 
 #include <yt/server/exec_agent/public.h>
 
@@ -139,7 +140,6 @@ public:
         , Bootstrap_(bootstrap)
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
-        , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
         , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "Statistics"))
         , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->JobSpecSliceThrottler,
@@ -797,11 +797,6 @@ public:
     }
 
     // ISchedulerStrategyHost implementation
-    virtual NControllerAgent::TMasterConnector* GetMasterConnector() override
-    {
-        return MasterConnector_->GetControllerAgentMasterConnector().Get();
-    }
-
     virtual TJobResources GetTotalResourceLimits() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -886,6 +881,11 @@ public:
 
 
     // IOperationHost implementation
+    virtual NControllerAgent::TMasterConnector* GetControllerAgentMasterConnector() override
+    {
+        return Bootstrap_->GetControllerAgent()->GetMasterConnector();
+    }
+
     virtual const TSchedulerConfigPtr& GetConfig() const override
     {
         return Config_;
@@ -984,13 +984,6 @@ public:
         return StatisticsAnalyzerThreadPool_->GetInvoker();
     }
 
-    const IInvokerPtr& GetJobSpecBuilderInvoker() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return JobSpecBuilderThreadPool_->GetInvoker();
-    }
-
     virtual const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1006,7 +999,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&NControllerAgent::TMasterConnector::AttachJobContext, MasterConnector_->GetControllerAgentMasterConnector())
+        return BIND(&NControllerAgent::TControllerAgent::AttachJobContext, Bootstrap_->GetControllerAgent())
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run(path, chunkId, operationId, jobId);
     }
@@ -1030,7 +1023,6 @@ private:
 
     const TActionQueuePtr SnapshotIOQueue_;
     const TThreadPoolPtr ControllerThreadPool_;
-    const TThreadPoolPtr JobSpecBuilderThreadPool_;
     const TThreadPoolPtr StatisticsAnalyzerThreadPool_;
 
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
@@ -1906,6 +1898,8 @@ private:
             operation,
             BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
+        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), operation->GetController());
+
         LOG_DEBUG("Operation registered (OperationId: %v)",
             operation->GetId());
     }
@@ -1932,6 +1926,8 @@ private:
         }
 
         Strategy_->UnregisterOperation(operation);
+
+        Bootstrap_->GetControllerAgent()->UnregisterOperation(operation->GetId());
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)",
             operation->GetId());

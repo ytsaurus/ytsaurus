@@ -42,8 +42,6 @@ struct INodeShardHost
 
     virtual const IInvokerPtr& GetStatisticsAnalyzerInvoker() const = 0;
 
-    virtual const IInvokerPtr& GetJobSpecBuilderInvoker() const = 0;
-
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 
     virtual void ValidateOperationPermission(
@@ -254,7 +252,7 @@ private:
 
     void SubmitUpdatedAndCompletedJobsToStrategy();
 
-    TFuture<void> ProcessScheduledJobs(
+    void ProcessScheduledJobs(
         const ISchedulingContextPtr& schedulingContext,
         const TScheduler::TCtxHeartbeatPtr& rpcContext);
 

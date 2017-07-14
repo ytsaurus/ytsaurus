@@ -226,6 +226,8 @@ private:
 
     TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
+    TSharedRef BuildJobSpecProto(TJobletPtr joblet);
+
     void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
 
 };

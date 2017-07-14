@@ -1,0 +1,31 @@
+package NYT.NJobTrackerClient.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/core/misc/error.proto";
+import "yt/ytlib/job_tracker_client/job.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetJobSpecs
+{
+    message TJobSpecRequest
+    {
+        required NYT.NProto.TGuid job_id = 1;
+        optional NYT.NProto.TGuid operation_id = 2;
+    }
+
+    repeated TJobSpecRequest requests = 1;
+}
+
+message TRspGetJobSpecs
+{
+    message TJobSpecResponse
+    {
+        optional NYT.NProto.TError error = 1;
+    }
+
+    repeated TJobSpecResponse responses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

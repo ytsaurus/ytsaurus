@@ -416,9 +416,6 @@ public:
     //! Number of threads for retrieving important fields from job statistics.
     int StatisticsAnalyzerThreadCount;
 
-    //! Number of threads for building job specs.
-    int JobSpecBuilderThreadCount;
-
     //! Number of parallel operation snapshot builders.
     int ParallelSnapshotBuilderCount;
 
