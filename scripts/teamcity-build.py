@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import os
 import sys
 # TODO(asaitgalin): Maybe replace it with PYTHONPATH=... in teamcity command?
@@ -22,21 +21,28 @@ import glob
 import os.path
 import pprint
 import re
-import socket
-import tempfile
 import shutil
+import socket
+import tarfile
+import tempfile
 import fnmatch
 import xml.etree.ElementTree as etree
 import xml.parsers.expat
+import urlparse
+
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
+    from releaselib.sandbox import client as sandbox_client
+except:
+    sandbox_client = None
 
 def yt_processes_cleanup():
     kill_by_name("^ytserver")
     kill_by_name("^node")
     kill_by_name("^run_proxy")
 
-
 @build_step
-def prepare(options):
+def prepare(options, build_context):
     os.environ["LANG"] = "en_US.UTF-8"
     os.environ["LC_ALL"] = "en_US.UTF-8"
 
@@ -59,6 +65,7 @@ def prepare(options):
     options.use_msan = parse_yes_no_bool(os.environ.get("USE_MSAN", "NO"))
     options.use_asan = options.use_asan or parse_yes_no_bool(os.environ.get("BUILD_ENABLE_ASAN", "NO"))  # compat
 
+    options.git_branch = options.branch
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = options.branch.split("/")[0]
 
@@ -120,7 +127,7 @@ def prepare(options):
 
 
 @build_step
-def configure(options):
+def configure(options, build_context):
     run([
         "cmake",
         "-DCMAKE_INSTALL_PREFIX=/usr",
@@ -150,7 +157,7 @@ def configure(options):
 
 
 @build_step
-def fast_build(options):
+def fast_build(options, build_context):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
     try:
         run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
@@ -159,20 +166,18 @@ def fast_build(options):
 
 
 @build_step
-def slow_build(options):
+def slow_build(options, build_context):
     run(["make"], cwd=options.working_directory)
 
-
 @build_step
-def set_suid_bit(options):
+def set_suid_bit(options, build_context):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         path = "{0}/bin/{1}".format(options.working_directory, binary)
         run(["sudo", "chown", "root", path])
         run(["sudo", "chmod", "4755", path])
 
-
 @build_step
-def package(options):
+def package(options, build_context):
     if not options.package:
         return
 
@@ -183,6 +188,7 @@ def package(options):
 
         with open("ytversion") as handle:
             version = handle.read().strip()
+        build_context["yt_version"] = version
 
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
@@ -196,9 +202,8 @@ def package(options):
                 teamcity_message("We have uploaded a package to " + repository)
                 teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
 
-
 @build_step
-def run_prepare(options):
+def run_prepare(options, build_context):
     nodejs_source = os.path.join(options.checkout_directory, "yt", "nodejs")
     nodejs_build = os.path.join(options.working_directory, "yt", "nodejs")
 
@@ -215,9 +220,103 @@ def run_prepare(options):
     run(["rm", "-f", link_path])
     run(["ln", "-s", nodejs_source, link_path])
 
+@build_step
+def run_sandbox_upload(options, build_context):
+    if not options.package or sys.version_info < (2, 7):
+        return
+
+    build_context["sandbox_upload_root"] = os.path.join(options.working_directory, "sandbox_upload")
+    sandbox_ctx = {"upload_urls": {}}
+    binary_distribution_folder = os.path.join(build_context["sandbox_upload_root"], "bin")
+    mkdirp(binary_distribution_folder)
+
+    def sky_share(resource, cwd):
+        run_result = run(
+            ["sky", "share", resource],
+            cwd=cwd,
+            shell=False,
+            timeout=100,
+            capture_output=True)
+
+        rbtorrent = run_result.stdout.splitlines()[0].strip()
+        # simple sanity check
+        if urlparse.urlparse(rbtorrent).scheme != "rbtorrent":
+            raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
+        return rbtorrent
+
+    # Prepare binary distribution folder
+    # {working_directory}/bin contains lots of extra binaries,
+    # filter daemon binaries by prefix "ytserver-"
+
+    source_binary_root = os.path.join(options.working_directory, "bin")
+    processed_files = set()
+    for filename in os.listdir(source_binary_root):
+        if not filename.startswith("ytserver-"):
+            continue
+        source_path = os.path.join(source_binary_root, filename)
+        destination_path = os.path.join(binary_distribution_folder, filename)
+        if not os.path.isfile(source_path):
+            teamcity_message("Skip non-file item {0}".format(filename))
+            continue
+        teamcity_message("Symlink {0} to {1}".format(source_path, destination_path))
+        os.symlink(source_path, destination_path)
+        processed_files.add(filename)
+
+    yt_binary_upload_list = set((
+        "ytserver-job-proxy",
+        "ytserver-scheduler",
+        "ytserver-master",
+        "ytserver-core-forwarder",
+        "ytserver-exec",
+        "ytserver-node",
+        "ytserver-proxy",
+        "ytserver-tools",
+    ))
+    if yt_binary_upload_list - processed_files:
+        missing_file_string = ", ".join(yt_binary_upload_list - processed_files)
+        teamcity_message("Missing files in sandbox upload: {0}".format(missing_file_string), "WARNING")
+
+    rbtorrent = sky_share(
+            os.path.basename(binary_distribution_folder),
+            os.path.dirname(binary_distribution_folder))
+    sandbox_ctx["upload_urls"]["yt_binaries"] = rbtorrent
+
+    # Nodejs package
+    nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "node_modules.tar")
+    nodejs_build = os.path.join(options.working_directory, "debian/yandex-yt-http-proxy/usr/lib/node_modules")
+    with tarfile.open(nodejs_tar, "w", dereference=True) as tar:
+        tar.add(nodejs_build, arcname="/node_modules", recursive=True)
+
+    rbtorrent = sky_share("node_modules.tar", build_context["sandbox_upload_root"])
+    sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
+
+    sandbox_ctx["git_commit"] = options.build_vcs_number
+    sandbox_ctx["git_branch"] = options.git_branch
+    sandbox_ctx["build_number"] = options.build_number
+
+    #
+    # Start sandbox task
+    #
+
+    version_by_teamcity = "{0}@{1}-{2}".format(options.git_branch, options.build_number, options.build_vcs_number[:7])
+    cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
+    task_id = cli.create_task(
+        "YT_UPLOAD_RESOURCES",
+        "YT_ROBOT",
+        "Yt build: {0}".format(version_by_teamcity),
+        sandbox_ctx)
+    teamcity_message("Created sandbox upload task: {0}".format(task_id))
+    teamcity_message("Check at: https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))
+    build_context["sandbox_upload_task"] = task_id
+
+    teamcity_interact("setParameter", name="yt.sandbox_task_id", value=task_id)
+    teamcity_interact("setParameter", name="yt.sandbox_task_url",
+                      value="https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))
+    status = "{{build.status.text}}; Package: {0}; SB: {1}".format(build_context["yt_version"], task_id)
+    teamcity_interact("buildStatus", text=status)
 
 @build_step
-def run_unit_tests(options):
+def run_unit_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Skipping unit tests since tests are disabled")
         return
@@ -259,7 +358,7 @@ def run_unit_tests(options):
 
 
 @build_step
-def run_javascript_tests(options):
+def run_javascript_tests(options, build_context):
     if not options.build_enable_nodejs or options.disable_tests:
         return
 
@@ -364,7 +463,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             sudo_rmtree(sandbox_storage)
 
 @build_step
-def run_integration_tests(options):
+def run_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Integration tests are skipped since all tests are disabled")
         return
@@ -376,9 +475,8 @@ def run_integration_tests(options):
     run_pytest(options, "integration", "{0}/tests/integration".format(options.checkout_directory),
                pytest_args=pytest_args)
 
-
 @build_step
-def run_python_libraries_tests(options):
+def run_python_libraries_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Python tests are skipped since all tests are disabled")
         return
@@ -396,16 +494,33 @@ def run_python_libraries_tests(options):
                    "NODE_PATH": node_path
                 })
 
-
 @build_step
-def run_perl_tests(options):
+def run_perl_tests(options, build_context):
     if not options.build_enable_perl or options.disable_tests:
         return
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
+@build_step
+def wait_for_sandbox_upload(options, build_context):
+    if not options.package or sys.version_info < (2, 7):
+        return
+
+    task_id = build_context["sandbox_upload_task"]
+    teamcity_message("Loaded task id: {0}".format(task_id))
+    teamcity_message("Check at: https://sandbox.yandex-team.ru/task/{0}/view".format(task_id))
+    cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
+    try:
+        cli.wait_for_complete(task_id)
+    except sandbox_client.SandboxTaskError as err:
+        teamcity_message("Failed waiting for task: {0}".format(err), status="WARNING")
 
 @cleanup_step
-def clean_artifacts(options, n=10):
+def clean_sandbox_upload(options, build_context):
+    if "sandbox_upload_root" in build_context and os.path.exists(build_context["sandbox_upload_root"]):
+        shutil.rmtree(build_context["sandbox_upload_root"])
+
+@cleanup_step
+def clean_artifacts(options, build_context, n=10):
     for path in ls("{0}/ARTIFACTS".format(options.working_directory),
                    reverse=True,
                    select=os.path.isfile,
@@ -419,7 +534,7 @@ def clean_artifacts(options, n=10):
 
 
 @cleanup_step
-def clean_failed_tests(options, max_allowed_size=None):
+def clean_failed_tests(options, build_context, max_allowed_size=None):
     if options.is_bare_metal:
         max_allowed_size = 200 * 1024 * 1024 * 1024
     else:
@@ -504,8 +619,10 @@ def main():
     options.is_bare_metal = socket.getfqdn().endswith("tc.yt.yandex.net")
     # NB: parallel testing is enabled by default only for bare metal machines.
     options.enable_parallel_testing = options.is_bare_metal
+
     teamcity_main(options)
 
 
 if __name__ == "__main__":
     main()
+

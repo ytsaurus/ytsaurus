@@ -31,7 +31,7 @@ def prune(root):
             return
 
         if object.attributes["type"] == "table":
-            if prune_empty_tables and object.attributes["row_count"] == 0:
+            if prune_empty_tables and object.attributes.get("row_count") == 0:
                 tables_to_prune.append((path, object.attributes["revision"]))
                 return True
         elif object.attributes["type"] == "map_node":

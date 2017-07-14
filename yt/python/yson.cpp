@@ -18,7 +18,6 @@ namespace NYT {
 namespace NPython {
 
 using namespace NYTree;
-using namespace NYPath;
 
 static const int BufferSize = 1024 * 1024;
 
@@ -30,7 +29,6 @@ Py::Exception CreateYsonError(const TString& message, const NYT::TError& error =
     auto ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
 
     std::vector<TError> innerErrors({error});
-
     Py::Dict options;
     options.setItem("message", ConvertTo<Py::Object>(message));
     options.setItem("code", ConvertTo<Py::Object>(1));
@@ -69,7 +67,6 @@ public:
         Consumer_.reset(new NYTree::TPythonObjectBuilder(alwaysCreateAttributes, encoding));
         Parser_.reset(new NYson::TYsonParser(Consumer_.get(), NYson::EYsonType::ListFragment));
         IsStreamRead_ = false;
-
     }
 
     Py::Object iter()
@@ -209,8 +206,6 @@ public:
         add_keyword_method("dump", &TYsonModule::Dump, "Dumps YSON to stream");
         add_keyword_method("dumps", &TYsonModule::Dumps, "Dumps YSON to string");
 
-        add_keyword_method("parse_ypath", &TYsonModule::ParseYPath, "Parse YPath");
-
         initialize("Python bindings for YSON");
     }
 
@@ -270,18 +265,6 @@ public:
         return Py::ConvertToPythonString(result);
     }
 
-    Py::Object ParseYPath(const Py::Tuple& args_, const Py::Dict& kwargs_)
-    {
-        auto args = args_;
-        auto kwargs = kwargs_;
-
-        auto path = ConvertStringObjectToString(ExtractArgument(args, kwargs, "path"));
-        ValidateArgumentsEmpty(args, kwargs);
-
-        auto richPath = TRichYPath::Parse(path);
-        return CreateYsonObject("YsonString", Py::Bytes(richPath.GetPath()), ConvertTo<Py::Object>(richPath.Attributes().ToMap()));
-    }
-
     virtual ~TYsonModule()
     { }
 
@@ -332,7 +315,7 @@ private:
             auto arg = ExtractArgument(args, kwargs, "encoding");
             if (!arg.isNone()) {
 #if PY_MAJOR_VERSION < 3
-                throw Py::RuntimeError("Encoding parameter is not supported for Python 2");
+                throw CreateYsonError("Encoding parameter is not supported for Python 2");
 #else
                 encoding = ConvertStringObjectToString(arg);
 #endif
@@ -439,7 +422,7 @@ private:
         if (HasArgument(args, kwargs, "indent")) {
             auto arg = Py::Int(ExtractArgument(args, kwargs, "indent"));
             if (arg > maxIndentValue) {
-                throw Py::ValueError(Format("Indent value exceeds indentation limit (%d)", maxIndentValue));
+                throw CreateYsonError(Format("Indent value exceeds indentation limit (%d)", maxIndentValue));
             }
             indent = static_cast<int>(Py::Long(arg).as_long());
         }
@@ -484,8 +467,12 @@ private:
 
             case NYson::EYsonType::ListFragment: {
                 auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
+                size_t rowIndex = 0;
+                TContext context;
                 while (auto* item = PyIter_Next(*iterator)) {
-                    Serialize(Py::Object(item, true), writer.get(), encoding, ignoreInnerAttributes);
+                    context.RowIndex = rowIndex;
+                    Serialize(Py::Object(item, true), writer.get(), encoding, ignoreInnerAttributes, NYson::EYsonType::Node, 0, &context);
+                    ++rowIndex;
                 }
                 if (PyErr_Occurred()) {
                     throw Py::Exception();
@@ -494,7 +481,7 @@ private:
             }
 
             default:
-                throw CreateYsonError(ToString(ysonType) + " is not supported");
+                throw CreateYsonError("YSON type " + ToString(ysonType) + " is not supported");
         }
 
         writer->Flush();
