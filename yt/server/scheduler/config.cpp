@@ -643,6 +643,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("main_nodes_filter", MainNodesFilterFormula)
         .Default();
 
+    RegisterParameter("memory_distribution_different_node_types_threshold", MemoryDistributionDifferentNodeTypesThreshold)
+        .Default(4);
+
     RegisterParameter("testing_options", TestingOptions)
         .DefaultNew();
 

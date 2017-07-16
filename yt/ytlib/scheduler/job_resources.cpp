@@ -248,18 +248,24 @@ double GetMaxResourceRatio(
 TJobResources GetAdjustedResourceLimits(
     const TJobResources& demand,
     const TJobResources& limits,
-    int nodeCount)
+    const TMemoryDistribution& execNodeMemoryDistribution)
 {
     auto adjustedLimits = limits;
 
     // Take memory granularity into account.
-    if (demand.GetUserSlots() > 0 && nodeCount > 0) {
+    if (demand.GetUserSlots() > 0 && !execNodeMemoryDistribution.empty()) {
         i64 memoryDemandPerJob = demand.GetMemory() / demand.GetUserSlots();
-        i64 memoryLimitPerNode = limits.GetMemory() / nodeCount;
-        if (memoryDemandPerJob > 0) {
-            i64 slotsPerNode = memoryLimitPerNode / memoryDemandPerJob;
-            i64 adjustedMemoryLimit = slotsPerNode * memoryDemandPerJob * nodeCount;
-            adjustedLimits.SetMemory(adjustedMemoryLimit);
+        if (memoryDemandPerJob != 0) {
+            for (const auto& pair : execNodeMemoryDistribution) {
+                const auto memoryLimit = pair.first;
+                const auto nodeCount = pair.second;
+                i64 memoryLimitPerNode = memoryLimit / nodeCount;
+                if (memoryDemandPerJob > 0) {
+                    i64 slotsPerNode = memoryLimitPerNode / memoryDemandPerJob;
+                    i64 adjustedMemoryLimit = slotsPerNode * memoryDemandPerJob * nodeCount;
+                    adjustedLimits.SetMemory(adjustedMemoryLimit);
+                }
+            }
         }
     }
 
