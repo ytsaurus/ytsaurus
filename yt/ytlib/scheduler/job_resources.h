@@ -12,6 +12,9 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// For each memory capacity gives the number of nodes with this much memory.
+using TMemoryDistribution = yhash<i64, int>;
+
 // Uses precision of 2 decimal digits.
 using TCpuResource = TFixedPointNumber<int, 2>;
 
@@ -99,7 +102,7 @@ double GetMaxResourceRatio(
 TJobResources GetAdjustedResourceLimits(
     const TJobResources& demand,
     const TJobResources& limits,
-    int nodeCount);
+    const TMemoryDistribution& execNodeMemoryDistribution);
 
 const TJobResources& ZeroJobResources();
 const TJobResources& InfiniteJobResources();

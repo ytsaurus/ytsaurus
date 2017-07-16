@@ -681,6 +681,9 @@ public:
     TBooleanFormula MainNodesFilterFormula;
     TSchedulingTagFilter MainNodesFilter;
 
+    // Number of nodes to store by memory distribution.
+    int MemoryDistributionDifferentNodeTypesThreshold;
+
     // Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;
 

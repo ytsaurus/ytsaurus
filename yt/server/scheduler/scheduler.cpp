@@ -53,6 +53,7 @@
 
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/numeric_helpers.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -98,6 +99,32 @@ using NNodeTrackerClient::TNodeDirectory;
 
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const i64 GB = 1024 * 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 RoundUp(i64 num, i64 mod)
+{
+    return DivCeil(num, mod) * mod;
+}
+
+template <class K, class V>
+yhash<K, V> FilterLargestValues(const yhash<K, V>& input, size_t threshold)
+{
+    threshold = std::min(threshold, input.size());
+    std::vector<std::pair<K, V>> items(input.begin(), input.end());
+    std::partial_sort(
+        items.begin(),
+        items.begin() + threshold,
+        items.end(),
+        [] (const std::pair<K, V>& lhs, const std::pair<K, V>& rhs) {
+            return lhs.second > rhs.second;
+        });
+    return yhash<K, V>(items.begin(), items.begin() + threshold);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -412,6 +439,46 @@ public:
         {
             TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
             CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, now, result}));
+        }
+
+        return result;
+    }
+
+    virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto now = NProfiling::GetCpuInstant();
+
+        {
+            TReaderGuard guard(ExecNodeMemoryDistributionByTagLock_);
+
+            auto it = CachedExecNodeMemoryDistributionByTags_.find(filter);
+            if (it != CachedExecNodeMemoryDistributionByTags_.end()) {
+                auto& entry = it->second;
+                if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
+                    return entry.ExecNodeMemoryDistribution;
+                }
+            }
+        }
+
+        TMemoryDistribution result;
+
+        {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+            for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
+                if (filter.CanSchedule(descriptor.Tags)) {
+                    ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), GB)];
+                }
+            }
+        }
+
+        result = FilterLargestValues(result, Config_->MemoryDistributionDifferentNodeTypesThreshold);
+
+        {
+            TWriterGuard guard(ExecNodeMemoryDistributionByTagLock_);
+            CachedExecNodeMemoryDistributionByTags_.emplace(filter, TMemoryDistributionEntry({now, now, result}));
         }
 
         return result;
@@ -1046,6 +1113,7 @@ private:
 
     TPeriodicExecutorPtr FairShareLoggingExecutor;
 
+
     TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
 
     struct TExecNodeDescriptorsEntry
@@ -1056,6 +1124,19 @@ private:
     };
 
     mutable yhash<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
+
+
+    TReaderWriterSpinLock ExecNodeMemoryDistributionByTagLock_;
+
+    struct TMemoryDistributionEntry
+    {
+        NProfiling::TCpuInstant LastAccessTime;
+        NProfiling::TCpuInstant LastUpdateTime;
+        TMemoryDistribution ExecNodeMemoryDistribution;
+    };
+
+    mutable yhash<TSchedulingTagFilter, TMemoryDistributionEntry> CachedExecNodeMemoryDistributionByTags_;
+
 
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler MainNodesResourceLimitsProfiler_;
