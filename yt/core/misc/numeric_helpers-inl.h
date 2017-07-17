@@ -26,6 +26,12 @@ T DivCeil(const T& numerator, const T& denominator)
     return res.quot + (res.rem > static_cast<T>(0) ? static_cast<T>(1) : static_cast<T>(0));
 }
 
+template <class T>
+T RoundUp(const T& numerator, const T& denominator)
+{
+    return DivCeil(numerator, denominator) * denominator;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -29,7 +29,7 @@ static constexpr int MaxEditListCapacity = 256;
 static constexpr int MaxOrderedDynamicSegments = 32;
 static constexpr int InitialOrderedDynamicSegmentIndex = 10;
 
-static constexpr i64 MemoryUsageGranularity = (i64) 16 * 1024;
+static constexpr i64 MemoryUsageGranularity = 16 * KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

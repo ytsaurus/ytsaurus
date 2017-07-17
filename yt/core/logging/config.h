@@ -97,8 +97,8 @@ public:
         RegisterParameter("check_space_period", CheckSpacePeriod)
             .Default();
         RegisterParameter("min_disk_space", MinDiskSpace)
-            .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
-            .Default((i64) 5 * 1024 * 1024 * 1024);
+            .GreaterThanOrEqual(GB)
+            .Default(5 * GB);
         RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
             .GreaterThan(0)
             .Default(10000000);

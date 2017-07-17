@@ -175,10 +175,10 @@ public:
     TBlockFetcherConfig()
     {
         RegisterParameter("window_size", WindowSize)
-            .Default((i64) 20 * 1024 * 1024)
+            .Default(20 * MB)
             .GreaterThan(0);
         RegisterParameter("group_size", GroupSize)
-            .Default((i64) 15 * 1024 * 1024)
+            .Default(15 * MB)
             .GreaterThan(0);
 
         RegisterValidator([&] () {
@@ -238,10 +238,10 @@ public:
     TReplicationWriterConfig()
     {
         RegisterParameter("send_window_size", SendWindowSize)
-            .Default((i64) 32 * 1024 * 1024)
+            .Default(32 * MB)
             .GreaterThan(0);
         RegisterParameter("group_size", GroupSize)
-            .Default((i64) 10 * 1024 * 1024)
+            .Default(10 * MB)
             .GreaterThan(0);
         RegisterParameter("node_channel", NodeChannel)
             .DefaultNew();
@@ -319,7 +319,7 @@ public:
     TErasureWriterConfig()
     {
         RegisterParameter("erasure_window_size", ErasureWindowSize)
-            .Default((i64) 8 * 1024 * 1024)
+            .Default(8 * MB)
             .GreaterThan(0);
     }
 };
@@ -340,7 +340,7 @@ public:
     TEncodingWriterConfig()
     {
         RegisterParameter("encode_window_size", EncodeWindowSize)
-            .Default((i64) 16 * 1024 * 1024)
+            .Default(16 * MB)
             .GreaterThan(0);
         RegisterParameter("default_compression_ratio", DefaultCompressionRatio)
             .Default(0.2);
@@ -409,11 +409,11 @@ public:
     {
         RegisterParameter("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
-            .Default((i64) 1024 * 1024 * 1024);
+            .Default(GB);
         RegisterParameter("max_meta_size", MaxMetaSize)
             .GreaterThan(0)
-            .LessThanOrEqual((i64) 64 * 1024 * 1024)
-            .Default((i64) 30 * 1024 * 1024);
+            .LessThanOrEqual(64 * MB)
+            .Default(30 * MB);
     }
 };
 
@@ -491,8 +491,8 @@ public:
     {
         RegisterParameter("max_buffer_size", MaxBufferSize)
             .GreaterThan(0L)
-            .LessThanOrEqual((i64) 10 * 1024 * 1024 * 1024)
-            .Default((i64) 100 * 1024 * 1024);
+            .LessThanOrEqual(10 * GB)
+            .Default(100 * MB);
         RegisterParameter("max_parallel_readers", MaxParallelReaders)
             .GreaterThanOrEqual(1)
             .LessThanOrEqual(1000)

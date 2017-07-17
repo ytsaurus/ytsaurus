@@ -10,6 +10,9 @@ T Clamp(const T& value, const T& minValue, const T& maxValue);
 template <class T>
 T DivCeil(const T& numerator, const T& denominator);
 
+template <class T>
+T RoundUp(const T& numerator, const T& denominator);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

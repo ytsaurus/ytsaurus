@@ -41,7 +41,7 @@ using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t ReaderPoolSize = (size_t) 16 * 1024;
+static const size_t ReaderPoolSize = (size_t) 16 * KB;
 static const int SnapshotRowsPerRead = 1024;
 
 struct TOrderedDynamicStoreReaderPoolTag

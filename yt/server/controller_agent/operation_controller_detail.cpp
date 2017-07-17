@@ -3492,7 +3492,7 @@ void TOperationControllerBase::MoveTaskToCandidates(
     candidateTasks.insert(std::make_pair(minMemory, task));
     LOG_DEBUG("Task moved to candidates (Task: %v, MinMemory: %v)",
         task->GetId(),
-        minMemory / (1024 * 1024));
+        minMemory / MB);
 
 }
 
