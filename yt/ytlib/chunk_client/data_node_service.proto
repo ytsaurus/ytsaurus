@@ -16,6 +16,7 @@ message TReqStartChunk
     required TSessionId session_id = 7;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
     optional bool sync_on_close = 3 [default = true];
+    optional bool enable_direct_io = 8 [default = false];
     optional bool enable_multiplexing = 4 [default = false];
     optional NYT.NProto.TGuid placement_id = 6;
 }
