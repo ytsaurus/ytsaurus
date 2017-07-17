@@ -398,6 +398,12 @@ struct IOperationController
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
+     *  \note Invoker affinity: any;
+     */
+    //! Called to construct a YSON representing the current progress.
+    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const = 0;
+
+    /*!
      *  \note Invoker affinity: Controller invoker
      */
     //! Returns |true| when controller can build it's progress.

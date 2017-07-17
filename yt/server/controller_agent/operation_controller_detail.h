@@ -224,6 +224,7 @@ public:
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
 
+    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
