@@ -38,10 +38,10 @@ public:
     {
         RegisterParameter("index_block_size", IndexBlockSize)
             .GreaterThan(0)
-            .Default((i64) 1024 * 1024);
+            .Default(MB);
         RegisterParameter("flush_buffer_size", FlushBufferSize)
             .GreaterThanOrEqual(0)
-            .Default((i64) 16 * 1024 * 1024);
+            .Default(16 * MB);
         RegisterParameter("flush_period", FlushPeriod)
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("enable_sync", EnableSync)
@@ -287,13 +287,13 @@ public:
             .Default(64 * 1024);
         RegisterParameter("max_changelog_bytes_per_request", MaxChangelogBytesPerRequest)
             .GreaterThan(0)
-            .Default((i64) 128 * 1024 * 1024);
+            .Default(128 * MB);
 
         RegisterParameter("snapshot_download_rpc_timeout", SnapshotDownloadRpcTimeout)
             .Default(TDuration::Seconds(10));
         RegisterParameter("snapshot_download_block_size", SnapshotDownloadBlockSize)
             .GreaterThan(0)
-            .Default((i64) 32 * 1024 * 1024);
+            .Default(32 * MB);
 
         RegisterParameter("max_commmit_batch_delay", MaxCommitBatchDelay)
             .Default(TDuration::MilliSeconds(10));
@@ -307,7 +307,7 @@ public:
             .Default(1000000)
             .GreaterThan(0);
         RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
-            .Default((i64) 1024 * 1024 * 1024)
+            .Default(GB)
             .GreaterThan(0);
 
         RegisterParameter("heartbeat_mutation_period", HeartbeatMutationPeriod)

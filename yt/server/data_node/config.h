@@ -86,15 +86,15 @@ public:
     {
         RegisterParameter("low_watermark", LowWatermark)
             .GreaterThanOrEqual(0)
-            .Default((i64) 20 * 1024 * 1024 * 1024); // 20 Gb
+            .Default(20 * GB);
         RegisterParameter("high_watermark", HighWatermark)
             .GreaterThanOrEqual(0)
-            .Default((i64) 10 * 1024 * 1024 * 1024); // 10 Gb
+            .Default(10 * GB);
         RegisterParameter("max_trash_ttl", MaxTrashTtl)
             .Default(TDuration::Hours(1));
         RegisterParameter("trash_cleanup_watermark", TrashCleanupWatermark)
             .GreaterThanOrEqual(0)
-            .Default((i64) 40 * 1024 * 1024 * 1024); // 40 Gb
+            .Default(40 * GB);
         RegisterParameter("repair_in_throttler", RepairInThrottler)
             .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
@@ -174,13 +174,13 @@ public:
             .Default(1000000)
             .GreaterThan(0);
         RegisterParameter("max_data_size", MaxDataSize)
-            .Default((i64) 256 * 1024 * 1024)
+            .Default(256 * MB)
             .GreaterThan(0);
         RegisterParameter("auto_rotation_period", AutoRotationPeriod)
             .Default(TDuration::Minutes(15));
         RegisterParameter("replay_buffer_size", ReplayBufferSize)
             .GreaterThan(0)
-            .Default((i64) 256 * 1024 * 1024);
+            .Default(256 * MB);
         RegisterParameter("max_clean_changelogs_to_keep", MaxCleanChangelogsToKeep)
             .GreaterThanOrEqual(0)
             .Default(3);
@@ -426,13 +426,13 @@ public:
 
         RegisterParameter("net_out_throttling_limit", NetOutThrottlingLimit)
             .GreaterThan(0)
-            .Default((i64) 512 * 1024 * 1024);
+            .Default(512 * MB);
         RegisterParameter("disk_write_throttling_limit", DiskWriteThrottlingLimit)
             .GreaterThan(0)
-            .Default((i64) 1024 * 1024 * 1024);
+            .Default(GB);
         RegisterParameter("disk_read_throttling_limit", DiskReadThrottlingLimit)
             .GreaterThan(0)
-            .Default((i64) 512 * 1024 * 1024);
+            .Default(512 * MB);
 
         RegisterParameter("store_locations", StoreLocations)
             .NonEmpty();
@@ -490,10 +490,10 @@ public:
             .Default(100000);
         RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
             .GreaterThan(0)
-            .Default((i64) 64 * 1024 * 1024);
+            .Default(64 * MB);
         RegisterParameter("bytes_per_write", BytesPerWrite)
             .GreaterThan(0)
-            .Default((i64) 16 * 1024 * 1024);
+            .Default(16 * MB);
 
         RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
             .Default(true);
@@ -508,10 +508,10 @@ public:
             .Default(false);
 
         RegisterInitializer([&] () {
-            ChunkMetaCache->Capacity = (i64) 1024 * 1024 * 1024;
+            ChunkMetaCache->Capacity = GB;
 
-            BlockCache->CompressedData->Capacity = (i64) 1024 * 1024 * 1024;
-            BlockCache->UncompressedData->Capacity = (i64) 1024 * 1024 * 1024;
+            BlockCache->CompressedData->Capacity = GB;
+            BlockCache->UncompressedData->Capacity = GB;
 
             BlobReaderCache->Capacity = 256;
 

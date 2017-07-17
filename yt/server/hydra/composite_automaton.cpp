@@ -21,9 +21,9 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t SnapshotLoadBufferSize = 64 * 1024;
-static const size_t SnapshotSaveBufferSize = 64 * 1024;
-static const size_t SnapshotPrefetchWindowSize = 64 * 1024 * 1024;
+static const size_t SnapshotLoadBufferSize = 64 * KB;
+static const size_t SnapshotSaveBufferSize = 64 * KB;
+static const size_t SnapshotPrefetchWindowSize = 64 * MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

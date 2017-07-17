@@ -3,6 +3,7 @@
 
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/memory_constants.h>
 
 #include <yt/contrib/zstd-legacy/lib/zstd_static.h>
 
@@ -14,7 +15,7 @@ namespace NCompression {
 static const auto& Logger = CompressionLogger;
 
 // NB: This size should be less than 128 Kb, which is a size of internal Zstd buffer.
-static const size_t MaxBlockSize = 1 * 100 * 1024; // 100 KiB
+static const size_t MaxBlockSize = 100 * KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

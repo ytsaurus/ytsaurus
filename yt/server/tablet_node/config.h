@@ -112,16 +112,16 @@ public:
             .LessThanOrEqual(SoftRevisionsPerDynamicStoreLimit);
         RegisterParameter("max_dynamic_store_pool_size", MaxDynamicStorePoolSize)
             .GreaterThan(0)
-            .Default((i64) 1024 * 1024 * 1024);
+            .Default(GB);
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
-            .Default((i64) 320 * 1024 * 1024)
+            .Default(320 * MB)
             .GreaterThan(0);
         RegisterParameter("desired_partition_data_size", DesiredPartitionDataSize)
-            .Default((i64) 256 * 1024 * 1024)
+            .Default(256 * MB)
             .GreaterThan(0);
         RegisterParameter("min_partition_data_size", MinPartitionDataSize)
-            .Default((i64) 96 * 1024 * 1024)
+            .Default(96 * MB)
             .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
@@ -129,13 +129,13 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("min_partitioning_data_size", MinPartitioningDataSize)
-            .Default((i64) 64 * 1024 * 1024)
+            .Default(64 * MB)
             .GreaterThan(0);
         RegisterParameter("min_partitioning_store_count", MinPartitioningStoreCount)
             .Default(1)
             .GreaterThan(0);
         RegisterParameter("max_partitioning_data_size", MaxPartitioningDataSize)
-            .Default((i64) 1024 * 1024 * 1024)
+            .Default(GB)
             .GreaterThan(0);
         RegisterParameter("max_partitioning_store_count", MaxPartitioningStoreCount)
             .Default(5)
@@ -148,13 +148,13 @@ public:
             .Default(5)
             .GreaterThan(0);
         RegisterParameter("compaction_data_size_base", CompactionDataSizeBase)
-            .Default((i64) 16 * 1024 * 1024)
+            .Default(16 * MB)
             .GreaterThan(0);
         RegisterParameter("compaction_data_size_ratio", CompactionDataSizeRatio)
             .Default(2.0)
             .GreaterThan(1.0);
         RegisterParameter("max_compaction_data_size", MaxCompactionDataSize)
-            .Default((i64) 320 * 1024 * 1024)
+            .Default(320 * MB)
             .GreaterThan(0);
 
         RegisterParameter("samples_per_partition", SamplesPerPartition)
@@ -196,7 +196,7 @@ public:
         RegisterParameter("max_rows_per_replication_commit", MaxRowsPerReplicationCommit)
             .Default(90000);
         RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
-            .Default((i64) 128 * 1024 * 1024);
+            .Default(128 * MB);
         RegisterParameter("enable_replication_logging", EnableReplicationLogging)
             .Default(false);
 
@@ -303,8 +303,8 @@ public:
     TTabletManagerConfig()
     {
         RegisterParameter("pool_chunk_size", PoolChunkSize)
-            .GreaterThan(64 * 1024)
-            .Default(1024 * 1024);
+            .GreaterThan(64 * KB)
+            .Default(MB);
 
         RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
             .InRange(0.0, 1.0)
@@ -354,7 +354,7 @@ public:
             .Default(1);
         RegisterParameter("min_forced_flush_data_size", MinForcedFlushDataSize)
             .GreaterThan(0)
-            .Default((i64) 1024 * 1024);
+            .Default(MB);
     }
 };
 
@@ -498,7 +498,7 @@ public:
             .Default(std::numeric_limits<i64>::max());
         RegisterParameter("tablet_dynamic_memory", TabletDynamicMemory)
             .GreaterThanOrEqual(0)
-            .Default((i64) 1024 * 1024 * 1024);
+            .Default(GB);
     }
 };
 

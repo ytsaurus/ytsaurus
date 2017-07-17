@@ -150,7 +150,7 @@ TSerializableClusterResources::TSerializableClusterResources()
         .GreaterThanOrEqual(0);
     RegisterParameter("tablet_static_memory", TabletStaticMemory_)
         // COMPAT(savrus) add defaults to environment/init_cluster.py
-        .Default((i64) 1024 * 1024 * 1024)
+        .Default(GB)
         .GreaterThanOrEqual(0);
     RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_);
     // NB: this is for (partial) compatibility: 'disk_space' is serialized when
