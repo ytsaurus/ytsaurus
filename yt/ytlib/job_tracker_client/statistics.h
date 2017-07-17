@@ -107,6 +107,7 @@ private:
     const std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     const TSampleHandler SampleHandler_;
 
+    virtual void OnMyKeyedItem(const TStringBuf& key) override;
     virtual void OnMyListItem() override;
 
     void ProcessSample();

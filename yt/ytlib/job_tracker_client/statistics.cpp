@@ -511,6 +511,13 @@ TStatisticsConsumer::TStatisticsConsumer(TSampleHandler sampleHandler)
     , SampleHandler_(sampleHandler)
 { }
 
+void TStatisticsConsumer::OnMyKeyedItem(const TStringBuf& key)
+{
+    if (key.Empty()) {
+        THROW_ERROR_EXCEPTION("Statistis name cannot have empty segments");
+    }
+}
+
 void TStatisticsConsumer::OnMyListItem()
 {
     TreeBuilder_->BeginTree();
