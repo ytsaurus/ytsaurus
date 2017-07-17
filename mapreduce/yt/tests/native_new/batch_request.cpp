@@ -282,22 +282,22 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         auto res4 = batch.WithTransaction(tx).Lock("//testing/four", LM_EXCLUSIVE, TLockOptions().Waitable(true));
         client->ExecuteBatch(batch);
 
-        UNIT_ASSERT(!res1.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
-        UNIT_ASSERT(!res2.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
-        UNIT_ASSERT(!res3.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
-        UNIT_ASSERT(!res4.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT(!res1.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(500)));
+        UNIT_ASSERT(!res2.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(500)));
+        UNIT_ASSERT(!res3.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(500)));
+        UNIT_ASSERT(!res4.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(500)));
 
         otherTx1->Abort();
 
-        UNIT_ASSERT_NO_EXCEPTION(res1.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(100)));
-        UNIT_ASSERT(!res2.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
-        UNIT_ASSERT_NO_EXCEPTION(res3.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(100)));
-        UNIT_ASSERT(!res4.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT_NO_EXCEPTION(res1.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(500)));
+        UNIT_ASSERT(!res2.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(500)));
+        UNIT_ASSERT_NO_EXCEPTION(res3.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(500)));
+        UNIT_ASSERT(!res4.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(500)));
 
         otherTx2->Abort();
 
-        UNIT_ASSERT_NO_EXCEPTION(res2.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(100)));
-        UNIT_ASSERT_NO_EXCEPTION(res4.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(100)));
+        UNIT_ASSERT_NO_EXCEPTION(res2.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(500)));
+        UNIT_ASSERT_NO_EXCEPTION(res4.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(500)));
     }
 
     SIMPLE_UNIT_TEST(TestCreate)
