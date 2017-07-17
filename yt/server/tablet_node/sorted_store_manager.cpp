@@ -414,11 +414,14 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
         writerOptions->ValidateResourceUsageIncrease = false;
+        auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
+        // TODO(sandello): Introduce a new workload descriptor for the flushes.
+        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
 
         auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
 
         auto chunkWriter = CreateConfirmingWriter(
-            tabletSnapshot->WriterConfig,
+            writerConfig,
             writerOptions,
             Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId(),
@@ -428,7 +431,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             blockCache);
 
         auto tableWriter = CreateInMemoryVersionedChunkWriter(
-            tabletSnapshot->WriterConfig,
+            writerConfig,
             writerOptions,
             InMemoryManager_,
             tabletSnapshot,
