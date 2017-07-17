@@ -132,6 +132,18 @@ private:
 
     const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
 
+    bool ShouldUseDirectIO(EDirectIOPolicy policy, bool chunkIsSyncOnClose)
+    {
+        if (policy == EDirectIOPolicy::Never) {
+            return false;
+        }
+
+        if (policy == EDirectIOPolicy::Always) {
+            return true;
+        }
+
+        return chunkIsSyncOnClose;
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
@@ -144,8 +156,7 @@ private:
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
-        // DirectIO have the same effect, as fsync after every write.
-        options.EnableWriteDirectIO = request->sync_on_close() && Config_->EnableWriteDirectIO;
+        options.EnableWriteDirectIO = ShouldUseDirectIO(Config_->UseDirectIO, request->sync_on_close());
 
         context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
             "PlacementId: %v",
