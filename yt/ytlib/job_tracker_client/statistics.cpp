@@ -140,6 +140,10 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
 
         case ENodeType::Map:
             for (auto& pair : sample->AsMap()->GetChildren()) {
+                if (pair.first.Empty()) {
+                    THROW_ERROR_EXCEPTION("Statistic cannot have an empty name")
+                        << TErrorAttribute("path_prefix", path);
+                }
                 AddSample(path + "/" + ToYPathLiteral(pair.first), pair.second);
             }
             break;
@@ -510,13 +514,6 @@ TStatisticsConsumer::TStatisticsConsumer(TSampleHandler sampleHandler)
     : TreeBuilder_(CreateBuilderFromFactory(GetEphemeralNodeFactory()))
     , SampleHandler_(sampleHandler)
 { }
-
-void TStatisticsConsumer::OnMyKeyedItem(const TStringBuf& key)
-{
-    if (key.Empty()) {
-        THROW_ERROR_EXCEPTION("Statistis name cannot have empty segments");
-    }
-}
 
 void TStatisticsConsumer::OnMyListItem()
 {
