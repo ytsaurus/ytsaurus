@@ -132,7 +132,7 @@ private:
 
     const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
 
-    bool ShouldUseDirectIO(EDirectIOPolicy policy, bool chunkIsSyncOnClose)
+    bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO)
     {
         if (policy == EDirectIOPolicy::Never) {
             return false;
@@ -142,7 +142,7 @@ private:
             return true;
         }
 
-        return chunkIsSyncOnClose;
+        return writerRequestedDirectIO;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
@@ -156,7 +156,7 @@ private:
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
-        options.EnableWriteDirectIO = ShouldUseDirectIO(Config_->UseDirectIO, request->sync_on_close());
+        options.EnableWriteDirectIO = ShouldUseDirectIO(Config_->UseDirectIO, request->enable_direct_io());
 
         context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
             "PlacementId: %v",

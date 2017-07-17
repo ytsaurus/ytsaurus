@@ -595,6 +595,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     ToProto(req->mutable_session_id(), SessionId_);
     ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
     req->set_sync_on_close(Config_->SyncOnClose);
+    req->set_enable_direct_io(Config_->EnableDirectIO);
     ToProto(req->mutable_placement_id(), Options_->PlacementId);
 
     auto rspOrError = WaitFor(req->Invoke());
