@@ -3944,7 +3944,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     }
 
     LogProgress(/* force */ true);
-    
+
     Host->OnOperationCompleted(OperationId);
 }
 
@@ -5555,7 +5555,6 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
 
 int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)
 {
-    const auto& inputDataSlices = jobSummary.UnreadInputDataSlices;
     int jobCount = 1;
 
     if (JobSplitter_ && GetPendingJobCount() == 0) {
