@@ -827,6 +827,7 @@ private:
     {
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
+        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning);
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
 
@@ -1172,6 +1173,7 @@ private:
     {
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
+        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction);
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = isEden;
         writerOptions->ValidateResourceUsageIncrease = false;
