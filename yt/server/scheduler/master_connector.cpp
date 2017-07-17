@@ -136,7 +136,7 @@ public:
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
-                    .Do(BIND(&BuildInitializingOperationAttributes, operation))
+                    .Do(BIND(&BuildInitializingOperationAttributes, operation, /* buildSpec */ true))
                     .Item("brief_spec").BeginMap()
                         .Items(initializeResult.BriefSpec)
                         .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))

@@ -6005,6 +6005,14 @@ bool TOperationControllerBase::HasJobSplitterInfo() const
     return IsPrepared() && JobSplitter_;
 }
 
+void TOperationControllerBase::BuildSpec(IYsonConsumer* consumer) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Serialize(Spec, consumer);
+}
+
+
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

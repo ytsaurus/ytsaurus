@@ -33,7 +33,7 @@ DEFINE_REFCOUNTED_TYPE(IJobHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
+void BuildInitializingOperationAttributes(TOperationPtr operation, bool buildSpec, NYson::IYsonConsumer* consumer);
 void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer);
 

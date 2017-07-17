@@ -227,6 +227,11 @@ public:
         return Underlying_->HasJobSplitterInfo();
     }
 
+    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildSpec(consumer);
+    }
+
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override
     {
         Underlying_->BuildOperationAttributes(consumer);
