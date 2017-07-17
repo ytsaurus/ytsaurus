@@ -373,7 +373,7 @@ public:
     bool ValidateBlockChecksums;
 
     //! Use DIRECT_IO flag when writing chunks data to disk.
-    bool EnableWriteDirectIO;
+    EDirectIOPolicy UseDirectIO;
 
     bool EnableExperimentalSkynetHttpApi;
 
@@ -501,8 +501,8 @@ public:
         RegisterParameter("placement_expiration_time", PlacementExpirationTime)
             .Default(TDuration::Hours(1));
 
-        RegisterParameter("enable_write_direct_io", EnableWriteDirectIO)
-            .Default(false);
+        RegisterParameter("use_direct_io", UseDirectIO)
+            .Default(EDirectIOPolicy::Never);
 
         RegisterParameter("enable_experimental_skynet_http_api", EnableExperimentalSkynetHttpApi)
             .Default(false);
