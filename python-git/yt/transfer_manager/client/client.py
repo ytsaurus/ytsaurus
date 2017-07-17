@@ -111,6 +111,9 @@ class Poller(object):
         self._queue.put({"type": "task", "value": task_id})
 
     def fetch_tasks_for_restart(self):
+        if self.exc_info is not None:
+            reraise(*self.exc_info)
+
         tasks = []
         finished = False
 
