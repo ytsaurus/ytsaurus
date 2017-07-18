@@ -650,8 +650,6 @@ class TQueryEvaluateTest
 protected:
     virtual void SetUp() override
     {
-        WriterMock_ = New<StrictMock<TWriterMock>>();
-
         ActionQueue_ = New<TActionQueue>("Test");
 
         auto bcImplementations = UDF_BC(test_udfs);
@@ -896,7 +894,6 @@ protected:
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
-    TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
 
     TTypeInferrerMapPtr TypeInferers_ = New<TTypeInferrerMap>();
