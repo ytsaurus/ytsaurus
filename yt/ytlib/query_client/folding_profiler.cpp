@@ -243,8 +243,6 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
     auto schema = query->GetRenamedSchema();
     auto whereClause = query->WhereClause;
 
-    TSchemaProfiler::Profile(schema);
-
     for (const auto& joinClause : query->JoinClauses) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
@@ -305,7 +303,6 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
             joinClause->CommonKeyPrefix);
 
         schema = joinClause->GetTableSchema(schema);
-        TSchemaProfiler::Profile(schema);
     }
 
     if (whereClause) {
