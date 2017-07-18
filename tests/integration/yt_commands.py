@@ -133,6 +133,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     parameters = prepare_parameters(parameters)
 
     if verbose:
+        print >>sys.stderr
         print >>sys.stderr, str(datetime.now()), command_name, parameters
     response = driver.execute(
         Request(command_name=command_name,
@@ -149,14 +150,12 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         error = YtResponseError(response.error())
         if verbose_error:
             print >>sys.stderr, str(error)
-            print >>sys.stderr
             # NB: we want to see inner errors in teamcity.
         raise error
     if isinstance(output_stream, cStringIO.OutputType):
         result = output_stream.getvalue()
         if verbose:
             print >>sys.stderr, result
-            print >>sys.stderr
         return result
 
 def execute_command_with_output_format(command_name, kwargs, input_stream=None):
