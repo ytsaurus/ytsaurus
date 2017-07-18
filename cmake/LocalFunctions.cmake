@@ -86,7 +86,7 @@ function(UDF_BC udf output)
       for f in ${_realpath} ${_extra_files} \; do
         ${_compiler} -c
           -emit-llvm
-          -g
+          #-g
           -DYT_COMPILING_UDF
           -DNDEBUG
           ${_options}
