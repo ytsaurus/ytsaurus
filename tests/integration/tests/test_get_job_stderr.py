@@ -77,3 +77,4 @@ class TestGetJobStderr(YTEnvSetup):
         assert res == "STDERR-OUTPUT\n"
         self.sync_unmount_table(stderrs_archive_path)
         remove(stderrs_archive_path) 
+
