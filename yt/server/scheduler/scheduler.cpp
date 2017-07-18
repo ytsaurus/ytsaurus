@@ -2469,7 +2469,7 @@ private:
         BuildYsonFluently(consumer)
             .BeginMap()
                 // Include the complete list of attributes.
-                .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation, /* buildSpec */ false))
+                .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(
@@ -2513,12 +2513,6 @@ private:
                                 .Run(consumer));
                     }))
                 .EndMap()
-                .Item("spec").BeginAttributes()
-                    .Item("opaque").Value("true")
-                .EndAttributes()
-                .Do([=] (IYsonConsumer* consumer) {
-                    controller->BuildSpec(consumer);
-                })
                 .Do([=] (IYsonConsumer* consumer) {
                     WaitFor(
                         BIND(&IOperationController::BuildMemoryDigestStatistics, controller)

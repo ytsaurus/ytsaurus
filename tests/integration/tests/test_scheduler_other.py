@@ -1821,16 +1821,18 @@ class TestSchedulerConfig(YTEnvSetup):
 
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
         time.sleep(1)
-        assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 2000
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/data_size_per_job".format(op.id)) == 2000
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/max_failed_job_count".format(op.id)) == 10
+        for spec_type in ("spec", "full_spec"):
+            assert get("//sys/operations/{0}/@{1}/data_size_per_job".format(op.id, spec_type)) == 2000
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_size_per_job".format(op.id, spec_type)) == 2000
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
         op.abort()
 
         op = reduce(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", reduce_by=["foo"], dont_track=True)
         time.sleep(1)
-        assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 1000
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/data_size_per_job".format(op.id)) == 1000
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/max_failed_job_count".format(op.id)) == 10
+        for spec_type in ("spec", "full_spec"):
+            assert get("//sys/operations/{0}/@{1}/data_size_per_job".format(op.id, spec_type)) == 1000
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_size_per_job".format(op.id, spec_type)) == 1000
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
         op.abort()
 
     def test_cypress_config(self):
