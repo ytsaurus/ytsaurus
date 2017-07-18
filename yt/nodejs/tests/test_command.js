@@ -340,6 +340,7 @@ describe("YtCommand - command descriptors", function() {
             'get_job_input',
             'get_job_stderr',
             'get_in_sync_replicas',
+            'get_operation',
             'get_version',
             'insert_rows',
             'trim_rows',
