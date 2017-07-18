@@ -188,4 +188,101 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
             attrFilterRes,
             TNode::TList({barNode, "foo"}));
     }
+
+    SIMPLE_UNIT_TEST(TestCopy)
+    {
+        auto client = CreateTestClient();
+
+        client->Set("//testing/simple", "simple value");
+        client->Copy("//testing/simple", "//testing/copy_simple");
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/copy_simple"), client->Get("//testing/simple"));
+    }
+
+    SIMPLE_UNIT_TEST(TestMove)
+    {
+        auto client = CreateTestClient();
+
+        client->Set("//testing/simple", "simple value");
+        auto oldValue = client->Get("//testing/simple");
+        client->Move("//testing/simple", "//testing/moved_simple");
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/moved_simple"), oldValue);
+        UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/simple"), false);
+    }
+
+    SIMPLE_UNIT_TEST(TestCopy_PreserveExpirationTime)
+    {
+        auto client = CreateTestClient();
+
+        const TString expirationTime = "2042-02-15T18:45:19.591902Z";
+        for (TString path : {"//testing/table_default", "//testing/table_false", "//testing/table_true"}) {
+            client->Create(path, NT_TABLE);
+            client->Set(path + "/@expiration_time", expirationTime);
+        }
+
+        client->Copy("//testing/table_default", "//testing/copy_table_default");
+        client->Copy("//testing/table_true", "//testing/copy_table_true", TCopyOptions().PreserveExpirationTime(true));
+        client->Copy("//testing/table_false", "//testing/copy_table_false", TCopyOptions().PreserveExpirationTime(false));
+
+        UNIT_ASSERT_EXCEPTION(client->Get("//testing/copy_table_default/@expiration_time"), yexception);
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/copy_table_true/@expiration_time"), expirationTime);
+        UNIT_ASSERT_EXCEPTION(client->Get("//testing/copy_table_false/@expiration_time"), yexception);
+    }
+
+    SIMPLE_UNIT_TEST(TestMove_PreserveExpirationTime)
+    {
+        auto client = CreateTestClient();
+
+        const TString expirationTime = "2042-02-15T18:45:19.591902Z";
+        for (TString path : {"//testing/table_default", "//testing/table_false", "//testing/table_true"}) {
+            client->Create(path, NT_TABLE);
+            client->Set(path + "/@expiration_time", expirationTime);
+        }
+
+        client->Move("//testing/table_default", "//testing/moved_table_default");
+        client->Move("//testing/table_true", "//testing/moved_table_true", TMoveOptions().PreserveExpirationTime(true));
+        client->Move("//testing/table_false", "//testing/moved_table_false", TMoveOptions().PreserveExpirationTime(false));
+
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/moved_table_default/@expiration_time"), TNode(expirationTime));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/moved_table_true/@expiration_time"), TNode(expirationTime));
+        UNIT_ASSERT_EXCEPTION(client->Get("//testing/moved_table_false/@expiration_time"), yexception);
+    }
+
+    SIMPLE_UNIT_TEST(TestLink)
+    {
+        auto client = CreateTestClient();
+
+        client->Create("//testing/table", NT_TABLE);
+        client->Link("//testing/table", "//testing/table_link");
+
+        UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/table"), true);
+        UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/table_link"), true);
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/table_link&/@target_path"), "//testing/table");
+    }
+
+    SIMPLE_UNIT_TEST(TestConcatenate)
+    {
+        auto client = CreateTestClient();
+        {
+            auto writer = client->CreateFileWriter("//testing/file1");
+            *writer << "foo";
+            writer->Finish();
+        }
+        {
+            auto writer = client->CreateFileWriter("//testing/file2");
+            *writer << "bar";
+            writer->Finish();
+        }
+        client->Create("//testing/concat", NT_FILE);
+        yvector<TYPath> nodes{"//testing/file1", "//testing/file2"};
+        client->Concatenate(nodes, "//testing/concat");
+        {
+            auto reader = client->CreateFileReader("//testing/concat");
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobar");
+        }
+        client->Concatenate(nodes, "//testing/concat", TConcatenateOptions().Append(true));
+        {
+            auto reader = client->CreateFileReader("//testing/concat");
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobarfoobar");
+        }
+    }
 }

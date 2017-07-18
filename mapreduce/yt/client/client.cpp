@@ -125,17 +125,8 @@ TNodeId TClientBase::Copy(
     const TCopyOptions& options)
 {
     THttpHeader header("POST", "copy");
-    header.AddParam("source_path", AddPathPrefix(sourcePath));
-    header.AddParam("destination_path", AddPathPrefix(destinationPath));
-    header.AddTransactionId(TransactionId_);
     header.AddMutationId();
-
-    header.AddParam("recursive", options.Recursive_);
-    header.AddParam("force", options.Force_);
-    header.AddParam("preserve_account", options.PreserveAccount_);
-    if (options.PreserveExpirationTime_) {
-        header.AddParam("preserve_expiration_time", *options.PreserveExpirationTime_);
-    }
+    header.SetParameters(NDetail::SerializeParamsForCopy(TransactionId_, sourcePath, destinationPath, options));
     return ParseGuidFromResponse(RetryRequest(Auth_, header));
 }
 
@@ -145,17 +136,8 @@ TNodeId TClientBase::Move(
     const TMoveOptions& options)
 {
     THttpHeader header("POST", "move");
-    header.AddParam("source_path", AddPathPrefix(sourcePath));
-    header.AddParam("destination_path", AddPathPrefix(destinationPath));
-    header.AddTransactionId(TransactionId_);
     header.AddMutationId();
-
-    header.AddParam("recursive", options.Recursive_);
-    header.AddParam("force", options.Force_);
-    header.AddParam("preserve_account", options.PreserveAccount_);
-    if (options.PreserveExpirationTime_) {
-        header.AddParam("preserve_expiration_time", *options.PreserveExpirationTime_);
-    }
+    header.SetParameters(NDetail::SerializeParamsForMove(TransactionId_, sourcePath, destinationPath, options));
     return ParseGuidFromResponse(RetryRequest(Auth_, header));
 }
 
@@ -165,16 +147,8 @@ TNodeId TClientBase::Link(
     const TLinkOptions& options)
 {
     THttpHeader header("POST", "link");
-    header.AddParam("target_path", AddPathPrefix(targetPath));
-    header.AddParam("link_path", AddPathPrefix(linkPath));
-    header.AddTransactionId(TransactionId_);
     header.AddMutationId();
-
-    header.AddParam("recursive", options.Recursive_);
-    header.AddParam("ignore_existing", options.IgnoreExisting_);
-    if (options.Attributes_) {
-        header.SetParameters(AttributesToYsonString(*options.Attributes_));
-    }
+    header.SetParameters(NDetail::SerializeParamsForLink(TransactionId_, targetPath, linkPath, options));
     return ParseGuidFromResponse(RetryRequest(Auth_, header));
 }
 
@@ -515,18 +489,8 @@ ILockPtr TTransaction::Lock(
     const TLockOptions& options)
 {
     THttpHeader header("POST", "lock");
-    header.AddPath(AddPathPrefix(path));
-    header.AddParam("mode", NDetail::ToString(mode));
-    header.AddTransactionId(TransactionId_);
     header.AddMutationId();
-
-    header.AddParam("waitable", options.Waitable_);
-    if (options.AttributeKey_) {
-        header.AddParam("attribute_key", *options.AttributeKey_);
-    }
-    if (options.ChildKey_) {
-        header.AddParam("child_key", *options.ChildKey_);
-    }
+    header.SetParameters(NDetail::SerializeParamsForLock(TransactionId_, path, mode, options));
 
     auto lockId = ParseGuidFromResponse(RetryRequest(Auth_, header));
     if (options.Waitable_) {
