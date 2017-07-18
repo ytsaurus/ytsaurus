@@ -2857,15 +2857,13 @@ private:
         if (rows[0]) {
 #define SET_ITEM_STRING_VALUE(itemKey, index) \
             SET_ITEM_VALUE(itemKey, index, TString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_YSON_STRING_VALUE(itemKey, index) \ 
+#define SET_ITEM_YSON_STRING_VALUE(itemKey, index) \
             SET_ITEM_VALUE(itemKey, index, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_INSTANT_VALUE(itemKey, index) \ 
+#define SET_ITEM_INSTANT_VALUE(itemKey, index) \
             SET_ITEM_VALUE(itemKey, index, TInstant(rows[0][index].Data.Int64))
-
 #define SET_ITEM_VALUE(itemKey, index, operation) \
             .DoIf(rows[0][index].Type != EValueType::Null, [&] (TFluentMap fluent) { \
-                fluent \
-                    .Item(#itemKey).Value(operation); \
+                fluent.Item(#itemKey).Value(operation); \
             })
 
             auto ysonResult = BuildYsonStringFluently()
