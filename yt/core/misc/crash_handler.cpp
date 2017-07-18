@@ -265,7 +265,7 @@ void InvokeDefaultSignalHandler(int signal)
     sa.sa_handler = SIG_DFL;
     YCHECK(sigaction(signal, &sa, nullptr) == 0);
 
-    kill(getpid(), signal);
+    pthread_kill(pthread_self(), signal);
 }
 
 // Dumps signal and stack frame information, and invokes the default
