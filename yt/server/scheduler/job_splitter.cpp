@@ -165,6 +165,8 @@ private:
 
         void Update()
         {
+            constexpr double ExcessFactor = 2.1;
+
             if (CompletionTimeSet_.empty()) {
                 MedianCompletionTime_ = 0;
                 return;
@@ -183,7 +185,10 @@ private:
                 std::nth_element(samples.begin() + medianIndex, samples.begin() + percentileIndex, samples.end());
                 InterruptCandidateSet_.clear();
                 for (auto it = samples.begin() + percentileIndex; it < samples.end(); ++it) {
-                    InterruptCandidateSet_.insert(it->second);
+                    if (it->first / MedianCompletionTime_ >= ExcessFactor) {
+                        // If we are going to split job at least into 2 + epsilon parts.
+                        InterruptCandidateSet_.insert(it->second);
+                    }
                 }
             }
         }
