@@ -38,15 +38,17 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildInitializingOperationAttributes(TOperationPtr operation, bool buildSpec, NYson::IYsonConsumer* consumer)
+void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
-        .DoIf(buildSpec, [&] (TFluentMap fluent) {
-            fluent
-                .Item("spec").Value(operation->GetSpec());
-        })
+        .Item("spec").Value(operation->GetSpec())
+        .Item("full_spec")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Do(BIND(&IOperationController::BuildSpec, operation->GetController()))
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId())
         .Do(BIND(&BuildRunningOperationAttributes, operation));
