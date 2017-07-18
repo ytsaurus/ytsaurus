@@ -172,7 +172,7 @@ class YtStuff(object):
                 os.makedirs(path)
 
         yt2_arcadia_path = yatest.common.binary_path('yt/packages/{}/contrib/python/yt/bin/yt/yt'.format(self.version))
-        shutil.copy(yt2_arcadia_path, os.path.join(self.yt_bins_path, 'yt2'))
+        os.symlink(yt2_arcadia_path, os.path.join(self.yt_bins_path, 'yt2'))
 
         self.mapreduce_yt_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt'.format(self.version))]
         self.yt_local_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/local/yt_local'.format(self.version))]
@@ -181,7 +181,7 @@ class YtStuff(object):
         if self.version == "18_5":
             ytserver_path = yatest.common.binary_path('yt/packages/18_5/yt/18_5/yt/server/ytserver_program/ytserver')
             yt_server_custom_path = yatest.common.get_param('yt_ytserver_path')
-            shutil.copy(yt_server_custom_path or ytserver_path, os.path.join(self.yt_bins_path, 'ytserver'))
+            os.symlink(yt_server_custom_path or ytserver_path, os.path.join(self.yt_bins_path, 'ytserver'))
         else:
             for binary, server_dir in [('master', 'cell_master_program'),
                                        ('scheduler', 'cell_scheduler_program'),
@@ -190,20 +190,20 @@ class YtStuff(object):
                                        ('exec', 'exec_program')]:
                 binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
                                                         .format(self.version, server_dir, binary))
-                shutil.copy(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
+                os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
 
             if self.version == '19_2':
                 tools_binary_path = yatest.common.binary_path('yt/packages/19_2/yt/19_2/yt/server/tools_program/ytserver-tools')
-                shutil.copy(tools_binary_path, os.path.join(self.yt_bins_path, 'ytserver-tools'))
+                os.symlink(tools_binary_path, os.path.join(self.yt_bins_path, 'ytserver-tools'))
 
         yt_node_arcadia_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/bin/ytnode'.format(self.version))
-        shutil.copy(yt_node_arcadia_path, os.path.join(self.yt_node_bin_path, 'nodejs'))
+        os.symlink(yt_node_arcadia_path, os.path.join(self.yt_node_bin_path, 'nodejs'))
 
         node_modules_archive_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/node_modules/resource.tar.gz'.format(self.version))
         self._extract_tar(node_modules_archive_path, self.yt_path)
 
         yt_node_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/package'.format(self.version))
-        shutil.copytree(yt_node_path, os.path.join(self.yt_node_modules_path, 'yt'))
+        os.symlink(yt_node_path, os.path.join(self.yt_node_modules_path, 'yt'))
 
     def _prepare_env(self):
         self.env = {}
