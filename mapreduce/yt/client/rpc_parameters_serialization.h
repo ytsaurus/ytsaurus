@@ -73,6 +73,8 @@ TNode SerializeParametersForDeleteRows(
     const TYPath& path,
     const TDeleteRowsOptions& options);
 
+TNode SerializeParamsForParseYPath(const TRichYPath& path);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail

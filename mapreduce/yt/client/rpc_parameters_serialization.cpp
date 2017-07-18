@@ -287,5 +287,12 @@ TNode SerializeParametersForDeleteRows(
     return result;
 }
 
+TNode SerializeParamsForParseYPath(const TRichYPath& path)
+{
+    TNode result;
+    result["path"] = PathToNode(path);
+    return result;
+}
+
 } // namespace NDetail
 } // namespace NYT

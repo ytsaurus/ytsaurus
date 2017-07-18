@@ -5,6 +5,7 @@
 
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/log.h>
+#include <mapreduce/yt/common/serialize.h>
 #include <mapreduce/yt/interface/node.h>
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/retry_request.h>
@@ -195,6 +196,33 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+class TCanonizeYPathResponseParser
+    : public TResponseParserBase<TRichYPath>
+{
+public:
+    explicit TCanonizeYPathResponseParser(const TRichYPath& original)
+        : OriginalNode_(PathToNode(original))
+    { }
+
+    virtual void SetResponse(TMaybe<TNode> node, const TResponseContext& /*responseContext*/) override
+    {
+        EnsureType(node, TNode::STRING);
+
+        for (const auto& item : OriginalNode_.GetAttributes().AsMap()) {
+            node->Attributes()[item.first] = item.second;
+        }
+        TRichYPath result;
+        Deserialize(result, *node);
+        result.Path_ = AddPathPrefix(result.Path_);
+        Result.SetValue(result);
+    }
+
+private:
+    TNode OriginalNode_;
+};
+
+////////////////////////////////////////////////////////////////////
+
 TBatchRequestImpl::TBatchItem::TBatchItem(TNode parameters, ::TIntrusivePtr<IResponseItemParser> responseParser)
     : Parameters(std::move(parameters))
     , ResponseParser(std::move(responseParser))
@@ -371,6 +399,21 @@ TFuture<ILockPtr> TBatchRequestImpl::Lock(
         SerializeParamsForLock(transaction, path, mode, options),
         Nothing(),
         MakeIntrusive<TLockResponseParser>(options.Waitable_));
+}
+
+TFuture<TRichYPath> TBatchRequestImpl::CanonizeYPath(const TRichYPath& path)
+{
+    if (path.Path_.find_first_of("<>{}[]") != TString::npos) {
+        return AddRequest<TCanonizeYPathResponseParser>(
+            "parse_ypath",
+            SerializeParamsForParseYPath(path),
+            Nothing(),
+            MakeIntrusive<TCanonizeYPathResponseParser>(path));
+    } else {
+        TRichYPath result = path;
+        result.Path_ = AddPathPrefix(result.Path_);
+        return NThreading::MakeFuture(result);
+    }
 }
 
 void TBatchRequestImpl::FillParameterList(size_t maxSize, TNode* result, TInstant* nextTry) const

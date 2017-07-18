@@ -104,6 +104,7 @@ public:
         const TTransactionId& transaction,
         const TYPath& path,
         ELockMode mode, const TLockOptions& options);
+    NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path);
 
 private:
     struct TBatchItem {

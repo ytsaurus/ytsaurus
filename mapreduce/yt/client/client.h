@@ -73,6 +73,8 @@ public:
         const TYPath& destinationPath,
         const TConcatenateOptions& options) override;
 
+    TRichYPath CanonizeYPath(const TRichYPath& path) override;
+
     IFileReaderPtr CreateFileReader(
         const TRichYPath& path,
         const TFileReaderOptions& options) override;
