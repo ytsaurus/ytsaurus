@@ -307,8 +307,10 @@ private:
 
     bool IsResidual() const
     {
+        constexpr i64 MinSmallJobCount = 10;
+
         i64 runningJobCount = RunningJobs_.size();
-        i64 smallJobCount = static_cast<i64>(std::sqrt(static_cast<double>(MaxRunningJobCount_)));
+        i64 smallJobCount = std::max(MinSmallJobCount, static_cast<i64>(std::sqrt(static_cast<double>(MaxRunningJobCount_))));
         return runningJobCount <= smallJobCount;
     }
 };
