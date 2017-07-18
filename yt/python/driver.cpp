@@ -347,7 +347,7 @@ public:
 #if PY_MAJOR_VERSION < 3
         Deserialize(object, ConfigNode_, Null);
 #else
-        Deserialize(object, ConfigNode_, MakeNullable<Stroka>("utf-8"));
+        Deserialize(object, ConfigNode_, MakeNullable<TString>("utf-8"));
 #endif
         return object;
     }
