@@ -115,6 +115,11 @@ TFuture<TNodeId> TBatchRequest::Link(
     return Impl_->Link(DefaultTransaction_, targetPath, linkPath, options);
 }
 
+TFuture<TRichYPath> TBatchRequest::CanonizeYPath(const TRichYPath& path)
+{
+    return Impl_->CanonizeYPath(path);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

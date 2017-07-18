@@ -200,7 +200,10 @@ void TClientBase::Concatenate(
     RetryRequest(Auth_, header);
 }
 
-    // io
+TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)
+{
+    return CanonizePath(Auth_, path);
+}
 
 IFileReaderPtr TClientBase::CreateFileReader(
     const TRichYPath& path,

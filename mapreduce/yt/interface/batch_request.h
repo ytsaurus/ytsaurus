@@ -61,6 +61,8 @@ struct IBatchRequest {
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) = 0;
+
+    virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -126,6 +128,8 @@ public:
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) override;
+
+    virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) override;
 
 private:
     TBatchRequest(NDetail::TBatchRequestImpl* impl);

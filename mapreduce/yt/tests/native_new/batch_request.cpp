@@ -551,6 +551,27 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         ignoreExistingRes.GetValue(); // check it doesn't throw
     }
 
+    SIMPLE_UNIT_TEST(TestCanonizeYPath) {
+        auto client = CreateTestClient();
+
+        TBatchRequest batchRequest;
+        auto simpleRes = batchRequest.CanonizeYPath(TRichYPath("//foo/bar"));
+        auto rangeRes = batchRequest.CanonizeYPath(TRichYPath("//foo/baz[#100500]"));
+        auto formatSizeRes = batchRequest.CanonizeYPath(TRichYPath("//foo/qux[#100500]").Format("yson"));
+        auto errorRes = batchRequest.CanonizeYPath(TRichYPath("//foo/nix[100500").Format("yson"));
+
+        client->ExecuteBatch(batchRequest);
+
+        UNIT_ASSERT_VALUES_EQUAL(simpleRes.GetValue().Path_, "//foo/bar");
+
+        UNIT_ASSERT_VALUES_EQUAL(rangeRes.GetValue().Path_, "//foo/baz");
+        UNIT_ASSERT_VALUES_EQUAL(rangeRes.GetValue().Ranges_.size(), 1);
+
+        UNIT_ASSERT_VALUES_EQUAL(formatSizeRes.GetValue().Format_, "yson");
+
+        UNIT_ASSERT_EXCEPTION(errorRes.GetValue(), TErrorResponse);
+    }
+
     SIMPLE_UNIT_TEST(TestYtPrefix) {
         TYtPrefixGuard guard("//testing/");
         auto client = CreateTestClient();

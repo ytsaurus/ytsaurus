@@ -73,6 +73,8 @@ public:
         const yvector<TYPath>& sourcePaths,
         const TYPath& destinationPath,
         const TConcatenateOptions& options = TConcatenateOptions()) = 0;
+
+    virtual TRichYPath CanonizeYPath(const TRichYPath& path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

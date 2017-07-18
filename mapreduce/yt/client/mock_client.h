@@ -28,6 +28,8 @@ public:
 
     void Concatenate(const yvector<TYPath>&, const TYPath&, const TConcatenateOptions&) override;
 
+    TRichYPath CanonizeYPath(const TRichYPath&) override;
+
     IFileReaderPtr CreateFileReader(const TRichYPath&, const TFileReaderOptions&) override;
 
     IFileWriterPtr CreateFileWriter(const TRichYPath&, const TFileWriterOptions&) override;

@@ -253,6 +253,10 @@ TNodeId TMockClient::Link(const TYPath&, const TYPath&, const TLinkOptions&) {
 void TMockClient::Concatenate(const yvector<TYPath>&, const TYPath&, const TConcatenateOptions&) {
 }
 
+TRichYPath TMockClient::CanonizeYPath(const TRichYPath&) {
+    ythrow yexception() << "not implemented";
+}
+
 IFileReaderPtr TMockClient::CreateFileReader(const TRichYPath&, const TFileReaderOptions&) {
     return new TMockFileReader();
 }
