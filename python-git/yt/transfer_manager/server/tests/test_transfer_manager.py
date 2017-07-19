@@ -82,8 +82,13 @@ def _abort_operations_and_transactions(client):
         client.abort_operation(operation)
 
     for transaction in client.list("//sys/transactions", attributes=["owner", "title"]):
-        if transaction.attributes["owner"] == "root" and transaction.attributes.get("title") != "Transfer manager lock":
-            client.abort_transaction(transaction)
+        transaction_title = transaction.attributes.get("title", "")
+        allowed_titles = ["Scheduler lock", "Lease for", "Prerequisite for", "Transfer manager lock"]
+
+        if any(map(lambda allowed_title: allowed_title in transaction_title, allowed_titles)):
+            continue
+
+        client.abort_transaction(transaction)
 
 @pytest.mark.skipif(PY3, reason="Transfer manager is available only for Python 2")
 class TestTransferManager(object):
