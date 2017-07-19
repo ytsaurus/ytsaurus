@@ -468,7 +468,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["key1", "key2"]
-        assert get("//tmp/t_out/@schema/@unique_keys") == True
+        assert get("//tmp/t_out/@schema/@unique_keys")
 
     def test_empty_in_ordered(self):
         create("table", "//tmp/t1")
