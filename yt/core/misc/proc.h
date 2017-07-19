@@ -49,7 +49,7 @@ void SafeSetCloexec(int fd);
 
 bool TryExecve(const char* path, const char* const* argv, const char* const* env);
 
-void CreateStderrFile(TString fileName);
+void SafeCreateStderrFile(TString fileName);
 
 //! Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
