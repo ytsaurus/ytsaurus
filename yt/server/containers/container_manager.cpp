@@ -12,6 +12,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/contrib/portoapi/rpc.pb.h>
+
 namespace NYT {
 namespace NContainers {
 
@@ -165,8 +167,19 @@ private:
             LOG_DEBUG("Cleaning (Container: %v)", name);
             actions.push_back(Destroy(name));
         }
-        WaitFor(Combine(actions))
-            .ThrowOnError();
+        auto errors = WaitFor(CombineAll(actions));
+        THROW_ERROR_EXCEPTION_IF_FAILED(errors, "Failed to clean containers");
+
+        for (const auto& error : errors.Value()) {
+            if (error.IsOK() ||
+                error.FindMatching(ContainerErrorCodeBase + ::rpc::EError::ContainerDoesNotExist))
+            {
+                continue;
+            }
+
+            THROW_ERROR_EXCEPTION("Failed to clean containers")
+                << error;
+        }
     }
 
     DECLARE_NEW_FRIEND();
