@@ -1,7 +1,5 @@
 #include "yt_udf_cpp.h"
 
-#include <functional>
-
 namespace re2 {
     class RE2;
 }
@@ -31,11 +29,11 @@ struct TRe2Regex
 
     re2::RE2* Re2;
 };
-
+template <class TFunc>
 static void regex_apply(
     NYT::NQueryClient::TFunctionContext* functionContext,
     TUnversionedValue* pattern,
-    std::function<void(TRe2Regex*)> func)
+    TFunc&& func)
 {
     if (!functionContext->IsLiteralArg(0)) {
         TRe2Regex regex{pattern};
