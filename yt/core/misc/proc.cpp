@@ -789,10 +789,12 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
 #endif
 }
 
-void CreateStderrFile(TString fileName)
+void SafeCreateStderrFile(TString fileName)
 {
 #ifdef _unix_
-    YCHECK(freopen(~fileName, "a", stderr) != nullptr);
+    if (freopen(~fileName, "a", stderr) == nullptr) {
+        THROW_ERROR_EXCEPTION("Stderr redirection failed");
+    }
 #endif
 }
 
