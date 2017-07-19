@@ -433,17 +433,17 @@ void SetUid(int uid)
       : uid; // fallback value.
 
 #ifdef _linux_
-    if (setresuid(uid, uid, uid) != 0) {
-        THROW_ERROR_EXCEPTION("Unable to set uids")
-            << TErrorAttribute("uid", uid)
-            << TError::FromSystem();
-    }
-
     if (setresgid(gid, gid, gid) != 0) {
         THROW_ERROR_EXCEPTION("Unable to set gids")
                 << TErrorAttribute("uid", uid)
                 << TErrorAttribute("gid", gid)
                 << TError::FromSystem();
+    }
+
+    if (setresuid(uid, uid, uid) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set uids")
+            << TErrorAttribute("uid", uid)
+            << TError::FromSystem();
     }
 #else
     if (setuid(uid) != 0) {
