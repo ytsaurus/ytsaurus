@@ -132,7 +132,7 @@ private:
 
     const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
 
-    bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO)
+    bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO) const
     {
         if (policy == EDirectIOPolicy::Never) {
             return false;

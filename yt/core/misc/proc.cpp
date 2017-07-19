@@ -793,7 +793,9 @@ void SafeCreateStderrFile(TString fileName)
 {
 #ifdef _unix_
     if (freopen(~fileName, "a", stderr) == nullptr) {
-        THROW_ERROR_EXCEPTION("Stderr redirection failed");
+        auto lastError = TError::FromSystem();
+        THROW_ERROR_EXCEPTION("Stderr redirection failed")
+            << lastError;
     }
 #endif
 }

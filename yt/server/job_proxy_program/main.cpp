@@ -54,7 +54,7 @@ protected:
         try {
             SafeCreateStderrFile("stderr");
         } catch (const std::exception& ex) {
-            LOG_ERROR("Job proxy prepare failed: %s", ex.what());
+            LOG_ERROR(ex, "Job proxy preparation (startup) failed");
             Exit(static_cast<int>(NJobProxy::EJobProxyExitCode::JobProxyPrepareFailed));
         }
 
