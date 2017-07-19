@@ -26,6 +26,8 @@
 
 #include <contrib/libs/re2/re2/re2.h>
 
+#include <util/charset/utf8.h>
+
 #include <mutex>
 
 #include <string.h>
@@ -1007,6 +1009,23 @@ DEFINE_YPATH_GET_STRING
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, char* source, int sourceLength)
+{
+    auto lowered = ToLowerUTF8(TStringBuf(source, sourceLength));
+    *result = AllocateBytes(context, lowered.size());
+    for (int i = 0; i < lowered.size(); i++) {
+        (*result)[i] = lowered[i];
+    }
+    *resultLength = lowered.size();
+}
+
+TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
+{
+    return NYT::NTableClient::GetFarmFingerprint(begin, end);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1046,6 +1065,8 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(RegexReplaceAll);
     REGISTER_ROUTINE(RegexExtract);
     REGISTER_ROUTINE(RegexEscape);
+    REGISTER_ROUTINE(ToLowerUTF8);
+    REGISTER_ROUTINE(GetFarmFingerprint);
     REGISTER_YPATH_GET_ROUTINE(Int64);
     REGISTER_YPATH_GET_ROUTINE(Uint64);
     REGISTER_YPATH_GET_ROUTINE(Double);
