@@ -523,7 +523,7 @@ private:
                 THROW_ERROR_EXCEPTION("Offset is out of bounds")
                     << TErrorAttribute("offset", Offset_)
                     << TErrorAttribute("part_size", result.Size())
-                    << TErrorAttribute("part_index", NextPartIndex_-1);
+                    << TErrorAttribute("part_index", NextPartIndex_ - 1);
             }
             result = result.Slice(result.Begin() + Offset_, result.End());
             Offset_ = 0;
@@ -583,10 +583,10 @@ private:
 
         auto value = GetAndValidateValue(row, DataColumnName_, EColumnType::Data, EValueType::String);
         if (PartSize_ && value.Length != PartSize_.Get()) {
-            THROW_ERROR_EXCEPTION("Inconsistent part size (Expected: %v, Actual: %v, PartIndex: %v)",
-                PartSize_.Get(),
-                value.Length,
-                partIndex);
+            THROW_ERROR_EXCEPTION("Inconsistent part size")
+                << TErrorAttribute("expected_size", PartSize_.Get())
+                << TErrorAttribute("actual_size", value.Length)
+                << TErrorAttribute("part_index", Offset_);
         }
         return value;
     }
