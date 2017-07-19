@@ -1192,13 +1192,13 @@ TCodegenExpression MakeCodegenInOpExpr(
         size_t keySize = argIds.size();
 
         Value* newRow = CodegenAllocateRow(builder, keySize);
+        Value* newValues = CodegenValuesPtrFromRow(builder, newRow);
 
         std::vector<EValueType> keyTypes;
         for (int index = 0; index < keySize; ++index) {
-            auto id = index;
             auto value = CodegenFragment(builder, argIds[index]);
             keyTypes.push_back(value.GetStaticType());
-            value.StoreToRow(builder, newRow, index, id);
+            value.StoreToValues(builder, newValues, index);
         }
 
         Value* result = builder->CreateCall(
@@ -1372,17 +1372,16 @@ size_t MakeCodegenJoinOp(
             builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
                 Value* keyPtrRef = builder->ViaClosure(keyPtr);
                 Value* keyRef = builder->CreateLoad(keyPtrRef);
+                Value* keyValues = CodegenValuesPtrFromRow(builder, keyRef);
 
                 auto rowBuilder = TCGExprContext::Make(builder, *fragmentInfos, row, builder.Buffer);
                 for (int column = 0; column < lookupKeySize; ++column) {
                     if (!equations[column].second) {
                         auto joinKeyValue = CodegenFragment(rowBuilder, equations[column].first);
                         lookupKeyTypes[column] = joinKeyValue.GetStaticType();
-                        joinKeyValue.StoreToRow(rowBuilder, keyRef, column, column);
+                        joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
                     }
                 }
-
-                Value* keyValues = CodegenValuesPtrFromRow(builder, keyRef);
 
                 builder->CreateStore(
                     keyValues,
@@ -1403,7 +1402,7 @@ size_t MakeCodegenJoinOp(
                             evaluatedColumnsBuilder,
                             equations[column].first);
                         lookupKeyTypes[column] = evaluatedColumn.GetStaticType();
-                        evaluatedColumn.StoreToRow(evaluatedColumnsBuilder, keyRef, column, column);
+                        evaluatedColumn.StoreToValues(evaluatedColumnsBuilder, keyValues, column);
                     }
                 }
 
@@ -1535,12 +1534,13 @@ size_t MakeCodegenAddStreamOp(
 
         builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
             Value* newRowRef = builder->ViaClosure(newRow);
+            Value* newValues = CodegenValuesPtrFromRow(builder, newRowRef);
 
             for (int index = 0; index < sourceSchema.size(); ++index) {
                 auto id = index;
 
                 TCGValue::CreateFromRow(builder, row, index, sourceSchema[index])
-                    .StoreToRow(builder, newRowRef, index, id);
+                    .StoreToValues(builder, newValues, index, id);
             }
 
             TCGValue::CreateFromValue(
@@ -1550,7 +1550,7 @@ size_t MakeCodegenAddStreamOp(
                 builder->getInt64(static_cast<ui64>(value)),
                 EValueType::Uint64,
                 "streamIndex")
-                .StoreToRow(builder, newRowRef, sourceSchema.size(), sourceSchema.size());
+                .StoreToValues(builder, newValues, sourceSchema.size(), sourceSchema.size());
 
             builder[consumerSlot](builder, newRowRef);
         };
@@ -1583,6 +1583,7 @@ size_t MakeCodegenProjectOp(
 
         builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
             Value* newRowRef = builder->ViaClosure(newRow);
+            Value* newValues = CodegenValuesPtrFromRow(builder, newRowRef);
 
             auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, row, builder.Buffer);
 
@@ -1590,7 +1591,7 @@ size_t MakeCodegenProjectOp(
                 auto id = index;
 
                 CodegenFragment(innerBuilder, argIds[index])
-                    .StoreToRow(innerBuilder, newRowRef, index, id);
+                    .StoreToValues(innerBuilder, newValues, index, id);
             }
 
             builder[consumerSlot](builder, newRowRef);
@@ -1614,15 +1615,17 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
     ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
         auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, srcRow, builder.Buffer);
 
+        Value* dstValues = CodegenValuesPtrFromRow(builder, dstRow);
+
         for (int index = 0; index < groupExprsIds.size(); index++) {
             CodegenFragment(innerBuilder, groupExprsIds[index])
-                .StoreToRow(builder, dstRow, index, index);
+                .StoreToValues(builder, dstValues, index, index);
         }
 
         size_t offset = groupExprsIds.size();
         for (int index = 0; index < nullTypes.size(); ++index) {
             TCGValue::CreateNull(builder, nullTypes[index])
-                .StoreToRow(builder, dstRow, offset + index, offset + index);
+                .StoreToValues(builder, dstValues, offset + index, offset + index);
         }
     };
 }
@@ -1637,12 +1640,13 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArg
         MOVE(fragmentInfos),
         MOVE(aggregateExprIds)
     ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
+        Value* dstValues = CodegenValuesPtrFromRow(builder, dstRow);
+
         auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, srcRow, builder.Buffer);
 
         for (int index = 0; index < aggregateExprIds.size(); index++) {
-            auto id = keySize + index;
             CodegenFragment(innerBuilder, aggregateExprIds[index])
-                .StoreToRow(builder, dstRow, keySize + index, id);
+                .StoreToValues(builder, dstValues, keySize + index);
         }
     };
 }
@@ -1655,17 +1659,12 @@ std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregat
         MOVE(codegenAggregates),
         keySize
     ] (TCGBaseContext& builder, Value* buffer, Value* row) {
+        Value* values = CodegenValuesPtrFromRow(builder, row);
+
         for (int index = 0; index < codegenAggregates.size(); index++) {
             auto id = keySize + index;
-            auto initState = codegenAggregates[index].Initialize(
-                builder,
-                buffer,
-                row);
-            initState.StoreToRow(
-                builder,
-                row,
-                keySize + index,
-                id);
+            codegenAggregates[index].Initialize(builder, buffer, row)
+                .StoreToValues(builder, values, keySize + index, id);
         }
     };
 }
@@ -1680,14 +1679,17 @@ std::function<void(TCGBaseContext& builder, Value*, Value*, Value*)> MakeCodegen
         keySize,
         isMerge
     ] (TCGBaseContext& builder, Value* buffer, Value* newRow, Value* groupRow) {
+        Value* newValues = CodegenValuesPtrFromRow(builder, newRow);
+        Value* groupValues = CodegenValuesPtrFromRow(builder, groupRow);
+
         for (int index = 0; index < codegenAggregates.size(); index++) {
             auto aggState = builder->CreateConstInBoundsGEP1_32(
                 nullptr,
-                CodegenValuesPtrFromRow(builder, groupRow),
+                groupValues,
                 keySize + index);
             auto newValue = builder->CreateConstInBoundsGEP1_32(
                 nullptr,
-                CodegenValuesPtrFromRow(builder, newRow),
+                newValues,
                 keySize + index);
 
             auto id = keySize + index;
@@ -1697,16 +1699,8 @@ std::function<void(TCGBaseContext& builder, Value*, Value*, Value*)> MakeCodegen
             } else {
                 updateFunction = codegenAggregates[index].Update;
             }
-            updateFunction(
-                builder,
-                buffer,
-                aggState,
-                newValue)
-                .StoreToRow(
-                    builder,
-                    groupRow,
-                    keySize + index,
-                    id);
+            updateFunction(builder, buffer, aggState, newValue)
+                .StoreToValues(builder, groupValues, keySize + index, id);
         }
     };
 }
@@ -1719,21 +1713,18 @@ std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregat
         MOVE(codegenAggregates),
         keySize
     ] (TCGBaseContext& builder, Value* buffer, Value* row) {
+        Value* values = CodegenValuesPtrFromRow(builder, row);
+
         for (int index = 0; index < codegenAggregates.size(); index++) {
             auto id = keySize + index;
-            auto valuesPtr = CodegenValuesPtrFromRow(builder, row);
             auto resultValue = codegenAggregates[index].Finalize(
                 builder,
                 buffer,
                 builder->CreateConstInBoundsGEP1_32(
                     nullptr,
-                    valuesPtr,
+                    values,
                     keySize + index));
-            resultValue.StoreToRow(
-                builder,
-                row,
-                keySize + index,
-                id);
+            resultValue.StoreToValues(builder, values, keySize + index, id);
         }
     };
 }
@@ -1993,15 +1984,17 @@ size_t MakeCodegenOrderOp(
             builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
                 Value* topCollectorRef = builder->ViaClosure(topCollector);
                 Value* newRowRef = builder->ViaClosure(newRow);
+                Value* values = CodegenValuesPtrFromRow(builder, row);
+                Value* newValues = CodegenValuesPtrFromRow(builder, newRowRef);
 
                 for (size_t index = 0; index < schemaSize; ++index) {
                     auto type = sourceSchema[index];
-                    TCGValue::CreateFromRow(
+                    TCGValue::CreateFromRowValues(
                         builder,
-                        row,
+                        values,
                         index,
                         type)
-                        .StoreToRow(builder, newRowRef, index, index);
+                        .StoreToValues(builder, newValues, index, index);
                 }
 
                 auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, row, builder.Buffer);
@@ -2009,12 +2002,15 @@ size_t MakeCodegenOrderOp(
                     auto columnIndex = schemaSize + index;
 
                     CodegenFragment(innerBuilder, exprIds[index])
-                        .StoreToRow(builder, newRowRef, columnIndex, columnIndex);
+                        .StoreToValues(builder, newValues, columnIndex, columnIndex);
                 }
 
                 builder->CreateCall(
                     builder.Module->GetRoutine("AddRow"),
-                    {topCollectorRef, newRowRef});
+                    {
+                        topCollectorRef,
+                        newRowRef
+                    });
             };
 
             codegenSource(builder);

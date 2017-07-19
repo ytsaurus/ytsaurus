@@ -217,13 +217,26 @@ public:
             name);
     }
 
-    void StoreToRow(TCGIRBuilderPtr& builder, Value* row, int index, ui16 id)
+    void StoreToValues(TCGIRBuilderPtr& builder, Value* values, int index)
     {
-        auto name = row->getName();
+        auto name = values->getName();
 
         auto valuePtr = builder->CreateConstInBoundsGEP1_32(
             nullptr,
-            CodegenValuesPtrFromRow(builder, row),
+            values,
+            index,
+            Twine(name).concat(".at.") + Twine(index));
+
+        StoreToValue(builder, valuePtr);
+    }
+
+    void StoreToValues(TCGIRBuilderPtr& builder, Value* values, int index, ui16 id)
+    {
+        auto name = values->getName();
+
+        auto valuePtr = builder->CreateConstInBoundsGEP1_32(
+            nullptr,
+            values,
             index,
             Twine(name).concat(".at.") + Twine(index));
 
