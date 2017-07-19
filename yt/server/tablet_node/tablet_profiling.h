@@ -7,7 +7,7 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProfiling::TTagIdList GetUserProfilerTags(NProfiling::TTagIdList tags, const TString& user);
+NProfiling::TTagIdList GetUserProfilerTags(const TString& user, NProfiling::TTagIdList tags = {});
 
 struct TTabletProfilerTraitBase
 {

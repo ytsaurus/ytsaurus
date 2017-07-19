@@ -93,7 +93,7 @@ public:
         , LookupKeys_(std::move(lookupKeys))
     {
         if (TabletSnapshot_->IsProfilingEnabled()) {
-            Tags_ = GetUserProfilerTags(TabletSnapshot_->ProfilerTags, user);
+            Tags_ = GetUserProfilerTags(user, TabletSnapshot_->ProfilerTags);
         }
     }
 

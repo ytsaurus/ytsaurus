@@ -180,8 +180,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
-        actual = lookup_rows("//tmp/t", keys)
-        assert_items_equal(actual, rows)
 
         sleep(1)
 
@@ -194,12 +192,34 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         def get_all_counters(count_name):
             return (
                 get_counter("lookup/" + count_name),
+                get_counter("select/" + count_name),
                 get_counter("write/" + count_name),
                 get_counter("commit/" + count_name))
 
-        assert get_all_counters("rows") == (1, 1, 1)
-        assert get_all_counters("bytes") == (9, 9, 9)
+        assert get_all_counters("rows") == (0, 0, 1, 1)
+        assert get_all_counters("bytes") == (0, 0, 9, 9)
+        assert get_counter("lookup/cpu_time") == 0
+        assert get_counter("select/cpu_time") == 0
+
+        actual = lookup_rows("//tmp/t", keys)
+        assert_items_equal(actual, rows)
+
+        sleep(1)
+
+        assert get_all_counters("rows") == (1, 0, 1, 1)
+        assert get_all_counters("bytes") == (9, 0, 9, 9)
         assert get_counter("lookup/cpu_time") > 0
+        assert get_counter("select/cpu_time") == 0
+
+        actual = select_rows("* from [//tmp/t]")
+        assert_items_equal(actual, rows)
+
+        sleep(1)
+
+        assert get_all_counters("rows") == (1, 2, 1, 1)
+        assert get_all_counters("bytes") == (9, 9*2+8, 9, 9)
+        assert get_counter("lookup/cpu_time") > 0
+        assert get_counter("select/cpu_time") > 0
 
     def test_reshard_unmounted(self):
         self.sync_create_cells(1)

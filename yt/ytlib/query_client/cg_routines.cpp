@@ -132,6 +132,9 @@ void ScanOpHelper(
             hasMoreData = false;
         }
         statistics->RowsRead += rows.size();
+        for (const auto& row : rows) {
+            statistics->BytesRead += GetDataWeight(row);
+        }
 
         consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data(), rows.size());
         rows.clear();

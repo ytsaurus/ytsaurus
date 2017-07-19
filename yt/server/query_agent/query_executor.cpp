@@ -20,6 +20,7 @@
 #include <yt/server/tablet_node/tablet_manager.h>
 #include <yt/server/tablet_node/tablet_reader.h>
 #include <yt/server/tablet_node/tablet_slot.h>
+#include <yt/server/tablet_node/tablet_profiling.h>
 
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
@@ -60,6 +61,7 @@
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/tls_cache.h>
 
 namespace NYT {
 namespace NQueryAgent {
@@ -75,6 +77,7 @@ using namespace NNodeTrackerClient;
 using namespace NTabletNode;
 using namespace NDataNode;
 using namespace NCellNode;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +118,39 @@ struct TDataKeys
     NObjectClient::TObjectId Id;
     TSharedRange<TRow> Keys;
 };
+
+struct TSelectProfilerTrait
+{
+    using TKey = TTagId;
+
+    static TTagId ToKey(const NProfiling::TTagIdList& list)
+    {
+        return list[0];
+    }
+
+    struct TValue
+    {
+        TValue(const TTagIdList& list)
+            : Rows("/select/rows", list)
+            , Bytes("/select/bytes", list)
+            , CpuTime("/select/cpu_time", list)
+        { }
+
+        TSimpleCounter Rows;
+        TSimpleCounter Bytes;
+        TSimpleCounter CpuTime;
+    };
+
+    static TValue ToValue(const TTagIdList& list)
+    {
+        return list;
+    }
+};
+
+auto& GetProfilerCounters(const TString& user)
+{
+    return GetLocallyGloballyCachedValue<TSelectProfilerTrait>(GetUserProfilerTags(user));
+}
 
 } // namespace
 
@@ -370,6 +406,23 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
 
+        auto statistics = DoExecuteImpl(std::move(externalCGInfo), std::move(dataSources), std::move(writer));
+
+        if (maybeUser) {
+            auto& counters = GetProfilerCounters(*maybeUser);
+            TabletNodeProfiler.Increment(counters.Rows, statistics.RowsRead);
+            TabletNodeProfiler.Increment(counters.Bytes, statistics.BytesRead);
+            TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
+        }
+
+        return statistics;
+    }
+
+    TQueryStatistics DoExecuteImpl(
+        TConstExternalCGInfoPtr externalCGInfo,
+        std::vector<TDataRanges> dataSources,
+        ISchemafulWriterPtr writer)
+    {
         LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
         std::vector<TDataRanges> rangesByTablet;
