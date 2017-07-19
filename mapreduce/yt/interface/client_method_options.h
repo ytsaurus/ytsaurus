@@ -131,12 +131,21 @@ struct TTableWriterOptions
     : public TIOOptions<TTableWriterOptions>
 { };
 
+// https://wiki.yandex-team.ru/yt/userdoc/api/#starttx
 struct TStartTransactionOptions
 {
     using TSelf = TStartTransactionOptions;
 
     FLUENT_FIELD_DEFAULT(bool, PingAncestors, false);
     FLUENT_FIELD_OPTION(TDuration, Timeout);
+
+    // Set the title attribute of transaction. If title was not specified
+    // nither using `Title` option nor using `Attributes` option
+    // wrapper will generate default title for transaction.
+    // Such default title includes machine name, pid, user name and some other useful info.
+    FLUENT_FIELD_OPTION(TString, Title);
+
+    // Set custom transaction attributes, NOTE: `Title` option overrides `title` attribute.
     FLUENT_FIELD_OPTION(TNode, Attributes);
 };
 

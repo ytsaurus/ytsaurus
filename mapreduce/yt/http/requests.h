@@ -21,9 +21,10 @@ struct TAuth
 TTransactionId StartTransaction(
     const TAuth& auth,
     const TTransactionId& parentId,
-    const TMaybe<TDuration>& timeout = Nothing(),
-    bool pingAncestors = false,
-    const TMaybe<TNode>& attributes = Nothing());
+    const TMaybe<TDuration>& timeout,
+    bool pingAncestors,
+    const TMaybe<TString>& title,
+    const TMaybe<TNode>& attributes);
 
 void PingTransaction(
     const TAuth& auth,

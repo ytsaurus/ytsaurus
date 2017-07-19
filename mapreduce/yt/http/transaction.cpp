@@ -16,6 +16,7 @@ TPingableTransaction::TPingableTransaction(
     const TTransactionId& parentId,
     const TMaybe<TDuration>& timeout,
     bool pingAncestors,
+    const TMaybe<TString>& title,
     const TMaybe<TNode>& attributes)
     : Auth_(auth)
     , Thread_(TThread::TParams{Pinger, (void*)this}.SetName("pingable_tx"))
@@ -25,6 +26,7 @@ TPingableTransaction::TPingableTransaction(
         parentId,
         timeout,
         pingAncestors,
+        title,
         attributes);
 
     Running_ = true;
