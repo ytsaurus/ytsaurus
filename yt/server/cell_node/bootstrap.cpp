@@ -170,13 +170,15 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    auto localAddresses = GetLocalAddresses();
+    auto localRpcAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
+    auto localSkynetHttpAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->MonitoringPort);
+
     if (!Config->ClusterConnection->Networks) {
         Config->ClusterConnection->Networks = GetLocalNetworks();
     }
 
     LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
-        GetValues(localAddresses),
+        GetValues(localRpcAddresses),
         Config->ClusterConnection->PrimaryMaster->Addresses,
         Config->Tags);
 
@@ -277,7 +279,8 @@ void TBootstrap::DoRun()
 
     MasterConnector = New<NDataNode::TMasterConnector>(
         Config->DataNode,
-        localAddresses,
+        localRpcAddresses,
+        localSkynetHttpAddresses,
         Config->Tags,
         this);
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
@@ -335,7 +338,7 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
-    auto localAddress = GetDefaultAddress(localAddresses);
+    auto localAddress = GetDefaultAddress(localRpcAddresses);
 
     JobProxyConfigTemplate = New<NJobProxy::TJobProxyConfig>();
 
@@ -761,21 +764,6 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
         default:
             return TotalOutThrottler;
     }
-}
-
-TAddressMap TBootstrap::GetLocalAddresses()
-{
-    auto localAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
-
-    if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
-        auto httpAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->MonitoringPort);
-
-        for (const auto& addr : httpAddresses) {
-            localAddresses.emplace(addr.first + ".http", addr.second);
-        }
-    }
-
-    return localAddresses;
 }
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks()

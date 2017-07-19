@@ -7,23 +7,24 @@
 namespace NYT {
 namespace NNodeTrackerServer {
 
-using namespace NNodeTrackerClient::NProto;
+using namespace NNodeTrackerClient;
 using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeDirectoryBuilder::TNodeDirectoryBuilder(TNodeDirectory* protoDirectory)
-    : ProtoDirectory(protoDirectory)
+TNodeDirectoryBuilder::TNodeDirectoryBuilder(NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory, EAddressType addressType)
+    : ProtoDirectory_(protoDirectory)
+    , AddressType_(addressType)
 { }
 
 void TNodeDirectoryBuilder::Add(const TNode* node)
 {
-    if (!ListedNodeIds.insert(node->GetId()).second)
+    if (!ListedNodeIds_.insert(node->GetId()).second)
         return;
 
-    auto* item = ProtoDirectory->add_items();
+    auto* item = ProtoDirectory_->add_items();
     item->set_node_id(node->GetId());
-    ToProto(item->mutable_node_descriptor(), node->GetDescriptor());
+    ToProto(item->mutable_node_descriptor(), node->GetDescriptor(AddressType_));
 }
 
 void TNodeDirectoryBuilder::Add(TNodePtrWithIndexes node)

@@ -16,6 +16,7 @@ class TNodeResources;
 class TNodeResourceLimitsOverrides;
 
 class TAddressMap;
+class TNodeAddressMap;
 
 class TNodeDescriptor;
 class TNodeDirectory;
@@ -32,33 +33,6 @@ class TRspFullHeartbeat;
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using TNodeId = i32;
-const TNodeId InvalidNodeId = 0;
-const TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see TChunkReplica)
-
-using TRackId = NObjectClient::TObjectId;
-
-using TDataCenterId = NObjectClient::TObjectId;
-
-// Address type and value list.
-using TAddressList = std::vector<std::pair<TString, TString>>;
-using TNetworkPreferenceList = std::vector<TString>;
-using TAddressMap = yhash<TString, TString>;
-
-class TNodeDescriptor;
-
-class TNodeDirectoryBuilder;
-
-DECLARE_REFCOUNTED_CLASS(TNodeDirectory)
-DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizer)
-
-DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizerConfig)
-
-DECLARE_REFCOUNTED_STRUCT(INodeChannelFactory)
-
-extern const TString DefaultNetworkName;
-extern const TNetworkPreferenceList DefaultNetworkPreferences;
 
 DEFINE_ENUM(EErrorCode,
     ((NoSuchNode)        (1600))
@@ -77,6 +51,42 @@ DEFINE_ENUM(EMemoryCategory,
     ((TabletDynamic)  (5))
     ((BlobSession)    (6))
 );
+
+DEFINE_ENUM(EAddressType,
+    ((InternalRpc)    (0))
+    ((SkynetHttp)     (1))
+);
+
+using TNodeId = i32;
+const TNodeId InvalidNodeId = 0;
+const TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see TChunkReplica)
+
+using TRackId = NObjectClient::TObjectId;
+
+using TDataCenterId = NObjectClient::TObjectId;
+
+// Only domain names, without port number.
+using TNetworkAddressList = std::vector<std::pair<TString, TString>>;
+using TNetworkPreferenceList = std::vector<TString>;
+
+// Network -> host:port.
+using TAddressMap = yhash<TString, TString>;
+
+// Address Type (e.g. rpc, http) -> Network -> host:port.
+using TNodeAddressMap = yhash<EAddressType, TAddressMap>;
+
+class TNodeDescriptor;
+class TNodeDirectoryBuilder;
+
+DECLARE_REFCOUNTED_CLASS(TNodeDirectory)
+DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizer)
+
+DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizerConfig)
+
+DECLARE_REFCOUNTED_STRUCT(INodeChannelFactory)
+
+extern const TString DefaultNetworkName;
+extern const TNetworkPreferenceList DefaultNetworkPreferences;
 
 ////////////////////////////////////////////////////////////////////////////////
 

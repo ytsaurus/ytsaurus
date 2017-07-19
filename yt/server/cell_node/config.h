@@ -102,7 +102,7 @@ public:
     TBatchingChunkServiceConfigPtr BatchingChunkService;
 
     //! Known node addresses.
-    NNodeTrackerClient::TAddressList Addresses;
+    NNodeTrackerClient::TNetworkAddressList Addresses;
 
     //! A set of tags to be assigned to this node.
     /*!

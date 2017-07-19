@@ -46,6 +46,7 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NCypressServer;
 using namespace NNodeTrackerServer;
+using namespace NNodeTrackerClient;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYson;
@@ -106,6 +107,7 @@ public:
         TChunkList* chunkList,
         TCtxFetchPtr context,
         bool fetchParityReplicas,
+        EAddressType addressType,
         const std::vector<TReadRange>& ranges)
         : Bootstrap_(bootstrap)
         , Config_(config)
@@ -113,7 +115,9 @@ public:
         , Context_(context)
         , FetchParityReplicas_(fetchParityReplicas)
         , Ranges_(ranges)
-        , NodeDirectoryBuilder_(context->Response().mutable_node_directory())
+        , NodeDirectoryBuilder_(
+            context->Response().mutable_node_directory(),
+            addressType)
     {
         if (!Context_->Request().fetch_all_meta_extensions()) {
             for (int tag : Context_->Request().extension_tags()) {
@@ -145,7 +149,7 @@ private:
     int CurrentRangeIndex_ = 0;
 
     yhash_set<int> ExtensionTags_;
-    TNodeDirectoryBuilder NodeDirectoryBuilder_;
+    NNodeTrackerServer::TNodeDirectoryBuilder NodeDirectoryBuilder_;
     bool Finished_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -820,6 +824,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     ValidateFetch();
 
     bool fetchParityReplicas = request->fetch_parity_replicas();
+    auto addressType = request->has_address_type()
+        ? static_cast<EAddressType>(request->address_type())
+        : EAddressType::InternalRpc;
 
     auto ranges = FromProto<std::vector<TReadRange>>(request->ranges());
     ValidateFetchParameters(ranges);
@@ -833,6 +840,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         chunkList,
         context,
         fetchParityReplicas,
+        addressType,
         ranges);
 
     visitor->Run();
