@@ -123,7 +123,6 @@ class TestJobCommands(object):
         assert output.startswith(expected) == True
 
         ids = re.match(b"(\\d+)\r\n(\\d+)\r\n", output[len(expected):])
-        assert ids and int(ids.group(1)) == int(ids.group(2))
         if ENABLE_JOB_CONTROL:
             assert int(ids.group(1)) != os.getuid()
 
