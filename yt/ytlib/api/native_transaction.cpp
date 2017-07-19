@@ -352,6 +352,9 @@ public:
                 State_);
         }
 
+        LOG_DEBUG("Row modifications buffered (Count: %v)",
+            modifications.Size());
+
         Requests_.push_back(std::make_unique<TModificationRequest>(
             this,
             Client_->GetNativeConnection(),
@@ -359,9 +362,6 @@ public:
             std::move(nameTable),
             std::move(modifications),
             options));
-
-        LOG_DEBUG("Row modifications buffered (Count: %v)",
-            modifications.Size());
     }
 
 
