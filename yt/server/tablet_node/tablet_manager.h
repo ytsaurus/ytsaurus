@@ -55,6 +55,8 @@ public:
         TDuration transactionTimeout,
         TTransactionSignature signature,
         int rowCount,
+        size_t byteSize,
+        const TString& user,
         bool versioned,
         const TSyncReplicaIdList& syncReplicaIds,
         NTabletClient::TWireProtocolReader* reader,

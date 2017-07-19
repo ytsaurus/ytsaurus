@@ -29,11 +29,13 @@ struct TTransactionWriteRecord
         const TTabletId& tabletId,
         TSharedRef data,
         int rowCount,
+        size_t byteSize,
         const TSyncReplicaIdList& syncReplicaIds);
 
     TTabletId TabletId;
     TSharedRef Data;
     int RowCount = 0;
+    size_t ByteSize = 0;
     TSyncReplicaIdList SyncReplicaIds;
 
     void Save(TSaveContext& context) const;
@@ -75,6 +77,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature, InitialTransactionSignature);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, ReplicatedRowsPrepared, false);
+    DEFINE_BYVAL_RW_PROPERTY(TString, User);
 
 public:
     explicit TTransaction(const TTransactionId& id);

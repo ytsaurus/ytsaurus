@@ -211,6 +211,7 @@ public:
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
+        const TString& user = TString(),
         bool* fresh = nullptr)
     {
         if (fresh) {
@@ -239,6 +240,7 @@ public:
         transactionHolder->SetStartTimestamp(startTimestamp);
         transactionHolder->SetState(ETransactionState::Active);
         transactionHolder->SetTransient(transient);
+        transactionHolder->SetUser(user);
 
         auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
         auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
@@ -963,6 +965,7 @@ TTransaction* TTransactionManager::GetOrCreateTransaction(
     TTimestamp startTimestamp,
     TDuration timeout,
     bool transient,
+    const TString& user,
     bool* fresh)
 {
     return Impl_->GetOrCreateTransaction(
@@ -970,6 +973,7 @@ TTransaction* TTransactionManager::GetOrCreateTransaction(
         startTimestamp,
         timeout,
         transient,
+        user,
         fresh);
 }
 

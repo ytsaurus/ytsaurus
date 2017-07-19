@@ -13,7 +13,7 @@ from time import sleep
 
 class TestOrderedDynamicTables(TestDynamicTablesBase):
     def _create_simple_table(self, path, dynamic=True, commit_ordering=None, tablet_count=None,
-                             pivot_keys=None, optimize_for=None):
+                             pivot_keys=None, optimize_for=None, **kwargs):
         attributes={
             "dynamic": dynamic,
             "external": False,
@@ -31,6 +31,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             attributes["pivot_keys"] = pivot_keys
         if optimize_for is not None:
             attributes["optimize_for"] = optimize_for
+        attributes.update(kwargs)
         create("table", path, attributes=attributes)
 
     def test_mount(self):
@@ -60,6 +61,35 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         self.sync_mount_table("//tmp/t")
         self.sync_unmount_table("//tmp/t")
+
+    def test_ordered_tablet_node_profiling(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", enable_profiling=True)
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(9)]
+        insert_rows("//tmp/t", rows)
+
+        sleep(1)  # sleep is needed to ensure that the profiling counters are updated properly
+
+        rows = [{"a": 100, "b": 0.5, "c": "data"}]
+        insert_rows("//tmp/t", rows)
+
+        sleep(1)
+
+        addresses = self._get_tablet_addresses("//tmp/t")
+        assert len(addresses) == 1
+
+        def get_counter(counter_name):
+            return self._get_tablet_node_profiling_counter(addresses[0], counter_name)
+
+        def get_all_counters(count_name):
+            return (
+                get_counter("write/" + count_name),
+                get_counter("commit/" + count_name))
+
+        assert get_all_counters("rows") == (10, 10)
+        assert get_all_counters("bytes") == (236, 236)
 
     def test_insert(self):
         self.sync_create_cells(1)

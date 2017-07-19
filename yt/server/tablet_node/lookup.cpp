@@ -320,7 +320,11 @@ void LookupRows(
 
     session.Run(
         [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },
-        [&] { return writer->WriteSchemafulRow(merger.BuildMergedRow()); });
+        [&] {
+            auto mergedRow = merger.BuildMergedRow();
+            writer->WriteSchemafulRow(mergedRow);
+            return GetDataWeight(mergedRow);
+        });
 }
 
 void VersionedLookupRows(
@@ -361,7 +365,11 @@ void VersionedLookupRows(
 
     session.Run(
         [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },
-        [&] { return writer->WriteVersionedRow(merger.BuildMergedRow()); });
+        [&] {
+            auto mergedRow = merger.BuildMergedRow();
+            writer->WriteVersionedRow(mergedRow);
+            return GetDataWeight(mergedRow);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
