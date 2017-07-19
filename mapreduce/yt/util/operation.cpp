@@ -57,7 +57,7 @@ EOperationStatus CheckOperationStatus(
         LOG_ERROR("Operation %s %s (%s)",
             ~opIdStr,
             ~state,
-            ~ToString(TOperationTracker::Get()->Finish(operationId)));
+            ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
 
         auto errorPath = opPath + "/@result/error";
         TString error;

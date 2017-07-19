@@ -4,13 +4,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOperationTracker::Start(const TOperationId& operationId) {
+void TOperationExecutionTimeTracker::Start(const TOperationId& operationId) {
     with_lock(Lock_) {
         StartTimes_[operationId] = TInstant::Now();
     }
 }
 
-TDuration TOperationTracker::Finish(const TOperationId& operationId) {
+TDuration TOperationExecutionTimeTracker::Finish(const TOperationId& operationId) {
     TDuration duration;
     with_lock(Lock_) {
         auto i = StartTimes_.find(operationId);
@@ -24,8 +24,8 @@ TDuration TOperationTracker::Finish(const TOperationId& operationId) {
     return duration;
 }
 
-TOperationTracker* TOperationTracker::Get() {
-    return Singleton<TOperationTracker>();
+TOperationExecutionTimeTracker* TOperationExecutionTimeTracker::Get() {
+    return Singleton<TOperationExecutionTimeTracker>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

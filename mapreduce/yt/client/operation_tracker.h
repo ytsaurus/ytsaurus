@@ -10,11 +10,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationTracker {
+class TOperationExecutionTimeTracker {
 public:
     void Start(const TOperationId& operationId);
     TDuration Finish(const TOperationId& operationId);
-    static TOperationTracker* Get();
+    static TOperationExecutionTimeTracker* Get();
 
 private:
     yhash<TOperationId, TInstant> StartTimes_;
