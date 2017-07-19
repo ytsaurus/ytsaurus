@@ -84,6 +84,12 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self.sync_create_cells(1)
         self.sync_create_cells(1, driver=self.replica_driver)
 
+    def _get_tablet_addresses(self, table):
+        return [get("#%s/@peers/0/address" % tablet["cell_id"]) for tablet in get("//tmp/t/@tablets")]
+
+    def _get_tablet_node_profiling_counter(self, node, counter_name):
+        return get("//sys/nodes/%s/orchid/profiling/tablet_node/%s" % (node, counter_name))[-1]["value"]
+
 
     def test_replicated_table_must_be_dynamic(self):
         with pytest.raises(YtError): create("replicated_table", "//tmp/t")
@@ -94,6 +100,28 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
         delete_rows("//tmp/t", [{"key": 2}], require_sync_replica=False)
+
+    def test_replicated_tablet_node_profiling(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", attributes={"enable_profiling": True})
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
+
+        sleep(1)
+
+        addresses = self._get_tablet_addresses("//tmp/t")
+        assert len(addresses) == 1
+
+        def get_counter(counter_name):
+            return self._get_tablet_node_profiling_counter(addresses[0], counter_name)
+
+        def get_all_counters(count_name):
+            return (
+                get_counter("write/" + count_name),
+                get_counter("commit/" + count_name))
+
+        assert get_all_counters("rows") == (1, 1)
+        assert get_all_counters("bytes") == (12, 12)
 
     def test_replicated_in_memory_fail(self):
         self._create_cells()

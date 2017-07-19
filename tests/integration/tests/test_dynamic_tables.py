@@ -102,6 +102,12 @@ class TestDynamicTablesBase(YTEnvSetup):
         for addr in addresses:
             self.set_node_decommissioned(addr, decomission)
 
+    def _get_tablet_addresses(self, table):
+        return [get("#%s/@peers/0/address" % tablet["cell_id"]) for tablet in get("//tmp/t/@tablets")]
+
+    def _get_tablet_node_profiling_counter(self, node, counter_name):
+        return get("//sys/nodes/%s/orchid/profiling/tablet_node/%s" % (node, counter_name))[-1]["value"]
+
 ##################################################################
 
 class TestDynamicTables(TestDynamicTablesBase):
