@@ -27,7 +27,7 @@ struct TUserTagTrait
     }
 };
 
-TTagIdList GetUserProfilerTags(TTagIdList tags, const TString& user)
+TTagIdList GetUserProfilerTags(const TString& user, TTagIdList tags)
 {
     tags.push_back(GetLocallyCachedValue<TUserTagTrait>(user));
     return tags;

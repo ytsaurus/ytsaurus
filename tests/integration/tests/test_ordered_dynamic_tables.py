@@ -85,11 +85,21 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         def get_all_counters(count_name):
             return (
+                get_counter("select/" + count_name),
                 get_counter("write/" + count_name),
                 get_counter("commit/" + count_name))
 
-        assert get_all_counters("rows") == (10, 10)
-        assert get_all_counters("bytes") == (236, 236)
+        assert get_all_counters("rows") == (0, 10, 10)
+        assert get_all_counters("bytes") == (0, 236, 236)
+        assert get_counter("select/cpu_time") == 0
+
+        select_rows("* from [//tmp/t]")
+
+        sleep(1)
+
+        assert get_all_counters("rows") == (20, 10, 10)
+        assert get_all_counters("bytes") == (872, 236, 236)
+        assert get_counter("select/cpu_time") > 0
 
     def test_insert(self):
         self.sync_create_cells(1)

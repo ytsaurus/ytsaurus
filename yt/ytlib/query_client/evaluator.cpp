@@ -129,7 +129,8 @@ public:
             }
 
             statistics.SyncTime = wallTime - statistics.AsyncTime;
-            statistics.ExecuteTime = statistics.SyncTime - statistics.ReadTime - statistics.WriteTime;
+            statistics.ExecuteTime =
+                statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
 
             LOG_DEBUG("Query statistics (%v)", statistics);
 
