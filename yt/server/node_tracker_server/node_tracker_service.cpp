@@ -55,7 +55,6 @@ public:
 private:
     const TNodeTrackerConfigPtr Config_;
 
-
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RegisterNode)
     {
         ValidateClusterInitialized();
@@ -74,7 +73,8 @@ private:
                 "If you are sure and wish to continue then run 'yt remove //sys/@provision_lock'");
         }
 
-        auto addresses = FromProto<TAddressMap>(request->addresses());
+        auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
+        const auto& addresses = GetAddresses(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request->statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());

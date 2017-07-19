@@ -187,7 +187,28 @@ void FromProto(NNodeTrackerClient::TAddressMap* addresses, const NNodeTrackerCli
     addresses->clear();
     addresses->reserve(protoAddresses.entries_size());
     for (const auto& entry : protoAddresses.entries()) {
-        YCHECK(addresses->insert(std::make_pair(entry.network(), entry.address())).second);
+        YCHECK(addresses->emplace(entry.network(), entry.address()).second);
+    }
+}
+
+void ToProto(NNodeTrackerClient::NProto::TNodeAddressMap* proto, const NNodeTrackerClient::TNodeAddressMap& nodeAddresses)
+{
+    for (const auto& pair : nodeAddresses) {
+        auto* entry = proto->add_entries();
+        entry->set_address_type(static_cast<int>(pair.first));
+        ToProto(entry->mutable_addresses(), pair.second);
+    }
+}
+
+void FromProto(NNodeTrackerClient::TNodeAddressMap* nodeAddresses, const NNodeTrackerClient::NProto::TNodeAddressMap& proto)
+{
+    nodeAddresses->clear();
+    nodeAddresses->reserve(proto.entries_size());
+    for (const auto& entry : proto.entries()) {
+        NNodeTrackerClient::TAddressMap addresses;
+        FromProto(&addresses, entry.addresses());
+
+        YCHECK(nodeAddresses->emplace(static_cast<EAddressType>(entry.address_type()), std::move(addresses)).second);
     }
 }
 
@@ -452,6 +473,17 @@ const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreference
         GetDefaultAddress(addresses))
         << TErrorAttribute("remote_networks", GetKeys(addresses))
         << TErrorAttribute("local_networks", networks);
+}
+
+const TAddressMap& GetAddresses(const TNodeAddressMap& nodeAddresses, EAddressType type)
+{
+    auto it = nodeAddresses.find(type);
+    if (it != nodeAddresses.cend()) {
+        return it->second;
+    }
+
+    THROW_ERROR_EXCEPTION("No addresses for address type %Qv", type)
+        << TErrorAttribute("node addresses", GetKeys(nodeAddresses));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

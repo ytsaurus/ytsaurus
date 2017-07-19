@@ -8,7 +8,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAddressMap GetLocalAddresses(const TAddressList& addresses, int port)
+TAddressMap GetLocalAddresses(const TNetworkAddressList& addresses, int port)
 {
     // Аppend port number.
     TAddressMap result;

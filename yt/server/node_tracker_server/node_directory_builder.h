@@ -16,16 +16,19 @@ class TNodeDirectoryBuilder
     : private TNonCopyable
 {
 public:
-    explicit TNodeDirectoryBuilder(NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory);
+    explicit TNodeDirectoryBuilder(
+        NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory,
+        NNodeTrackerClient::EAddressType addressType = NNodeTrackerClient::EAddressType::InternalRpc);
 
     void Add(const TNode* node);
     void Add(NChunkServer::TNodePtrWithIndexes node);
     void Add(const NChunkServer::TNodePtrWithIndexesList& nodes);
 
 private:
-    NNodeTrackerClient::NProto::TNodeDirectory* ProtoDirectory;
-    yhash_set<TNodeId> ListedNodeIds;
+    NNodeTrackerClient::NProto::TNodeDirectory* ProtoDirectory_;
+    const NNodeTrackerClient::EAddressType AddressType_;
 
+    yhash_set<TNodeId> ListedNodeIds_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

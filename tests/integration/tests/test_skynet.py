@@ -93,7 +93,7 @@ class TestSkynet(YTEnvSetup):
     def get_skynet_part(self, node_id, replicas, **kwargs):
         for replica in replicas:
             if replica["node_id"] == node_id:
-                http_address = replica["addresses"]["default.http"]
+                http_address = replica["addresses"]["default"]
                 break
         else:
             raise KeyError(node_id)

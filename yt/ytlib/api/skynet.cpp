@@ -31,6 +31,8 @@ using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NCypressClient;
+using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,6 +140,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         options.Config->MaxChunksPerLocateRequest,
         [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
             req->set_fetch_all_meta_extensions(false);
+            req->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
             SetSuppressAccessTracking(req, false);
         },
         ChunkClientLogger,

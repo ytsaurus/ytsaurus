@@ -271,7 +271,7 @@ private:
 
             if (key == "addresses") {
                 BuildYsonFluently(consumer)
-                    .Value(node->GetDescriptor().Addresses());
+                    .Value(node->GetNodeAddresses());
                 return true;
             }
 
