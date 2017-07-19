@@ -5,6 +5,7 @@ from yt.common import YtError, YtResponseError, flatten, update
 
 import __builtin__
 
+import copy as pycopy
 import os, stat
 import sys
 import tempfile
@@ -133,8 +134,18 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     parameters = prepare_parameters(parameters)
 
     if verbose:
+        def is_text_yson(fmt):
+            # XXX(sandello): This is a stupid check.
+            return repr(fmt) == "{'attributes': {'format': 'text'}, 'value': 'yson'}"
+
+        pretty_parameters = pycopy.deepcopy(parameters)
+        for key in ["input_format", "output_format"]:
+            if is_text_yson(pretty_parameters.get(key, None)):
+                pretty_parameters.pop(key)
+
         print >>sys.stderr
-        print >>sys.stderr, str(datetime.now()), command_name, parameters
+        print >>sys.stderr, str(datetime.now()), command_name, pretty_parameters
+
     response = driver.execute(
         Request(command_name=command_name,
                 parameters=parameters,
