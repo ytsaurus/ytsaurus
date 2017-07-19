@@ -36,6 +36,7 @@
 #endif
 #ifdef _linux_
     #include <pty.h>
+    #include <pwd.h>
     #include <grp.h>
     #include <utmp.h>
     #include <sys/prctl.h>
@@ -418,25 +419,31 @@ void SetPermissions(int fd, int permissions)
 
 void SetUid(int uid)
 {
-    // Set unprivileged uid and gid for user process.
+
+    // Set unprivileged uid for user process.
     if (setuid(0) != 0) {
         THROW_ERROR_EXCEPTION("Unable to set zero uid")
             << TError::FromSystem();
     }
-    if (setgroups(0, nullptr) != 0) {
-        THROW_ERROR_EXCEPTION("Unable to set zero gid")
-            << TError::FromSystem();
-    }
+
+    errno  = 0;
+    const auto* passwd = getpwuid(uid);
+    int gid = (passwd && errno == 0)
+      ? passwd->pw_gid
+      : uid; // fallback value.
+
 #ifdef _linux_
-    if (setresgid(uid, uid, uid) != 0) {
+    if (setresuid(uid, uid, uid) != 0) {
         THROW_ERROR_EXCEPTION("Unable to set uids")
             << TErrorAttribute("uid", uid)
             << TError::FromSystem();
     }
-    if (setresuid(uid, uid, uid) != 0) {
+
+    if (setresgid(gid, gid, gid) != 0) {
         THROW_ERROR_EXCEPTION("Unable to set gids")
-            << TErrorAttribute("gid", uid)
-            << TError::FromSystem();
+                << TErrorAttribute("uid", uid)
+                << TErrorAttribute("gid", gid)
+                << TError::FromSystem();
     }
 #else
     if (setuid(uid) != 0) {
