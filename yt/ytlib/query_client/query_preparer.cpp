@@ -797,6 +797,25 @@ struct TNotExpressionPropagator
     }
 };
 
+struct TCastEliminator
+    : TRewriter<TCastEliminator>
+{
+    using TBase = TRewriter<TCastEliminator>;
+
+    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
+    {
+        if (IsUserCastFunction(functionExpr->FunctionName)) {
+            YCHECK(functionExpr->Arguments.size() == 1);
+
+            if (functionExpr->Type == functionExpr->Arguments[0]->Type) {
+                return Visit(functionExpr->Arguments[0]);
+            }
+        }
+
+        return TBase::OnFunction(functionExpr);
+    }
+};
+
 struct TTypedExpressionBuilder;
 
 typedef std::function<TConstExpressionPtr(EValueType)> TExpressionGenerator;
@@ -1520,7 +1539,9 @@ struct TTypedExpressionBuilder
     {
         auto expressionTyper = BuildUntypedExpression(expr, schema);
         YCHECK(!expressionTyper.FeasibleTypes.IsEmpty());
-        return TNotExpressionPropagator().Visit(expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront()));
+        return TCastEliminator().Visit(
+            TNotExpressionPropagator().Visit(
+                expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront())));
     }
 
 };
@@ -1811,7 +1832,10 @@ public:
                 effectiveStateType = argType;
             }
 
-            auto typedOperand = untypedOperand.Generator(argType);
+            auto typedOperand = TCastEliminator().Visit(
+                TNotExpressionPropagator().Visit(
+                    untypedOperand.Generator(argType)));
+
             CheckExpressionDepth(typedOperand);
 
             AggregateItems_->emplace_back(

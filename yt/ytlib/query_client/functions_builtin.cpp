@@ -206,6 +206,11 @@ public:
 
 } // namespace NBuiltins
 
+bool IsUserCastFunction(const TString& name)
+{
+    return name == "int64" || name == "uint64" || name == "double";
+}
+
 namespace {
 
 void RegisterBuiltinFunctions(
