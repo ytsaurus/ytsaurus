@@ -547,7 +547,7 @@ TOperationId StartOperation(
     LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",
         ~GetGuidAsString(operationId), ~operationName, ~auth.ServerName, ~GetGuidAsString(operationId));
 
-    TOperationTracker::Get()->Start(operationId);
+    TOperationExecutionTimeTracker::Get()->Start(operationId);
 
     return operationId;
 }
@@ -575,7 +575,7 @@ EOperationStatus CheckOperation(
         LOG_ERROR("Operation %s %s (%s)",
             ~opIdStr,
             ~state,
-            ~ToString(TOperationTracker::Get()->Finish(operationId)));
+            ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
 
         auto errorPath = opPath + "/@result/error";
         TString error;
@@ -612,7 +612,7 @@ void WaitForOperation(
         if (status == OS_COMPLETED) {
             LOG_INFO("Operation %s completed (%s)",
                 ~GetGuidAsString(operationId),
-                ~ToString(TOperationTracker::Get()->Finish(operationId)));
+                ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
             break;
         }
         Sleep(checkOperationStateInterval);
