@@ -18,13 +18,8 @@ udf_bc(
     ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
     ${CMAKE_SOURCE_DIR}/yt/contrib/farmhash/farmhash.cc
 )
-udf_bc(
-  ${CMAKE_CURRENT_LIST_DIR}/udf/farm_hash.cpp
-  YT_SOURCE_FILES
-  FILES
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
-    ${CMAKE_SOURCE_DIR}/yt/contrib/farmhash/farmhash.cc
-)
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/farm_hash.cpp YT_SOURCE_FILES )
+
 udf_bc(
   ${CMAKE_CURRENT_LIST_DIR}/udf/regex.cpp
   YT_SOURCE_FILES
@@ -62,12 +57,7 @@ udf_bc(
     get_string
 )
 
-udf_bc(
-  ${CMAKE_CURRENT_LIST_DIR}/udf/lower.cpp
-  YT_SOURCE_FILES
-  FILES
-    ${CMAKE_SOURCE_DIR}/util/charset/utf8.cpp
-)
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/lower.cpp YT_SOURCE_FILES )
 
 udf_bc(
   ${CMAKE_CURRENT_LIST_DIR}/udf/dates.c
