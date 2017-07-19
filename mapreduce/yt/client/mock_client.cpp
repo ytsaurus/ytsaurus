@@ -297,16 +297,16 @@ TRawTableWriterPtr TMockClient::CreateRawWriter(const TRichYPath&, EDataStreamFo
     return new TMockProtoTableWriter();
 }
 
-TOperationId TMockClient::Sort(const TSortOperationSpec&, const TOperationOptions&) {
-    return GetDefaultGuid();
+IOperationPtr TMockClient::Sort(const TSortOperationSpec&, const TOperationOptions&) {
+    return nullptr;
 }
 
-TOperationId TMockClient::Merge(const TMergeOperationSpec&, const TOperationOptions&) {
-    return GetDefaultGuid();
+IOperationPtr TMockClient::Merge(const TMergeOperationSpec&, const TOperationOptions&) {
+    return nullptr;
 }
 
-TOperationId TMockClient::Erase(const TEraseOperationSpec&, const TOperationOptions&) {
-    return GetDefaultGuid();
+IOperationPtr TMockClient::Erase(const TEraseOperationSpec&, const TOperationOptions&) {
+    return nullptr;
 }
 
 void TMockClient::AbortOperation(const TOperationId&) {
@@ -320,20 +320,20 @@ EOperationStatus TMockClient::CheckOperation(const TOperationId&) {
 }
 
 
-TOperationId TMockClient::DoMap(const TMapOperationSpec&, IJob*, const TOperationOptions&) {
-    return GetDefaultGuid();
+IOperationPtr TMockClient::DoMap(const TMapOperationSpec&, IJob*, const TOperationOptions&) {
+    return nullptr;
 }
 
-TOperationId TMockClient::DoReduce(const TReduceOperationSpec&, IJob*, const TOperationOptions&) {
-    return GetDefaultGuid();
+IOperationPtr TMockClient::DoReduce(const TReduceOperationSpec&, IJob*, const TOperationOptions&) {
+    return nullptr;
 }
 
-TOperationId TMockClient::DoJoinReduce(const TJoinReduceOperationSpec&, IJob*, const TOperationOptions&) {
-    return GetDefaultGuid();
+IOperationPtr TMockClient::DoJoinReduce(const TJoinReduceOperationSpec&, IJob*, const TOperationOptions&) {
+    return nullptr;
 }
 
-TOperationId TMockClient::DoMapReduce(const TMapReduceOperationSpec&, IJob*, IJob*, IJob*, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TOperationOptions&) {
-    return GetDefaultGuid();
+IOperationPtr TMockClient::DoMapReduce(const TMapReduceOperationSpec&, IJob*, IJob*, IJob*, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TOperationOptions&) {
+    return nullptr;
 }
 
 ITransactionPtr TMockClient::StartTransaction(const TStartTransactionOptions&) {

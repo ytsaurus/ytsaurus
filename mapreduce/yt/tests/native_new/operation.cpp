@@ -273,7 +273,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
                 if (dataSizePerJob) {
                     mapSpec.DataSizePerJob(dataSizePerJob);
                 }
-                return client->Map(mapSpec, new TIdMapper);
+                return client->Map(mapSpec, new TIdMapper)->GetId();
             },
             [=] (ui32 jobCount, ui64 dataSizePerJob) {
                 auto mergeSpec = TMergeOperationSpec()
@@ -286,7 +286,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
                 if (dataSizePerJob) {
                     mergeSpec.DataSizePerJob(dataSizePerJob);
                 }
-                return client->Merge(mergeSpec);
+                return client->Merge(mergeSpec)->GetId();
             },
         };
 

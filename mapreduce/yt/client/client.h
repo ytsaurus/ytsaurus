@@ -97,22 +97,22 @@ public:
 
     // operations
 
-    TOperationId DoMap(
+    IOperationPtr DoMap(
         const TMapOperationSpec& spec,
         IJob* mapper,
         const TOperationOptions& options) override;
 
-    TOperationId DoReduce(
+    IOperationPtr DoReduce(
         const TReduceOperationSpec& spec,
         IJob* reducer,
         const TOperationOptions& options) override;
 
-    TOperationId DoJoinReduce(
+    IOperationPtr DoJoinReduce(
         const TJoinReduceOperationSpec& spec,
         IJob* reducer,
         const TOperationOptions& options) override;
 
-    TOperationId DoMapReduce(
+    IOperationPtr DoMapReduce(
         const TMapReduceOperationSpec& spec,
         IJob* mapper,
         IJob* reduceCombiner,
@@ -123,15 +123,15 @@ public:
         const TMultiFormatDesc& inputReducerDesc,
         const TOperationOptions& options) override;
 
-    TOperationId Sort(
+    IOperationPtr Sort(
         const TSortOperationSpec& spec,
         const TOperationOptions& options) override;
 
-    TOperationId Merge(
+    IOperationPtr Merge(
         const TMergeOperationSpec& spec,
         const TOperationOptions& options) override;
 
-    TOperationId Erase(
+    IOperationPtr Erase(
         const TEraseOperationSpec& spec,
         const TOperationOptions& options) override;
 

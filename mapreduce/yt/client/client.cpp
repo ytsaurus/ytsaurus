@@ -42,6 +42,27 @@ namespace NDetail {
 
 const size_t TClientBase::BUFFER_SIZE = 64 << 20;
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperation
+    : public IOperation
+{
+public:
+    explicit TOperation(TOperationId id)
+        : Id_(std::move(id))
+    { }
+
+    virtual const TOperationId& GetId() const override
+    {
+        return Id_;
+    }
+
+private:
+    TOperationId Id_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TClientBase::TClientBase(
     const TAuth& auth,
     const TTransactionId& transactionId)
@@ -227,46 +248,49 @@ TRawTableWriterPtr TClientBase::CreateRawWriter(
         options).Get();
 }
 
-TOperationId TClientBase::DoMap(
+IOperationPtr TClientBase::DoMap(
     const TMapOperationSpec& spec,
     IJob* mapper,
     const TOperationOptions& options)
 {
-    return ExecuteMap(
+    auto operationId = ExecuteMap(
         Auth_,
         TransactionId_,
         spec,
         mapper,
         options);
+    return ::MakeIntrusive<TOperation>(operationId);
 }
 
-TOperationId TClientBase::DoReduce(
+IOperationPtr TClientBase::DoReduce(
     const TReduceOperationSpec& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
-    return ExecuteReduce(
+    auto operationId = ExecuteReduce(
         Auth_,
         TransactionId_,
         spec,
         reducer,
         options);
+    return ::MakeIntrusive<TOperation>(operationId);
 }
 
-TOperationId TClientBase::DoJoinReduce(
+IOperationPtr TClientBase::DoJoinReduce(
     const TJoinReduceOperationSpec& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
-    return ExecuteJoinReduce(
+    auto operationId = ExecuteJoinReduce(
         Auth_,
         TransactionId_,
         spec,
         reducer,
         options);
+    return ::MakeIntrusive<TOperation>(operationId);
 }
 
-TOperationId TClientBase::DoMapReduce(
+IOperationPtr TClientBase::DoMapReduce(
     const TMapReduceOperationSpec& spec,
     IJob* mapper,
     IJob* reduceCombiner,
@@ -277,7 +301,7 @@ TOperationId TClientBase::DoMapReduce(
     const TMultiFormatDesc& inputReducerDesc,
     const TOperationOptions& options)
 {
-    return ExecuteMapReduce(
+    auto operationId = ExecuteMapReduce(
         Auth_,
         TransactionId_,
         spec,
@@ -289,39 +313,43 @@ TOperationId TClientBase::DoMapReduce(
         outputReduceCombinerDesc,
         inputReducerDesc,
         options);
+    return ::MakeIntrusive<TOperation>(operationId);
 }
 
-TOperationId TClientBase::Sort(
+IOperationPtr TClientBase::Sort(
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
-    return ExecuteSort(
+    auto operationId = ExecuteSort(
         Auth_,
         TransactionId_,
         spec,
         options);
+    return ::MakeIntrusive<TOperation>(operationId);
 }
 
-TOperationId TClientBase::Merge(
+IOperationPtr TClientBase::Merge(
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
-    return ExecuteMerge(
+    auto operationId = ExecuteMerge(
         Auth_,
         TransactionId_,
         spec,
         options);
+    return ::MakeIntrusive<TOperation>(operationId);
 }
 
-TOperationId TClientBase::Erase(
+IOperationPtr TClientBase::Erase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
 {
-    return ExecuteErase(
+    auto operationId = ExecuteErase(
         Auth_,
         TransactionId_,
         spec,
         options);
+    return ::MakeIntrusive<TOperation>(operationId);
 }
 
 EOperationStatus TClientBase::CheckOperation(const TOperationId& operationId)
