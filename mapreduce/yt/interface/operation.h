@@ -379,6 +379,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IOperation
+    : public TThrRefBase
+{
+    virtual ~IOperation() = default;
+    virtual const TOperationId& GetId() const = 0;
+};
+
 enum EOperationStatus : int
 {
     OS_RUNNING,
@@ -414,26 +421,26 @@ struct TOperationOptions
 struct IOperationClient
 {
     template <class TMapper>
-    TOperationId Map(
+    IOperationPtr Map(
         const TMapOperationSpec& spec,
         TMapper* mapper,
         const TOperationOptions& options = TOperationOptions());
 
     template <class TReducer>
-    TOperationId Reduce(
+    IOperationPtr Reduce(
         const TReduceOperationSpec& spec,
         TReducer* reducer,
         const TOperationOptions& options = TOperationOptions());
 
     template <class TReducer>
-    TOperationId JoinReduce(
+    IOperationPtr JoinReduce(
         const TJoinReduceOperationSpec& spec,
         TReducer* reducer,
         const TOperationOptions& options = TOperationOptions());
 
     // mapper, reducer
     template <class TMapper, class TReducer>
-    TOperationId MapReduce(
+    IOperationPtr MapReduce(
         const TMapReduceOperationSpec& spec,
         TMapper* mapper,
         TReducer* reducer,
@@ -441,7 +448,7 @@ struct IOperationClient
 
     // identity mapper, reducer
     template <class TReducer>
-    TOperationId MapReduce(
+    IOperationPtr MapReduce(
         const TMapReduceOperationSpec& spec,
         nullptr_t,
         TReducer* reducer,
@@ -449,7 +456,7 @@ struct IOperationClient
 
     // mapper, reduce combiner, reducer
     template <class TMapper, class TReduceCombiner, class TReducer>
-    TOperationId MapReduce(
+    IOperationPtr MapReduce(
         const TMapReduceOperationSpec& spec,
         TMapper* mapper,
         TReduceCombiner* reduceCombiner,
@@ -458,7 +465,7 @@ struct IOperationClient
 
     // identity mapper, reduce combiner, reducer
     template <class TReduceCombiner, class TReducer>
-    TOperationId MapReduce(
+    IOperationPtr MapReduce(
         const TMapReduceOperationSpec& spec,
         nullptr_t,
         TReduceCombiner* reduceCombiner,
@@ -466,15 +473,15 @@ struct IOperationClient
         const TOperationOptions& options = TOperationOptions());
 
 
-    virtual TOperationId Sort(
+    virtual IOperationPtr Sort(
         const TSortOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
-    virtual TOperationId Merge(
+    virtual IOperationPtr Merge(
         const TMergeOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
-    virtual TOperationId Erase(
+    virtual IOperationPtr Erase(
         const TEraseOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
@@ -489,22 +496,22 @@ struct IOperationClient
         const TOperationId& operationId) = 0;
 
 private:
-    virtual TOperationId DoMap(
+    virtual IOperationPtr DoMap(
         const TMapOperationSpec& spec,
         IJob* mapper,
         const TOperationOptions& options) = 0;
 
-    virtual TOperationId DoReduce(
+    virtual IOperationPtr DoReduce(
         const TReduceOperationSpec& spec,
         IJob* reducer,
         const TOperationOptions& options) = 0;
 
-    virtual TOperationId DoJoinReduce(
+    virtual IOperationPtr DoJoinReduce(
         const TJoinReduceOperationSpec& spec,
         IJob* reducer,
         const TOperationOptions& options) = 0;
 
-    virtual TOperationId DoMapReduce(
+    virtual IOperationPtr DoMapReduce(
         const TMapReduceOperationSpec& spec,
         IJob* mapper,
         IJob* reduceCombiner,

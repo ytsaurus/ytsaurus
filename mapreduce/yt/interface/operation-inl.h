@@ -507,7 +507,7 @@ void CheckFormats(const char *jobName, const char* direction, const TMultiFormat
 }
 
 template <class TMapper>
-TOperationId IOperationClient::Map(
+IOperationPtr IOperationClient::Map(
     const TMapOperationSpec& spec,
     TMapper* mapper,
     const TOperationOptions& options)
@@ -530,7 +530,7 @@ TOperationId IOperationClient::Map(
 }
 
 template <class TReducer>
-TOperationId IOperationClient::Reduce(
+IOperationPtr IOperationClient::Reduce(
     const TReduceOperationSpec& spec,
     TReducer* reducer,
     const TOperationOptions& options)
@@ -555,7 +555,7 @@ TOperationId IOperationClient::Reduce(
 }
 
 template <class TReducer>
-TOperationId IOperationClient::JoinReduce(
+IOperationPtr IOperationClient::JoinReduce(
     const TJoinReduceOperationSpec& spec,
     TReducer* reducer,
     const TOperationOptions& options)
@@ -579,7 +579,7 @@ TOperationId IOperationClient::JoinReduce(
 }
 
 template <class TMapper, class TReducer>
-TOperationId IOperationClient::MapReduce(
+IOperationPtr IOperationClient::MapReduce(
     const TMapReduceOperationSpec& spec,
     TMapper* mapper,
     TReducer* reducer,
@@ -619,7 +619,7 @@ TOperationId IOperationClient::MapReduce(
 }
 
 template <class TReducer>
-TOperationId IOperationClient::MapReduce(
+IOperationPtr IOperationClient::MapReduce(
     const TMapReduceOperationSpec& spec,
     nullptr_t,
     TReducer* reducer,
@@ -653,7 +653,7 @@ TOperationId IOperationClient::MapReduce(
 }
 
 template <class TMapper, class TReduceCombiner, class TReducer>
-TOperationId IOperationClient::MapReduce(
+IOperationPtr IOperationClient::MapReduce(
     const TMapReduceOperationSpec& spec,
     TMapper* mapper,
     TReduceCombiner* reduceCombiner,
@@ -703,7 +703,7 @@ TOperationId IOperationClient::MapReduce(
 }
 
 template <class TReduceCombiner, class TReducer>
-TOperationId IOperationClient::MapReduce(
+IOperationPtr IOperationClient::MapReduce(
     const TMapReduceOperationSpec& spec,
     nullptr_t,
     TReduceCombiner* reduceCombiner,
