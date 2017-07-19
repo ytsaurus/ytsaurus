@@ -17,10 +17,12 @@ import devtools.swag.ports
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
 
+
 def get_value(value, default):
     if value is None:
         return default
     return value
+
 
 class YtConfig(object):
     def __init__(self, fqdn=None, yt_id=None, proxy_port=None, node_count=None, node_config=None,
@@ -80,6 +82,7 @@ class YtConfig(object):
                                    .format(yt_package_versions[-1], yt_version))
             self.yt_version = yt_version
 
+
 class YtStuff(object):
     def __init__(self, config=None):
         self.config = config or YtConfig()
@@ -111,8 +114,8 @@ class YtStuff(object):
 
     @_timing
     def _extract_tar(self, tgz, where):
-        #import tarfile
-        #tarfile.open(tgz).extractall(path=where)
+        # import tarfile
+        # tarfile.open(tgz).extractall(path=where)
         import subprocess
         subprocess.check_output(['tar', '-xf', tgz], cwd=where, stderr=subprocess.STDOUT)
 
@@ -122,7 +125,7 @@ class YtStuff(object):
         subprocess.check_output(['tar', '-cvzf', archive_path, file_path], stderr=subprocess.STDOUT)
 
     def _prepare_files(self):
-        #build_path = yatest.common.runtime.build_path()
+        # build_path = yatest.common.runtime.build_path()
         work_path = yatest.common.runtime.work_path()
 
         self.tmpfs_path = self.config.ram_drive_path or yatest.common.get_param("ram_drive_path")
@@ -145,7 +148,7 @@ class YtStuff(object):
 
         self._replace_binaries()
 
-        user_yt_work_dir_base =  self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
+        user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
             self.yt_work_dir = os.path.join(user_yt_work_dir_base, "yt_wd")
         else:
@@ -208,16 +211,16 @@ class YtStuff(object):
     def _prepare_env(self):
         self.env = {}
         self.env["PATH"] = ":".join([
-                self.yt_bins_path,
-                self.yt_env_watcher_dir_path,
-                self.yt_node_path,
-                self.yt_node_bin_path,
-            ])
+            self.yt_bins_path,
+            self.yt_env_watcher_dir_path,
+            self.yt_node_path,
+            self.yt_node_bin_path,
+        ])
         self.env["NODE_MODULES"] = self.yt_node_modules_path
         self.env["NODE_PATH"] = ":".join([
-                self.yt_node_path,
-                self.yt_node_modules_path,
-            ])
+            self.yt_node_path,
+            self.yt_node_modules_path,
+        ])
         self.env["YT_LOCAL_THOR_PATH"] = self.yt_thor_path
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
         self.env["YT_LOG_LEVEL"] = "DEBUG"
@@ -265,7 +268,7 @@ class YtStuff(object):
             enable_debug_log = self.config.enable_debug_log or yatest.common.get_param("yt_enable_debug_logging")
             # Temporary hack: we want to analyse problems mr_apps tests.
             if "quality/mr_apps/" in yatest.common.work_path():
-                enable_debug_log = True;
+                enable_debug_log = True
             if enable_debug_log:
                 args += ["--enable-debug-logging"]
             if self.tmpfs_path:
@@ -300,7 +303,7 @@ class YtStuff(object):
                 stderr=self.yt_local_err,
             )
             # Wait until special file will appear. It means that yt_local had been started. See YT-4425 for details.
-            MAX_WAIT_TIME, SLEEP_TIME = 600, 0.1 # in seconds
+            MAX_WAIT_TIME, SLEEP_TIME = 600, 0.1  # in seconds
             NUM_TRIES = int(MAX_WAIT_TIME / SLEEP_TIME)
             for i in xrange(NUM_TRIES):
                 if os.path.lexists(special_file):
@@ -408,7 +411,6 @@ class YtStuff(object):
             self._save_logs(save_yt_all=True)
             raise Exception("Can't start local YT with id %s for %d attempts." % (self.yt_id, max_retries))
 
-
     def suspend_local_yt(self):
         try:
             cmd = self.yt_local_path + [
@@ -480,7 +482,7 @@ class YtStuff(object):
         os.system("chmod -R 0775 " + yt_output_dir)
 
         # Pack huge files, because ya.test cuts them.
-        FILE_SIZE_LIMIT = 2 * 1024 * 1024 # See https://a.yandex-team.ru/arc/trunk/arcadia/devtools/ya/test/node/run_test.py?rev=2316309#L30
+        FILE_SIZE_LIMIT = 2 * 1024 * 1024  # See https://a.yandex-team.ru/arc/trunk/arcadia/devtools/ya/test/node/run_test.py?rev=2316309#L30
         for root, dirs, files in os.walk(yt_output_dir):
             for file in files:
                 file_path = os.path.join(root, file)
