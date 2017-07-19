@@ -75,4 +75,5 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ypath_tokenizer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/process_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/snapshot_threshold_id_ut.cpp
 )
