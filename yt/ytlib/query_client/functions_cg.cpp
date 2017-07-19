@@ -491,7 +491,7 @@ void LoadLlvmBitcode(
                 functionName,
                 symbol);
         }
-        callee->addFnAttr(Attribute::AttrKind::AlwaysInline);
+        callee->addFnAttr(Attribute::AttrKind::InlineHint);
     }
 
     for (auto& function : implModule->getFunctionList()) {
