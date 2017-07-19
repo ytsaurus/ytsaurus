@@ -322,7 +322,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     {
         auto valuePtr = builder->CreateAlloca(unversionedValueType);
         auto cgValue = (*arg)(builder);
-        cgValue.StoreToValue(builder, valuePtr, 0);
+        cgValue.StoreToValue(builder, valuePtr);
 
         auto castedValuePtr = builder->CreateBitCast(
             valuePtr,
@@ -350,7 +350,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
                 varargIndex);
 
             auto cgValue = (*arg)(builder);
-            cgValue.StoreToValue(builder, valuePtr, 0);
+            cgValue.StoreToValue(builder, valuePtr);
         }
     }
 
