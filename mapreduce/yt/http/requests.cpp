@@ -3,6 +3,7 @@
 #include "error.h"
 #include "transaction.h"
 
+#include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
@@ -18,6 +19,25 @@
 #include <util/generic/ymath.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static TString GetDefaultTransactionTitle(const TProcessState& processState)
+{
+    TStringStream res;
+
+    res << "User transaction. Created by: " << processState.UserName << " on " << processState.HostName
+        << " client: " << processState.ClientVersion << " pid: " << processState.Pid;
+    if (!processState.CommandLine.empty()) {
+        res << " command line:";
+        for (const auto& arg : processState.CommandLine) {
+            res << ' ' << arg;
+        }
+    } else {
+        res << " command line is unknown probably NYT::Initialize was never called";
+    }
+    return res.Str();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +101,8 @@ TTransactionId StartTransaction(
     const TTransactionId& parentId,
     const TMaybe<TDuration>& timeout,
     bool pingAncestors,
-    const TMaybe<TNode>& attributes)
+    const TMaybe<TString>& title,
+    const TMaybe<TNode>& maybeAttributes)
 {
     THttpHeader header("POST", "start_tx");
     header.AddTransactionId(parentId);
@@ -92,9 +113,19 @@ TTransactionId StartTransaction(
     if (pingAncestors) {
         header.AddParam("ping_ancestor_transactions", "true");
     }
-    if (attributes) {
-        header.SetParameters(AttributesToYsonString(*attributes));
+
+    if (maybeAttributes && !maybeAttributes->IsMap()) {
+        ythrow TApiUsageError() << "Attributes must be a Map node";
     }
+    TNode attributes = maybeAttributes ? *maybeAttributes : TNode::CreateMap();
+
+    if (title) {
+        attributes["title"] = *title;
+    } else if (!attributes.HasKey("title")) {
+        attributes["title"] = GetDefaultTransactionTitle(*TProcessState::Get());
+    }
+
+    header.SetParameters(AttributesToYsonString(attributes));
 
     auto txId = ParseGuidFromResponse(RetryRequest(auth, header));
     LOG_INFO("Transaction %s started", ~GetGuidAsString(txId));

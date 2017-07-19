@@ -19,6 +19,7 @@ public:
         const TTransactionId& parentId,
         const TMaybe<TDuration>& timeout = Nothing(),
         bool pingAncestors = false,
+        const TMaybe<TString>& title = Nothing(),
         const TMaybe<TNode>& attributes = Nothing());
 
     ~TPingableTransaction();

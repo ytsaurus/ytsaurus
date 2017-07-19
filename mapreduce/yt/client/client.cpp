@@ -499,6 +499,7 @@ TTransaction::TTransaction(
             transactionId, // parent id
             options.Timeout_,
             options.PingAncestors_,
+            options.Title_,
             options.Attributes_)
         : nullptr)
     , ParentClient_(parentClient)
