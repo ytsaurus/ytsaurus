@@ -101,7 +101,10 @@ public:
     TDuration LeaderReassignmentTimeout;
 
     //! Maximum number of snapshots to keep for a tablet cell.
-    int MaxSnapshotsToKeep;
+    TNullable<int> MaxSnapshotCountToKeep;
+
+    //! Maximum total size of snapshots to keep for a tablet cell.
+    TNullable<i64> MaxSnapshotSizeToKeep;
 
     //! When the number of online nodes drops below this margin,
     //! tablet cell peers are no longer assigned and revoked.
@@ -130,9 +133,12 @@ public:
             .Default(TDuration::Minutes(1));
         RegisterParameter("leader_reassignment_timeout", LeaderReassignmentTimeout)
             .Default(TDuration::Seconds(15));
-        RegisterParameter("max_snapshots_to_keep", MaxSnapshotsToKeep)
+        RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
             .GreaterThanOrEqual(0)
-            .Default(3);
+            .Default();
+        RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
+            .GreaterThanOrEqual(0)
+            .Default();
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
             .Default(0);

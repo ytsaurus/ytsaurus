@@ -37,6 +37,8 @@
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/subject.h>
 
+#include <yt/server/hydra/snapshot_quota_helpers.h>
+
 #include <yt/server/table_server/table_node.h>
 #include <yt/server/table_server/replicated_table_node.h>
 
@@ -4081,9 +4083,18 @@ private:
                     continue;
                 }
 
-                std::vector<int> snapshotIds;
-                auto snapshotKeys = SyncYPathList(snapshotsMap, "");
-                for (const auto& key : snapshotKeys) {
+                auto request = TYPathProxy::List("");
+                auto response = WaitFor(ExecuteVerb(snapshotsMap, request))
+                    .ValueOrThrow();
+                auto list = ConvertTo<IListNodePtr>(TYsonString(response->value()));
+                auto children = list->GetChildren();
+                std::vector<TSnapshotInfo> snapshots;
+                std::vector<TString> snapshotKeys;
+                snapshots.reserve(children.size());
+                snapshotKeys.reserve(children.size());
+                for (const auto& child : children) {
+                    const auto key = ConvertTo<TString>(child);
+                    snapshotKeys.push_back(key);
                     int snapshotId;
                     try {
                         snapshotId = FromString<int>(key);
@@ -4093,14 +4104,21 @@ private:
                             cellId);
                         continue;
                     }
-                    snapshotIds.push_back(snapshotId);
+                    const auto& attributes = child->Attributes();
+                    snapshots.push_back({snapshotId, attributes.Get<i64>("compressed_data_size")});
                 }
 
-                if (snapshotIds.size() <= Config_->MaxSnapshotsToKeep)
-                    continue;
+                std::sort(snapshots.begin(), snapshots.end(), [] (const TSnapshotInfo& lhs, const TSnapshotInfo& rhs) {
+                    return lhs.Id < rhs.Id;
+                });
 
-                std::sort(snapshotIds.begin(), snapshotIds.end());
-                int thresholdId = snapshotIds[snapshotIds.size() - Config_->MaxSnapshotsToKeep];
+                auto thresholdId = NYT::NHydra::GetSnapshotThresholdId(
+                    snapshots,
+                    Config_->MaxSnapshotCountToKeep,
+                    Config_->MaxSnapshotSizeToKeep);
+                if (!thresholdId) {
+                    continue;
+                }
 
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
@@ -4108,7 +4126,7 @@ private:
                 for (const auto& key : snapshotKeys) {
                     try {
                         int snapshotId = FromString<int>(key);
-                        if (snapshotId < thresholdId) {
+                        if (snapshotId <= *thresholdId) {
                             LOG_INFO("Removing tablet cell snapshot %v (CellId: %v)",
                                 snapshotId,
                                 cellId);
@@ -4149,7 +4167,7 @@ private:
                             cellId);
                         continue;
                     }
-                    if (changelogId < thresholdId) {
+                    if (changelogId <= *thresholdId) {
                         LOG_INFO("Removing tablet cell changelog %v (CellId: %v)",
                             changelogId,
                             cellId);

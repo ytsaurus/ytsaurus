@@ -28,6 +28,8 @@
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/security_manager.h>
 
+#include <yt/server/hydra/snapshot_quota_helpers.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -252,28 +254,36 @@ private:
     {
         auto snapshotsPath = Config_->Snapshots->Path;
 
-        std::vector<int> snapshotIds;
+        std::vector<TSnapshotInfo> snapshots;
         auto snapshotFileNames = NFS::EnumerateFiles(snapshotsPath);
         for (const auto& fileName : snapshotFileNames) {
             if (NFS::GetFileExtension(fileName) != SnapshotExtension)
                 continue;
 
             int snapshotId;
+            i64 snapshotSize;
             try {
                 snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+                snapshotSize = NFS::GetFileStatistics(NFS::CombinePaths(snapshotsPath, fileName)).Size;
             } catch (const std::exception& ex) {
                 LOG_WARNING("Unrecognized item %v in snapshot store",
                     fileName);
                 continue;
             }
-            snapshotIds.push_back(snapshotId);
+            snapshots.push_back({snapshotId, snapshotSize});
         }
 
-        if (snapshotIds.size() <= Config_->HydraManager->MaxSnapshotsToKeep)
-            return;
+        std::sort(snapshots.begin(), snapshots.end(), [] (const TSnapshotInfo& lhs, const TSnapshotInfo& rhs) {
+            return lhs.Id < rhs.Id;
+        });
 
-        std::sort(snapshotIds.begin(), snapshotIds.end());
-        int thresholdId = snapshotIds[snapshotIds.size() - Config_->HydraManager->MaxSnapshotsToKeep];
+        auto thresholdId = NYT::NHydra::GetSnapshotThresholdId(
+            snapshots,
+            Config_->HydraManager->MaxSnapshotCountToKeep,
+            Config_->HydraManager->MaxSnapshotSizeToKeep);
+        if (!thresholdId) {
+            return;
+        }
 
         for (const auto& fileName : snapshotFileNames) {
             if (NFS::GetFileExtension(fileName) != SnapshotExtension)
@@ -287,7 +297,7 @@ private:
                 continue;
             }
 
-            if (snapshotId < thresholdId) {
+            if (snapshotId <= *thresholdId) {
                 LOG_INFO("Removing snapshot %v",
                     snapshotId);
 
@@ -315,7 +325,7 @@ private:
                 continue;
             }
 
-            if (changelogId < thresholdId) {
+            if (changelogId <= *thresholdId) {
                 LOG_INFO("Removing changelog %v",
                     changelogId);
                 try {
