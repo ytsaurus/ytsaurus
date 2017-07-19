@@ -423,7 +423,7 @@ class DynamicTablesClient(object):
                 format=self.yson_format)
 
     # explicit batch_size is for backward compatibility
-    def run_map_dynamic(self, mapper, src_table, dst_table, batch_size=None):
+    def run_map_dynamic(self, mapper, src_table, dst_table, batch_size=None, insert=True):
 
         client_config = self.default_client_config
         batch_size = batch_size or self.batch_size
@@ -433,8 +433,10 @@ class DynamicTablesClient(object):
             def make_inserter(rowset):
                 def do_insert():
                     client.insert_rows(dst_table, rowset, raw=False)
+                def do_delete():
+                    client.delete_rows(dst_table, rowset, raw=False)
 
-                return do_insert
+                return do_insert if insert else do_delete
 
             result_iterator = rows
             if mapper is not None:
