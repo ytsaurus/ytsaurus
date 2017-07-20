@@ -2421,6 +2421,7 @@ private:
                     .Item("resource_usage").Value(GetTotalResourceUsage())
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
+                    .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
                     .Do([=] (IYsonConsumer* consumer) {
