@@ -53,7 +53,7 @@ void DoDownloadChangelog(
 
         LOG_INFO("Downloading records %v-%v from peer %v",
             changelog->GetRecordCount(),
-            recordCount,
+            recordCount - 1,
             changelogInfo.PeerId);
 
         THydraServiceProxy proxy(cellManager->GetPeerChannel(changelogInfo.PeerId));
