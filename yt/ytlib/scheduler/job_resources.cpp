@@ -256,6 +256,7 @@ TJobResources GetAdjustedResourceLimits(
     if (demand.GetUserSlots() > 0 && !execNodeMemoryDistribution.empty()) {
         i64 memoryDemandPerJob = demand.GetMemory() / demand.GetUserSlots();
         if (memoryDemandPerJob != 0) {
+            i64 newMemoryLimit = 0;
             for (const auto& pair : execNodeMemoryDistribution) {
                 const auto memoryLimit = pair.first;
                 const auto nodeCount = pair.second;
@@ -263,9 +264,10 @@ TJobResources GetAdjustedResourceLimits(
                 if (memoryDemandPerJob > 0) {
                     i64 slotsPerNode = memoryLimitPerNode / memoryDemandPerJob;
                     i64 adjustedMemoryLimit = slotsPerNode * memoryDemandPerJob * nodeCount;
-                    adjustedLimits.SetMemory(adjustedMemoryLimit);
+                    newMemoryLimit += adjustedMemoryLimit;
                 }
             }
+            adjustedLimits.SetMemory(newMemoryLimit);
         }
     }
 
