@@ -391,7 +391,7 @@ private:
             nodeDirectory,
             GetCurrentInvoker(),
             rowBuffer,
-            TScrapeChunksCallback(),
+            nullptr,
             Bootstrap_->GetMasterClient(),
             Logger);
 

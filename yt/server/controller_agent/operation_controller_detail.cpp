@@ -3182,7 +3182,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage() const
 void TOperationControllerBase::AnalyzeInputStatistics() const
 {
     TError error;
-    if (UnavailableInputChunkCount > 0) {
+    if (GetUnavailableInputChunkCount() > 0) {
         error = TError(
             "Some input chunks are not available; "
             "the relevant parts of computation will be suspended");
@@ -5320,11 +5320,10 @@ std::pair<i64, i64> TOperationControllerBase::CalculatePrimaryVersionedChunksSta
     return std::make_pair(dataSize, rowCount);
 }
 
-std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize) const
+std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
 {
-    TScrapeChunksCallback scraperCallback;
     if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-        scraperCallback = CreateScrapeChunksSessionCallback(
+        DataSliceFetcherChunkScraper = CreateFetcherChunkScraper(
             Config->ChunkScraper,
             GetCancelableInvoker(),
             Host->GetChunkLocationThrottlerManager(),
@@ -5345,7 +5344,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 true,
                 InputNodeDirectory,
                 GetCancelableInvoker(),
-                scraperCallback,
+                DataSliceFetcherChunkScraper,
                 Host->GetMasterClient(),
                 RowBuffer,
                 Logger);
@@ -5374,10 +5373,12 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
         }
     }
 
+    DataSliceFetcherChunkScraper.Reset();
+
     return result;
 }
 
-std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize) const
+std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
 {
     std::vector<std::vector<TInputDataSlicePtr>> dataSlicesByTableIndex(InputTables.size());
     for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
@@ -5533,7 +5534,7 @@ void TOperationControllerBase::SlicePrimaryUnversionedChunks(
 
 void TOperationControllerBase::SlicePrimaryVersionedChunks(
     const IJobSizeConstraintsPtr& jobSizeConstraints,
-    std::vector<TChunkStripePtr>* result) const
+    std::vector<TChunkStripePtr>* result)
 {
     for (const auto& dataSlice : CollectPrimaryVersionedDataSlices(jobSizeConstraints->GetInputSliceDataSize())) {
         result->push_back(New<TChunkStripe>(dataSlice));
@@ -6084,7 +6085,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("compressed_data_size").Value(TotalEstimatedCompressedDataSize)
             .Item("data_weight").Value(TotalEstimatedInputDataWeight)
             .Item("row_count").Value(TotalEstimatedInputRowCount)
-            .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
+            .Item("unavailable_chunk_count").Value(GetUnavailableInputChunkCount())
         .EndMap()
         .Item("live_preview").BeginMap()
             .Item("output_supported").Value(IsOutputLivePreviewSupported())
@@ -6363,6 +6364,14 @@ std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::
 bool TOperationControllerBase::IsRowCountPreserved() const
 {
     return false;
+}
+
+i64 TOperationControllerBase::GetUnavailableInputChunkCount() const
+{
+    if (DataSliceFetcherChunkScraper && State == EControllerState::Preparing) {
+        return DataSliceFetcherChunkScraper->GetUnavailableChunkCount();
+    }
+    return UnavailableInputChunkCount;
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(
