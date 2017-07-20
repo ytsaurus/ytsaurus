@@ -26,7 +26,8 @@ struct TTypeTraits;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-struct TVariantTypeTag {};
+struct TVariantTypeTag
+{ };
 
 //! |boost::variant|-like discriminated union with C++ 11 features.
 template <class... Ts>
@@ -157,6 +158,9 @@ private:
     const T& UncheckedAs() const;
 
 };
+
+template <class... Ts>
+bool operator==(const TVariant<Ts...>& lhs, const TVariant<Ts...>& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

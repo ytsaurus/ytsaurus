@@ -43,15 +43,19 @@ class TMasterHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
 {
 public:
-    int MaxSnapshotsToKeep;
+    TNullable<int> MaxSnapshotCountToKeep;
+    TNullable<i64> MaxSnapshotSizeToKeep;
 
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     TMasterHydraManagerConfig()
     {
-        RegisterParameter("max_snapshots_to_keep", MaxSnapshotsToKeep)
+        RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
             .GreaterThanOrEqual(0)
-            .Default(3);
+            .Default();
+        RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
+            .GreaterThanOrEqual(0)
+            .Default();
 
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();

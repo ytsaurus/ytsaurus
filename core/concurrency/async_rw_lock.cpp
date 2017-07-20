@@ -63,8 +63,19 @@ void TAsyncReaderWriterLock::ReleaseWriter()
             readerPromiseQueue.swap(ReaderPromiseQueue_);
             ActiveReaderCount_ += readerPromiseQueue.size();
             guard.Release();
-            for (auto& promise : readerPromiseQueue) {
-                promise.Set();
+            {
+                auto setPromises = [&] () {
+                    for (auto& promise : readerPromiseQueue) {
+                        promise.Set();
+                    }
+                };
+                if (TryGetCurrentScheduler()) {
+                    // Promise subscribers must be synchronous to avoid hanging on some reader.
+                    TForbidContextSwitchGuard contextSwitchGuard;
+                    setPromises();
+                } else {
+                    setPromises();
+                }
             }
         }
     } else {

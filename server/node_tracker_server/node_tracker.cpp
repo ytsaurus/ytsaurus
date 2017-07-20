@@ -76,6 +76,11 @@ static const auto& Logger = NodeTrackerServerLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(10);
 static const auto TotalNodeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
+static NProfiling::TAggregateCounter FullHeartbeatTimeCounter("/full_heartbeat_time");
+static NProfiling::TAggregateCounter IncrementalHeartbeatTimeCounter("/incremental_heartbeat_time");
+static NProfiling::TAggregateCounter NodeUnregisterTimeCounter("/node_unregister_time");
+static NProfiling::TAggregateCounter NodeDisposeTimeCounter("/node_dispose_time");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTracker::TClusterNodeTypeHandler
@@ -837,7 +842,8 @@ private:
             YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
         }
 
-        auto addresses = FromProto<TAddressMap>(request->addresses());
+        auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
+        const auto& addresses = GetAddresses(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request->statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
@@ -881,10 +887,10 @@ private:
                 EnsureNodeDisposed(node);
             }
 
-            UpdateNode(node, addresses);
+            UpdateNode(node, nodeAddresses);
         } else {
             auto nodeId = request->has_node_id() ? request->node_id() : GenerateNodeId();
-            node = CreateNode(nodeId, addresses);
+            node = CreateNode(nodeId, nodeAddresses);
         }
 
         node->SetLocalState(ENodeState::Registered);
@@ -966,7 +972,7 @@ private:
                 node->GetLocalState());
         }
 
-        PROFILE_TIMING ("/full_heartbeat_time") {
+        PROFILE_AGGREGATED_TIMING (FullHeartbeatTimeCounter) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
@@ -1005,7 +1011,7 @@ private:
                 node->GetLocalState());
         }
 
-        PROFILE_TIMING ("/incremental_heartbeat_time") {
+        PROFILE_AGGREGATED_TIMING (IncrementalHeartbeatTimeCounter) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
@@ -1279,7 +1285,7 @@ private:
     }
 
 
-    TNode* CreateNode(TNodeId nodeId, const TAddressMap& addresses)
+    TNode* CreateNode(TNodeId nodeId, const TNodeAddressMap& nodeAddresses)
     {
         auto objectId = ObjectIdFromNodeId(nodeId);
 
@@ -1291,7 +1297,7 @@ private:
 
         InitializeNodeStates(node);
 
-        node->SetAddresses(addresses);
+        node->SetNodeAddresses(nodeAddresses);
         InsertToAddressMaps(node);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1318,15 +1324,15 @@ private:
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
         }
 
-        UpdateNode(node, addresses);
+        UpdateNode(node, nodeAddresses);
 
         return node;
     }
 
-    void UpdateNode(TNode* node, const TAddressMap& addresses)
+    void UpdateNode(TNode* node, const TNodeAddressMap& nodeAddresses)
     {
         // NB: The default address must remain same, however others may change.
-        node->SetAddresses(addresses);
+        node->SetNodeAddresses(nodeAddresses);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
@@ -1335,7 +1341,7 @@ private:
         try {
             // Update "orchid" child.
             auto req = TYPathProxy::Set(nodePath + "/orchid/@remote_addresses");
-            req->set_value(ConvertToYsonString(addresses).GetData());
+            req->set_value(ConvertToYsonString(node->GetAddressesOrThrow(EAddressType::InternalRpc)).GetData());
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");
@@ -1344,7 +1350,7 @@ private:
 
     void UnregisterNode(TNode* node, bool propagate)
     {
-        PROFILE_TIMING ("/node_unregister_time") {
+        PROFILE_AGGREGATED_TIMING (NodeUnregisterTimeCounter) {
             auto* transaction = UnregisterLeaseTransaction(node);
             if (IsObjectAlive(transaction)) {
                 const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1374,7 +1380,7 @@ private:
 
     void DisposeNode(TNode* node)
     {
-        PROFILE_TIMING ("/node_dispose_time") {
+        PROFILE_AGGREGATED_TIMING (NodeDisposeTimeCounter) {
             node->SetLocalState(ENodeState::Offline);
             NodeDisposed_.Fire(node);
 
@@ -1459,7 +1465,7 @@ private:
     {
         TReqRegisterNode request;
         request.set_node_id(node->GetId());
-        ToProto(request.mutable_addresses(), node->GetAddresses());
+        ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
         *request.mutable_statistics() = node->Statistics();
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -1521,7 +1527,7 @@ private:
             {
                 TReqRegisterNode request;
                 request.set_node_id(node->GetId());
-                ToProto(request.mutable_addresses(), node->GetAddresses());
+                ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
                 *request.mutable_statistics() = node->Statistics();
                 multicellManager->PostToMaster(request, cellTag);
             }
@@ -1566,7 +1572,7 @@ private:
     void InsertToAddressMaps(TNode* node)
     {
         YCHECK(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);
-        for (const auto& pair : node->GetAddresses()) {
+        for (const auto& pair : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
             HostNameToNodeMap_.insert(std::make_pair(TString(GetServiceHostName(pair.second)), node));
         }
     }
@@ -1574,7 +1580,7 @@ private:
     void RemoveFromAddressMaps(TNode* node)
     {
         YCHECK(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
-        for (const auto& pair : node->GetAddresses()) {
+        for (const auto& pair : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
             auto hostNameRange = HostNameToNodeMap_.equal_range(TString(GetServiceHostName(pair.second)));
             for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
                 if (it->second == node) {

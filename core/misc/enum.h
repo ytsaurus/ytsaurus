@@ -129,6 +129,8 @@ public:
     T* end();
     const T* end() const;
 
+    static bool IsDomainValue(E value);
+
 private:
     using TUnderlying = typename TEnumTraits<E>::TUnderlying;
     static constexpr int N = static_cast<TUnderlying>(Max) - static_cast<TUnderlying>(Min) + 1;

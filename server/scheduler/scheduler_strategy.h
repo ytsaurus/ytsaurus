@@ -30,15 +30,21 @@ struct ISchedulerStrategyHost
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 
     virtual int GetExecNodeCount() const = 0;
-    virtual int GetTotalNodeCount() const = 0;
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const = 0;
 
     virtual void ValidatePoolPermission(
         const NYPath::TYPath& path,
         const TString& user,
         NYTree::EPermission permission) const = 0;
 
-    virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) = 0;
+    virtual void SetSchedulerAlert(
+        ESchedulerAlertType alertType,
+        const TError& alert) = 0;
+
+    virtual void SetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

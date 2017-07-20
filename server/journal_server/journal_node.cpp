@@ -31,9 +31,6 @@ using namespace NYTree;
 
 TJournalNode::TJournalNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
-    , ReadQuorum_(0)
-    , WriteQuorum_(0)
-    , Sealed_(true)
 { }
 
 void TJournalNode::Save(NCellMaster::TSaveContext& context) const
@@ -159,12 +156,9 @@ protected:
     {
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
 
-        // NB: Don't call TBase::InitializeAttributes; take care of all attributes here.
-
-        int replicationFactor = attributes->GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
-        int readQuorum = attributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
-        int writeQuorum = attributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
-        auto primaryMediumName = attributes->GetAndRemove<TString>("primary_medium", DefaultStoreMediumName);
+        auto replicationFactor = attributes->GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
+        auto readQuorum = attributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
+        auto writeQuorum = attributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
 
         ValidateReplicationFactor(replicationFactor);
         if (readQuorum > replicationFactor) {
@@ -177,20 +171,18 @@ protected:
             THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum < replication_factor + 1");
         }
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
-
-        auto nodeHolder = TBase::DoCreate(
+        auto nodeHolder = DoCreateImpl(
             id,
             cellTag,
             transaction,
             attributes,
             account,
-            enableAccounting);
+            enableAccounting,
+            replicationFactor,
+            NCompression::ECodec::None,
+            NErasure::ECodec::None);
         auto* node = nodeHolder.get();
 
-        node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
-        node->Properties()[primaryMedium->GetIndex()].SetReplicationFactor(replicationFactor);
         node->SetReadQuorum(readQuorum);
         node->SetWriteQuorum(writeQuorum);
 
@@ -337,11 +329,6 @@ protected:
                 journalManager->SealJournal(trunkNode, nullptr);
             }
         }
-    }
-
-    virtual int GetDefaultReplicationFactor() const override
-    {
-        return Bootstrap_->GetConfig()->CypressManager->DefaultJournalReplicationFactor;
     }
 };
 

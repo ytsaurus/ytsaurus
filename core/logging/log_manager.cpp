@@ -263,7 +263,13 @@ public:
             return;
         }
 
-        LoggerQueue_.Enqueue(std::move(config));
+        EnsureStarted();
+
+        TConfigEvent event;
+        event.Config = std::move(config);
+        LoggerQueue_.Enqueue(event);
+
+        event.Promise.ToFuture().Get();
     }
 
     void ConfigureSimple(
@@ -477,10 +483,16 @@ public:
     }
 
 private:
+    struct TConfigEvent
+    {
+        TLogConfigPtr Config;
+        TPromise<void> Promise = NewPromise<void>();
+    };
+
     using TLoggerQueueItem = TVariant<
         TLogEvent,
         std::vector<TLogEvent>,
-        TLogConfigPtr
+        TConfigEvent
     >;
 
     class TThread
@@ -622,7 +634,7 @@ private:
         return nullptr;
     }
 
-    void UpdateConfig(const TLogConfigPtr& config)
+    void UpdateConfig(TConfigEvent& event)
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
@@ -638,7 +650,7 @@ private:
 
         FlushWriters();
 
-        DoUpdateConfig(config);
+        DoUpdateConfig(event.Config);
 
         if (FlushExecutor_) {
             FlushExecutor_->Stop();
@@ -676,6 +688,8 @@ private:
                 *checkSpacePeriod);
             CheckSpaceExecutor_->Start();
         }
+
+        event.Promise.Set();
     }
 
     void DoUpdateConfig(const TLogConfigPtr& config)
@@ -859,9 +873,9 @@ private:
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         int eventsWritten = 0;
-        while (LoggerQueue_.DequeueAll(true, [&] (const TLoggerQueueItem& item) {
-            if (const auto* config = item.TryAs<TLogConfigPtr>()) {
-                UpdateConfig(*config);
+        while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& item) {
+            if (auto* event = item.TryAs<TConfigEvent>()) {
+                UpdateConfig(*event);
             } else if (const auto* event = item.TryAs<TLogEvent>()) {
                 WriteEvent(*event);
                 ++eventsWritten;

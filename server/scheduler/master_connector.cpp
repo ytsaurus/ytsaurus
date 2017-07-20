@@ -23,6 +23,7 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -74,11 +75,18 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , OperationNodesUpdateExecutor_(
-            BIND(&TImpl::UpdateOperationNode, MakeStrong(this)),
-            BIND(&TImpl::IsOperationInFinishedState, MakeStrong(this)),
-            Logger)
-    { }
+        , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
+            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
+            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            Logger))
+    {
+        Bootstrap
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectorySynchronizer()
+            ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
+                .Via(Bootstrap->GetControlInvoker()));
+    }
 
     void Start()
     {
@@ -224,7 +232,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        return OperationNodesUpdateExecutor_.ExecuteUpdate(operation->GetId());
+        return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
     }
 
 
@@ -302,7 +310,7 @@ private:
         TOperationPtr Operation;
     };
 
-    TUpdateExecutor<TOperationId, TOperationNodeUpdate> OperationNodesUpdateExecutor_;
+    TIntrusivePtr<TUpdateExecutor<TOperationId, TOperationNodeUpdate>> OperationNodesUpdateExecutor_;
 
     struct TWatcherList
     {
@@ -372,7 +380,7 @@ private:
         const auto& result = resultOrError.Value();
         for (auto operationReport : result.OperationReports) {
             const auto& operation = operationReport.Operation;
-            OperationNodesUpdateExecutor_.AddUpdate(
+            OperationNodesUpdateExecutor_->AddUpdate(
                 operation->GetId(),
                 TOperationNodeUpdate(operation));
         }
@@ -524,7 +532,12 @@ private:
 
         void SyncClusterDirectory()
         {
-            WaitFor(Owner->Bootstrap->GetMasterClient()->GetNativeConnection()->SyncClusterDirectory())
+            WaitFor(Owner
+                ->Bootstrap
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetClusterDirectorySynchronizer()
+                ->Sync())
                 .ThrowOnError();
         }
 
@@ -729,7 +742,6 @@ private:
         }
     };
 
-
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
         TCellTag cellTag = PrimaryMasterCellTag)
@@ -760,8 +772,8 @@ private:
 
         LockTransaction.Reset();
 
-        OperationNodesUpdateExecutor_.Clear();
-        OperationNodesUpdateExecutor_.StopPeriodicUpdates();
+        OperationNodesUpdateExecutor_->Clear();
+        OperationNodesUpdateExecutor_->StopPeriodicUpdates();
 
         ClearWatcherLists();
 
@@ -791,7 +803,7 @@ private:
                 return nullptr;
             }
             try {
-                auto connection = GetConnectionOrThrow(CellTagFromId(transactionId));
+                auto connection = Bootstrap->GetRemoteConnectionOrThrow(CellTagFromId(transactionId));
                 auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
 
                 TTransactionAttachOptions options;
@@ -868,6 +880,7 @@ private:
         result.Operation->SetSecureVault(std::move(secureVault));
 
         result.UserTransactionAborted = !userTransaction && userTransactionId;
+        result.IsAborting = result.Operation->GetState() == EOperationState::Aborting;
 
         return result;
     }
@@ -875,7 +888,7 @@ private:
 
     void StartPeriodicActivities()
     {
-        OperationNodesUpdateExecutor_.StartPeriodicUpdates(
+        OperationNodesUpdateExecutor_->StartPeriodicUpdates(
             CancelableControlInvoker,
             Config->OperationsUpdatePeriod);
 
@@ -1031,7 +1044,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
             operationId);
 
-        OperationNodesUpdateExecutor_.AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
+        OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
 
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
@@ -1191,20 +1204,11 @@ private:
         }
     }
 
-    INativeConnectionPtr FindConnection(TCellTag cellTag)
+    void OnClusterDirectorySynchronized(const TError& error)
     {
-        auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
-        return cellTag == localConnection->GetCellTag()
-            ? localConnection
-            : localConnection->GetClusterDirectory()->FindConnection(cellTag);
-    }
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-    INativeConnectionPtr GetConnectionOrThrow(TCellTag cellTag)
-    {
-        auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
-        return cellTag == localConnection->GetCellTag()
-            ? localConnection
-            : localConnection->GetClusterDirectory()->GetConnectionOrThrow(cellTag);
+        SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
     }
 };
 

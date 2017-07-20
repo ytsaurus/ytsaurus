@@ -63,7 +63,7 @@ DEFINE_REFCOUNTED_TYPE(TExpression)
 struct TLiteralExpression
     : public TExpression
 {
-    TLiteralExpression(EValueType type)
+    explicit TLiteralExpression(EValueType type)
         : TExpression(type)
     { }
 
@@ -78,7 +78,7 @@ struct TLiteralExpression
 struct TReferenceExpression
     : public TExpression
 {
-    TReferenceExpression(EValueType type)
+    explicit TReferenceExpression(EValueType type)
         : TExpression(type)
     { }
 
@@ -93,7 +93,7 @@ struct TReferenceExpression
 struct TFunctionExpression
     : public TExpression
 {
-    TFunctionExpression(EValueType type)
+    explicit TFunctionExpression(EValueType type)
         : TExpression(type)
     { }
 
@@ -115,7 +115,7 @@ DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
 struct TUnaryOpExpression
     : public TExpression
 {
-    TUnaryOpExpression(EValueType type)
+    explicit TUnaryOpExpression(EValueType type)
         : TExpression(type)
     { }
 
@@ -135,7 +135,7 @@ struct TUnaryOpExpression
 struct TBinaryOpExpression
     : public TExpression
 {
-    TBinaryOpExpression(EValueType type)
+    explicit TBinaryOpExpression(EValueType type)
         : TExpression(type)
     { }
 
@@ -161,7 +161,7 @@ struct TInOpExpressionValuesTag
 struct TInOpExpression
     : public TExpression
 {
-    TInOpExpression(EValueType type)
+    explicit TInOpExpression(EValueType type)
         : TExpression(type)
     { }
 
@@ -188,8 +188,7 @@ void ThrowTypeMismatchError(
 
 struct TNamedItem
 {
-    TNamedItem()
-    { }
+    TNamedItem() = default;
 
     TNamedItem(
         TConstExpressionPtr expression,
@@ -207,8 +206,7 @@ typedef std::vector<TNamedItem> TNamedItemList;
 struct TAggregateItem
     : public TNamedItem
 {
-    TAggregateItem()
-    { }
+    TAggregateItem() = default;
 
     TAggregateItem(
         TConstExpressionPtr expression,

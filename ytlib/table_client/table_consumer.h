@@ -35,7 +35,7 @@ public:
 protected:
     using EControlState = ETableConsumerControlState;
 
-    TError AttachLocationAttributes(TError error);
+    TError AttachLocationAttributes(TError error) const;
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -51,9 +51,10 @@ protected:
 
     virtual void OnBeginAttributes() override;
 
-    void ThrowMapExpected();
-    void ThrowControlAttributesNotSupported();
-    void ThrowInvalidControlAttribute(const TString& whatsWrong);
+    void ThrowMapExpected() const;
+    void ThrowEntityExpected() const;
+    void ThrowControlAttributesNotSupported() const;
+    void ThrowInvalidControlAttribute(const TString& whatsWrong) const;
 
     virtual void OnEndList() override;
     virtual void OnEndAttributes() override;

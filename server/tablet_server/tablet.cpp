@@ -390,8 +390,8 @@ void TTablet::SetState(ETabletState state)
 {
     if (Table_) {
         auto* table = Table_->GetTrunkNode();
-        --table->TabletCountByState()[State_];
-        ++table->TabletCountByState()[state];
+        --table->MutableTabletCountByState()[State_];
+        ++table->MutableTabletCountByState()[state];
     }
     State_ = state;
 }
@@ -404,11 +404,11 @@ TTableNode* TTablet::GetTable() const
 void TTablet::SetTable(TTableNode* table)
 {
     if (Table_) {
-        --Table_->GetTrunkNode()->TabletCountByState()[State_];
+        --Table_->GetTrunkNode()->MutableTabletCountByState()[State_];
     }
     if (table) {
         YCHECK(table->IsTrunk());
-        ++table->TabletCountByState()[State_];
+        ++table->MutableTabletCountByState()[State_];
     }
     Table_ = table;
 }

@@ -81,7 +81,6 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
-
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         auto leaderChannel = cellDirectory->GetChannel(Bootstrap_->GetCellId(), EPeerKind::Leader);
 

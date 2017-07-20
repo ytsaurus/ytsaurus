@@ -34,6 +34,7 @@ DEFINE_ENUM(EErrorCode,
     ((ArtifactCopyingFailed)         (1107))
     ((NodeDirectoryPreparationFailed)(1108))
     ((SlotLocationDisabled)          (1109))
+    ((QuotaSettingFailed)            (1110))
 );
 
 DEFINE_ENUM(ESandboxKind,

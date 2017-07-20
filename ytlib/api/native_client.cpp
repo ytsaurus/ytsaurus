@@ -1,6 +1,5 @@
 #include "client.h"
 #include "private.h"
-
 #include "box.h"
 #include "config.h"
 #include "native_connection.h"
@@ -13,6 +12,7 @@
 #include "table_reader.h"
 #include "table_writer.h"
 #include "tablet_helpers.h"
+#include "skynet.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
@@ -27,6 +27,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
@@ -46,6 +47,7 @@
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/ast.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job.pb.h>
@@ -68,10 +70,7 @@
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 #include <yt/ytlib/tablet_client/table_replica_ypath.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
-#include <yt/ytlib/transaction_client/action.h>
-#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -123,6 +122,8 @@ using NTableClient::TColumnSchema;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::CreateNodeChannelFactory;
 using NNodeTrackerClient::TNetworkPreferenceList;
+
+using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplicaCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,78 +200,10 @@ NRpc::TMutationId TMutatingOptions::GetOrGenerateMutationId() const
 
 namespace {
 
-TNameTableToSchemaIdMapping BuildColumnIdMapping(
-    const TTableSchema& schema,
-    const TNameTablePtr& nameTable)
+TUnversionedOwningRow CreateJobKey(const TJobId& jobId, const TNameTablePtr& nameTable)
 {
-    for (const auto& name : schema.GetKeyColumns()) {
-        // We shouldn't consider computed columns below because client doesn't send them.
-        if (!nameTable->FindId(name) && !schema.GetColumnOrThrow(name).Expression) {
-            THROW_ERROR_EXCEPTION("Missing key column %Qv",
-                name);
-        }
-    }
+    TOwningRowBuilder keyBuilder(2);
 
-    TNameTableToSchemaIdMapping mapping;
-    mapping.resize(nameTable->GetSize());
-    for (int nameTableId = 0; nameTableId < nameTable->GetSize(); ++nameTableId) {
-        const auto& name = nameTable->GetName(nameTableId);
-        const auto* columnSchema = schema.FindColumn(name);
-        mapping[nameTableId] = columnSchema ? schema.GetColumnIndex(*columnSchema) : -1;
-    }
-    return mapping;
-}
-
-template <class TKey>
-TTabletInfoPtr GetSortedTabletForRow(
-    const TTableMountInfoPtr& tableInfo,
-    TKey key)
-{
-    Y_ASSERT(tableInfo->IsSorted());
-
-    auto tabletInfo = tableInfo->GetTabletForRow(key);
-    ValidateTabletMounted(tableInfo, tabletInfo);
-    return tabletInfo;
-}
-
-TTabletInfoPtr GetOrderedTabletForRow(
-    const TTableMountInfoPtr& tableInfo,
-    const TTabletInfoPtr& randomTabletInfo,
-    TNullable<int> tabletIndexColumnId,
-    NTableClient::TKey key)
-{
-    Y_ASSERT(!tableInfo->IsSorted());
-
-    int tabletIndex = -1;
-    for (const auto& value : key) {
-        if (tabletIndexColumnId && value.Id == *tabletIndexColumnId) {
-            Y_ASSERT(value.Type == EValueType::Null || value.Type == EValueType::Int64);
-            if (value.Type == EValueType::Int64) {
-                tabletIndex = value.Data.Int64;
-                if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
-                    THROW_ERROR_EXCEPTION("Invalid tablet index: actual %v, expected in range [0, %v]",
-                        tabletIndex,
-                        tableInfo->Tablets.size() - 1);
-                }
-            }
-        }
-    }
-
-    if (tabletIndex < 0) {
-        return randomTabletInfo;
-    }
-
-    auto tabletInfo = tableInfo->Tablets[tabletIndex];
-    ValidateTabletMounted(tableInfo, tabletInfo);
-    return tabletInfo;
-}
-
-TUnversionedOwningRow CreateOperationJobKey(const TOperationId& operationId, const TJobId& jobId, const TNameTablePtr& nameTable)
-{
-    TOwningRowBuilder keyBuilder(4);
-
-    keyBuilder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], nameTable->GetIdOrRegisterName("operation_id_hi")));
-    keyBuilder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], nameTable->GetIdOrRegisterName("operation_id_lo")));
     keyBuilder.AddValue(MakeUnversionedUint64Value(jobId.Parts64[0], nameTable->GetIdOrRegisterName("job_id_hi")));
     keyBuilder.AddValue(MakeUnversionedUint64Value(jobId.Parts64[1], nameTable->GetIdOrRegisterName("job_id_lo")));
 
@@ -364,15 +297,14 @@ class TQueryPreparer
     , public IPrepareCallbacks
 {
 public:
-    explicit TQueryPreparer(
-        INativeConnectionPtr connection)
+    explicit TQueryPreparer(INativeConnectionPtr connection)
         : Connection_(std::move(connection))
     { }
 
     // IPrepareCallbacks implementation.
 
     virtual TFuture<TDataSplit> GetInitialSplit(
-        const TRichYPath& path,
+        const TYPath& path,
         TTimestamp timestamp) override
     {
         return BIND(&TQueryPreparer::DoGetInitialSplit, MakeStrong(this))
@@ -502,9 +434,14 @@ public:
         return Connection_;
     }
 
-    virtual INativeConnectionPtr GetNativeConnection() override
+    virtual const INativeConnectionPtr& GetNativeConnection() override
     {
         return Connection_;
+    }
+
+    virtual const TClientOptions& GetOptions() override
+    {
+        return Options_;
     }
 
     virtual IChannelPtr GetMasterChannelOrThrow(
@@ -518,6 +455,13 @@ public:
                 cellTag);
         }
         return it->second;
+    }
+
+    virtual IChannelPtr GetCellChannelOrThrow(const TTabletCellId& cellId) override
+    {
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannelOrThrow(cellId);
+        return CreateAuthenticatedChannel(std::move(channel), Options_.User);
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -556,10 +500,29 @@ public:
 
     virtual TFuture<INativeTransactionPtr> StartNativeTransaction(
         ETransactionType type,
-        const TTransactionStartOptions& options) override;
+        const TTransactionStartOptions& options) override
+    {
+        return TransactionManager_->Start(type, options).Apply(
+            BIND([=, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& transaction) {
+                auto wrappedTransaction = CreateNativeTransaction(this_, transaction, Logger);
+                if (options.Sticky) {
+                    Connection_->RegisterStickyTransaction(wrappedTransaction);
+                }
+                return wrappedTransaction;
+            }));
+    }
+
     virtual INativeTransactionPtr AttachNativeTransaction(
         const TTransactionId& transactionId,
-        const TTransactionAttachOptions& options) override;
+        const TTransactionAttachOptions& options) override
+    {
+        if (options.Sticky) {
+            return Connection_->GetStickyTransaction(transactionId);
+        } else {
+            auto wrappedTransaction = TransactionManager_->Attach(transactionId, options);
+            return CreateNativeTransaction(this, std::move(wrappedTransaction), Logger);
+        }
+    }
 
     virtual TFuture<ITransactionPtr> StartTransaction(
         ETransactionType type,
@@ -754,6 +717,13 @@ public:
         return NApi::CreateTableReader(this, path, options);
     }
 
+    virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
+        const NYPath::TRichYPath& path,
+        const TLocateSkynetShareOptions& options) override
+    {
+        return NApi::LocateSkynetShare(this, path, options);
+    }
+
     virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override
@@ -799,17 +769,19 @@ public:
         const TOperationId& operationId,
         const TCompleteOperationOptions& options),
         (operationId, options))
-
+    IMPLEMENT_METHOD(TYsonString, GetOperation, (
+        const NScheduler::TOperationId& operationId,
+        const TGetOperationOptions& options),
+        (operationId, options))
     IMPLEMENT_METHOD(void, DumpJobContext, (
         const TJobId& jobId,
         const TYPath& path,
         const TDumpJobContextOptions& options),
         (jobId, path, options))
     IMPLEMENT_METHOD(IAsyncZeroCopyInputStreamPtr, GetJobInput, (
-        const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobInputOptions& options),
-        (operationId, jobId, options))
+        (jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
         const TOperationId& operationId,
         const TJobId& jobId,
@@ -1075,14 +1047,7 @@ private:
         return std::make_unique<TProxy>(channel);
     }
 
-    IChannelPtr GetCellChannelOrThrow(const TTabletCellId& cellId) const
-    {
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(cellId);
-        return CreateAuthenticatedChannel(std::move(channel), Options_.User);
-    }
-
-    IChannelPtr GetReadCellChannelOrThrow(const TTabletCellId& cellId) const
+    IChannelPtr GetReadCellChannelOrThrow(const TTabletCellId& cellId)
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
@@ -1102,8 +1067,7 @@ private:
             TNativeConnectionConfigPtr config,
             const TNetworkPreferenceList& networks,
             const TCellId& cellId,
-            const TTabletReadOptions& options,
-            const TNullable<TDuration>& timeout,
+            const TLookupRowsOptionsBase& options,
             TTableMountInfoPtr tableInfo,
             TEncoder encoder,
             TDecoder decoder)
@@ -1111,7 +1075,6 @@ private:
             , Networks_(networks)
             , CellId_(cellId)
             , Options_(options)
-            , Timeout_(timeout)
             , TableInfo_(std::move(tableInfo))
             , Encoder_(std::move(encoder))
             , Decoder_(std::move(decoder))
@@ -1148,7 +1111,7 @@ private:
                 Networks_);
 
             InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
-            InvokeProxy_->SetDefaultTimeout(Timeout_);
+            InvokeProxy_->SetDefaultTimeout(Options_.Timeout);
             InvokeProxy_->SetDefaultRequestAck(false);
 
             InvokeNextBatch();
@@ -1174,8 +1137,7 @@ private:
         const TNativeConnectionConfigPtr Config_;
         const TNetworkPreferenceList Networks_;
         const TCellId CellId_;
-        const TTabletReadOptions Options_;
-        const TNullable<TDuration> Timeout_;
+        const TLookupRowsOptionsBase Options_;
         const TTableMountInfoPtr TableInfo_;
         const TEncoder Encoder_;
         const TDecoder Decoder_;
@@ -1233,10 +1195,16 @@ private:
     };
 
     using TTabletCellLookupSessionPtr = TIntrusivePtr<TTabletCellLookupSession>;
-    using TEncoderWithMapping = std::function<
-        std::vector<TSharedRef>(const NTableClient::TColumnFilter&, const std::vector<TUnversionedRow>&)>;
-    using TDecoderWithMapping = std::function<
-        TTypeErasedRow(const TSchemaData&, TWireProtocolReader*)>;
+    using TEncoderWithMapping = std::function<std::vector<TSharedRef>(
+        const NTableClient::TColumnFilter&,
+        const std::vector<TUnversionedRow>&)>;
+    using TDecoderWithMapping = std::function<TTypeErasedRow(
+        const TSchemaData&,
+        TWireProtocolReader*)>;
+    template <class TResult>
+    using TReplicaFallbackHandler = std::function<TFuture<TResult>(
+        const IClientPtr&,
+        const TTableReplicaInfoPtr&)>;
 
     static NTableClient::TColumnFilter RemapColumnFilter(
         const NTableClient::TColumnFilter& columnFilter,
@@ -1291,20 +1259,22 @@ private:
             return reader->ReadSchemafulRow(schemaData, true).ToTypeErasedRow();
         };
 
+        TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
+            const IClientPtr& replicaClient,
+            const TTableReplicaInfoPtr& replicaInfo)
+        {
+            return replicaClient->LookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
+        };
+
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
-            TTableSchema schema;
-            TSharedRange<TTypeErasedRow> rows;
-            std::tie(schema, rows) = DoLookupRowsOnce(
+            return DoLookupRowsOnce<IUnversionedRowsetPtr, TUnversionedRow>(
                 path,
                 nameTable,
                 keys,
                 options,
-                options.Timeout,
-                options.ColumnFilter,
-                options.KeepMissingRows,
                 encoder,
-                decoder);
-            return CreateRowset(schema, ReinterpretCastRange<TUnversionedRow>(rows));
+                decoder,
+                fallbackHandler);
         });
     }
 
@@ -1338,33 +1308,243 @@ private:
             return reader->ReadVersionedRow(schemaData, true).ToTypeErasedRow();
         };
 
+        TReplicaFallbackHandler<IVersionedRowsetPtr> fallbackHandler = [&] (
+            const IClientPtr& replicaClient,
+            const TTableReplicaInfoPtr& replicaInfo)
+        {
+            return replicaClient->VersionedLookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
+        };
+
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
-            TTableSchema schema;
-            TSharedRange<TTypeErasedRow> rows;
-            std::tie(schema, rows) = DoLookupRowsOnce(
+            return DoLookupRowsOnce<IVersionedRowsetPtr, TVersionedRow>(
                 path,
                 nameTable,
                 keys,
                 options,
-                options.Timeout,
-                options.ColumnFilter,
-                options.KeepMissingRows,
                 encoder,
-                decoder);
-            return CreateRowset(schema, ReinterpretCastRange<TVersionedRow>(rows));
+                decoder,
+                fallbackHandler);
         });
     }
 
-    std::tuple< TTableSchema, TSharedRange<TTypeErasedRow> > DoLookupRowsOnce(
+
+    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+        const TTableMountInfoPtr& tableInfo,
+        const TTabletReadOptions& options,
+        const std::vector<std::pair<NTableClient::TKey, int>>& keys)
+    {
+        yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        for (const auto& pair : keys) {
+            auto key = pair.first;
+            auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
+            cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+        }
+        return PickInSyncReplicas(tableInfo, options, cellIdToTabletIds);
+    }
+
+    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+        const TTableMountInfoPtr& tableInfo,
+        const TTabletReadOptions& options)
+    {
+        yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        for (const auto& tabletInfo : tableInfo->Tablets) {
+            cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+        }
+        return PickInSyncReplicas(tableInfo, options, cellIdToTabletIds);
+    }
+
+    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+        const TTableMountInfoPtr& tableInfo,
+        const TTabletReadOptions& options,
+        const yhash<TCellId, std::vector<TTabletId>>& cellIdToTabletIds)
+    {
+        size_t cellCount = cellIdToTabletIds.size();
+        size_t tabletCount = 0;
+        for (const auto& pair : cellIdToTabletIds) {
+            tabletCount += pair.second.size();
+        }
+
+        LOG_DEBUG("Looking for in-sync replicas (Path: %v, CellCount: %v, TabletCount: %v)",
+            tableInfo->Path,
+            cellCount,
+            tabletCount);
+
+        const auto& channelFactory = Connection_->GetLightChannelFactory();
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncResults;
+        for (const auto& pair : cellIdToTabletIds) {
+            const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(pair.first);
+            auto channel = CreateTabletReadChannel(
+                channelFactory,
+                cellDescriptor,
+                options,
+                Connection_->GetNetworks());
+
+            TQueryServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(options.Timeout);
+
+            auto req = proxy.GetTabletInfo();
+            ToProto(req->mutable_tablet_ids(), pair.second);
+            asyncResults.push_back(req->Invoke());
+        }
+
+        return Combine(asyncResults).Apply(
+            BIND([=, this_ = MakeStrong(this)] (const std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>& rsps) {
+                yhash<TTableReplicaId, int> replicaIdToCount;
+                for (const auto& rsp : rsps) {
+                    for (const auto& protoTabletInfo : rsp->tablets()) {
+                        for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
+                            if (IsReplicaInSync(protoReplicaInfo, protoTabletInfo)) {
+                                ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+                            }
+                        }
+                    }
+                }
+
+                TTableReplicaInfoPtrList inSyncReplicaInfos;
+                for (const auto& replicaInfo : tableInfo->Replicas) {
+                    auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
+                    if (it != replicaIdToCount.end() && it->second == tabletCount) {
+                        LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
+                            tableInfo->Path,
+                            replicaInfo->ReplicaId,
+                            replicaInfo->ClusterName);
+                        inSyncReplicaInfos.push_back(replicaInfo);
+                    }
+                }
+
+                if (inSyncReplicaInfos.empty()) {
+                    THROW_ERROR_EXCEPTION("No in-sync replicas found for table %v",
+                        tableInfo->Path);
+                }
+
+                return inSyncReplicaInfos;
+            }));
+    }
+
+    TNullable<TString> PickInSyncClusterAndPatchQuery(
+        const TTabletReadOptions& options,
+        NAst::TQuery* query)
+    {
+        std::vector<TYPath> paths{query->Table.Path};
+        for (const auto& join : query->Joins) {
+            paths.push_back(join.Table.Path);
+        }
+
+        const auto& tableMountCache = Connection_->GetTableMountCache();
+        std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
+        for (const auto& path : paths) {
+            asyncTableInfos.push_back(tableMountCache->GetTableInfo(path));
+        }
+
+        auto tableInfos = WaitFor(Combine(asyncTableInfos))
+            .ValueOrThrow();
+
+        bool someReplicated = false;
+        bool someNotReplicated = false;
+        for (const auto& tableInfo : tableInfos) {
+            if (tableInfo->IsReplicated()) {
+                someReplicated = true;
+            } else {
+                someNotReplicated = true;
+            }
+        }
+
+        if (someReplicated && someNotReplicated) {
+            THROW_ERROR_EXCEPTION("Query involves both replicated and non-replicated tables");
+        }
+
+        if (!someReplicated) {
+            return Null;
+        }
+
+        std::vector<TFuture<TTableReplicaInfoPtrList>> asyncCandidates;
+        for (size_t tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
+            asyncCandidates.push_back(PickInSyncReplicas(tableInfos[tableIndex], options));
+        }
+
+        auto candidates = WaitFor(Combine(asyncCandidates))
+            .ValueOrThrow();
+
+        yhash<TString, int> clusterNameToCount;
+        for (const auto& replicaInfos : candidates) {
+            SmallVector<TString, TypicalReplicaCount> clusterNames;
+            for (const auto& replicaInfo : replicaInfos) {
+                clusterNames.push_back(replicaInfo->ClusterName);
+            }
+            std::sort(clusterNames.begin(), clusterNames.end());
+            clusterNames.erase(std::unique(clusterNames.begin(), clusterNames.end()), clusterNames.end());
+            for (const auto& clusterName : clusterNames) {
+                ++clusterNameToCount[clusterName];
+            }
+        }
+
+        SmallVector<TString, TypicalReplicaCount> inSyncClusterNames;
+        for (const auto& pair : clusterNameToCount) {
+            if (pair.second == paths.size()) {
+                inSyncClusterNames.push_back(pair.first);
+            }
+        }
+
+        if (inSyncClusterNames.empty()) {
+            THROW_ERROR_EXCEPTION("No single cluster contains in-sync replicas for all involved tables %v",
+                paths);
+        }
+
+        // TODO(babenko): break ties in a smarter way
+        const auto& inSyncClusterName = inSyncClusterNames[0];
+        LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v)",
+            paths,
+            inSyncClusterName);
+
+        auto patchTableDescriptor = [&] (NAst::TTableDescriptor* descriptor, const TTableReplicaInfoPtrList& replicaInfos) {
+            for (const auto& replicaInfo : replicaInfos) {
+                if (replicaInfo->ClusterName == inSyncClusterName) {
+                    descriptor->Path = replicaInfo->ReplicaPath;
+                    return;
+                }
+            }
+            Y_UNREACHABLE();
+        };
+
+        patchTableDescriptor(&query->Table, candidates[0]);
+        for (size_t index = 0; index < query->Joins.size(); ++index) {
+            patchTableDescriptor(&query->Joins[index].Table, candidates[index + 1]);
+        }
+        return inSyncClusterName;
+    }
+
+
+    IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName)
+    {
+        const auto& clusterDirectory = Connection_->GetClusterDirectory();
+        auto replicaConnection = clusterDirectory->FindConnection(clusterName);
+        if (replicaConnection) {
+            return replicaConnection;
+        }
+
+        WaitFor(Connection_->GetClusterDirectorySynchronizer()->Sync())
+            .ThrowOnError();
+
+        return clusterDirectory->GetConnectionOrThrow(clusterName);
+    }
+
+    IClientPtr CreateReplicaClient(const TString& clusterName)
+    {
+        auto replicaConnection = GetReplicaConnectionOrThrow(clusterName);
+        return replicaConnection->CreateClient(Options_);
+    }
+
+
+    template <class TRowset, class TRow>
+    TRowset DoLookupRowsOnce(
         const TYPath& path,
         const TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
-        const TTabletReadOptions& options,
-        const TNullable<TDuration>& timeout,
-        const NTableClient::TColumnFilter& columnFilter,
-        bool keepMissingRows,
-        const TEncoderWithMapping& encoderWithMapping,
-        const TDecoderWithMapping& decoderWithMapping)
+        const TLookupRowsOptionsBase& options,
+        TEncoderWithMapping encoderWithMapping,
+        TDecoderWithMapping decoderWithMapping,
+        TReplicaFallbackHandler<TRowset> replicaFallbackHandler)
     {
         const auto& tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
@@ -1372,13 +1552,16 @@ private:
 
         tableInfo->ValidateDynamic();
         tableInfo->ValidateSorted();
-        tableInfo->ValidateNotReplicated();
 
         const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
         auto idMapping = BuildColumnIdMapping(schema, nameTable);
-        auto remappedColumnFilter = RemapColumnFilter(columnFilter, idMapping, nameTable);
+        auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
         auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary].Filter(remappedColumnFilter);
         auto resultSchemaData = TWireProtocolReader::GetSchemaData(schema, remappedColumnFilter);
+
+        if (keys.Empty()) {
+            return CreateRowset(resultSchema, TSharedRange<TRow>());
+        }
 
         // NB: The server-side requires the keys to be sorted.
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
@@ -1397,6 +1580,17 @@ private:
             }
 
             sortedKeys.emplace_back(capturedKey, index);
+        }
+
+        if (tableInfo->IsReplicated()) {
+            auto inSyncReplicaInfos = WaitFor(PickInSyncReplicas(tableInfo, options, sortedKeys))
+                .ValueOrThrow();
+            // TODO(babenko): break ties in a smarter way
+            const auto& inSyncReplicaInfo = inSyncReplicaInfos[0];
+            auto replicaClient = CreateReplicaClient(inSyncReplicaInfo->ClusterName);
+            auto asyncResult = replicaFallbackHandler(replicaClient, inSyncReplicaInfo);
+            return WaitFor(asyncResult)
+                .ValueOrThrow();
         }
 
         // TODO(sandello): Use code-generated comparer here.
@@ -1423,7 +1617,6 @@ private:
                         Connection_->GetNetworks(),
                         cellId,
                         options,
-                        timeout,
                         tableInfo,
                         boundEncoder,
                         boundDecoder);
@@ -1465,7 +1658,7 @@ private:
             resultRows[index] = uniqueResultRows[keyIndexToResultIndex[index]];
         }
 
-        if (!keepMissingRows) {
+        if (!options.KeepMissingRows) {
             resultRows.erase(
                 std::remove_if(
                     resultRows.begin(),
@@ -1476,7 +1669,8 @@ private:
                 resultRows.end());
         }
 
-        return std::make_tuple(resultSchema, MakeSharedRange(std::move(resultRows), outputRowBuffer));
+        auto rowRange = ReinterpretCastRange<TRow>(MakeSharedRange(std::move(resultRows), outputRowBuffer));
+        return CreateRowset(resultSchema, std::move(rowRange));
     }
 
     TSelectRowsResult DoSelectRows(
@@ -1492,6 +1686,17 @@ private:
         const TString& queryString,
         const TSelectRowsOptions& options)
     {
+        auto parsedQuery = ParseSource(queryString, EParseMode::Query);
+        auto* astQuery = &parsedQuery->AstHead.Ast.As<NAst::TQuery>();
+        auto maybeClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
+        if (maybeClusterName) {
+            auto replicaClient = CreateReplicaClient(*maybeClusterName);
+            auto updatedQueryString = NAst::FormatQuery(*astQuery);
+            auto asyncResult = replicaClient->SelectRows(updatedQueryString, options);
+            return WaitFor(asyncResult)
+                .ValueOrThrow();
+        }
+
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
 
@@ -1520,15 +1725,15 @@ private:
             HeavyChannelFactory_,
             FunctionImplCache_);
 
-        TQueryPtr query;
-        TDataRanges dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(
+        auto fragment = PreparePlanFragment(
             queryPreparer.Get(),
-            queryString,
+            *parsedQuery,
             fetchFunctions,
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
+        const auto& query = fragment->Query;
+        const auto& dataSource = fragment->Ranges;
 
         TQueryOptions queryOptions;
         queryOptions.Timestamp = options.Timestamp;
@@ -1567,6 +1772,27 @@ private:
         return TSelectRowsResult{rowset, statistics};
     }
 
+
+    static bool IsReplicaInSync(
+        const NQueryClient::NProto::TReplicaInfo& replicaInfo,
+        const NQueryClient::NProto::TTabletInfo& tabletInfo)
+    {
+        return
+            ETableReplicaMode(replicaInfo.mode()) == ETableReplicaMode::Sync &&
+            replicaInfo.current_replication_row_index() >= tabletInfo.total_row_count();
+    }
+
+    static bool IsReplicaInSync(
+        const NQueryClient::NProto::TReplicaInfo& replicaInfo,
+        const NQueryClient::NProto::TTabletInfo& tabletInfo,
+        TTimestamp timestamp)
+    {
+        return
+            replicaInfo.last_replication_timestamp() >= timestamp ||
+            IsReplicaInSync(replicaInfo, tabletInfo);
+    }
+
+
     std::vector<TTableReplicaId> DoGetInSyncReplicas(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -1583,50 +1809,57 @@ private:
         tableInfo->ValidateSorted();
         tableInfo->ValidateReplicated();
 
-        yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
-        yhash_set<TTabletId> tabletIds;
-        for (const auto& key : keys) {
-            auto tabletInfo = tableInfo->GetTabletForRow(key);
-            if (tabletIds.count(tabletInfo->TabletId) == 0) {
-                tabletIds.insert(tabletInfo->TabletId);
-                ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
-                cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+        std::vector<TTableReplicaId> replicas;
+
+        if (keys.Empty()) {
+            for (const auto& replica : tableInfo->Replicas) {
+                replicas.push_back(replica->ReplicaId);
             }
-        }
+        } else {
+            yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
+            yhash_set<TTabletId> tabletIds;
+            for (auto key : keys) {
+                auto tabletInfo = tableInfo->GetTabletForRow(key);
+                if (tabletIds.count(tabletInfo->TabletId) == 0) {
+                    tabletIds.insert(tabletInfo->TabletId);
+                    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+                    cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+                }
+            }
 
-        std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
-        for (const auto& pair : cellToTabletIds) {
-            const auto& cellId = pair.first;
-            const auto& perCellTabletIds = pair.second;
-            const auto channel = GetReadCellChannelOrThrow(cellId);
+            std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
+            for (const auto& pair : cellToTabletIds) {
+                const auto& cellId = pair.first;
+                const auto& perCellTabletIds = pair.second;
+                const auto channel = GetReadCellChannelOrThrow(cellId);
 
-            TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(options.Timeout);
+                TQueryServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(options.Timeout);
 
-            auto req = proxy.GetTabletInfo();
-            ToProto(req->mutable_tablet_ids(), perCellTabletIds);
-            futures.push_back(req->Invoke());
-        }
-        auto responsesResult = WaitFor(Combine(futures));
-        auto responses = responsesResult.ValueOrThrow();
+                auto req = proxy.GetTabletInfo();
+                ToProto(req->mutable_tablet_ids(), perCellTabletIds);
+                futures.push_back(req->Invoke());
+            }
+            auto responsesResult = WaitFor(Combine(futures));
+            auto responses = responsesResult.ValueOrThrow();
 
-        yhash<TTableReplicaId, int> replicaIdToCount;
-        for (const auto& response : responses) {
-            for (const auto& protoTabletInfo : response->tablet_info()) {
-                for (const auto& protoReplicaInfo : protoTabletInfo.replica_info()) {
-                    if (protoReplicaInfo.last_replication_timestamp() >= options.Timestamp) {
-                        ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+            yhash<TTableReplicaId, int> replicaIdToCount;
+            for (const auto& response : responses) {
+                for (const auto& protoTabletInfo : response->tablets()) {
+                    for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
+                        if (IsReplicaInSync(protoReplicaInfo, protoTabletInfo, options.Timestamp)) {
+                            ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+                        }
                     }
                 }
             }
-        }
 
-        std::vector<TTableReplicaId> replicas;
-        for (const auto& pair : replicaIdToCount) {
-            const auto& replicaId = pair.first;
-            auto count = pair.second;
-            if (count == tabletIds.size()) {
-                replicas.push_back(replicaId);
+            for (const auto& pair : replicaIdToCount) {
+                const auto& replicaId = pair.first;
+                auto count = pair.second;
+                if (count == tabletIds.size()) {
+                    replicas.push_back(replicaId);
+                }
             }
         }
 
@@ -2515,6 +2748,229 @@ private:
             .ThrowOnError();
     }
 
+    int DoGetOperationsArchiveVersion() 
+    {
+        auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
+        auto versionNodeOrError = WaitFor(asyncVersionResult);
+        int version = 0;
+
+        if (versionNodeOrError.IsOK()) { 
+            try {
+                version = ConvertTo<int>(versionNodeOrError.Value());
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to parse operations archive version");
+            }
+        } else {
+            LOG_DEBUG(versionNodeOrError, "Failed to get operations archive version");
+        }
+
+        return version;
+    }
+
+    TYsonString DoGetOperationFromArchive(
+        const NScheduler::TOperationId& operationId,
+        const TGetOperationOptions& options)
+    {
+        TNullable<TInstant> deadline;
+        if (options.Timeout) {
+            deadline = options.Timeout->ToDeadLine();
+        }
+
+        auto nameTable = New<TNameTable>();
+
+        struct TOrderedByIdArchiveIds
+        {
+            explicit TOrderedByIdArchiveIds(const TNameTablePtr& nameTable)
+                : IdHash(nameTable->RegisterName("id_hash"))
+                , IdHi(nameTable->RegisterName("id_hi"))
+                , IdLo(nameTable->RegisterName("id_lo"))
+                , State(nameTable->RegisterName("state"))
+                , AuthenticatedUser(nameTable->RegisterName("authenticated_user"))
+                , OperationType(nameTable->RegisterName("operation_type"))
+                , Progress(nameTable->RegisterName("progress"))
+                , Spec(nameTable->RegisterName("spec"))
+                , BriefProgress(nameTable->RegisterName("brief_progress"))
+                , BriefSpec(nameTable->RegisterName("brief_spec"))
+                , StartTime(nameTable->RegisterName("start_time"))
+                , FinishTime(nameTable->RegisterName("finish_time"))
+                , FilterFactors(nameTable->RegisterName("filter_factors"))
+                , Result(nameTable->RegisterName("result"))
+                , Events(nameTable->RegisterName("events"))
+            { }
+
+            const int IdHash;
+            const int IdHi;
+            const int IdLo;
+            const int State;
+            const int AuthenticatedUser;
+            const int OperationType;
+            const int Progress;
+            const int Spec;
+            const int BriefProgress;
+            const int BriefSpec;
+            const int StartTime;
+            const int FinishTime;
+            const int FilterFactors;
+            const int Result;
+            const int Events;
+        };
+
+        TOrderedByIdArchiveIds ids(nameTable);
+        auto rowBuffer = New<TRowBuffer>();
+
+        std::vector<TUnversionedRow> keys;
+        auto key = rowBuffer->AllocateUnversioned(2);
+        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], ids.IdHi);
+        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], ids.IdLo);
+        keys.push_back(key);
+
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({
+            ids.IdHi,
+            ids.IdLo,
+            ids.State,
+            ids.AuthenticatedUser,
+            ids.OperationType,
+            ids.Progress,
+            ids.Spec,
+            ids.BriefProgress,
+            ids.BriefSpec,
+            ids.StartTime,
+            ids.FinishTime,
+            ids.Result,
+            ids.Events
+        });
+        lookupOptions.KeepMissingRows = true;
+        if (deadline)
+            lookupOptions.Timeout = *deadline - Now();
+
+        auto rowset = WaitFor(LookupRows(
+            "//sys/operations_archive/ordered_by_id",
+            nameTable,
+            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+            lookupOptions))
+            .ValueOrThrow();
+
+        auto rows = rowset->GetRows();
+        YCHECK(!rows.Empty());
+
+        if (rows[0]) {
+#define SET_ITEM_STRING_VALUE(itemKey, index) \
+            SET_ITEM_VALUE(itemKey, index, TString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_YSON_STRING_VALUE(itemKey, index) \
+            SET_ITEM_VALUE(itemKey, index, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_INSTANT_VALUE(itemKey, index) \
+            SET_ITEM_VALUE(itemKey, index, TInstant(rows[0][index].Data.Int64))
+#define SET_ITEM_VALUE(itemKey, index, operation) \
+            .DoIf(rows[0][index].Type != EValueType::Null, [&] (TFluentMap fluent) { \
+                fluent.Item(#itemKey).Value(operation); \
+            })
+
+            auto ysonResult = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("id").Value(TGuid(rows[0][0].Data.Uint64, rows[0][1].Data.Uint64))
+                    SET_ITEM_STRING_VALUE("state", 2) 
+                    SET_ITEM_STRING_VALUE("authenticated_user", 3)
+                    SET_ITEM_STRING_VALUE("operation_type", 4)
+                    SET_ITEM_YSON_STRING_VALUE("progress", 5)
+                    SET_ITEM_YSON_STRING_VALUE("spec", 6)
+                    SET_ITEM_YSON_STRING_VALUE("brief_progress", 7)
+                    SET_ITEM_YSON_STRING_VALUE("brief_spec", 8)
+                    SET_ITEM_INSTANT_VALUE("start_time", 9)
+                    SET_ITEM_INSTANT_VALUE("finish_time", 10)
+                    SET_ITEM_YSON_STRING_VALUE("result", 11)
+                    SET_ITEM_YSON_STRING_VALUE("events", 12)
+                .EndMap();
+
+#undef SET_ITEM_STRING_VALUE
+#undef SET_ITEM_YSON_STRING_VALUE
+#undef SET_ITEM_INSTANT_VALUE
+#undef SET_ITEM_VALUE
+            return ysonResult;
+        }
+
+        return TYsonString();
+    }
+
+    TYsonString DoGetOperation(
+        const NScheduler::TOperationId& operationId,
+        const TGetOperationOptions& options)
+    {
+        TNullable<TInstant> deadline;
+        if (options.Timeout) {
+            deadline = options.Timeout->ToDeadLine();
+        }
+
+        TGetNodeOptions optionsToCypress;
+        optionsToCypress.Attributes = {
+            "authenticated_user",
+            "brief_progress",
+            "brief_spec",
+            "finish_time",
+            "operation_type",
+            "start_time",
+            "state",
+            "suspended",
+            "title",
+            "weight"
+        };
+        if (deadline) {
+            optionsToCypress.Timeout = *deadline - Now();
+        }
+
+        auto asyncAttrResult = GetNode(GetOperationAttributesPath(operationId), optionsToCypress);
+        auto attrNodeOrError = WaitFor(asyncAttrResult);
+
+        if (attrNodeOrError.GetCode() == NYT::EErrorCode::OK) {
+            auto attrNodeValue = attrNodeOrError.Value();
+
+            TGetNodeOptions optionsToScheduler;
+            if (deadline) {
+                optionsToScheduler.Timeout = *deadline - Now();
+            }
+
+            auto asyncSchedulerProgressValue = GetNode(GetOperationsProgressFromScheduler(operationId), optionsToScheduler);
+            auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
+    
+            if (schedulerProgressValueOrError.GetCode() == NYT::EErrorCode::OK) {
+                auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
+                auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
+                attrNode->AddChild(schedulerProgressNode, "progress");
+
+                attrNodeValue = ConvertToYsonString(attrNode);
+            } else if (schedulerProgressValueOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+                LOG_DEBUG("No such operation %v in the scheduler", operationId);
+            } else {
+                THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId);
+            }
+           
+            return attrNodeValue;
+        } else if (attrNodeOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+            LOG_DEBUG("No such operation %v in Cypress", operationId);
+
+            int version = DoGetOperationsArchiveVersion();
+
+            if (version < 7) {
+                THROW_ERROR_EXCEPTION("Failed to get operation: operations archive version is too old: expected >= 7, got %v", version);
+            }
+
+            try {
+                auto result = DoGetOperationFromArchive(operationId, TGetOperationOptions());
+                if (result)
+                    return result;
+            } catch (const TErrorException& exception) {
+                auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
+
+                if (!matchedError) {
+                    THROW_ERROR_EXCEPTION("Failed to get operation from archive")
+                        << TErrorAttribute("operation_id", operationId)
+                        << exception.Error();
+                }    
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("No such operation %v", operationId);
+    }
 
     void DoDumpJobContext(
         const TJobId& jobId,
@@ -2530,23 +2986,28 @@ private:
     }
 
     IAsyncZeroCopyInputStreamPtr DoGetJobInput(
-        const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobInputOptions& /*options*/)
     {
+        int version = DoGetOperationsArchiveVersion();
+
+        if (version < 7) {
+            THROW_ERROR_EXCEPTION("Failed to get job input: operations archive version is too old: expected >= 7, got %v", version);
+        }
+    
         auto nameTable = New<TNameTable>();
 
         TLookupRowsOptions lookupOptions;
         lookupOptions.ColumnFilter = NTableClient::TColumnFilter({nameTable->RegisterName("spec")});
         lookupOptions.KeepMissingRows = true;
 
-        auto owningKey = CreateOperationJobKey(operationId, jobId, nameTable);
+        auto owningKey = CreateJobKey(jobId, nameTable);
 
         std::vector<TUnversionedRow> keys;
         keys.push_back(owningKey);
 
         auto lookupResult = WaitFor(LookupRows(
-            GetOperationsArchiveJobsPath(),
+            GetOperationsArchiveJobSpecsPath(),
             nameTable,
             MakeSharedRange(keys, owningKey),
             lookupOptions));
@@ -2554,8 +3015,7 @@ private:
         if (!lookupResult.IsOK()) {
             THROW_ERROR_EXCEPTION(lookupResult)
                 .Wrap("Lookup job spec in operation archive failed")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId);
+                << TErrorAttribute("job_id", jobId);
         }
 
         auto rows = lookupResult.Value()->GetRows();
@@ -2563,8 +3023,7 @@ private:
 
         if (!rows[0]) {
             THROW_ERROR_EXCEPTION("Missing job spec in job archive table")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId);
+                << TErrorAttribute("job_id", jobId);
         }
 
         auto value = rows[0][0];
@@ -2572,7 +3031,6 @@ private:
         if (value.Type != EValueType::String) {
             THROW_ERROR_EXCEPTION("Found job spec has unexpected value type")
                 << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId)
                 << TErrorAttribute("value_type", value.Type);
         }
 
@@ -2580,14 +3038,12 @@ private:
         bool ok = jobSpec.ParseFromArray(value.Data.String, value.Length);
         if (!ok) {
             THROW_ERROR_EXCEPTION("Cannot parse job spec")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId);
+                << TErrorAttribute("job_id", jobId);
         }
 
         if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
             THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
                 << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId)
                 << TErrorAttribute("found_version", jobSpec.version())
                 << TErrorAttribute("supported_version", GetJobSpecVersion());
         }
@@ -2642,8 +3098,7 @@ private:
 
         if (!locateChunksResult.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to locate chunks used in job input")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("operation_id", operationId);
+                << TErrorAttribute("job_id", jobId);
         }
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
@@ -2661,10 +3116,9 @@ private:
         return jobInputReader;
     }
 
-    TSharedRef DoGetJobStderr(
+    TSharedRef DoGetJobStderrFromNode(
         const TOperationId& operationId,
-        const TJobId& jobId,
-        const TGetJobStderrOptions& /*options*/)
+        const TJobId& jobId)
     {
         try {
             NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
@@ -2695,6 +3149,13 @@ private:
             }
         }
 
+        return TSharedRef();
+    }
+
+    TSharedRef DoGetJobStderrFromCypress(
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
         try {
             auto path = NScheduler::GetStderrPath(operationId, jobId);
 
@@ -2734,6 +3195,13 @@ private:
             }
         }
 
+        return TSharedRef();
+    }
+
+    TSharedRef DoGetJobStderrFromArchive(
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
         try {
             auto nameTable = New<TNameTable>();
 
@@ -2797,6 +3265,35 @@ private:
             }
         }
 
+        return TSharedRef();
+    }
+
+    TSharedRef DoGetJobStderr(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobStderrOptions& /*options*/)
+    {
+        auto stderrRef = DoGetJobStderrFromNode(operationId, jobId);
+        if (stderrRef) {
+            return stderrRef;
+        }
+
+        stderrRef = DoGetJobStderrFromCypress(operationId, jobId);
+        if (stderrRef) {
+            return stderrRef;
+        }
+
+        int version = DoGetOperationsArchiveVersion();
+
+        if (version >= 7) {
+            stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
+            if (stderrRef) {
+                return stderrRef;
+            }
+        } else {
+            LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
+        }
+ 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
             << TErrorAttribute("operation_id", operationId)
             << TErrorAttribute("job_id", jobId);
@@ -2993,7 +3490,6 @@ private:
 
                 resultJobs.push_back(job);
             }
-
             sortJobs(&resultJobs);
         }
 
@@ -3083,7 +3579,6 @@ private:
             std::vector<TJob> runtimeJobs;
             for (const auto& item : items->GetChildren()) {
                 auto values = item.second->AsMap();
-
                 auto jobType = ParseEnum<NJobTrackerClient::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
                 auto jobState = ParseEnum<NJobTrackerClient::EJobState>(values->GetChild("state")->AsString()->GetValue());
 
@@ -3263,1480 +3758,6 @@ INativeClientPtr CreateNativeClient(
     YCHECK(connection);
 
     return New<TNativeClient>(std::move(connection), options);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(ETransactionState,
-    (Active)
-    (Commit)
-    (Abort)
-    (Flush)
-    (Detach)
-);
-
-class TNativeTransaction
-    : public INativeTransaction
-{
-public:
-    TNativeTransaction(
-        TNativeClientPtr client,
-        NTransactionClient::TTransactionPtr transaction)
-        : Client_(std::move(client))
-        , Transaction_(std::move(transaction))
-        , CommitInvoker_(CreateSerializedInvoker(Client_->GetConnection()->GetHeavyInvoker()))
-        , Logger(NLogging::TLogger(Client_->Logger)
-            .AddTag("TransactionId: %v, ConnectionCellTag: %v",
-                GetId(),
-                Client_->Connection_->GetCellTag()))
-    { }
-
-
-    virtual IConnectionPtr GetConnection() override
-    {
-        return Client_->GetConnection();
-    }
-
-    virtual IClientPtr GetClient() const override
-    {
-        return Client_;
-    }
-
-    virtual NTransactionClient::ETransactionType GetType() const override
-    {
-        return Transaction_->GetType();
-    }
-
-    virtual const TTransactionId& GetId() const override
-    {
-        return Transaction_->GetId();
-    }
-
-    virtual TTimestamp GetStartTimestamp() const override
-    {
-        return Transaction_->GetStartTimestamp();
-    }
-
-    virtual EAtomicity GetAtomicity() const override
-    {
-        return Transaction_->GetAtomicity();
-    }
-
-    virtual EDurability GetDurability() const override
-    {
-        return Transaction_->GetDurability();
-    }
-
-    virtual TDuration GetTimeout() const override
-    {
-        return Transaction_->GetTimeout();
-    }
-
-
-    virtual TFuture<void> Ping() override
-    {
-        return Transaction_->Ping();
-    }
-
-    virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options) override
-    {
-    	auto guard = Guard(SpinLock_);
-
-        if (State_ != ETransactionState::Active) {
-            return MakeFuture<TTransactionCommitResult>(TError("Cannot commit since transaction %v is already in %Qlv state",
-                GetId(),
-                State_));
-        }
-
-        State_ = ETransactionState::Commit;
-        return BIND(&TNativeTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(CommitInvoker_)
-            .Run(options);
-    }
-
-    virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
-    {
-    	auto guard = Guard(SpinLock_);
-
-        if (State_ == ETransactionState::Abort) {
-            return AbortResult_;
-        }
-
-        if (State_ != ETransactionState::Active && State_ != ETransactionState::Flush) {
-            return MakeFuture<void>(TError("Cannot abort since transaction %v is already in %Qlv state",
-                GetId(),
-                State_));
-        }
-
-        State_ = ETransactionState::Abort;
-        AbortResult_ = Transaction_->Abort(options);
-        return AbortResult_;
-    }
-
-    virtual void Detach() override
-    {
-    	auto guard = Guard(SpinLock_);
-        State_ = ETransactionState::Detach;
-        Transaction_->Detach();
-    }
-
-    virtual TFuture<TTransactionFlushResult> Flush() override
-    {
-    	auto guard = Guard(SpinLock_);
-
-        if (State_ != ETransactionState::Active) {
-            return MakeFuture<TTransactionFlushResult>(TError("Cannot flush since transaction %v is already in %Qlv state",
-                GetId(),
-                State_));
-        }
-
-        LOG_DEBUG("Flushing transaction");
-        State_ = ETransactionState::Flush;
-        return BIND(&TNativeTransaction::DoFlush, MakeStrong(this))
-            .AsyncVia(CommitInvoker_)
-            .Run();
-    }
-
-    virtual void AddAction(const TCellId& cellId, const TTransactionActionData& data) override
-    {
-        auto guard = Guard(SpinLock_);
-
-        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell ||
-               TypeFromId(cellId) == EObjectType::ClusterCell);
-
-        if (State_ != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION("Cannot add action since transaction %v is already in %Qlv state",
-                GetId(),
-                State_);
-        }
-
-        if (GetAtomicity() != EAtomicity::Full) {
-            THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for custom actions",
-                EAtomicity::Full);
-        }
-
-        auto session = GetOrCreateCellCommitSession(cellId);
-        session->RegisterAction(data);
-
-        LOG_DEBUG("Transaction action added (CellId: %v, ActionType: %v)",
-            cellId,
-            data.Type);
-    }
-
-
-    virtual TFuture<ITransactionPtr> StartForeignTransaction(
-        const IClientPtr& client,
-        const TForeignTransactionStartOptions& options) override
-    {
-        if (client->GetConnection()->GetCellTag() == GetConnection()->GetCellTag()) {
-            return MakeFuture<ITransactionPtr>(this);
-        }
-
-        TTransactionStartOptions adjustedOptions(options);
-        adjustedOptions.Id = GetId();
-        if (options.InheritStartTimestamp) {
-            adjustedOptions.StartTimestamp = GetStartTimestamp();
-        }
-
-        return client->StartTransaction(GetType(), adjustedOptions)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
-                RegisterForeignTransaction(transaction);
-                return transaction;
-            }));
-    }
-
-
-    virtual void SubscribeCommitted(const TClosure& callback) override
-    {
-        Transaction_->SubscribeCommitted(callback);
-    }
-
-    virtual void UnsubscribeCommitted(const TClosure& callback) override
-    {
-        Transaction_->UnsubscribeCommitted(callback);
-    }
-
-
-    virtual void SubscribeAborted(const TClosure& callback) override
-    {
-        Transaction_->SubscribeAborted(callback);
-    }
-
-    virtual void UnsubscribeAborted(const TClosure& callback) override
-    {
-        Transaction_->UnsubscribeAborted(callback);
-    }
-
-
-    virtual TFuture<INativeTransactionPtr> StartNativeTransaction(
-        ETransactionType type,
-        const TTransactionStartOptions& options) override
-    {
-        auto adjustedOptions = options;
-        adjustedOptions.ParentId = GetId();
-        return Client_->StartNativeTransaction(
-            type,
-            adjustedOptions);
-    }
-
-    virtual TFuture<ITransactionPtr> StartTransaction(
-        ETransactionType type,
-        const TTransactionStartOptions& options) override
-    {
-        return StartNativeTransaction(type, options).As<ITransactionPtr>();
-    }
-
-
-    virtual void WriteRows(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        TSharedRange<TUnversionedRow> rows,
-        const TModifyRowsOptions& options) override
-    {
-        std::vector<TRowModification> modifications;
-        modifications.reserve(rows.Size());
-
-        for (auto row : rows) {
-            TRowModification modification;
-            modification.Type = ERowModificationType::Write;
-            modification.Row = row.ToTypeErasedRow();
-            modifications.push_back(modification);
-        }
-
-        ModifyRows(
-            path,
-            std::move(nameTable),
-            MakeSharedRange(std::move(modifications), std::move(rows)),
-            options);
-    }
-
-    virtual void WriteRows(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        TSharedRange<TVersionedRow> rows,
-        const TModifyRowsOptions& options) override
-    {
-        std::vector<TRowModification> modifications;
-        modifications.reserve(rows.Size());
-
-        for (auto row : rows) {
-            TRowModification modification;
-            modification.Type = ERowModificationType::VersionedWrite;
-            modification.Row = row.ToTypeErasedRow();
-            modifications.push_back(modification);
-        }
-
-        ModifyRows(
-            path,
-            std::move(nameTable),
-            MakeSharedRange(std::move(modifications), std::move(rows)),
-            options);
-    }
-
-    virtual void DeleteRows(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        TSharedRange<TUnversionedRow> keys,
-        const TModifyRowsOptions& options) override
-    {
-        std::vector<TRowModification> modifications;
-        modifications.reserve(keys.Size());
-
-        for (auto key : keys) {
-            TRowModification modification;
-            modification.Type = ERowModificationType::Delete;
-            modification.Row = key.ToTypeErasedRow();
-            modifications.push_back(modification);
-        }
-
-        ModifyRows(
-            path,
-            std::move(nameTable),
-            MakeSharedRange(std::move(modifications), std::move(keys)),
-            options);
-    }
-
-    virtual void ModifyRows(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        TSharedRange<TRowModification> modifications,
-        const TModifyRowsOptions& options) override
-    {
-    	auto guard = Guard(SpinLock_);
-
-        ValidateTabletTransaction();
-
-        if (State_ != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION("Cannot modify rows since transaction %v is already in %Qlv state",
-                GetId(),
-                State_);
-        }
-
-        Requests_.push_back(std::make_unique<TModificationRequest>(
-            this,
-            Client_->GetNativeConnection(),
-            path,
-            std::move(nameTable),
-            std::move(modifications),
-            options));
-
-        LOG_DEBUG("Row modifications buffered (Count: %v)",
-            modifications.Size());
-    }
-
-
-#define DELEGATE_METHOD(returnType, method, signature, args) \
-    virtual returnType method signature override \
-    { \
-        return Client_->method args; \
-    }
-
-#define DELEGATE_TRANSACTIONAL_METHOD(returnType, method, signature, args) \
-    virtual returnType method signature override \
-    { \
-        auto& originalOptions = options; \
-        { \
-            auto options = originalOptions; \
-            options.TransactionId = GetId(); \
-            return Client_->method args; \
-        } \
-    }
-
-#define DELEGATE_TIMESTAMPED_METHOD(returnType, method, signature, args) \
-    virtual returnType method signature override \
-    { \
-        auto& originalOptions = options; \
-        { \
-            auto options = originalOptions; \
-            options.Timestamp = GetReadTimestamp(); \
-            return Client_->method args; \
-        } \
-    }
-
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<IUnversionedRowsetPtr>, LookupRows, (
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TLookupRowsOptions& options),
-        (path, nameTable, keys, options))
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<IVersionedRowsetPtr>, VersionedLookupRows, (
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TVersionedLookupRowsOptions& options),
-        (path, nameTable, keys, options))
-
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
-        const TString& query,
-        const TSelectRowsOptions& options),
-        (query, options))
-
-
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TYsonString>, GetNode, (
-        const TYPath& path,
-        const TGetNodeOptions& options),
-        (path, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, SetNode, (
-        const TYPath& path,
-        const TYsonString& value,
-        const TSetNodeOptions& options),
-        (path, value, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, RemoveNode, (
-        const TYPath& path,
-        const TRemoveNodeOptions& options),
-        (path, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TYsonString>, ListNode, (
-        const TYPath& path,
-        const TListNodeOptions& options),
-        (path, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TNodeId>, CreateNode, (
-        const TYPath& path,
-        EObjectType type,
-        const TCreateNodeOptions& options),
-        (path, type, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TLockNodeResult>, LockNode, (
-        const TYPath& path,
-        NCypressClient::ELockMode mode,
-        const TLockNodeOptions& options),
-        (path, mode, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TNodeId>, CopyNode, (
-        const TYPath& srcPath,
-        const TYPath& dstPath,
-        const TCopyNodeOptions& options),
-        (srcPath, dstPath, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TNodeId>, MoveNode, (
-        const TYPath& srcPath,
-        const TYPath& dstPath,
-        const TMoveNodeOptions& options),
-        (srcPath, dstPath, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TNodeId>, LinkNode, (
-        const TYPath& srcPath,
-        const TYPath& dstPath,
-        const TLinkNodeOptions& options),
-        (srcPath, dstPath, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, ConcatenateNodes, (
-        const std::vector<TYPath>& srcPaths,
-        const TYPath& dstPath,
-        const TConcatenateNodesOptions& options),
-        (srcPaths, dstPath, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<bool>, NodeExists, (
-        const TYPath& path,
-        const TNodeExistsOptions& options),
-        (path, options))
-
-
-    DELEGATE_METHOD(TFuture<TObjectId>, CreateObject, (
-        EObjectType type,
-        const TCreateObjectOptions& options),
-        (type, options))
-    DELEGATE_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TGetInSyncReplicasOptions& options),
-        (path, nameTable, keys, options))
-
-
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<IAsyncZeroCopyInputStreamPtr>, CreateFileReader, (
-        const TYPath& path,
-        const TFileReaderOptions& options),
-        (path, options))
-    DELEGATE_TRANSACTIONAL_METHOD(IFileWriterPtr, CreateFileWriter, (
-        const TYPath& path,
-        const TFileWriterOptions& options),
-        (path, options))
-
-
-    DELEGATE_TRANSACTIONAL_METHOD(IJournalReaderPtr, CreateJournalReader, (
-        const TYPath& path,
-        const TJournalReaderOptions& options),
-        (path, options))
-    DELEGATE_TRANSACTIONAL_METHOD(IJournalWriterPtr, CreateJournalWriter, (
-        const TYPath& path,
-        const TJournalWriterOptions& options),
-        (path, options))
-
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ISchemalessMultiChunkReaderPtr>, CreateTableReader, (
-        const TRichYPath& path,
-        const TTableReaderOptions& options),
-        (path, options))
-
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ISchemalessWriterPtr>, CreateTableWriter, (
-        const TRichYPath& path,
-        const TTableWriterOptions& options),
-        (path, options))
-
-#undef DELEGATE_TRANSACTIONAL_METHOD
-#undef DELEGATE_TIMESTAMPED_METHOD
-
-private:
-    const TNativeClientPtr Client_;
-    const NTransactionClient::TTransactionPtr Transaction_;
-
-    const IInvokerPtr CommitInvoker_;
-    const NLogging::TLogger Logger;
-
-    struct TNativeTransactionBufferTag
-    { };
-
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TNativeTransactionBufferTag());
-
-    TSpinLock SpinLock_;
-    ETransactionState State_ = ETransactionState::Active;
-    TFuture<void> AbortResult_;
-
-    TSpinLock ForeignTransactionsLock_;
-    std::vector<ITransactionPtr> ForeignTransactions_;
-
-
-    class TTableCommitSession;
-    using TTableCommitSessionPtr = TIntrusivePtr<TTableCommitSession>;
-
-    class TTabletCommitSession;
-    using TTabletCommitSessionPtr = TIntrusivePtr<TTabletCommitSession>;
-
-    class TCellCommitSession;
-    using TCellCommitSessionPtr = TIntrusivePtr<TCellCommitSession>;
-
-
-    class TModificationRequest
-    {
-    public:
-        TModificationRequest(
-            TNativeTransaction* transaction,
-            INativeConnectionPtr connection,
-            const TYPath& path,
-            TNameTablePtr nameTable,
-            TSharedRange<TRowModification> modifications,
-            const TModifyRowsOptions& options)
-            : Transaction_(transaction)
-            , Connection_(std::move(connection))
-            , Path_(path)
-            , NameTable_(std::move(nameTable))
-            , TabletIndexColumnId_(NameTable_->FindId(TabletIndexColumnName))
-            , Modifications_(std::move(modifications))
-            , Options_(options)
-        { }
-
-        void PrepareTableSessions()
-        {
-            TableSession_ = Transaction_->GetOrCreateTableSession(Path_, Options_.UpstreamReplicaId);
-        }
-
-        void SubmitRows()
-        {
-            if (!TableSession_->GetInfo()->Replicas.empty() &&
-                TableSession_->SyncReplicas().empty() &&
-                Options_.RequireSyncReplica)
-            {
-                THROW_ERROR_EXCEPTION("Table %v has no synchronous replicas",
-                    TableSession_->GetInfo()->Path);
-            }
-
-            for (const auto& replicaData : TableSession_->SyncReplicas()) {
-                auto replicaOptions = Options_;
-                replicaOptions.UpstreamReplicaId = replicaData.ReplicaInfo->ReplicaId;
-                replicaData.Transaction->ModifyRows(
-                    replicaData.ReplicaInfo->ReplicaPath,
-                    NameTable_,
-                    Modifications_,
-                    replicaOptions);
-            }
-
-            const auto& tableInfo = TableSession_->GetInfo();
-
-            const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
-            const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
-
-            const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
-            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
-
-            const auto& versionedWriteSchema = tableInfo->Schemas[ETableSchemaKind::VersionedWrite];
-            const auto& versionedWriteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::VersionedWrite);
-
-            const auto& deleteSchema = tableInfo->Schemas[ETableSchemaKind::Delete];
-            const auto& deleteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Delete);
-
-            const auto& rowBuffer = Transaction_->RowBuffer_;
-
-            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
-
-            auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
-
-            for (const auto& modification : Modifications_) {
-                switch (modification.Type) {
-                    case ERowModificationType::Write:
-                        ValidateClientDataRow(TUnversionedRow(modification.Row), writeSchema, writeIdMapping, NameTable_);
-                        break;
-
-                    case ERowModificationType::VersionedWrite:
-                        if (!tableInfo->IsSorted()) {
-                            THROW_ERROR_EXCEPTION("Cannot perform versioned writes into a non-sorted table %v",
-                                tableInfo->Path);
-                        }
-                        if (tableInfo->IsReplicated()) {
-                            THROW_ERROR_EXCEPTION("Cannot perform versioned writes into a replicated table %v",
-                                tableInfo->Path);
-                        }
-                        ValidateClientDataRow(TVersionedRow(modification.Row), versionedWriteSchema, versionedWriteIdMapping, NameTable_);
-                        break;
-
-                    case ERowModificationType::Delete:
-                        if (!tableInfo->IsSorted()) {
-                            THROW_ERROR_EXCEPTION("Cannot perform deletes in a non-sorted table %v",
-                                tableInfo->Path);
-                        }
-                        ValidateClientKey(TUnversionedRow(modification.Row), deleteSchema, deleteIdMapping, NameTable_);
-                        break;
-
-                    default:
-                        Y_UNREACHABLE();
-                }
-
-                switch (modification.Type) {
-                    case ERowModificationType::Write:
-                    case ERowModificationType::Delete: {
-                        auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                            TUnversionedRow(modification.Row),
-                            primarySchema,
-                            primaryIdMapping);
-                        TTabletInfoPtr tabletInfo;
-                        if (tableInfo->IsSorted()) {
-                            if (evaluator) {
-                                evaluator->EvaluateKeys(capturedRow, rowBuffer);
-                            }
-                            tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
-                        } else {
-                            tabletInfo = GetOrderedTabletForRow(
-                                tableInfo,
-                                randomTabletInfo,
-                                TabletIndexColumnId_,
-                                TUnversionedRow(modification.Row));
-                        }
-                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                        auto command = GetCommand(modification.Type);
-                        session->SubmitRow(command, capturedRow);
-                        break;
-                    }
-
-                    case ERowModificationType::VersionedWrite: {
-                        auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                            TVersionedRow(modification.Row),
-                            primarySchema,
-                            primaryIdMapping);
-                        auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
-                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                        auto command = GetCommand(modification.Type);
-                        session->SubmitRow(command, capturedRow);
-                        break;
-                    }
-
-                    default:
-                        Y_UNREACHABLE();
-                }
-            }
-        }
-
-    protected:
-        TNativeTransaction* const Transaction_;
-        const INativeConnectionPtr Connection_;
-		const TYPath Path_;
-        const TNameTablePtr NameTable_;
-        const TNullable<int> TabletIndexColumnId_;
-        const TSharedRange<TRowModification> Modifications_;
-        const TModifyRowsOptions Options_;
-
-        TTableCommitSessionPtr TableSession_;
-
-        static EWireProtocolCommand GetCommand(ERowModificationType modificationType)
-        {
-            switch (modificationType) {
-                case ERowModificationType::Write:
-                    return EWireProtocolCommand::WriteRow;
-
-                case ERowModificationType::VersionedWrite:
-                    return EWireProtocolCommand::VersionedWriteRow;
-
-                case ERowModificationType::Delete:
-                    return EWireProtocolCommand::DeleteRow;
-
-                default:
-                    Y_UNREACHABLE();
-            }
-        }
-    };
-
-    std::vector<std::unique_ptr<TModificationRequest>> Requests_;
-
-    struct TSyncReplica
-    {
-        TTableReplicaInfoPtr ReplicaInfo;
-        ITransactionPtr Transaction;
-    };
-
-    class TTableCommitSession
-        : public TIntrinsicRefCounted
-    {
-    public:
-        TTableCommitSession(
-            TNativeTransaction* transaction,
-            TTableMountInfoPtr tableInfo,
-            const TTableReplicaId& upstreamReplicaId)
-            : Transaction_(transaction)
-            , TableInfo_(std::move(tableInfo))
-            , UpstreamReplicaId_(upstreamReplicaId)
-            , Logger(NLogging::TLogger(transaction->Logger)
-                .AddTag("Path: %v", TableInfo_->Path))
-        { }
-
-        const TTableMountInfoPtr& GetInfo() const
-        {
-            return TableInfo_;
-        }
-
-        const TTableReplicaId& GetUpstreamReplicaId() const
-        {
-            return UpstreamReplicaId_;
-        }
-
-        const std::vector<TSyncReplica>& SyncReplicas() const
-        {
-            return SyncReplicas_;
-        }
-
-
-        void RegisterSyncReplicas(bool* clusterDirectorySynced)
-        {
-            for (const auto& replicaInfo : TableInfo_->Replicas) {
-                if (replicaInfo->Mode != ETableReplicaMode::Sync) {
-                    continue;
-                }
-
-                LOG_DEBUG("Sync table replica registered (ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
-                    replicaInfo->ReplicaId,
-                    replicaInfo->ClusterName,
-                    replicaInfo->ReplicaPath);
-
-                auto syncReplicaTransaction = Transaction_->GetSyncReplicaTransaction(
-                    replicaInfo,
-                    clusterDirectorySynced);
-                SyncReplicas_.push_back(TSyncReplica{replicaInfo, std::move(syncReplicaTransaction)});
-            }
-        }
-
-    private:
-        TNativeTransaction* const Transaction_;
-        const TTableMountInfoPtr TableInfo_;
-        const TTableReplicaId UpstreamReplicaId_;
-        const NLogging::TLogger Logger;
-
-        std::vector<TSyncReplica> SyncReplicas_;
-
-    };
-
-    //! Maintains per-table commit info.
-    yhash<TYPath, TTableCommitSessionPtr> TablePathToSession_;
-
-    class TTabletCommitSession
-        : public TIntrinsicRefCounted
-    {
-    public:
-        TTabletCommitSession(
-            TNativeTransactionPtr transaction,
-            TTabletInfoPtr tabletInfo,
-            TTableMountInfoPtr tableInfo,
-            TTableCommitSessionPtr tableSession,
-            TColumnEvaluatorPtr columnEvauator)
-            : Transaction_(transaction)
-            , TableInfo_(std::move(tableInfo))
-            , TabletInfo_(std::move(tabletInfo))
-            , TableSession_(std::move(tableSession))
-            , Config_(transaction->Client_->Connection_->GetConfig())
-            , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
-            , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
-            , ColumnEvaluator_(std::move(columnEvauator))
-            , Logger(NLogging::TLogger(transaction->Logger)
-                .AddTag("TabletId: %v", TabletInfo_->TabletId))
-        { }
-
-        void SubmitRow(
-            EWireProtocolCommand command,
-            TUnversionedRow row)
-        {
-            DoSubmitRow(
-                &UnversionedSubmittedRows_,
-                TUnversionedSubmittedRow{
-                    command,
-                    row,
-                    static_cast<int>(UnversionedSubmittedRows_.size())
-                });
-        }
-
-        void SubmitRow(
-            EWireProtocolCommand command,
-            TVersionedRow row)
-        {
-            DoSubmitRow(
-                &VersionedSubmittedRows_,
-                TVersionedSubmittedRow{
-                    command,
-                    row
-                });
-        }
-
-        int Prepare()
-        {
-            if (!VersionedSubmittedRows_.empty() && !UnversionedSubmittedRows_.empty()) {
-                THROW_ERROR_EXCEPTION("Cannot intermix versioned and unversioned writes to a single table "
-                    "within a transaction");
-            }
-
-            if (TableInfo_->IsSorted()) {
-                PrepareSortedBatches();
-            } else {
-                PrepareOrderedBatches();
-            }
-
-            return static_cast<int>(Batches_.size());
-        }
-
-        TFuture<void> Invoke(IChannelPtr channel)
-        {
-            // Do all the heavy lifting here.
-            auto* codec = NCompression::GetCodec(Config_->WriteRequestCodec);
-            YCHECK(!Batches_.empty());
-            for (const auto& batch : Batches_) {
-                batch->RequestData = codec->Compress(batch->Writer.Finish());
-            }
-
-            InvokeChannel_ = channel;
-            InvokeNextBatch();
-            return InvokePromise_;
-        }
-
-        const TCellId& GetCellId() const
-        {
-            return TabletInfo_->CellId;
-        }
-
-    private:
-        const TWeakPtr<TNativeTransaction> Transaction_;
-        const TTableMountInfoPtr TableInfo_;
-        const TTabletInfoPtr TabletInfo_;
-        const TTableCommitSessionPtr TableSession_;
-        const TNativeConnectionConfigPtr Config_;
-        const int ColumnCount_;
-        const int KeyColumnCount_;
-
-        struct TCommitSessionBufferTag
-        { };
-
-        TColumnEvaluatorPtr ColumnEvaluator_;
-        TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TCommitSessionBufferTag());
-
-        NLogging::TLogger Logger;
-
-        struct TBatch
-        {
-            TWireProtocolWriter Writer;
-            TSharedRef RequestData;
-            int RowCount = 0;
-        };
-
-        std::vector<std::unique_ptr<TBatch>> Batches_;
-
-        struct TVersionedSubmittedRow
-        {
-            EWireProtocolCommand Command;
-            TVersionedRow Row;
-        };
-
-        std::vector<TVersionedSubmittedRow> VersionedSubmittedRows_;
-
-        struct TUnversionedSubmittedRow
-        {
-            EWireProtocolCommand Command;
-            TUnversionedRow Row;
-            int SequentialId;
-        };
-
-        std::vector<TUnversionedSubmittedRow> UnversionedSubmittedRows_;
-
-        IChannelPtr InvokeChannel_;
-        int InvokeBatchIndex_ = 0;
-        TPromise<void> InvokePromise_ = NewPromise<void>();
-
-        template <class TRow>
-        void DoSubmitRow(std::vector<TRow>* rows, const TRow& row)
-        {
-            if (rows->size() >= Config_->MaxRowsPerTransaction) {
-                THROW_ERROR_EXCEPTION("Transaction affects too many rows")
-                    << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
-            }
-            rows->push_back(row);
-        }
-
-        void PrepareSortedBatches()
-        {
-            std::sort(
-                UnversionedSubmittedRows_.begin(),
-                UnversionedSubmittedRows_.end(),
-                [=] (const TUnversionedSubmittedRow& lhs, const TUnversionedSubmittedRow& rhs) {
-                    // NB: CompareRows may throw on composite values.
-                    int res = CompareRows(lhs.Row, rhs.Row, KeyColumnCount_);
-                    return res != 0 ? res < 0 : lhs.SequentialId < rhs.SequentialId;
-                });
-
-            std::vector<TUnversionedSubmittedRow> unversionedMergedRows;
-            unversionedMergedRows.reserve(UnversionedSubmittedRows_.size());
-
-            TUnversionedRowMerger merger(
-                RowBuffer_,
-                ColumnCount_,
-                KeyColumnCount_,
-                ColumnEvaluator_);
-
-            auto addPartialRow = [&] (const TUnversionedSubmittedRow& submittedRow) {
-                switch (submittedRow.Command) {
-                    case EWireProtocolCommand::DeleteRow:
-                        merger.DeletePartialRow(submittedRow.Row);
-                        break;
-
-                    case EWireProtocolCommand::WriteRow:
-                        merger.AddPartialRow(submittedRow.Row);
-                        break;
-
-                    default:
-                        Y_UNREACHABLE();
-                }
-            };
-
-            int index = 0;
-            while (index < UnversionedSubmittedRows_.size()) {
-                if (index < UnversionedSubmittedRows_.size() - 1 &&
-                    CompareRows(UnversionedSubmittedRows_[index].Row, UnversionedSubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
-                {
-                    addPartialRow(UnversionedSubmittedRows_[index]);
-                    while (index < UnversionedSubmittedRows_.size() - 1 &&
-                           CompareRows(UnversionedSubmittedRows_[index].Row, UnversionedSubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
-                    {
-                        ++index;
-                        addPartialRow(UnversionedSubmittedRows_[index]);
-                    }
-                    UnversionedSubmittedRows_[index].Row = merger.BuildMergedRow();
-                }
-                unversionedMergedRows.push_back(UnversionedSubmittedRows_[index]);
-                ++index;
-            }
-
-            WriteRows(unversionedMergedRows);
-
-            WriteRows(VersionedSubmittedRows_);
-        }
-
-        void PrepareOrderedBatches()
-        {
-            WriteRows(UnversionedSubmittedRows_);
-        }
-
-        template <class TRow>
-        void WriteRows(const std::vector<TRow>& rows)
-        {
-            for (const auto& submittedRow : rows) {
-                WriteRow(submittedRow);
-            }
-        }
-
-        TBatch* EnsureBatch()
-        {
-            if (Batches_.empty() || Batches_.back()->RowCount >= Config_->MaxRowsPerWriteRequest) {
-                Batches_.emplace_back(new TBatch());
-            }
-            return Batches_.back().get();
-        }
-
-        void WriteRow(const TVersionedSubmittedRow& submittedRow)
-        {
-            auto* batch = EnsureBatch();
-            ++batch->RowCount;
-            auto& writer = batch->Writer;
-            writer.WriteCommand(submittedRow.Command);
-            writer.WriteVersionedRow(submittedRow.Row);
-        }
-
-        void WriteRow(const TUnversionedSubmittedRow& submittedRow)
-        {
-            auto* batch = EnsureBatch();
-            ++batch->RowCount;
-            auto& writer = batch->Writer;
-            writer.WriteCommand(submittedRow.Command);
-            writer.WriteUnversionedRow(submittedRow.Row);
-        }
-
-        void InvokeNextBatch()
-        {
-            if (InvokeBatchIndex_ >= Batches_.size()) {
-                InvokePromise_.Set(TError());
-                return;
-            }
-
-            const auto& batch = Batches_[InvokeBatchIndex_];
-
-            auto transaction = Transaction_.Lock();
-            if (!transaction) {
-                return;
-            }
-
-            auto cellSession = transaction->GetCommitSession(GetCellId());
-
-            TTabletServiceProxy proxy(InvokeChannel_);
-            proxy.SetDefaultTimeout(Config_->WriteTimeout);
-            proxy.SetDefaultRequestAck(false);
-
-            auto req = proxy.Write();
-            ToProto(req->mutable_transaction_id(), transaction->GetId());
-            if (transaction->GetAtomicity() == EAtomicity::Full) {
-                req->set_transaction_start_timestamp(transaction->GetStartTimestamp());
-                req->set_transaction_timeout(ToProto(transaction->GetTimeout()));
-            }
-            ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
-            req->set_mount_revision(TabletInfo_->MountRevision);
-            req->set_durability(static_cast<int>(transaction->GetDurability()));
-            req->set_signature(cellSession->AllocateRequestSignature());
-            req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
-            req->set_row_count(batch->RowCount);
-            req->set_versioned(!VersionedSubmittedRows_.empty());
-            for (const auto& replicaInfo : TableInfo_->Replicas) {
-                if (replicaInfo->Mode == ETableReplicaMode::Sync) {
-                    ToProto(req->add_sync_replica_ids(), replicaInfo->ReplicaId);
-                }
-            }
-            if (TableSession_->GetUpstreamReplicaId()) {
-                ToProto(req->mutable_upstream_replica_id(), TableSession_->GetUpstreamReplicaId());
-            }
-            req->Attachments().push_back(batch->RequestData);
-
-            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, "
-                "Versioned: %v, UpstreamReplicaId: %v)",
-                InvokeBatchIndex_,
-                Batches_.size(),
-                batch->RowCount,
-                req->signature(),
-                req->versioned(),
-                TableSession_->GetUpstreamReplicaId());
-
-            req->Invoke().Subscribe(
-                BIND(&TTabletCommitSession::OnResponse, MakeStrong(this))
-                    .Via(transaction->CommitInvoker_));
-        }
-
-        void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
-        {
-            if (!rspOrError.IsOK()) {
-                LOG_DEBUG(rspOrError, "Error sending transaction rows");
-                InvokePromise_.Set(rspOrError);
-                return;
-            }
-
-            auto owner = Transaction_.Lock();
-            if (!owner) {
-                return;
-            }
-
-            LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
-                InvokeBatchIndex_,
-                Batches_.size());
-
-            owner->Transaction_->ConfirmParticipant(TabletInfo_->CellId);
-            ++InvokeBatchIndex_;
-            InvokeNextBatch();
-        }
-    };
-
-    //! Maintains per-tablet commit info.
-    yhash<TTabletId, TTabletCommitSessionPtr> TabletIdToSession_;
-
-    class TCellCommitSession
-        : public TIntrinsicRefCounted
-    {
-    public:
-        TCellCommitSession(TNativeTransactionPtr transaction, const TCellId& cellId)
-            : Transaction_(transaction)
-            , CellId_(cellId)
-            , Logger(NLogging::TLogger(transaction->Logger)
-                .AddTag("CellId: %v", CellId_))
-        { }
-
-        void RegisterRequests(int count)
-        {
-            RequestsRemaining_ += count;
-        }
-
-        TTransactionSignature AllocateRequestSignature()
-        {
-            YCHECK(--RequestsRemaining_ >= 0);
-            if (RequestsRemaining_ == 0) {
-                return FinalTransactionSignature - CurrentSignature_;
-            } else {
-                ++CurrentSignature_;
-                return 1;
-            }
-        }
-
-        void RegisterAction(const TTransactionActionData& data)
-        {
-            if (Actions_.empty()) {
-                RegisterRequests(1);
-            }
-            Actions_.push_back(data);
-        }
-
-        TFuture<void> Invoke(const IChannelPtr& channel)
-        {
-            if (Actions_.empty()) {
-                return VoidFuture;
-            }
-
-            auto transaction = Transaction_.Lock();
-            if (!transaction) {
-                return MakeFuture(TError("Transaction is no longer available"));
-            }
-
-            LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
-                Actions_.size());
-
-            TFuture<void> asyncResult;
-            switch (TypeFromId(CellId_)) {
-                case EObjectType::TabletCell:
-                    asyncResult = SendTabletActions(transaction, channel);
-                    break;
-                case EObjectType::ClusterCell:
-                    asyncResult = SendMasterActions(transaction, channel);
-                    break;
-                default:
-                    Y_UNREACHABLE();
-            }
-
-            return asyncResult.Apply(
-                BIND(&TCellCommitSession::OnResponse, MakeStrong(this))
-                    .AsyncVia(transaction->CommitInvoker_));
-        }
-
-    private:
-        const TWeakPtr<TNativeTransaction> Transaction_;
-        const TCellId CellId_;
-
-        std::vector<TTransactionActionData> Actions_;
-        TTransactionSignature CurrentSignature_ = InitialTransactionSignature;
-        int RequestsRemaining_ = 0;
-
-        NLogging::TLogger Logger;
-
-
-        TFuture<void> SendTabletActions(const TNativeTransactionPtr& owner, const IChannelPtr& channel)
-        {
-            TTabletServiceProxy proxy(channel);
-            auto req = proxy.RegisterTransactionActions();
-            ToProto(req->mutable_transaction_id(), owner->GetId());
-            req->set_transaction_start_timestamp(owner->GetStartTimestamp());
-            req->set_transaction_timeout(ToProto(owner->GetTimeout()));
-            req->set_signature(AllocateRequestSignature());
-            ToProto(req->mutable_actions(), Actions_);
-            return req->Invoke().As<void>();
-        }
-
-        TFuture<void> SendMasterActions(const TNativeTransactionPtr& owner, const IChannelPtr& channel)
-        {
-            TTransactionServiceProxy proxy(channel);
-            auto req = proxy.RegisterTransactionActions();
-            ToProto(req->mutable_transaction_id(), owner->GetId());
-            ToProto(req->mutable_actions(), Actions_);
-            return req->Invoke().As<void>();
-        }
-
-        void OnResponse(const TError& result)
-        {
-            if (!result.IsOK()) {
-                LOG_DEBUG(result, "Error sending transaction actions");
-                THROW_ERROR result;
-            }
-
-            auto transaction = Transaction_.Lock();
-            if (!transaction) {
-                THROW_ERROR_EXCEPTION("Transaction is no longer available");
-            }
-
-            if (TypeFromId(CellId_) == EObjectType::TabletCell) {
-                transaction->Transaction_->ConfirmParticipant(CellId_);
-            }
-
-            LOG_DEBUG("Transaction actions sent successfully");
-        }
-    };
-
-    //! Maintains per-cell commit info.
-    yhash<TCellId, TCellCommitSessionPtr> CellIdToSession_;
-
-    //! Maps replica cluster name to sync replica transaction.
-    yhash<TString, ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
-
-    //! Caches mappings from name table ids to schema ids.
-    yhash<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
-
-
-    const TNameTableToSchemaIdMapping& GetColumnIdMapping(
-        const TTableMountInfoPtr& tableInfo,
-        const TNameTablePtr& nameTable,
-        ETableSchemaKind kind)
-    {
-        auto key = std::make_pair(nameTable, kind);
-        auto it = IdMappingCache_.find(key);
-        if (it == IdMappingCache_.end()) {
-            auto mapping = BuildColumnIdMapping(tableInfo->Schemas[kind], nameTable);
-            it = IdMappingCache_.insert(std::make_pair(key, std::move(mapping))).first;
-        }
-        return it->second;
-    }
-
-    ITransactionPtr GetSyncReplicaTransaction(
-        const TTableReplicaInfoPtr& replicaInfo,
-        bool* clusterDirectorySynched)
-    {
-        auto it = ClusterNameToSyncReplicaTransaction_.find(replicaInfo->ClusterName);
-        if (it != ClusterNameToSyncReplicaTransaction_.end()) {
-            return it->second;
-        }
-
-        const auto& clusterDirectory = Client_->Connection_->GetClusterDirectory();
-        auto connection = clusterDirectory->FindConnection(replicaInfo->ClusterName);
-        if (!connection) {
-            if (!*clusterDirectorySynched) {
-                LOG_DEBUG("Replica cluster is not known; synchronizing cluster directory");
-                WaitFor(Client_->Connection_->SyncClusterDirectory())
-                    .ThrowOnError();
-                *clusterDirectorySynched = true;
-            }
-            connection = clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
-        }
-
-        auto client = connection->CreateClient(Client_->Options_);
-
-        TForeignTransactionStartOptions options;
-        options.InheritStartTimestamp = true;
-        auto transaction = WaitFor(StartForeignTransaction(client, options))
-            .ValueOrThrow();
-
-        YCHECK(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
-
-        LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
-            replicaInfo->ClusterName);
-
-        return transaction;
-    }
-
-    TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, const TTableReplicaId& upstreamReplicaId)
-    {
-        auto it = TablePathToSession_.find(path);
-        if (it == TablePathToSession_.end()) {
-            const auto& tableMountCache = Client_->Connection_->GetTableMountCache();
-            auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
-                .ValueOrThrow();
-
-            it = TablePathToSession_.emplace(
-                path,
-                New<TTableCommitSession>(this, std::move(tableInfo), upstreamReplicaId)
-            ).first;
-        } else {
-            const auto& session = it->second;
-            if (session->GetUpstreamReplicaId() != upstreamReplicaId) {
-                THROW_ERROR_EXCEPTION("Mismatched upstream replica is specified for modifications to table %v: %v != !v",
-                    path,
-                    upstreamReplicaId,
-                    session->GetUpstreamReplicaId());
-            }
-        }
-        return it->second;
-    }
-
-    TTabletCommitSessionPtr GetOrCreateTabletSession(
-        const TTabletInfoPtr& tabletInfo,
-        const TTableMountInfoPtr& tableInfo,
-        const TTableCommitSessionPtr& tableSession)
-    {
-        const auto& tabletId = tabletInfo->TabletId;
-        auto it = TabletIdToSession_.find(tabletId);
-        if (it == TabletIdToSession_.end()) {
-            auto evaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();
-            auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Primary]);
-            it = TabletIdToSession_.emplace(
-                tabletId,
-                New<TTabletCommitSession>(
-                    this,
-                    tabletInfo,
-                    tableInfo,
-                    tableSession,
-                    evaluator)
-                ).first;
-        }
-        return it->second;
-    }
-
-    TFuture<void> SendRequests()
-    {
-        for (const auto& request : Requests_) {
-            request->PrepareTableSessions();
-        }
-
-        bool clusterDirectorySynched = false;
-        for (const auto& pair : TablePathToSession_) {
-            const auto& tableSession = pair.second;
-            tableSession->RegisterSyncReplicas(&clusterDirectorySynched);
-        }
-
-        for (const auto& request : Requests_) {
-            request->SubmitRows();
-        }
-
-        for (const auto& pair : TabletIdToSession_) {
-            const auto& tabletSession = pair.second;
-            const auto& cellId = tabletSession->GetCellId();
-            int requestCount = tabletSession->Prepare();
-            auto cellSession = GetOrCreateCellCommitSession(cellId);
-            cellSession->RegisterRequests(requestCount);
-        }
-
-        for (auto& pair : CellIdToSession_) {
-            const auto& cellId = pair.first;
-            Transaction_->RegisterParticipant(cellId);
-        }
-
-        std::vector<TFuture<void>> asyncResults;
-
-        for (const auto& pair : TabletIdToSession_) {
-            const auto& session = pair.second;
-            const auto& cellId = session->GetCellId();
-            auto channel = Client_->GetCellChannelOrThrow(cellId);
-            asyncResults.push_back(session->Invoke(std::move(channel)));
-        }
-
-        for (auto& pair : CellIdToSession_) {
-            const auto& cellId = pair.first;
-            const auto& session = pair.second;
-            auto channel = Client_->GetCellChannelOrThrow(cellId);
-            asyncResults.push_back(session->Invoke(std::move(channel)));
-        }
-
-        return Combine(asyncResults);
-    }
-
-    TTransactionCommitOptions AdjustCommitOptions(TTransactionCommitOptions options)
-    {
-        for (const auto& pair : TablePathToSession_) {
-            const auto& session = pair.second;
-            if (session->GetInfo()->IsReplicated()) {
-                options.Force2PC = true;
-            }
-            if (!session->SyncReplicas().empty()) {
-                options.CoordinatorCellTag = Client_->Connection_->GetPrimaryMasterCellTag();
-            }
-        }
-        return options;
-    }
-
-    TTransactionCommitResult DoCommit(const TTransactionCommitOptions& options)
-    {
-        try {
-            std::vector<TFuture<void>> asyncRequestResults{
-                SendRequests()
-            };
-
-            std::vector<TFuture<TTransactionFlushResult>> asyncFlushResults;
-            for (const auto& transaction : GetForeignTransactions()) {
-                asyncFlushResults.push_back(transaction->Flush());
-            }
-
-            auto flushResults = WaitFor(Combine(asyncFlushResults))
-                .ValueOrThrow();
-
-            for (const auto& flushResult : flushResults) {
-                asyncRequestResults.push_back(flushResult.AsyncResult);
-                for (const auto& cellId : flushResult.ParticipantCellIds) {
-                    Transaction_->RegisterParticipant(cellId);
-                    Transaction_->ConfirmParticipant(cellId);
-                }
-            }
-
-            WaitFor(Combine(asyncRequestResults))
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            // Fire and forget.
-            Transaction_->Abort();
-            for (const auto& transaction : GetForeignTransactions()) {
-                transaction->Abort();
-            }
-            throw;
-        }
-
-        auto commitResult = WaitFor(Transaction_->Commit(AdjustCommitOptions(options)))
-            .ValueOrThrow();
-
-        return commitResult;
-    }
-
-    TTransactionFlushResult DoFlush()
-    {
-        auto asyncResult = SendRequests();
-        asyncResult.Subscribe(BIND([transaction = Transaction_] (const TError& error) {
-            if (!error.IsOK()) {
-                transaction->Abort();
-            }
-        }));
-
-        TTransactionFlushResult result;
-        result.AsyncResult = asyncResult;
-        result.ParticipantCellIds = GetKeys(CellIdToSession_);
-        return result;
-    }
-
-
-    TCellCommitSessionPtr GetOrCreateCellCommitSession(const TCellId& cellId)
-    {
-        auto it = CellIdToSession_.find(cellId);
-        if (it == CellIdToSession_.end()) {
-            it = CellIdToSession_.emplace(cellId, New<TCellCommitSession>(this, cellId)).first;
-        }
-        return it->second;
-    }
-
-    TCellCommitSessionPtr GetCommitSession(const TCellId& cellId)
-    {
-        auto it = CellIdToSession_.find(cellId);
-        YCHECK(it != CellIdToSession_.end());
-        return it->second;
-    }
-
-
-    TTimestamp GetReadTimestamp() const
-    {
-        switch (Transaction_->GetAtomicity()) {
-            case EAtomicity::Full:
-                return GetStartTimestamp();
-            case EAtomicity::None:
-                // NB: Start timestamp is approximate.
-                return SyncLastCommittedTimestamp;
-            default:
-                Y_UNREACHABLE();
-        }
-    }
-
-    void ValidateTabletTransaction()
-    {
-        if (TypeFromId(GetId()) == EObjectType::NestedTransaction) {
-            THROW_ERROR_EXCEPTION("Nested master transactions cannot be used for updating dynamic tables");
-        }
-    }
-
-
-    void RegisterForeignTransaction(ITransactionPtr transaction)
-    {
-        auto guard = Guard(ForeignTransactionsLock_);
-        ForeignTransactions_.emplace_back(std::move(transaction));
-    }
-
-    std::vector<ITransactionPtr> GetForeignTransactions()
-    {
-        auto guard = Guard(ForeignTransactionsLock_);
-        return ForeignTransactions_;
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TNativeTransaction)
-
-TFuture<INativeTransactionPtr> TNativeClient::StartNativeTransaction(
-    ETransactionType type,
-    const TTransactionStartOptions& options)
-{
-    return TransactionManager_->Start(type, options).Apply(
-        BIND([=, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& transaction) -> INativeTransactionPtr {
-            auto wrappedTransaction = New<TNativeTransaction>(this_, transaction);
-            if (options.Sticky) {
-                Connection_->RegisterStickyTransaction(wrappedTransaction);
-            }
-            return wrappedTransaction;
-        }));
-}
-
-INativeTransactionPtr TNativeClient::AttachNativeTransaction(
-    const TTransactionId& transactionId,
-    const TTransactionAttachOptions& options)
-{
-    if (options.Sticky) {
-        return Connection_->GetStickyTransaction(transactionId);
-    } else {
-        auto nativeTransaction = TransactionManager_->Attach(transactionId, options);
-        return New<TNativeTransaction>(this, std::move(nativeTransaction));
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

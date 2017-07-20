@@ -18,9 +18,9 @@ namespace NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStatisticsTableDescriptor
+struct TJobTableDescriptor
 {
-    TStatisticsTableDescriptor();
+    TJobTableDescriptor();
 
     struct TIndex
     {
@@ -46,6 +46,24 @@ struct TStatisticsTableDescriptor
     const TIndex Ids;
 };
 
+struct TJobSpecTableDescriptor
+{
+    TJobSpecTableDescriptor();
+
+    struct TIndex
+    {
+        explicit TIndex(const NTableClient::TNameTablePtr& n);
+
+        const int JobIdHi;
+        const int JobIdLo;
+        const int Spec;
+        const int SpecVersion;
+    };
+
+    const NTableClient::TNameTablePtr NameTable;
+    const TIndex Ids;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Periodically reports job statistics to dynamic table.
@@ -59,6 +77,7 @@ public:
 
     void ReportStatistics(TJobStatistics&& statistics);
     void SetEnabled(bool enable);
+    void SetSpecEnabled(bool enable);
 
 private:
     class TImpl;

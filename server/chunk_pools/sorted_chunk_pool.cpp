@@ -1,6 +1,7 @@
 #include "sorted_chunk_pool.h"
 
 #include "job_manager.h"
+#include "helpers.h"
 
 #include <yt/server/controller_agent/helpers.h>
 
@@ -52,43 +53,6 @@ void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A class that keeps the correspondence between the tags on output
-//! data slices (these tags are the only way to recognize the returned
-//! unread data slices) and some chunk pool local information that is
-//! assigned to the data slices (such as input stripe cookie).
-class TOutputDataSliceRegistry
-{
-public:
-    int RegisterDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie inputCookie)
-    {
-        dataSlice->Tag = InputCookies_.size();
-        InputCookies_.emplace_back(inputCookie);
-        return *dataSlice->Tag;
-    }
-
-    IChunkPoolInput::TCookie& InputCookie(int tag)
-    {
-        YCHECK(0 <= tag && tag < InputCookies_.size());
-        return InputCookies_[tag];
-    }
-
-    void Clear()
-    {
-        InputCookies_.clear();
-    }
-
-    void Persist(const TPersistenceContext& context)
-    {
-        using NYT::Persist;
-
-        Persist(context, InputCookies_);
-    }
-private:
-    std::vector<IChunkPoolInput::TCookie> InputCookies_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(EEndpointType,
     (PivotKey)
     (Left)
@@ -108,13 +72,11 @@ public:
         IJobSizeConstraintsPtr jobSizeConstraints,
         const TRowBufferPtr& rowBuffer,
         const std::vector<TInputChunkPtr>& teleportChunks,
-        TOutputDataSliceRegistry& registry,
         const TLogger& logger)
         : Options_(options)
         , JobSizeConstraints_(std::move(jobSizeConstraints))
         , RowBuffer_(rowBuffer)
         , TeleportChunks_(teleportChunks)
-        , Registry_(registry)
         , Logger(logger)
     { }
 
@@ -186,7 +148,28 @@ public:
                 GetKeySuccessor(GetKeyPrefix(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_), RowBuffer_),
                 0LL /* RowIndex */
             };
+        } else if (Options_.UseNewEndpointKeys) {
+            int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
+            leftEndpoint = {
+                EEndpointType::Left,
+                dataSlice,
+                GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
+                leftRowIndex
+            };
+
+            int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
+                dataSlice->Type == EDataSourceType::UnversionedTable
+                ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                : 0);
+
+            rightEndpoint = {
+                EEndpointType::Right,
+                dataSlice,
+                GetStrictKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
+                rightRowIndex
+            };
         } else {
+            // COMPAT(psushin): old behaviour for join reduce.
             int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
             leftEndpoint = {
                 EEndpointType::Left,
@@ -196,9 +179,9 @@ public:
             };
 
             int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
-                    dataSlice->Type == EDataSourceType::UnversionedTable
-                    ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
-                    : 0);
+                dataSlice->Type == EDataSourceType::UnversionedTable
+                ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                : 0);
 
             rightEndpoint = {
                 EEndpointType::Right,
@@ -229,7 +212,7 @@ public:
         BuildJobs();
         AttachForeignSlices();
         for (auto& job : Jobs_) {
-            job->Finalize();
+            job->Finalize(true /* sortByPosition */);
         }
         return std::move(Jobs_);
     }
@@ -306,7 +289,7 @@ private:
                 auto& lowerLimit = iterator->second;
                 auto exactDataSlice = CreateInputDataSlice(dataSlice, lowerLimit, upperLimit);
                 auto inputCookie = DataSliceToInputCookie_.at(dataSlice);
-                Registry_.RegisterDataSlice(exactDataSlice, inputCookie);
+                exactDataSlice->Tag = inputCookie;
                 Jobs_.back()->AddDataSlice(
                     exactDataSlice,
                     inputCookie,
@@ -365,7 +348,7 @@ private:
                 if (it != openedSlicesLowerLimits.end()) {
                     auto exactDataSlice = CreateInputDataSlice(dataSlice, it->second);
                     auto inputCookie = DataSliceToInputCookie_.at(dataSlice);
-                    Registry_.RegisterDataSlice(exactDataSlice, inputCookie);
+                    exactDataSlice->Tag = inputCookie;
                     Jobs_.back()->AddDataSlice(exactDataSlice, inputCookie, true /* isPrimary */);
                     openedSlicesLowerLimits.erase(it);
                 }
@@ -446,7 +429,7 @@ private:
                         GetKeyPrefix(Jobs_[jobIndex]->LowerPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_),
                         GetKeyPrefixSuccessor(Jobs_[jobIndex]->UpperPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_));
                     auto inputCookie = DataSliceToInputCookie_.at(foreignDataSlice);
-                    Registry_.RegisterDataSlice(exactForeignDataSlice, inputCookie);
+                    exactForeignDataSlice->Tag = inputCookie;
                     ++TotalSliceCount_;
                     Jobs_[jobIndex]->AddDataSlice(
                         exactForeignDataSlice,
@@ -511,8 +494,6 @@ private:
 
     const std::vector<TInputChunkPtr>& TeleportChunks_;
 
-    TOutputDataSliceRegistry& Registry_;
-
     const TLogger& Logger;
 };
 
@@ -554,6 +535,13 @@ public:
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         JobManager_->SetLogger(Logger);
+
+        LOG_DEBUG("Created sorted chunk pool (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
+            "ForeignPrefixLenght: %v, UseNewEndpointKeys: %v)",
+            SortedJobOptions_.EnableKeyGuarantee,
+            SortedJobOptions_.PrimaryPrefixLength,
+            SortedJobOptions_.ForeignPrefixLength,
+            SortedJobOptions_.UseNewEndpointKeys);
     }
 
     // IChunkPoolInput implementation.
@@ -670,41 +658,13 @@ public:
 
     virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
     {
+        return ApplyChunkMappingToStripe(JobManager_->GetStripeList(cookie), InputChunkMapping_);
+    }
+
+    virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
+    {
         auto stripeList = JobManager_->GetStripeList(cookie);
-
-        const auto& mapping = InputChunkMapping_;
-        auto mappedStripeList = New<TChunkStripeList>(stripeList->Stripes.size());
-        for (int stripeIndex = 0; stripeIndex < stripeList->Stripes.size(); ++stripeIndex) {
-            const auto& stripe = stripeList->Stripes[stripeIndex];
-            YCHECK(stripe);
-            const auto& mappedStripe = (mappedStripeList->Stripes[stripeIndex] = New<TChunkStripe>(stripe->Foreign));
-            for (const auto& dataSlice : stripe->DataSlices) {
-                TInputDataSlice::TChunkSliceList mappedChunkSlices;
-                for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                    auto iterator = mapping.find(chunkSlice->GetInputChunk());
-                    YCHECK(iterator != mapping.end());
-                    mappedChunkSlices.emplace_back(New<TInputChunkSlice>(*chunkSlice));
-                    mappedChunkSlices.back()->SetInputChunk(iterator->second);
-                }
-
-                mappedStripe->DataSlices.emplace_back(New<TInputDataSlice>(
-                    dataSlice->Type,
-                    std::move(mappedChunkSlices),
-                    dataSlice->LowerLimit(),
-                    dataSlice->UpperLimit()));
-                mappedStripe->DataSlices.back()->Tag = dataSlice->Tag;
-                mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
-            }
-        }
-
-        mappedStripeList->IsApproximate = stripeList->IsApproximate;
-        mappedStripeList->TotalDataSize = stripeList->TotalDataSize;
-        mappedStripeList->LocalDataSize = stripeList->LocalDataSize;
-        mappedStripeList->TotalRowCount = stripeList->TotalRowCount;
-        mappedStripeList->TotalChunkCount = stripeList->TotalChunkCount;
-        mappedStripeList->LocalChunkCount = stripeList->LocalChunkCount;
-
-        return mappedStripeList;
+        return stripeList->TotalChunkCount;
     }
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
@@ -792,7 +752,6 @@ public:
         Persist(context, OperationId_);
         Persist(context, ChunkPoolId_);
         Persist(context, SortedJobOptions_);
-        Persist(context, Registry_);
         Persist(context, ForeignStripeCookiesByStreamIndex_);
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
@@ -853,15 +812,13 @@ private:
 
     bool SupportLocality_ = false;
 
-    TLogger Logger = TLogger("Operation");
+    TLogger Logger = ChunkPoolLogger;
 
     TOperationId OperationId_;
 
     TGuid ChunkPoolId_ = TGuid::Create();
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
-
-    TOutputDataSliceRegistry Registry_;
 
     void InitInputChunkMapping()
     {
@@ -907,7 +864,7 @@ private:
                         chunkSliceFetcher->AddChunk(inputChunk);
                     } else {
                         auto chunkSlice = CreateInputChunkSlice(inputChunk);
-                        InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+                        InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, PrimaryPrefixLength_);
                         unversionedChunkSlices.emplace_back(std::move(chunkSlice));
                     }
 
@@ -1162,6 +1119,11 @@ private:
         }
     }
 
+    TOutputOrderPtr GetOutputOrder() const
+    {
+        return nullptr;
+    }
+
     void DoFinish()
     {
         // NB(max42): this method may be run several times (in particular, when
@@ -1175,7 +1137,6 @@ private:
             JobSizeConstraints_,
             RowBuffer_,
             TeleportChunks_,
-            Registry_,
             Logger);
 
         FetchNonTeleportPrimaryDataSlices(builder);
@@ -1218,20 +1179,23 @@ private:
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
         std::vector<TInputChunkPtr> teleportChunks;
+        auto splitSortedJobOptions = SortedJobOptions_;
+        // We do not want to yield during job splitting because it may potentially lead
+        // to snapshot creation that will catch pool in inconsistent state.
+        splitSortedJobOptions.EnablePeriodicYielder = false;
         auto builder = New<TSortedJobBuilder>(
-            SortedJobOptions_,
+            splitSortedJobOptions,
             std::move(jobSizeConstraints),
             RowBuffer_,
             teleportChunks,
-            Registry_,
             Logger);
         for (const auto& dataSlice : unreadInputDataSlices) {
-            int inputCookie = Registry_.InputCookie(*dataSlice->Tag);
+            int inputCookie = *dataSlice->Tag;
             YCHECK(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
             builder->AddPrimaryDataSlice(dataSlice, inputCookie);
         }
         for (const auto& dataSlice : foreignInputDataSlices) {
-            int inputCookie = Registry_.InputCookie(*dataSlice->Tag);
+            int inputCookie = *dataSlice->Tag;
             YCHECK(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsForeign());
             builder->AddForeignDataSlice(dataSlice, inputCookie);
         }
@@ -1242,7 +1206,6 @@ private:
 
     void InvalidateCurrentJobs()
     {
-        Registry_.Clear();
         TeleportChunks_.clear();
         InputChunkMapping_.clear();
         for (auto& stripe : Stripes_) {

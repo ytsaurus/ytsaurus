@@ -1,38 +1,77 @@
 #pragma once
 
 #include "query.h"
+#include "ast.h"
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<void(
+using TFunctionsFetcher = std::function<void(
     const std::vector<TString>& names,
-    const TTypeInferrerMapPtr& typeInferrers)> TFetchFunctions;
+    const TTypeInferrerMapPtr& typeInferrers)>;
 
-void DefaultFetchFunctions(const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers);
+void DefaultFetchFunctions(
+    const std::vector<TString>& names,
+    const TTypeInferrerMapPtr& typeInferrers);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseJobQuery(const TString& source);
+DEFINE_ENUM(EParseMode,
+    (Query)
+    (JobQuery)
+    (Expression)
+);
 
-std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
+struct TParsedSource
+{
+    TParsedSource(
+        const TString& source,
+        const NAst::TAstHead& astHead);
+
+    TString Source;
+    NAst::TAstHead AstHead;
+};
+
+std::unique_ptr<TParsedSource> ParseSource(
+    const TString& source,
+    EParseMode mode);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPlanFragment
+{
+    TQueryPtr Query;
+    TDataRanges Ranges;
+};
+
+std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
-    const TFetchFunctions& fetchFunctions = DefaultFetchFunctions,
+    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
+std::unique_ptr<TPlanFragment> PreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    const TParsedSource& parsedSource,
+    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
+    i64 inputRowLimit = std::numeric_limits<i64>::max(),
+    i64 outputRowLimit = std::numeric_limits<i64>::max(),
+    TTimestamp timestamp = NullTimestamp);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueryPtr PrepareJobQuery(
     const TString& source,
     const TTableSchema& tableSchema,
-    const TFetchFunctions& fetchFunctions);
+    const TFunctionsFetcher& functionsFetcher);
 
 TConstExpressionPtr PrepareExpression(
     const TString& source,
-    TTableSchema initialTableSchema,
+    const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = BuiltinTypeInferrersMap,
     yhash_set<TString>* references = nullptr);
 

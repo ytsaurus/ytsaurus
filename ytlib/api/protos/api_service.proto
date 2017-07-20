@@ -1,5 +1,9 @@
 package NYT.NRpcProxy.NProto;
 
+option java_package = "ru.yandex.yt";
+option java_outer_classname = "ApiProtos";
+option java_multiple_files = true;
+
 import "yt/core/rpc/rpc.proto";
 import "yt/core/misc/guid.proto";
 
@@ -162,8 +166,10 @@ message TReqLookupRows
 {
     required string path = 1;
 
-    repeated string columns = 2;
+    //optional NYT.NProto.TGuid transaction_id = 5;
     optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
+
+    repeated string columns = 2;
     optional bool keep_missing_rows = 4 [default = true];
 
     required TRowsetDescriptor rowset_descriptor = 200;
@@ -178,8 +184,10 @@ message TReqVersionedLookupRows
 {
     required string path = 1;
 
-    repeated string columns = 2;
+    //optional NYT.NProto.TGuid transaction_id = 5;
     optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
+
+    repeated string columns = 2;
     optional bool keep_missing_rows = 4 [default = true];
 
     required TRowsetDescriptor rowset_descriptor = 200;
@@ -193,6 +201,17 @@ message TRspVersionedLookupRows
 message TReqSelectRows
 {
     required string query = 1;
+
+    //optional NYT.NProto.TGuid transaction_id = 2;
+    optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
+
+    optional uint64 input_row_limit = 4;
+    optional uint64 output_row_limit = 5;
+    optional uint64 range_expansion_limit = 6;
+    optional bool fail_on_incomplete_result = 7;
+    optional bool verbose_logging = 8;
+    optional bool enable_code_cache = 9;
+    optional int32 max_subqueries = 10;
 }
 
 message TRspSelectRows
@@ -591,9 +610,69 @@ message TRspUnfreezeTable
 message TReqReshardTable
 {
     required string path = 1; // ypath
+
+    optional int32 tablet_count = 3;
+
+    optional TMutatingOptions mutating_options = 103;
+    optional TTabletRangeOptions tablet_range_options = 104;
+
+    optional TRowsetDescriptor rowset_descriptor = 200;
 }
 
 message TRspReshardTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqTrimTable
+{
+    required string path = 1; // ypath
+    required int32 tablet_index = 2;
+    required uint64 trimmed_row_count = 3;
+
+    // XXX(sandello): Mutating?
+}
+
+message TRspTrimTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqAlterTable
+{
+    required string path = 1; // ypath
+
+    optional bytes schema = 2; // yson string
+    optional bool dynamic = 3;
+    optional NYT.NProto.TGuid upstream_replica_id = 4;
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TMutatingOptions mutating_options = 103;
+    // XXX(sandello): Prerequisite?
+}
+
+message TRspAlterTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqAlterTableReplica
+{
+    enum ETableReplicaMode {
+        SYNC = 0;
+        ASYNC = 1;
+    }
+
+    required NYT.NProto.TGuid replica_id = 1;
+
+    optional bool enabled = 2;
+    optional ETableReplicaMode mode = 3;
+}
+
+message TRspAlterTableReplica
 {
 }
 

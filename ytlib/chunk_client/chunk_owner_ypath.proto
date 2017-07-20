@@ -81,6 +81,8 @@ message TReqFetch
     optional bool fetch_parity_replicas = 10 [default = false];
 
     repeated TReadRange ranges = 11;
+
+    optional int32 address_type = 12;
 }
 
 message TRspFetch

@@ -653,6 +653,20 @@ TEST(TYsonSerializableTest, ParameterTuplesAndContainers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYsonSerializableTest, EnumAsKeyToYHash)
+{
+    yhash<ETestEnum, TString> deserialized, original = {
+        {ETestEnum::Value0, "abc"}
+    };
+
+    TString serialized = "{\"value0\"=\"abc\";}";
+    ASSERT_EQ(serialized, ConvertToYsonString(original, EYsonFormat::Text).GetData());
+
+    Deserialize(deserialized, ConvertToNode(TYsonString(serialized, EYsonType::Node)));
+
+    ASSERT_EQ(original, deserialized);
+}
+
 } // namespace
 } // namespace NYTree
 } // namespace NYT

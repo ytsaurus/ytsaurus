@@ -366,11 +366,16 @@ public:
     //! Maximum number of bytes to fetch via a single range request.
     i64 MaxBytesPerRead;
 
+    //! Desired number of bytes per disk write in a blob chunks.
+    i64 BytesPerWrite;
+
     //! Enables block checksums validation.
     bool ValidateBlockChecksums;
 
     //! Use DIRECT_IO flag when writing chunks data to disk.
-    bool EnableWriteDirectIO;
+    EDirectIOPolicy UseDirectIO;
+
+    bool EnableExperimentalSkynetHttpApi;
 
     //! The time after which any registered placement info expires.
     TDuration PlacementExpirationTime;
@@ -393,7 +398,7 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
-        
+
         RegisterParameter("chunk_meta_cache", ChunkMetaCache)
             .DefaultNew();
         RegisterParameter("block_cache", BlockCache)
@@ -475,7 +480,7 @@ public:
         RegisterParameter("write_thread_count", WriteThreadCount)
             .Default(1)
             .GreaterThanOrEqual(1);
-            
+
         RegisterParameter("max_write_sessions", MaxWriteSessions)
             .Default(1000)
             .GreaterThanOrEqual(1);
@@ -486,13 +491,20 @@ public:
         RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
             .GreaterThan(0)
             .Default((i64) 64 * 1024 * 1024);
+        RegisterParameter("bytes_per_write", BytesPerWrite)
+            .GreaterThan(0)
+            .Default((i64) 16 * 1024 * 1024);
+
         RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
             .Default(true);
 
         RegisterParameter("placement_expiration_time", PlacementExpirationTime)
             .Default(TDuration::Hours(1));
 
-        RegisterParameter("enable_write_direct_io", EnableWriteDirectIO)
+        RegisterParameter("use_direct_io", UseDirectIO)
+            .Default(EDirectIOPolicy::Never);
+
+        RegisterParameter("enable_experimental_skynet_http_api", EnableExperimentalSkynetHttpApi)
             .Default(false);
 
         RegisterInitializer([&] () {

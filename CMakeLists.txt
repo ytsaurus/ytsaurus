@@ -8,6 +8,8 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf # protobuf contains relative includes
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/google/protobuf # protobuf contains relative includes
   ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include # openssl contains relative includes
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/include
 )
 
 add_subdirectory(build)

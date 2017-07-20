@@ -107,6 +107,12 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .GreaterThanOrEqual(1)
         .Default(5);
 
+    RegisterParameter("update_preemptable_list_duration_logging_threshold", UpdatePreemptableListDurationLoggingThreshold)
+        .Default(TDuration::MilliSeconds(100));
+
+    RegisterParameter("enable_operations_profiling", EnableOperationsProfiling)
+        .Default(true);
+
     RegisterParameter("threshold_to_enable_max_possible_usage_regularization", ThresholdToEnableMaxPossibleUsageRegularization)
         .InRange(0.0, 1.0)
         .Default(0.5);
@@ -429,7 +435,7 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("max_job_nodes_per_operation", MaxJobNodesPerOperation)
         .Default(200)
         .GreaterThanOrEqual(0)
-        .LessThanOrEqual(200);
+        .LessThanOrEqual(250);
 
     RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
         .Default(128)
@@ -615,7 +621,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("chunk_scraper", ChunkScraper)
         .DefaultNew();
 
-    RegisterParameter("enable_statistics_reporter", EnableStatisticsReporter)
+    RegisterParameter("enable_job_reporter", EnableJobReporter)
+        .Default(false);
+    RegisterParameter("enable_job_spec_reporter", EnableJobSpecReporter)
         .Default(false);
 
     RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
@@ -634,6 +642,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("main_nodes_filter", MainNodesFilterFormula)
         .Default();
+
+    RegisterParameter("memory_distribution_different_node_types_threshold", MemoryDistributionDifferentNodeTypesThreshold)
+        .Default(4);
 
     RegisterParameter("testing_options", TestingOptions)
         .DefaultNew();

@@ -11,6 +11,7 @@ namespace NScheduler {
 
 template <class TKey, class TUpdateParameters>
 class TUpdateExecutor
+    : public TRefCounted
 {
 public:
     TUpdateExecutor(
@@ -20,17 +21,21 @@ public:
 
     void StartPeriodicUpdates(const IInvokerPtr& invoker, TDuration updatePeriod);
     void StopPeriodicUpdates();
+
     TUpdateParameters* AddUpdate(const TKey& key, const TUpdateParameters& parameters);
     void RemoveUpdate(const TKey& key);
+
     TUpdateParameters* GetUpdate(const TKey& key);
     TUpdateParameters* FindUpdate(const TKey& key);
+
     void Clear();
 
     TFuture<void> ExecuteUpdate(const TKey& key);
 
 private:
-    TCallback<TCallback<TFuture<void>()>(const TKey&, TUpdateParameters*)> CreateUpdateAction_;
-    TCallback<bool(const TUpdateParameters*)> ShouldRemoveUpdateAction_;
+    const TCallback<TCallback<TFuture<void>()>(const TKey&, TUpdateParameters*)> CreateUpdateAction_;
+    const TCallback<bool(const TUpdateParameters*)> ShouldRemoveUpdateAction_;
+    const NLogging::TLogger Logger;
 
     struct TUpdateRecord
     {
@@ -46,8 +51,6 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
     yhash<TKey, TUpdateRecord> Updates_;
-
-    NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(UpdateThread);
 

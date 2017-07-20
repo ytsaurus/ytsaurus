@@ -145,6 +145,19 @@ public:
             true);
     }
 
+    virtual TFuture<void> SetQuota(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) override
+    {
+        return RunPrepareAction<void>([&] () {
+                return Location_->SetQuota(
+                    SlotIndex_,
+                    diskSpaceLimit,
+                    inodeLimit,
+                    JobEnvironment_->GetUserId(SlotIndex_));
+            },
+            // Quota setting is uncancelable since it includes tool invocation in a separate process.
+            true);
+    }
+
     virtual IJobProbePtr GetJobProberClient() override
     {
         YCHECK(JobProberClient_);

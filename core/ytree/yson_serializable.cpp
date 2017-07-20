@@ -114,6 +114,14 @@ void TYsonSerializableLite::Save(
             parameter->Save(consumer);
         }
     }
+
+    if (Options) {
+        for (const auto& pair : Options->GetChildren()) {
+            consumer->OnKeyedItem(pair.first);
+            Serialize(pair.second, consumer);
+        }
+    }
+
     consumer->OnEndMap();
 }
 

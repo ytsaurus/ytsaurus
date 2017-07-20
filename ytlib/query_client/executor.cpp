@@ -135,7 +135,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryResponseReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TQueryHelperRowBufferTag
+struct TQueryExecutorRowBufferTag
 { };
 
 DECLARE_REFCOUNTED_CLASS(TQueryExecutor)
@@ -506,7 +506,7 @@ private:
     {
         auto Logger = MakeQueryLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag{});
+        auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag{});
         auto allSplits = InferRanges(
             query,
             dataSource,
@@ -552,7 +552,7 @@ private:
     {
         auto Logger = MakeQueryLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag());
+        auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag());
         auto allSplits = InferRanges(
             query,
             dataSource,

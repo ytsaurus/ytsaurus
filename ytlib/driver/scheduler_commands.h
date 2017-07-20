@@ -33,7 +33,6 @@ public:
     TGetJobInputCommand();
 
 private:
-    NJobTrackerClient::TOperationId OperationId;
     NJobTrackerClient::TJobId JobId;
 
     virtual void DoExecute(ICommandContextPtr context) override;
@@ -288,6 +287,19 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetOperationCommand
+    : public TTypedCommand<NApi::TGetOperationOptions>
+{
+public:
+    TGetOperationCommand();
+  
+private:
+    NJobTrackerClient::TOperationId OperationId;
+    
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace NDriver
 } // namespace NYT
 

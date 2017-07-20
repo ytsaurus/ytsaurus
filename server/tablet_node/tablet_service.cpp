@@ -78,6 +78,7 @@ private:
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
         auto rowCount = request->row_count();
+        auto byteSize = request->byte_size();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto versioned = request->versioned();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
@@ -87,6 +88,7 @@ private:
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
         auto durability = EDurability(request->durability());
+        const auto& user = context->GetUser();
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %llx, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, "
@@ -107,7 +109,6 @@ private:
         // NB: Must serve the whole request within a single epoch.
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
-        const auto& user = context->GetUser();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
@@ -161,6 +162,8 @@ private:
                 transactionTimeout,
                 signature,
                 rowCount,
+                byteSize,
+                user,
                 versioned,
                 syncReplicaIds,
                 &reader,

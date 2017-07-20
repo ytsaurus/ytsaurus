@@ -41,6 +41,7 @@ protected:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor("name")
+            .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
         descriptors->push_back("member_of");
@@ -91,7 +92,6 @@ protected:
 
         return TBase::SetBuiltinAttribute(key, value);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

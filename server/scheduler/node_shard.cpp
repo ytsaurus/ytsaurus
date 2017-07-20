@@ -47,6 +47,10 @@ using NCypressClient::TObjectId;
 
 static const auto& Profiler = SchedulerProfiler;
 
+static NProfiling::TAggregateCounter AnalysisTimeCounter;
+static NProfiling::TAggregateCounter StrategyJobProcessingTimeCounter;
+static NProfiling::TAggregateCounter ScheduleTimeCounter;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeShard::TNodeShard(
@@ -124,7 +128,7 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
     OperationStates_.erase(it);
 }
 
-yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
+void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -147,13 +151,16 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
     // NB: Resource limits and usage of node should be updated even if
     // node is offline to avoid getting incorrect total limits when node becomes online.
     UpdateNodeResources(node, request->resource_limits(), request->resource_usage());
+
     if (node->GetMasterState() != ENodeState::Online) {
-        THROW_ERROR_EXCEPTION("Node is not online");
+        context->Reply(TError("Node is not online"));
+        return;
     }
 
     // We should process only one heartbeat at a time from the same node.
     if (node->GetHasOngoingHeartbeat()) {
-        THROW_ERROR_EXCEPTION("Node has ongoing heartbeat");
+        context->Reply(TError("Node has ongoing heartbeat"));
+        return;
     }
 
     TLeaseManager::RenewLease(node->GetLease());
@@ -173,10 +180,10 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
             Config_->SoftConcurrentHeartbeatLimit);
     }
 
-    response->set_enable_statistics_reporter(Config_->EnableStatisticsReporter);
+    response->set_enable_job_reporter(Config_->EnableJobReporter);
+    response->set_enable_job_spec_reporter(Config_->EnableJobSpecReporter);
 
-    yhash_set<TOperationId> operationsToLog;
-    TFuture<void> scheduleJobsAsyncResult = VoidFuture;
+    auto scheduleJobsAsyncResult = VoidFuture;
 
     {
         BeginNodeHeartbeatProcessing(node);
@@ -188,14 +195,13 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
         try {
             std::vector<TJobPtr> runningJobs;
             bool hasWaitingJobs = false;
-            PROFILE_TIMING ("/analysis_time") {
+            PROFILE_AGGREGATED_TIMING (AnalysisTimeCounter) {
                 ProcessHeartbeatJobs(
                     node,
                     request,
                     response,
                     &runningJobs,
-                    &hasWaitingJobs,
-                    &operationsToLog);
+                    &hasWaitingJobs);
             }
 
             if (hasWaitingJobs || isThrottlingActive) {
@@ -214,11 +220,11 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
                     runningJobs,
                     PrimaryMasterCellTag_);
 
-                PROFILE_TIMING ("/strategy_job_processing_time") {
+                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
                     SubmitUpdatedAndCompletedJobsToStrategy();
                 }
 
-                PROFILE_TIMING ("/schedule_time") {
+                PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
                     node->SetHasOngoingJobsScheduling(true);
                     WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext))
                         .ThrowOnError();
@@ -231,11 +237,10 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
 
                 scheduleJobsAsyncResult = ProcessScheduledJobs(
                     schedulingContext,
-                    context,
-                    &operationsToLog);
+                    context);
 
                 // NB: some jobs maybe considered aborted after processing scheduled jobs.
-                PROFILE_TIMING ("/strategy_job_processing_time") {
+                PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
                     SubmitUpdatedAndCompletedJobsToStrategy();
                 }
 
@@ -258,8 +263,6 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
     }
 
     context->ReplyFrom(scheduleJobsAsyncResult);
-
-    return operationsToLog;
 }
 
 TExecNodeDescriptorListPtr TNodeShard::GetExecNodeDescriptors()
@@ -875,8 +878,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     NJobTrackerClient::NProto::TReqHeartbeat* request,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     std::vector<TJobPtr>* runningJobs,
-    bool* hasWaitingJobs,
-    yhash_set<TOperationId>* operationsToLog)
+    bool* hasWaitingJobs)
 {
     auto now = GetCpuInstant();
 
@@ -919,11 +921,6 @@ void TNodeShard::ProcessHeartbeatJobs(
                 job->SetFoundOnNode(true);
             }
             switch (job->GetState()) {
-                case EJobState::Completed:
-                case EJobState::Failed:
-                case EJobState::Aborted:
-                    operationsToLog->insert(job->GetOperationId());
-                    break;
                 case EJobState::Running:
                     runningJobs->push_back(job);
                     break;
@@ -1236,8 +1233,7 @@ void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
 
 TFuture<void> TNodeShard::ProcessScheduledJobs(
     const ISchedulingContextPtr& schedulingContext,
-    const TScheduler::TCtxHeartbeatPtr& rpcContext,
-    yhash_set<TOperationId>* operationsToLog)
+    const TScheduler::TCtxHeartbeatPtr& rpcContext)
 {
     auto* response = &rpcContext->Response();
 
@@ -1291,7 +1287,6 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 
         // Release to avoid circular references.
         job->SetSpecBuilder(TJobSpecBuilder());
-        operationsToLog->insert(job->GetOperationId());
     }
 
     for (const auto& job : schedulingContext->PreemptedJobs()) {
@@ -1366,6 +1361,9 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
             if (schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) {
                 job->SetInterruptReason(EInterruptReason::None);
             }
+        } else {
+            YCHECK(abandoned);
+            job->SetInterruptReason(EInterruptReason::None);
         }
 
         SetJobState(job, EJobState::Completed);
@@ -1578,7 +1576,7 @@ void TNodeShard::DoInterruptJob(
 
     if (interruptTimeout != 0) {
         auto interruptDeadline = GetCpuInstant() + interruptTimeout;
-        if (interruptDeadline < job->GetInterruptDeadline()) {
+        if (job->GetInterruptDeadline() == 0 || interruptDeadline < job->GetInterruptDeadline()) {
             job->SetInterruptDeadline(interruptDeadline);
         }
     }

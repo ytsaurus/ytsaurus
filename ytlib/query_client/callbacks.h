@@ -53,12 +53,11 @@ DEFINE_REFCOUNTED_TYPE(ISubexecutor)
 
 struct IPrepareCallbacks
 {
-    virtual ~IPrepareCallbacks()
-    { }
+    virtual ~IPrepareCallbacks() = default;
 
-    //! Returns an initial split for a given path.
+    //! Returns the initial split for a given path.
     virtual TFuture<TDataSplit> GetInitialSplit(
-        const NYPath::TRichYPath& path,
+        const NYPath::TYPath& path,
         TTimestamp timestamp) = 0;
 };
 

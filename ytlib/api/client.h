@@ -25,6 +25,7 @@
 #include <yt/ytlib/tablet_client/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -185,14 +186,6 @@ struct TTrimTableOptions
     : public TTimeoutOptions
 { };
 
-struct TEnableTableReplicaOptions
-    : public TTimeoutOptions
-{ };
-
-struct TDisableTableReplicaOptions
-    : public TTimeoutOptions
-{ };
-
 struct TAlterTableReplicaOptions
     : public TTimeoutOptions
 {
@@ -309,6 +302,7 @@ struct TTransactionAbortOptions
 };
 
 struct TTabletReadOptions
+    : public TTimeoutOptions
 {
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
     TNullable<TDuration> BackupRequestDelay;
@@ -316,25 +310,23 @@ struct TTabletReadOptions
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
 };
 
-struct TLookupRowsOptions
-    : public TTimeoutOptions
-    , public TTabletReadOptions
+struct TLookupRowsOptionsBase
+    : public TTabletReadOptions
 {
     NTableClient::TColumnFilter ColumnFilter;
     bool KeepMissingRows = false;
 };
+
+struct TLookupRowsOptions
+    : public TLookupRowsOptionsBase
+{ };
 
 struct TVersionedLookupRowsOptions
-    : public TTimeoutOptions
-    , public TTabletReadOptions
-{
-    NTableClient::TColumnFilter ColumnFilter;
-    bool KeepMissingRows = false;
-};
+    : public TLookupRowsOptionsBase
+{ };
 
 struct TSelectRowsOptions
-    : public TTimeoutOptions
-    , public TTabletReadOptions
+    : public TTabletReadOptions
 {
     //! If null then connection defaults are used.
     TNullable<i64> InputRowLimit;
@@ -531,6 +523,12 @@ struct TTableWriterOptions
     NTableClient::TTableWriterConfigPtr Config;
 };
 
+struct TLocateSkynetShareOptions
+    : public TTimeoutOptions
+{
+    NChunkClient::TFetchChunkSpecConfigPtr Config;
+};
+
 struct TStartOperationOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
@@ -622,6 +620,10 @@ struct TAbortJobOptions
     TNullable<TDuration> InterruptTimeout;
 };
 
+struct TGetOperationOptions 
+    : public TTimeoutOptions
+{ };
+
 struct TSelectRowsResult
 {
     IUnversionedRowsetPtr Rowset;
@@ -710,7 +712,6 @@ struct IClientBase
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
         const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
-
 
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(
@@ -852,19 +853,23 @@ struct IClient
         int tabletCount,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
-    virtual TFuture<void> AlterTable(
-        const NYPath::TYPath& path,
-        const TAlterTableOptions& options = TAlterTableOptions()) = 0;
-
     virtual TFuture<void> TrimTable(
         const NYPath::TYPath& path,
         int tabletIndex,
         i64 trimmedRowCount,
         const TTrimTableOptions& options = TTrimTableOptions()) = 0;
 
+    virtual TFuture<void> AlterTable(
+        const NYPath::TYPath& path,
+        const TAlterTableOptions& options = TAlterTableOptions()) = 0;
+
     virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
         const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;
+
+    virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
+        const NYPath::TRichYPath& path,
+        const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(
@@ -905,6 +910,10 @@ struct IClient
     virtual TFuture<void> CompleteOperation(
         const NScheduler::TOperationId& operationId,
         const TCompleteOperationOptions& options = TCompleteOperationOptions()) = 0;
+    
+    virtual TFuture<NYson::TYsonString> GetOperation(
+        const NScheduler::TOperationId& operationId,
+        const TGetOperationOptions& options = TGetOperationOptions()) = 0;
 
     virtual TFuture<void> DumpJobContext(
         const NJobTrackerClient::TJobId& jobId,
@@ -912,7 +921,6 @@ struct IClient
         const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
 
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
-        const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;
 

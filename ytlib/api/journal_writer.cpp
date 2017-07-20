@@ -239,12 +239,14 @@ private:
 
             TNode(
                 const TNodeDescriptor& descriptor,
+                i64 firstPendingRowIndex,
                 IChannelPtr lightChannel,
                 IChannelPtr heavyChannel,
                 TDuration rpcTimeout)
                 : Descriptor(descriptor)
                 , LightProxy(lightChannel)
                 , HeavyProxy(heavyChannel)
+                , FirstPendingRowIndex(firstPendingRowIndex)
             {
                 LightProxy.SetDefaultTimeout(rpcTimeout);
                 HeavyProxy.SetDefaultTimeout(rpcTimeout);
@@ -270,6 +272,7 @@ private:
         typedef TIntrusivePtr<TChunkSession> TChunkSessionPtr;
         typedef TWeakPtr<TChunkSession> TChunkSessionWeakPtr;
 
+        i64 SealedRowCount_ = 0;
         TChunkSessionPtr CurrentSession_;
 
         i64 CurrentRowIndex_ = 0;
@@ -586,6 +589,7 @@ private:
                     }));
                 auto node = New<TNode>(
                     target,
+                    SealedRowCount_,
                     std::move(lightChannel),
                     std::move(heavyChannel),
                     Config_->NodeRpcTimeout);
@@ -822,6 +826,8 @@ private:
                     sessionId);
 
                 LOG_INFO("Chunk sealed");
+
+                SealedRowCount_ += session->FlushedRowCount;
             }
         }
 

@@ -1223,7 +1223,7 @@ private:
 
         MaximumTmpfsSize_ = std::max(MaximumTmpfsSize_.load(), tmpfsSize);
 
-        Host_->SetUserJobMemoryUsage(rss);
+        Host_->SetUserJobMemoryUsage(currentMemoryUsage);
     }
 
     void CheckBlockIOUsage()

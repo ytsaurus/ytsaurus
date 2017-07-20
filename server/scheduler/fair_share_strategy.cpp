@@ -30,6 +30,10 @@ using namespace NProfiling;
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
 
+static NProfiling::TAggregateCounter FairShareUpdateTimeCounter("/fair_share_update_time");
+static NProfiling::TAggregateCounter FairShareLogTimeCounter("/fair_share_log_time");
+static NProfiling::TAggregateCounter AnalyzePreemptableJobsTimeCounter("/analyze_preemptable_jobs_time");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -81,7 +85,7 @@ public:
         , PreemptiveProfilingCounters("/preemptive")
         , LastProfilingTime_(TInstant::Zero())
     {
-        RootElement = New<TRootElement>(Host, GetPoolProfilingTag(RootPoolName), config);
+        RootElement = New<TRootElement>(Host, config, GetPoolProfilingTag(RootPoolName));
 
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
             GetCurrentInvoker(),
@@ -169,7 +173,7 @@ public:
             spec,
             params,
             Host,
-            operation);
+            operation.Get());
 
         int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(spec->SchedulingTagFilter));
         operationElement->SetSchedulingTagFilterIndex(index);
@@ -181,7 +185,7 @@ public:
         auto poolId = spec->Pool ? *spec->Pool : userName;
         auto pool = FindPool(poolId);
         if (!pool) {
-            pool = New<TPool>(Host, poolId, GetPoolProfilingTag(poolId), Config);
+            pool = New<TPool>(Host, poolId, Config, GetPoolProfilingTag(poolId));
             pool->SetUserName(userName);
             UserToEphemeralPools[userName].insert(poolId);
             RegisterPool(pool);
@@ -198,6 +202,10 @@ public:
 
         AssignOperationSlotIndex(operation, poolId);
 
+        LOG_DEBUG("Slot index assigned to operation (SlotIndex: %v, OperationId: %v)",
+            operation->GetSlotIndex(),
+            operation->GetId());
+
         if (CanAddOperationToPool(pool.Get())) {
             ActivateOperation(operation->GetId());
         } else {
@@ -205,7 +213,7 @@ public:
         }
     }
 
-    void OccupyPoolSlotIndex(const TString& poolName, int slotIndex)
+    bool TryOccupyPoolSlotIndex(const TString& poolName, int slotIndex)
     {
         auto minUnusedIndexIt = PoolToMinUnusedSlotIndex.find(poolName);
         YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex.end());
@@ -218,8 +226,10 @@ public:
             }
 
             minUnusedIndexIt->second = slotIndex + 1;
+
+            return true;
         } else {
-            YCHECK(spareSlotIndices.erase(slotIndex) == 1);
+            return spareSlotIndices.erase(slotIndex) == 1;
         }
     }
 
@@ -230,8 +240,15 @@ public:
 
         if (slotIndex != -1) {
             // Revive case
-            OccupyPoolSlotIndex(poolName, slotIndex);
-            return;
+            if (TryOccupyPoolSlotIndex(poolName, slotIndex)) {
+                return;
+            } else {
+                auto error = TError("Failed to assign slot index to operation during revive")
+                    << TErrorAttribute("operation_id", operation->GetId())
+                    << TErrorAttribute("slot_index", slotIndex);
+                Host->SetOperationAlert(operation->GetId(), EOperationAlertType::SlotIndexCollision, error);
+                LOG_ERROR(error);
+            }
         }
 
         if (it == PoolToSpareSlotIndices.end() || it->second.empty()) {
@@ -319,7 +336,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TRootElementSnapshotPtr rootElementSnapshot = GetRootSnapshot();
+        auto rootElementSnapshot = GetRootSnapshot();
 
         for (const auto& job : updatedJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job.OperationId);
@@ -422,7 +439,7 @@ public:
                             YCHECK(orphanPoolIds.erase(childId) == 1);
                         } else {
                             // Create new pool.
-                            pool = New<TPool>(Host, childId, GetPoolProfilingTag(childId), Config);
+                            pool = New<TPool>(Host, childId, Config, GetPoolProfilingTag(childId));
                             pool->SetConfig(config);
                             RegisterPool(pool, parent);
                         }
@@ -471,6 +488,13 @@ public:
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, combinedError);
         } else {
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, TError());
+            Host->LogEventFluently(ELogEventType::PoolsInfo)
+                .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
+                    const auto& id = pair.first;
+                    const auto& pool = pair.second;
+                    fluent
+                        .Item(id).Value(pool->GetConfig());
+                });
             LOG_INFO("Pools updated");
         }
     }
@@ -638,7 +662,7 @@ public:
         LOG_INFO("Starting fair share update");
 
         // Run periodic update.
-        PROFILE_TIMING ("/fair_share_update_time") {
+        PROFILE_AGGREGATED_TIMING (FairShareUpdateTimeCounter) {
             // The root element gets the whole cluster.
             RootElement->Update(GlobalDynamicAttributes_);
 
@@ -679,8 +703,10 @@ public:
                     ProfileCompositeSchedulerElement(pair.second);
                 }
                 ProfileCompositeSchedulerElement(RootElement);
-                for (const auto& pair : OperationIdToElement) {
-                    ProfileOperationElement(pair.second);
+                if (Config->EnableOperationsProfiling) {
+                    for (const auto& pair : OperationIdToElement) {
+                        ProfileOperationElement(pair.second);
+                    }
                 }
             }
         }
@@ -693,7 +719,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        PROFILE_TIMING ("/fair_share_log_time") {
+        PROFILE_AGGREGATED_TIMING (FairShareLogTimeCounter) {
             // Log pools information.
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)));
@@ -893,7 +919,7 @@ private:
             LastSchedulingInformationLoggedTime_ = now;
         }
 
-        auto logAndCleanSchedulingStatistics = [&] (const TString& stageName) {
+        auto logAndCleanSchedulingStatistics = [&] (const TStringBuf& stageName) {
             if (!enableSchedulingInfoLogging) {
                 return;
             }
@@ -931,7 +957,7 @@ private:
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
 
             if (nonPreemptiveScheduleJobCount > 0) {
-                logAndCleanSchedulingStatistics("Non preemtive");
+                logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
             }
         }
 
@@ -939,7 +965,7 @@ private:
         LOG_TRACE("Looking for preemptable jobs");
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
-        PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
+        PROFILE_AGGREGATED_TIMING (AnalyzePreemptableJobsTimeCounter) {
             for (const auto& job : schedulingContext->RunningJobs()) {
                 auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
@@ -949,7 +975,7 @@ private:
                     continue;
                 }
 
-                if (operationElement->HasStarvingParent()) {
+                if (!operationElement->IsPreemptionAllowed(context)) {
                     continue;
                 }
 
@@ -1000,7 +1026,7 @@ private:
                 preemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
             if (preemptiveScheduleJobCount > 0) {
-                logAndCleanSchedulingStatistics("Preemtive");
+                logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
             }
         }
 
@@ -1727,7 +1753,8 @@ private:
             tags);
     }
 
-    TRootElementSnapshotPtr GetRootSnapshot() const {
+    TRootElementSnapshotPtr GetRootSnapshot() const
+    {
         TReaderGuard guard(RootElementSnapshotLock);
         return RootElementSnapshot;
     }

@@ -65,9 +65,6 @@ struct IServiceContext
     //! Returns the name of the user issuing the request.
     virtual const TString& GetUser() const = 0;
 
-    //! Returns |true| if the request if one-way, i.e. replying to it is not possible.
-    virtual bool IsOneWay() const = 0;
-
     //! Returns |true| if the request was already replied.
     virtual bool IsReplied() const = 0;
 
@@ -209,7 +206,7 @@ struct IService
     virtual TFuture<void> Stop() = 0;
 
     //! Returns the service id.
-    virtual TServiceId GetServiceId() const = 0;
+    virtual const TServiceId& GetServiceId() const = 0;
 
     //! Handles incoming request.
     virtual void HandleRequest(

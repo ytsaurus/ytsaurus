@@ -8,6 +8,8 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
+#include <yt/core/yson/public.h>
+
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
@@ -48,7 +50,6 @@ private:
     TString DefaultAddress_;
     TNullable<TString> Rack_;
     TNullable<TString> DataCenter_;
-
 };
 
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
@@ -67,6 +68,8 @@ const TString& GetDefaultAddress(const NProto::TAddressMap& addresses);
 const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 TNullable<TString> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 
+const TAddressMap& GetAddresses(const TNodeAddressMap& nodeAddresses, EAddressType type);
+
 //! Please keep the items in this particular order: the further the better.
 DEFINE_ENUM(EAddressLocality,
     (None)
@@ -81,6 +84,9 @@ namespace NProto {
 
 void ToProto(NNodeTrackerClient::NProto::TAddressMap* protoAddresses, const NNodeTrackerClient::TAddressMap& addresses);
 void FromProto(NNodeTrackerClient::TAddressMap* addresses, const NNodeTrackerClient::NProto::TAddressMap& protoAddresses);
+
+void ToProto(NNodeTrackerClient::NProto::TNodeAddressMap* proto, const NNodeTrackerClient::TNodeAddressMap& nodeAddresses);
+void FromProto(NNodeTrackerClient::TNodeAddressMap* nodeAddresses, const NNodeTrackerClient::NProto::TNodeAddressMap& proto);
 
 void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const NNodeTrackerClient::TNodeDescriptor& descriptor);
 void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrackerClient::NProto::TNodeDescriptor& protoDescriptor);
@@ -101,6 +107,7 @@ public:
     void MergeFrom(const NProto::TNodeDirectory& source);
     void MergeFrom(const TNodeDirectoryPtr& source);
     void DumpTo(NProto::TNodeDirectory* destination);
+    void Serialize(NYson::IYsonConsumer* consumer) const;
 
     void AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
 
@@ -116,7 +123,7 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     yhash<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
     yhash<TString, const TNodeDescriptor*> AddressToDescriptor_;
     std::vector<std::unique_ptr<TNodeDescriptor>> Descriptors_;
@@ -126,6 +133,8 @@ private:
     void DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDescriptor> descriptorHolder);
 
 };
+
+void Serialize(const TNodeDirectory& nodeDirectory, NYson::IYsonConsumer* consumer);
 
 DEFINE_REFCOUNTED_TYPE(TNodeDirectory)
 

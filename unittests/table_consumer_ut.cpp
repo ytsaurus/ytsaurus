@@ -75,6 +75,18 @@ TEST(TTableConsumer, TopLevelAttributes)
         EXPECT_THROW(consumer->OnBeginAttributes(), std::exception);
 }
 
+TEST(TTableConsumer, RowAttributes)
+{
+    StrictMock<TMockValueConsumer> mock(New<TNameTable>(), true);
+
+    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(&mock));
+    consumer->OnBeginAttributes();
+    consumer->OnKeyedItem("table_index");
+    consumer->OnInt64Scalar(0);
+    consumer->OnEndAttributes();
+    EXPECT_THROW(consumer->OnBeginMap(), std::exception);
+}
+
 TEST(TYsonParserTest, ContextInExceptions_TableConsumer)
 {
     try {

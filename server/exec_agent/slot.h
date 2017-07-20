@@ -58,6 +58,8 @@ struct ISlot
         TString path,
         bool enable) = 0;
 
+    virtual TFuture<void> SetQuota(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) = 0;
+
     virtual NJobProberClient::IJobProbePtr GetJobProberClient() = 0;
 
     virtual NBus::TTcpBusServerConfigPtr GetBusServerConfig() const = 0;

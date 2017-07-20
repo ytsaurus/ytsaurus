@@ -8,12 +8,6 @@
 #include "master_connector.h"
 #include "counter_manager.h"
 
-#include "map_controller.h"
-#include "merge_controller.h"
-#include "sorted_controller.h"
-#include "remote_copy_controller.h"
-#include "sort_controller.h"
-
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/master_connector.h>
 
@@ -22,6 +16,7 @@
 #include <yt/server/scheduler/job_metrics.h>
 
 #include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/output_order.h>
 #include <yt/server/chunk_pools/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -108,10 +103,6 @@ using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Profiler = ControllerAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -572,9 +563,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         return;
     }
 
-    joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
-
-    int sliceCount = joblet->InputStripeList->TotalChunkCount;
+    int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
     const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
     if (sliceCount > Controller->Config->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
@@ -588,6 +577,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobSpecSliceThrottler->Acquire(sliceCount);
     }
 
+    joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
     auto estimatedResourceUsage = GetNeededResources(joblet);
     auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
 
@@ -619,9 +609,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
             schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*controller->Spec->JobProxyMemoryOvercommitLimit);
         }
         schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto(controller->Spec->JobProxyRefCountedTrackerLogPeriod));
-
-        schedulerJobSpecExt->set_enable_sort_verification(controller->Spec->EnableSortVerification);
-
         schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(controller->Spec->SuspendOperationIfAccountLimitExceeded);
 
         // Adjust sizes if approximation flag is set.
@@ -1182,7 +1169,7 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
 
 void TOperationControllerBase::TTask::RegisterOutput(
     TJobletPtr joblet,
-    int key,
+    TOutputChunkTreeKey key,
     const TCompletedJobSummary& jobSummary)
 {
     Controller->RegisterOutput(joblet, key, jobSummary);
@@ -1242,6 +1229,7 @@ TOperationControllerBase::TOperationControllerBase(
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
+    , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
@@ -1639,6 +1627,8 @@ void TOperationControllerBase::SafeMaterialize()
         }
 
         State = EControllerState::Running;
+
+        LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Materialization failed") << ex;
         LOG_ERROR(wrappedError);
@@ -2021,6 +2011,20 @@ void TOperationControllerBase::SleepInStage(EDelayInsideOperationCommitStage des
     }
 }
 
+void TOperationControllerBase::SetPartSize(const TNullable<TOutputTable>& table, size_t partSize)
+{
+    const auto& client = Host->GetMasterClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = NYPath::ToString(table->Path) + "/@part_size";
+    auto req = TYPathProxy::Set(path);
+    SetTransactionId(req, DebugOutputTransaction->GetId());
+    req->set_value(ConvertToYsonString(partSize).GetData());
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
+}
+
 void TOperationControllerBase::SafeCommit()
 {
     StartCompletionTransaction();
@@ -2036,6 +2040,36 @@ void TOperationControllerBase::SafeCommit()
     SleepInStage(EDelayInsideOperationCommitStage::Stage5);
 
     CustomCommit();
+
+    if (StderrTable || CoreTable) {
+        const auto &client = Host->GetMasterClient();
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto addRequest = [&] (
+            const TNullable<TOutputTable>& table,
+            size_t partSize)
+        {
+            auto path = NYPath::ToString(table->Path) + "/@part_size";
+            auto req = TYPathProxy::Set(path);
+            SetTransactionId(req, DebugOutputTransaction->GetId());
+            req->set_value(ConvertToYsonString(partSize).GetData());
+            batchReq->AddRequest(req);
+        };
+
+        if (StderrTable) {
+            addRequest(StderrTable, GetStderrTableWriterConfig()->MaxPartSize);
+        }
+
+        if (CoreTable) {
+            addRequest(CoreTable, GetCoreTableWriterConfig()->MaxPartSize);
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Failed to set part_size attribute");
+    }
 
     CommitCompletionTransaction();
     SleepInStage(EDelayInsideOperationCommitStage::Stage6);
@@ -2144,7 +2178,9 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
 
         if (table->TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
             // Sorted output generated by user operation requires rearranging.
-            LOG_DEBUG("Sorting output %v chunk tree ids by boundary keys for table %v", table->OutputChunkTreeIds.size(), path);
+            LOG_DEBUG("Sorting output chunk tree ids by boundary keys (ChunkTreeCount: %v, Table: %v)",
+                table->OutputChunkTreeIds.size(),
+                path);
             std::stable_sort(
                 table->OutputChunkTreeIds.begin(),
                 table->OutputChunkTreeIds.end(),
@@ -2180,8 +2216,22 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
 
                 addChunkTree(current->second);
             }
+        } else if (auto outputOrder = GetOutputOrder()) {
+            LOG_DEBUG("Sorting output chunk tree ids accroding to a given output order (ChunkTreeCount: %v, Table: %v)",
+                table->OutputChunkTreeIds.size(),
+                path);
+            std::vector<std::pair<TOutputOrder::TEntry, TChunkTreeId>> chunkTreeIds;
+            for (auto& pair : table->OutputChunkTreeIds) {
+                chunkTreeIds.emplace_back(std::move(pair.first.AsOutputOrderEntry()), pair.second);
+            }
+
+            auto outputChunkTreeIds = outputOrder->ArrangeOutputChunkTrees(std::move(chunkTreeIds));
+            for (const auto& chunkTreeId : outputChunkTreeIds) {
+                addChunkTree(chunkTreeId);
+            }
         } else {
-            LOG_DEBUG("Sorting output %v chunk tree ids by integer keys for table %v", table->OutputChunkTreeIds.size(), path);
+            LOG_DEBUG("Sorting output chunk tree ids by integer keys (ChunkTreeCount: %v, Table: %v)",
+                table->OutputChunkTreeIds.size(), path);
             std::stable_sort(
                 table->OutputChunkTreeIds.begin(),
                 table->OutputChunkTreeIds.end(),
@@ -2257,6 +2307,8 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant st
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType);
+
+    LogProgress();
 }
 
 void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics, bool resourceOverdraft)
@@ -2399,7 +2451,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     joblet->SendJobMetrics(statistics, true);
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
-        jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary);
+        jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary, joblet);
         LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
             jobSummary->Id,
             jobSummary->InterruptReason,
@@ -2419,6 +2471,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     RemoveJoblet(jobId);
 
     UpdateTask(joblet->Task);
+
+    LogProgress();
 
     if (IsCompleted()) {
         OnOperationCompleted(/* interrupted */ false);
@@ -2477,6 +2531,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
     RemoveJoblet(jobId);
+
+    LogProgress();
 
     if (error.Attributes().Get<bool>("fatal", false)) {
         auto wrappedError = TError("Job failed with fatal error") << error;
@@ -2543,6 +2599,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     CheckFailedJobsStatusReceived();
+    LogProgress();
 }
 
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
@@ -2954,12 +3011,14 @@ void TOperationControllerBase::SafeAbort()
                 BeginUploadOutputTables({StderrTable.GetPtr()});
                 AttachOutputChunks({StderrTable.GetPtr()});
                 EndUploadOutputTables({StderrTable.GetPtr()});
+                SetPartSize(StderrTable, GetStderrTableWriterConfig()->MaxPartSize);
             }
 
             if (CoreTable) {
                 BeginUploadOutputTables({CoreTable.GetPtr()});
                 AttachOutputChunks({CoreTable.GetPtr()});
                 EndUploadOutputTables({CoreTable.GetPtr()});
+                SetPartSize(CoreTable, GetCoreTableWriterConfig()->MaxPartSize);
             }
 
             CommitTransaction(DebugOutputTransaction);
@@ -2981,7 +3040,10 @@ void TOperationControllerBase::SafeAbort()
         }
     };
 
-    abortTransaction(InputTransaction);
+    // NB: We do not abort input transaction synchronously since
+    // it can be located in remote cluster that can be unavailable.
+    // Moreover if input transaction abort failed it does not harm anything.
+    abortTransaction(InputTransaction, /* sync */ false);
     abortTransaction(OutputTransaction);
     abortTransaction(AsyncSchedulerTransaction, /* sync */ false);
 
@@ -2991,6 +3053,7 @@ void TOperationControllerBase::SafeAbort()
     State = EControllerState::Finished;
 
     MasterConnector->UnregisterOperation(OperationId);
+    LogProgress(/* force */ true);
 
     LOG_INFO("Operation controller aborted");
 }
@@ -3331,7 +3394,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     }
 
     // SafeScheduleJob must be synchronous; context switches are prohibited.
-    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+    TForbidContextSwitchGuard contextSwitchGuard;
 
     TScopedTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
@@ -3926,6 +3989,8 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
         OnOperationFailed(flushResult, /* flush */ false);
     }
 
+    LogProgress(/* force */ true);
+
     Host->OnOperationCompleted(OperationId);
 }
 
@@ -3939,6 +4004,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
     }
 
     BuildAndSaveProgress();
+    LogProgress(/* force */ true);
 
     if (flush) {
         // NB: Error ignored since we cannot do anything with it.
@@ -4192,6 +4258,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
                         .Item("permissions").BeginList()
                             .Item().Value("read")
                         .EndList()
+                        .Item("account").Value(Spec->IntermediateDataAccount)
                     .EndMap()
                     .DoFor(Spec->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
@@ -4491,8 +4558,11 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 *attributes,
                 0); // Here we assume zero row count, we will do additional check later.
 
-            //TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
+            // TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
             table->Timestamp = OutputTransaction->GetStartTimestamp();
+
+            // NB(psushin): This option must be set before PrepareOutputTables call.
+            table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
             LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
                 path,
@@ -4622,7 +4692,6 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 table->Options->Account = attributes->Get<TString>("account");
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
                 table->Options->OptimizeFor = table->TableUploadOptions.OptimizeFor;
-                table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
                 // Workaround for YT-5827.
                 if (table->TableUploadOptions.TableSchema.Columns().empty() &&
@@ -4993,7 +5062,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                 switch (file.Type) {
                     case EObjectType::File:
-                        file.Executable = attributes.Find<bool>("executable").Get(file.Executable);
+                        file.Executable = attributes.Get<bool>("executable", false);
                         file.Executable = file.Path.GetExecutable().Get(file.Executable);
                         break;
 
@@ -5308,6 +5377,23 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     return result;
 }
 
+std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize) const
+{
+    std::vector<std::vector<TInputDataSlicePtr>> dataSlicesByTableIndex(InputTables.size());
+    for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
+    }
+    for (auto& dataSlice : CollectPrimaryVersionedDataSlices(versionedSliceSize)) {
+        dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
+    }
+    std::vector<TInputDataSlicePtr> dataSlices;
+    for (auto& tableDataSlices : dataSlicesByTableIndex) {
+        std::move(tableDataSlices.begin(), tableDataSlices.end(), std::back_inserter(dataSlices));
+    }
+    return dataSlices;
+}
+
 std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectForeignInputDataSlices(int foreignKeyColumnCount) const
 {
     std::vector<std::deque<TInputDataSlicePtr>> result;
@@ -5513,13 +5599,24 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
     return dataSliceList;
 }
 
-int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary)
+int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)
 {
-    const auto& inputDataSlices = jobSummary.UnreadInputDataSlices;
     int jobCount = 1;
 
-    if (JobSplitter_) {
-        i64 unreadRowCount = GetCumulativeRowCount(inputDataSlices);
+    if (JobSplitter_ && GetPendingJobCount() == 0) {
+        auto inputDataStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
+
+        // We don't estimate unread row count based on unread slices,
+        // because foreign slices are not passed back to scheduler.
+        // Instead, we take the difference between estimated row count and actual read row count.
+        i64 unreadRowCount = joblet->InputStripeList->TotalRowCount - inputDataStatistics.row_count();
+
+        if (unreadRowCount <= 0) {
+            // This is almost impossible, still we don't want to fail operation in this case.
+            LOG_WARNING("Estimated unread row count is negative (JobId: %v, UnreadRowCount: %v)", jobSummary.Id, unreadRowCount);
+            unreadRowCount = 1;
+        }
+
         jobCount = JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
     }
     return jobCount;
@@ -5612,10 +5709,14 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     return true;
 }
 
-
 bool TOperationControllerBase::ShouldVerifySortedOutput() const
 {
     return true;
+}
+
+TOutputOrderPtr TOperationControllerBase::GetOutputOrder() const
+{
+    return nullptr;
 }
 
 bool TOperationControllerBase::IsParityReplicasFetchEnabled() const
@@ -5774,7 +5875,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
 
 void TOperationControllerBase::RegisterOutput(
     TJobletPtr joblet,
-    int key,
+    TOutputChunkTreeKey key,
     const TCompletedJobSummary& jobSummary)
 {
     RegisterOutput(joblet->ChunkListIds, key, jobSummary);
@@ -5808,6 +5909,11 @@ void TOperationControllerBase::RegisterOutput(
             AttachToLivePreview(chunkListIds[tableIndex], table.LivePreviewTableId);
         }
         table.OutputChunkTreeIds.emplace_back(currentKey, chunkListIds[tableIndex]);
+
+        LOG_DEBUG("Output chunk tree registered (Table: %v, ChunkId: %v, Key: %v)",
+            tableIndex,
+            chunkListIds[tableIndex],
+            key);
     }
 }
 
@@ -5945,6 +6051,14 @@ bool TOperationControllerBase::HasJobSplitterInfo() const
     return IsPrepared() && JobSplitter_;
 }
 
+void TOperationControllerBase::BuildSpec(IYsonConsumer* consumer) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Serialize(Spec, consumer);
+}
+
+
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -6055,6 +6169,8 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
                 joblet,
                 EJobState::Running,
                 outputStatistics);
+        } else {
+            attributesBuilder = BIND([] (IYsonConsumer*) {});
         }
     }
 
@@ -6189,6 +6305,19 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, con
     JobStatistics.Update(statistics);
 }
 
+void TOperationControllerBase::LogProgress(bool force)
+{
+    if (!HasProgress()) {
+        return;
+    }
+
+    auto now = GetCpuInstant();
+    if (force || now > NextLogProgressDeadline) {
+        NextLogProgressDeadline = now + LogProgressBackoff;
+        LOG_DEBUG("Progress: %v", GetLoggingProgress());
+    }
+}
+
 void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -6261,6 +6390,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             : config->MemoryLimit;
         jobSpec->set_tmpfs_size(tmpfsSize);
         jobSpec->set_tmpfs_path(*config->TmpfsPath);
+    }
+
+    if (config->DiskSpaceLimit) {
+        jobSpec->set_disk_space_limit(*config->DiskSpaceLimit);
+    }
+    if (config->InodeLimit) {
+        jobSpec->set_inode_limit(*config->InodeLimit);
     }
 
     if (Config->IopsThreshold) {
@@ -6713,9 +6849,11 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
     }
 }
 
-void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder) const
+void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns) const
 {
     YCHECK(OutputTables.size() == 1);
+
+    auto hasComputedColumn = OutputTables[0].TableUploadOptions.TableSchema.HasComputedColumns();
 
     for (const auto& inputTable : InputTables) {
         if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
@@ -6724,6 +6862,11 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
                 OutputTables[0].TableUploadOptions.TableSchema,
                 ignoreSortOrder)
                 .ThrowOnError();
+        } else if (hasComputedColumn && validateComputedColumns) {
+            // Input table has weak schema, so we cannot check if all
+            // computed columns were already computed. At least this is weird.
+            THROW_ERROR_EXCEPTION("Output table cannot have computed "
+                "columns, which are not present in all input tables");
         }
     }
 }
@@ -6858,320 +7001,6 @@ TBlobTableWriterConfigPtr TOperationControllerBase::GetCoreTableWriterConfig() c
 TNullable<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
     return Null;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Ensures that operation controllers are being destroyed in a
-//! dedicated invoker.
-class TOperationControllerWrapper
-    : public IOperationController
-{
-public:
-    TOperationControllerWrapper(
-        const TOperationId& id,
-        IOperationControllerPtr underlying,
-        IInvokerPtr dtorInvoker)
-        : Id_(id)
-        , Underlying_(std::move(underlying))
-        , DtorInvoker_(std::move(dtorInvoker))
-    { }
-
-    virtual ~TOperationControllerWrapper()
-    {
-        DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
-            auto Logger = OperationLogger;
-            Logger.AddTag("OperationId: %v", id);
-            NProfiling::TScopedTimer timer;
-            LOG_INFO("Started destroying operation controller");
-            underlying.Reset();
-            LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
-                timer.GetElapsed());
-        }));
-    }
-
-    virtual void Initialize() override
-    {
-        Underlying_->Initialize();
-    }
-
-    virtual TOperationControllerInitializeResult GetInitializeResult() const override
-    {
-        return Underlying_->GetInitializeResult();
-    }
-
-    virtual void InitializeReviving(TControllerTransactionsPtr controllerTransactions) override
-    {
-        Underlying_->InitializeReviving(controllerTransactions);
-    }
-
-    virtual void Prepare() override
-    {
-        Underlying_->Prepare();
-    }
-
-    virtual void Materialize() override
-    {
-        Underlying_->Materialize();
-    }
-
-    virtual void Commit() override
-    {
-        Underlying_->Commit();
-    }
-
-    virtual void SaveSnapshot(TOutputStream* stream) override
-    {
-        Underlying_->SaveSnapshot(stream);
-    }
-
-    virtual void Revive() override
-    {
-        Underlying_->Revive();
-    }
-
-    virtual void Abort() override
-    {
-        Underlying_->Abort();
-    }
-
-    virtual void Forget() override
-    {
-        Underlying_->Forget();
-    }
-
-    virtual void OnTransactionAborted(const TTransactionId& transactionId) override
-    {
-        Underlying_->OnTransactionAborted(transactionId);
-    }
-
-    virtual std::vector<ITransactionPtr> GetTransactions() override
-    {
-        return Underlying_->GetTransactions();
-    }
-
-    virtual void Complete() override
-    {
-        Underlying_->Complete();
-    }
-
-    virtual TCancelableContextPtr GetCancelableContext() const override
-    {
-        return Underlying_->GetCancelableContext();
-    }
-
-    virtual IInvokerPtr GetCancelableInvoker() const override
-    {
-        return Underlying_->GetCancelableInvoker();
-    }
-
-    virtual IInvokerPtr GetInvoker() const override
-    {
-        return Underlying_->GetInvoker();
-    }
-
-    virtual TFuture<void> Suspend() override
-    {
-        return Underlying_->Suspend();
-    }
-
-    virtual void Resume() override
-    {
-        Underlying_->Resume();
-    }
-
-    virtual int GetPendingJobCount() const override
-    {
-        return Underlying_->GetPendingJobCount();
-    }
-
-    virtual int GetTotalJobCount() const override
-    {
-        return Underlying_->GetTotalJobCount();
-    }
-
-    virtual bool IsForgotten() const override
-    {
-        return Underlying_->IsForgotten();
-    }
-
-    virtual bool IsRevivedFromSnapshot() const override
-    {
-        return Underlying_->IsRevivedFromSnapshot();
-    }
-
-    virtual TJobResources GetNeededResources() const override
-    {
-        return Underlying_->GetNeededResources();
-    }
-
-    virtual std::vector<TJobResources> GetMinNeededJobResources() const
-    {
-        return Underlying_->GetMinNeededJobResources();
-    }
-
-    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override
-    {
-        Underlying_->OnJobStarted(jobId, startTime);
-    }
-
-    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
-    {
-        Underlying_->OnJobCompleted(std::move(jobSummary));
-    }
-
-    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override
-    {
-        Underlying_->OnJobFailed(std::move(jobSummary));
-    }
-
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override
-    {
-        Underlying_->OnJobAborted(std::move(jobSummary));
-    }
-
-    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override
-    {
-        Underlying_->OnJobRunning(std::move(jobSummary));
-    }
-
-    virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContextPtr context,
-        const TJobResources& jobLimits) override
-    {
-        return Underlying_->ScheduleJob(std::move(context), jobLimits);
-    }
-
-    virtual void UpdateConfig(TSchedulerConfigPtr config) override
-    {
-        Underlying_->UpdateConfig(std::move(config));
-    }
-
-    virtual bool HasProgress() const override
-    {
-        return Underlying_->HasProgress();
-    }
-
-    virtual bool HasJobSplitterInfo() const override
-    {
-        return Underlying_->HasJobSplitterInfo();
-    }
-
-    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildOperationAttributes(consumer);
-    }
-
-    virtual void BuildProgress(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildProgress(consumer);
-    }
-
-    virtual void BuildBriefProgress(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildBriefProgress(consumer);
-    }
-
-    virtual TString GetLoggingProgress() const override
-    {
-        return Underlying_->GetLoggingProgress();
-    }
-
-    virtual void BuildMemoryDigestStatistics(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildMemoryDigestStatistics(consumer);
-    }
-
-    virtual void BuildJobSplitterInfo(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildJobSplitterInfo(consumer);
-    }
-
-    virtual TYsonString GetProgress() const override
-    {
-        return Underlying_->GetProgress();
-    }
-
-    virtual TYsonString GetBriefProgress() const override
-    {
-        return Underlying_->GetBriefProgress();
-    }
-
-    virtual TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override
-    {
-        return Underlying_->BuildJobYson(jobId, outputStatistics);
-    }
-
-    virtual TYsonString BuildJobsYson() const override
-    {
-        return Underlying_->BuildJobsYson();
-    }
-
-    virtual TYsonString BuildSuspiciousJobsYson() const override
-    {
-        return Underlying_->BuildSuspiciousJobsYson();
-    }
-
-private:
-    const TOperationId Id_;
-    const IOperationControllerPtr Underlying_;
-    const IInvokerPtr DtorInvoker_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-IOperationControllerPtr CreateControllerForOperation(
-    IOperationHost* host,
-    TOperation* operation)
-{
-    auto config = host->GetConfig();
-
-    IOperationControllerPtr controller;
-    switch (operation->GetType()) {
-        case EOperationType::Map:
-            controller = CreateMapController(config, host, operation);
-            break;
-        case EOperationType::Merge:
-            controller = CreateMergeController(config, host, operation);
-            break;
-        case EOperationType::Erase:
-            controller = CreateEraseController(config, host, operation);
-            break;
-        case EOperationType::Sort:
-            controller = CreateSortController(config, host, operation);
-            break;
-        case EOperationType::Reduce: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            if (legacySpec->UseLegacyController) {
-                controller = CreateLegacyReduceController(config, host, operation);
-            } else {
-                controller = CreateSortedReduceController(config, host, operation);
-            }
-            break;
-        }
-        case EOperationType::JoinReduce: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-            if (legacySpec->UseLegacyController) {
-                controller = CreateLegacyJoinReduceController(config, host, operation);
-            } else {
-                controller = CreateJoinReduceController(config, host, operation);
-            }
-            break;
-        }
-        case EOperationType::MapReduce:
-            controller = CreateMapReduceController(config, host, operation);
-            break;
-        case EOperationType::RemoteCopy:
-            controller = CreateRemoteCopyController(config, host, operation);
-            break;
-        default:
-            Y_UNREACHABLE();
-    }
-
-    return New<TOperationControllerWrapper>(
-        operation->GetId(),
-        controller,
-        controller->GetInvoker());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,8 +9,6 @@
 
 #include <yt/ytlib/table_client/helpers.h>
 
-#include <yt/ytlib/ypath/rich.h>
-
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>
 
@@ -44,11 +42,11 @@ protected:
 
     std::vector<TKeyRange> Coordinate(const TString& source, ui64 rangeExpansionLimit = 1000)
     {
-        TQueryPtr query;
-        TDataRanges dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(
+        auto fragment = PreparePlanFragment(
             &PrepareMock_,
             source);
+        const auto& query = fragment->Query;
+        const auto& dataSource = fragment->Ranges;
 
         auto rowBuffer = New<TRowBuffer>();
 
@@ -70,11 +68,10 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const TString& source)
     {
-        TQueryPtr query;
-        TDataRanges dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(
+        auto fragment = PreparePlanFragment(
             &PrepareMock_,
             source);
+        const auto& query = fragment->Query;
 
         auto buffer = New<TRowBuffer>();
         TRowRanges foreignSplits{{
@@ -129,7 +126,7 @@ private:
         SetSchema(tableSchema);
     }
 
-    TFuture<TDataSplit> MakeSimpleSplit(const NYPath::TRichYPath& path, ui64 counter = 0)
+    TFuture<TDataSplit> MakeSimpleSplit(const NYPath::TYPath& path, ui64 counter = 0)
     {
         TDataSplit dataSplit;
 
@@ -137,13 +134,13 @@ private:
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
-        if (path.GetPath() == "//t") {
+        if (path == "//t") {
             SetTableSchema(&dataSplit, Schema_);
         } else {
             SetTableSchema(&dataSplit, SecondarySchema_);
         }
 
-        return WrapInFuture(dataSplit);
+        return MakeFuture(dataSplit);
     }
 
     std::vector<TKeyRange> GetRangesFromSources(const TRowRanges& rowRanges)

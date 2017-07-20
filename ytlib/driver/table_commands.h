@@ -45,6 +45,25 @@ private:
     TNullable<TString> PartIndexColumnName;
     TNullable<TString> DataColumnName;
 
+    i64 StartPartIndex;
+    i64 Offset;
+    i64 PartSize;
+
+    virtual void OnLoaded() override;
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocateSkynetShareCommand
+    : public TTypedCommand<NApi::TLocateSkynetShareOptions>
+{
+public:
+    TLocateSkynetShareCommand();
+
+private:
+    NYPath::TRichYPath Path;
+
     virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
@@ -271,7 +290,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEnableTableReplicaCommand
-    : public TTypedCommand<NApi::TEnableTableReplicaOptions>
+    : public TTypedCommand<NApi::TAlterTableReplicaOptions>
 {
 public:
     TEnableTableReplicaCommand();
@@ -285,7 +304,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDisableTableReplicaCommand
-    : public TTypedCommand<NApi::TDisableTableReplicaOptions>
+    : public TTypedCommand<NApi::TAlterTableReplicaOptions>
 {
 public:
     TDisableTableReplicaCommand();

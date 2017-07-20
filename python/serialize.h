@@ -13,9 +13,55 @@
 #include <stack>
 
 namespace NYT {
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TPathPart
+{
+    TStringBuf Key;
+    int Index = -1;
+    bool InAttributes = false;
+};
+
+struct TContext
+{
+    SmallVector<TPathPart, 2> PathParts;
+    TNullable<size_t> RowIndex;
+
+    void Push(TStringBuf& key)
+    {
+        TPathPart pathPart;
+        pathPart.Key = key;
+        PathParts.push_back(pathPart);
+    }
+
+    void Push(int index)
+    {
+        TPathPart pathPart;
+        pathPart.Index = index;
+        PathParts.push_back(pathPart);
+    }
+
+    void PushAttributesStarted()
+    {
+        TPathPart pathPart;
+        pathPart.InAttributes = true;
+        PathParts.push_back(pathPart);
+    }
+
+    void Pop()
+    {
+        PathParts.pop_back();
+    }
+
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 // This methods allow use methods ConvertTo* with Py::Object.
 void Serialize(
@@ -24,7 +70,8 @@ void Serialize(
     const TNullable<TString>& encoding = Null,
     bool ignoreInnerAttributes = false,
     NYson::EYsonType ysonType = NYson::EYsonType::Node,
-    int depth = 0);
+    int depth = 0,
+    TContext* context = new TContext());
 
 void Deserialize(Py::Object& obj, NYTree::INodePtr node, const TNullable<TString>& encoding = Null);
 
@@ -77,22 +124,30 @@ private:
     bool AlwaysCreateAttributes_;
     TNullable<TString> Encoding_;
 
+    // NOTE: Not using specific PyCXX objects (e.g. Py::Bytes) here and below to avoid
+    // unnecessary checks.
+    using PyObjectPtr = std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>;
+
     std::queue<Py::Object> Objects_;
 
-    std::stack<std::pair<Py::Object, EPythonObjectType>> ObjectStack_;
-    // NB(ignat): to avoid using TString we need to make tricky bufferring while reading from input stream.
-    std::stack<TString> Keys_;
-    TNullable<Py::Object> Attributes_;
+    std::stack<std::pair<PyObjectPtr, EPythonObjectType>> ObjectStack_;
+    // NB(ignat): to avoid using Stroka we need to make tricky bufferring while reading from input stream.
+    std::stack<PyObject*> Keys_;
+    TNullable<PyObjectPtr> Attributes_;
+
+    yhash<TStringBuf, PyObjectPtr> KeyCache_;
+    std::vector<PyObjectPtr> OriginalKeyCache_;
 
     void AddObject(
-        PyObject* obj,
+        PyObjectPtr obj,
         const Py::Callable& type,
         EPythonObjectType objType = EPythonObjectType::Other,
         bool forceYsonTypeCreation = false);
-    void AddObject(PyObject* obj);
 
-    void Push(const Py::Object& obj, EPythonObjectType objectType);
-    Py::Object Pop();
+    void Push(PyObjectPtr objPtr, EPythonObjectType objectType);
+    PyObjectPtr Pop();
+
+    static PyObjectPtr MakePyObjectPtr(PyObject* obj);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

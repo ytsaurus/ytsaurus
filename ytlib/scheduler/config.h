@@ -24,6 +24,8 @@
 
 #include <yt/core/misc/boolean_formula.h>
 
+#include <yt/core/misc/phoenix.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -89,7 +91,7 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeoutLimit;
     TNullable<double> FairShareStarvationToleranceLimit;
 
-    TNullable<bool> AllowAggressiveStarvationPreemption;
+    bool AllowAggressiveStarvationPreemption;
 
     TSchedulableConfig();
 };
@@ -120,14 +122,18 @@ DEFINE_REFCOUNTED_TYPE(TPoolConfig)
 
 class TStrategyOperationSpec
     : public TSchedulableConfig
+    , public virtual NPhoenix::TDynamicTag
 {
 public:
     TNullable<TString> Pool;
 
     TStrategyOperationSpec();
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec, 0x22fc73fa);
 };
 
-DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec)
+DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -228,8 +234,6 @@ public:
 
     TDuration JobProxyRefCountedTrackerLogPeriod;
 
-    bool EnableSortVerification;
-
     TNullable<TString> Title;
 
     //! Limit on operation execution time.
@@ -252,10 +256,17 @@ public:
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
 
+    //! Generic map to turn on/off different experimental options.
+    NYTree::IMapNodePtr NightlyOptions;
+
     TOperationSpecBase();
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase, 0xf0494353);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationSpecBase)
+
+DEFINE_REFCOUNTED_TYPE(TOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -291,6 +302,9 @@ public:
 
     TNullable<i64> TmpfsSize;
     TNullable<TString> TmpfsPath;
+
+    TNullable<i64> DiskSpaceLimit;
+    TNullable<i64> InodeLimit;
 
     bool CopyFiles;
 
@@ -375,9 +389,13 @@ public:
     TLogDigestConfigPtr JobProxyMemoryDigest;
 
     TSimpleOperationSpecBase();
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase, 0x7819ae12);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSimpleOperationSpecBase)
+
+DEFINE_REFCOUNTED_TYPE(TSimpleOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,9 +409,13 @@ public:
     TUnorderedOperationSpecBase();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase, 0x79aafe77);
 };
 
-DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase)
+
+DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -409,9 +431,12 @@ public:
     TMapOperationSpec();
 
     virtual void OnLoaded() override;
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec, 0x4aa00f9d);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMapOperationSpec)
+
+DEFINE_REFCOUNTED_TYPE(TMapOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -427,9 +452,13 @@ public:
     TUnorderedMergeOperationSpec();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec, 0x969d7fbc);
 };
 
-DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec)
+
+DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -455,23 +484,35 @@ public:
     TMergeOperationSpec();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec, 0x646bd8cb);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec)
+
+DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec);
 
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
     , public TInputlyQueryableSpec
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec, 0xff44f136);
+};
 
-DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec)
+
+DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec);
 
 class TSortedMergeOperationSpec
     : public TMergeOperationSpec
     , public TOperationWithLegacyControllerSpec
-{ };
+{
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec, 0x213a54d6);
+};
 
-DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec)
+
+DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -486,7 +527,11 @@ public:
     TEraseOperationSpec();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec, 0xbaec2ff5);
 };
+
 
 DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 
@@ -506,9 +551,13 @@ public:
     TReduceOperationSpecBase();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase, 0x7353c0af);
 };
 
-DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase)
+
+DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -522,9 +571,13 @@ public:
     std::vector<NTableClient::TOwningKey> PivotKeys;
 
     TReduceOperationSpec();
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec, 0xd90a9ede);
 };
 
-DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec)
+
+DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -535,9 +588,13 @@ public:
     TJoinReduceOperationSpec();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec, 0x788fac27);
 };
 
-DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec)
+
+DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -605,9 +662,13 @@ public:
     TSortOperationSpecBase();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase, 0xdd19ecde);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSortOperationSpecBase)
+
+DEFINE_REFCOUNTED_TYPE(TSortOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -628,9 +689,13 @@ public:
     TSortOperationSpec();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpec, 0xa6709f80);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSortOperationSpec)
+
+DEFINE_REFCOUNTED_TYPE(TSortOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -660,9 +725,13 @@ public:
     TMapReduceOperationSpec();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec, 0x99837bbc);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec)
+
+DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -692,9 +761,12 @@ public:
     TRemoteCopyOperationSpec();
 
     virtual void OnLoaded() override;
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec, 0x3c0ce9c0);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec)
+DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

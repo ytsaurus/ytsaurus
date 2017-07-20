@@ -25,14 +25,14 @@ static const auto& Logger = HiveClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INativeConnectionPtr TClusterDirectory::FindConnection(TCellTag cellTag) const
+IConnectionPtr TClusterDirectory::FindConnection(TCellTag cellTag) const
 {
     TGuard<TSpinLock> guard(Lock_);
     auto it = CellTagToCluster_.find(cellTag);
     return it == CellTagToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) const
+IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) const
 {
     auto connection = FindConnection(cellTag);
     if (!connection) {
@@ -41,14 +41,14 @@ INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) c
     return connection;
 }
 
-INativeConnectionPtr TClusterDirectory::FindConnection(const TString& clusterName) const
+IConnectionPtr TClusterDirectory::FindConnection(const TString& clusterName) const
 {
     TGuard<TSpinLock> guard(Lock_);
     auto it = NameToCluster_.find(clusterName);
     return it == NameToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(const TString& clusterName) const
+IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const TString& clusterName) const
 {
     auto connection = FindConnection(clusterName);
     if (!connection) {
@@ -75,6 +75,13 @@ void TClusterDirectory::RemoveCluster(const TString& name)
     YCHECK(CellTagToCluster_.erase(cellTag) == 1);
     LOG_DEBUG("Remote cluster unregistered (Name: %v)",
         name);
+}
+
+void TClusterDirectory::Clear()
+{
+    TGuard<TSpinLock> guard(Lock_);
+    CellTagToCluster_.clear();
+    NameToCluster_.clear();
 }
 
 void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
@@ -133,8 +140,7 @@ TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name
     TCluster cluster;
     cluster.Config = config;
     try {
-        // TODO(babenko): no native connection here
-        cluster.Connection = dynamic_cast<INativeConnection*>(CreateConnection(config).Get());
+        cluster.Connection = CreateConnection(config);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating connection to cluster %Qv",
             name)

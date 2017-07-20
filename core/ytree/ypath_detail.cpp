@@ -714,11 +714,17 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 for (const auto& pair : descriptorMap) {
                     const auto& key = pair.first;
                     const auto& descriptor = pair.second;
-                    if (descriptor.Custom)
+
+                    if (descriptor.Custom) {
                         continue;
+                    }
 
                     auto newAttributeYson = newAttributes->FindYson(key);
                     if (newAttributeYson) {
+                        if (!descriptor.Writable) {
+                            ThrowCannotSetBuiltinAttribute(key);
+                        }
+
                         permissionValidator.Validate(descriptor.WritePermission);
 
                         if (!GuardedSetBuiltinAttribute(key, newAttributeYson)) {
@@ -757,6 +763,10 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             }
 
             if (descriptor) {
+                if (!descriptor->Writable) {
+                    ThrowCannotSetBuiltinAttribute(key);
+                }
+
                 permissionValidator.Validate(descriptor->WritePermission);
 
                 if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
@@ -905,6 +915,10 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                             return;
                         }
                         ThrowNoSuchAttribute(key);
+                    }
+
+                    if (!descriptor->Writable) {
+                        ThrowCannotSetBuiltinAttribute(key);
                     }
 
                     permissionValidator.Validate(descriptor->WritePermission);

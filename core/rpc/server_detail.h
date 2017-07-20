@@ -36,7 +36,6 @@ public:
     virtual const TString& GetUser() const override;
 
     virtual bool IsReplied() const override;
-    virtual bool IsOneWay() const override;
 
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
@@ -159,8 +158,6 @@ public:
     virtual const TRealmId& GetRealmId() const override;
     virtual const TString& GetUser() const override;
 
-    virtual bool IsOneWay() const override;
-
     virtual bool IsReplied() const override;
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
@@ -217,11 +214,15 @@ public:
     virtual TFuture<void> Stop(bool graceful) override;
 
 protected:
+    const NLogging::TLogger Logger;
+
     std::atomic<bool> Started_ = {false};
 
     NConcurrency::TReaderWriterSpinLock ServicesLock_;
     TServerConfigPtr Config_;
     yhash<TServiceId, IServicePtr> ServiceMap_;
+
+    explicit TServerBase(const NLogging::TLogger& logger);
 
     virtual void DoStart();
     virtual TFuture<void> DoStop(bool graceful);

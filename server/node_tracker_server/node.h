@@ -162,10 +162,12 @@ public:
 
     TNodeId GetId() const;
 
-    TNodeDescriptor GetDescriptor() const;
+    TNodeDescriptor GetDescriptor(
+        NNodeTrackerClient::EAddressType addressType = NNodeTrackerClient::EAddressType::InternalRpc) const;
 
-    const TAddressMap& GetAddresses() const;
-    void SetAddresses(const TAddressMap& addresses);
+    const TNodeAddressMap& GetNodeAddresses() const;
+    void SetNodeAddresses(const TNodeAddressMap& nodeAddresses);
+    const TAddressMap& GetAddressesOrThrow(NNodeTrackerClient::EAddressType addressType) const;
     const TString& GetDefaultAddress() const;
 
     //! Get data center to which this node belongs.
@@ -254,7 +256,7 @@ public:
     static ui64 GenerateVisitMark();
 
 private:
-    TAddressMap Addresses_;
+    NNodeTrackerClient::TNodeAddressMap NodeAddresses_;
     TString DefaultAddress_;
 
     int HintedUserSessionCount_;

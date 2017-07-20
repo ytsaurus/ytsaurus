@@ -128,6 +128,7 @@ protected:
             NullTabletId,
             0,
             NullObjectId,
+            "ut",
             this,
             schema,
             sorted ? MinKey() : TOwningKey(),

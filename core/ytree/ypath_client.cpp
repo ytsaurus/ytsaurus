@@ -52,11 +52,6 @@ TYPathRequest::TYPathRequest(
     ypathExt->set_path(path);
 }
 
-bool TYPathRequest::IsOneWay() const
-{
-    return false;
-}
-
 bool TYPathRequest::IsHeavy() const
 {
     return false;
@@ -314,9 +309,7 @@ void ExecuteVerb(
 
 
         virtual void LogRequest() override
-        {
-            Y_UNREACHABLE();
-        }
+        { }
 
         virtual void LogResponse() override
         { }

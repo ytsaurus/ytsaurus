@@ -29,7 +29,8 @@ DEFINE_REFCOUNTED_TYPE(IContainerManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPortoManagerConfig {
+struct TPortoManagerConfig
+{
     const ECleanMode CleanMode;
     const TDuration RetryTime;
     const TDuration PollPeriod;
@@ -37,21 +38,10 @@ struct TPortoManagerConfig {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if defined(_linux_)
 IContainerManagerPtr CreatePortoManager(
     const TString& prefix,
     TCallback<void(const TError&)> errorHandler,
     const TPortoManagerConfig& portoManagerConfig);
-#else
-inline IContainerManagerPtr CreatePortoManager(
-    const TString& /*prefix*/,
-    TCallback<void(const TError&)> /*errorHandler*/,
-    const TPortoManagerConfig& /*portoManagerConfig*/)
-{
-    Y_UNIMPLEMENTED();
-    return nullptr;
-}
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

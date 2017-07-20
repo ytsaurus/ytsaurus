@@ -52,17 +52,20 @@ message TReplicaInfo
 {
     required NYT.NProto.TGuid replica_id = 1;
     required uint64 last_replication_timestamp = 2;
+    required int32 mode = 3; // ETableReplicaMode
+    required int64 current_replication_row_index = 4;
 }
 
 message TTabletInfo
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    repeated TReplicaInfo replica_info = 2;
+    repeated TReplicaInfo replicas = 2;
+    required int64 total_row_count = 3;
 }
 
 message TRspGetTabletInfo
 {
-    repeated TTabletInfo tablet_info = 2;
+    repeated TTabletInfo tablets = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

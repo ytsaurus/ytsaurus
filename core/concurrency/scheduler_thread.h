@@ -44,7 +44,7 @@ public:
     virtual void Return() override;
     virtual void YieldTo(TFiberPtr&& other) override;
     virtual void SwitchTo(IInvokerPtr invoker) override;
-    virtual void PushContextSwitchHandler(std::function<void()> callback) override;
+    virtual void PushContextSwitchHandler(std::function<void()> out, std::function<void()> in) override;
     virtual void PopContextSwitchHandler() override;
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
 
@@ -75,8 +75,6 @@ protected:
     bool FiberMainStep(ui64 spawnedEpoch);
 
     void Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker);
-
-    void OnContextSwitch();
 
     const std::shared_ptr<TEventCount> CallbackEventCount_;
     const TString ThreadName_;
@@ -110,10 +108,10 @@ protected:
     TFuture<void> WaitForFuture_;
     IInvokerPtr SwitchToInvoker_;
 
-    std::vector<std::function<void()>> ContextSwitchCallbacks_;
-
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 
+private:
+    void SwitchContextFrom(TFiber* currentFiber);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerThread)

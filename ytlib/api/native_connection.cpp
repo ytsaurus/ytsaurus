@@ -126,6 +126,12 @@ public:
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
 
+        ClusterDirectory_ = New<TClusterDirectory>();
+        ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
+            Config_->ClusterDirectorySynchronizer,
+            this,
+            ClusterDirectory_);
+
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
             LightChannelFactory_,
@@ -135,6 +141,11 @@ public:
         for (const auto& cellConfig : Config_->SecondaryMasters) {
             CellDirectory_->ReconfigureCell(cellConfig);
         }
+        CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
+            Config_->CellDirectorySynchronizer,
+            CellDirectory_,
+            PrimaryMasterCellId_,
+            Logger);
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
@@ -268,9 +279,9 @@ public:
         return CellDirectory_;
     }
 
-    virtual TFuture<void> SyncCellDirectory() override
+    virtual const TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() override
     {
-        return GetCellDirectorySynchronizer()->Sync();
+        return CellDirectorySynchronizer_;
     }
 
 
@@ -279,9 +290,9 @@ public:
         return ClusterDirectory_;
     }
 
-    virtual TFuture<void> SyncClusterDirectory() override
+    virtual const TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
     {
-        return GetClusterDirectorySynchronizer()->Sync();
+        return ClusterDirectorySynchronizer_;
     }
 
 
@@ -351,8 +362,14 @@ public:
 
     virtual void Terminate() override
     {
-        LightPool_.Reset();
-        HeavyPool_.Reset();
+        LightPool_->Shutdown();
+        HeavyPool_->Shutdown();
+
+        ClusterDirectory_->Clear();
+        ClusterDirectorySynchronizer_->Stop();
+
+        CellDirectory_->Clear();
+        CellDirectorySynchronizer_->Stop();
     }
 
 private:
@@ -377,11 +394,9 @@ private:
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     TCellDirectoryPtr CellDirectory_;
-    TSpinLock CellDirectorySynchronizerLock_;
     TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
 
-    const TClusterDirectoryPtr ClusterDirectory_ = New<TClusterDirectory>();
-    TSpinLock ClusterDirectorySynchronizerLock_;
+    TClusterDirectoryPtr ClusterDirectory_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     TThreadPoolPtr LightPool_;
@@ -397,33 +412,7 @@ private:
     yhash<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
 
-    const TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer()
-    {
-        auto guard = Guard(CellDirectorySynchronizerLock_);
-        if (!CellDirectorySynchronizer_) {
-            CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
-                Config_->CellDirectorySynchronizer,
-                CellDirectory_,
-                PrimaryMasterCellId_,
-                Logger);
-        }
-        return CellDirectorySynchronizer_;
-    }
-
-    const TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer()
-    {
-        auto guard = Guard(ClusterDirectorySynchronizerLock_);
-        if (!ClusterDirectorySynchronizer_) {
-            ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
-                Config_->ClusterDirectorySynchronizer,
-                this,
-                ClusterDirectory_);
-        }
-        return ClusterDirectorySynchronizer_;
-    }
-
-
-    IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
+    IChannelPtr CreatePeerChannel(const TMasterConnectionConfigPtr& config, EPeerKind kind)
     {
         auto channel = NHydra::CreatePeerChannel(
             config,

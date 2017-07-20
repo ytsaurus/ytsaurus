@@ -101,6 +101,13 @@ public:
     //! Maximum number of ephemeral pools that can be created by user.
     int MaxEphemeralPoolsPerUser;
 
+    //! If update of preemtable lists of operation takes more than that duration
+    //! then this event will be logged.
+    TDuration UpdatePreemptableListDurationLoggingThreshold;
+
+    //! Enables profiling strategy attributes for operations.
+    bool EnableOperationsProfiling;
+
     //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
     double ThresholdToEnableMaxPossibleUsageRegularization;
 
@@ -145,6 +152,7 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 
 class TOperationOptions
     : public NYTree::TYsonSerializable
+    , public virtual NPhoenix::TDynamicTag
 {
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationOptions, 0x6d2a0bdd);
@@ -267,7 +275,7 @@ class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 {
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec, 0x73cb9f3b);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationOptions, 0x73cb9f3b);
 };
 
 DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)
@@ -448,6 +456,8 @@ public:
     TDuration OperationControllerSuspendTimeout;
 
     TDuration OperationLogProgressBackoff;
+
+    TDuration OperationLogFairSharePeriod;
 
     TDuration ClusterInfoLoggingPeriod;
 
@@ -649,8 +659,11 @@ public:
     // We use the same config for input chunk scraper and intermediate chunk scraper.
     NControllerAgent::TIntermediateChunkScraperConfigPtr ChunkScraper;
 
-    // Enables statistics reporter to send job events/statistics/specs etc.
-    bool EnableStatisticsReporter;
+    // Enables job reporter to send job events/statistics etc.
+    bool EnableJobReporter;
+
+    // Enables job spec reporter to send job specs.
+    bool EnableJobSpecReporter;
 
     // Timeout to try interrupt job before abort it.
     TDuration JobInterruptTimeout;
@@ -667,6 +680,9 @@ public:
     // Filter of main nodes, used to calculate resource limits in fair share strategy.
     TBooleanFormula MainNodesFilterFormula;
     TSchedulingTagFilter MainNodesFilter;
+
+    // Number of nodes to store by memory distribution.
+    int MemoryDistributionDifferentNodeTypesThreshold;
 
     // Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;

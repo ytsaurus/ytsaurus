@@ -18,10 +18,17 @@ using namespace NConcurrency;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
+static const auto& Profiler = SchedulerProfiler;
+
+////////////////////////////////////////////////////////////////////
+
+static TAggregateCounter PreemptableListUpdateTimeCounter("/preemptable_list_update_time");
+static TAggregateCounter PreemptableListUpdateMoveCountCounter("/preemptable_list_update_move_count");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,10 +97,6 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TSchedulerElementSharedState::TSchedulerElementSharedState()
-    : ResourceUsage_(ZeroJobResources())
-{ }
 
 TJobResources TSchedulerElementSharedState::GetResourceUsage()
 {
@@ -394,6 +397,14 @@ void TSchedulerElement::CheckForStarvationImpl(
         default:
             Y_UNREACHABLE();
     }
+}
+
+void TSchedulerElement::SetOperationAlert(
+    const TOperationId& operationId,
+    EOperationAlertType alertType,
+    const TError& alert)
+{
+    Host_->SetOperationAlert(operationId, alertType, alert);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -817,8 +828,8 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttri
     for (const auto& child : children) {
         auto& childAttributes = child->Attributes();
         childAttributes.AdjustedMinShareRatio = 0.0;
-        childAttributes.FairShareRatio = 0.0;
         childAttributes.FifoIndex = index;
+        child->SetFairShareRatio(0.0);
         ++index;
     }
 }
@@ -889,6 +900,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         }
     }
 
+
     // Compute fair shares.
     ComputeByFitting(
         [&] (double fitFactor, const TSchedulerElementPtr& child) -> double {
@@ -903,10 +915,10 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             return result;
         },
         [&] (const TSchedulerElementPtr& child, double value) {
-            auto& attributes = child->Attributes();
-            attributes.FairShareRatio = value;
+            child->SetFairShareRatio(value);
         },
         Attributes_.FairShareRatio);
+
 
     // Compute guaranteed shares.
     ComputeByFitting(
@@ -1056,8 +1068,8 @@ TPoolFixedState::TPoolFixedState(const TString& id)
 TPool::TPool(
     ISchedulerStrategyHost* host,
     const TString& id,
-    NProfiling::TTagId profilingTag,
-    TFairShareStrategyConfigPtr strategyConfig)
+    TFairShareStrategyConfigPtr strategyConfig,
+    NProfiling::TTagId profilingTag)
     : TCompositeSchedulerElement(host, strategyConfig, profilingTag)
     , TPoolFixedState(id)
 {
@@ -1110,8 +1122,7 @@ void TPool::SetDefaultConfig()
 
 bool TPool::IsAggressiveStarvationPreemptionAllowed() const
 {
-    return Config_->AllowAggressiveStarvationPreemption.Get(
-        GetParent()->IsAggressiveStarvationPreemptionAllowed());
+    return Config_->AllowAggressiveStarvationPreemption;
 }
 
 bool TPool::IsExplicit() const
@@ -1262,19 +1273,14 @@ TJobResources TPool::ComputeResourceLimits() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationElementFixedState::TOperationElementFixedState(TOperationPtr operation)
-    : Controller_(operation->GetController())
+TOperationElementFixedState::TOperationElementFixedState(IOperationStrategyHost* operation)
+    : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
     , Schedulable_(operation->IsSchedulable())
-    , Operation_(operation.Get())
+    , Operation_(operation)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TOperationElementSharedState::TOperationElementSharedState()
-    : NonpreemptableResourceUsage_(ZeroJobResources())
-    , AggressivelyPreemptableResourceUsage_(ZeroJobResources())
-{ }
 
 TJobResources TOperationElementSharedState::Finalize()
 {
@@ -1300,7 +1306,7 @@ TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
         return ZeroJobResources();
     }
 
-    IncreaseJobResourceUsage(JobPropertiesMap_.at(jobId), resourcesDelta);
+    IncreaseJobResourceUsage(GetJobProperties(jobId), resourcesDelta);
     return resourcesDelta;
 }
 
@@ -1308,7 +1314,8 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     double fairShareRatio,
     const TJobResources& totalResourceLimits,
     double preemptionSatisfactionThreshold,
-    double aggressivePreemptionSatisfactionThreshold)
+    double aggressivePreemptionSatisfactionThreshold,
+    int* moveCount)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
@@ -1326,18 +1333,19 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     {
         while (!left->empty()) {
             auto jobId = left->back();
-            auto& jobProperties = JobPropertiesMap_.at(jobId);
+            auto* jobProperties = GetJobProperties(jobId);
 
-            if (getUsageRatio(resourceUsage - jobProperties.ResourceUsage) < fairShareRatioBound) {
+            if (getUsageRatio(resourceUsage - jobProperties->ResourceUsage) < fairShareRatioBound) {
                 break;
             }
 
             left->pop_back();
             right->push_front(jobId);
-            jobProperties.JobIdListIterator = right->begin();
-            onMovedLeftToRight(&jobProperties);
+            jobProperties->JobIdListIterator = right->begin();
+            onMovedLeftToRight(jobProperties);
 
-            resourceUsage -= jobProperties.ResourceUsage;
+            resourceUsage -= jobProperties->ResourceUsage;
+            ++(*moveCount);
         }
 
         while (!right->empty()) {
@@ -1346,20 +1354,36 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             }
 
             auto jobId = right->front();
-            auto& jobProperties = JobPropertiesMap_.at(jobId);
+            auto* jobProperties = GetJobProperties(jobId);
 
             right->pop_front();
             left->push_back(jobId);
-            jobProperties.JobIdListIterator = --left->end();
-            onMovedRightToLeft(&jobProperties);
+            jobProperties->JobIdListIterator = --left->end();
+            onMovedRightToLeft(jobProperties);
 
-            resourceUsage += jobProperties.ResourceUsage;
+            resourceUsage += jobProperties->ResourceUsage;
+            ++(*moveCount);
         }
 
         return resourceUsage;
     };
 
-    // NB: We need 2 iteration since thresholds may change significantly such that we need
+    auto setPreemptable = [] (TJobProperties* properties) {
+        properties->Preemptable = true;
+        properties->AggressivelyPreemptable = true;
+    };
+
+    auto setAggressivelyPreemptable = [] (TJobProperties* properties) {
+        properties->Preemptable = false;
+        properties->AggressivelyPreemptable = true;
+    };
+
+    auto setNonPreemptable = [] (TJobProperties* properties) {
+        properties->Preemptable = false;
+        properties->AggressivelyPreemptable = false;
+    };
+
+    // NB: We need 2 iterations since thresholds may change significantly such that we need
     // to move job from preemptable list to non-preemptable list through aggressively preemptable list.
     for (int iteration = 0; iteration < 2; ++iteration) {
         auto startNonPreemptableAndAggressivelyPreemptableResourceUsage_ = NonpreemptableResourceUsage_ + AggressivelyPreemptableResourceUsage_;
@@ -1369,16 +1393,16 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             &AggressivelyPreemptableJobs_,
             NonpreemptableResourceUsage_,
             fairShareRatio * aggressivePreemptionSatisfactionThreshold,
-            TJobProperties::SetAggressivelyPreemptable,
-            TJobProperties::SetNonPreemptable);
+            setAggressivelyPreemptable,
+            setNonPreemptable);
 
         auto nonpreemptableAndAggressivelyPreemptableResourceUsage_ = balanceLists(
             &AggressivelyPreemptableJobs_,
             &PreemptableJobs_,
             startNonPreemptableAndAggressivelyPreemptableResourceUsage_,
             fairShareRatio * preemptionSatisfactionThreshold,
-            TJobProperties::SetPreemptable,
-            TJobProperties::SetAggressivelyPreemptable);
+            setPreemptable,
+            setAggressivelyPreemptable);
 
         AggressivelyPreemptableResourceUsage_ = nonpreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
     }
@@ -1395,11 +1419,8 @@ bool TOperationElementSharedState::IsJobPreemptable(const TJobId& jobId, bool ag
 {
     TReaderGuard guard(JobPropertiesMapLock_);
 
-    if (aggressivePreemptionEnabled) {
-        return JobPropertiesMap_.at(jobId).AggressivelyPreemptable;
-    } else {
-        return JobPropertiesMap_.at(jobId).Preemptable;
-    }
+    const auto* properties = GetJobProperties(jobId);
+    return aggressivePreemptionEnabled ? properties->AggressivelyPreemptable : properties->Preemptable;
 }
 
 int TOperationElementSharedState::GetRunningJobCount() const
@@ -1421,7 +1442,7 @@ int TOperationElementSharedState::GetAggressivelyPreemptableJobCount() const
     return AggressivelyPreemptableJobs_.size();
 }
 
-TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources resourceUsage)
+TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
@@ -1442,7 +1463,7 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
 
     ++RunningJobCount_;
 
-    IncreaseJobResourceUsage(it.first->second, resourceUsage);
+    IncreaseJobResourceUsage(&it.first->second, resourceUsage);
     return resourceUsage;
 }
 
@@ -1485,18 +1506,18 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
     auto it = JobPropertiesMap_.find(jobId);
     YCHECK(it != JobPropertiesMap_.end());
 
-    auto& properties = it->second;
-    if (properties.Preemptable) {
-        PreemptableJobs_.erase(properties.JobIdListIterator);
-    } else if (properties.AggressivelyPreemptable) {
-        AggressivelyPreemptableJobs_.erase(properties.JobIdListIterator);
+    auto* properties = &it->second;
+    if (properties->Preemptable) {
+        PreemptableJobs_.erase(properties->JobIdListIterator);
+    } else if (properties->AggressivelyPreemptable) {
+        AggressivelyPreemptableJobs_.erase(properties->JobIdListIterator);
     } else {
-        NonpreemptableJobs_.erase(properties.JobIdListIterator);
+        NonpreemptableJobs_.erase(properties->JobIdListIterator);
     }
 
     --RunningJobCount_;
 
-    auto resourceUsage = properties.ResourceUsage;
+    auto resourceUsage = properties->ResourceUsage;
     IncreaseJobResourceUsage(properties, -resourceUsage);
 
     JobPropertiesMap_.erase(it);
@@ -1566,17 +1587,31 @@ void TOperationElement::FinishScheduleJob(
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(
-    TJobProperties& properties,
+    TJobProperties* properties,
     const TJobResources& resourcesDelta)
 {
-    properties.ResourceUsage += resourcesDelta;
-    if (!properties.Preemptable) {
-        if (properties.AggressivelyPreemptable) {
+    properties->ResourceUsage += resourcesDelta;
+    if (!properties->Preemptable) {
+        if (properties->AggressivelyPreemptable) {
             AggressivelyPreemptableResourceUsage_ += resourcesDelta;
         } else {
             NonpreemptableResourceUsage_ += resourcesDelta;
         }
     }
+}
+
+TOperationElementSharedState::TJobProperties* TOperationElementSharedState::GetJobProperties(const TJobId& jobId)
+{
+    auto it = JobPropertiesMap_.find(jobId);
+    Y_ASSERT(it != JobPropertiesMap_.end());
+    return &it->second;
+}
+
+const TOperationElementSharedState::TJobProperties* TOperationElementSharedState::GetJobProperties(const TJobId& jobId) const
+{
+    auto it = JobPropertiesMap_.find(jobId);
+    Y_ASSERT(it != JobPropertiesMap_.end());
+    return &it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1586,7 +1621,7 @@ TOperationElement::TOperationElement(
     TStrategyOperationSpecPtr spec,
     TOperationRuntimeParamsPtr runtimeParams,
     ISchedulerStrategyHost* host,
-    TOperationPtr operation)
+    IOperationStrategyHost* operation)
     : TSchedulerElement(host, strategyConfig)
     , TOperationElementFixedState(operation)
     , RuntimeParams_(runtimeParams)
@@ -1639,7 +1674,7 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
     auto allocationLimits = GetAdjustedResourceLimits(
         ResourceDemand_,
         TotalResourceLimits_,
-        GetHost()->GetExecNodeCount());
+        GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_));
 
     auto dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
     auto dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
@@ -1654,11 +1689,7 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 
     TSchedulerElement::UpdateTopDown(dynamicAttributesList);
 
-    SharedState_->UpdatePreemptableJobsList(
-        Attributes_.FairShareRatio,
-        TotalResourceLimits_,
-        StrategyConfig_->PreemptionSatisfactionThreshold,
-        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
+    UpdatePreemptableJobsList();
 }
 
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
@@ -1841,8 +1872,8 @@ TString TOperationElement::GetId() const
 
 bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 {
-    return Spec_->AllowAggressiveStarvationPreemption.Get(
-        GetParent()->IsAggressiveStarvationPreemptionAllowed());
+    return Spec_->AllowAggressiveStarvationPreemption &&
+        GetParent()->IsAggressiveStarvationPreemptionAllowed();
 }
 
 double TOperationElement::GetWeight() const
@@ -1919,16 +1950,25 @@ void TOperationElement::CheckForStarvation(TInstant now)
         now);
 }
 
-bool TOperationElement::HasStarvingParent() const
+bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context) const
 {
-    auto* parent = GetParent();
-    while (parent) {
-        if (parent->GetStarving()) {
-            return true;
-        }
-        parent = parent->GetParent();
-    }
-    return false;
+   auto* parent = GetParent();
+
+   while (parent) {
+       if (parent->GetStarving()) {
+           return false;
+       }
+
+       if (context.DynamicAttributes(parent).SatisfactionRatio < (1.0 + RatioComputationPrecision) &&
+           !parent->IsAggressiveStarvationPreemptionAllowed())
+       {
+           return false;
+       }
+
+       parent = parent->GetParent();
+   }
+
+   return true;
 }
 
 void TOperationElement::IncreaseResourceUsage(const TJobResources& delta)
@@ -1947,11 +1987,8 @@ void TOperationElement::IncreaseJobResourceUsage(const TJobId& jobId, const TJob
 {
     auto delta = SharedState_->IncreaseJobResourceUsage(jobId, resourcesDelta);
     IncreaseResourceUsage(delta);
-    SharedState_->UpdatePreemptableJobsList(
-        Attributes_.FairShareRatio,
-        TotalResourceLimits_,
-        StrategyConfig_->PreemptionSatisfactionThreshold,
-        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
+
+    UpdatePreemptableJobsList();
 }
 
 bool TOperationElement::IsJobExisting(const TJobId& jobId) const
@@ -1989,11 +2026,7 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
     auto delta = SharedState_->AddJob(jobId, resourceUsage);
     IncreaseResourceUsage(delta);
 
-    SharedState_->UpdatePreemptableJobsList(
-        Attributes_.FairShareRatio,
-        TotalResourceLimits_,
-        StrategyConfig_->PreemptionSatisfactionThreshold,
-        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
+    UpdatePreemptableJobsList();
 }
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
@@ -2001,11 +2034,7 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
     auto resourceUsage = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-resourceUsage);
 
-    SharedState_->UpdatePreemptableJobsList(
-        Attributes_.FairShareRatio,
-        TotalResourceLimits_,
-        StrategyConfig_->PreemptionSatisfactionThreshold,
-        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
+    UpdatePreemptableJobsList();
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
@@ -2059,7 +2088,7 @@ TJobResources TOperationElement::GetHierarchicalResourceLimits(const TFairShareC
 
 TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits, const TJobResources& jobResourceDiscount)
 {
-    auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationController::ScheduleJob, Controller_)
+    auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationControllerStrategyHost::ScheduleJob, Controller_)
         .AsyncVia(Controller_->GetCancelableInvoker())
         .Run(context.SchedulingContext, jobLimits);
 
@@ -2071,8 +2100,14 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
     if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
         auto scheduleJobResult = New<TScheduleJobResult>();
         if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
-            LOG_WARNING("Controller is scheduling for too long, aborting (OperationId: %v)",
+            auto error = TError(
+                "Scheduling job in controller of operation %v timed out; "
+                "it means that either scheduler is under heavy load or operation is too heavy",
                 OperationId_);
+
+            LOG_WARNING(error);
+            SetOperationAlert(OperationId_, EOperationAlertType::ScheduleJobTimedOut, error);
+
             ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
             // If ScheduleJob was not canceled we need to abort created job.
             scheduleJobResultFuture.Subscribe(
@@ -2110,7 +2145,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
                 OperationId_);
 
             Controller_->GetCancelableInvoker()->Invoke(BIND(
-                &NControllerAgent::IOperationController::OnJobAborted,
+                &NControllerAgent::IOperationControllerStrategyHost::OnJobAborted,
                 Controller_,
                 Passed(std::make_unique<TAbortedJobSummary>(
                     jobId,
@@ -2150,18 +2185,43 @@ int TOperationElement::ComputePendingJobCount() const
     return Controller_->GetPendingJobCount();
 }
 
-////////////////////////////////////////////////////////////////////////////////
+void TOperationElement::UpdatePreemptableJobsList()
+{
+    TScopedTimer timer;
+    int moveCount = 0;
+
+    SharedState_->UpdatePreemptableJobsList(
+        GetFairShareRatio(),
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold,
+        &moveCount);
+
+    auto elapsed = timer.GetElapsed();
+
+    Profiler.Update(PreemptableListUpdateTimeCounter, DurationToValue(elapsed));
+    Profiler.Update(PreemptableListUpdateMoveCountCounter, moveCount);
+
+    if (elapsed > StrategyConfig_->UpdatePreemptableListDurationLoggingThreshold) {
+        LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v)",
+            elapsed.MilliSeconds(),
+            moveCount,
+            OperationId_);
+    }
+}
+
+////////////////////////////////////////////////////////////////////
 
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
-    NProfiling::TTagId profilingTag,
-    TFairShareStrategyConfigPtr strategyConfig)
+    TFairShareStrategyConfigPtr strategyConfig,
+    NProfiling::TTagId profilingTag)
     : TCompositeSchedulerElement(
         host,
         strategyConfig,
         profilingTag)
 {
-    Attributes_.FairShareRatio = 1.0;
+    SetFairShareRatio(1.0);
     Attributes_.GuaranteedResourcesRatio = 1.0;
     Attributes_.AdjustedMinShareRatio = 1.0;
     Attributes_.RecursiveMinShareRatio = 1.0;

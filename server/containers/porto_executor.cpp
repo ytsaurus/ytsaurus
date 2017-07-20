@@ -1,4 +1,7 @@
 #include "porto_executor.h"
+
+#ifdef _linux_
+
 #include "private.h"
 
 #include <yt/core/concurrency/action_queue.h>
@@ -137,7 +140,7 @@ public:
         .Run();
     }
 
-    virtual TFuture<TVolumeID> CreateVolume(
+    virtual TFuture<TVolumeId> CreateVolume(
         const TString& path,
         const std::map<TString, TString>& properties) override
     {
@@ -185,7 +188,7 @@ private:
 
     static TError ConvertPortoError(int errorCode, const TString& message)
     {
-        return TError(errorCode + ContainerErrorCodeBase, "Porto api error")
+        return TError(errorCode + ContainerErrorCodeBase, "Porto API error")
             << TErrorAttribute("original_porto_error_code", errorCode)
             << TErrorAttribute("porto_error_message", message);
     }
@@ -200,7 +203,7 @@ private:
         int error;
         TString message;
         Api_->GetLastError(error, message);
-        LOG_ERROR("Porto api error (Error: %v, Command: %v, Message: %v)",
+        LOG_ERROR("Porto API error (Error: %v, Command: %v, Message: %v)",
             error,
             command,
             message);
@@ -297,7 +300,7 @@ private:
         }
     }
 
-    TVolumeID DoCreateVolume(
+    TVolumeId DoCreateVolume(
         const TString& path,
         const std::map<TString, TString>& properties)
     {
@@ -383,3 +386,22 @@ IPortoExecutorPtr CreatePortoExecutor(TDuration retryTime, TDuration pollPeriod)
 
 } // namespace NContainers
 } // namespace NYT
+
+#else
+
+namespace NYT {
+namespace NContainers {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IPortoExecutorPtr CreatePortoExecutor(TDuration /*retryTime*/, TDuration /*pollPeriod*/)
+{
+    Y_UNIMPLEMENTED();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NContainers
+} // namespace NYT
+
+#endif

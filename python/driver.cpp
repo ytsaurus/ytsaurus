@@ -343,7 +343,13 @@ public:
     {
         ValidateArgumentsEmpty(args, kwargs);
 
-        return ConvertTo<Py::Object>(ConfigNode_);
+        Py::Object object;
+#if PY_MAJOR_VERSION < 3
+        Deserialize(object, ConfigNode_, Null);
+#else
+        Deserialize(object, ConfigNode_, MakeNullable<TString>("utf-8"));
+#endif
+        return object;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetConfig)
 

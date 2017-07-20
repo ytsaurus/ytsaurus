@@ -130,6 +130,7 @@ public:
         REGISTER(TWriteTableCommand,           "write_table",             Tabular,    Null,       true,  true );
         REGISTER(TReadTableCommand,            "read_table",              Null,       Tabular,    false, true );
         REGISTER(TReadBlobTableCommand,        "read_blob_table",         Null,       Binary,     false, true );
+        REGISTER(TLocateSkynetShareCommand,    "locate_skynet_share",     Null,       Structured, false, true );
 
         REGISTER(TInsertRowsCommand,           "insert_rows",             Tabular,    Null,       true,  true );
         REGISTER(TDeleteRowsCommand,           "delete_rows",             Tabular,    Null,       true,  true);
@@ -181,10 +182,12 @@ public:
         REGISTER(TAbandonJobCommand,           "abandon_job",             Null,       Null,       false, false);
         REGISTER(TPollJobShellCommand,         "poll_job_shell",          Null,       Structured, true,  false);
         REGISTER(TAbortJobCommand,             "abort_job",               Null,       Null,       false, false);
+        REGISTER(TGetOperationCommand,         "get_operation",           Null,       Structured, false, false);
 
         REGISTER(TGetVersionCommand,           "get_version",             Null,       Structured, false, false);
 
         REGISTER(TExecuteBatchCommand,         "execute_batch",           Null,       Structured, true,  false);
+
 #undef REGISTER
     }
 

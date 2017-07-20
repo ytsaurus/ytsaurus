@@ -125,6 +125,14 @@ void MountTmpfs(const TString& path, int userId, i64 size);
 //! Unmount given path.
 void Umount(const TString& path, bool detach);
 
+//! Set disk space and inodes quota for given user on filesystem determined by pathInFs.
+//! The filesystem must be mounted with quotas enabled.
+void SetQuota(
+    int userId,
+    const TStringBuf& path,
+    TNullable<i64> diskSpaceLimit,
+    TNullable<i64> inodeLimit);
+
 //! Wraps a given #func in with try/catch; makes sure that only IO-related
 //! exceptions are being thrown. For all other exceptions, immediately terminates
 //! with fatal error.

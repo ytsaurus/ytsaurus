@@ -37,6 +37,7 @@ DECLARE_REFCOUNTED_STRUCT(IClientRequestControl)
 DECLARE_REFCOUNTED_STRUCT(IClientResponseHandler)
 DECLARE_REFCOUNTED_STRUCT(IServer)
 DECLARE_REFCOUNTED_STRUCT(IService)
+DECLARE_REFCOUNTED_STRUCT(IServiceWithReflection)
 DECLARE_REFCOUNTED_STRUCT(IServiceContext)
 DECLARE_REFCOUNTED_STRUCT(IChannel)
 DECLARE_REFCOUNTED_STRUCT(IChannelFactory)
@@ -45,7 +46,6 @@ DECLARE_REFCOUNTED_STRUCT(IRoamingChannelProvider)
 DECLARE_REFCOUNTED_CLASS(TClientContext)
 DECLARE_REFCOUNTED_CLASS(TServiceBase)
 DECLARE_REFCOUNTED_CLASS(TChannelWrapper)
-DECLARE_REFCOUNTED_CLASS(TOneWayClientResponse)
 DECLARE_REFCOUNTED_CLASS(TStaticChannelFactory)
 DECLARE_REFCOUNTED_CLASS(TClientRequestControlThunk)
 
@@ -75,6 +75,9 @@ extern const TMutationId NullMutationId;
 extern const TString RootUserName;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+constexpr int DefaultProtocolVersion = 0;
+constexpr int GenericProtocolVersion = -1;
 
 DEFINE_ENUM(EErrorCode,
     ((TransportError)               (100))

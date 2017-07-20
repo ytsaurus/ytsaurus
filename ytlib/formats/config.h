@@ -386,6 +386,66 @@ DEFINE_REFCOUNTED_TYPE(TSchemafulDsvFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EProtobufType,
+    (Double)
+    (Float)
+
+    (Int64)
+    (Uint64)
+    (Sint64)
+    (Fixed64)
+    (Sfixed64)
+
+    (Int32)
+    (Uint32)
+    (Sint32)
+    (Fixed32)
+    (Sfixed32)
+
+    (Bool)
+    (String)
+    (Bytes)
+
+    (EnumInt)
+    (EnumString)
+
+    (Message)
+);
+
+class TProtobufColumnConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Name;
+    EProtobufType ProtoType;
+    ui64 FieldNumber;
+    TNullable<TString> EnumerationName;
+
+    TProtobufColumnConfig()
+    {
+        RegisterParameter("name", Name)
+            .NonEmpty();
+        RegisterParameter("proto_type", ProtoType);
+        RegisterParameter("field_number", FieldNumber);
+        RegisterParameter("enumeration_name", EnumerationName)
+            .Default();
+    }
+};
+DEFINE_REFCOUNTED_TYPE(TProtobufColumnConfig)
+
+class TProtobufTableConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::vector<TProtobufColumnConfigPtr> Columns;
+
+    TProtobufTableConfig()
+    {
+        RegisterParameter("columns", Columns);
+    }
+};
+DEFINE_REFCOUNTED_TYPE(TProtobufTableConfig)
+
 DEFINE_ENUM(ENestedMessagesMode,
     (Protobuf)
     (Yson)
@@ -395,23 +455,40 @@ class TProtobufFormatConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TString FileDescriptorSet;
-    std::vector<int> FileIndices;
-    std::vector<int> MessageIndices;
-    bool EnumsAsStrings;
-    ENestedMessagesMode NestedMessagesMode;
+    TString FileDescriptorSet; // deprecated
+    std::vector<int> FileIndices; // deprecated
+    std::vector<int> MessageIndices; // deprecated
+    bool EnumsAsStrings; // deprecated
+    ENestedMessagesMode NestedMessagesMode; // deprecated
+
+    std::vector<TProtobufTableConfigPtr> Tables;
+    NYTree::IMapNodePtr Enumerations;
 
     TProtobufFormatConfig()
     {
         RegisterParameter("file_descriptor_set", FileDescriptorSet)
-            .NonEmpty();
-        RegisterParameter("file_indices", FileIndices);
-        RegisterParameter("message_indices", MessageIndices);
-        RegisterParameter("enums_as_strings", EnumsAsStrings)
-            .Default(false);
+            .Default();
+        RegisterParameter("file_indices", FileIndices)
+            .Default();
+        RegisterParameter("message_indices", MessageIndices)
+            .Default();
         RegisterParameter("nested_messages_mode", NestedMessagesMode)
             .Default(ENestedMessagesMode::Protobuf);
+        RegisterParameter("enums_as_strings", EnumsAsStrings)
+            .Default();
+
+        RegisterParameter("tables", Tables)
+            .Default();
+        RegisterParameter("enumerations", Enumerations)
+            .Default();
+
+        RegisterValidator([&] {
+            Validate();
+        });
     }
+
+private:
+    void Validate();
 };
 
 DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig)

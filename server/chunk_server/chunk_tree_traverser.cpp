@@ -102,7 +102,11 @@ protected:
             , LowerBound(lowerBound)
             , UpperBound(upperBound)
             , ChunkCount(chunkCount)
-        { }
+        {
+            YCHECK(childIndex >= 0);
+            YCHECK(rowIndex >= 0);
+            YCHECK(chunkCount >= 0);
+        }
     };
 
     void OnTimeSpent(TDuration elapsed)
@@ -455,7 +459,7 @@ protected:
 
     void GetStartChildIndex(
         TChunkList* chunkList,
-        int rowIndex,
+        i64 rowIndex,
         const TReadLimit& lowerBound,
         const TReadLimit& upperBound)
     {
@@ -482,7 +486,7 @@ protected:
 
     void GetStartChildIndexStatic(
         TChunkList* chunkList,
-        int rowIndex,
+        i64 rowIndex,
         const TReadLimit& lowerBound,
         const TReadLimit& upperBound)
     {
@@ -553,7 +557,7 @@ protected:
 
     void GetStartChildIndexDynamicRoot(
         TChunkList* chunkList,
-        int rowIndex,
+        i64 rowIndex,
         const TReadLimit& lowerBound,
         const TReadLimit& upperBound)
     {
@@ -610,7 +614,7 @@ protected:
 
     void GetStartChildIndexTablet(
         TChunkList* chunkList,
-        int rowIndex,
+        i64 rowIndex,
         const TReadLimit& lowerBound,
         const TReadLimit& upperBound)
     {

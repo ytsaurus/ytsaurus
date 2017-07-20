@@ -28,10 +28,12 @@ TTransactionWriteRecord::TTransactionWriteRecord(
     const TTabletId& tabletId,
     TSharedRef data,
     int rowCount,
+    size_t byteSize,
     const TSyncReplicaIdList& syncReplicaIds)
     : TabletId(tabletId)
     , Data(std::move(data))
     , RowCount(rowCount)
+    , ByteSize(byteSize)
     , SyncReplicaIds(syncReplicaIds)
 { }
 
@@ -41,6 +43,7 @@ void TTransactionWriteRecord::Save(TSaveContext& context) const
     Save(context, TabletId);
     Save(context, Data);
     Save(context, RowCount);
+    Save(context, ByteSize);
     Save(context, SyncReplicaIds);
 }
 
@@ -50,6 +53,9 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
     Load(context, TabletId);
     Load(context, Data);
     Load(context, RowCount);
+    if (context.GetVersion() >= 100006) {
+        Load(context, ByteSize);
+    }
     Load(context, SyncReplicaIds);
 }
 
@@ -79,6 +85,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, CommitTimestamp_);
     Save(context, PersistentSignature_);
     Save(context, ReplicatedRowsPrepared_);
+    Save(context, User_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -97,6 +104,9 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, PersistentSignature_);
     TransientSignature_ = PersistentSignature_;
     Load(context, ReplicatedRowsPrepared_);
+    if (context.GetVersion() >= 100006) {
+        Load(context, User_);
+    }
 }
 
 TCallback<void(TSaveContext&)> TTransaction::AsyncSave()

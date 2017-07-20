@@ -181,13 +181,9 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
         context->GetRequestId(),
         user->GetName());
 
-    NProfiling::TTagIdList tagIds{
-        objectManager->GetTypeTagId(Object_->GetType()),
-        objectManager->GetMethodTagId(context->GetMethod())
-    };
     const auto& Profiler = objectManager->GetProfiler();
-    static const auto profilingPath = TYPath("/verb_execute_time");
-    PROFILE_TIMING (profilingPath, tagIds) {
+    auto* counter = objectManager->GetMethodExecTimeCounter(Object_->GetType(), context->GetMethod());
+    PROFILE_AGGREGATED_TIMING (*counter) {
         TSupportsAttributes::Invoke(context);
     }
 }
@@ -347,13 +343,16 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back("foreign");
     descriptors->push_back(TAttributeDescriptor("inherit_acl")
         .SetPresent(hasAcd)
+        .SetWritable(true)
         .SetWritePermission(EPermission::Administer)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("acl")
         .SetPresent(hasAcd)
+        .SetWritable(true)
         .SetWritePermission(EPermission::Administer)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("owner")
+        .SetWritable(true)
         .SetPresent(hasOwner));
     descriptors->push_back(TAttributeDescriptor("effective_acl")
         .SetOpaque(true));

@@ -119,7 +119,8 @@ std::vector<TBlock> TFileReader::DoReadBlocks(
     const auto& blockExts = GetBlockExts();
     int chunkBlockCount = blockExts.blocks_size();
     if (firstBlockIndex + blockCount > chunkBlockCount) {
-        THROW_ERROR_EXCEPTION("Requested to read blocks [%v,%v] from chunk %v while only %v blocks exist",
+        THROW_ERROR_EXCEPTION(EErrorCode::BlockOutOfRange,
+            "Requested to read blocks [%v,%v] from chunk %v while only %v blocks exist",
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
             FileName_,

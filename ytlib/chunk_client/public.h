@@ -150,6 +150,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchMedium)             (719))
     ((OptimisticLockFailure)    (720))
     ((InvalidBlockChecksum)     (721))
+    ((BlockOutOfRange)          (722))
 );
 
 //! Values must be contiguous.
@@ -169,6 +170,7 @@ DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderOptions)
+DECLARE_REFCOUNTED_CLASS(TFetchChunkSpecConfig)
 DECLARE_REFCOUNTED_CLASS(TBlockFetcherConfig)
 DECLARE_REFCOUNTED_CLASS(TReplicationWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteWriterOptions)

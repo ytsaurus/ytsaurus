@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
-
 #include "chunk_slice_fetcher_mock.h"
+
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/server/controller_agent/helpers.h>
 
@@ -14,22 +14,6 @@
 #include <util/stream/null.h>
 
 #include <random>
-
-namespace NYT {
-namespace NChunkClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! We intentionally suppress the default output for TInputChunk as they are
-//! identified by their addresses (already printed from the template function
-//! for TIntrusivePtr) pretty well.
-void PrintTo(const TInputChunk& /* chunk */, std::ostream* /* os */)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namesapce NChunkClient
-} // namespace NYT
 
 namespace NYT {
 namespace NChunkPools {
@@ -79,6 +63,8 @@ protected:
             0 /* maxDataSizePerJob_ */,
             InputSliceDataSize_,
             Inf64 /* inputSliceRowCount */);
+
+        Options_.SortedJobOptions.UseNewEndpointKeys = true;
     }
 
     struct TMockChunkSliceFetcherBuilder
@@ -430,7 +416,9 @@ protected:
                 lastLeftRowIndex = chunkSliceLowerRowIndex;
                 lastRightRowIndex = chunkSliceUpperRowIndex;
             }
-            EXPECT_EQ(lastUpperKey, chunkUpperKey);
+
+            // For InferLimitsFromBoundaryKeys, lastUpperKey can be larger than chunkUpperKey.
+            EXPECT_GE(lastUpperKey, chunkUpperKey);
             EXPECT_EQ(lastRightRowIndex, chunkUpperRowIndex);
         }
 

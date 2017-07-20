@@ -183,7 +183,7 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
         LOG_DEBUG("Making sandbox symlink (TargetPath: %v, LinkName: %v)", targetPath, linkName);
 
         try {
-            // This validations do not disable slot.
+            // These validations do not disable slot.
             ValidateNotExists(linkPath);
             ForceSubdirectories(linkPath, sandboxPath);
         } catch (const std::exception& ex) {
@@ -198,6 +198,35 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
         } catch (const std::exception& ex) {
             // Job will be aborted.
             auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    })
+    .AsyncVia(LocationQueue_->GetInvoker())
+    .Run();
+}
+
+TFuture<void> TSlotLocation::SetQuota(
+    int slotIndex,
+    TNullable<i64> diskSpaceLimit,
+    TNullable<i64> inodeLimit,
+    int userId)
+{
+    return BIND([=, this_ = MakeStrong(this)] () {
+        ValidateEnabled();
+        auto slotPath = GetSlotPath(slotIndex);
+        auto config = New<TFSQuotaConfig>();
+        config->DiskSpaceLimit = diskSpaceLimit;
+        config->InodeLimit = inodeLimit;
+        config->UserId = userId;
+        config->SlotPath = slotPath;
+
+        try {
+            RunTool<TFSQuotaTool>(config);
+        } catch (const std::exception& ex) {
+            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
+                << TErrorAttribute("slot_path", slotPath)
                 << ex;
             Disable(error);
             THROW_ERROR error;

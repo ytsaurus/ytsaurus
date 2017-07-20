@@ -35,6 +35,7 @@ using NNodeTrackerClient::TRackId;
 using NNodeTrackerClient::TDataCenterId;
 
 using NNodeTrackerClient::TAddressMap;
+using NNodeTrackerClient::TNodeAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -64,6 +64,7 @@ public:
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
+        const TString& user = TString(),
         bool* fresh = nullptr);
 
     //! Finds a transaction by id.

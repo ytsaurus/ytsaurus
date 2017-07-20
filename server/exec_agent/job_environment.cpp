@@ -336,16 +336,19 @@ public:
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
     {
-        auto portoFatalErrorHandler = BIND([=] (const TError& error) {
-            Disable(error);
+        auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)] (const TError& error) {
+            // We use weak ptr to avoid cyclic references between container manager and job environment.
+            auto this_ = weakThis_.Lock();
+            if (this_) {
+                this_->Disable(error);
+            }
         });
+
         try {
             ContainerManager_ = CreatePortoManager(
                 "yt_job-proxy_",
                 portoFatalErrorHandler,
-                { ECleanMode::All,
-                Config_->PortoWaitTime,
-                Config_->PortoPollPeriod });
+                { ECleanMode::All, Config_->PortoWaitTime, Config_->PortoPollPeriod });
         } catch (const std::exception& ex) {
             auto error = TError("Failed to initialize \"porto\" job environment")
                 << ex;

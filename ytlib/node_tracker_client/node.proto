@@ -96,6 +96,17 @@ message TAddressMap
     repeated TAddressEntry entries = 3;
 }
 
+message TNodeAddressMap
+{
+    message TAddressEntry
+    {
+        required int32 address_type = 1;
+        required TAddressMap addresses = 2;
+    }
+
+    repeated TAddressEntry entries = 3;
+}
+
 message TNodeDescriptor
 {
     required TAddressMap addresses = 1;
