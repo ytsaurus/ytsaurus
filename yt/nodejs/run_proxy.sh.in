@@ -17,5 +17,4 @@ if [[ -f /usr/lib/libjemalloc.so.1 ]]; then
     export MALLOC_CONF=prof_prefix:yt_http_proxy_jemalloc
 fi
 
-(cd $CMB && exec $CMB/node_modules/yt/bin/yt_http_proxy "$@")
-
+cd $CMB && exec $CMB/node_modules/yt/bin/yt_http_proxy "$@"
