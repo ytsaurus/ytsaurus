@@ -330,7 +330,6 @@ IOperationControllerPtr CreateControllerForOperation(
                     controller = legacySpec->UseLegacyController
                         ? CreateLegacySortedMergeController(config, host, operation)
                         : CreateSortedMergeController(config, host, operation);
-                    controller = CreateLegacySortedMergeController(config, host, operation);
                     break;
                 }
                 case EMergeMode::Unordered:
