@@ -101,45 +101,31 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TWriteProfilerTrait
-    : public TTabletProfilerTraitBase
+struct TWriteCounters
 {
-    struct TValue
-    {
-        TValue(const TTagIdList& list)
-            : Rows("/write/rows", list)
-            , Bytes("/write/bytes", list)
-        { }
+    TWriteCounters(const TTagIdList& list)
+        : Rows("/write/rows", list)
+        , Bytes("/write/bytes", list)
+    { }
 
-        TSimpleCounter Rows;
-        TSimpleCounter Bytes;
-    };
-
-    static TValue ToValue(const TTagIdList& list)
-    {
-        return list;
-    }
+    TSimpleCounter Rows;
+    TSimpleCounter Bytes;
 };
 
-struct TCommitProfilerTrait
-    : public TTabletProfilerTraitBase
+using TWriteProfilerTrait = TTabletProfilerTrait<TWriteCounters>;
+
+struct TCommitCounters
 {
-    struct TValue
-    {
-        TValue(const TTagIdList& list)
-            : Rows("/commit/rows", list)
-            , Bytes("/commit/bytes", list)
-        { }
+    TCommitCounters(const TTagIdList& list)
+        : Rows("/commit/rows", list)
+        , Bytes("/commit/bytes", list)
+    { }
 
-        TSimpleCounter Rows;
-        TSimpleCounter Bytes;
-    };
-
-    static TValue ToValue(const TTagIdList& list)
-    {
-        return list;
-    }
+    TSimpleCounter Rows;
+    TSimpleCounter Bytes;
 };
+
+using TCommitProfilerTrait = TTabletProfilerTrait<TCommitCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -720,6 +706,7 @@ private:
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
             tablet->FillProfilerTags(Slot_->GetCellId());
+            tablet->UpdateReplicaCounters();
         }
 
         const auto& transactionManager = Slot_->GetTransactionManager();
@@ -3006,6 +2993,8 @@ private:
         if (IsLeader()) {
             StartTableReplicaEpoch(tablet, &replicaInfo);
         }
+
+        tablet->UpdateReplicaCounters();
 
         UpdateTabletSnapshot(tablet);
 
