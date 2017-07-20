@@ -52,6 +52,7 @@ void ExtractFunctionNames(
         ExtractFunctionNames(inExpr->Expr, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
+    } else if (expr->As<NAst::TAliasExpression>()) {
     } else {
         Y_UNREACHABLE();
     }
@@ -1176,6 +1177,46 @@ struct TTypedExpressionBuilder
     const NAst::TAliasMap& AliasMap;
 
     TUntypedExpression DoBuildUntypedExpression(
+        const NAst::TReference& reference,
+        ISchemaProxyPtr schema,
+        std::set<TString>& usedAliases) const
+    {
+        auto column = schema->GetColumnPtr(reference);
+        if (!column) {
+            if (!reference.TableName) {
+                const auto& columnName = reference.ColumnName;
+                auto found = AliasMap.find(columnName);
+
+                if (found != AliasMap.end()) {
+                    // try InferName(found, expand aliases = true)
+
+                    if (usedAliases.count(columnName)) {
+                        THROW_ERROR_EXCEPTION("Recursive usage of alias %Qv", columnName);
+                    }
+
+                    usedAliases.insert(columnName);
+                    auto aliasExpr = DoBuildUntypedExpression(
+                        found->second.Get(),
+                        schema,
+                        usedAliases);
+
+                    usedAliases.erase(columnName);
+                    return aliasExpr;
+                }
+            }
+
+            THROW_ERROR_EXCEPTION("Undefined reference %Qv",
+                NAst::FormatReference(reference));
+        }
+
+        TTypeSet resultTypes({column->Type});
+        TExpressionGenerator generator = [name = column->Name] (EValueType type) {
+            return New<TReferenceExpression>(type, name);
+        };
+        return TUntypedExpression{resultTypes, std::move(generator), false};
+    }
+
+    TUntypedExpression DoBuildUntypedExpression(
         const NAst::TExpression* expr,
         ISchemaProxyPtr schema,
         std::set<TString>& usedAliases) const
@@ -1190,38 +1231,10 @@ struct TTypedExpressionBuilder
                     CastValueWithCheck(GetValue(literalValue), type));
             };
             return TUntypedExpression{resultTypes, std::move(generator), true};
+        } else if (auto aliasExpr = expr->As<NAst::TAliasExpression>()) {
+            return DoBuildUntypedExpression(NAst::TReference(aliasExpr->Name), schema, usedAliases);
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
-            auto column = schema->GetColumnPtr(referenceExpr->Reference);
-            if (!column) {
-                if (!referenceExpr->Reference.TableName) {
-                    const auto& columnName = referenceExpr->Reference.ColumnName;
-                    auto found = AliasMap.find(columnName);
-
-                    if (found != AliasMap.end()) {
-                        if (usedAliases.count(columnName)) {
-                            THROW_ERROR_EXCEPTION("Recursive usage of alias %Qv", columnName);
-                        }
-
-                        usedAliases.insert(columnName);
-                        auto aliasExpr = DoBuildUntypedExpression(
-                            found->second.Get(),
-                            schema,
-                            usedAliases);
-
-                        usedAliases.erase(columnName);
-                        return aliasExpr;
-                    }
-                }
-
-                THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-                    NAst::FormatReference(referenceExpr->Reference));
-            }
-
-            TTypeSet resultTypes({column->Type});
-            TExpressionGenerator generator = [name = column->Name] (EValueType type) {
-                return New<TReferenceExpression>(type, name);
-            };
-            return TUntypedExpression{resultTypes, std::move(generator), false};
+            return DoBuildUntypedExpression(referenceExpr->Reference, schema, usedAliases);
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
             auto functionName = functionExpr->FunctionName;
             functionName.to_lower();

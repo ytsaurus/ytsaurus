@@ -88,6 +88,14 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
             return false;
         }
         return typedLhs->Reference == typedRhs->Reference;
+    } else if (const auto* typedLhs = lhs.As<TAliasExpression>()) {
+        const auto* typedRhs = rhs.As<TAliasExpression>();
+        if (!typedRhs) {
+            return false;
+        }
+        return
+            typedLhs->Name == typedRhs->Name &&
+            *typedLhs->Expression == *typedRhs->Expression;
     } else if (const auto* typedLhs = lhs.As<TFunctionExpression>()) {
         const auto* typedRhs = rhs.As<TFunctionExpression>();
         if (!typedRhs) {
@@ -271,86 +279,88 @@ void FormatTableDescriptor(TStringBuilder* builder, const TTableDescriptor& desc
     }
 }
 
-void FormatExpressions(TStringBuilder* builder, const NAst::TExpressionList& exprs, bool omitLiterals);
-void FormatExpression(TStringBuilder* builder, const NAst::TExpression& expr, bool omitLiterals);
-void FormatExpression(TStringBuilder* builder, const NAst::TExpressionList& expr, bool omitLiterals);
+void FormatExpressions(TStringBuilder* builder, const NAst::TExpressionList& exprs, bool expandAliases);
+void FormatExpression(TStringBuilder* builder, const NAst::TExpression& expr, bool expandAliases);
+void FormatExpression(TStringBuilder* builder, const NAst::TExpressionList& expr, bool expandAliases);
 
-void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool omitLiterals)
+void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool expandAliases)
 {
     if (auto* typedExpr = expr.As<NAst::TLiteralExpression>()) {
-        if (omitLiterals) {
-            builder->AppendChar('?');
-        } else {
-            builder->AppendString(NAst::FormatLiteralValue(typedExpr->Value));
-        }
+        builder->AppendString(NAst::FormatLiteralValue(typedExpr->Value));
     } else if (auto* typedExpr = expr.As<NAst::TReferenceExpression>()) {
         builder->AppendString(NAst::FormatReference(typedExpr->Reference));
+    } else if (auto* typedExpr = expr.As<NAst::TAliasExpression>()) {
+        if (expandAliases) {
+            builder->AppendChar('(');
+            FormatExpression(builder, *typedExpr->Expression, expandAliases);
+            builder->AppendString(" as ");
+            builder->AppendString(typedExpr->Name);
+            builder->AppendChar(')');
+        } else {
+            builder->AppendString(typedExpr->Name);
+        }
     } else if (auto* typedExpr = expr.As<NAst::TFunctionExpression>()) {
         builder->AppendString(typedExpr->FunctionName);
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Arguments, omitLiterals);
+        FormatExpressions(builder, typedExpr->Arguments, expandAliases);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<NAst::TUnaryOpExpression>()) {
         builder->AppendString(GetUnaryOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar('(');
-        FormatExpression(builder, typedExpr->Operand, omitLiterals);
+        FormatExpression(builder, typedExpr->Operand, expandAliases);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<NAst::TBinaryOpExpression>()) {
         builder->AppendChar('(');
-        FormatExpression(builder, typedExpr->Lhs, omitLiterals);
+        FormatExpression(builder, typedExpr->Lhs, expandAliases);
         builder->AppendChar(')');
         builder->AppendString(GetBinaryOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar('(');
-        FormatExpression(builder, typedExpr->Rhs, omitLiterals);
+        FormatExpression(builder, typedExpr->Rhs, expandAliases);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<NAst::TInOpExpression>()) {
         builder->AppendChar('(');
-        FormatExpressions(builder, typedExpr->Expr, omitLiterals);
+        FormatExpressions(builder, typedExpr->Expr, expandAliases);
         builder->AppendString(") IN (");
-        if (omitLiterals) {
-            builder->AppendString("??");
-        } else {
-            JoinToString(
-                builder,
-                typedExpr->Values.begin(),
-                typedExpr->Values.end(),
-                [] (TStringBuilder* builder, const NAst::TLiteralValueTuple& tuple) {
-                    bool needParens = tuple.size() > 1;
-                    if (needParens) {
-                        builder->AppendChar('(');
-                    }
-                    JoinToString(
-                        builder,
-                        tuple.begin(),
-                        tuple.end(),
-                        [] (TStringBuilder* builder, const NAst::TLiteralValue& value) {
-                            builder->AppendString(NAst::FormatLiteralValue(value));
-                        });
-                    if (needParens) {
-                        builder->AppendChar(')');
-                    }
-                });
-        }
+        JoinToString(
+            builder,
+            typedExpr->Values.begin(),
+            typedExpr->Values.end(),
+            [] (TStringBuilder* builder, const NAst::TLiteralValueTuple& tuple) {
+                bool needParens = tuple.size() > 1;
+                if (needParens) {
+                    builder->AppendChar('(');
+                }
+                JoinToString(
+                    builder,
+                    tuple.begin(),
+                    tuple.end(),
+                    [] (TStringBuilder* builder, const NAst::TLiteralValue& value) {
+                        builder->AppendString(NAst::FormatLiteralValue(value));
+                    });
+                if (needParens) {
+                    builder->AppendChar(')');
+                }
+            });
         builder->AppendChar(')');
     } else {
         Y_UNREACHABLE();
     }
 }
 
-void FormatExpression(TStringBuilder* builder, const NAst::TExpressionList& exprs, bool omitLiterals)
+void FormatExpression(TStringBuilder* builder, const NAst::TExpressionList& exprs, bool expandAliases)
 {
     YCHECK(exprs.size() == 1);
-    FormatExpression(builder, *exprs[0], omitLiterals);
+    FormatExpression(builder, *exprs[0], expandAliases);
 }
 
-void FormatExpressions(TStringBuilder* builder, const NAst::TExpressionList& exprs, bool omitLiterals)
+void FormatExpressions(TStringBuilder* builder, const NAst::TExpressionList& exprs, bool expandAliases)
 {
     JoinToString(
         builder,
         exprs.begin(),
         exprs.end(),
         [&] (TStringBuilder* builder, const NAst::TExpressionPtr& expr) {
-            FormatExpression(builder, *expr, omitLiterals);
+            FormatExpression(builder, *expr, expandAliases);
         });
 }
 
@@ -362,7 +372,7 @@ void FormatQuery(TStringBuilder* builder, const NAst::TQuery& query)
             query.SelectExprs->begin(),
             query.SelectExprs->end(),
             [] (TStringBuilder* builder, const NAst::TExpressionPtr& expr) {
-                FormatExpression(builder, *expr, false);
+                FormatExpression(builder, *expr, true);
             });
     } else {
         builder->AppendString("*");
@@ -379,9 +389,9 @@ void FormatQuery(TStringBuilder* builder, const NAst::TQuery& query)
         FormatTableDescriptor(builder, join.Table);
         if (join.Fields.empty()) {
             builder->AppendString(" ON ");
-            FormatExpression(builder, join.Lhs, false);
+            FormatExpression(builder, join.Lhs, true);
             builder->AppendString(" = ");
-            FormatExpression(builder, join.Rhs, false);
+            FormatExpression(builder, join.Rhs, true);
         } else {
             builder->AppendString(" USING ");
             JoinToString(
@@ -394,18 +404,18 @@ void FormatQuery(TStringBuilder* builder, const NAst::TQuery& query)
         }
         if (join.Predicate) {
             builder->AppendString(" AND ");
-            FormatExpression(builder, *join.Predicate, false);
+            FormatExpression(builder, *join.Predicate, true);
         }
     }
 
     if (query.WherePredicate) {
         builder->AppendString(" WHERE ");
-        FormatExpression(builder, *query.WherePredicate, false);
+        FormatExpression(builder, *query.WherePredicate, true);
     }
 
     if (query.GroupExprs) {
         builder->AppendString(" GROUP BY ");
-        FormatExpressions(builder, query.GroupExprs->first, false);
+        FormatExpressions(builder, query.GroupExprs->first, true);
         if (query.GroupExprs->second == ETotalsMode::BeforeHaving) {
             builder->AppendString(" WITH TOTALS");
         }
@@ -413,7 +423,7 @@ void FormatQuery(TStringBuilder* builder, const NAst::TQuery& query)
 
     if (query.HavingPredicate) {
         builder->AppendString(" HAVING ");
-        FormatExpression(builder, *query.HavingPredicate, false);
+        FormatExpression(builder, *query.HavingPredicate, true);
     }
 
     if (query.GroupExprs && query.GroupExprs->second == ETotalsMode::AfterHaving) {
@@ -427,7 +437,7 @@ void FormatQuery(TStringBuilder* builder, const NAst::TQuery& query)
             query.OrderExpressions.begin(),
             query.OrderExpressions.end(),
             [] (TStringBuilder* builder, const std::pair<NAst::TExpressionList, bool>& pair) {
-                FormatExpression(builder, pair.first, false);
+                FormatExpression(builder, pair.first, true);
                 if (pair.second) {
                     builder->AppendString(" DESC");
                 }
@@ -463,7 +473,7 @@ TString FormatReference(const TReference& ref)
 TString FormatExpression(const TExpression& expr)
 {
     TStringBuilder builder;
-    FormatExpression(&builder, expr, false);
+    FormatExpression(&builder, expr, true);
     return builder.Flush();
 }
 
@@ -483,7 +493,7 @@ TString FormatQuery(const TQuery& query)
 TString InferName(const TExpression& expr)
 {
     TStringBuilder builder;
-    FormatExpression(&builder, expr, true);
+    FormatExpression(&builder, expr, false);
     return builder.Flush();
 }
 

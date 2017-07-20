@@ -245,10 +245,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< EUnaryOp > (other.value);
         break;
 
-      case 33: // "string literal"
-        value.copy< TString > (other.value);
-        break;
-
       case 75: // expression
       case 76: // or-op-expr
       case 77: // and-op-expr
@@ -294,6 +290,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 92: // qualified-identifier
         value.copy< TReferenceExpressionPtr > (other.value);
+        break;
+
+      case 33: // "string literal"
+        value.copy< TString > (other.value);
         break;
 
       case 29: // "identifier"
@@ -352,10 +352,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< EUnaryOp > (v);
         break;
 
-      case 33: // "string literal"
-        value.copy< TString > (v);
-        break;
-
       case 75: // expression
       case 76: // or-op-expr
       case 77: // and-op-expr
@@ -401,6 +397,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 92: // qualified-identifier
         value.copy< TReferenceExpressionPtr > (v);
+        break;
+
+      case 33: // "string literal"
+        value.copy< TString > (v);
         break;
 
       case 29: // "identifier"
@@ -465,13 +465,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {}
 
   template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TString v, const location_type& l)
-    : Base (t)
-    , value (v)
-    , location (l)
-  {}
-
-  template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TExpressionList v, const location_type& l)
     : Base (t)
     , value (v)
@@ -522,6 +515,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TReferenceExpressionPtr v, const location_type& l)
+    : Base (t)
+    , value (v)
+    , location (l)
+  {}
+
+  template <typename Base>
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TString v, const location_type& l)
     : Base (t)
     , value (v)
     , location (l)
@@ -599,10 +599,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.template destroy< EUnaryOp > ();
         break;
 
-      case 33: // "string literal"
-        value.template destroy< TString > ();
-        break;
-
       case 75: // expression
       case 76: // or-op-expr
       case 77: // and-op-expr
@@ -648,6 +644,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 92: // qualified-identifier
         value.template destroy< TReferenceExpressionPtr > ();
+        break;
+
+      case 33: // "string literal"
+        value.template destroy< TString > ();
         break;
 
       case 29: // "identifier"
@@ -703,10 +703,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< EUnaryOp > (s.value);
         break;
 
-      case 33: // "string literal"
-        value.move< TString > (s.value);
-        break;
-
       case 75: // expression
       case 76: // or-op-expr
       case 77: // and-op-expr
@@ -752,6 +748,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 92: // qualified-identifier
         value.move< TReferenceExpressionPtr > (s.value);
+        break;
+
+      case 33: // "string literal"
+        value.move< TString > (s.value);
         break;
 
       case 29: // "identifier"
@@ -1193,10 +1193,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< EUnaryOp > (that.value);
         break;
 
-      case 33: // "string literal"
-        value.move< TString > (that.value);
-        break;
-
       case 75: // expression
       case 76: // or-op-expr
       case 77: // and-op-expr
@@ -1242,6 +1238,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 92: // qualified-identifier
         value.move< TReferenceExpressionPtr > (that.value);
+        break;
+
+      case 33: // "string literal"
+        value.move< TString > (that.value);
         break;
 
       case 29: // "identifier"
@@ -1298,10 +1298,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< EUnaryOp > (that.value);
         break;
 
-      case 33: // "string literal"
-        value.copy< TString > (that.value);
-        break;
-
       case 75: // expression
       case 76: // or-op-expr
       case 77: // and-op-expr
@@ -1347,6 +1343,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 92: // qualified-identifier
         value.copy< TReferenceExpressionPtr > (that.value);
+        break;
+
+      case 33: // "string literal"
+        value.copy< TString > (that.value);
         break;
 
       case 29: // "identifier"
@@ -1618,10 +1618,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         yylhs.value.build< EUnaryOp > ();
         break;
 
-      case 33: // "string literal"
-        yylhs.value.build< TString > ();
-        break;
-
       case 75: // expression
       case 76: // or-op-expr
       case 77: // and-op-expr
@@ -1667,6 +1663,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 92: // qualified-identifier
         yylhs.value.build< TReferenceExpressionPtr > ();
+        break;
+
+      case 33: // "string literal"
+        yylhs.value.build< TString > ();
         break;
 
       case 29: // "identifier"
@@ -1897,20 +1897,17 @@ namespace NYT { namespace NQueryClient { namespace NAst {
             if (yystack_[2].value.as< TExpressionList > ().size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(yylhs.location, source));
             }
-            auto inserted = head->AliasMap.insert(std::make_pair(TString(yystack_[0].value.as< TStringBuf > ()), yystack_[2].value.as< TExpressionList > ().front()));
-            if (!inserted.second) {
+            auto inserted = head->AliasMap.insert(std::make_pair(TString(yystack_[0].value.as< TStringBuf > ()), yystack_[2].value.as< TExpressionList > ().front())).second;
+            if (!inserted) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", yystack_[0].value.as< TStringBuf > ());
             }
-            yylhs.value.as< TExpressionList > () = MakeExpression<TReferenceExpression>(
-                yylhs.location, yystack_[0].value.as<TStringBuf>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TAliasExpression>(yylhs.location, yystack_[2].value.as< TExpressionList > ().front(), yystack_[0].value.as< TStringBuf > ());
         }
     break;
 
   case 44:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, EBinaryOp::Or, yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::Or, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -1920,9 +1917,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 46:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, EBinaryOp::And, yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::And, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -1932,8 +1927,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 48:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TUnaryOpExpression>(
-                yylhs.location, EUnaryOp::Not, yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TUnaryOpExpression>(yylhs.location, EUnaryOp::Not, yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -1943,17 +1937,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 50:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, EBinaryOp::Equal, yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::Equal, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
   case 51:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, EBinaryOp::NotEqual, yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::NotEqual, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -1963,30 +1953,22 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 53:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, yystack_[1].value.as<EBinaryOp>(), yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
   case 54:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, EBinaryOp::And,
-                MakeExpression<TBinaryOpExpression>(
-                    yylhs.location, EBinaryOp::GreaterOrEqual, yystack_[4].value.as<TExpressionList>(),
-                    yystack_[2].value.as<TExpressionList>()),
-                MakeExpression<TBinaryOpExpression>(
-                    yylhs.location, EBinaryOp::LessOrEqual, yystack_[4].value.as<TExpressionList>(),
-                    yystack_[0].value.as<TExpressionList>()));
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::And,
+                MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::GreaterOrEqual, yystack_[4].value.as< TExpressionList > (), yystack_[2].value.as< TExpressionList > ()),
+                MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::LessOrEqual, yystack_[4].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ()));
 
         }
     break;
 
   case 55:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TInOpExpression>(
-                yylhs.location, yystack_[4].value.as<TExpressionList>(), yystack_[1].value.as<TLiteralValueTupleList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TInOpExpression>(yylhs.location, yystack_[4].value.as< TExpressionList > (), yystack_[1].value.as< TLiteralValueTupleList > ());
         }
     break;
 
@@ -2012,9 +1994,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 61:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, EBinaryOp::BitOr, yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::BitOr, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -2024,9 +2004,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 63:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, EBinaryOp::BitAnd, yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::BitAnd, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -2036,17 +2014,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 65:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, EBinaryOp::LeftShift, yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::LeftShift, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
   case 66:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, EBinaryOp::RightShift, yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, EBinaryOp::RightShift, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -2056,9 +2030,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 68:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, yystack_[1].value.as<EBinaryOp>(), yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -2076,9 +2048,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 72:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(
-                yylhs.location, yystack_[1].value.as<EBinaryOp>(), yystack_[2].value.as<TExpressionList>(),
-                yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -2111,8 +2081,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 79:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TUnaryOpExpression>(
-                yylhs.location, yystack_[1].value.as<EUnaryOp>(), yystack_[0].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TUnaryOpExpression>(yylhs.location, yystack_[1].value.as< EUnaryOp > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
@@ -2152,15 +2121,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 87:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TFunctionExpression>(
-                yylhs.location, yystack_[2].value.as<TStringBuf>(), TExpressionList());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TFunctionExpression>(yylhs.location, yystack_[2].value.as< TStringBuf > (), TExpressionList());
         }
     break;
 
   case 88:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TFunctionExpression>(
-                yylhs.location, yystack_[3].value.as<TStringBuf>(), yystack_[1].value.as<TExpressionList>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TFunctionExpression>(yylhs.location, yystack_[3].value.as< TStringBuf > (), yystack_[1].value.as< TExpressionList > ());
         }
     break;
 
@@ -2172,8 +2139,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 90:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TLiteralExpression>(
-                yylhs.location, *yystack_[0].value.as<TNullable<TLiteralValue>>());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TLiteralExpression>(yylhs.location, *yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 

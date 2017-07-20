@@ -16,6 +16,7 @@ namespace NAst {
 
 DECLARE_REFCOUNTED_STRUCT(TExpression)
 DECLARE_REFCOUNTED_STRUCT(TReferenceExpression)
+DECLARE_REFCOUNTED_STRUCT(TAliasExpression)
 DECLARE_REFCOUNTED_STRUCT(TLiteralExpression)
 DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
 DECLARE_REFCOUNTED_STRUCT(TUnaryOpExpression)
@@ -143,6 +144,26 @@ struct TReferenceExpression
 };
 
 DEFINE_REFCOUNTED_TYPE(TReferenceExpression)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAliasExpression
+    : public TExpression
+{
+    TAliasExpression(
+        const TSourceLocation& sourceLocation,
+        const TExpressionPtr& expression,
+        const TStringBuf& name)
+        : TExpression(sourceLocation)
+        , Expression(expression)
+        , Name(TString(name))
+    { }
+
+    TExpressionPtr Expression;
+    TString Name;
+};
+
+DEFINE_REFCOUNTED_TYPE(TAliasExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
