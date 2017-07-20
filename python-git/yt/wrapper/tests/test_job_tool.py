@@ -14,6 +14,10 @@ import sys
 import tempfile
 import shutil
 import pytest
+import time
+
+ORCHID_JOB_PATH_PATTERN = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}"
+NODE_ORCHID_JOB_PATH_PATTERN = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
 
 class TestJobRunner(object):
     @classmethod
@@ -115,16 +119,37 @@ class TestJobTool(object):
 
     def _check(self, operation_id, yt_env_job_archive, check_running=False, full=False, expect_ok_return_code=False):
         if not check_running:
-            jobs = yt.list("//sys/operations/{0}/jobs".format(operation_id))
+            job_id = yt.list("//sys/operations/{0}/jobs".format(operation_id))[0]
         else:
+            total_job_wait_timeout = 10
+            start_time = time.time()
+
             running_jobs_pattern = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs"
             running_jobs_path = running_jobs_pattern.format(operation_id)
+
             while True:  # Waiting for job to start
                 jobs = yt.list(running_jobs_path)
                 if jobs:
                     break
 
-        job_id = jobs[0]
+                if time.time() - start_time > total_job_wait_timeout:
+                    assert False, "Timeout occured while waiting any job of operation {0} to run".format(operation_id)
+
+            job_id = jobs[0]
+            node_address = yt.get(ORCHID_JOB_PATH_PATTERN.format(operation_id, job_id))["address"]
+            while True:
+                try:
+                    job_info = yt.get(NODE_ORCHID_JOB_PATH_PATTERN.format(node_address, job_id))
+                except yt.YtResponseError as err:
+                    if not err.is_resolve_error():
+                        raise
+                    continue
+
+                if job_info.get("job_phase") == "running":
+                    break
+
+                if time.time() - start_time > total_job_wait_timeout:
+                    assert False, "Timeout occured while waiting for job {0} to run".format(job_id)
 
         job_path = self._prepare_job_environment(yt_env_job_archive, operation_id, job_id, full)
 
@@ -137,7 +162,7 @@ class TestJobTool(object):
         with open(run_config, "rb") as fin:
             config = yson.load(fin)
         assert config["operation_id"] == operation_id
-        assert config["job_id"] == jobs[0]
+        assert config["job_id"] == job_id
 
         if not check_running:
             proc = subprocess.Popen([self.JOB_TOOL_BINARY, "run-job", job_path], stderr=subprocess.PIPE)

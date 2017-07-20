@@ -42,6 +42,7 @@ JOB_TYPE_TO_SPEC_TYPE = {
 }
 
 ORCHID_JOB_PATH_PATTERN = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}"
+NODE_ORCHID_JOB_PATH_PATTERN = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
 
 OPERATION_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
 
@@ -150,22 +151,36 @@ def download_job_input(operation_id, job_id, job_input_path, mode):
     logger.info("Job input is downloaded to %s", job_input_path)
 
 def get_job_info_from_cypress(operation_id, job_id):
-    orchid_job_path = ORCHID_JOB_PATH_PATTERN.format(operation_id, job_id)
+    job_is_running = False
+
     running_job_info = None
     try:
-        running_job_info = yt.get(orchid_job_path)
+        running_job_info = yt.get(ORCHID_JOB_PATH_PATTERN.format(operation_id, job_id))
     except yt.YtResponseError as err:
         if not err.is_resolve_error():
             raise
 
-    if running_job_info is None:
-        cypress_job_path = JOB_PATH_PATTERN.format(operation_id, job_id)
-        if not yt.exists(cypress_job_path):
-            raise yt.YtError("Cannot find running or failed job with id {0} (operation id: {1})".format(job_id, operation_id))
+    if running_job_info is not None:
+        job_info_on_node = None
+        try:
+            job_info_on_node = yt.get(NODE_ORCHID_JOB_PATH_PATTERN.format(running_job_info["address"], job_id))
+        except yt.YtResponseError as err:
+            if not err.is_resolve_error():
+                raise
 
-        return JobInfo(yt.get_attribute(cypress_job_path, "job_type"), is_running=False)
-    else:
+        if job_info_on_node is not None:
+            phase = job_info_on_node.get("job_phase")
+            if phase is not None and phase == "running":
+                job_is_running = True
+
+    if job_is_running:
         return JobInfo(running_job_info["job_type"], is_running=True)
+
+    cypress_job_path = JOB_PATH_PATTERN.format(operation_id, job_id)
+    if not yt.exists(cypress_job_path):
+        raise yt.YtError("Cannot find running or failed job with id {0} (operation id: {1})".format(job_id, operation_id))
+
+    return JobInfo(yt.get_attribute(cypress_job_path, "job_type"), is_running=False)
 
 def get_job_type_from_dyntable(operation_id, job_id):
     job_hash_pair = yt.common.uuid_hash_pair(job_id)
