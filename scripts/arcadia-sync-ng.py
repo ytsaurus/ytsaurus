@@ -3,19 +3,20 @@
 """
 ## Introduction
 
-This script provides assistance functions to synchronize YT in Arcadia and in GitHub.
+This script provides the assistance functions to synchronize YT in Arcadia and in GitHub.
 
-Main source tree is composed of different directories with two main synchronization strategies.
+The main source tree is composed of different directories with two main synchronization strategies.
 
-First, `contrib/`, `library/` and `util/` are mirrored from Arcadia to GitHub,
-and YT pins a snapshot + a patchset. These folders are mirrored with `git-svn` to `upstream` branch in GitHub.
-Patchset is typically referenced as `master` branch, and `master` branch forks off `upstream`.
-When updating these folders, one usually pins old `master` branch under `old/YYYY_MM_DD__HH_mm_ss` name
-(to make sure that old commits are reachable) and rebases `master` on top of `upstream`.
+First, `contrib/`, `library/` and `util/` are mirrored from Arcadia to GitHub, and YT pins
+a snapshot + a patchset. These directories are mirrored with `git-svn` to the `upstream` branch in GitHub.
+The patchset is typically applied on the `master` branch, and the `master` branch is a fork of
+the `upstream` branch.  When updating these directories, one usually pins the old `master` branch
+under the name `old/YYYY_MM_DD__HH_mm_ss` (to make sure that all the old commits are reachable)
+and rebases the `master` branch on top of the `upstream` branch.
 
-Second, `yt/` is mirrored from GitHub to Arcadia as a snapshot. `git-svn` is used to commit appropriate
-subtree into SVN, and lineage is preserved with commit marks. Namely, for every push commit in SVN
-contains a textual reference to original Git commit. This information is used to properly pull changes
+Second, `yt/` is mirrored from GitHub to Arcadia as a snapshot. `git-svn` is used to commit the appropriate
+subtree into SVN, and the lineage is preserved with the commit marks. Namely, every push commit in SVN
+contains the textual reference to the original Git commit. This information is used to properly pull changes
 from SVN to Git.
 
 ## Glossary
@@ -33,7 +34,7 @@ Examples: `HEAD`, `origin/master`, `refs/remotes/origin/master`, `branch`, `refs
 (2) Add submodule to list below (search for: `SUBMODULES`)
 (3) Call `git submodule add`
 (4) Call this script with `submodule-init` and `submodule-fetch` commands
-(5) Call `git submodule add` (again!)
+(5) Call `git submodule add` (again!)# {}
 (6) Create subdirectory in `cmake/` and write `CMakeLists.txt`
 (7) Add `add_subdirectory` in root `CMakeLists.txt`
 """
@@ -55,11 +56,22 @@ except ImportError:
                             " because subprocess32 library is not installed."
     import subprocess
 
+ARC = "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia"
+GH = "git@github.yandex-team.ru:yt"
+
+SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
+PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, ".."))
+
+###################################################################################################################
+## Helper functions.
+###################################################################################################################
+
 
 def strip_margin(s):
     """
     Strips left margin from multiline strings.
-    This is a helper function that improves readability, see usages in the file.
+
+    This is a helper function that improves the code readability, see usages in this file.
     """
     r = []
     for line in s.splitlines():
@@ -69,17 +81,17 @@ def strip_margin(s):
     return "\n".join(r)
 
 
-def trim_for_logging(s):
-    """
-    Trims long strings to bound length of log messages.
-    """
-    if len(s) > 80:
-        return s[:80] + "[trimmed].."
+def trim_for_logging(s, limit=80):
+    """Trims a long string up to the limit and appends a trim marker."""
+    if len(s) > limit:
+        marker = "[trimmed].."
+        return s[:limit-len(marker)] + marker
     else:
         return s
 
 
 def is_treeish(s):
+    """Checks is the string looks like a Git treeish."""
     if not isinstance(s, str):
         return False
     if len(s) != 40:
@@ -90,6 +102,7 @@ def is_treeish(s):
 
 
 def make_remote_ref(name):
+    """Makes fully qualified Git remote reference."""
     if name.startswith("refs/"):
         return name
     else:
@@ -97,6 +110,7 @@ def make_remote_ref(name):
 
 
 def make_head_ref(name):
+    """Makes fully qualified Git head reference."""
     if name.startswith("refs/"):
         return name
     else:
@@ -104,11 +118,16 @@ def make_head_ref(name):
 
 
 def abbrev(commit):
+    """Abbreviates the commit hash."""
     if commit:
-        return commit[:ABBREV]
+        return commit[:8]
     else:
         return "(null)"
 
+
+###################################################################################################################
+## Commands.
+###################################################################################################################
 
 class CheckError(Exception):
     pass
@@ -196,13 +215,9 @@ class Svn(Command):
         return super(Svn, self)._impl(call_args, **kwargs)
 
 
-ABBREV = 8
-ARC = "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia"
-GH = "git@github.yandex-team.ru:yt"
-
-SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
-PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, ".."))
-
+###################################################################################################################
+## Sanity checks.
+###################################################################################################################
 
 def check_git_version(git):
     version = git.call("version")
@@ -235,13 +250,12 @@ def check_svn_url(svn, url):
         raise CheckError("Cannot establish connection to Arcadia or URL is missing")
 
 
-def get_svn_revisions(svn, url):
-    """
-    Returns all SVN revisions that affect given SVN URL.
+###################################################################################################################
+## GUTS.
+###################################################################################################################
 
-    `git-svn` may skip some revisions in rare circumstances that happen quite often in Arcadia.
-    So we explicitly check that we fetch all necessary revisions.
-    """
+def get_svn_revisions(svn, url):
+    """Returns all SVN revisions that affect the given SVN URL."""
 
     lines = svn.call("log", url).splitlines()
 
@@ -259,6 +273,8 @@ def get_svn_revisions(svn, url):
 
 
 def get_svn_last_changed_revision(svn, url):
+    """Returns the last changed revision for the given SVN URL."""
+
     lines = svn.call("info", url).splitlines()
 
     revision = None
@@ -269,23 +285,29 @@ def get_svn_last_changed_revision(svn, url):
 
 
 def init_git_svn(git, svn_remote, svn_url):
-    """
-    Setup `git-svn` configuration in Git repository for a given SVN URL under a given remote name.
-    """
-    logging.debug("Setting up git-svn remote '%s' for '%s'", svn_remote, svn_url)
+    """Sets up the `git-svn` remote in the Git repository."""
+
+    logging.debug("Setting up the git-svn remote '%s' for '%s'", svn_remote, svn_url)
 
     if git.test("config", "--local", "--get", "svn-remote.%s.url" % svn_remote):
         git.call("config", "--local", "--remove-section", "svn-remote.%s" % svn_remote)
+
     git.call("config", "--local", "svn-remote.%s.url" % svn_remote, svn_url)
     git.call("config", "--local", "svn-remote.%s.fetch" % svn_remote, ":" + make_remote_ref(svn_remote))
+
     git.call("svn", "--svn-remote", svn_remote, "migrate", capture=False)
 
 
-def fetch_git_svn(git, svn, svn_remote, svn_url, one_by_one=False, force=False):
-    """
-    Fetch revisions from SVN in a tidy manner.
-    """
-    logging.debug("Fetching git-svn remote '%s' from '%s'", svn_remote, svn_url)
+def get_svn_url_for_git_svn_remote(git, svn_remote):
+    """Returns the SVN URL for the `git-svn` remote."""
+
+    return git.call("config", "--local", "svn-remote.%s.url" % svn_remote).strip()
+
+
+def fetch_git_svn(git, svn, svn_remote, one_by_one=False, force=False):
+    """Fetches all SVN revisions for the given `git-svn` remote."""
+
+    logging.debug("Fetching the `git-svn` remote '%s'")
 
     def _impl(from_revision, to_revision, log_window_size=1):
         if from_revision != "HEAD" and to_revision != "HEAD":
@@ -297,7 +319,7 @@ def fetch_git_svn(git, svn, svn_remote, svn_url, one_by_one=False, force=False):
         if not force and mark:
             if git.test("config", "--local", "--bool", "--get", mark):
                 logging.debug(
-                    "Skipping fetching revisions %s:%s because they are marked as fetched",
+                    "Skipping revisions %s:%s because they are marked as fetched",
                     from_revision, to_revision)
                 return
 
@@ -315,20 +337,19 @@ def fetch_git_svn(git, svn, svn_remote, svn_url, one_by_one=False, force=False):
                 time.sleep(1)
 
         if not success:
-            raise CheckError("Call failed")
-
-        if not force and mark:
-            git.call("config", "--local", "--bool", mark, "true")
-            logging.debug(
-                "Marking revisions %s:%s as fetched",
-                from_revision, to_revision)
+            raise CheckError("Failed to fetch revisions")
 
         logging.debug("Fetched revisions %s:%s", from_revision, to_revision)
 
+        if not force and mark:
+            git.call("config", "--local", "--bool", mark, "true")
+
     if one_by_one:
-        revisions = sorted(get_svn_revisions(svn, svn_url))
+        svn_url = get_svn_url_for_git_svn_remote(git, svn_remote)
+        svn_revisions = get_svn_revisions(svn, svn_url)
+        revisions = sorted(svn_revisions)
     else:
-        revisions = [174922, 907137, 2359113]
+        revisions = [174922, 907137, 2359113]  # revisions that break the history
 
     current_revision = 0
     for next_revision in revisions:
@@ -337,10 +358,15 @@ def fetch_git_svn(git, svn, svn_remote, svn_url, one_by_one=False, force=False):
         current_revision = next_revision
     _impl(current_revision, "HEAD", log_window_size=100000)
 
-    logging.debug("Fetched git-svn remote '%s' up to HEAD", svn_remote)
+    logging.debug("Fetched git-svn remote '%s'", svn_remote)
 
 
 def extract_git_svn_revision_to_commit_mapping_as_list(git, svn_url, ref):
+    """
+    Extracts the revision to commit mapping from the repository.
+    Returns the list of pairs (revision, commit).
+    """
+
     lines = git.call(
         "--no-replace-objects",
         "log", "--grep=^git-svn-id:",
@@ -366,21 +392,25 @@ def extract_git_svn_revision_to_commit_mapping_as_list(git, svn_url, ref):
 
 
 def extract_git_svn_revision_to_commit_mapping_as_dict(git, svn_url, ref):
+    """
+    Extracts the revision to commit mapping from the repository.
+    Returns the dictionary (revision -> commit).
+    """
     mapping = extract_git_svn_revision_to_commit_mapping_as_list(git, svn_url, ref)
     if len(mapping) != len(set(map(lambda _: _[0], mapping))):
-        raise CheckError("SVN revisions are not unique in commit tree rooted at '%s' (WTF?)" % ref)
+        raise CheckError("SVN revisions are not unique in the commit tree rooted at '%s' (WTF?)" % ref)
     mapping = dict(mapping)
     return mapping
 
 
 def stitch_git_svn(git, ref, svn_remote, svn_url):
     """
-    Stitches committed and de-facto SVN histories together.
+    Stitches the committed and de-facto SVN histories together.
 
     Rarely (but still!) SVN history gets rewritten.
-    While commit patches remain the same, messages may differ.
-    We assume that latest remote history is the correct one, and enumerate all commits
-    that are now not reachable from remote branch reference.
+    While the commit patches remain the same, their commit messages may vary.
+    We assume that the latest remote history is the correct one,
+    and enumerate all the commits that are now not reachable from the remote branch reference.
     """
     logging.debug(
         "Stitching commits reachable from '%s' and commits in git-svn remote '%s'",
@@ -414,24 +444,25 @@ def stitch_git_svn(git, ref, svn_remote, svn_url):
 
 
 def translate_git_commit_to_svn_revision(git, arc_git_remote, ref):
+    """Translates the single commit (given by the reference) into the revision."""
     return int(git.call("svn", "--svn-remote", arc_git_remote, "find-rev", ref).strip())
 
 
 def extract_push_history(git, abi, ref):
     """
-    Extracts Git-to-SVN commit mapping.
+    Extracts the push history.
 
-    Invokation of `git svn commit-tree` creates a new SVN revision
-    which basically overrides repository content to match given tree.
+    Invokation of the `git svn commit-tree` command creates a new SVN revision
+    which basically overrides the repository content to match the current tree.
 
-    Therefore, during next fetch from SVN, there will be a new, unmerged commit
-    in `git-svn` remote branch with its tree matching the committed tree.
+    Therefore, during a next fetch from SVN, there will be a new, unmerged commit
+    in the `git-svn` remote branch with its tree matching the committed tree.
 
-    However, commit-wise this new commit (called 'push commit') does not have
-    a 'base commit' (one containing committed tree) as its ancestor, which
-    makes merges rather difficult.
+    However, commit-wise, this new commit (called the 'push commit') does not have
+    the 'base commit' (one containing the committed tree) as its ancestor, which
+    makes a merge rather difficult.
 
-    This function returns list of pairs, ('base commit', 'push commit'),
+    This function returns a list of pairs, (base commit, push commit),
     newest-to-oldest, which is used later to help merges.
     """
 
@@ -457,6 +488,12 @@ def extract_push_history(git, abi, ref):
 
 
 def extract_pull_history(git, abi, ref):
+    """
+    Extracts the pull history.
+
+    This function returns a list of pairs, (revision, pull commit), newest-to-oldest.
+    """
+
     lines = git.call(
         "log", "--grep=^yt:svn_revision:", "--grep=^Pull yt/%s/" % abi, "--all-match",
         "--pretty=format:BEGIN %H%n%s%n%n%b%nEND%n", ref).splitlines()
@@ -491,7 +528,7 @@ def action_init(ctx, args):
 
 
 def action_fetch(ctx, args):
-    fetch_git_svn(ctx.git, ctx.svn, ctx.arc_git_remote, ctx.arc_url, one_by_one=True)
+    fetch_git_svn(ctx.git, ctx.svn, ctx.arc_git_remote, one_by_one=True)
 
 
 def action_stitch(ctx, args):
@@ -710,7 +747,7 @@ def action_submodule_init(ctx, args):
 
 
 def action_submodule_fetch(ctx, args):
-    fetch_git_svn(ctx.git, ctx.svn, ctx.arc_git_remote, ctx.arc_url, one_by_one=False)
+    fetch_git_svn(ctx.git, ctx.svn, ctx.arc_git_remote, one_by_one=False)
     ctx.git.call("fetch", ctx.gh_git_remote)
     ctx.git.call("remote", "prune", ctx.gh_git_remote)
 
@@ -730,7 +767,7 @@ def action_submodule_fetch(ctx, args):
         push = True
     else:
         logging.warning(
-            "Upstream has diverged in '%s'! %s is not a parent for %s!",
+            "Upstream has diverged in '%s'! %s is not parent for %s!",
             ctx.name, new_head, old_head)
 
     if push:
@@ -766,7 +803,7 @@ def action_submodule_pin(ctx, args):
     head_ref = args.commit  # assume references are passed via args
     head_commit = ctx.git.resolve_ref(args.commit)
 
-    logging.info("Pinning commits reachable from '%s' (%s)", head_ref, abbrev(head_commit))
+    logging.info("Pinning commits that are reachable from '%s' (%s)", head_ref, abbrev(head_commit))
 
     holder_prefixes = [
         ctx.gh_git_remote_ref + "/old",
@@ -801,7 +838,7 @@ def action_submodule_fast_pull(ctx, args):
             ctx.name, abbrev(old_head), abbrev(new_head))
         ctx.git.call("checkout", new_head)
     else:
-        logging.warning("Manual pull required in '%s'!", ctx.name)
+        logging.warning("Manual pull is required in '%s'!", ctx.name)
 
 
 def git_dry_run(flag, ctx, *args):
@@ -840,7 +877,7 @@ def action_submodule_fast_push(ctx, args):
         if held or ctx.git.is_ancestor(old_head, new_head):
             push = True
         else:
-            logging.warning("Manual push required in '%s'!", ctx.name)
+            logging.warning("Manual push is required in '%s'!", ctx.name)
 
     if push:
         logging.info(
@@ -969,24 +1006,24 @@ if __name__ == "__main__":
         return parser
 
     init_parser = add_parser(
-        "init", help="prepare main repository for further operations")
+        "init", help="prepare the main repository for further operations")
     init_parser.set_defaults(action=action_init)
 
     fetch_parser = add_parser(
-        "fetch", help="fetch svn revisions from remote repository")
+        "fetch", help="fetch svn revisions from the remote repository")
     fetch_parser.set_defaults(action=action_fetch)
 
     stitch_parser = add_parser(
-        "stitch", help="stitch svn revisions due to diverged git-svn history")
+        "stitch", help="stitch svn revisions to converge git-svn histories")
     stitch_parser.set_defaults(action=action_stitch)
 
     pull_parser = add_parser(
-        "pull", help="initiate merge from arcadia to github")
+        "pull", help="initiate a merge from arcadia to github")
     pull_parser.add_argument("--revision", "-r", help="revision to merge", type=int)
     pull_parser.set_defaults(action=action_pull)
 
     push_parser = add_parser(
-        "push", help="initiate merge from github to arcadia")
+        "push", help="initiate a merge from github to arcadia")
     push_parser.add_argument("--force", "-f", action="store_true", default=False,
                              help="force commit")
     push_parser.add_argument("--review", "-r", action="store_true", default=False,
@@ -1003,34 +1040,34 @@ if __name__ == "__main__":
             "--all", action="store_const", help="apply to all submodules",
             dest="submodules", const=SUBMODULES)
         submodule_parser.add_argument(
-            "--submodule", action="append", help="apply to a particular submodule",
+            "--submodule", action="append", help="apply to the particular submodule",
             dest="submodules", metavar="SUBMODULE", choices=SUBMODULES)
         return parser
 
     submodule_init_parser = add_submodule_parser(
-        "submodule-init", help="prepare submodule for further operations")
+        "submodule-init", help="prepare the submodule for further operations")
     submodule_init_parser.set_defaults(action=action_submodule_init)
 
     submodule_fetch_parser = add_submodule_parser(
-        "submodule-fetch", help="fetch svn revisions from remote repository")
+        "submodule-fetch", help="fetch svn revisions from the remote repository")
     submodule_fetch_parser.set_defaults(action=action_submodule_fetch)
 
     submodule_stitch_parser = add_submodule_parser(
-        "submodule-stitch", help="(advanced) stitch svn revisions in diverged git-svn histories")
+        "submodule-stitch", help="(advanced) stitch svn revisions to converge git-svn histories")
     submodule_stitch_parser.set_defaults(action=action_submodule_stitch)
 
     submodule_pin_parser = add_submodule_parser(
-        "submodule-pin", help="(advanced) pin current git commit in remote repository")
+        "submodule-pin", help="(advanced) pin the git commit in the remote repository")
     submodule_pin_parser.add_argument("--commit", "-c", default="HEAD",
                                       help="commit to pin")
     submodule_pin_parser.set_defaults(action=action_submodule_pin)
 
     submodule_fast_pull_parser = add_submodule_parser(
-        "submodule-fast-pull", help="pull submodule up to upstream revision")
+        "submodule-fast-pull", help="pull the submodule up to the upstream revision")
     submodule_fast_pull_parser.set_defaults(action=action_submodule_fast_pull)
 
     submodule_fast_push_parser = add_submodule_parser(
-        "submodule-fast-push", help="push submodule to master branch")
+        "submodule-fast-push", help="push the submodule to the 'master' branch")
     submodule_fast_push_parser.add_argument("--yes", "-y", action="store_true", default=False,
                                             help="do something indeed")
     submodule_fast_push_parser.set_defaults(action=action_submodule_fast_push)
