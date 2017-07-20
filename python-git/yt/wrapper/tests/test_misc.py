@@ -5,6 +5,7 @@ from .helpers import (TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION,
 
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
+from yt.wrapper.retries import run_with_retries
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.ypath import ypath_join
 from yt.common import makedirp
@@ -171,6 +172,14 @@ class TestMutations(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestRetries(object):
+    def test_run_with_retries(self):
+        def action():
+            if random.randint(0, 3) == 1:
+                raise yt.YtError()
+            return 1
+
+        assert 1 == run_with_retries(action, backoff=0.1)
+
     def test_read_with_retries(self):
         old_value = yt.config["read_retries"]["enable"]
         yt.config["read_retries"]["enable"] = True
@@ -494,6 +503,13 @@ def test_frozen_dict():
         assert sorted(iterkeys(fdict)) == ["a", "b"]
 
     assert fdict == {"a": 1, "b": 2}
+    assert fdict.as_dict() == {"a": 1, "b": 2}
+
+    with pytest.raises(NotImplementedError):
+        fdict.pop("a")
+
+    fdict.pop("c", default=1) == 1
+
     assert fdict == FrozenDict({"a": 1, "b": 2})
     assert fdict != {"c": 1}
 

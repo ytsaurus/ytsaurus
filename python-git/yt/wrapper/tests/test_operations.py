@@ -13,7 +13,7 @@ except ImportError:
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.wrapper.common import parse_bool
-from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs
+from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.local import start, stop
 import yt.logger as logger
@@ -203,13 +203,14 @@ class TestOperations(object):
                                      {"b": "max"},
                            {"a": "x", "b": "name", "c": 0.5}
                        ])
-        yt.run_map("PYTHONPATH=. ./capitalize_b.py",
-                   TablePath(table, columns=["b"]), other_table,
-                   files=get_test_file_path("capitalize_b.py"),
-                   format=yt.DsvFormat())
+        operation = yt.run_map("PYTHONPATH=. ./capitalize_b.py",
+                               TablePath(table, columns=["b"]), other_table,
+                               files=get_test_file_path("capitalize_b.py"),
+                               format=yt.DsvFormat())
         records = yt.read_table(other_table, raw=False)
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
         assert sorted([rec["c"] for rec in records]) == []
+        assert get_operation_error(operation.id) is None
 
         with pytest.raises(yt.YtError):
             yt.run_map("cat", table, table, local_files=get_test_file_path("capitalize_b.py"),
@@ -714,6 +715,7 @@ print(op.id)
             time.sleep(0.2)
         op.complete()
         assert op.get_state() == "completed"
+        op.complete()
 
     def test_suspend_resume(self):
         table = TEST_DIR + "/table"
@@ -1260,6 +1262,8 @@ if __name__ == "__main__":
 
         stderrs_list = get_stderrs(operation.id, False)
         assert len(stderrs_list) == 10
+
+        assert yt.format_operation_stderrs(stderrs_list)
 
         old_timeout = yt.config["operation_tracker"]["stderr_download_timeout"]
         old_thread_count = yt.config["operation_tracker"]["stderr_download_thread_count"]

@@ -213,6 +213,8 @@ def _prepare_table_path_for_read_blob_table(table, part_index_column_name, clien
 
     range = table.ranges[-1]
     if "lower_limit" not in range:
+        if required_keys:
+            raise YtError("Lower limit should consist of columns from the list {0}".format(sorted_by[:len(required_keys)]))
         range["lower_limit"] = {"key": [0]}
         return table
 

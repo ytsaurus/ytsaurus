@@ -64,6 +64,15 @@ class TestTableCommands(object):
         with set_config_option("tabular_data_format", yt.DsvFormat()):
             yt.write_table(table, [b"x=1\n"], raw=True)
 
+        with set_config_option("read_retries/change_proxy_period", 1):
+            yt.write_table(table, [{"y": i} for i in xrange(100)])
+            check([{"y": i} for i in xrange(100)], yt.read_table(table))
+
+        file = TEST_DIR + "/test_file"
+        yt.create("file", file)
+        with pytest.raises(yt.YtError):
+            yt.read_table(file)
+
     def test_table_path(self, yt_env):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
         assert path.attributes["my_attr"] == 10
@@ -661,6 +670,9 @@ class TestTableCommands(object):
         stream = yt.read_blob_table(table + "[test0]", part_size=6)
         assert stream.read() == b"data00data10data20"
 
+        stream = yt.read_blob_table(table + "[test0:test1]", part_size=6)
+        assert stream.read() == b"data00data10data20"
+
         stream = yt.read_blob_table(table + "[test1]", part_size=6)
         assert stream.read() == b"data01data11data21"
 
@@ -673,6 +685,9 @@ class TestTableCommands(object):
 
         with pytest.raises(yt.YtError):
             yt.read_blob_table(table + "[test0]")
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[test0, test1]", part_size=6)
 
         yt.set(table + "/@part_size", 6)
         stream = yt.read_blob_table(table + "[test0:#1]")
@@ -715,6 +730,17 @@ class TestTableCommands(object):
             stream = yt.read_blob_table(table + "[test]")
             stream.read()
 
+        yt.remove(table)
+        yt.create("table", table, attributes={"schema": [{"name": "part_index", "type": "int64",
+                                                          "sort_order": "ascending"},
+                                                         {"name": "data", "type": "string"}]})
+
+        yt.write_table(table, [{"part_index": i, "data": "data" + str(i)}
+                               for i in xrange(3)])
+
+        stream = yt.read_blob_table(table, part_size=5)
+        assert stream.read() == b"data0data1data2"
+
     def test_read_blob_table_with_retries(self):
         with set_config_option("read_retries/enable", True):
             with set_config_option("read_buffer_size", 10):
@@ -729,3 +755,30 @@ class TestTableCommands(object):
     def test_read_blob_table_without_retries(self):
         with set_config_option("read_retries/enable", False):
             self._test_read_blob_table()
+
+    def test_transform(self):
+        table = TEST_DIR + "/test_transform_table"
+        other_table = TEST_DIR + "/test_transform_table2"
+
+        assert not yt.transform(table)
+
+        yt.create("table", table)
+        assert not yt.transform(table)
+
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        yt.transform(table)
+        check([{"x": 1}, {"x": 2}], yt.read_table(table))
+
+        yt.transform(table, other_table)
+        check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
+
+        yt.remove(other_table)
+        assert yt.transform(table, other_table, compression_codec="zlib_6")
+        assert yt.get(other_table + "/@compression_codec") == "zlib_6"
+        assert not yt.transform(other_table, other_table, compression_codec="zlib_6", check_codecs=True)
+
+        assert yt.transform(table, other_table, optimize_for="scan")
+        assert yt.get(other_table + "/@optimize_for") == "scan"
+
+        assert not yt.transform(other_table, other_table, erasure_codec="none", check_codecs=True)

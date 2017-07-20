@@ -116,7 +116,9 @@ def chunk_iter_list(lines, chunk_size):
             yield chunk
             size = 0
             chunk = []
-    yield chunk
+
+    if chunk:
+        yield chunk
 
 def chunk_iter_stream(stream, chunk_size):
     while True:
