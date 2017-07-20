@@ -13,7 +13,6 @@ namespace NRpcProxy {
 
 class TRpcProxyTransaction
     : public NApi::ITransaction
-    , protected TRpcProxyClientBase
 {
 public:
     TRpcProxyTransaction(
@@ -23,6 +22,13 @@ public:
         NTransactionClient::TTimestamp startTimestamp,
         bool sticky);
     ~TRpcProxyTransaction();
+
+    // Implementation of ITransaction
+
+    virtual NApi::IConnectionPtr GetConnection() override
+    {
+        return Connection_;
+    }
 
     virtual NApi::IClientPtr GetClient() const override
     {
@@ -114,6 +120,111 @@ public:
         TSharedRange<NApi::TRowModification> modifications,
         const NApi::TModifyRowsOptions& options) override;
 
+    // Implementation of IClientBase.
+
+    virtual TFuture<NApi::ITransactionPtr> StartTransaction(
+        NTransactionClient::ETransactionType type,
+        const NApi::TTransactionStartOptions& options) override;
+
+    virtual TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
+        const NYPath::TYPath& path, NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const NApi::TLookupRowsOptions& options) override;
+
+    virtual TFuture<NApi::IVersionedRowsetPtr> VersionedLookupRows(
+        const NYPath::TYPath& path, NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const NApi::TVersionedLookupRowsOptions& options) override;
+
+    virtual TFuture<NApi::TSelectRowsResult> SelectRows(
+        const TString& query,
+        const NApi::TSelectRowsOptions& options) override;
+
+    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
+        const NYPath::TRichYPath& path,
+        const NApi::TTableReaderOptions& options) override;
+
+    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+        const NYPath::TRichYPath& path,
+        const NApi::TTableWriterOptions& options) override;
+
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const NApi::TGetInSyncReplicasOptions& options) override;
+
+    virtual TFuture<NYson::TYsonString> GetNode(
+        const NYPath::TYPath& path,
+        const NApi::TGetNodeOptions& options) override;
+
+    virtual TFuture<void> SetNode(
+        const NYPath::TYPath& path,
+        const NYson::TYsonString& value,
+        const NApi::TSetNodeOptions& options) override;
+
+    virtual TFuture<void> RemoveNode(
+        const NYPath::TYPath& path,
+        const NApi::TRemoveNodeOptions& options) override;
+
+    virtual TFuture<NYson::TYsonString> ListNode(
+        const NYPath::TYPath& path,
+        const NApi::TListNodeOptions& options) override;
+
+    virtual TFuture<NCypressClient::TNodeId> CreateNode(
+        const NYPath::TYPath& path,
+        NObjectClient::EObjectType type,
+        const NApi::TCreateNodeOptions& options) override;
+
+    virtual TFuture<NApi::TLockNodeResult> LockNode(
+        const NYPath::TYPath& path,
+        NCypressClient::ELockMode mode,
+        const NApi::TLockNodeOptions& options) override;
+
+    virtual TFuture<NCypressClient::TNodeId> CopyNode(
+        const NYPath::TYPath& srcPath,
+        const NYPath::TYPath& dstPath,
+        const NApi::TCopyNodeOptions& options) override;
+
+    virtual TFuture<NCypressClient::TNodeId> MoveNode(
+        const NYPath::TYPath& srcPath,
+        const NYPath::TYPath& dstPath,
+        const NApi::TMoveNodeOptions& options) override;
+
+    virtual TFuture<NCypressClient::TNodeId> LinkNode(
+        const NYPath::TYPath& srcPath,
+        const NYPath::TYPath& dstPath,
+        const NApi::TLinkNodeOptions& options) override;
+
+    virtual TFuture<void> ConcatenateNodes(
+        const std::vector<NYPath::TYPath>& srcPaths,
+        const NYPath::TYPath& dstPath,
+        const NApi::TConcatenateNodesOptions& options) override;
+
+    virtual TFuture<bool> NodeExists(
+        const NYPath::TYPath& path,
+        const NApi::TNodeExistsOptions& options) override;
+
+    virtual TFuture<NObjectClient::TObjectId> CreateObject(
+        NObjectClient::EObjectType type,
+        const NApi::TCreateObjectOptions& options) override;
+
+    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+        const NYPath::TYPath& path,
+        const NApi::TFileReaderOptions& options) override;
+
+    virtual NApi::IFileWriterPtr CreateFileWriter(
+        const NYPath::TYPath& path,
+        const NApi::TFileWriterOptions& options) override;
+
+    virtual NApi::IJournalReaderPtr CreateJournalReader(
+        const NYPath::TYPath& path,
+        const NApi::TJournalReaderOptions& options) override;
+
+    virtual NApi::IJournalWriterPtr CreateJournalWriter(
+        const NYPath::TYPath& path,
+        const NApi::TJournalWriterOptions& options) override;
+
 private:
     const TRpcProxyConnectionPtr Connection_;
     const NRpc::IChannelPtr Channel_;
@@ -122,10 +233,10 @@ private:
     const NTransactionClient::TTimestamp StartTimestamp_;
     const bool Sticky_;
 
-    std::vector<TFuture<void>> AsyncRequests_;
+    class TClient;
+    const std::unique_ptr<TClient> Client_;
 
-    virtual TRpcProxyConnectionPtr GetRpcProxyConnection() override;
-    virtual NRpc::IChannelPtr GetChannel() override;
+    std::vector<TFuture<void>> AsyncRequests_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRpcProxyTransaction)

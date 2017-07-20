@@ -59,8 +59,9 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     if (options.ParentId) {
         ToProto(req->mutable_parent_id(), options.ParentId);
     }
+    // XXX(sandello): Better? Remove these fields from the protocol at all?
+    req->set_auto_abort(false);
     req->set_auto_abort(options.AutoAbort);
-    // XXX(sandello): Better?
     bool sticky = type == NTransactionClient::ETransactionType::Tablet
         ? true
         : options.Sticky;
@@ -78,7 +79,6 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
                 FromProto<TGuid>(rsp->id()),
                 static_cast<TTimestamp>(rsp->start_timestamp()),
                 sticky);
-            // TODO(sandello): Register me in #connection to ping transaction periodically.
             return transaction;
         }));
 }
