@@ -863,11 +863,10 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (SnapshotParamsPromise_) {
+    if (SnapshotParamsPromise_ && SnapshotParamsPromise_.ToFuture().Cancel()) {
         LOG_INFO("Snapshot canceled");
-        SnapshotParamsPromise_.ToFuture().Cancel();
-        SnapshotParamsPromise_.Reset();
     }
+    SnapshotParamsPromise_.Reset();
 
     auto loggedVersion = GetLoggedVersion();
 
