@@ -194,3 +194,28 @@ class TestJobCommands(object):
 
         self._resume_jobs()
         op.wait()
+
+    def test_abort_job(self):
+        input_table = TEST_DIR + "/input_table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(input_table, [{"x": 1}])
+
+        self._tmpdir = self._create_tmpdir("abort_job")
+        mapper = (
+            "(touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
+            "cat\n"
+            "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n)"
+                .format(self._tmpdir))
+
+        op = yt.run_map(mapper, input_table, output_table, format=yt.DsvFormat(), sync=False)
+
+        self._ensure_jobs_running(op)
+        job_id = self.jobs[0]
+
+        yt.abort_job(job_id, 0)
+
+        self._resume_jobs()
+        op.wait()
+
+        attrs = yt.get_operation_attributes(op.id)
+        assert attrs["brief_progress"]["jobs"]["aborted"]["total"] == 1

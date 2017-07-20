@@ -3,7 +3,7 @@
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth, bool_to_string,
                                is_prefix, prefix, first_not_none, group_blobs_by_size,
-                               datetime_to_string, date_string_to_timestamp)
+                               datetime_to_string, date_string_to_timestamp, chunk_iter_list)
 
 from yt.packages.six.moves import xrange, cPickle as pickle
 
@@ -99,3 +99,9 @@ def test_error_pickling():
 def test_error_str():
     error = yt.YtError(u"моя ошибка", code=100, attributes={"аттрибут": 10, "другой атрибут": "со странным значением"})
     assert "10" in str(error)
+
+def test_chunk_iter_list():
+    assert list(chunk_iter_list([1, 2, 3], chunk_size=1)) == [[1], [2], [3]]
+    assert list(chunk_iter_list([1, 2, 3], chunk_size=2)) == [[1, 2], [3]]
+    assert list(chunk_iter_list([1, 2, 3], chunk_size=5)) == [[1, 2, 3]]
+    assert list(chunk_iter_list([], chunk_size=1)) == []
