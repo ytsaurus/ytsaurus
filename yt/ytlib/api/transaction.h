@@ -36,7 +36,6 @@ struct TModifyRowsOptions
     //! controls if at least one sync replica is required.
     bool RequireSyncReplica = true;
 
-
     //! For writes to replicas, this is the id of the replica at the upstream cluster.
     NTabletClient::TTableReplicaId UpstreamReplicaId;
 };
