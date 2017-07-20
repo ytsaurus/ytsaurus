@@ -45,12 +45,43 @@ void SerializeSet(const T& items, NYson::IYsonConsumer* consumer)
     consumer->OnEndList();
 }
 
+template <class T, bool IsEnum = TEnumTraits<T>::IsEnum>
+struct TMapKeyHelper;
+
+template <class T>
+struct TMapKeyHelper<T, true>
+{
+    static void Serialize(const T& value, NYson::IYsonConsumer* consumer)
+    {
+        consumer->OnKeyedItem(FormatEnum(value));
+    }
+
+    static void Deserialize(T& value, const TString& key)
+    {
+        value = ParseEnum<T>(key);
+    }
+};
+
+template <class T>
+struct TMapKeyHelper<T, false>
+{
+    static void Serialize(const T& value, NYson::IYsonConsumer* consumer)
+    {
+        consumer->OnKeyedItem(ToString(value));
+    }
+
+    static void Deserialize(T& value, const TString& key)
+    {
+        value = FromString<T>(key);
+    }
+};
+
 template <class T>
 void SerializeMap(const T& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
     for (auto it : GetSortedIterators(items)) {
-        consumer->OnKeyedItem(ToString(it->first));
+        TMapKeyHelper<typename T::key_type>::Serialize(it->first, consumer);
         Serialize(it->second, consumer);
     }
     consumer->OnEndMap();
@@ -85,7 +116,8 @@ void DeserializeMap(T& value, INodePtr node)
     auto mapNode = node->AsMap();
     value.clear();
     for (const auto& pair : mapNode->GetChildren()) {
-        auto key = FromString<typename T::key_type>(pair.first);
+        typename T::key_type key;
+        TMapKeyHelper<typename T::key_type>::Deserialize(key, pair.first);
         typename T::mapped_type item;
         Deserialize(item, pair.second);
         value.emplace(std::move(key), std::move(item));
