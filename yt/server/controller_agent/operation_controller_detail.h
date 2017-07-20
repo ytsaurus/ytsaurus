@@ -915,7 +915,6 @@ protected:
     void AddAllTaskPendingHints();
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
-    void SuspendUnavailableInputStripes();
 
     void ParseInputQuery(
         const TString& queryString,
