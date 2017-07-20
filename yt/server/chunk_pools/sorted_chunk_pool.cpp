@@ -57,9 +57,9 @@ void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
 
 DEFINE_ENUM(EEndpointType,
     (PivotKey)
+    (ForeignLeft)
     (Left)
     (Right)
-    (ForeignLeft)
     (ForeignRight)
 );
 
@@ -95,11 +95,9 @@ public:
         // us to stop, to add all foreign slices up to the current moment and to check
         // if we already have to end the job due to the large data size or slice count.
         TEndpoint leftEndpoint = {
-            // NB: this is a dirty hack, we do not want for any primary slice to get between
-            // key and key, <max>.
             EEndpointType::ForeignLeft,
             dataSlice,
-            WidenKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_, EValueType::Min),
+            WidenKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Min),
             dataSlice->LowerLimit().RowIndex.Get(0)
         };
         TEndpoint rightEndpoint = {
@@ -272,10 +270,13 @@ private:
         if (Options_.LogEndpoints) {
             for (int index = 0; index < Endpoints_.size(); ++index) {
                 const auto& endpoint = Endpoints_[index];
-                LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, Type: %v, DataSlice: %p)",
+                LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %p)",
                     index,
                     endpoint.Key,
                     endpoint.RowIndex,
+                    (endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
+                    ? MakeNullable(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
+                    : Null,
                     endpoint.Type,
                     static_cast<void*>(endpoint.DataSlice.Get()));
             }
@@ -549,7 +550,7 @@ public:
         Logger.AddTag("OperationId: %v", OperationId_);
         JobManager_->SetLogger(Logger);
 
-        LOG_DEBUG("Created sorted chunk pool (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
+        LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLenght: %v, UseNewEndpointKeys: %v, DataSizePerJob: %v, "
             "PrimaryDataSizePerJob: %v, MaxDataSlicesPerJob: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
