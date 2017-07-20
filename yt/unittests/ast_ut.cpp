@@ -105,6 +105,7 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("f(a)");
     TestExpression("f(a, b)");
     TestExpression("f(a, b, c)");
+    TestExpression("(a + 1 as x) * x");
 }
 
 TEST_F(TAstFormatTest, Query)
