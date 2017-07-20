@@ -7,6 +7,7 @@
 #include "store_manager.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "tablet_profiling.h"
 #include "transaction_manager.h"
 
 #include <yt/ytlib/table_client/chunk_meta.pb.h>
@@ -30,6 +31,7 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/serialize.h>
+#include <yt/core/misc/tls_cache.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -74,6 +76,16 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
     CurrentReplicationRowIndex = statistics.current_replication_row_index();
     CurrentReplicationTimestamp = statistics.current_replication_timestamp();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReplicaCounters::TReplicaCounters(const TTagIdList& list)
+    : RowLag("/replica/row_lag", list)
+    , TimestampLag("/replica/timestamp_lag", list)
+{ }
+
+// Uses tablet_id and replica_id as the key.
+using TReplicaProfilerTrait = TTabletProfilerTrait<TReplicaCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,6 +257,7 @@ TTableReplicaSnapshotPtr TTableReplicaInfo::BuildSnapshot() const
     auto snapshot = New<TTableReplicaSnapshot>();
     snapshot->StartReplicationTimestamp = StartReplicationTimestamp_;
     snapshot->RuntimeData = RuntimeData_;
+    snapshot->Counters = Counters_;
     return snapshot;
 }
 
@@ -1112,8 +1125,23 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
         // tablet_id must be the first. See tablet_profiling.cpp for details.
         TProfileManager::Get()->RegisterTag("tablet_id", Id_),
         TProfileManager::Get()->RegisterTag("cell_id", cellId),
-        TProfileManager::Get()->RegisterTag("table_path", TablePath_)
-    });
+        TProfileManager::Get()->RegisterTag("table_path", TablePath_)});
+}
+
+void TTablet::UpdateReplicaCounters()
+{
+    if (!IsProfilingEnabled()) {
+        return;
+    }
+    for (auto& replica : Replicas_) {
+        auto replicaTags = ProfilerTags_;
+        // replica_id must be the last tag. See tablet_profiling.cpp for details.
+        replicaTags.append({
+            TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
+            TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
+            TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
+        replica.second.SetCounters(&GetGloballyCachedValue<TReplicaProfilerTrait>(replicaTags));
+    }
 }
 
 bool TTablet::IsProfilingEnabled() const

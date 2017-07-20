@@ -45,11 +45,22 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReplicaCounters
+{
+    TReplicaCounters(const NProfiling::TTagIdList& list);
+
+    NProfiling::TSimpleCounter RowLag;
+    NProfiling::TSimpleCounter TimestampLag;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTableReplicaSnapshot
     : public TIntrinsicRefCounted
 {
     NTransactionClient::TTimestamp StartReplicationTimestamp;
     TRuntimeTableReplicaDataPtr RuntimeData;
+    TReplicaCounters* Counters = nullptr;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
@@ -198,6 +209,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
 
     DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
+    DEFINE_BYVAL_RW_PROPERTY(TReplicaCounters*, Counters, nullptr);
 
 public:
     TTableReplicaInfo() = default;
@@ -382,6 +394,7 @@ public:
     i64 GetTabletLockCount() const;
 
     void FillProfilerTags(const TCellId& cellId);
+    void UpdateReplicaCounters();
     bool IsProfilingEnabled() const;
 
 private:
