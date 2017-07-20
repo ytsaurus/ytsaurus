@@ -25,7 +25,7 @@ public:
         bool sliceByKeys,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        NChunkClient::TScrapeChunksCallback scraperCallback,
+        NChunkClient::IFetcherChunkScraperPtr chunkScraper,
         NApi::INativeClientPtr client,
         NTableClient::TRowBufferPtr rowBuffer,
         const NLogging::TLogger& logger);

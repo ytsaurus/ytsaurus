@@ -54,7 +54,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         NTableClient::TRowBufferPtr rowBuffer,
-        NChunkClient::TScrapeChunksCallback scraperCallback,
+        NChunkClient::IFetcherChunkScraperPtr chunkScraper,
         NApi::INativeClientPtr client,
         const NLogging::TLogger& logger);
 

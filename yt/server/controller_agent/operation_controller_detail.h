@@ -1090,6 +1090,11 @@ protected:
     //! Should a violation be discovered, the operation fails.
     virtual bool IsRowCountPreserved() const;
 
+    //! Number of currently unavailable input chunks. In case of Sort or Sorted controller, shows
+    //! number of unavailable chunks during materialization (fetching samples or chunk slices).
+    //! Used for diagnostics only (exported into orchid).
+    virtual i64 GetUnavailableInputChunkCount() const;
+
     typedef std::function<bool(const TInputTable& table)> TInputTableFilter;
 
     NTableClient::TKeyColumns CheckInputTablesSorted(
@@ -1143,10 +1148,10 @@ protected:
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
     std::pair<i64, i64> CalculatePrimaryVersionedChunksStatistics() const;
-    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize) const;
+    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
 
     //! Returns the list of all input data slices collected from all primary input tables.
-    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize) const;
+    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize);
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
@@ -1167,7 +1172,7 @@ protected:
         std::vector<NChunkPools::TChunkStripePtr>* result) const;
     void SlicePrimaryVersionedChunks(
         const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<NChunkPools::TChunkStripePtr>* result) const;
+        std::vector<NChunkPools::TChunkStripePtr>* result);
 
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
@@ -1260,6 +1265,9 @@ private:
     yhash<TJobId, TJobletPtr> JobletMap;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
+
+    //! Scrapes chunks of dynamic tables during data slice fetching.
+    NChunkClient::IFetcherChunkScraperPtr DataSliceFetcherChunkScraper;
 
     NProfiling::TCpuInstant TaskUpdateDeadline_ = 0;
 

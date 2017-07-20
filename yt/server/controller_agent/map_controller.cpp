@@ -380,7 +380,7 @@ protected:
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
             JobCounter.GetInterruptedTotal(),
-            UnavailableInputChunkCount);
+            GetUnavailableInputChunkCount());
     }
 
 

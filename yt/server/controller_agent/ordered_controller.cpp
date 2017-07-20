@@ -328,7 +328,7 @@ protected:
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
             JobCounter.GetInterruptedTotal(),
-            UnavailableInputChunkCount);
+            GetUnavailableInputChunkCount());
     }
 
     //! Initializes #JobIOConfig.
