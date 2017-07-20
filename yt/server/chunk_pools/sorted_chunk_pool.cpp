@@ -37,6 +37,8 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, MaxTotalSliceCount);
     Persist(context, EnablePeriodicYielder);
     Persist(context, PivotKeys);
+    Persist(context, UseNewEndpointKeys);
+    Persist(context, LogEndpoints);
 }
 
 void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
@@ -267,6 +269,17 @@ private:
 
                 return false;
             });
+        if (Options_.LogEndpoints) {
+            for (int index = 0; index < Endpoints_.size(); ++index) {
+                const auto& endpoint = Endpoints_[index];
+                LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, Type: %v, DataSlice: %p)",
+                    index,
+                    endpoint.Key,
+                    endpoint.RowIndex,
+                    endpoint.Type,
+                    static_cast<void*>(endpoint.DataSlice.Get()));
+            }
+        }
     }
 
     void BuildJobs()
@@ -537,11 +550,15 @@ public:
         JobManager_->SetLogger(Logger);
 
         LOG_DEBUG("Created sorted chunk pool (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
-            "ForeignPrefixLenght: %v, UseNewEndpointKeys: %v)",
+            "ForeignPrefixLenght: %v, UseNewEndpointKeys: %v, DataSizePerJob: %v, "
+            "PrimaryDataSizePerJob: %v, MaxDataSlicesPerJob: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
             SortedJobOptions_.PrimaryPrefixLength,
             SortedJobOptions_.ForeignPrefixLength,
-            SortedJobOptions_.UseNewEndpointKeys);
+            SortedJobOptions_.UseNewEndpointKeys,
+            JobSizeConstraints_->GetDataSizePerJob(),
+            JobSizeConstraints_->GetPrimaryDataSizePerJob(),
+            JobSizeConstraints_->GetMaxDataSlicesPerJob());
     }
 
     // IChunkPoolInput implementation.
