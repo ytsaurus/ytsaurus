@@ -88,7 +88,7 @@ void ShutdownFinalizerThread()
 ////////////////////////////////////////////////////////////////////////////////
 
 void GuardedInvoke(
-    IInvokerPtr invoker,
+    const IInvokerPtr& invoker,
     TClosure onSuccess,
     TClosure onCancel)
 {

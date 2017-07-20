@@ -27,13 +27,6 @@ namespace NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EReportPriority,
-    (Normal)
-    (Low)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TJobEvent
 {
     TJobEvent(NJobTrackerClient::EJobState state)
@@ -64,9 +57,10 @@ using TJobEvents = std::vector<TJobEvent>;
 struct TJobStatistics
 {
 public:
-    TJobStatistics();
+    size_t EstimateSize() const;
 
-    void SetPriority(EReportPriority priority);
+    TJobStatistics ExtractSpec();
+
     void SetOperationId(NJobTrackerClient::TOperationId operationId);
     void SetJobId(NJobTrackerClient::TJobId jobId);
     void SetType(NJobTrackerClient::EJobType type);
@@ -79,7 +73,6 @@ public:
     void SetStatistics(const NYson::TYsonString& statistics);
     void SetEvents(const TJobEvents& events);
 
-    DEFINE_FORWARD_RW_PROPERTY(EReportPriority, Priority)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TJobId, JobId)
     DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Type)

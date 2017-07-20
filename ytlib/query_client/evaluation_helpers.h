@@ -181,7 +181,7 @@ typedef TRowBuffer TExpressionContext;
     { \
         int dummy; \
         size_t currentStackSize = reinterpret_cast<intptr_t>(context) - reinterpret_cast<intptr_t>(&dummy); \
-        YCHECK(currentStackSize < 10000); \
+        YCHECK(currentStackSize < 100000); \
     }
 #else
 #define CHECK_STACK() (void) 0;

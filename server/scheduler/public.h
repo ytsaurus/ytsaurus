@@ -69,6 +69,7 @@ struct ISchedulerStrategyHost;
 struct IOperationHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
+
 DECLARE_REFCOUNTED_STRUCT(IJobHost)
 DECLARE_REFCOUNTED_CLASS(TJobHost)
 
@@ -83,6 +84,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     (UpdatePools)
     (UpdateConfig)
     (UpdateFairShare)
+    (SyncClusterDirectory)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,6 +99,8 @@ DEFINE_ENUM(EOperationAlertType,
     (ShortJobsDuration)
     (OperationSuspended)
     (ExcessiveJobSpecThrottling)
+    (ScheduleJobTimedOut)
+    (SlotIndexCollision)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

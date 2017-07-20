@@ -3,6 +3,7 @@
 #include "store.h"
 #include "tablet.h"
 #include "tablet_slot.h"
+#include "tablet_profiling.h"
 
 #include <yt/server/tablet_node/config.h>
 
@@ -18,10 +19,15 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/scoped_timer.h>
+
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/variant.h>
+#include <yt/core/misc/tls_cache.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,11 +38,36 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
 static const size_t RowBufferCapacity = 1000;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLookupProfilerTrait
+    : public TTabletProfilerTraitBase
+{
+    struct TValue
+    {
+        TValue(const TTagIdList& list)
+            : Rows("/lookup/rows", list)
+            , Bytes("/lookup/bytes", list)
+            , CpuTime("/lookup/cpu_time", list)
+        { }
+
+        TSimpleCounter Rows;
+        TSimpleCounter Bytes;
+        TSimpleCounter CpuTime;
+    };
+
+    static TValue ToValue(const TTagIdList& list)
+    {
+        return list;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +80,7 @@ public:
     TLookupSession(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TString& user,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor,
@@ -59,16 +91,22 @@ public:
         , ColumnFilter_(columnFilter)
         , WorkloadDescriptor_(workloadDescriptor)
         , LookupKeys_(std::move(lookupKeys))
-    { }
+    {
+        if (TabletSnapshot_->IsProfilingEnabled()) {
+            Tags_ = GetUserProfilerTags(user, TabletSnapshot_->ProfilerTags);
+        }
+    }
 
     void Run(
         const std::function<void(TVersionedRow)>& onPartialRow,
-        const std::function<void()>& onRow)
+        const std::function<size_t()>& onRow)
     {
         LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             LookupKeys_.Size());
+
+        TCpuTimer timer;
 
         CreateReadSessions(&EdenSessions_, TabletSnapshot_->GetEdenStores(), LookupKeys_);
 
@@ -95,10 +133,21 @@ public:
             currentIt = nextIt;
         }
 
-        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v)",
+        auto cpuTime = timer.GetCpuValue();
+
+        if (IsProfilingEnabled()) {
+            auto& counters = GetLocallyGloballyCachedValue<TLookupProfilerTrait>(Tags_);
+            TabletNodeProfiler.Increment(counters.Rows, FoundRowCount_);
+            TabletNodeProfiler.Increment(counters.Bytes, Bytes_);
+            TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
+        }
+
+        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, Bytes: %v, CpuTime: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
-            FoundRowCount_);
+            FoundRowCount_,
+            Bytes_,
+            ValueToDuration(cpuTime));
     }
 
 private:
@@ -150,6 +199,14 @@ private:
     TReadSessionList PartitionSessions_;
 
     int FoundRowCount_ = 0;
+    size_t Bytes_ = 0;
+
+    TTagIdList Tags_;
+
+    bool IsProfilingEnabled() const
+    {
+        return !Tags_.empty();
+    }
 
     void CreateReadSessions(
         TReadSessionList* sessions,
@@ -188,7 +245,7 @@ private:
         const TPartitionSnapshotPtr& partitionSnapshot,
         const TSharedRange<TKey>& keys,
         const std::function<void(TVersionedRow)>& onPartialRow,
-        const std::function<void()>& onRow)
+        const std::function<size_t()>& onRow)
     {
         if (keys.Empty() || !partitionSnapshot) {
             return;
@@ -206,7 +263,7 @@ private:
             processSessions(PartitionSessions_);
             processSessions(EdenSessions_);
 
-            onRow();
+            Bytes_ += onRow();
 
             ++FoundRowCount_;
         }
@@ -231,6 +288,7 @@ static NTableClient::TColumnFilter DecodeColumnFilter(
 void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
+    const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -247,6 +305,7 @@ void LookupRows(
     TLookupSession session(
         tabletSnapshot,
         timestamp,
+        user,
         false,
         columnFilter,
         workloadDescriptor,
@@ -261,12 +320,17 @@ void LookupRows(
 
     session.Run(
         [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },
-        [&] { writer->WriteSchemafulRow(merger.BuildMergedRow()); });
+        [&] {
+            auto mergedRow = merger.BuildMergedRow();
+            writer->WriteSchemafulRow(mergedRow);
+            return GetDataWeight(mergedRow);
+        });
 }
 
 void VersionedLookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
+    const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -283,6 +347,7 @@ void VersionedLookupRows(
     TLookupSession session(
         tabletSnapshot,
         timestamp,
+        user,
         true,
         columnFilter,
         workloadDescriptor,
@@ -300,7 +365,11 @@ void VersionedLookupRows(
 
     session.Run(
         [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },
-        [&] { writer->WriteVersionedRow(merger.BuildMergedRow()); });
+        [&] {
+            auto mergedRow = merger.BuildMergedRow();
+            writer->WriteVersionedRow(mergedRow);
+            return GetDataWeight(mergedRow);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

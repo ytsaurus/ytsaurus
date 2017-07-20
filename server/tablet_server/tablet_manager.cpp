@@ -37,6 +37,8 @@
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/subject.h>
 
+#include <yt/server/hydra/snapshot_quota_helpers.h>
+
 #include <yt/server/table_server/table_node.h>
 #include <yt/server/table_server/replicated_table_node.h>
 
@@ -1127,6 +1129,7 @@ public:
                         }
 
                         DoMountTablets(
+                            table,
                             assignment,
                             mountConfig->InMemoryMode,
                             action->GetFreeze(),
@@ -1334,6 +1337,7 @@ public:
             std::move(tabletsToMount));
 
         DoMountTablets(
+            table,
             assignment,
             mountConfig->InMemoryMode,
             freeze,
@@ -1369,6 +1373,7 @@ public:
             std::vector<TTablet*>{tablet});
 
         DoMountTablets(
+            table,
             assignment,
             mountConfig->InMemoryMode,
             freeze,
@@ -1379,6 +1384,7 @@ public:
     }
 
     void DoMountTablets(
+        TTableNode* table,
         const std::vector<std::pair<TTablet*, TTabletCell*>>& assignment,
         EInMemoryMode inMemoryMode,
         bool freeze,
@@ -1387,13 +1393,16 @@ public:
         const TYsonString& serializedWriterConfig,
         const TYsonString& serializedWriterOptions)
     {
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto nodeProxy = cypressManager->GetNodeProxy(table);
+        TYPath path = nodeProxy->GetPath();
+        const auto& allTablets = table->Tablets();
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
             auto* cell = pair.second;
-            const auto& objectManager = Bootstrap_->GetObjectManager();
             int tabletIndex = tablet->GetIndex();
-            auto* table = tablet->GetTable();
-            const auto& allTablets = table->Tablets();
             const auto& chunkLists = table->GetChunkList()->Children();
             YCHECK(allTablets.size() == chunkLists.size());
 
@@ -1408,11 +1417,11 @@ public:
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
 
-            const auto& hiveManager = Bootstrap_->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
 
             {
                 TReqMountTablet req;
+                req.set_path(path);
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 req.set_mount_revision(tablet->GetMountRevision());
                 ToProto(req.mutable_table_id(), table->GetId());
@@ -1738,7 +1747,7 @@ public:
 
         if (!table->Tablets().empty()) {
             int firstTabletIndex = 0;
-            int lastTabletIndex =  static_cast<int>(table->Tablets().size()) - 1;
+            int lastTabletIndex = static_cast<int>(table->Tablets().size()) - 1;
 
             TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "remove");
 
@@ -1751,7 +1760,7 @@ public:
                 objectManager->UnrefObject(tablet);
             }
 
-            table->Tablets().clear();
+            table->MutableTablets().clear();
         }
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
@@ -1789,7 +1798,7 @@ public:
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
-        auto& tablets = table->Tablets();
+        auto& tablets = table->MutableTablets();
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
 
         if (newTabletCount <= 0) {
@@ -2101,7 +2110,7 @@ public:
 
         const auto& sourceTablets = trunkSourceTable->Tablets();
         YCHECK(!sourceTablets.empty());
-        auto& clonedTablets = trunkClonedTable->Tablets();
+        auto& clonedTablets = trunkClonedTable->MutableTablets();
         YCHECK(clonedTablets.empty());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2163,6 +2172,7 @@ public:
                 lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
             }
         }
+
         table->SetLastCommitTimestamp(lastCommitTimestamp);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2180,7 +2190,7 @@ public:
         if (table->IsSorted()) {
             tablet->SetPivotKey(EmptyKey());
         }
-        table->Tablets().push_back(tablet);
+        table->MutableTablets().push_back(tablet);
 
         auto* tabletChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
             ? EChunkListKind::SortedDynamicTablet
@@ -2246,7 +2256,7 @@ public:
             tablet->SetTable(nullptr);
             objectManager->UnrefObject(tablet);
         }
-        table->Tablets().clear();
+        table->MutableTablets().clear();
 
         table->SetLastCommitTimestamp(NullTimestamp);
 
@@ -2532,10 +2542,12 @@ private:
                     auto* table = node->As<TTableNode>();
                     if (table->IsDynamic()) {
                         for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-                            table->TabletCountByState()[state] = 0;
+                            if (table->TabletCountByState().IsDomainValue(state)) {
+                                table->MutableTabletCountByState()[state] = 0;
+                            }
                         }
                         for (const auto* tablet : table->Tablets()) {
-                            ++table->TabletCountByState()[tablet->GetState()];
+                            ++table->MutableTabletCountByState()[tablet->GetState()];
                         }
                     }
                 }
@@ -3696,17 +3708,18 @@ private:
             return result;
         };
 
-        std::set<TCellKey> cellKeys;
+        std::vector<TCellKey> cellKeys;
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             if (!IsObjectAlive(cell)) {
                 continue;
             }
             if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
-                YCHECK(cellKeys.insert(TCellKey{getCellSize(cell), cell}).second);
+                cellKeys.push_back(TCellKey{getCellSize(cell), cell});
             }
         }
         YCHECK(!cellKeys.empty());
+        std::sort(cellKeys.begin(), cellKeys.end());
 
         auto getTabletSize = [&] (const TTablet* tablet) -> i64 {
             i64 result = 0;
@@ -3736,19 +3749,14 @@ private:
                     std::make_tuple(getTabletSize(rhs), rhs->GetId());
             });
 
-        auto chargeCell = [&] (std::set<TCellKey>::iterator it, TTablet* tablet) {
-            const auto& existingKey = *it;
-            auto newKey = TCellKey{existingKey.Size + getTabletSize(tablet), existingKey.Cell};
-            cellKeys.erase(it);
-            YCHECK(cellKeys.insert(newKey).second);
-        };
-
-        // Iteratively assign tablets to least-loaded cells.
+        // Assign tablets to cells iteratively looping over cell array.
+        int cellIndex = 0;
         std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
         for (auto* tablet : tabletsToMount) {
-            auto it = cellKeys.begin();
-            assignment.emplace_back(tablet, it->Cell);
-            chargeCell(it, tablet);
+            assignment.emplace_back(tablet, cellKeys[cellIndex].Cell);
+            if (++cellIndex == cellKeys.size()) {
+                cellIndex = 0;
+            }
         }
 
         return assignment;
@@ -4075,9 +4083,18 @@ private:
                     continue;
                 }
 
-                std::vector<int> snapshotIds;
-                auto snapshotKeys = SyncYPathList(snapshotsMap, "");
-                for (const auto& key : snapshotKeys) {
+                auto request = TYPathProxy::List("");
+                auto response = WaitFor(ExecuteVerb(snapshotsMap, request))
+                    .ValueOrThrow();
+                auto list = ConvertTo<IListNodePtr>(TYsonString(response->value()));
+                auto children = list->GetChildren();
+                std::vector<TSnapshotInfo> snapshots;
+                std::vector<TString> snapshotKeys;
+                snapshots.reserve(children.size());
+                snapshotKeys.reserve(children.size());
+                for (const auto& child : children) {
+                    const auto key = ConvertTo<TString>(child);
+                    snapshotKeys.push_back(key);
                     int snapshotId;
                     try {
                         snapshotId = FromString<int>(key);
@@ -4087,14 +4104,21 @@ private:
                             cellId);
                         continue;
                     }
-                    snapshotIds.push_back(snapshotId);
+                    const auto& attributes = child->Attributes();
+                    snapshots.push_back({snapshotId, attributes.Get<i64>("compressed_data_size")});
                 }
 
-                if (snapshotIds.size() <= Config_->MaxSnapshotsToKeep)
-                    continue;
+                std::sort(snapshots.begin(), snapshots.end(), [] (const TSnapshotInfo& lhs, const TSnapshotInfo& rhs) {
+                    return lhs.Id < rhs.Id;
+                });
 
-                std::sort(snapshotIds.begin(), snapshotIds.end());
-                int thresholdId = snapshotIds[snapshotIds.size() - Config_->MaxSnapshotsToKeep];
+                auto thresholdId = NYT::NHydra::GetSnapshotThresholdId(
+                    snapshots,
+                    Config_->MaxSnapshotCountToKeep,
+                    Config_->MaxSnapshotSizeToKeep);
+                if (!thresholdId) {
+                    continue;
+                }
 
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
@@ -4102,7 +4126,7 @@ private:
                 for (const auto& key : snapshotKeys) {
                     try {
                         int snapshotId = FromString<int>(key);
-                        if (snapshotId < thresholdId) {
+                        if (snapshotId <= *thresholdId) {
                             LOG_INFO("Removing tablet cell snapshot %v (CellId: %v)",
                                 snapshotId,
                                 cellId);
@@ -4143,7 +4167,7 @@ private:
                             cellId);
                         continue;
                     }
-                    if (changelogId < thresholdId) {
+                    if (changelogId <= *thresholdId) {
                         LOG_INFO("Removing tablet cell changelog %v (CellId: %v)",
                             changelogId,
                             cellId);

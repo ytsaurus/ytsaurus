@@ -25,7 +25,7 @@ struct IServer
     //! Returns |true| if #service was indeed registered, |false| otherwise.
     virtual bool UnregisterService(IServicePtr service) = 0;
 
-    //! Finds a given by id, returns null if none is found.
+    //! Finds a service by id, returns null if none is found.
     virtual IServicePtr FindService(const TServiceId& serviceId) = 0;
 
     //! Reconfigures the server on-the-fly.
@@ -42,10 +42,10 @@ struct IServer
      *  If #graceful is |true|, asynchronously waits for all services to stop
      *  (cf. #IService::Stop).
      *
-     *  For servers bound to certain trasport layer, this call also ensures
+     *  For servers bound to certain transport layer, this call also ensures
      *  that the transport is fully stopped all well.
      *
-     *  /returns an asynchronous flag indicating that the server is fully stopped.
+     *  \returns an asynchronous flag indicating that the server is fully stopped.
      */
     virtual TFuture<void> Stop(bool graceful = true) = 0;
 };

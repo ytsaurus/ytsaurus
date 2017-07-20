@@ -17,10 +17,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = RpcServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TServiceContextBase::TServiceContextBase(
     std::unique_ptr<TRequestHeader> header,
     TSharedRefArray requestMessage,
@@ -69,12 +65,7 @@ void TServiceContextBase::Reply(const TError& error)
     Error_ = error;
     Replied_ = true;
 
-    if (IsOneWay()) {
-        // Cannot reply OK to a one-way request.
-        YCHECK(!error.IsOK());
-    } else {
-        DoReply();
-    }
+    DoReply();
 
     if (AsyncResponseMessage_) {
         AsyncResponseMessage_.Set(GetResponseMessage());
@@ -88,7 +79,6 @@ void TServiceContextBase::Reply(const TError& error)
 void TServiceContextBase::Reply(TSharedRefArray responseMessage)
 {
     Y_ASSERT(!Replied_);
-    Y_ASSERT(!IsOneWay());
     Y_ASSERT(responseMessage.Size() >= 1);
 
     // NB: One must parse responseMessage and only use its content since,
@@ -157,11 +147,6 @@ TSharedRefArray TServiceContextBase::GetResponseMessage() const
     return ResponseMessage_;
 }
 
-bool TServiceContextBase::IsOneWay() const
-{
-    return RequestHeader_->one_way();
-}
-
 bool TServiceContextBase::IsReplied() const
 {
     return Replied_;
@@ -206,15 +191,12 @@ TSharedRef TServiceContextBase::GetResponseBody()
 void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 {
     Y_ASSERT(!Replied_);
-    Y_ASSERT(!IsOneWay());
 
     ResponseBody_ = responseBody;
 }
 
 std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
-    Y_ASSERT(!IsOneWay());
-
     return ResponseAttachments_;
 }
 
@@ -298,7 +280,6 @@ void TServiceContextBase::SetRawRequestInfo(const TString& info)
 void TServiceContextBase::SetRawResponseInfo(const TString& info)
 {
     Y_ASSERT(!Replied_);
-    Y_ASSERT(!IsOneWay());
 
     ResponseInfo_ = info;
 }
@@ -372,11 +353,6 @@ const TRealmId& TServiceContextWrapper::GetRealmId() const
 const TString& TServiceContextWrapper::GetUser() const
 {
     return UnderlyingContext_->GetUser();
-}
-
-bool TServiceContextWrapper::IsOneWay() const
-{
-    return UnderlyingContext_->IsOneWay();
 }
 
 bool TServiceContextWrapper::IsReplied() const
@@ -573,6 +549,10 @@ TFuture<void> TServerBase::Stop(bool graceful)
 
     return DoStop(graceful);
 }
+
+TServerBase::TServerBase(const NLogging::TLogger& logger)
+    : Logger(logger)
+{ }
 
 void TServerBase::DoStart()
 {

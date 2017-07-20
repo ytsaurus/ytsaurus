@@ -1,6 +1,9 @@
 #pragma once
 
 #include "private.h"
+#include "chunk_pool.h"
+
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -18,5 +21,11 @@ void AddStripeToList(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namesapce NChunkPools
+TChunkStripeListPtr ApplyChunkMappingToStripe(
+    const TChunkStripeListPtr& stripeList,
+    const yhash<NChunkClient::TInputChunkPtr, NChunkClient::TInputChunkPtr>& inputChunkMapping);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NChunkPools
 } // namespace NYT

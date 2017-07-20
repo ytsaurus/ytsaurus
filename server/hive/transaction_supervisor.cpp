@@ -677,6 +677,7 @@ private:
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
+        request.set_prepare_timestamp(TimestampProvider_->GetLatestTimestamp());
         CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger);
     }
@@ -790,6 +791,7 @@ private:
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
+        auto prepareTimestamp = request->has_prepare_timestamp() ? request->prepare_timestamp() : MinTimestamp;
 
         // Ensure commit existence (possibly moving it from transient to persistent).
         auto* commit = GetOrCreatePersistentCommit(
@@ -807,14 +809,14 @@ private:
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(),
-            "Distributed commit phase one started (TransactionId: %v, ParticipantCellIds: %v)",
+            "Distributed commit phase one started (TransactionId: %v, ParticipantCellIds: %v, PrepareTimestamp: %llx)",
             transactionId,
-            participantCellIds);
+            participantCellIds,
+            prepareTimestamp);
 
         // Prepare at coordinator.
         try {
             // Any exception thrown here is caught below.
-            auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
             TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
         } catch (const std::exception& ex) {
             LOG_DEBUG_UNLESS(IsRecovery(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v)",

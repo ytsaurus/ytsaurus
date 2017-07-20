@@ -12,6 +12,8 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 NYPath::TYPath GetOperationPath(const TOperationId& operationId);
+NYPath::TYPath GetOperationAttributesPath(const TOperationId& operationId);
+NYPath::TYPath GetOperationsProgressFromScheduler(const TOperationId& operationId);
 NYPath::TYPath GetJobsPath(const TOperationId& operationId);
 NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId);
@@ -21,8 +23,11 @@ NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId);
 NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
-NYPath::TYPath GetPoolsPath();
-NYPath::TYPath GetOperationsArchiveJobsPath();
+
+const NYPath::TYPath& GetPoolsPath();
+const NYPath::TYPath& GetOperationsArchiveVersionPath();
+const NYPath::TYPath& GetOperationsArchiveJobsPath();
+const NYPath::TYPath& GetOperationsArchiveJobSpecsPath();
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);

@@ -39,26 +39,62 @@ public:
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
+    { }
+
+    void Start()
     {
-        SyncExecutor_->Start();
+        auto guard = Guard(SpinLock_);
+        DoStart();
+    }
+
+    void Stop()
+    {
+        auto guard = Guard(SpinLock_);
+        DoStop();
     }
 
     TFuture<void> Sync()
     {
-        auto guard = Guard(SyncPromiseLock_);
+        auto guard = Guard(SpinLock_);
+        if (Stopped_) {
+            return MakeFuture(TError("Cluster directory synchronizer is stopped"));
+        }
+        DoStart();
         return SyncPromise_.ToFuture();
     }
+
+    DEFINE_SIGNAL(void(const TError&), Synchronized);
 
 private:
     const TClusterDirectorySynchronizerConfigPtr Config_;
     const TWeakPtr<IConnection> DirectoryConnection_;
-    const TClusterDirectoryPtr ClusterDirectory_;
+    const TWeakPtr<TClusterDirectory> ClusterDirectory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
-    TSpinLock SyncPromiseLock_;
+    TSpinLock SpinLock_;
+    bool Started_ = false;
+    bool Stopped_= false;
     TPromise<void> SyncPromise_ = NewPromise<void>();
 
+
+    void DoStart()
+    {
+        if (Started_) {
+            return;
+        }
+        Started_ = true;
+        SyncExecutor_->Start();
+    }
+
+    void DoStop()
+    {
+        if (Stopped_) {
+            return;
+        }
+        Stopped_ = true;
+        SyncExecutor_->Stop();
+    }
 
     void DoSync()
     {
@@ -68,18 +104,21 @@ private:
                 THROW_ERROR_EXCEPTION("Directory connection is not available");
             }
 
-            auto client = connection->CreateClient();
-
+            auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
             LOG_DEBUG("Started updating cluster directory");
 
             TGetClusterMetaOptions options;
             options.PopulateClusterDirectory = true;
             options.ReadFrom = EMasterChannelKind::Follower;
-            auto asyncResult = client->GetClusterMeta(options);
-            auto result = WaitFor(asyncResult)
+            auto meta = WaitFor(client->GetClusterMeta(options))
                 .ValueOrThrow();
 
-            ClusterDirectory_->UpdateDirectory(*result.ClusterDirectory);
+            auto clusterDirectory = ClusterDirectory_.Lock();
+            if (!clusterDirectory) {
+                THROW_ERROR_EXCEPTION("Directory is not available");
+            }
+
+            clusterDirectory->UpdateDirectory(*meta.ClusterDirectory);
 
             LOG_DEBUG("Finished updating cluster directory");
         } catch (const std::exception& ex) {
@@ -93,12 +132,14 @@ private:
         TError error;
         try {
             DoSync();
+            Synchronized_.Fire(TError());
         } catch (const std::exception& ex) {
             error = TError(ex);
+            Synchronized_.Fire(error);
             LOG_DEBUG(error);
         }
 
-        auto guard = Guard(SyncPromiseLock_);
+        auto guard = Guard(SpinLock_);
         auto syncPromise = NewPromise<void>();
         std::swap(syncPromise, SyncPromise_);
         guard.Release();
@@ -120,10 +161,22 @@ TClusterDirectorySynchronizer::TClusterDirectorySynchronizer(
 
 TClusterDirectorySynchronizer::~TClusterDirectorySynchronizer() = default;
 
+void TClusterDirectorySynchronizer::Start()
+{
+    Impl_->Start();
+}
+
+void TClusterDirectorySynchronizer::Stop()
+{
+    Impl_->Stop();
+}
+
 TFuture<void> TClusterDirectorySynchronizer::Sync()
 {
     return Impl_->Sync();
 }
+
+DELEGATE_SIGNAL(TClusterDirectorySynchronizer, void(const TError&), Synchronized, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

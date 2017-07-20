@@ -10,8 +10,9 @@ message TReqStartTransaction
 {
     optional NYT.NYTree.NProto.TAttributes attributes = 1;
     optional NYT.NProto.TGuid parent_id = 2;
-    required int32 timeout = 3;
+    required int32 timeout_old = 3; // will be removed in future versions
     optional string title = 4;
+    optional int64 timeout_new = 5;
 }
 
 message TRspStartTransaction

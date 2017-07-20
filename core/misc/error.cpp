@@ -438,6 +438,14 @@ TError operator << (TError error, const TErrorAttribute& attribute)
     return error;
 }
 
+TError operator << (TError error, const std::vector<TErrorAttribute>& attributes)
+{
+    for (const auto& attribute : attributes) {
+        error.Attributes().SetYson(attribute.Key, attribute.Value);
+    }
+    return error;
+}
+
 TError operator << (TError error, const TError& innerError)
 {
     error.InnerErrors().push_back(innerError);

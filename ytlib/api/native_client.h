@@ -21,11 +21,15 @@ struct INativeClient
     : public INativeClientBase
     , public IClient
 {
-    virtual INativeConnectionPtr GetNativeConnection() = 0;
+    virtual const TClientOptions& GetOptions() = 0;
+    virtual const INativeConnectionPtr& GetNativeConnection() = 0;
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
+    virtual NRpc::IChannelPtr GetCellChannelOrThrow(
+        const NElection::TCellId& cellId) = 0;
+
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NNodeTrackerClient::INodeChannelFactoryPtr GetLightChannelFactory() = 0;
     virtual NNodeTrackerClient::INodeChannelFactoryPtr GetHeavyChannelFactory() = 0;

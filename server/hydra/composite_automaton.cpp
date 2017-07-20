@@ -304,7 +304,6 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
     }
 
     // NB: Hold the parts strongly during the async phase.
-    auto paxrts = GetParts();
     return
         BIND([=, this_ = MakeStrong(this), parts_ = GetParts()] () {
             DoSaveSnapshot(

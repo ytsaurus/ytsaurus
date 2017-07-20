@@ -51,17 +51,15 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     TAccount* account,
     bool enableAccounting)
 {
-    if (!attributes->Contains("compression_codec")) {
-        attributes->Set("compression_codec", NCompression::ECodec::Lz4);
-    }
+    const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
 
-    if (!attributes->Contains("optimize_for")) {
-        attributes->Set("optimize_for", EOptimizeFor::Lookup);
-    }
+    auto maybeTabletCellBundleName = attributes->FindAndRemove<TString>("tablet_cell_bundle");
+    auto optimizeFor = attributes->GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+    auto replicationFactor = attributes->GetAndRemove("replication_factor", config->DefaultTableReplicationFactor);
+    auto compressionCodec = attributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::Lz4);
+    auto erasureCodec = attributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 
-    if (!attributes->Contains("tablet_cell_bundle")) {
-        attributes->Set("tablet_cell_bundle", DefaultTabletCellBundleName);
-    }
+    ValidateReplicationFactor(replicationFactor);
 
     bool dynamic = attributes->GetAndRemove<bool>("dynamic", false);
     bool replicated = TypeFromId(id.ObjectId) == EObjectType::ReplicatedTable;
@@ -112,18 +110,26 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
     }
 
-    TBase::InitializeAttributes(attributes);
+    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+    auto* tabletCellBundle = maybeTabletCellBundleName
+        ? tabletManager->GetTabletCellBundleByNameOrThrow(*maybeTabletCellBundleName)
+        : tabletManager->GetDefaultTabletCellBundle();
 
-    auto nodeHolder = TBase::DoCreate(
+    auto nodeHolder = this->DoCreateImpl(
         id,
         cellTag,
         transaction,
         attributes,
         account,
-        enableAccounting);
+        enableAccounting,
+        replicationFactor,
+        compressionCodec,
+        erasureCodec);
     auto* node = nodeHolder.get();
 
     try {
+        node->SetOptimizeFor(optimizeFor);
+
         if (node->IsReplicated()) {
             // NB: This setting is not visible in attributes but crucial for replication
             // to work properly.
@@ -136,7 +142,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
 
         if (dynamic) {
-            const auto& tabletManager = this->Bootstrap_->GetTabletManager();
             tabletManager->MakeTableDynamic(node);
 
             if (maybeTabletCount) {
@@ -144,9 +149,11 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             } else if (maybePivotKeys) {
                 tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
             }
+
+            node->SetUpstreamReplicaId(upstreamReplicaId);
         }
 
-        node->SetUpstreamReplicaId(upstreamReplicaId);
+        tabletManager->SetTabletCellBundle(node, tabletCellBundle);
     } catch (const std::exception&) {
         DoDestroy(node);
         throw;
@@ -229,12 +236,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
-}
-
-template <class TImpl>
-int TTableNodeTypeHandlerBase<TImpl>::GetDefaultReplicationFactor() const
-{
-    return this->Bootstrap_->GetConfig()->CypressManager->DefaultTableReplicationFactor;
 }
 
 template <class TImpl>

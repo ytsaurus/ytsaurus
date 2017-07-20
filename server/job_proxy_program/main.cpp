@@ -4,12 +4,15 @@
 
 #include <yt/server/job_proxy/config.h>
 #include <yt/server/job_proxy/job_proxy.h>
+#include <yt/server/job_proxy/private.h>
 
 #include <yt/server/misc/configure_singletons.h>
 
 #include <yt/core/misc/proc.h>
 
 namespace NYT {
+
+static const auto& Logger = NJobProxy::JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,9 +49,14 @@ protected:
         ConfigureUids();
         ConfigureSignals();
         ConfigureCrashHandler();
-
         CloseAllDescriptors();
-        CreateStderrFile("stderr");
+
+        try {
+            SafeCreateStderrFile("stderr");
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Job proxy preparation (startup) failed");
+            Exit(static_cast<int>(NJobProxy::EJobProxyExitCode::JobProxyPrepareFailed));
+        }
 
         if (HandleConfigOptions()) {
             return;

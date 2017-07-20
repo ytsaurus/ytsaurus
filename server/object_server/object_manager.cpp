@@ -487,7 +487,6 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YCHECK(RegisteredTypes_.insert(type).second);
     auto& entry = TypeToEntry_[type];
     entry.Handler = handler;
-    entry.TagId = TProfileManager::Get()->RegisterTag("type", type);
 
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
@@ -1272,20 +1271,21 @@ const TProfiler& TObjectManager::GetProfiler()
     return Profiler;
 }
 
-TTagId TObjectManager::GetTypeTagId(EObjectType type)
+NProfiling::TAggregateCounter* TObjectManager::GetMethodExecTimeCounter(EObjectType type, const TString& method)
 {
-    return TypeToEntry_[type].TagId;
-}
-
-TTagId TObjectManager::GetMethodTagId(const TString& method)
-{
-    auto it = MethodToTag_.find(method);
-    if (it != MethodToTag_.end()) {
-        return it->second;
+    auto key = std::make_pair(type, method);
+    auto it = MethodToEntry_.find(key);
+    if (it == MethodToEntry_.end()) {
+        auto entry = std::make_unique<TMethodEntry>();
+        entry->ExecTimeCounter = NProfiling::TAggregateCounter(
+            "/verb_execute_time",
+            {
+                TProfileManager::Get()->RegisterTag("type", type),
+                TProfileManager::Get()->RegisterTag("method", method)
+            });
+        it = MethodToEntry_.emplace(key, std::move(entry)).first;
     }
-    auto tag = TProfileManager::Get()->RegisterTag("method", method);
-    YCHECK(MethodToTag_.insert(std::make_pair(method, tag)).second);
-    return tag;
+    return &it->second->ExecTimeCounter;
 }
 
 TEpoch TObjectManager::GetCurrentEpoch()

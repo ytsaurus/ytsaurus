@@ -21,6 +21,7 @@
 #include <yt/server/data_node/session_manager.h>
 #include <yt/server/data_node/ytree_integration.h>
 #include <yt/server/data_node/chunk_meta_manager.h>
+#include <yt/server/data_node/skynet_http_handler.h>
 
 #include <yt/server/exec_agent/config.h>
 #include <yt/server/exec_agent/job_environment.h>
@@ -169,13 +170,15 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    auto localAddresses = GetLocalAddresses();
+    auto localRpcAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
+    auto localSkynetHttpAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->MonitoringPort);
+
     if (!Config->ClusterConnection->Networks) {
         Config->ClusterConnection->Networks = GetLocalNetworks();
     }
 
     LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
-        GetValues(localAddresses),
+        GetValues(localRpcAddresses),
         Config->ClusterConnection->PrimaryMaster->Addresses,
         Config->Tags);
 
@@ -276,7 +279,8 @@ void TBootstrap::DoRun()
 
     MasterConnector = New<NDataNode::TMasterConnector>(
         Config->DataNode,
-        localAddresses,
+        localRpcAddresses,
+        localSkynetHttpAddresses,
         Config->Tags,
         this);
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
@@ -334,7 +338,7 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
-    auto localAddress = GetDefaultAddress(localAddresses);
+    auto localAddress = GetDefaultAddress(localRpcAddresses);
 
     JobProxyConfigTemplate = New<NJobProxy::TJobProxyConfig>();
 
@@ -500,6 +504,12 @@ void TBootstrap::DoRun()
     HttpServer->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
+
+    if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
+        HttpServer->Register(
+            "/read_skynet_part",
+            MakeSkynetHttpHandler(this));
+    }
 
     RpcServer->RegisterService(CreateOrchidService(
         OrchidRoot,
@@ -754,11 +764,6 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
         default:
             return TotalOutThrottler;
     }
-}
-
-TAddressMap TBootstrap::GetLocalAddresses()
-{
-    return NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
 }
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks()

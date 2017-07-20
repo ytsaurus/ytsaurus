@@ -95,7 +95,6 @@ public:
 
     const NObjectClient::TCellId& GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
-    NNodeTrackerClient::TAddressMap GetLocalAddresses();
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;

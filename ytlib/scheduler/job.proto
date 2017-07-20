@@ -89,6 +89,9 @@ message TUserJobSpec
     optional TTableBlobSpec stderr_table_spec = 29;
 
     optional TTableBlobSpec core_table_spec = 30;
+
+    optional int64 disk_space_limit = 31;
+    optional int64 inode_limit = 32;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,7 +176,7 @@ message TSchedulerJobSpecExt
 
     optional int64 job_proxy_memory_overcommit_limit = 16;
 
-    optional bool enable_sort_verification = 11 [default = true];
+    // Deprecated = 11
 
     optional TUserJobSpec user_job_spec = 12;
 

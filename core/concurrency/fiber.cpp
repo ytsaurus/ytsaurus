@@ -86,9 +86,10 @@ TFiberId TFiber::GetId() const
     return Id_;
 }
 
-void TFiber::RegenerateId()
+TFiberId TFiber::RegenerateId()
 {
     Id_ = GenerateFiberId();
+    return Id_;
 }
 
 EFiberState TFiber::GetState() const
@@ -232,6 +233,31 @@ void TFiber::Trampoline(void* opaque)
     GetCurrentScheduler()->Return();
 
     Y_UNREACHABLE();
+}
+
+void TFiber::PushContextHandler(std::function<void()> out, std::function<void()> in)
+{
+    SwitchHandlers_.push_front({std::move(out), std::move(in)});
+}
+
+void TFiber::PopContextHandler()
+{
+    YCHECK(!SwitchHandlers_.empty());
+    SwitchHandlers_.pop_front();
+}
+
+void TFiber::InvokeContextOutHandlers()
+{
+    for (auto& handler : SwitchHandlers_) {
+        handler.Out();
+    }
+}
+
+void TFiber::InvokeContextInHandlers()
+{
+    for (auto& handler : SwitchHandlers_) {
+        handler.In();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

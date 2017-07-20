@@ -229,6 +229,8 @@ public:
     //! If |true| then the chunk is fsynced to disk upon closing.
     bool SyncOnClose;
 
+    bool EnableDirectIO;
+
     TDuration AllocateWriteTargetsBackoffTime;
 
     int AllocateWriteTargetsRetryCount;
@@ -261,6 +263,8 @@ public:
             .Default(false);
         RegisterParameter("sync_on_close", SyncOnClose)
             .Default(true);
+        RegisterParameter("enable_direct_io", EnableDirectIO)
+            .Default(false);
         RegisterParameter("allocate_write_targets_backoff_time", AllocateWriteTargetsBackoffTime)
             .Default(TDuration::Seconds(5));
         RegisterParameter("allocate_write_targets_retry_count", AllocateWriteTargetsRetryCount)
@@ -452,14 +456,35 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFetchChunkSpecConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    int MaxChunksPerFetch;
+    int MaxChunksPerLocateRequest;
+
+    TFetchChunkSpecConfig()
+    {
+        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+            .GreaterThan(0)
+            .Default(100000);
+        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+            .GreaterThan(0)
+            .Default(10000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TFetchChunkSpecConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMultiChunkReaderConfig
     : public virtual TReplicationReaderConfig
     , public virtual TBlockFetcherConfig
+    , public virtual TFetchChunkSpecConfig
 {
 public:
     i64 MaxBufferSize;
-    int MaxChunksPerFetch;
-    int MaxChunksPerLocateRequest;
     int MaxParallelReaders;
 
     TMultiChunkReaderConfig()
@@ -468,12 +493,6 @@ public:
             .GreaterThan(0L)
             .LessThanOrEqual((i64) 10 * 1024 * 1024 * 1024)
             .Default((i64) 100 * 1024 * 1024);
-        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
-            .GreaterThan(0)
-            .Default(100000);
-        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
-            .GreaterThan(0)
-            .Default(10000);
         RegisterParameter("max_parallel_readers", MaxParallelReaders)
             .GreaterThanOrEqual(1)
             .LessThanOrEqual(1000)

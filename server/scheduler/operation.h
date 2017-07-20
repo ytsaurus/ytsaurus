@@ -25,6 +25,8 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NControllerAgent;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationEvent
@@ -38,8 +40,22 @@ void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IOperationStrategyHost
+{
+    virtual bool IsSchedulable() const = 0;
+
+    virtual TInstant GetStartTime() const = 0;
+
+    virtual int GetSlotIndex() const = 0;
+
+    virtual TOperationId GetId() const = 0;
+
+    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
+};
+
 class TOperation
     : public TIntrinsicRefCounted
+    , public IOperationStrategyHost
 {
 public:
     using TAlertsArray = TEnumIndexedVector<TError, EOperationAlertType>;
@@ -91,9 +107,6 @@ public:
     //! Stores statistics about operation preparation and schedule job timings.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
-    //! Last time the progress was logged.
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastLogProgressTime);
-
     //! Numeric index of operation in pool.
     DEFINE_BYVAL_RW_PROPERTY(int, SlotIndex);
 
@@ -116,11 +129,12 @@ public:
     bool IsFinishingState() const;
 
     //! Checks whether current operation state allows starting new jobs.
-    bool IsSchedulable() const;
+    bool IsSchedulable() const override;
 
     //! Adds new sample to controller time statistics.
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
     void UpdateControllerTimeStatistics(const NJobTrackerClient::TStatistics& statistics);
+    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
     //! Returns |true| if operation controller progress can be built.
     bool HasControllerProgress() const;

@@ -33,7 +33,6 @@ struct IClientRequest
     virtual const NProto::TRequestHeader& Header() const = 0;
     virtual NProto::TRequestHeader& Header() = 0;
 
-    virtual bool IsOneWay() const = 0;
     virtual bool IsHeavy() const = 0;
 
     virtual TRequestId GetRequestId() const = 0;
@@ -103,8 +102,6 @@ public:
     virtual NProto::TRequestHeader& Header() override;
     virtual const NProto::TRequestHeader& Header() const override;
 
-    virtual bool IsOneWay() const override;
-
     virtual TRequestId GetRequestId() const override;
     virtual TRealmId GetRealmId() const override;
     virtual const TString& GetService() const override;
@@ -134,7 +131,6 @@ protected:
         IChannelPtr channel,
         const TString& service,
         const TString& method,
-        bool oneWay,
         int protocolVersion);
 
     virtual bool IsHeavy() const override;
@@ -165,13 +161,11 @@ public:
         IChannelPtr channel,
         const TString& path,
         const TString& method,
-        bool oneWay,
         int protocolVersion)
         : TClientRequest(
             std::move(channel),
             path,
             method,
-            oneWay,
             protocolVersion)
     { }
 
@@ -326,36 +320,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes a one-way response.
-class TOneWayClientResponse
-    : public TClientResponseBase
-{
-public:
-    typedef void TResult;
-
-    explicit TOneWayClientResponse(TClientContextPtr clientContext);
-
-    TPromise<TResult> GetPromise();
-
-private:
-    TPromise<TResult> Promise_ = NewPromise<TResult>();
-
-
-    // IClientResponseHandler implementation.
-    virtual void HandleAcknowledgement() override;
-    virtual void HandleResponse(TSharedRefArray message) override;
-
-    virtual void SetPromise(const TError& error) override;
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const int DefaultProtocolVersion = 0;
-static const int GenericProtocolVersion = -1;
-
 struct TServiceDescriptor
 {
     TString ServiceName;
@@ -396,19 +360,7 @@ struct TServiceDescriptor
     TReq##method##Ptr method() \
     { \
         static TString MethodName(#method); \
-        return CreateRequest<TReq##method>(MethodName, false); \
-    }
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define DEFINE_ONE_WAY_RPC_PROXY_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ::NYT::NRpc::TOneWayClientResponse> TReq##method; \
-    typedef ::NYT::TIntrusivePtr<TReq##method> TReq##method##Ptr; \
-    \
-    TReq##method##Ptr method() \
-    { \
-        static TString MethodName(#method); \
-        return CreateRequest<TReq##method>(MethodName, true); \
+        return CreateRequest<TReq##method>(MethodName); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -430,13 +382,12 @@ protected:
         const TServiceDescriptor& descriptor);
 
     template <class T>
-    TIntrusivePtr<T> CreateRequest(const TString& methodName, bool oneWay)
+    TIntrusivePtr<T> CreateRequest(const TString& methodName)
     {
         auto request = New<T>(
             Channel_,
             Descriptor_.ServiceName,
             methodName,
-            oneWay,
             Descriptor_.ProtocolVersion);
         request->SetTimeout(DefaultTimeout_);
         request->SetRequestAck(DefaultRequestAck_);

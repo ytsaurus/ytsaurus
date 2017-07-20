@@ -115,8 +115,7 @@ public:
             .SetMaxQueueSize(5000)
             .SetMaxConcurrency(5000)
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
-            .SetOneWay(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
@@ -133,6 +132,18 @@ private:
 
     const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
 
+    bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO) const
+    {
+        if (policy == EDirectIOPolicy::Never) {
+            return false;
+        }
+
+        if (policy == EDirectIOPolicy::Always) {
+            return true;
+        }
+
+        return writerRequestedDirectIO;
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
@@ -145,8 +156,7 @@ private:
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
-        // DirectIO have the same effect, as fsync after every write.
-        options.EnableWriteDirectIO = request->sync_on_close() && Config_->EnableWriteDirectIO;
+        options.EnableWriteDirectIO = ShouldUseDirectIO(Config_->UseDirectIO, request->enable_direct_io());
 
         context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
             "PlacementId: %v",
@@ -989,7 +999,7 @@ private:
         }
     }
 
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
         auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
         auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
@@ -1005,6 +1015,8 @@ private:
             TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
             peerBlockTable->UpdatePeer(blockId, peer);
         }
+
+        context->Reply();
     }
 
 

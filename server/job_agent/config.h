@@ -106,8 +106,8 @@ public:
     TDuration ReportingPeriod;
     TDuration MinRepeatDelay;
     TDuration MaxRepeatDelay;
-    int MaxItemsInProgressNormalPriority;
-    int MaxItemsInProgressLowPriority;
+    int MaxInProgressJobDataSize;
+    int MaxInProgressJobSpecDataSize;
     int MaxItemsInBatch;
 
     TStatisticsReporterConfig()
@@ -120,10 +120,10 @@ public:
             .Default(TDuration::Seconds(10));
         RegisterParameter("max_repeat_delay", MaxRepeatDelay)
             .Default(TDuration::Minutes(5));
-        RegisterParameter("max_items_in_progress_normal_priority", MaxItemsInProgressNormalPriority)
-            .Default(100000);
-        RegisterParameter("max_items_in_progress_low_priority", MaxItemsInProgressLowPriority)
-            .Default(20000);
+        RegisterParameter("max_in_progress_job_data_size", MaxInProgressJobDataSize)
+            .Default(250 * 1024 * 1024);
+        RegisterParameter("max_in_progress_job_spec_data_size", MaxInProgressJobSpecDataSize)
+            .Default(250 * 1024 * 1024);
         RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(1000);
     }

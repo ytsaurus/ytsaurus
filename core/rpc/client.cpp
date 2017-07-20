@@ -25,7 +25,6 @@ TClientRequest::TClientRequest(
     IChannelPtr channel,
     const TString& service,
     const TString& method,
-    bool oneWay,
     int protocolVersion)
     : Channel_(std::move(channel))
 {
@@ -33,7 +32,6 @@ TClientRequest::TClientRequest(
 
     Header_.set_service(service);
     Header_.set_method(method);
-    Header_.set_one_way(oneWay);
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
     Header_.set_protocol_version(protocolVersion);
 }
@@ -71,11 +69,6 @@ NProto::TRequestHeader& TClientRequest::Header()
 const NProto::TRequestHeader& TClientRequest::Header() const
 {
     return Header_;
-}
-
-bool TClientRequest::IsOneWay() const
-{
-    return Header_.one_way();
 }
 
 bool TClientRequest::IsHeavy() const
@@ -293,39 +286,6 @@ void TClientResponse::DoHandleResponse(TSharedRefArray message)
 {
     Deserialize(std::move(message));
     Finish(TError());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOneWayClientResponse::TOneWayClientResponse(TClientContextPtr clientContext)
-    : TClientResponseBase(std::move(clientContext))
-{ }
-
-void TOneWayClientResponse::HandleAcknowledgement()
-{
-    auto prevState = State_.exchange(EState::Done);
-    if (prevState == EState::Done) {
-        // Ignore the ack.
-        return;
-    }
-
-    Finish(TError());
-}
-
-void TOneWayClientResponse::HandleResponse(TSharedRefArray /*message*/)
-{
-    Y_UNREACHABLE();
-}
-
-auto TOneWayClientResponse::GetPromise() -> TPromise<TResult>
-{
-    return Promise_;
-}
-
-void TOneWayClientResponse::SetPromise(const TError& error)
-{
-    Promise_.Set(error);
-    Promise_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

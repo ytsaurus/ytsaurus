@@ -475,6 +475,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetPresent(hasKey));
     descriptors->push_back(TAttributeDescriptor("expiration_time")
         .SetPresent(trunkNode->GetExpirationTime().HasValue())
+        .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back("creation_time");
     descriptors->push_back("modification_time");
@@ -485,9 +486,11 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor("recursive_resource_usage")
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("account")
+        .SetWritable(true)
         .SetReplicated(true));
     descriptors->push_back("user_attribute_keys");
     descriptors->push_back(TAttributeDescriptor("opaque")
+        .SetWritable(true)
         .SetRemovable(true));
 }
 
@@ -1145,6 +1148,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
             ? Bootstrap_->GetCellTag()
             : node->GetExternalCellTag());
+        context->SetResponseInfo("ExistingNodeId: %v",
+            node->GetId());
         context->Reply();
         return;
     }
@@ -2129,6 +2134,7 @@ void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>*
     TBase::ListSystemAttributes(descriptors);
 
     descriptors->push_back(TAttributeDescriptor("value")
+        .SetWritable(true)
         .SetOpaque(true)
         .SetReplicated(true));
 }

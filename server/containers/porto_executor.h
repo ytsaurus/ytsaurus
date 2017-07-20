@@ -5,7 +5,7 @@
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/signal.h>
 
-#if defined(_linux_)
+#ifdef _linux_
 #include <yt/contrib/portoapi/rpc.pb.h>
 #include <yt/contrib/portoapi/libporto.hpp>
 #endif
@@ -15,7 +15,7 @@ namespace NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TVolumeID
+struct TVolumeId
 {
     TString Path;
 };
@@ -24,7 +24,7 @@ struct TVolumeID
 
 const int ContainerErrorCodeBase = 12000;
 
-#if defined(_linux_)
+#ifdef _linux_
 DEFINE_ENUM(EContainerErrorCode,
     ((InvalidState)((ContainerErrorCodeBase + ::rpc::EError::InvalidState)))
 );
@@ -34,12 +34,12 @@ DEFINE_ENUM(EContainerErrorCode,
 );
 #endif
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IPortoExecutor
     : public TRefCounted
 {
+#ifdef _linux_
     virtual TFuture<void> CreateContainer(const TString& name) = 0;
     virtual TFuture<void> SetProperty(
         const TString& name,
@@ -54,7 +54,7 @@ struct IPortoExecutor
     virtual TFuture<std::vector<TString>> ListContainers() = 0;
     // Starts polling a given container, returns future with exit code of finished process.
     virtual TFuture<int> AsyncPoll(const TString& name) = 0;
-    virtual TFuture<TVolumeID> CreateVolume(
+    virtual TFuture<TVolumeId> CreateVolume(
         const TString& path,
         const std::map<TString, TString>& properties) = 0;
     virtual TFuture<void> LinkVolume(
@@ -64,28 +64,18 @@ struct IPortoExecutor
         const TString& path,
         const TString& name) = 0;
     virtual TFuture<std::vector<Porto::Volume>> ListVolumes() = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed)
+#endif
 };
 
 DEFINE_REFCOUNTED_TYPE(IPortoExecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if defined(_linux_)
 IPortoExecutorPtr CreatePortoExecutor(
     TDuration retryTime = TDuration::Seconds(10),
     TDuration pollPeriod = TDuration::MilliSeconds(100));
-#else
-inline IPortoExecutorPtr CreatePortoExecutor(
-    TDuration retryTime = TDuration::Seconds(10),
-    TDuration pollPeriod = TDuration::MilliSeconds(100))
-{
-    Y_UNUSED(retryTime);
-    Y_UNUSED(pollPeriod);
-    Y_UNIMPLEMENTED();
-    return nullptr;
-}
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -50,6 +50,7 @@ message TReqMountTablet
     required bool freeze = 13;
     repeated TTableReplicaDescriptor replicas = 14;
     optional NYT.NProto.TGuid upstream_replica_id = 18;
+    optional string path = 19;
 }
 
 message TReqUnmountTablet
@@ -97,6 +98,8 @@ message TReqWriteRows
     required bool lockless = 10;
     required int32 row_count = 11;
     repeated NYT.NProto.TGuid sync_replica_ids = 12;
+    optional int64 byte_size = 13 [ default = 0 ];
+    optional string user = 14 [ default = "" ];
 }
 
 message TReqTrimRows

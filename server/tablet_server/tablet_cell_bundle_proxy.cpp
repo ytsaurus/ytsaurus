@@ -50,12 +50,15 @@ private:
         const auto* cellBundle = GetThisImpl();
 
         attributes->push_back(TAttributeDescriptor("name")
+            .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
         attributes->push_back(TAttributeDescriptor("options")
+            .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
         attributes->push_back(TAttributeDescriptor("node_tag_filter")
+            .SetWritable(true)
             .SetReplicated(true)
             .SetPresent(!cellBundle->NodeTagFilter().IsEmpty()));
         attributes->push_back("tablet_cell_count");

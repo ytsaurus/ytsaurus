@@ -49,7 +49,7 @@ void SafeSetCloexec(int fd);
 
 bool TryExecve(const char* path, const char* const* argv, const char* const* env);
 
-void CreateStderrFile(TString fileName);
+void SafeCreateStderrFile(TString fileName);
 
 //! Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
@@ -151,6 +151,36 @@ DEFINE_REFCOUNTED_TYPE(TUmountConfig)
 struct TUmountAsRootTool
 {
     void operator()(TUmountConfigPtr config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFSQuotaConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TNullable<i64> DiskSpaceLimit;
+    TNullable<i64> InodeLimit;
+    int UserId;
+    TString SlotPath;
+
+    TFSQuotaConfig()
+    {
+        RegisterParameter("disk_space_limit", DiskSpaceLimit)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("inode_limit", InodeLimit)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("user_id", UserId)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("slot_path", SlotPath);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TFSQuotaConfig)
+
+struct TFSQuotaTool
+{
+    void operator()(TFSQuotaConfigPtr config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

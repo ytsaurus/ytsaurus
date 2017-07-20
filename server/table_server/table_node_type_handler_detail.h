@@ -45,8 +45,6 @@ protected:
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
-    virtual int GetDefaultReplicationFactor() const override;
-
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
         const NCypressServer::TCypressNodeBase* table) override;
     virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(

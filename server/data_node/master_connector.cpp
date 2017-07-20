@@ -31,6 +31,9 @@
 #include <yt/ytlib/election/config.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
@@ -87,15 +90,17 @@ static const auto& Logger = DataNodeLogger;
 
 TMasterConnector::TMasterConnector(
     TDataNodeConfigPtr config,
-    const TAddressMap& localAddresses,
+    const TAddressMap& rpcAddresses,
+    const TAddressMap& skynetHttpAddresses,
     const std::vector<TString>& nodeTags,
     TBootstrap* bootstrap)
     : Config_(config)
-    , LocalAddresses_(localAddresses)
+    , RpcAddresses_(rpcAddresses)
+    , SkynetHttpAddresses_(skynetHttpAddresses)
     , NodeTags_(nodeTags)
     , Bootstrap_(bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
-    , LocalDescriptor_(LocalAddresses_)
+    , LocalDescriptor_(RpcAddresses_)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
     YCHECK(Config_);
@@ -210,7 +215,7 @@ const TAddressMap& TMasterConnector::GetLocalAddresses() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return LocalAddresses_;
+    return RpcAddresses_;
 }
 
 TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
@@ -343,12 +348,12 @@ void TMasterConnector::SyncDirectories()
     const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
 
     LOG_INFO("Synchronizing cell directory");
-    WaitFor(connection->SyncCellDirectory())
+    WaitFor(connection->GetCellDirectorySynchronizer()->Sync())
         .ThrowOnError();
     LOG_INFO("Cell directory synchronized");
 
     LOG_INFO("Synchronizing cluster directory");
-    WaitFor(connection->SyncClusterDirectory())
+    WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
         .ThrowOnError();
     LOG_INFO("Cluster directory synchronized");
 }
@@ -362,7 +367,7 @@ void TMasterConnector::StartLeaseTransaction()
     options.Timeout = Config_->LeaseTransactionTimeout;
 
     auto attributes = CreateEphemeralAttributes();
-    attributes->Set("title", Format("Lease for node %v", GetDefaultAddress(LocalAddresses_)));
+    attributes->Set("title", Format("Lease for node %v", GetDefaultAddress(RpcAddresses_)));
     options.Attributes = std::move(attributes);
 
     auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(ETransactionType::Master, options);
@@ -384,7 +389,17 @@ void TMasterConnector::SendRegisterRequest()
     auto req = proxy.RegisterNode();
     req->SetTimeout(Config_->RegisterTimeout);
     ComputeTotalStatistics(req->mutable_statistics());
-    ToProto(req->mutable_addresses(), LocalAddresses_);
+
+    auto* nodeAddresses = req->mutable_node_addresses();
+
+    auto* rpcAddresses = nodeAddresses->add_entries();
+    rpcAddresses->set_address_type(static_cast<int>(EAddressType::InternalRpc));
+    ToProto(rpcAddresses->mutable_addresses(), RpcAddresses_);
+
+    auto* skynetHttpAddresses = nodeAddresses->add_entries();
+    skynetHttpAddresses->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
+    ToProto(skynetHttpAddresses->mutable_addresses(), SkynetHttpAddresses_);
+
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
     ToProto(req->mutable_tags(), NodeTags_);
 
@@ -1011,7 +1026,7 @@ void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
 {
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
-        LocalAddresses_,
+        RpcAddresses_,
         rack,
         LocalDescriptor_.GetDataCenter());
 }
@@ -1020,7 +1035,7 @@ void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
 {
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
-        LocalAddresses_,
+        RpcAddresses_,
         LocalDescriptor_.GetRack(),
         dc);
 }

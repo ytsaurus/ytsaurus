@@ -4,6 +4,7 @@
 #include <yt/ytlib/api/rowset.h>
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/table_reader.h>
+#include <yt/ytlib/api/skynet.h>
 
 #include <yt/ytlib/query_client/query_statistics.h>
 
@@ -111,12 +112,17 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
 TReadBlobTableCommand::TReadBlobTableCommand()
 {
     RegisterParameter("path", Path);
+    RegisterParameter("part_size", PartSize);
     RegisterParameter("table_reader", TableReader)
         .Default(nullptr);
     RegisterParameter("part_index_column_name", PartIndexColumnName)
         .Default();
     RegisterParameter("data_column_name", DataColumnName)
         .Default();
+    RegisterParameter("start_part_index", StartPartIndex)
+        .Default(0);
+    RegisterParameter("offset", Offset)
+        .Default(0);
 }
 
 void TReadBlobTableCommand::OnLoaded()
@@ -128,6 +134,13 @@ void TReadBlobTableCommand::OnLoaded()
 
 void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
 {
+    if (Offset < 0) {
+        THROW_ERROR_EXCEPTION("Offset must be nonnegative");
+    }
+
+    if (PartSize <= 0) {
+        THROW_ERROR_EXCEPTION("Part size must be positive");
+    }
     Options.Ping = true;
 
     auto config = UpdateYsonSerializable(
@@ -148,7 +161,10 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
     auto input = CreateBlobTableReader(
         std::move(reader),
         PartIndexColumnName,
-        DataColumnName);
+        DataColumnName,
+        StartPartIndex,
+        Offset,
+        PartSize);
 
     auto output = context->Request().OutputStream;
 
@@ -163,6 +179,44 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
         WaitFor(output->Write(block))
             .ThrowOnError();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLocateSkynetShareCommand::TLocateSkynetShareCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TLocateSkynetShareCommand::OnLoaded()
+{
+    TCommandBase::OnLoaded();
+
+    Path = Path.Normalize();
+}
+
+void TLocateSkynetShareCommand::DoExecute(ICommandContextPtr context)
+{
+    Options.Config = context->GetConfig()->TableReader;
+
+    auto asyncSkynetPartsLocations = context->GetClient()->LocateSkynetShare(
+        Path,
+        Options);
+
+    auto skynetPartsLocations = WaitFor(asyncSkynetPartsLocations);
+
+    auto format = context->GetOutputFormat();
+    auto syncOutputStream = CreateSyncAdapter(context->Request().OutputStream);
+
+    TBufferedOutput bufferedOutputStream(syncOutputStream.get());
+
+    auto consumer = CreateConsumerForFormat(
+        format,
+        EDataType::Structured,
+        &bufferedOutputStream);
+
+    Serialize(*skynetPartsLocations.ValueOrThrow(), consumer.get());
+    consumer->Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -706,16 +760,13 @@ void TTrimRowsCommand::DoExecute(ICommandContextPtr context)
 TEnableTableReplicaCommand::TEnableTableReplicaCommand()
 {
     RegisterParameter("replica_id", ReplicaId);
+    Options.Enabled = true;
 }
 
 void TEnableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    TAlterTableReplicaOptions options;
-    options.Enabled = true;
-    auto asyncResult = client->AlterTableReplica(
-        ReplicaId,
-        options);
+    auto asyncResult = client->AlterTableReplica(ReplicaId, Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }
@@ -725,16 +776,13 @@ void TEnableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 TDisableTableReplicaCommand::TDisableTableReplicaCommand()
 {
     RegisterParameter("replica_id", ReplicaId);
+    Options.Enabled = false;
 }
 
 void TDisableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    TAlterTableReplicaOptions options;
-    options.Enabled = false;
-    auto asyncResult = client->AlterTableReplica(
-        ReplicaId,
-        options);
+    auto asyncResult = client->AlterTableReplica(ReplicaId, Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }
@@ -753,9 +801,7 @@ TAlterTableReplicaCommand::TAlterTableReplicaCommand()
 void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    auto asyncResult = client->AlterTableReplica(
-        ReplicaId,
-        Options);
+    auto asyncResult = client->AlterTableReplica(ReplicaId, Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }

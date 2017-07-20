@@ -203,11 +203,58 @@ struct IOperationHost
     virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const NScheduler::TJobMetrics& jobMetrics) = 0;
 };
 
+struct IOperationControllerStrategyHost
+    : public virtual TRefCounted
+{
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
+    //! Called during heartbeat processing to request actions the node must perform.
+    virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
+        NScheduler::ISchedulingContextPtr context,
+        const TJobResources& jobLimits) = 0;
+
+    /*!
+     *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
+     *  Most of non-const controller methods are expected to be run in this invoker.
+     */
+    virtual IInvokerPtr GetCancelableInvoker() const = 0;
+
+
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
+    //! Called during preemption to notify the controller that a job has been aborted.
+    virtual void OnJobAborted(std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary) = 0;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    //! Returns the total resources that are additionally needed.
+    virtual TJobResources GetNeededResources() const = 0;
+
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
+    //! Called periodically during heartbeat to obtain min needed resources to schedule any operation job.
+    virtual std::vector<TJobResources> GetMinNeededJobResources() const = 0;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    //! Returns the number of jobs the controller still needs to start right away.
+    virtual int GetPendingJobCount() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
+
+
 /*!
  *  \note Invoker affinity: OperationControllerInvoker
  */
 struct IOperationController
     : public virtual TRefCounted
+    , public IOperationControllerStrategyHost
 {
     //! Performs controller inner state initialization. Starts all controller transactions.
     /*
@@ -289,12 +336,6 @@ struct IOperationController
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
 
     /*!
-     *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
-     *  Most of non-const controller methods are expected to be run in this invoker.
-     */
-    virtual IInvokerPtr GetCancelableInvoker() const = 0;
-
-    /*!
      *  Returns the operation controller invoker.
      *  Most of const controller methods are expected to be run in this invoker.
      */
@@ -314,12 +355,6 @@ struct IOperationController
      */
     virtual void Resume() = 0;
 
-    /*!
-     *  \note Thread affinity: any
-     */
-    //! Returns the number of jobs the controller still needs to start right away.
-    virtual int GetPendingJobCount() const = 0;
-
     //! Returns the total number of jobs to be run during the operation.
     virtual int GetTotalJobCount() const = 0;
 
@@ -328,18 +363,6 @@ struct IOperationController
 
     //! Returns whether controller was revived from snapshot.
     virtual bool IsRevivedFromSnapshot() const = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    //! Returns the total resources that are additionally needed.
-    virtual TJobResources GetNeededResources() const = 0;
-
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
-    //! Called periodically during heartbeat to obtain min needed resources to schedule any operation job.
-    virtual std::vector<TJobResources> GetMinNeededJobResources() const = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
@@ -362,22 +385,8 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
-    //! Called during preemption to notify the controller that a job has been aborted.
-    virtual void OnJobAborted(std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary) = 0;
-
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
     //! Called during heartbeat processing to notify the controller that a job is still running.
     virtual void OnJobRunning(std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary) = 0;
-
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
-    //! Called during heartbeat processing to request actions the node must perform.
-    virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
-        NScheduler::ISchedulingContextPtr context,
-        const TJobResources& jobLimits) = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker
@@ -387,6 +396,12 @@ struct IOperationController
 
     //! Called to construct a YSON representing the controller part of operation attributes.
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const = 0;
+
+    /*!
+     *  \note Invoker affinity: any;
+     */
+    //! Called to construct a YSON representing the current progress.
+    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker

@@ -1,6 +1,6 @@
 #include "config.h"
 
-// #include <yt/server/chunk_pools/sorted_chunk_pool.h>
+#include <yt/ytlib/chunk_pools/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -105,7 +105,7 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("max_stderr_count", MaxStderrCount)
         .Default(10)
         .GreaterThanOrEqual(0)
-        .LessThanOrEqual(100);
+        .LessThanOrEqual(150);
 
     RegisterParameter("job_proxy_memory_overcommit_limit", JobProxyMemoryOvercommitLimit)
         .Default()
@@ -113,9 +113,6 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("job_proxy_ref_counted_tracker_log_period", JobProxyRefCountedTrackerLogPeriod)
         .Default(TDuration::Seconds(5));
-
-    RegisterParameter("enable_sort_verification", EnableSortVerification)
-        .Default(true);
 
     RegisterParameter("title", Title)
         .Default();
@@ -140,6 +137,9 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
         .Default(false);
+
+    RegisterParameter("nightly_options", NightlyOptions)
+        .Default();
 
     RegisterValidator([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -211,6 +211,12 @@ TUserJobSpec::TUserJobSpec()
         .GreaterThan(0);
     RegisterParameter("tmpfs_path", TmpfsPath)
         .Default(Null);
+    RegisterParameter("disk_space_limit", DiskSpaceLimit)
+        .Default(Null)
+        .GreaterThanOrEqual(0);
+    RegisterParameter("inode_limit", InodeLimit)
+        .Default(Null)
+        .GreaterThanOrEqual(0);
     RegisterParameter("copy_files", CopyFiles)
         .Default(false);
 
@@ -287,7 +293,7 @@ void TOperationWithUserJobSpec::OnLoaded()
 TOperationWithLegacyControllerSpec::TOperationWithLegacyControllerSpec()
 {
     RegisterParameter("use_legacy_controller", UseLegacyController)
-        .Default(true);
+        .Default(false);
 }
 
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
@@ -516,8 +522,6 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterValidator([&] () {
         NTableClient::ValidateKeyColumns(SortBy);
     });
-
-
 }
 
 void TSortOperationSpecBase::OnLoaded()
@@ -781,7 +785,7 @@ TSchedulableConfig::TSchedulableConfig()
         .Default();
 
     RegisterParameter("allow_aggressive_starvation_preemption", AllowAggressiveStarvationPreemption)
-        .Default();
+        .Default(true);
 }
 
 TPoolConfig::TPoolConfig()
@@ -841,6 +845,26 @@ TSchedulerConnectionConfig::TSchedulerConnectionConfig()
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(60));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 

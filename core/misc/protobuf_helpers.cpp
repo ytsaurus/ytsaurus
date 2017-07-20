@@ -62,16 +62,6 @@ void DeserializeFromProto(google::protobuf::MessageLite* message, const TRef& da
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#pragma pack(push, 4)
-
-struct TSerializedMessageFixedHeader
-{
-    i32 HeaderSize;
-    i32 MessageSize;
-};
-
-#pragma pack(pop)
-
 TSharedRef SerializeToProtoWithEnvelope(
     const google::protobuf::MessageLite& message,
     NCompression::ECodec codecId,
@@ -87,19 +77,19 @@ TSharedRef SerializeToProtoWithEnvelope(
     auto codec = NCompression::GetCodec(codecId);
     auto compressedMessage = codec->Compress(serializedMessage);
 
-    TSerializedMessageFixedHeader fixedHeader;
+    TEnvelopeFixedHeader fixedHeader;
     fixedHeader.HeaderSize = envelope.ByteSize();
     fixedHeader.MessageSize = compressedMessage.Size();
 
     size_t totalSize =
-        sizeof (TSerializedMessageFixedHeader) +
+        sizeof (TEnvelopeFixedHeader) +
         fixedHeader.HeaderSize +
         fixedHeader.MessageSize;
 
     auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(totalSize, false);
 
     char* targetFixedHeader = data.Begin();
-    char* targetHeader = targetFixedHeader + sizeof (TSerializedMessageFixedHeader);
+    char* targetHeader = targetFixedHeader + sizeof (TEnvelopeFixedHeader);
     char* targetMessage = targetHeader + fixedHeader.HeaderSize;
 
     memcpy(targetFixedHeader, &fixedHeader, sizeof (fixedHeader));
@@ -113,16 +103,12 @@ bool TryDeserializeFromProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data)
 {
-    if (data.Size() < sizeof (TSerializedMessageFixedHeader)) {
+    if (data.Size() < sizeof (TEnvelopeFixedHeader)) {
         return false;
     }
 
-    const auto* fixedHeader = reinterpret_cast<const TSerializedMessageFixedHeader*>(data.Begin());
-    if (fixedHeader->HeaderSize < 0 || fixedHeader->MessageSize < 0) {
-        return false;
-    }
-
-    const char* sourceHeader = data.Begin() + sizeof (TSerializedMessageFixedHeader);
+    const auto* fixedHeader = reinterpret_cast<const TEnvelopeFixedHeader*>(data.Begin());
+    const char* sourceHeader = data.Begin() + sizeof (TEnvelopeFixedHeader);
     const char* sourceMessage = sourceHeader + fixedHeader->HeaderSize;
 
     NProto::TSerializedMessageEnvelope envelope;
@@ -133,7 +119,7 @@ bool TryDeserializeFromProtoWithEnvelope(
     auto compressedMessage = TSharedRef(sourceMessage, fixedHeader->MessageSize, nullptr);
 
     auto codecId = NCompression::ECodec(envelope.codec());
-    auto codec = NCompression::GetCodec(codecId);
+    auto* codec = NCompression::GetCodec(codecId);
     auto serializedMessage = codec->Decompress(compressedMessage);
 
     return TryDeserializeFromProto(message, serializedMessage);

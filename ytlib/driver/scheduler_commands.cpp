@@ -40,13 +40,12 @@ void TDumpJobContextCommand::DoExecute(ICommandContextPtr context)
 
 TGetJobInputCommand::TGetJobInputCommand()
 {
-    RegisterParameter("operation_id", OperationId);
     RegisterParameter("job_id", JobId);
 }
 
 void TGetJobInputCommand::DoExecute(ICommandContextPtr context)
 {
-    auto jobInputReader = WaitFor(context->GetClient()->GetJobInput(OperationId, JobId, Options))
+    auto jobInputReader = WaitFor(context->GetClient()->GetJobInput(JobId, Options))
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
@@ -435,6 +434,22 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->CompleteOperation(OperationId))
         .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGetOperationCommand::TGetOperationCommand()
+{   
+    RegisterParameter("operation_id", OperationId);
+}
+
+void TGetOperationCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->GetOperation(OperationId);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

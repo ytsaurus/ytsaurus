@@ -19,6 +19,7 @@
 #include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/ytlib/hydra/config.h>
 #include <yt/ytlib/hydra/peer_channel.h>
@@ -116,11 +117,11 @@ void TBootstrap::DoRun()
 
     TNativeConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    auto connection = CreateNativeConnection(Config_->ClusterConnection, connectionOptions);
+    Connection_ = CreateNativeConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
     clientOptions.User = NSecurityClient::SchedulerUserName;
-    MasterClient_ = connection->CreateNativeClient(clientOptions);
+    Client_ = Connection_->CreateNativeClient(clientOptions);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
@@ -135,7 +136,7 @@ void TBootstrap::DoRun()
 
     NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
         Config_->NodeDirectorySynchronizer,
-        connection,
+        Connection_,
         NodeDirectory_);
     NodeDirectorySynchronizer_->Start();
 
@@ -212,7 +213,7 @@ const TCellSchedulerConfigPtr& TBootstrap::GetConfig() const
 
 const INativeClientPtr& TBootstrap::GetMasterClient() const
 {
-    return MasterClient_;
+    return Client_;
 }
 
 TAddressMap TBootstrap::GetLocalAddresses() const
@@ -250,6 +251,29 @@ const TResponseKeeperPtr& TBootstrap::GetResponseKeeper() const
 const TCoreDumperPtr& TBootstrap::GetCoreDumper() const
 {
     return CoreDumper_;
+}
+
+INativeConnectionPtr TBootstrap::FindRemoteConnection(TCellTag cellTag)
+{
+    if (cellTag == Connection_->GetCellTag()) {
+        return Connection_;
+    }
+
+    auto remoteConnection = Connection_->GetClusterDirectory()->FindConnection(cellTag);
+    if (!remoteConnection) {
+        return nullptr;
+    }
+
+    return dynamic_cast<INativeConnection*>(remoteConnection.Get());
+}
+
+INativeConnectionPtr TBootstrap::GetRemoteConnectionOrThrow(TCellTag cellTag)
+{
+    auto connection = FindRemoteConnection(cellTag);
+    if (!connection) {
+        THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
+    }
+    return connection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

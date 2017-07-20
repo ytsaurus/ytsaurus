@@ -48,21 +48,28 @@ private:
         const auto* node = GetThisImpl();
 
         descriptors->push_back(TAttributeDescriptor("banned")
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("decommissioned")
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("disable_write_sessions")
+            .SetWritable(true)
+            .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("disable_scheduler_jobs")
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("rack")
             .SetPresent(node->GetRack())
+            .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true));
         descriptors->push_back("data_center");
-        descriptors->push_back(TAttributeDescriptor("disable_scheduler_jobs")
-            .SetReplicated(true));
         descriptors->push_back("state");
         descriptors->push_back("multicell_states");
-        descriptors->push_back("user_tags");
+        descriptors->push_back(TAttributeDescriptor("user_tags")
+            .SetWritable(true)
+            .SetReplicated(true));
         descriptors->push_back("tags");
         descriptors->push_back("last_seen_time");
         bool isGood = node->GetLocalState() == ENodeState::Registered || node->GetLocalState() == ENodeState::Online;
@@ -89,6 +96,7 @@ private:
         descriptors->push_back(TAttributeDescriptor("resource_limits")
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("resource_limits_overrides")
+            .SetWritable(true)
             .SetReplicated(true));
     }
 
@@ -116,6 +124,12 @@ private:
             return true;
         }
 
+        if (key == "disable_scheduler_jobs") {
+            BuildYsonFluently(consumer)
+                .Value(node->GetDisableSchedulerJobs());
+            return true;
+        }
+
         if (key == "rack" && node->GetRack()) {
             BuildYsonFluently(consumer)
                 .Value(node->GetRack()->GetName());
@@ -127,12 +141,6 @@ private:
         {
             BuildYsonFluently(consumer)
                 .Value(node->GetRack()->GetDataCenter()->GetName());
-            return true;
-        }
-
-        if (key == "disable_scheduler_jobs") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetDisableSchedulerJobs());
             return true;
         }
 
@@ -263,7 +271,7 @@ private:
 
             if (key == "addresses") {
                 BuildYsonFluently(consumer)
-                    .Value(node->GetDescriptor().Addresses());
+                    .Value(node->GetNodeAddresses());
                 return true;
             }
 
@@ -346,16 +354,16 @@ private:
             return true;
         }
 
+        if (key == "disable_scheduler_jobs") {
+            auto disableSchedulerJobs = ConvertTo<bool>(value);
+            node->SetDisableSchedulerJobs(disableSchedulerJobs);
+            return true;
+        }
+
         if (key == "rack") {
             auto rackName = ConvertTo<TString>(value);
             auto* rack = nodeTracker->GetRackByNameOrThrow(rackName);
             nodeTracker->SetNodeRack(node, rack);
-            return true;
-        }
-
-        if (key == "disable_scheduler_jobs") {
-            auto disableSchedulerJobs = ConvertTo<bool>(value);
-            node->SetDisableSchedulerJobs(disableSchedulerJobs);
             return true;
         }
 

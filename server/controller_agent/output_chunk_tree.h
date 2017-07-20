@@ -2,9 +2,7 @@
 
 #include "private.h"
 
-#include "serialize.h"
-
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/server/chunk_pools/output_order.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -25,11 +23,13 @@ class TOutputChunkTreeKey
 public:
     TOutputChunkTreeKey(int index);
     TOutputChunkTreeKey(TBoundaryKeys boundaryKeys);
+    TOutputChunkTreeKey(NChunkPools::TOutputOrder::TEntry entry);
     //! Used only for persistence.
     TOutputChunkTreeKey();
 
     bool IsIndex() const;
     bool IsBoundaryKeys() const;
+    bool IsOutputOrderEntry() const;
 
     int& AsIndex();
     const int& AsIndex() const;
@@ -37,10 +37,13 @@ public:
     TBoundaryKeys& AsBoundaryKeys();
     const TBoundaryKeys& AsBoundaryKeys() const;
 
+    NChunkPools::TOutputOrder::TEntry& AsOutputOrderEntry();
+    const NChunkPools::TOutputOrder::TEntry& AsOutputOrderEntry() const;
+
     void Persist(const TPersistenceContext& context);
 
 private:
-    TVariant<int, TBoundaryKeys> Key_;
+    TVariant<int, TBoundaryKeys, NChunkPools::TOutputOrder::TEntry> Key_;
 };
 
 TString ToString(const TOutputChunkTreeKey& key);

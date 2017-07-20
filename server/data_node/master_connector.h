@@ -55,7 +55,8 @@ public:
     //! Creates an instance.
     TMasterConnector(
         TDataNodeConfigPtr config,
-        const NNodeTrackerClient::TAddressMap& localAddresses,
+        const NNodeTrackerClient::TAddressMap& rpcAddresses,
+        const NNodeTrackerClient::TAddressMap& skynetHttpAddresses,
         const std::vector<TString>& nodeTags,
         NCellNode::TBootstrap* bootstrap);
 
@@ -105,7 +106,9 @@ private:
     using EState = EMasterConnectorState;
 
     const TDataNodeConfigPtr Config_;
-    const NNodeTrackerClient::TAddressMap LocalAddresses_;
+    const NNodeTrackerClient::TAddressMap RpcAddresses_;
+    const NNodeTrackerClient::TAddressMap SkynetHttpAddresses_;
+
     const std::vector<TString> NodeTags_;
     const NCellNode::TBootstrap* Bootstrap_;
     const IInvokerPtr ControlInvoker_;

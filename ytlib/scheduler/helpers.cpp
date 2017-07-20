@@ -20,6 +20,20 @@ TYPath GetOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
+TYPath GetOperationAttributesPath(const TOperationId& operationId)
+{
+    return
+        GetOperationPath(operationId) + "/@";
+}
+
+TYPath GetOperationsProgressFromScheduler(const TOperationId& operationId)
+{
+    return
+        "//sys/scheduler/orchid/scheduler/operations/" +
+        ToYPathLiteral(ToString(operationId)) +
+        "/progress";
+}
+
 TYPath GetJobsPath(const TOperationId& operationId)
 {
     return
@@ -62,11 +76,6 @@ TYPath GetSecureVaultPath(const TOperationId& operationId)
         + "/secure_vault";
 }
 
-TYPath GetPoolsPath()
-{
-    return "//sys/pools";
-}
-
 TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex)
 {
     return
@@ -88,9 +97,28 @@ TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
         + "/intermediate";
 }
 
-TYPath GetOperationsArchiveJobsPath()
+const TYPath& GetPoolsPath()
 {
-    return "//sys/operations_archive/jobs";
+    static TYPath path =  "//sys/pools";
+    return path;
+}
+
+const TYPath& GetOperationsArchiveVersionPath()
+{
+    static TYPath path = "//sys/operations_archive/@version";
+    return path;
+}
+
+const TYPath& GetOperationsArchiveJobsPath()
+{
+    static TYPath path = "//sys/operations_archive/jobs";
+    return path;
+}
+
+const TYPath& GetOperationsArchiveJobSpecsPath()
+{
+    static TYPath path =  "//sys/operations_archive/job_specs";
+    return path;
 }
 
 bool IsOperationFinished(EOperationState state)

@@ -9,7 +9,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::pair<double, void(*)()>>* ShutdownCallbacks()
+static std::vector<std::pair<double, void(*)()>>* ShutdownCallbacks()
 {
     static std::vector<std::pair<double, void(*)()>> shutdownCallbacks;
     return &shutdownCallbacks;

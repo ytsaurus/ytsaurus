@@ -131,8 +131,8 @@ template <template<typename...> class C, class... T, class K = typename C<T...>:
 void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer);
 
 // TEnumIndexedVector
-template <class T, class E>
-void Serialize(const TEnumIndexedVector<T, E>& value, NYson::IYsonConsumer* consumer);
+template <class T, class E, E Min, E Max>
+void Serialize(const TEnumIndexedVector<T, E, Min, Max>& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

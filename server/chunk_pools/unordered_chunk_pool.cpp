@@ -300,7 +300,7 @@ public:
         return cookie;
     }
 
-    TExtractedStripeListPtr GetExtractedStripeList(IChunkPoolOutput::TCookie cookie)
+    TExtractedStripeListPtr GetExtractedStripeList(IChunkPoolOutput::TCookie cookie) const
     {
         auto it = ExtractedLists.find(cookie);
         YCHECK(it != ExtractedLists.end());
@@ -310,6 +310,11 @@ public:
     virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
     {
         return GetExtractedStripeList(cookie)->StripeList;
+    }
+
+    virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
+    {
+        return GetExtractedStripeList(cookie)->StripeList->TotalChunkCount;
     }
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override

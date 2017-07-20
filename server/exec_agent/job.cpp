@@ -345,7 +345,7 @@ public:
 
         if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
             Statistics_ = statistics;
-            ReportStatistics(TJobStatistics().Statistics(Statistics_).Priority(EReportPriority::Low));
+            ReportStatistics(TJobStatistics().Statistics(Statistics_));
         }
     }
 
@@ -719,7 +719,7 @@ private:
         }
 
         try {
-            TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+            TForbidContextSwitchGuard contextSwitchGuard;
             action();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error preparing scheduler job");
@@ -745,7 +745,7 @@ private:
 
         if (Slot_) {
             try {
-                LOG_DEBUG("Cleanup (slot: %v)", Slot_->GetSlotIndex());
+                LOG_DEBUG("Cleanup (SlotIndex: %v)", Slot_->GetSlotIndex());
                 Slot_->Cleanup();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
@@ -895,7 +895,6 @@ private:
 
         WaitFor(Slot_->CreateSandboxDirectories())
             .ThrowOnError();
-
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
@@ -913,6 +912,12 @@ private:
                 if (!enable) {
                     TmpfsPath_ = Null;
                 }
+            }
+            if (userJobSpec.has_disk_space_limit() || userJobSpec.has_inode_limit()) {
+                auto diskSpaceLimit = userJobSpec.disk_space_limit();
+                auto inodeLimit = userJobSpec.inode_limit();
+                WaitFor(Slot_->SetQuota(diskSpaceLimit, inodeLimit))
+                    .ThrowOnError();
             }
         }
     }

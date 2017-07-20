@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/rpc_proxy/api_service.pb.h>
+#include <yt/ytlib/api/protos/api_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
@@ -41,6 +41,9 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, FreezeTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnfreezeTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReshardTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, TrimTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AlterTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AlterTableReplica);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LookupRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, VersionedLookupRows);

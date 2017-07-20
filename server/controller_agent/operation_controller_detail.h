@@ -224,6 +224,7 @@ public:
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
 
+    virtual void BuildSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
@@ -772,7 +773,7 @@ protected:
 
         void RegisterOutput(
             TJobletPtr joblet,
-            int key,
+            TOutputChunkTreeKey key,
             const NScheduler::TCompletedJobSummary& jobSummary);
 
         void AddFootprintAndUserJobResources(NScheduler::TExtendedJobResources& jobResources) const;
@@ -943,6 +944,8 @@ protected:
     void StartCompletionTransaction();
     void CommitCompletionTransaction();
 
+    void SetPartSize(const TNullable<TOutputTable>& table, size_t partSize);
+
     // Revival.
     void ReinstallLivePreview();
     void AbortAllJoblets();
@@ -992,7 +995,7 @@ protected:
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
     virtual bool IsJobInterruptible() const;
-    int EstimateSplitJobCount(const NScheduler::TCompletedJobSummary& jobSummary);
+    int EstimateSplitJobCount(const NScheduler::TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
     std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const NScheduler::TCompletedJobSummary& jobSummary) const;
     virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
@@ -1075,6 +1078,8 @@ protected:
     //! Enables verification that the output is sorted.
     virtual bool ShouldVerifySortedOutput() const;
 
+    virtual NChunkPools::TOutputOrderPtr GetOutputOrder() const;
+
     //! Enables fetching all input replicas (not only data)
     virtual bool IsParityReplicasFetchEnabled() const;
 
@@ -1106,7 +1111,7 @@ protected:
 
     void AttachToLivePreview(NChunkClient::TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId);
 
-    virtual void RegisterOutput(TJobletPtr joblet, int key, const NScheduler::TCompletedJobSummary& jobSummary);
+    virtual void RegisterOutput(TJobletPtr joblet, TOutputChunkTreeKey key, const NScheduler::TCompletedJobSummary& jobSummary);
 
     virtual void RegisterOutput(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
@@ -1140,6 +1145,9 @@ protected:
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
     std::pair<i64, i64> CalculatePrimaryVersionedChunksStatistics() const;
     std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize) const;
+
+    //! Returns the list of all input data slices collected from all primary input tables.
+    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize) const;
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
@@ -1213,7 +1221,7 @@ protected:
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors();
     void ValidateOutputSchemaOrdered() const;
-    void ValidateOutputSchemaCompatibility(bool ignoreSortOrder) const;
+    void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
 
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
 
@@ -1309,6 +1317,9 @@ private:
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
     std::unique_ptr<IHistogram> InputDataSizeHistogram_;
 
+    const NProfiling::TCpuDuration LogProgressBackoff;
+    NProfiling::TCpuInstant NextLogProgressDeadline = 0;
+
     NYson::TYsonString ProgressString_;
     NYson::TYsonString BriefProgressString_;
 
@@ -1337,6 +1348,8 @@ private:
     bool ShouldSkipSanityCheck();
 
     void UpdateJobStatistics(const TJobletPtr& joblet, const NScheduler::TJobSummary& jobSummary);
+
+    void LogProgress(bool force = false);
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 

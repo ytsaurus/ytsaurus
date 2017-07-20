@@ -18,11 +18,13 @@ message TRspGetJobSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// One-way.
 message TReqOnJobPrepared
 {
     required NYT.NProto.TGuid job_id = 1;
 }
+
+message TRspOnJobPrepared
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +42,6 @@ message TRspOnJobFinished
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// One-way.
 message TReqOnJobProgress
 {
     required NYT.NProto.TGuid job_id = 1;
@@ -48,14 +49,19 @@ message TReqOnJobProgress
     required string statistics = 3;
 }
 
+message TRspOnJobProgress
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
-// One-way.
 message TReqUpdateResourceUsage
 {
     required NYT.NProto.TGuid job_id = 1;
     required TJobProxyResources resource_usage = 2;
 }
+
+message TRspUpdateResourceUsage
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

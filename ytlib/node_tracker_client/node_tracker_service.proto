@@ -10,7 +10,7 @@ import "yt/ytlib/chunk_client/heartbeat.proto";
 
 message TReqRegisterNode
 {
-    required TAddressMap addresses = 1;
+    required TNodeAddressMap node_addresses = 1;
     required TNodeStatistics statistics = 2;
     optional NYT.NProto.TGuid lease_transaction_id = 3;
     optional int32 node_id = 4;

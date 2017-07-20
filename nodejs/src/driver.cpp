@@ -113,6 +113,14 @@ private:
     }
 };
 
+bool GetDumpErrorIntoResponse(const IMapNodePtr& parameters)
+{
+    if (auto dumpErrorIntoResponse = parameters->FindChild("dump_error_into_response")) {
+        return ConvertTo<bool>(dumpErrorIntoResponse);
+    }
+    return false;
+}
+
 class TExecuteRequest
     : public IAsyncRefCounted
     , public TRefTracked<TExecuteRequest>
@@ -264,6 +272,31 @@ private:
 
     TFuture<void> OnResponse1(const TErrorOr<void>& response)
     {
+        if (!response.IsOK() && GetDumpErrorIntoResponse(Request_.Parameters)) {
+            TString errorMessage;
+            TStringOutput errorStream(errorMessage);
+
+            auto formatAttributes = CreateEphemeralAttributes();
+            formatAttributes->SetYson("format", TYsonString("pretty"));
+
+            auto consumer = CreateConsumerForFormat(
+                TFormat(EFormatType::Yson, formatAttributes.get()),
+                EDataType::Structured,
+                &errorStream);
+
+            consumer->Flush();
+
+            TString delimiter;
+            delimiter.append('\n');
+            delimiter.append(80, '=');
+            delimiter.append('\n');
+
+            OutputStack_->Write(TSharedRef::FromString("\n"));
+            OutputStack_->Write(TSharedRef::FromString(delimiter));
+            OutputStack_->Write(TSharedRef::FromString(errorMessage));
+            OutputStack_->Write(TSharedRef::FromString(delimiter));
+        }
+
         return OutputStack_->Close().Apply(BIND([=] (const TErrorOr<void>&) {
             return MakeFuture(response);
         }));

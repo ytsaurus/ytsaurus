@@ -41,10 +41,12 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(TAttributeDescriptor("name")
+            .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
         descriptors->push_back(TAttributeDescriptor("data_center")
             .SetPresent(GetThisImpl()->GetDataCenter())
+            .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true));
         descriptors->push_back("index");

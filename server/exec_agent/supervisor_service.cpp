@@ -32,12 +32,9 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
         .SetResponseCodec(NCompression::ECodec::Lz4)
         .SetHeavy(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobFinished));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress)
-        .SetOneWay(true));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobPrepared)
-        .SetOneWay(true));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage)
-        .SetOneWay(true));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobPrepared));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
@@ -90,7 +87,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
     context->Reply();
 }
 
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
+DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
     double progress = request->progress();
@@ -106,9 +103,11 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 
     job->SetProgress(progress);
     job->SetStatistics(statistics);
+
+    context->Reply();
 }
 
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobPrepared)
+DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobPrepared)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
 
@@ -118,9 +117,11 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobPrepared)
     auto job = jobController->GetJobOrThrow(jobId);
 
     job->OnJobPrepared();
+
+    context->Reply();
 }
 
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
+DEFINE_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
     const auto& jobProxyResourceUsage = request->resource_usage();
@@ -140,6 +141,8 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
     resourceUsage.set_network(jobProxyResourceUsage.network());
 
     job->SetResourceUsage(resourceUsage);
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -117,7 +117,7 @@ void TNode::ComputeAggregatedState()
 
 void TNode::ComputeDefaultAddress()
 {
-    DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(Addresses_);
+    DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(GetAddressesOrThrow(EAddressType::InternalRpc));
 }
 
 TNodeId TNode::GetId() const
@@ -125,15 +125,20 @@ TNodeId TNode::GetId() const
     return NodeIdFromObjectId(Id_);
 }
 
-const TAddressMap& TNode::GetAddresses() const
+const TNodeAddressMap& TNode::GetNodeAddresses() const
 {
-    return Addresses_;
+    return NodeAddresses_;
 }
 
-void TNode::SetAddresses(const TAddressMap& addresses)
+void TNode::SetNodeAddresses(const TNodeAddressMap& nodeAddresses)
 {
-    Addresses_ = addresses;
+    NodeAddresses_ = nodeAddresses;
     ComputeDefaultAddress();
+}
+
+const TAddressMap& TNode::GetAddressesOrThrow(EAddressType addressType) const
+{
+    return NNodeTrackerClient::GetAddresses(NodeAddresses_, addressType);
 }
 
 const TString& TNode::GetDefaultAddress() const
@@ -152,13 +157,14 @@ bool TNode::HasTag(const TNullable<TString>& tag) const
     return !tag || Tags_.find(*tag) != Tags_.end();
 }
 
-TNodeDescriptor TNode::GetDescriptor() const
+TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 {
     return TNodeDescriptor(
-        Addresses_,
+        GetAddressesOrThrow(addressType),
         Rack_ ? MakeNullable(Rack_->GetName()) : Null,
         (Rack_ && Rack_->GetDataCenter()) ? MakeNullable(Rack_->GetDataCenter()->GetName()) : Null);
 }
+
 
 void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags)
 {
@@ -215,7 +221,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Decommissioned_);
     Save(context, DisableWriteSessions_);
     Save(context, DisableSchedulerJobs_);
-    Save(context, Addresses_);
+    Save(context, NodeAddresses_);
     Save(context, MulticellStates_);
     Save(context, UserTags_);
     Save(context, NodeTags_);
@@ -253,7 +259,15 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Decommissioned_);
     Load(context, DisableWriteSessions_);
     Load(context, DisableSchedulerJobs_);
-    Load(context, Addresses_);
+
+    // COMPAT(prime)
+    if (context.GetVersion() < 610) {
+        auto addresses = Load<TAddressMap>(context);
+        NodeAddresses_.emplace(EAddressType::InternalRpc, addresses);
+    } else {
+        Load(context, NodeAddresses_);
+    }
+
     Load(context, MulticellStates_);
     Load(context, UserTags_);
     Load(context, NodeTags_);

@@ -111,7 +111,7 @@ protected:
     TJobResources TotalResourceLimits_;
 
     int PendingJobCount_ = 0;
-    TInstant StartTime_ = TInstant();
+    TInstant StartTime_;
 
     int TreeIndex_ = UnassignedTreeIndex;
 
@@ -122,8 +122,6 @@ class TSchedulerElementSharedState
     : public TIntrinsicRefCounted
 {
 public:
-    TSchedulerElementSharedState();
-
     TJobResources GetResourceUsage();
     TJobMetrics GetJobMetrics();
     void IncreaseResourceUsage(const TJobResources& delta);
@@ -133,6 +131,9 @@ public:
 
     bool GetAlive() const;
     void SetAlive(bool alive);
+
+    double GetFairShareRatio() const;
+    void SetFairShareRatio(double fairShareRatio);
 
 private:
     TJobResources ResourceUsage_;
@@ -144,6 +145,8 @@ private:
     char Padding[64];
 
     std::atomic<bool> Alive_ = {true};
+
+    std::atomic<double> FairShareRatio_ = {0.0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
@@ -185,6 +188,9 @@ public:
 
     bool IsAlive() const;
     void SetAlive(bool alive);
+
+    double GetFairShareRatio() const;
+    void SetFairShareRatio(double fairShareRatio);
 
     virtual TString GetId() const = 0;
 
@@ -243,6 +249,11 @@ protected:
         TDuration minSharePreemptionTimeout,
         TDuration fairSharePreemptionTimeout,
         TInstant now);
+
+    void SetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert);
 
 private:
     void UpdateAttributes();
@@ -381,8 +392,8 @@ public:
     TPool(
         ISchedulerStrategyHost* host,
         const TString& id,
-        NProfiling::TTagId profilingTag,
-        TFairShareStrategyConfigPtr strategyConfig);
+        TFairShareStrategyConfigPtr strategyConfig,
+        NProfiling::TTagId profilingTag);
     TPool(
         const TPool& other,
         TCompositeSchedulerElement* clonedParent);
@@ -448,22 +459,20 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 class TOperationElementFixedState
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerStrategyHostPtr, Controller);
 
 protected:
-    explicit TOperationElementFixedState(TOperationPtr operation);
+    explicit TOperationElementFixedState(IOperationStrategyHost* operation);
 
     const TOperationId OperationId_;
     bool Schedulable_;
-    TOperation* const Operation_;
+    IOperationStrategyHost* const Operation_;
 };
 
 class TOperationElementSharedState
     : public TIntrinsicRefCounted
 {
 public:
-    TOperationElementSharedState();
-
     TJobResources IncreaseJobResourceUsage(
         const TJobId& jobId,
         const TJobResources& resourcesDelta);
@@ -472,7 +481,8 @@ public:
         double fairShareRatio,
         const TJobResources& totalResourceLimits,
         double preemptionSatisfactionThreshold,
-        double aggressivePreemptionSatisfactionThreshold);
+        double aggressivePreemptionSatisfactionThreshold,
+        int* moveCount);
 
     bool IsJobExisting(const TJobId& jobId) const;
 
@@ -482,7 +492,7 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    TJobResources AddJob(const TJobId& jobId, const TJobResources resourceUsage);
+    TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage);
     TJobResources RemoveJob(const TJobId& jobId);
 
     bool IsBlocked(
@@ -607,24 +617,6 @@ private:
         TJobIdList::iterator JobIdListIterator;
 
         TJobResources ResourceUsage;
-
-        static void SetPreemptable(TJobProperties* properties)
-        {
-            properties->Preemptable = true;
-            properties->AggressivelyPreemptable = true;
-        }
-
-        static void SetAggressivelyPreemptable(TJobProperties* properties)
-        {
-            properties->Preemptable = false;
-            properties->AggressivelyPreemptable = true;
-        }
-
-        static void SetNonPreemptable(TJobProperties* properties)
-        {
-            properties->Preemptable = false;
-            properties->AggressivelyPreemptable = false;
-        }
     };
 
     yhash<TJobId, TJobProperties> JobPropertiesMap_;
@@ -635,13 +627,14 @@ private:
 
     bool Finalized_ = false;
 
-    NJobTrackerClient::TStatistics ControllerTimeStatistics_;
-
-    void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
-
     NConcurrency::TReaderWriterSpinLock CachedMinNeededJobResourcesLock_;
     std::vector<TJobResources> CachedMinNeededJobResourcesList_;
     TJobResources CachedMinNeededJobResources_;
+
+    void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
+
+    TJobProperties* GetJobProperties(const TJobId& jobId);
+    const TJobProperties* GetJobProperties(const TJobId& jobId) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
@@ -656,7 +649,7 @@ public:
         TStrategyOperationSpecPtr spec,
         TOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
-        TOperationPtr operation);
+        IOperationStrategyHost* operation);
     TOperationElement(
         const TOperationElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -691,7 +684,7 @@ public:
 
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
-    bool HasStarvingParent() const;
+    bool IsPreemptionAllowed(const TFairShareContext& context) const;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
@@ -750,6 +743,8 @@ private:
     TJobResources ComputeResourceLimits() const;
     TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
+
+    void UpdatePreemptableJobsList();
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)
@@ -769,8 +764,8 @@ class TRootElement
 public:
     TRootElement(
         ISchedulerStrategyHost* host,
-        NProfiling::TTagId profilingTag,
-        TFairShareStrategyConfigPtr strategyConfig);
+        TFairShareStrategyConfigPtr strategyConfig,
+        NProfiling::TTagId profilingTag);
     TRootElement(const TRootElement& other);
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList) override;

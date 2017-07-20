@@ -9,6 +9,7 @@
 
 #include <numeric>
 
+
 namespace NYT {
 
 namespace {
@@ -38,8 +39,53 @@ Py::Callable GetYsonType(const std::string& name)
     return Py::Callable(GetAttr(ysonTypesModule, name));
 }
 
+Py::Exception CreateYsonError(const std::string& message, TContext* context)
+{
+    static Py::Callable ysonErrorClass;
+    if (ysonErrorClass.isNone()) {
+        auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
+        ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
+    }
+    Py::Dict attributes;
+    if (context->RowIndex) {
+        attributes.setItem("row_index", Py::Long(context->RowIndex.Get()));
+    }
 
-////////////////////////////////////////////////////////////////////////////////
+    bool endedWithDelimiter = false;
+    TStringBuilder builder;
+    for (const auto& pathPart : context->PathParts) {
+        if (pathPart.InAttributes) {
+            YCHECK(!endedWithDelimiter);
+            builder.AppendString("/@");
+            endedWithDelimiter = true;
+        } else {
+            if (!endedWithDelimiter) {
+                builder.AppendChar('/');
+            }
+            if (!pathPart.Key.empty()) {
+                builder.AppendString(pathPart.Key);
+            }
+            if (pathPart.Index != -1) {
+                builder.AppendFormat("%v", pathPart.Index);
+            }
+            endedWithDelimiter = false;
+        }
+    }
+
+    TString contextRowKeyPath = builder.Flush();
+    if (!contextRowKeyPath.empty()) {
+        attributes.setItem("row_key_path", Py::ConvertToPythonString(contextRowKeyPath));
+    }
+
+    Py::Dict options;
+    options.setItem("message", Py::ConvertToPythonString(TString(message)));
+    options.setItem("code", Py::Long(1));
+    options.setItem("attributes", attributes);
+
+    auto ysonError = ysonErrorClass.apply(Py::Tuple(), options);
+    return Py::Exception(*ysonError.type(), ysonError);
+}
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -53,7 +99,6 @@ Py::Object CreateYsonObject(const std::string& className, const Py::Object& obje
     result.setAttr("attributes", attributes);
     return result;
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
@@ -62,19 +107,31 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& encoding)
+Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& encoding, TContext* context)
 {
     if (PyUnicode_Check(obj.ptr())) {
         if (!encoding) {
-            throw Py::RuntimeError(Format("Cannot encode unicode object %s to bytes since 'encoding' parameter "
-                                          "is None", Py::Repr(obj)));
+            throw CreateYsonError(
+                Format(
+                    "Cannot encode unicode object %s to bytes "
+                    "since 'encoding' parameter is None",
+                    Py::Repr(obj)
+                ),
+                context);
         }
         return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), ~encoding.Get(), "strict"), true);
     } else {
 #if PY_MAJOR_VERSION >= 3
         if (encoding) {
-            throw Py::RuntimeError(Format("Bytes object %s cannot be encoded to %s. Only unicode strings are "
-                                          "expected if 'encoding' parameter is not None", Py::Repr(obj), encoding));
+            throw CreateYsonError(
+                Format(
+                    "Bytes object %s cannot be encoded to %s. "
+                    "Only unicode strings are expected if 'encoding' "
+                    "parameter is not None",
+                    Py::Repr(obj),
+                    encoding
+                ),
+                context);
         }
 #endif
         return Py::Bytes(PyObject_Bytes(*obj), true);
@@ -87,7 +144,8 @@ void SerializeMapFragment(
     const TNullable<TString> &encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
-    int depth)
+    int depth,
+    TContext* context)
 {
     auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
     auto iterator = Py::Object(PyObject_GetIter(*items), true);
@@ -98,19 +156,32 @@ void SerializeMapFragment(
         auto value = Py::Object(PyTuple_GET_ITEM(item, 1), false);
 
         if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
-            throw Py::RuntimeError(Format("Map key should be string, found '%s'", Py::Repr(key)));
+            throw CreateYsonError(Format("Map key should be string, found '%s'", Py::Repr(key)), context);
         }
 
-        consumer->OnKeyedItem(ConvertToStringBuf(EncodeStringObject(key, encoding)));
-        Serialize(value, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
+        auto encodedKey = EncodeStringObject(key, encoding, context);
+        auto mapKey = ConvertToStringBuf(encodedKey);
+        consumer->OnKeyedItem(mapKey);
+        context->Push(mapKey);
+        Serialize(value, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1, context);
+        context->Pop();
     }
 }
 
-void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
+void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TContext* context)
 {
-    static Py::Callable YsonBooleanClass = GetYsonType("YsonBoolean");
-    static Py::Callable YsonUint64Class = GetYsonType("YsonUint64");
-    static Py::Callable YsonInt64Class = GetYsonType("YsonInt64");
+    static Py::Callable YsonBooleanClass;
+    if (YsonBooleanClass.isNone()) {
+        YsonBooleanClass = GetYsonType("YsonBoolean");
+    }
+    static Py::Callable YsonUint64Class;
+    if (YsonUint64Class.isNone()) {
+        YsonUint64Class = GetYsonType("YsonUint64");
+    }
+    static Py::Callable YsonInt64Class;
+    if (YsonInt64Class.isNone()) {
+        YsonInt64Class = GetYsonType("YsonInt64");
+    }
     static Py::LongLong SignedInt64Min(std::numeric_limits<i64>::min());
     static Py::LongLong SignedInt64Max(std::numeric_limits<i64>::max());
     static Py::LongLong UnsignedInt64Max(std::numeric_limits<ui64>::max());
@@ -118,9 +189,12 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     if (PyObject_RichCompareBool(UnsignedInt64Max.ptr(), obj.ptr(), Py_LT) == 1 ||
         PyObject_RichCompareBool(obj.ptr(), SignedInt64Min.ptr(), Py_LT) == 1)
     {
-        throw Py::RuntimeError(
-            "Integer " + Py::Repr(obj) +
-            " cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]");
+        throw CreateYsonError(
+            Format(
+                "Integer %s cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]",
+                Py::Repr(obj)
+            ),
+            context);
     }
 
     auto consumeAsLong = [&] {
@@ -151,13 +225,13 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     } else if (IsInstance(obj, YsonUint64Class)) {
         auto value = static_cast<ui64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
-            throw Py::RuntimeError("Can not dump negative integer as YSON uint64");
+            throw CreateYsonError("Can not dump negative integer as YSON uint64", context);
         }
         consumer->OnUint64Scalar(value);
     } else if (IsInstance(obj, YsonInt64Class)) {
         auto value = static_cast<i64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
-            throw Py::RuntimeError("Can not dump integer as YSON int64");
+            throw CreateYsonError("Can not dump integer as YSON int64", context);
         }
         consumer->OnInt64Scalar(value);
     } else {
@@ -172,28 +246,34 @@ void Serialize(
     const TNullable<TString>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
-    int depth)
+    int depth,
+    TContext* context)
 {
-    static Py::Callable YsonEntityClass = GetYsonType("YsonEntity");
+    static Py::Callable YsonEntityClass;
+    if (YsonEntityClass.isNone()) {
+        YsonEntityClass = GetYsonType("YsonEntity");
+    }
 
     const char* attributesStr = "attributes";
     if ((!ignoreInnerAttributes || depth == 0) && obj.hasAttr(attributesStr)) {
         auto attributeObject = obj.getAttr(attributesStr);
         if ((!attributeObject.isMapping() && !attributeObject.isNone()) || attributeObject.isSequence())  {
-            throw Py::RuntimeError("Invalid field 'attributes', it is neither mapping nor None");
+            throw CreateYsonError("Invalid field 'attributes', it is neither mapping nor None", context);
         }
         if (!attributeObject.isNone()) {
             auto attributes = Py::Mapping(attributeObject);
             if (attributes.length() > 0) {
                 consumer->OnBeginAttributes();
-                SerializeMapFragment(attributes, consumer, encoding, ignoreInnerAttributes, ysonType, depth);
+                context->PushAttributesStarted();
+                SerializeMapFragment(attributes, consumer, encoding, ignoreInnerAttributes, ysonType, depth, context);
+                context->Pop();
                 consumer->OnEndAttributes();
             }
         }
     }
 
     if (PyBytes_Check(obj.ptr()) || PyUnicode_Check(obj.ptr())) {
-        consumer->OnStringScalar(ConvertToStringBuf(EncodeStringObject(obj, encoding)));
+        consumer->OnStringScalar(ConvertToStringBuf(EncodeStringObject(obj, encoding, context)));
 #if PY_MAJOR_VERSION < 3
     // Fast check for simple integers (python 3 has only long integers)
     } else if (PyInt_CheckExact(obj.ptr())) {
@@ -202,22 +282,26 @@ void Serialize(
     } else if (obj.isBoolean()) {
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (Py::IsInteger(obj)) {
-        SerializePythonInteger(obj, consumer);
+        SerializePythonInteger(obj, consumer, context);
     } else if (obj.isMapping() && obj.hasAttr("items")) {
         bool allowBeginEnd =  depth > 0 || ysonType != NYson::EYsonType::MapFragment;
         if (allowBeginEnd) {
             consumer->OnBeginMap();
         }
-        SerializeMapFragment(obj, consumer, encoding, ignoreInnerAttributes, ysonType, depth);
+        SerializeMapFragment(obj, consumer, encoding, ignoreInnerAttributes, ysonType, depth, context);
         if (allowBeginEnd) {
             consumer->OnEndMap();
         }
     } else if (obj.isSequence()) {
         const auto& objList = Py::Sequence(obj);
         consumer->OnBeginList();
+        int index = 0;
         for (auto it = objList.begin(); it != objList.end(); ++it) {
             consumer->OnListItem();
-            Serialize(*it, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
+            context->Push(index);
+            Serialize(*it, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1, context);
+            context->Pop();
+            ++index;
         }
         consumer->OnEndList();
     } else if (Py::IsFloat(obj)) {
@@ -225,9 +309,12 @@ void Serialize(
     } else if (obj.isNone() || IsInstance(obj, YsonEntityClass)) {
         consumer->OnEntity();
     } else {
-        throw Py::RuntimeError(
-            "Value " + Py::Repr(obj) +
-            " cannot be serialized to YSON since it has unsupported type");
+        throw CreateYsonError(
+            Format(
+                "Value %s cannot be serialized to YSON since it has unsupported type",
+                Py::Repr(obj)
+            ),
+            context);
     }
 }
 
@@ -249,11 +336,7 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TN
     , Encoding_(encoding)
 { }
 
-// NOTE: Not using specific PyCXX objects (e.g. Py::Bytes) here and below to avoid
-// unnecessary checks.
-using PyObjectPtr = std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>;
-
-PyObjectPtr MakePyObjectPtr(PyObject* obj)
+TPythonObjectBuilder::PyObjectPtr TPythonObjectBuilder::MakePyObjectPtr(PyObject* obj)
 {
     return std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>(obj, &Py::_XDECREF);
 }
@@ -273,49 +356,43 @@ void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
         }
 #if PY_MAJOR_VERSION < 3
         auto utf8String = MakePyObjectPtr(PyUnicode_AsUTF8String(decodedString.get()));
-        AddObject(utf8String.get(), YsonString);
+        AddObject(std::move(utf8String), YsonString);
 #else
-        AddObject(decodedString.get(), YsonUnicode);
+        AddObject(std::move(decodedString), YsonUnicode);
 #endif
     } else {
-        AddObject(bytes.get(), YsonString);
+        AddObject(std::move(bytes), YsonString);
     }
 }
 
 void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 {
-    auto obj = MakePyObjectPtr(PyLong_FromLongLong(value));
-    AddObject(obj.get(), YsonInt64);
+    AddObject(MakePyObjectPtr(PyLong_FromLongLong(value)), YsonInt64);
 }
 
 void TPythonObjectBuilder::OnUint64Scalar(ui64 value)
 {
-    auto obj = MakePyObjectPtr(PyLong_FromUnsignedLongLong(value));
-    AddObject(obj.get(), YsonUint64, EPythonObjectType::Other, true);
+    AddObject(MakePyObjectPtr(PyLong_FromUnsignedLongLong(value)), YsonUint64, EPythonObjectType::Other, true);
 }
 
 void TPythonObjectBuilder::OnDoubleScalar(double value)
 {
-    auto obj = MakePyObjectPtr(PyFloat_FromDouble(value));
-    AddObject(obj.get(), YsonDouble);
+    AddObject(MakePyObjectPtr(PyFloat_FromDouble(value)), YsonDouble);
 }
 
 void TPythonObjectBuilder::OnBooleanScalar(bool value)
 {
-    auto obj = MakePyObjectPtr(PyBool_FromLong(value ? 1 : 0));
-    AddObject(obj.get(), YsonBoolean);
+    AddObject(MakePyObjectPtr(PyBool_FromLong(value ? 1 : 0)), YsonBoolean);
 }
 
 void TPythonObjectBuilder::OnEntity()
 {
-    auto obj = MakePyObjectPtr(Py::new_reference_to(Py_None));
-    AddObject(obj.get(), YsonEntity);
+    AddObject(MakePyObjectPtr(Py::new_reference_to(Py_None)), YsonEntity);
 }
 
 void TPythonObjectBuilder::OnBeginList()
 {
-    auto obj = MakePyObjectPtr(PyList_New(0));
-    AddObject(obj.get(), YsonList, EPythonObjectType::List);
+    AddObject(MakePyObjectPtr(PyList_New(0)), YsonList, EPythonObjectType::List);
 }
 
 void TPythonObjectBuilder::OnListItem()
@@ -329,13 +406,41 @@ void TPythonObjectBuilder::OnEndList()
 
 void TPythonObjectBuilder::OnBeginMap()
 {
-    auto obj = MakePyObjectPtr(PyDict_New());
-    AddObject(obj.get(), YsonMap, EPythonObjectType::Map);
+    AddObject(MakePyObjectPtr(PyDict_New()), YsonMap, EPythonObjectType::Map);
 }
 
 void TPythonObjectBuilder::OnKeyedItem(const TStringBuf& key)
 {
-    Keys_.push(TString(key));
+    PyObject* pyKey = nullptr;
+
+    auto it = KeyCache_.find(key);
+    if (it == KeyCache_.end()) {
+        auto pyKeyPtr = MakePyObjectPtr(PyBytes_FromStringAndSize(~key, key.size()));
+        if (!pyKeyPtr) {
+            throw Py::Exception();
+        }
+
+        auto ownedKey = ConvertToStringBuf(Py::Bytes(pyKeyPtr.get()));
+
+        if (Encoding_) {
+            auto originalPyKeyObj = pyKeyPtr.get();
+            OriginalKeyCache_.emplace_back(std::move(pyKeyPtr));
+
+            pyKeyPtr = MakePyObjectPtr(
+                PyUnicode_FromEncodedObject(originalPyKeyObj, ~Encoding_.Get(), "strict"));
+            if (!pyKeyPtr) {
+                throw Py::Exception();
+            }
+        }
+
+        auto res = KeyCache_.emplace(ownedKey, std::move(pyKeyPtr));
+        YCHECK(res.second);
+        pyKey = res.first->second.get();
+    } else {
+        pyKey = it->second.get();
+    }
+
+    Keys_.push(pyKey);
 }
 
 void TPythonObjectBuilder::OnEndMap()
@@ -345,7 +450,7 @@ void TPythonObjectBuilder::OnEndMap()
 
 void TPythonObjectBuilder::OnBeginAttributes()
 {
-    Push(Py::Dict(), EPythonObjectType::Attributes);
+    Push(MakePyObjectPtr(PyDict_New()), EPythonObjectType::Attributes);
 }
 
 void TPythonObjectBuilder::OnEndAttributes()
@@ -354,73 +459,53 @@ void TPythonObjectBuilder::OnEndAttributes()
 }
 
 void TPythonObjectBuilder::AddObject(
-    PyObject* obj,
+    PyObjectPtr obj,
     const Py::Callable& type,
     EPythonObjectType objType,
     bool forceYsonTypeCreation)
 {
+    static const char* attributesStr = "attributes";
+
     if (!obj) {
         throw Py::Exception();
     }
 
-    if ((AlwaysCreateAttributes_ || forceYsonTypeCreation) && !Attributes_) {
-        Attributes_ = Py::Dict();
+    if (Attributes_ || forceYsonTypeCreation || AlwaysCreateAttributes_) {
+        auto tuplePtr = MakePyObjectPtr(PyTuple_New(1));
+        PyTuple_SetItem(tuplePtr.get(), 0, Py::new_reference_to(obj.get()));
+        obj = MakePyObjectPtr(PyObject_CallObject(type.ptr(), tuplePtr.get()));
+        if (!obj.get()) {
+            throw Py::Exception();
+        }
     }
 
     if (Attributes_) {
-        auto ysonObj = type.apply(Py::TupleN(Py::Object(obj)));
-        AddObject(ysonObj.ptr());
-        if (objType == EPythonObjectType::List || objType == EPythonObjectType::Map) {
-            Push(ysonObj, objType);
-        }
-    } else {
-        AddObject(obj);
-        if (objType == EPythonObjectType::List || objType == EPythonObjectType::Map) {
-            Push(Py::Object(obj), objType);
-        }
-    }
-}
-
-void TPythonObjectBuilder::AddObject(PyObject* obj)
-{
-    static const char* attributes = "attributes";
-    if (Attributes_) {
-        PyObject_SetAttrString(obj, attributes, (*Attributes_).ptr());
+        PyObject_SetAttrString(obj.get(), attributesStr, Attributes_->get());
         Attributes_ = Null;
     }
 
     if (ObjectStack_.empty()) {
-        Objects_.push(Py::Object(obj));
+        Objects_.push(Py::Object(obj.get()));
     } else if (ObjectStack_.top().second == EPythonObjectType::List) {
-        PyList_Append(ObjectStack_.top().first.ptr(), obj);
+        PyList_Append(ObjectStack_.top().first.get(), obj.get());
     } else {
-        auto key = MakePyObjectPtr(PyBytes_FromStringAndSize(~Keys_.top(), Keys_.top().size()));
-        if (!key) {
-            throw Py::Exception();
-        }
-
-        if (Encoding_) {
-            auto decodedKey = MakePyObjectPtr(
-                PyUnicode_FromEncodedObject(key.get(), ~Encoding_.Get(), "strict"));
-            if (!decodedKey) {
-                throw Py::Exception();
-            }
-            PyDict_SetItem(*ObjectStack_.top().first, decodedKey.get(), obj);
-        } else {
-            PyDict_SetItem(*ObjectStack_.top().first, key.get(), obj);
-        }
+        PyDict_SetItem(ObjectStack_.top().first.get(), Keys_.top(), obj.get());
         Keys_.pop();
+    }
+
+    if (objType == EPythonObjectType::List || objType == EPythonObjectType::Map) {
+        Push(std::move(obj), objType);
     }
 }
 
-void TPythonObjectBuilder::Push(const Py::Object& obj, EPythonObjectType objectType)
+void TPythonObjectBuilder::Push(PyObjectPtr objPtr, EPythonObjectType objectType)
 {
-    ObjectStack_.emplace(obj, objectType);
+    ObjectStack_.emplace(std::move(objPtr), objectType);
 }
 
-Py::Object TPythonObjectBuilder::Pop()
+TPythonObjectBuilder::PyObjectPtr TPythonObjectBuilder::Pop()
 {
-    auto obj = ObjectStack_.top().first;
+    auto obj = std::move(ObjectStack_.top().first);
     ObjectStack_.pop();
     return obj;
 }

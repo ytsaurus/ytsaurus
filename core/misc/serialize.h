@@ -1127,9 +1127,20 @@ struct TEnumIndexedVectorSerializer
         using NYT::Save;
 
         auto keys = TEnumTraits<E>::GetDomainValues();
-        TSizeSerializer::Save(context, keys.size());
+        size_t count = 0;
+        for (auto key : keys) {
+            if (!vector.IsDomainValue(key)) {
+                continue;
+            }
+            ++count;
+        }
+
+        TSizeSerializer::Save(context, count);
 
         for (auto key : keys) {
+            if (!vector.IsDomainValue(key)) {
+                continue;
+            }
             Save(context, key);
             TItemSerializer::Save(context, vector[key]);
         }
@@ -1148,7 +1159,7 @@ struct TEnumIndexedVectorSerializer
                 auto key = LoadSuspended<E>(context);
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", key);
                 SERIALIZATION_DUMP_INDENT(context) {
-                    if (key < TEnumTraits<E>::GetMinValue() || key > TEnumTraits<E>::GetMaxValue()) {
+                    if (!vector.IsDomainValue(key)) {
                         T dummy;
                         TItemSerializer::Load(context, dummy);
                     } else {

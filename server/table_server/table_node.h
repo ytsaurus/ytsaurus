@@ -28,26 +28,44 @@ class TTableNode
     : public NChunkServer::TChunkOwnerBase
 {
 private:
-    using TTabletStateIndexedVector = TEnumIndexedVector<int, NTabletClient::ETabletState>;
+    using TTabletStateIndexedVector = TEnumIndexedVector<
+        int,
+        NTabletClient::ETabletState,
+        NTabletClient::MinValidTabletState,
+        NTabletClient::MaxValidTabletState>;
+    using TTabletList = std::vector<NTabletServer::TTablet*>;
+
+    struct TDynamicTableAttributes
+    {
+        NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
+        NTransactionClient::ECommitOrdering CommitOrdering = NTransactionClient::ECommitOrdering::Weak;
+        NTabletClient::TTableReplicaId UpstreamReplicaId;
+        NTabletServer::TTabletCellBundle* TabletCellBundle = nullptr;
+        NTransactionClient::TTimestamp LastCommitTimestamp = NTransactionClient::NullTimestamp;
+        TTabletStateIndexedVector TabletCountByState;
+        TTabletList Tablets;
+
+        TDynamicTableAttributes();
+        void Save(NCellMaster::TSaveContext& context) const;
+        void Load(NCellMaster::TLoadContext& context);
+    };
 
 public:
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchema, TableSchema);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
-
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastCommitTimestamp, NTransactionClient::NullTimestamp);
-
-    DEFINE_BYVAL_RW_PROPERTY(NTabletServer::TTabletCellBundle*, TabletCellBundle);
-
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity, NTransactionClient::EAtomicity::Full);
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering, NTransactionClient::ECommitOrdering::Weak);
-    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TTableReplicaId, UpstreamReplicaId);
-
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
 
-    DEFINE_BYREF_RW_PROPERTY(TTabletStateIndexedVector, TabletCountByState);
-
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NTableClient::EOptimizeFor, OptimizeFor);
+
+    DECLARE_EXTRA_PROPERTY_HOLDER(TDynamicTableAttributes, DynamicTableAttributes);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, Atomicity);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, CommitOrdering);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UpstreamReplicaId);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCellBundle);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastCommitTimestamp);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByState);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, Tablets);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
@@ -68,9 +86,9 @@ public:
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
+    void LoadPre609(NCellMaster::TLoadContext& context);
 
-    typedef std::vector<NTabletServer::TTablet*> TTabletList;
-    typedef TTabletList::iterator TTabletListIterator;
+    typedef TTabletList::const_iterator TTabletListIterator;
     std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
         const NTableClient::TOwningKey& minKey,
         const NTableClient::TOwningKey& maxKey);
@@ -86,16 +104,9 @@ public:
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp() const;
 
-    // For dynamic trunk tables only.
-    const TTabletList& Tablets() const;
-    TTabletList& Tablets();
-
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp() const;
-
-    TTabletList Tablets_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

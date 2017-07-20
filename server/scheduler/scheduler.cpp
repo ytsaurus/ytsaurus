@@ -53,6 +53,7 @@
 
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/numeric_helpers.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -98,6 +99,32 @@ using NNodeTrackerClient::TNodeDirectory;
 
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const i64 GB = 1024 * 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 RoundUp(i64 num, i64 mod)
+{
+    return DivCeil(num, mod) * mod;
+}
+
+template <class K, class V>
+yhash<K, V> FilterLargestValues(const yhash<K, V>& input, size_t threshold)
+{
+    threshold = std::min(threshold, input.size());
+    std::vector<std::pair<K, V>> items(input.begin(), input.end());
+    std::partial_sort(
+        items.begin(),
+        items.begin() + threshold,
+        items.end(),
+        [] (const std::pair<K, V>& lhs, const std::pair<K, V>& rhs) {
+            return lhs.second > rhs.second;
+        });
+    return yhash<K, V>(items.begin(), items.begin() + threshold);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,6 +205,11 @@ public:
         for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
             JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
+
+        FairShareLoggingExecutor = New<TPeriodicExecutor>(
+            GetControlInvoker(),
+            BIND(&TImpl::LogOperationsFairShare, MakeStrong(this)),
+            Config_->OperationLogFairSharePeriod);
     }
 
     void Initialize()
@@ -295,7 +327,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return MasterConnector_->IsConnected();
+        return IsConnected_ && MasterConnector_->IsConnected();
     }
 
     void ValidateConnected()
@@ -357,7 +389,7 @@ public:
         return execNodeCount;
     }
 
-    virtual int GetTotalNodeCount() const override
+    int GetTotalNodeCount() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -407,6 +439,46 @@ public:
         {
             TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
             CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, now, result}));
+        }
+
+        return result;
+    }
+
+    virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto now = NProfiling::GetCpuInstant();
+
+        {
+            TReaderGuard guard(ExecNodeMemoryDistributionByTagLock_);
+
+            auto it = CachedExecNodeMemoryDistributionByTags_.find(filter);
+            if (it != CachedExecNodeMemoryDistributionByTags_.end()) {
+                auto& entry = it->second;
+                if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
+                    return entry.ExecNodeMemoryDistribution;
+                }
+            }
+        }
+
+        TMemoryDistribution result;
+
+        {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+            for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
+                if (filter.CanSchedule(descriptor.Tags)) {
+                    ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), GB)];
+                }
+            }
+        }
+
+        result = FilterLargestValues(result, Config_->MemoryDistributionDifferentNodeTypesThreshold);
+
+        {
+            TWriterGuard guard(ExecNodeMemoryDistributionByTagLock_);
+            CachedExecNodeMemoryDistributionByTags_.emplace(filter, TMemoryDistributionEntry({now, now, result}));
         }
 
         return result;
@@ -468,7 +540,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return CreateJobHost(jobId, nodeShard);
     }
 
@@ -717,7 +789,7 @@ public:
 
     TFuture<TYsonString> Strace(const TJobId& jobId, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::StraceJob, nodeShard, jobId, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -725,7 +797,7 @@ public:
 
     TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::DumpJobInputContext, nodeShard, jobId, path, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -733,7 +805,7 @@ public:
 
     TFuture<TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::GetJobNode, nodeShard, jobId, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -741,7 +813,7 @@ public:
 
     TFuture<void> SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::SignalJob, nodeShard, jobId, signalName, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -749,7 +821,7 @@ public:
 
     TFuture<void> AbandonJob(const TJobId& jobId, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::AbandonJob, nodeShard, jobId, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -757,7 +829,7 @@ public:
 
     TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::PollJobShell, nodeShard, jobId, parameters, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -765,7 +837,7 @@ public:
 
     TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
     {
-        auto nodeShard = GetNodeShardByJobId(jobId);
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
         // A neat way to choose the proper overload.
         typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TNullable<TDuration>&, const TString&);
         return BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), nodeShard, jobId, interruptTimeout, user)
@@ -773,37 +845,15 @@ public:
             .Run();
     }
 
-    void LogOperations(yhash_set<TOperationId> operationsToLog)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        for (const auto& operationId : operationsToLog) {
-            auto operation = FindOperation(operationId);
-            if (!operation) {
-                continue;
-            }
-            LogOperationProgress(operation);
-        }
-    }
-
-    void ProcessHeartbeat(TCtxHeartbeatPtr context)
+    void ProcessHeartbeat(const TCtxHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
-        auto nodeShard = GetNodeShard(nodeId);
-        auto operationsToLog = WaitFor(
-            BIND(&TNodeShard::ProcessHeartbeat, nodeShard)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run(context))
-            .ValueOrThrow();
-
-        GetControlInvoker()->Invoke(BIND(
-            &TImpl::LogOperations,
-            MakeStrong(this),
-            Passed(std::move(operationsToLog))));
+        const auto& nodeShard = GetNodeShard(nodeId);
+        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
     }
 
     // ISchedulerStrategyHost implementation
@@ -835,7 +885,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto totalResourceUsage = ZeroJobResources();
-        for (auto& nodeShard : NodeShards_) {
+        for (const auto& nodeShard : NodeShards_) {
             totalResourceUsage += nodeShard->GetTotalResourceUsage();
         }
         return totalResourceUsage;
@@ -1049,6 +1099,7 @@ private:
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
+    std::atomic<bool> IsConnected_ = {false};
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1060,6 +1111,9 @@ private:
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
+    TPeriodicExecutorPtr FairShareLoggingExecutor;
+
+
     TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
 
     struct TExecNodeDescriptorsEntry
@@ -1070,6 +1124,19 @@ private:
     };
 
     mutable yhash<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
+
+
+    TReaderWriterSpinLock ExecNodeMemoryDistributionByTagLock_;
+
+    struct TMemoryDistributionEntry
+    {
+        NProfiling::TCpuInstant LastAccessTime;
+        NProfiling::TCpuInstant LastUpdateTime;
+        TMemoryDistribution ExecNodeMemoryDistribution;
+    };
+
+    mutable yhash<TSchedulingTagFilter, TMemoryDistributionEntry> CachedExecNodeMemoryDistributionByTags_;
+
 
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler MainNodesResourceLimitsProfiler_;
@@ -1140,16 +1207,17 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    TNodeShardPtr GetNodeShard(TNodeId nodeId) const
+    const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
     {
         return NodeShards_[GetNodeShardId(nodeId)];
     }
 
-    TNodeShardPtr GetNodeShardByJobId(TJobId jobId) const
+    const TNodeShardPtr& GetNodeShardByJobId(TJobId jobId) const
     {
         auto nodeId = NodeIdFromJobId(jobId);
         return GetNodeShard(nodeId);
     }
+
 
     void ReleaseStderrChunk(const TOperationPtr& operation, const TChunkId& chunkId)
     {
@@ -1277,11 +1345,21 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto registerFuture = BIND(&TImpl::RegisterRevivingOperations, MakeStrong(this), result.OperationReports)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+        WaitFor(registerFuture)
+            .ThrowOnError();
+
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
 
+        IsConnected_.store(true);
+
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
+
+        ConnectionTime_ = TInstant::Now();
 
         auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
@@ -1290,8 +1368,6 @@ private:
             .ThrowOnError();
 
         Strategy_->StartPeriodicActivity();
-
-        ConnectionTime_ = TInstant::Now();
     }
 
     void OnMasterDisconnected()
@@ -1299,6 +1375,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Starting scheduler state cleanup");
+
+        IsConnected_.store(false);
 
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
@@ -1355,6 +1433,21 @@ private:
         Strategy_->ResetState();
 
         LOG_INFO("Finished scheduler state cleanup");
+    }
+
+    void LogOperationsFairShare() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& pair : IdToOperation_) {
+            const auto& operationId = pair.first;
+            const auto& operation = pair.second;
+            if (operation->GetState() == EOperationState::Running) {
+                LOG_DEBUG("%v (OperationId: %v)",
+                    Strategy_->GetOperationLoggingProgress(operationId),
+                    operationId);
+            }
+        }
     }
 
     void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
@@ -1742,14 +1835,12 @@ private:
         LogEventFluently(ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId);
 
-        LogOperationProgress(operation);
-
         // From this moment on the controller is fully responsible for the
         // operation's fate. It will eventually call #OnOperationCompleted or
         // #OnOperationFailed to inform the scheduler about the outcome.
     }
 
-    void ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
+    void RegisterRevivingOperation(const TOperationPtr& operation)
     {
         auto codicilGuard = operation->MakeCodicilGuard();
 
@@ -1784,7 +1875,10 @@ private:
         }
 
         RegisterOperation(operation);
+    }
 
+    void ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
+    {
         auto controller = operation->GetController();
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
             .Via(operation->GetCancelableControlInvoker())
@@ -1906,33 +2000,6 @@ private:
         Strategy_->BuildOperationInfoForEventLog(operation, consumer);
     }
 
-    void LogOperationProgress(TOperationPtr operation)
-    {
-        if (operation->GetState() != EOperationState::Running)
-            return;
-
-        if (operation->GetLastLogProgressTime() + Config_->OperationLogProgressBackoff > TInstant::Now())
-            return;
-
-        auto controller = operation->GetController();
-        auto controllerLoggingProgress = WaitFor(
-            BIND(&IOperationController::GetLoggingProgress, controller)
-                .AsyncVia(controller->GetInvoker())
-                .Run())
-            .ValueOrThrow();
-
-        if (!FindOperation(operation->GetId())) {
-            return;
-        }
-
-        LOG_DEBUG("Progress: %v, %v (OperationId: %v)",
-            controllerLoggingProgress,
-            Strategy_->GetOperationLoggingProgress(operation->GetId()),
-            operation->GetId());
-
-        operation->SetLastLogProgressTime(TInstant::Now());
-    }
-
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2024,7 +2091,8 @@ private:
             // state is changed to Completing.
             {
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-                WaitFor(asyncResult);
+                WaitFor(asyncResult)
+                    .ThrowOnError();
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }
@@ -2061,7 +2129,8 @@ private:
             // Second flush: ensure that state is changed to Completed.
             {
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-                WaitFor(asyncResult);
+                WaitFor(asyncResult)
+                    .ThrowOnError();
                 YCHECK(operation->GetState() == EOperationState::Completed);
             }
 
@@ -2207,7 +2276,7 @@ private:
             auto controller = operation->GetController();
             Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
             if (controller->IsForgotten()) {
-                // Master disconnected happend while committing controller.
+                // Master disconnect happened while committing controller.
                 return;
             }
         }
@@ -2300,23 +2369,42 @@ private:
         for (const auto& operationReport : operationReports) {
             const auto& operation = operationReport.Operation;
 
-            operation->SetState(EOperationState::Reviving);
-
             if (operationReport.IsCommitted) {
                 CompleteCompletingOperation(operationReport);
                 continue;
             }
 
-            if (operation->GetState() == EOperationState::Aborting) {
+            if (operationReport.IsAborting) {
                 AbortAbortingOperation(operation, operationReport.ControllerTransactions);
                 continue;
             }
 
             if (operationReport.UserTransactionAborted) {
                 OnUserTransactionAborted(operation);
-            } else {
-                ReviveOperation(operation, operationReport.ControllerTransactions);
+                continue;
             }
+
+            ReviveOperation(operation, operationReport.ControllerTransactions);
+        }
+    }
+
+    void RegisterRevivingOperations(const std::vector<TOperationReport>& operationReports)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& operationReport : operationReports) {
+            const auto& operation = operationReport.Operation;
+
+            operation->SetState(EOperationState::Reviving);
+
+            if (operationReport.IsCommitted ||
+                operationReport.IsAborting ||
+                operationReport.UserTransactionAborted)
+            {
+                continue;
+            }
+
+            RegisterRevivingOperation(operation);
         }
     }
 
@@ -2324,10 +2412,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& clusterDirectory = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetClusterDirectory();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("connected").Value(MasterConnector_->IsConnected())
@@ -2337,6 +2421,7 @@ private:
                     .Item("resource_usage").Value(GetTotalResourceUsage())
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
+                    .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
                     .Do([=] (IYsonConsumer* consumer) {
@@ -2368,27 +2453,9 @@ private:
                         }
                     })
                 .EndMap()
-                .Item("clusters").DoMapFor(clusterDirectory->GetClusterNames(), [=] (TFluentMap fluent, const TString& clusterName) {
-                    BuildClusterYson(clusterName, fluent);
-                })
                 .Item("config").Value(Config_)
                 .DoIf(Strategy_.operator bool(), BIND(&ISchedulerStrategy::BuildOrchid, Strategy_))
             .EndMap();
-    }
-
-    void BuildClusterYson(const TString& clusterName, IYsonConsumer* consumer)
-    {
-        const auto& clusterDirectory = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetClusterDirectory();
-        auto connection = clusterDirectory->FindConnection(clusterName);
-        if (!connection) {
-            return;
-        }
-        BuildYsonMapFluently(consumer)
-            .Item(clusterName)
-            .Value(connection->GetConfig());
     }
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer) const
@@ -2459,8 +2526,6 @@ private:
     {
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
-        // COMPAT(babenko)
-        dynamicOrchidService->AddChild("job_by_id", New<TJobsService>(this));
         dynamicOrchidService->AddChild("jobs", New<TJobsService>(this));
         return dynamicOrchidService;
     }
@@ -2555,7 +2620,7 @@ private:
     private:
         void BuildControllerJobYson(const TJobId& jobId, IYsonConsumer* consumer) const
         {
-            auto nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
+            const auto& nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
 
             auto getOperationIdCallback = BIND(&TNodeShard::GetOperationIdByJobId, nodeShard, jobId)
                 .AsyncVia(nodeShard->GetInvoker())

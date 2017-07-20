@@ -15,6 +15,7 @@ using NYT::FromProto;
 TQueryStatistics& TQueryStatistics::operator+=(const TQueryStatistics& other)
 {
     RowsRead += other.RowsRead;
+    BytesRead += other.BytesRead;
     RowsWritten += other.RowsWritten;
     SyncTime += other.SyncTime;
     AsyncTime += other.AsyncTime;
@@ -32,6 +33,7 @@ TQueryStatistics& TQueryStatistics::operator+=(const TQueryStatistics& other)
 void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& queryResult)
 {
     serialized->set_rows_read(queryResult.RowsRead);
+    serialized->set_bytes_read(queryResult.BytesRead);
     serialized->set_rows_written(queryResult.RowsWritten);
     serialized->set_sync_time(ToProto(queryResult.SyncTime));
     serialized->set_async_time(ToProto(queryResult.AsyncTime));
@@ -47,6 +49,7 @@ TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
 {
     TQueryStatistics result;
     result.RowsRead = serialized.rows_read();
+    result.BytesRead = serialized.bytes_read();
     result.RowsWritten = serialized.rows_written();
     result.SyncTime = FromProto<TDuration>(serialized.sync_time());
     result.AsyncTime = FromProto<TDuration>(serialized.async_time());
@@ -63,11 +66,12 @@ TString ToString(const TQueryStatistics& stats)
 {
     return Format(
         "{"
-        "RowsRead: %v, RowsWritten: %v, "
+        "RowsRead: %v, BytesRead: %v, RowsWritten: %v, "
         "SyncTime: %v, AsyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, "
         "IncompleteInput: %v, IncompleteOutput: %v"
         "}",
         stats.RowsRead,
+        stats.BytesRead,
         stats.RowsWritten,
         stats.SyncTime,
         stats.AsyncTime,

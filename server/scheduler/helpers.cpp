@@ -44,6 +44,11 @@ void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonC
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Value(operation->GetSpec())
+        .Item("full_spec")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Do(BIND(&IOperationController::BuildSpec, operation->GetController()))
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId())
         .Do(BIND(&BuildRunningOperationAttributes, operation));

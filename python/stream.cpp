@@ -28,15 +28,21 @@ size_t TInputStreamWrap::DoRead(void* buf, size_t len)
 
     auto args = Py::TupleN(Py::Long(static_cast<long>(len)));
     Py::Object result = ReadFunction_.apply(args);
+
+    PyObject* exception = PyErr_Occurred();
+    if (exception) {
+        throw Py::Exception();
+    }
+
 #if PY_MAJOR_VERSION < 3
     // COMPAT: Due to implicit promotion to unicode it is sane to work with
     // unicode objects too.
     if (!PyBytes_Check(result.ptr()) && !PyUnicode_Check(result.ptr())) {
-        throw Py::RuntimeError("Read returns non-string object");
+        throw Py::TypeError("Read returns non-string object");
     }
 #else
     if (!PyBytes_Check(result.ptr())) {
-        throw Py::RuntimeError("Input stream should be binary");
+        throw Py::TypeError("Input stream should be binary");
     }
 #endif
     auto data = PyBytes_AsString(*result);
@@ -44,7 +50,6 @@ size_t TInputStreamWrap::DoRead(void* buf, size_t len)
     std::copy(data, data + length, (char*)buf);
     return length;
 }
-
 
 TOutputStreamWrap::TOutputStreamWrap(const Py::Object& outputStream)
     : OutputStream_(outputStream)
