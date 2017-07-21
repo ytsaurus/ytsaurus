@@ -9,8 +9,11 @@ namespace NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns the processor clock (rdtsc).
+//! Returns the current processor clock (rdtsc).
 TCpuInstant GetCpuInstant();
+
+//! Returns the current time (obtained via #GetCpuInstant).
+TInstant GetInstant();
 
 //! Converts a number of processor ticks into a regular duration.
 TDuration CpuDurationToDuration(TCpuDuration duration);
