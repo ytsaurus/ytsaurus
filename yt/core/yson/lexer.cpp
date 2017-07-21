@@ -14,28 +14,8 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStatelessLexer::TImpl
-{
-private:
-    std::unique_ptr<TStatelessYsonLexerImplBase> Impl;
-
-public:
-    TImpl(bool enableLinePositionInfo = false)
-        : Impl(enableLinePositionInfo
-        ? static_cast<TStatelessYsonLexerImplBase*>(new TStatelesYsonLexerImpl<true>()) 
-        : static_cast<TStatelessYsonLexerImplBase*>(new TStatelesYsonLexerImpl<false>()))
-    { }
-
-    size_t GetToken(const TStringBuf& data, TToken* token)
-    {
-        return Impl->GetToken(data, token);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TStatelessLexer::TStatelessLexer()
-    : Impl(new TImpl())
+    : Impl(std::make_unique<TStatelesYsonLexerImpl<false>>())
 { }
 
 TStatelessLexer::~TStatelessLexer()
