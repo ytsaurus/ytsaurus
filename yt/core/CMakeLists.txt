@@ -8,10 +8,6 @@ resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
 add_library(yt-core ${YT_SRCS_RESOLVED})
 
-if(HAVE_QUOTA_H)
-  add_definitions(-DQUOTA_ENABLED)
-endif()
-
 llvm_map_components_to_libraries(
   REQUIRED_LLVM_LIBRARIES
   mcjit ipo x86 mcdisassembler linker asmparser irreader instrumentation
