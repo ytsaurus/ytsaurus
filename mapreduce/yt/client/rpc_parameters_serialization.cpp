@@ -7,62 +7,10 @@
 #include <mapreduce/yt/interface/node.h>
 
 #include <util/generic/guid.h>
+#include <util/string/cast.h>
 
 namespace NYT {
 namespace NDetail {
-
-////////////////////////////////////////////////////////////////////
-
-TString ToString(ELockMode mode)
-{
-    switch (mode) {
-        case LM_EXCLUSIVE: return "exclusive";
-        case LM_SHARED: return "shared";
-        case LM_SNAPSHOT: return "snapshot";
-    }
-    Y_UNREACHABLE();
-}
-
-TString ToString(ENodeType type)
-{
-    switch (type) {
-        case NT_STRING: return "string_node";
-        case NT_INT64: return "int64_node";
-        case NT_UINT64: return "uint64_node";
-        case NT_DOUBLE: return "double_node";
-        case NT_BOOLEAN: return "boolean_node";
-        case NT_MAP: return "map_node";
-        case NT_LIST: return "list_node";
-        case NT_FILE: return "file";
-        case NT_TABLE: return "table";
-        case NT_DOCUMENT: return "document";
-        case NT_REPLICATED_TABLE: return "replicated_table";
-        case NT_TABLE_REPLICA: return "table_replica";
-    }
-    Y_UNREACHABLE();
-}
-
-TString ToString(EAtomicity atomicity)
-{
-    switch (atomicity) {
-        case EAtomicity::None:
-            return "none";
-        case EAtomicity::Full:
-            return "full";
-    }
-    Y_UNREACHABLE();
-}
-
-TString ToString(EDurability atomicity)
-{
-    switch (atomicity) {
-        case EDurability::Sync:
-            return "sync";
-        case EDurability::Async:
-            return "async";
-    }
-    Y_UNREACHABLE();
-}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -99,7 +47,7 @@ TNode SerializeParamsForCreate(
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, path);
     result["recursive"] = options.Recursive_;
-    result["type"] = ToString(type);
+    result["type"] = ::ToString(type);
     result["ignore_existing"] = options.IgnoreExisting_;
     result["force"] = options.Force_;
     if (options.Attributes_) {
@@ -240,7 +188,7 @@ TNode SerializeParamsForLock(
     TNode result;
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, path);
-    result["mode"] = ToString(mode);
+    result["mode"] = ::ToString(mode);
     result["waitable"] = options.Waitable_;
     if (options.AttributeKey_) {
         result["attribute_key"] = *options.AttributeKey_;
@@ -264,10 +212,10 @@ TNode SerializeParametersForInsertRows(
         result["update"] = *options.Update_;
     }
     if (options.Atomicity_) {
-        result["atomicity"] = ToString(*options.Atomicity_);
+        result["atomicity"] = ::ToString(*options.Atomicity_);
     }
     if (options.Durability_) {
-        result["durability"] = ToString(*options.Durability_);
+        result["durability"] = ::ToString(*options.Durability_);
     }
     return result;
 }
@@ -279,10 +227,10 @@ TNode SerializeParametersForDeleteRows(
     TNode result;
     SetPathParam(&result, path);
     if (options.Atomicity_) {
-        result["atomicity"] = ToString(*options.Atomicity_);
+        result["atomicity"] = ::ToString(*options.Atomicity_);
     }
     if (options.Durability_) {
-        result["durability"] = ToString(*options.Durability_);
+        result["durability"] = ::ToString(*options.Durability_);
     }
     return result;
 }

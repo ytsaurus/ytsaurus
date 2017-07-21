@@ -125,21 +125,21 @@ enum EValueType : int
 
 enum ESortOrder : int
 {
-    SO_ASCENDING,
-    SO_DESCENDING
+    SO_ASCENDING    /* "ascending" */,
+    SO_DESCENDING   /* "descending" */,
 };
 
 enum EOptimizeForAttr : i8
 {
-    OF_SCAN_ATTR,
-    OF_LOOKUP_ATTR
+    OF_SCAN_ATTR    /* "scan" */,
+    OF_LOOKUP_ATTR  /* "lookup" */,
 };
 
 enum EErasureCodecAttr : i8
 {
-    EC_NONE_ATTR,
-    EC_REED_SOLOMON_6_3_ATTR,
-    EC_LRC_12_2_2_ATTR
+    EC_NONE_ATTR                /* "none" */,
+    EC_REED_SOLOMON_6_3_ATTR    /* "reed_solomon_6_3" */,
+    EC_LRC_12_2_2_ATTR          /* "lrc_12_2_2" */,
 };
 
 struct TColumnSchema

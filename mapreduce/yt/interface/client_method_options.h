@@ -1,8 +1,8 @@
 #pragma once
 
-#include <util/datetime/base.h>
-
 #include "common.h"
+
+#include <util/datetime/base.h>
 
 namespace NYT {
 
@@ -258,14 +258,14 @@ struct TExecuteBatchOptions
 
 enum class EDurability
 {
-    Sync,
-    Async,
+    Sync    /* "sync" */,
+    Async   /* "async" */,
 };
 
 enum class EAtomicity
 {
-    None,
-    Full,
+    None    /* "none" */,
+    Full    /* "full" */,
 };
 
 template <typename TDerived>

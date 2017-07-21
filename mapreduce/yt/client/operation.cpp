@@ -28,6 +28,7 @@
 
 #include <util/string/printf.h>
 #include <util/string/builder.h>
+#include <util/string/cast.h>
 #include <util/system/execpath.h>
 #include <util/system/rwlock.h>
 #include <util/system/mutex.h>
@@ -47,16 +48,6 @@ ui64 RoundUpFileSize(ui64 size)
 {
     constexpr ui64 roundUpTo = 4ull << 10;
     return (size + roundUpTo - 1) & ~(roundUpTo - 1);
-}
-
-TString ToString(EMergeMode mode)
-{
-    switch (mode) {
-        case MM_UNORDERED: return "unordered";
-        case MM_ORDERED: return "ordered";
-        case MM_SORTED: return "sorted";
-    }
-    Y_UNREACHABLE();
 }
 
 bool IsLocalMode(const TAuth& auth)
@@ -1416,7 +1407,7 @@ TOperationId ExecuteMerge(
     .BeginMap().Item("spec").BeginMap()
         .Item("input_table_paths").List(inputs)
         .Item("output_table_path").Value(output)
-        .Item("mode").Value(ToString(spec.Mode_))
+        .Item("mode").Value(::ToString(spec.Mode_))
         .Item("combine_chunks").Value(spec.CombineChunks_)
         .Item("force_transform").Value(spec.ForceTransform_)
         .Item("merge_by").Value(spec.MergeBy_)

@@ -21,9 +21,9 @@ namespace NYT {
 
 enum ELockMode : int
 {
-    LM_EXCLUSIVE,
-    LM_SHARED,
-    LM_SNAPSHOT
+    LM_EXCLUSIVE    /* "exclusive" */,
+    LM_SHARED       /* "shared" */,
+    LM_SNAPSHOT     /* "snapshot" */,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

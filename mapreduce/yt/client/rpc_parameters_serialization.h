@@ -7,11 +7,6 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////
 
-TString ToString(ELockMode mode);
-TString ToString(ENodeType type);
-
-////////////////////////////////////////////////////////////////////
-
 TNode SerializeParamsForCreate(
     const TTransactionId& transactionId,
     const TYPath& path,
