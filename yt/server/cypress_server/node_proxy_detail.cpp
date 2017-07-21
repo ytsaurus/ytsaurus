@@ -1906,7 +1906,7 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto* impl = GetThisImpl();
         auto combinedPath = impl->GetTargetPath() + path;
-        return TResolveResult::There(objectManager->GetRootService(), combinedPath);
+        return TResolveResultThere{objectManager->GetRootService(), std::move(combinedPath)};
     };
 
     const auto& method = context->GetMethod();
@@ -1921,7 +1921,7 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
                 method == "Create" ||
                 method == "Copy")
             {
-                return TResolveResult::Here(path);
+                return TResolveResultHere{path};
             } else {
                 return propagate();
             }
@@ -2004,7 +2004,7 @@ IYPathService::TResolveResult TDocumentNodeProxy::ResolveRecursive(
     const TYPath& path,
     const IServiceContextPtr& /*context*/)
 {
-    return TResolveResult::Here("/" + path);
+    return TResolveResultHere{"/" + path};
 }
 
 namespace {

@@ -69,7 +69,7 @@ public:
     {
         const auto& method = context->GetMethod();
         if (method == "Remove") {
-            return TResolveResult::There(GetTargetProxy(), path);
+            return TResolveResultThere{GetTargetProxy(), path};
         } else {
             return TMapNodeProxy::ResolveSelf(path, context);
         }
@@ -79,9 +79,7 @@ public:
         const TYPath& path,
         const IServiceContextPtr& /*context*/) override
     {
-        return TResolveResult::There(
-            GetTargetProxy(),
-            "/@" + path);
+        return TResolveResultThere{GetTargetProxy(), "/@" + path};
     }
 
     virtual void DoWriteAttributesFragment(

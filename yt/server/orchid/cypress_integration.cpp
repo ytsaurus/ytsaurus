@@ -48,7 +48,7 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
-        return TResolveResult::Here(path);
+        return TResolveResultHere{path};
     }
 
     virtual void Invoke(const IServiceContextPtr& context) override

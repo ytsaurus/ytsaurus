@@ -93,7 +93,7 @@ public:
 
         YCHECK(!HasMutationContext());
 
-        return TResolveResult::Here(path);
+        return TResolveResultHere{path};
     }
 
     virtual void Invoke(const IServiceContextPtr& context) override
@@ -194,14 +194,14 @@ private:
 
     static TResolveResult DoResolveHere(const TYPath& path)
     {
-        return TResolveResult::Here(path);
+        return TResolveResultHere{path};
     }
 
     TResolveResult DoResolveThere(const TYPath& path, const IServiceContextPtr& context)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         if (context->GetService() == TMasterYPathProxy::GetDescriptor().ServiceName) {
-            return TResolveResult::There(objectManager->GetMasterProxy(), TYPath());
+            return TResolveResultThere{objectManager->GetMasterProxy(), TYPath()};
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -221,7 +221,7 @@ private:
                 auto root = cypressManager->GetNodeProxy(
                     cypressManager->GetRootNode(),
                     transaction);
-                return TResolveResult::There(root, tokenizer.GetSuffix());
+                return TResolveResultThere{std::move(root), tokenizer.GetSuffix()};
             }
 
             case NYPath::ETokenType::Literal: {
@@ -260,7 +260,7 @@ private:
                         ? objectManager->GetProxy(object, transaction)
                         : TNonexistingService::Get();
                 }
-                return TResolveResult::There(proxy, tokenizer.GetInput());
+                return TResolveResultThere{std::move(proxy), tokenizer.GetInput()};
             }
 
             default:
