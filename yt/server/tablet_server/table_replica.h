@@ -40,7 +40,7 @@ public:
     void ThrowInvalidState();
 
     TDuration ComputeReplicationLagTime() const;
-
+    std::vector<TError> GetErrors() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

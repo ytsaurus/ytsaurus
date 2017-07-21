@@ -2873,6 +2873,9 @@ private:
                 }
 
                 PopulateTableReplicaInfoFromStatistics(replicaInfo, protoReplicaInfo.statistics());
+                if (protoReplicaInfo.has_error()) {
+                    replicaInfo->Error() = FromProto<TError>(protoReplicaInfo.error());
+                }
             }
 
             TabletBalancer_->OnTabletHeartbeat(tablet);

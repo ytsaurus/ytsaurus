@@ -19,6 +19,7 @@
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/atomic_object.h>
 
 #include <atomic>
 
@@ -36,6 +37,7 @@ struct TRuntimeTableReplicaData
     std::atomic<TTimestamp> CurrentReplicationTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> LastReplicationTimestamp = {NullTimestamp};
     std::atomic<i64> PreparedReplicationRowIndex = {-1};
+    TAtomicObject<TError> Error;
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFrom(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
