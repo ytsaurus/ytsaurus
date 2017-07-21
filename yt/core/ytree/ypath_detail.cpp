@@ -57,7 +57,7 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(
     const TYPath& path,
     const IServiceContextPtr& /*context*/)
 {
-    return TResolveResult::Here(path);
+    return TResolveResultHere{path};
 }
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(
@@ -351,7 +351,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
         ThrowMethodNotSupported(method);
     }
 
-    return TResolveResult::Here("/@" + path);
+    return TResolveResultHere{"/@" + path};
 }
 
 TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const TString& key)
@@ -1266,7 +1266,7 @@ public:
             THROW_ERROR_EXCEPTION("YPath must start with \"/\"");
         }
 
-        return TResolveResult::There(UnderlyingService_, tokenizer.GetSuffix());
+        return TResolveResultThere{UnderlyingService_, tokenizer.GetSuffix()};
     }
 
     virtual void DoWriteAttributesFragment(

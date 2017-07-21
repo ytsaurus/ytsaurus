@@ -49,14 +49,14 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     auto service = FindItemService(key);
     if (!service) {
         if (context->GetMethod() == "Exists") {
-            return TResolveResult::Here(path);
+            return TResolveResultHere{path};
         }
         // TODO(babenko): improve diagnostics
         THROW_ERROR_EXCEPTION("Node has no child with key %Qv",
             ToYPathLiteral(key));
     }
 
-    return TResolveResult::There(service, tokenizer.GetSuffix());
+    return TResolveResultThere{std::move(service), tokenizer.GetSuffix()};
 }
 
 void TVirtualMapBase::GetSelf(
@@ -361,7 +361,7 @@ public:
         const IServiceContextPtr& /*context*/) override
     {
         // TODO(babenko): handle ugly face
-        return TResolveResult::There(UnderlyingService_, path);
+        return TResolveResultThere{UnderlyingService_, path};
     }
 
     virtual void DoWriteAttributesFragment(
