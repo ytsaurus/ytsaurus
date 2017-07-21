@@ -10,10 +10,6 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
-
-#include <yt/core/misc/serialize.h>
-
 namespace NYT {
 namespace NHydra {
 
@@ -133,7 +129,7 @@ TFuture<void> DownloadChangelog(
     int recordCount)
 {
     return BIND(&DoDownloadChangelog)
-        .AsyncVia(GetHydraIOInvoker())
+        .AsyncVia(GetCurrentInvoker())
         .Run(config, cellManager, changelogStore, changelogId, recordCount);
 }
 

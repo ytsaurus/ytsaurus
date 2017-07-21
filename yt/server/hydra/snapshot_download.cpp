@@ -11,8 +11,6 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
-
 namespace NYT {
 namespace NHydra {
 
@@ -95,7 +93,7 @@ TFuture<void> DownloadSnapshot(
     int snapshotId)
 {
     return BIND(DoDownloadSnapshot)
-        .AsyncVia(GetHydraIOInvoker())
+        .AsyncVia(GetCurrentInvoker())
         .Run(config, cellManager, fileStore, snapshotId);
 }
 
