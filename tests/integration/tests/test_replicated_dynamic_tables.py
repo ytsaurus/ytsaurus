@@ -173,6 +173,45 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         assert get_row_lag() == 0
         assert get_timestamp_lag() == 0
 
+    def test_replication_error(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        self._create_replica_table("//tmp/r", replica_id, mount=False)
+        self.sync_enable_table_replica(replica_id)
+
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 1
+        tablet_id = tablets[0]["tablet_id"]
+
+        def verify_error(message=None):
+            errors = get("//tmp/t/@replicas/%s/errors" % replica_id)
+            replica_table_tablets = get("#{0}/@tablets".format(replica_id))
+            assert len(replica_table_tablets) == 1
+            replica_table_tablet = replica_table_tablets[0]
+            assert replica_table_tablet["tablet_id"] == tablet_id
+            if len(errors) == 0:
+                assert message == None
+                assert "replication_error" not in replica_table_tablet
+            else:
+                assert len(errors) == 1
+                assert errors[0]["message"] == message
+                assert replica_table_tablet["replication_error"]["message"] == message
+                assert tablet_id
+                assert errors[0]["attributes"]["tablet_id"] == tablet_id
+
+        verify_error()
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
+        sleep(1.0)
+
+        verify_error("Table //tmp/r has no mounted tablets")
+
+        self.sync_mount_table("//tmp/r", driver=self.replica_driver)
+        sleep(1.0)
+
+        verify_error()
+
     def test_replicated_in_memory_fail(self):
         self._create_cells()
         with pytest.raises(YtError):

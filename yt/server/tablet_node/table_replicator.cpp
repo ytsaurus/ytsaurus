@@ -170,7 +170,20 @@ private:
 
     void FiberIteration()
     {
+        TTableReplicaSnapshotPtr replicaSnapshot;
         try {
+            auto tabletSnapshot = SlotManager_->FindTabletSnapshot(TabletId_);
+            if (!tabletSnapshot) {
+                THROW_ERROR_EXCEPTION("No tablet snapshot is available")
+                    << HardErrorAttribute;
+            }
+
+            replicaSnapshot = tabletSnapshot->FindReplicaSnapshot(ReplicaId_);
+            if (!replicaSnapshot) {
+                THROW_ERROR_EXCEPTION("No table replica snapshot is available")
+                    << HardErrorAttribute;
+            }
+
             auto mountConfig = GetMountConfig();
             if (!mountConfig) {
                 THROW_ERROR_EXCEPTION("No mount configuration is available");
@@ -179,18 +192,6 @@ private:
             auto foreignConnection = LocalConnection_->GetClusterDirectory()->FindConnection(ClusterName_);
             if (!foreignConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
-                    << HardErrorAttribute;
-            }
-
-            auto tabletSnapshot = SlotManager_->FindTabletSnapshot(TabletId_);
-            if (!tabletSnapshot) {
-                THROW_ERROR_EXCEPTION("No tablet snapshot is available")
-                    << HardErrorAttribute;
-            }
-
-            auto replicaSnapshot = tabletSnapshot->FindReplicaSnapshot(ReplicaId_);
-            if (!replicaSnapshot) {
-                THROW_ERROR_EXCEPTION("No table replica snapshot is available")
                     << HardErrorAttribute;
             }
 
@@ -299,8 +300,13 @@ private:
             replicaRuntimeData->LastReplicationTimestamp.store(
                 newReplicationTimestamp,
                 std::memory_order_relaxed);
+            replicaRuntimeData->Error.Store(TError());
         } catch (const std::exception& ex) {
             TError error(ex);
+            if (replicaSnapshot) {
+                replicaSnapshot->RuntimeData->Error.Store(
+                    error << TErrorAttribute("tablet_id", TabletId_));
+            }
             if (error.Attributes().Get<bool>("hard", false)) {
                 DoHardBackoff(error);
             } else {
