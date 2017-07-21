@@ -1,0 +1,891 @@
+#!/usr/bin/env python
+
+# Options that not supported:
+# -lock
+# -unlock
+#
+# -repair
+#
+# -profileformat
+#
+# -partialcommit
+# -timelimit
+# -spawnbackupjobs
+# -maxjobfails
+# -averagetimelimit
+#
+# -savestderrtail
+# -savestdouttail
+#
+# -srcserver
+
+from __future__ import print_function
+
+from yt.wrapper.cli_helpers import write_silently, run_main, die
+from yt.wrapper.table_commands import copy_table, move_table, _get_format_from_tables
+from yt.wrapper.table_helpers import _remove_locks
+from yt.wrapper.cypress_commands import remove_with_empty_dirs
+
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, \
+                              chunk_iter_stream, date_string_to_timestamp, update, parse_bool, \
+                              get_binary_std_stream, chunk_iter_rows
+import yt.wrapper.config as config
+import yt.yson as yson
+import yt.json as json
+
+from yt.packages.six.moves import map as imap, zip as izip, filter as ifilter
+
+import yt.wrapper as yt
+
+import os
+import sys
+from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
+from copy import deepcopy
+from operator import attrgetter
+from itertools import groupby
+
+def removed(list, value):
+    result = deepcopy(list)
+    result.remove(value)
+    return result
+
+def unlist_destination_tables(tables):
+    if tables is None:
+        die("Destination table required")
+    elif len(tables) == 1:
+        return tables[0]
+    else:
+        die("Multiple destination tables are forbidden")
+
+def calculate_if_function(obj):
+    if hasattr(obj, '__call__'):
+        return obj()
+    else:
+        return obj
+
+def remove_prefix(table):
+    if table.startswith(config["prefix"]):
+        return table[len(config["prefix"]):]
+    return table
+
+def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
+    if config["prefix"] is None:
+        die("You should specify PREFIX for list command")
+    if exact is not None and prefix is not None and config["yamr_mode"]["use_yamr_style_prefix"]:
+        die("prefix and exact options can not be specified simultaneously with enabled option use_yamr_style_prefix")
+    if jsonoutput and type == "file":
+        die("Option jsonoutput is not supported for files")
+
+    if prefix is not None and config["yamr_mode"]["use_yamr_style_prefix"]:
+        prefix = yt.ypath_join(config["prefix"], prefix)
+    elif exact is not None:
+        prefix = yt.ypath_join(config["prefix"], exact)
+    else:
+        prefix = config["prefix"]
+
+    attributes = [
+        "uncompressed_data_size",
+        "account",
+        "dynamic"]
+    if jsonoutput:
+        attributes += [
+            "chunk_count",
+            "row_count",
+            "compressed_data_size",
+            "resource_usage",
+            "sorted_by",
+            "modification_time",
+            "creation_time",
+            "access_time",
+            "compression_codec",
+            "replication_factor",
+            "dynamic"]
+
+    # NB: it will be files in case of type == "file"
+    def object_filter(obj):
+        if yt.config["yamr_mode"]["ignore_empty_tables_in_mapreduce_list"] and obj.attributes.get("uncompressed_data_size", 0) == 0:
+            return False
+        if user is not None and obj.attributes.get("account") != user:
+            return False
+        if type == "table" and parse_bool(obj.attributes.get("dynamic")):
+            return False
+        return True
+
+    objects = []
+    if exact is not None:
+        if yt.exists(prefix) and yt.get(prefix + "/@type") == type:
+            obj_attributes = yt.get(prefix, attributes=attributes).attributes
+            obj = yson.to_yson_type(prefix, attributes=obj_attributes)
+            if object_filter(obj):
+                objects.append(obj)
+    else:
+        request_prefix = prefix.rsplit("/", 1)[0]
+        objects = yt.search(request_prefix, type,
+                            path_filter=lambda path: path.startswith(request_prefix),
+                            subtree_filter=lambda path, _: (str(path) == request_prefix) or str(path).startswith(prefix),
+                            object_filter=object_filter,
+                            attributes=attributes,
+                            follow_links=follow_links)
+        objects = list(ifilter(lambda obj: obj.startswith(prefix), objects))
+
+    if jsonoutput:
+        result = []
+        for obj in objects:
+            attrs = obj.attributes
+            result.append({
+                "name": remove_prefix(str(obj)),
+                "user": attrs["account"],
+                "chunks": attrs["chunk_count"],
+                "records": attrs["row_count"],
+                "size": attrs["uncompressed_data_size"],
+                "byte_size": attrs["uncompressed_data_size"],
+                "full_size": attrs["uncompressed_data_size"],
+                "disk_size": attrs["resource_usage"]["disk_space"],
+                "sorted": bool(attrs.get("sorted_by")),
+                "write_locked": None,
+                "mod_time": int(date_string_to_timestamp(attrs["modification_time"])),
+                "atime": int(date_string_to_timestamp(attrs["access_time"])),
+                "creat_time": int(date_string_to_timestamp(attrs["creation_time"])),
+                "creat_transaction": None,
+                "replicas": attrs["replication_factor"],
+                "compression_algo": attrs["compression_codec"],
+                "block_format": None,
+                "hier_chunk": None})
+        result.sort(key=lambda item: item["name"])
+        return [json.dumps(result, indent=4)]
+    else:
+        return sorted(imap(remove_prefix, imap(str, objects)))
+
+def add_eoln(str):
+    return str + "\n"
+
+class ForbidRepeatedArgumentsAction(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if namespace.__dict__[self.dest] is not None:
+            parser.error("Repeated argument -" + self.dest)
+        setattr(namespace, self.dest, values)
+
+class AppendAction(Action):
+    def __init__(self, option_strings, **kwargs):
+        super(AppendAction, self).__init__(option_strings, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        value = getattr(namespace, self.dest)
+        if value is None:
+            value = []
+        value.append((option_string, values))
+        setattr(namespace, self.dest, value)
+
+class MissingValue(object):
+    pass
+
+class MaybeMissingValueArgumentAction(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values is None:
+            values = MissingValue()
+        setattr(namespace, self.dest, values)
+
+def arg_to_names(arg):
+    return ["-" + arg, "--" + arg]
+
+def add_maybe_missing_value_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument(*arg_to_names(arg), nargs="?", action=MaybeMissingValueArgumentAction)
+def add_store_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument(*arg_to_names(arg), action=ForbidRepeatedArgumentsAction)
+def add_bool_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument(*arg_to_names(arg), action="store_true", default=False)
+def add_multiple_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument(*arg_to_names(arg), action="append")
+
+def add_multiple_args_to_one_dest(parser, args, dest=None):
+    for arg in flatten(args):
+        parser.add_argument(*arg_to_names(arg), action=AppendAction, dest=dest)
+
+def add_integer_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument(*arg_to_names(arg), type=int)
+
+def add_help_message(parser, arg_name, message):
+    arg_name = arg_to_names(arg_name)[0]
+    args_tuple = parser._get_option_tuples(arg_name)
+    for arg in args_tuple:
+        if arg[1] == arg_name:
+            arg[0].help = message
+            return
+    assert False, "There is no such option " + arg_name
+
+def add_help_messages(parser, args):
+    for arg, message in args:
+        add_help_message(parser, arg, message)
+
+class SortingHelpFormatter(RawTextHelpFormatter):
+    def add_arguments(self, actions):
+        actions = sorted(actions, key=attrgetter('option_strings'))
+        super(SortingHelpFormatter, self).add_arguments(actions)
+
+def get_smart_format(tables, smart_format_flag, has_subkey, lenval, ignore_unexisting_tables=False):
+    if not (smart_format_flag or "YT_SMART_FORMAT" in os.environ):
+        return None
+    try:
+        result_format = _get_format_from_tables(tables, ignore_unexisting_tables)
+    except yt.YtError as e:
+        die(str(e))
+    if not result_format:
+        return None
+    # Dirty hacks :(
+    if result_format.name() in ["yamr", "yamred_dsv"]:
+        result_format.attributes["has_subkey"] = has_subkey
+        result_format.attributes["lenval"] = lenval
+    return result_format
+
+def configure():
+    has_create_tables_outside_of_transaction = "YT_CREATE_TABLES_UNDER_TRANSACTION" in os.environ
+    if has_create_tables_outside_of_transaction:
+        create_tables_outside_of_transaction_old_value = yt.config["yamr_mode"]["create_tables_outside_of_transaction"]
+
+    yt.set_yamr_mode()
+
+    if has_create_tables_outside_of_transaction:
+        yt.config["yamr_mode"]["create_tables_outside_of_transaction"] = create_tables_outside_of_transaction_old_value
+
+    yt.config["ignore_root_path_resolve_error_in_search"] = True
+
+def main():
+    configure()
+    parser = ArgumentParser(
+        formatter_class=SortingHelpFormatter,
+        description="Shell utility to work with YT system.\n"
+                    "This utility is back-compatible with mapreduce for Yamr.",
+        epilog=
+"""
+Examples:
+    Write data to the table with replication factor one and gzip codec:
+            mapreduce-yt -createtable 'table' -codec zlib6 -replicationfactor 1
+            mapreduce-yt -write 'table' -append < data
+
+    Read 10 records from the table:
+            mapreduce-yt -read 'table[:#10]'
+
+    Run operation on the range of the table:
+            mapreduce-yt
+                -subkey
+                -map 'awk '"'"'{sum+=$1+$2} END {print "\\t\\t"sum}'"'"
+                -src "ignat/temp{key,subkey}[("aaa"):("zzz")]"
+                -dst "ignat/sum"
+
+    Run map-reduce operation:
+            mapreduce-yt
+                -subkey
+                -map 'grep "A"'
+                -reduce 'awk '"'"'{a[$1]+=$3} END {for (i in a) {print i"\\t\\t"a[i]}}'"'"
+                -src "ignat/temp"
+                -dst "ignat/reduced"
+
+    Use already uploaded files:
+            mapreduce-yt -upload ignat/mapper.py < mapper.py
+            mapreduce-yt -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
+
+    Use you own attrbiutes:
+            mapreduce-yt -set "log/@my_attr"  -value 10
+            mapreduce-yt -get "log/@my_attr"
+    It returns 10.
+"""
+    )
+
+    action_maybe_stores = ["write", "defrag"]
+    action_stores = ["read", "writesorted", "map", "orderedmap", "reduce", "hash-reduce", "reducews", "reducewsonly", "drop",
+                     "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
+                     "createtable", "exists", "track", "ytlock", "archive", "unarchive"]
+    action_flags = ["version", "copy", "move", "merge", "list", "listfiles", "starttx", "transform"]
+
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
+                                          "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable",
+                                          "jsonoutput", "tableindex", "tablerecordindex", "followlinks"])
+    parser.add_argument(*arg_to_names("sort"), const=True, default=False, nargs="?")
+
+    add_maybe_missing_value_args(parser, action_maybe_stores)
+
+    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec", "erasurecodec",
+                                            "format", "inputformat", "outputformat", "tx", "value",
+                                            "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
+                                            "mode", "tablereader", "tablewriter", "compress", "exact", "user"])
+    add_multiple_args(parser, ["src", "file", "mapfile", "file-map", "reducefile", "file-reduce", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
+    add_multiple_args_to_one_dest(parser, ["dst", "dstappend", "dstsorted"], "dst")
+    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel", "maxjobfails", "count"])
+
+    add_help_messages(parser,
+        [
+            ("aborttx",
+             "NEW! abort given transaction"),
+            ("append",
+             "turn on append mode in write operation"),
+            ("archive",
+             "archive table"),
+            ("chunksize",
+             "bound for the size of the chunk in write operation"),
+            ("codec",
+             "NEW! type of comression used while writing table, "
+             "possible values 'snappy', 'lz4', 'lz4_high_compression', "
+             "'zlib6', 'zlib9', 'quick_lz', "
+             "by default value depends on yt installation."),
+            ("committx",
+             "NEW! commit given transaction"),
+            ("compress",
+             "Used only for compatibility, option value is ignored"),
+            ("copy",
+             "copy given tables to one destination table"),
+            ("createtable",
+             "NEW! creates empty table"),
+            ("defrag",
+             "OLD! defragmentate table"),
+            ("detached",
+             "NEW! run operation in detached mode. Operation continues even"
+             "if connection from client would be broken"),
+            ("download",
+             "NEW! download file from given path"),
+            ("drop",
+             "delete given table"),
+            ("dst",
+             "destination table, option can be passed multiple times"),
+            ("dstappend",
+             "destination table in append mode, option can be passed multiple times"),
+            ("dstsorted",
+             "check that output of your operation to this table is sorted"),
+            ("dsv",
+             "NEW! use delimited separated value format"),
+            ("erase",
+             "NEW! delete the table, this option supports range specifications"),
+            ("erasurecodec",
+             "NEW! type of erasure algorithm used while writing table. "
+             "Applicable only in trasform and archive commands."),
+            ("exists",
+             "NEW! check table for existance"),
+            ("failonemptysrctable",
+             "OLD! Error if one of input table does not exist"),
+            ("file",
+             "file for both map and reduce operations"),
+            ("force",
+             "force removing object of any type"),
+            ("fs",
+             "field separator for yamr format"),
+            ("get",
+             "NEW! returns subtree at given path in JSON format"),
+            ("hash-reduce",
+             "another alias to reduce (for compatibility with mapreduce binary)"),
+            ("inputformat",
+             "NEW! specifies operation input format. "
+             "This option has the following format: "
+             "'<format options as YSON map fragment>format'"),
+            ("jobcount",
+             "specifies jobcount (only for map and reduce operations)"),
+            ("lenval",
+             "turn on yamr format with lenval"),
+            ("list",
+             "list all tables"),
+            ("listfiles",
+             "NEW! list all files"),
+            ("lowerkey",
+             "specifies lowerkey for the range in the read operation"),
+            ("map",
+             "specifies map operation command"),
+            ("mapfile",
+             "NEW! file for the map stage of mapreduce operation"),
+            ("file-map",
+             "NEW! file for the map stage of mapreduce operation"),
+            ("maxjobfails",
+             "OLD! Limit to the number of failed jobs of operation"),
+            ("memlimit",
+             "Memory limit for user job in Mb."),
+            ("merge",
+             "merge given tables"),
+            ("mode",
+             "NEW! describes how to merge tables. Should be unordered, ordered or sorted (default)."),
+            ("move",
+             "OLD! Move src table to dst table"),
+            ("opt",
+             "specifies some operation options"),
+            ("orderedmap",
+             "specifies ordered map operation command"),
+            ("outputformat",
+             "NEW! specifies operation output format. "
+             "This option has the following format: "
+             "'<format options as YSON map fragment>format'"),
+            ("pingtx",
+             "NEW! turn on pinging ancestor transactions"),
+            ("prefix",
+             "YT use tree structure to store meta information about system objects. "
+             "Each path in the tree (except root) starts with '//'. "
+             "Therefore, (for back compatibility purpose) we use this option as prefix "
+             "for each option that means path in the tree. Default='//statbox/'"),
+            ("read",
+             "read given table"),
+            ("reduce",
+             "specifies reduce operation command"),
+            ("reducefile",
+             "NEW! file for the reduce stage of mapreduce operation"),
+            ("file-reduce",
+             "NEW! file for the reduce stage of mapreduce operation"),
+            ("reducews",
+             "specifies reduce operation command"),
+            ("renewtx",
+             "NEW! renew given transaction"),
+            ("replicationfactor",
+             "NEW! specifies replication factor of tables to write"),
+            ("rs",
+             "record separator for yamr format"),
+            ("server",
+             "address of the proxy "
+             "(port usually equals to 80 and can be omitted)"),
+            ("set",
+             "NEW! set value to given path, value should be in JSON format"),
+            ("smartformat",
+             "try to extract input and output formats from inputs and outputs (by '_format' attribute)"),
+            ("sort",
+             "sort source tables to destination table"),
+            ("sortby",
+             "NEW! columns to sortby, this option can be passed multiple times. "
+             "The order is important, by default=key,subkey."),
+            ("reduceby",
+             "NEW! columns to reduceby, this option can be passed multiple times. "
+             "The order is important, by default=key."),
+            ("src",
+             "source table, this option can be passed multiple times"),
+            ("starttx",
+             "NEW! start transaction, returns transaction id"),
+            ("stderrlevel",
+             "Used only for compatibility, option value is ignored"),
+            ("subkey",
+             "turn on yamr format with subkey"),
+            ("tablereader",
+             "NEW! config of table reader for read operation"),
+            ("tablewriter",
+             "NEW! config of table writer for write operation"),
+            ("timeout",
+             "NEW! timeout for transaction"),
+            ("title",
+             "NEW! title of the operation to print in the web interface"),
+            ("track",
+             "NEW! track operation progress"),
+            ("tx",
+             "NEW! perform command in the context of the given transaction"),
+            ("unarchive",
+             "unarchive table"),
+            ("upload",
+             "NEW! upload given file to destination"),
+            ("upperkey",
+             "specifies upperkey for the range in the read operation"),
+            ("user",
+             "specifies user for list command"),
+            ("value",
+             "specifies value for set operation"),
+            ("version",
+             "print version"),
+            ("write",
+             "write stdin to given table"),
+            ("writesorted",
+             "write stdin to given table, holds table sorted"),
+            ("ytfile",
+             "NEW! specifies path to the file in YT tree for use it in current operation"),
+            ("ytspec",
+             "NEW! spec for given operation in JSON format"),
+            ("ytlock",
+             "NEW! get lock on the given path"),
+        ]
+        +
+        [(name, "this argument is inherited from Yandex Mapreduce and it is ignored")
+         for name in ["threadcount", "jcmultiplier", "dynallocmode", "opt"]
+        ]
+    )
+
+    # Ignore all positional arguments
+    parser.add_argument("ignored", nargs=REMAINDER);
+
+    args = parser.parse_args()
+
+    if args.hash_reduce is not None:
+        args.reduce = args.hash_reduce
+        args.hash_reduce = None
+
+    ordered_map = False
+    if args.orderedmap is not None:
+        args.map = args.orderedmap
+        args.orderedmap = None
+        ordered_map = True
+
+    actions_count = sum([vars(args)[arg.replace("-", "_")] is not None for arg in action_stores + action_maybe_stores]) + \
+                    sum([vars(args)[arg.replace("-", "_")] for arg in action_flags])
+
+    if args.sort:
+        actions_count += 1
+    mapreduce_case = args.map is not None and args.reduce is not None and actions_count == 2
+    if actions_count != 1 and not mapreduce_case:
+        die("You should pass exactly one action", 1)
+    if args.version:
+        die("Version: YT wrapper " + get_version(), 0)
+
+    if args.failonemptysrctable:
+        config["yamr_mode"]["treat_unexisting_as_empty"] = False
+    if args.chunksize is not None:
+        config["write_retries"]["chunk_size"] = args.chunksize
+    if args.server is not None:
+        config["proxy"]["url"] = args.server
+
+    if args.prefix is not None and not config["yamr_mode"]["use_yamr_style_prefix"]:
+        config["prefix"] = args.prefix
+    if config["prefix"] is None:
+        config["prefix"] = "//"
+    if args.timeout is not None:
+        config["transaction_timeout"] = int(args.timeout)
+
+    ytspec = {}
+    if args.ytspec is not None:
+        for spec_arg in args.ytspec:
+            ytspec = update(ytspec, yson.json_to_yson(json.loads(spec_arg)))
+    yt.config["spec_overrides"] = update(yt.config["spec_overrides"], ytspec)
+
+    spec = {}
+    if args.title is not None:
+        spec["title"] = args.title
+
+    if args.maxjobfails is not None:
+        spec["max_failed_job_count"] = args.maxjobfails
+
+    if ordered_map:
+        spec["ordered"] = True
+
+    opt_items = []
+    opt_items += os.environ.get("MR_OPT", "").split(",")
+    for option in get_value(args.opt, []):
+        opt_items += option.split(",")
+
+    for option in opt_items:
+        if not option:
+            continue
+        name, value = option.split("=", 1)
+        if name == "jobcount" and args.jobcount is None:
+            try:
+                args.jobcount = int(value)
+            except ValueError:
+                pass
+        elif name == "cpu.intensive.mode":
+            if int(value):
+                spec["data_size_per_job"] = 1
+            else:
+                if "data_size_per_job" in spec:
+                    del spec["data_size_per_job"]
+        elif name == "use.ordered.map":
+            ordered_map = True
+        elif name == "jobcount.throttle":
+            spec = update(spec, {"resource_limits": {"user_slots": int(value)}})
+        elif name == "job.memory.limit":
+            config["memory_limit"] = int(value) * MB
+        elif name == "job.memory.limit.map":
+            spec = update(spec, {"mapper": {"memory_limit": int(value) * MB}})
+        elif name == "job.memory.limit.reduce":
+            spec = update(spec, {"reducer": {"memory_limit": int(value) * MB}})
+        elif name == "failonemptysrctable":
+            config["yamr_mode"]["treat_unexisting_as_empty"] = False
+        elif name == "use.hash.reduce":
+            pass
+        elif name == "use.reduce.without.sort":
+            pass
+        elif name == "stderrlevel":
+            pass
+
+
+    job_io = None
+    if args.tablerecordindex:
+        job_io = {"control_attributes": {"enable_row_index": True}}
+
+    has_dstsorted = False
+    dst = []
+    for option_name, value in get_value(args.dst, []):
+        assert option_name in ["-dst", "-dstappend", "-dstsorted"]
+        if option_name == "-dst":
+            dst.append(yt.TablePath(value, append=args.append))
+        elif option_name == "-dstappend":
+            dst.append(yt.TablePath(value, append=True))
+        elif option_name == "-dstsorted":
+            has_dstsorted = True
+            dst.append(yt.TablePath(value, sorted_by=["key", "subkey"]))
+
+    if args.sort and args.sort is not True:
+        dst.append(args.sort)
+        if args.src is None:
+            args.src = []
+        args.src.append(args.sort)
+        args.sort = True
+
+    if not dst:
+        dst = None
+
+    def to_list(arg):
+        if arg is None:
+            return []
+        else:
+            return flatten(arg)
+    map_files = to_list(args.file) + to_list(args.mapfile) + to_list(args.file_map)
+    reduce_files = to_list(args.file) + to_list(args.reducefile) + to_list(args.file_reduce)
+
+    enable_table_index = args.tableindex or args.tablerecordindex
+    format = yt.YamrFormat(lenval=args.lenval,
+                           has_subkey=args.subkey,
+                           field_separator=args.fs,
+                           record_separator=args.rs,
+                           enable_table_index=enable_table_index)
+    if args.dsv:
+        if args.lenval or args.subkey:
+            die("Options subkey and lenval are mutually exclusive with dsv option")
+        args.dsv = yt.DsvFormat()
+        # Try it if occur problem with reduce_by and sort_by
+        #config["yamr_mode"]["use_yamr_sort_reduce_columns"] = False
+
+    commands_that_use_format = ["get", "set", "read", "write", "writesorted", "map", "reduce", "reducews"]
+    if sum([vars(args)[arg] is not None for arg in commands_that_use_format]) == 0 \
+        and any(vars(args)[option] is not None for option in ["format", "inputformat", "outputformat"]):
+        die("You should not specify format for given command")
+
+
+    for option in ["format", "inputformat", "outputformat"]:
+        if vars(args)[option] is not None:
+            vars(args)[option] = yt.create_format((vars(args)[option]))
+
+    inputformat = first_not_none(imap(calculate_if_function,
+        [args.format,
+         args.inputformat,
+         args.dsv,
+         lambda: get_smart_format([args.src, args.read], args.smartformat, args.subkey, args.lenval,
+                                  ignore_unexisting_tables=True),
+         format]))
+
+    write_tables = args.write if not isinstance(args.write, MissingValue) else None
+    outputformat = first_not_none(imap(calculate_if_function,
+        [args.format,
+         args.outputformat,
+         args.dsv,
+         lambda: get_smart_format([dst, write_tables], args.smartformat, args.subkey, args.lenval),
+         format]))
+
+    if isinstance(outputformat, str):
+        outputformat = yt.create_format(outputformat)
+    if not (isinstance(outputformat, yt.YamrFormat) or isinstance(outputformat, yt.YamredDsvFormat)) and has_dstsorted:
+        die("Output format must be yamr or yamred_dsv if dstsorted is non-trivial")
+
+    if args.tx is not None:
+        config.COMMAND_PARAMS["transaction_id"] = args.tx
+    config.COMMAND_PARAMS["ping_ancestor_transactions"] = args.pingtx
+
+    if args.memlimit is not None:
+        config["memory_limit"] = int(args.memlimit) * MB
+
+    if args.detached is not None:
+        config["detached"] = bool(args.detached)
+
+    attributes = {}
+    replication_factor = args.replicationfactor
+    if replication_factor is not None:
+        replication_factor = int(args.replicationfactor)
+        attributes["replication_factor"] = replication_factor
+
+    if args.codec is not None:
+        attributes["compression_codec"] = args.codec
+
+    if config["yamr_mode"]["create_schema_on_tables"]:
+        attributes["schema"] = [{"name": name, "type": "string"} for name in ["key", "subkey", "value"]]
+
+    config["create_table_attributes"] = attributes
+
+    if args.tablewriter is not None:
+        args.tablewriter = yson.json_to_yson(json.loads(args.tablewriter))
+    if args.tablereader is not None:
+        args.tablereader = yson.json_to_yson(json.loads(args.tablereader))
+
+
+    if args.list:
+        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact,
+            jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)), force_use_text_stdout=True)
+    if args.listfiles:
+        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact,
+            jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)), force_use_text_stdout=True)
+    if args.read is not None:
+        stream = yt.read_table(
+                    yt.TablePath(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
+                    format=inputformat,
+                    raw=True)
+        if yt.config["read_retries"]["enable"]:
+            iterator = chunk_iter_rows(stream, 16 * MB)
+        else:
+            iterator = chunk_iter_stream(stream, 16 * MB)
+        write_silently(iterator)
+
+    if args.createtable is not None:
+        yt.create_table(args.createtable)
+    if args.write is not None:
+        if isinstance(args.write, MissingValue):
+            write_tables = dst
+        else:
+            write_tables = [yt.TablePath(args.write, append=args.append)]
+        if len(write_tables) == 1:
+            yt.write_table(write_tables[0], get_binary_std_stream(sys.stdin), format=outputformat, raw=True,
+                           table_writer=args.tablewriter)
+        else:
+            with yt.Transaction(attributes={"title": "Python wrapper: mapreduce-yt writes multiple tables"}):
+                visited = set()
+                for key, records in groupby(outputformat.load_rows(get_binary_std_stream(sys.stdin)),
+                                            key=lambda rec: rec.tableIndex):
+                    table = dst[key]
+                    if key in visited:
+                        table.append = True
+                    visited.add(key)
+
+                    yt.write_table(table, records, format=outputformat, raw=False,
+                                   table_writer=args.tablewriter)
+
+    if args.writesorted is not None:
+        attributes = {}
+        if config["yamr_mode"]["create_schema_on_tables"] and not args.append:
+            attributes["schema"] = [
+                {"name": "key", "type": "string", "sort_order": "ascending"},
+                {"name": "subkey", "type": "string", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+        else:
+            attributes["sorted_by"] = ["key", "subkey"]
+        table = yt.TablePath(args.writesorted, append=args.append, attributes=attributes)
+        yt.write_table(table, get_binary_std_stream(sys.stdin), format=outputformat, raw=True)
+    if mapreduce_case:
+        map_input_format = inputformat
+        map_output_format = reduce_input_format = reduce_output_format = outputformat
+        yt.run_map_reduce(args.map, args.reduce, args.src, dst,
+                          map_local_files=map_files, reduce_local_files=reduce_files,
+                          map_yt_files=args.ytfile, reduce_yt_files=args.ytfile,
+                          map_input_format=map_input_format, map_output_format=map_output_format,
+                          reduce_input_format=reduce_input_format, reduce_output_format=reduce_output_format,
+                          sort_by=args.sortby, reduce_by=args.reduceby,
+                          job_io=job_io,
+                          spec=spec)
+    elif args.map is not None:
+        yt.run_map(args.map, args.src, dst, local_files=map_files, yt_files=args.ytfile,
+                   input_format=inputformat, output_format=outputformat,
+                   job_count=args.jobcount,
+                   job_io=job_io,
+                   spec=spec)
+    elif args.reduce is not None or args.reducews is not None or args.reducewsonly is not None:
+        if inputformat.name() == "yamred_dsv" and args.reduceby is None:
+            args.reduceby = inputformat.attributes.get("key_column_names", [])
+        op = first_not_none([args.reduce, args.reducews, args.reducewsonly])
+        yt.run_reduce(op, args.src, dst, local_files=reduce_files, yt_files=args.ytfile,
+                      input_format=inputformat, output_format=outputformat,
+                      reduce_by=args.reduceby,
+                      sort_by=args.sortby,
+                      job_count=args.jobcount,
+                      job_io=job_io,
+                      spec=spec)
+    if args.drop is not None:
+        if yt.exists(args.drop):
+            if not args.force and yt.get_type(args.drop) not in ["table", "file"]:
+                die("You are trying to remove object of type " + yt.get_type(args.drop))
+            if args.force:
+                _remove_locks(args.drop)
+            remove_with_empty_dirs(args.drop)
+
+    if args.copy or args.move:
+        if args.copy:
+            method = copy_table
+        if args.move:
+            method = move_table
+        if isinstance(dst, list) and len(dst) > 1:
+            if len(args.src) != len(dst):
+                exit("Number of source and destination tables must be the same "
+                     "in case of multiple destination tables in copy or move")
+            with yt.Transaction(attributes={"title": "Python wrapper: mapreduce-yt copying/moving multiple tables"}):
+                for source_table, destination_table in izip(args.src, dst):
+                    method(source_table, destination_table)
+        else:
+            method(args.src, unlist_destination_tables(dst))
+
+    if args.sort:
+        if inputformat.name() == "yamred_dsv" and args.sortby is None:
+            args.sortby = inputformat.attributes.get("key_column_names", []) + \
+                          inputformat.attributes.get("subkey_column_names", [])
+        yt.run_sort(args.src, unlist_destination_tables(dst), sort_by=args.sortby,
+                    job_io=job_io,
+                    spec=spec)
+    if args.merge:
+        yt.run_merge(args.src, unlist_destination_tables(dst), mode=get_value(args.mode, "sorted"),
+                     job_count=args.jobcount,
+                     job_io=job_io,
+                     spec=spec)
+
+    if args.defrag:
+        defrag_spec = deepcopy(get_value(spec, {}))
+        defrag_spec["combine_chunks"] = True
+        defrag_job_io = deepcopy(get_value(job_io, {}))
+        if "table_writer" not in defrag_job_io:
+            defrag_job_io["table_writer"] = {}
+        defrag_job_io["table_writer"]["desired_chunk_size"] = GB
+        yt.run_merge(args.src, unlist_destination_tables(dst),
+                     job_io=defrag_job_io,
+                     spec=defrag_spec)
+
+    if args.erase is not None:
+        yt.run_erase(args.erase)
+    if args.upload is not None:
+        if yt.exists(args.upload) and yt.get_type(args.upload) == "file":
+            remove_with_empty_dirs(args.upload)
+        yt.mkdir(os.path.dirname(args.upload))
+        yt.write_file(args.upload, get_binary_std_stream(sys.stdin))
+        if args.executable:
+            yt.set_attribute(args.upload, "executable", bool_to_string(True))
+    if args.download is not None:
+        if yt.exists(args.download):
+            write_silently(chunk_iter_stream(yt.read_file(args.download), 16 * MB))
+
+    if args.exists is not None:
+        print(bool_to_string(yt.exists(args.exists)))
+
+    if args.get is not None:
+        sys.stdout.write(yt.get(args.get, format=yt.create_format("<format=pretty>json")))
+    if args.set is not None:
+        if args.value is None:
+            die("Value option is necessary for set command")
+        yt.set(args.set, yson.json_to_yson(json.loads(args.value)))
+
+    if args.starttx:
+        print(yt.start_transaction())
+    if args.committx is not None:
+        yt.commit_transaction(args.committx)
+    if args.aborttx is not None:
+        yt.abort_transaction(args.aborttx)
+    if args.renewtx is not None:
+        yt.ping_transaction(args.renewtx)
+
+    if args.ytlock is not None:
+        print(yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wait_for=args.waitfor))
+
+    if args.track is not None:
+        config["detached"] = True
+        config["operation_tracker"]["abort_on_sigint"] = False
+        operation = yt.Operation("unknown", args.track)
+        operation.wait()
+
+    if args.transform:
+        if len(args.src) > 1:
+            die("Transform command supports only one input table")
+        if len(dst) > 1:
+            die("Transform command supports only one output table")
+        yt.transform(source_table=args.src[0], destination_table=dst[0], compression_codec=args.codec, erasure_codec=args.erasurecodec)
+
+    if args.archive:
+        compression_codec = get_value(args.codec, "zlib_9")
+        erasure_codec = get_value(args.erasurecodec, "lrc_12_2_2")
+        yt.transform(source_table=args.archive, compression_codec=compression_codec, erasure_codec=erasure_codec)
+
+    if args.unarchive:
+        pass
+
+if __name__ == "__main__":
+    run_main(main)

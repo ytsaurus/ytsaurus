@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+
+import argparse
+
+from yt.wrapper.cli_helpers import run_main
+import yt.wrapper.job_tool as job_tool
+import yt.wrapper as yt
+
+def main():
+    options_parser = argparse.ArgumentParser(add_help=False)
+    options_parser.add_argument("--proxy", help="proxy url")
+    options_parser.add_argument("--token", help="YT token")
+
+    parser = argparse.ArgumentParser(parents=[options_parser],
+                                     description=job_tool.DESCRIPTION,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     epilog=job_tool.EPILOG)
+
+    job_tool.create_job_tool_parser(parser)
+
+    options, remaining_args = options_parser.parse_known_args()
+    if options.proxy is not None:
+        yt.config["proxy"]["url"] = options.proxy
+    if options.token is not None:
+        yt.config["token"] = options.token
+
+    args = dict(vars(parser.parse_args(remaining_args)))
+    for key in vars(options):
+        args.pop(key)
+
+    commands = {
+        "prepare-job-environment": job_tool.prepare_job_environment,
+        "run-job": job_tool.run_job
+    }
+    command = args.pop("command")
+    commands[command](**args)
+
+if __name__ == "__main__":
+    run_main(main)
