@@ -19,7 +19,7 @@ using std::round;
 
 //! Nodes having less free memory are considered fully occupied,
 //! thus no scheduling attempts will be made.
-static const i64 LowWatermarkMemorySize = 256 * MB;
+static const i64 LowWatermarkMemorySize = 256_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

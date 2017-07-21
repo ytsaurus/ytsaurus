@@ -36,8 +36,8 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t PipeWriteBufferSize = MB;
-static const size_t RemoteWriteBufferSize = MB;
+static const size_t PipeWriteBufferSize = 1_MB;
+static const size_t RemoteWriteBufferSize = 1_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

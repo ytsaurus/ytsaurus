@@ -51,22 +51,22 @@ public:
             .Default(0.05);
 
         RegisterParameter("min_tablet_size", MinTabletSize)
-            .Default((i64) 128 * MB);
+            .Default(128_MB);
 
         RegisterParameter("max_tablet_size", MaxTabletSize)
-            .Default(20 * GB);
+            .Default(20_GB);
 
         RegisterParameter("desired_tablet_size", DesiredTabletSize)
-            .Default(10 * GB);
+            .Default(10_GB);
 
         RegisterParameter("min_in_memory_tablet_size", MinInMemoryTabletSize)
-            .Default(512 * MB);
+            .Default(512_MB);
 
         RegisterParameter("max_in_memory_tablet_size", MaxInMemoryTabletSize)
-            .Default(2 * GB);
+            .Default(2_GB);
 
         RegisterParameter("desired_in_memory_tablet_size", DesiredInMemoryTabletSize)
-            .Default(GB);
+            .Default(1_GB);
 
         RegisterValidator([&] () {
             if (MinTabletSize > DesiredTabletSize) {
@@ -158,7 +158,7 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
             .GreaterThanOrEqual(0)
-            .Default(64 * MB);
+            .Default(64_MB);
         RegisterParameter("chunk_reader", ChunkReader)
             .DefaultNew();
         RegisterParameter("chunk_writer", ChunkWriter)

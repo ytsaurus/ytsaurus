@@ -39,7 +39,7 @@ public:
         // Very low default, override for production use.
         RegisterParameter("memory", Memory)
             .GreaterThanOrEqual(0)
-            .Default(5 * GB);
+            .Default(5_GB);
     }
 };
 

@@ -53,7 +53,7 @@ public:
         RegisterParameter("max_messages_per_post", MaxMessagesPerPost)
             .Default(16384);
         RegisterParameter("max_bytes_per_post", MaxBytesPerPost)
-            .Default((i64) 16 * MB);
+            .Default(16_MB);
     }
 };
 

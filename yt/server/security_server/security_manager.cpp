@@ -1247,7 +1247,7 @@ private:
         accountHolder->SetName(name);
         // Give some reasonable initial resource limits.
         accountHolder->ClusterResourceLimits()
-            .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = GB;
+            .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = 1_GB;
         accountHolder->ClusterResourceLimits().NodeCount = 1000;
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
         accountHolder->ClusterResourceLimits().TabletCount = 100000;
@@ -1713,8 +1713,8 @@ private:
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
                 .SetTabletCount(100000)
-                .SetTabletStaticMemory(10 * TB)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, TB);
+                .SetTabletStaticMemory(10_TB)
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -1726,7 +1726,7 @@ private:
             TmpAccount_->ClusterResourceLimits() = TClusterResources()
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, TB);
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1738,7 +1738,7 @@ private:
             IntermediateAccount_->ClusterResourceLimits() = TClusterResources()
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, TB);
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,

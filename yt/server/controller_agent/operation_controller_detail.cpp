@@ -945,7 +945,7 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
             edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
             edgeDescriptor.TableWriterOptions->TableIndex = 0;
             i64 dataWeightPerJob = std::min(
-                1.0 * GB,
+                static_cast<double>(1_GB),
                 Spec_->AutoMerge->JobIO->TableWriter->DesiredChunkSize / dataWeightRatio);
             auto task = New<TAutoMergeTask>(
                 this /* taskHost */,
@@ -2578,7 +2578,7 @@ void TOperationControllerBase::MoveTaskToCandidates(
     candidateTasks.insert(std::make_pair(minMemory, task));
     LOG_DEBUG("Task moved to candidates (Task: %v, MinMemory: %v)",
         task->GetId(),
-        minMemory / MB);
+        minMemory / 1_MB);
 
 }
 
