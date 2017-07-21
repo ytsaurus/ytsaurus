@@ -21,9 +21,7 @@
 #if defined(_linux_)
     #include <mntent.h>
     #include <sys/vfs.h>
-#ifdef QUOTA_ENABLED
     #include <sys/quota.h>
-#endif
     #include <sys/types.h>
     #include <sys/sendfile.h>
 #elif defined(_freebsd_) || defined(_darwin_)
@@ -588,7 +586,7 @@ void SetQuota(
     TNullable<i64> diskSpaceLimit,
     TNullable<i64> inodeLimit)
 {
-#if defined(_linux_) && defined(QUOTA_ENABLED)
+#ifdef _linux_
     dqblk info;
     const i64 blockSize = GetBlockSize(path);
     const auto filesystem = GetFilesystemName(path);

@@ -75,7 +75,6 @@ check_include_files(sys/types.h    HAVE_SYS_TYPES_H)
 check_include_files(sys/ucontext.h HAVE_SYS_UCONTEXT_H)
 check_include_files(ucontext.h     HAVE_UCONTEXT_H)
 check_include_files(unistd.h       HAVE_UNISTD_H)
-check_include_files(sys/quota.h    HAVE_QUOTA_H)
 
 # XXX(sandello): libunwind support is broken.
 # check_include_files(libunwind.h    HAVE_LIBUNWIND_H)
