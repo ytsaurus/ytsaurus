@@ -133,9 +133,9 @@ YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 YANDEX_YT_PYTHON_VERSION="0.8.18-0"
 
 if [ "$UBUNTU_CODENAME" = "precise" ]; then
-    YANDEX_YT_VERSIONS="19.1.22136-prestable~bd2d4d9 19.2.22846-prestable~4249782"
+    YANDEX_YT_VERSIONS="19.1.22136-prestable~bd2d4d9 19.2.22912-prestable~46b5fcc"
 elif [ "$UBUNTU_CODENAME" = "trusty" ]; then
-    YANDEX_YT_VERSIONS="19.1.22126-prestable~36fa536 19.2.22846-prestable~4249782"
+    YANDEX_YT_VERSIONS="19.1.22126-prestable~36fa536 19.2.22912-prestable~46b5fcc"
 else
     echo "Ubuntu $UBUNTU_CODENAME is not currently supported"
     exit 1
