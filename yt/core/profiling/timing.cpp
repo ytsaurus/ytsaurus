@@ -99,6 +99,11 @@ TCpuInstant GetCpuInstant()
     return GetCycleCount();
 }
 
+TInstant GetInstant()
+{
+    return CpuInstantToInstant(GetCpuInstant());
+}
+
 TDuration CpuDurationToDuration(TCpuDuration duration)
 {
     // TDuration is unsigned and thus does not support negative values.
