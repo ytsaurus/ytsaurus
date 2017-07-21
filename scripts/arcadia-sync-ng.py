@@ -677,12 +677,14 @@ def action_push(ctx, args):
     if args.review and args.force:
         raise CheckError("`--review` and `--force` conflict with each other, choose one")
 
-    if args.review:
-        commit_message += "\nREVIEW: NEW\n"
     if args.force:
         commit_message += "\n__FORCE_COMMIT__\n"
     else:
         commit_message += "\n__BYPASS_CHECKS__\n"
+        if args.review:
+            commit_message += "\nREVIEW: %s\n" % args.review
+        else:
+            commit_message += "\nREVIEW: NEW\n"
 
     git_dry_run(
         args.yes, ctx,
@@ -1026,8 +1028,8 @@ if __name__ == "__main__":
         "push", help="initiate a merge from github to arcadia")
     push_parser.add_argument("--force", "-f", action="store_true", default=False,
                              help="force commit")
-    push_parser.add_argument("--review", "-r", action="store_true", default=False,
-                             help="review commit")
+    push_parser.add_argument("--review", "-r", nargs="?", default=None,
+                             help="review commit (you may provide the review id)")
     push_parser.add_argument("--yes", "-y", action="store_true", default=False,
                              help="do something indeed")
     push_parser.set_defaults(action=action_push)
