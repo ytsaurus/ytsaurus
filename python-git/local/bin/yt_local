@@ -1,0 +1,241 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+from yt.local import start, stop, delete, get_proxy, list_instances
+from yt.local.helpers import YTCheckingThread
+from yt.local.commands import _START_DEFAULTS, get_main_process_pid_file_path
+
+from yt.wrapper.cli_helpers import run_main
+from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
+
+import argparse
+import logging
+import time
+import sys
+import os
+
+DESCRIPTION = """Command-line utility to work with local YT instances."""
+
+logger = logging.getLogger("Yt.local")
+
+_USE_START_DEFAULT = object()
+
+def fix_parser(parser):
+    old_add_argument = parser.add_argument
+
+    def add_argument(*args, **kwargs):
+        help = [kwargs.get("help", "")]
+        if "default" in kwargs:
+
+            if kwargs["default"] is _USE_START_DEFAULT:
+                argument_name = args[0].strip("--").replace("-", "_")
+                kwargs["default"] = _START_DEFAULTS[argument_name]
+
+            default = str(kwargs["default"])
+            help.append(" (default: {0})".format(default))
+        kwargs["help"] = "".join(help)
+        old_add_argument(*args, **kwargs)
+
+    parser.add_argument = add_argument
+    return parser
+
+def patch_add_parser(subparsers):
+    old_add_parser = subparsers.add_parser
+
+    def add_parser(*args, **kwargs):
+        func = kwargs.get("func", None)
+        if func is not None:
+            kwargs.pop("func")
+        parser = fix_parser(old_add_parser(*args, **kwargs))
+        if func is not None:
+            parser.set_defaults(func=func)
+        return parser
+
+    subparsers.add_parser = add_parser
+
+def start_func(**kwargs):
+    sync = kwargs.pop("sync", False)
+    quiet = kwargs.pop("quiet", False)
+    no_proxy = kwargs.pop("no_proxy", False)
+    timeout = kwargs.pop("timeout", None)
+    forbid_chunk_storage_in_tmpfs = kwargs.pop("forbid_chunk_storage_in_tmpfs", None)
+
+    if not sync and timeout is not None:
+        print("Warning! --timeout option has no effect when --sync flag is not specified", file=sys.stderr)
+
+    kwargs["start_proxy"] = not no_proxy
+    kwargs["allow_chunk_storage_in_tmpfs"] = not forbid_chunk_storage_in_tmpfs
+
+    if quiet:
+        logger.setLevel(logging.WARNING)
+    else:
+        logger.setLevel(logging.INFO)
+
+    # Compatibility options
+    if kwargs["masters_count"] is not None:
+        kwargs["master_count"] = kwargs["masters_count"]
+    if kwargs["nodes_count"] is not None:
+        kwargs["node_count"] = kwargs["nodes_count"]
+    if kwargs["schedulers_count"] is not None:
+        kwargs["scheduler_count"] = kwargs["schedulers_count"]
+    if kwargs["ports_range_start"] is not None:
+        kwargs["port_range_start"] = kwargs["ports_range_start"]
+    if kwargs["operations_memory_limit"] is not None:
+        kwargs["jobs_memory_limit"] = kwargs["operations_memory_limit"]
+    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit"):
+        del kwargs[opt]
+    # Tests options
+    sync_mode_sleep_timeout = kwargs.pop("sync_mode_sleep_timeout")
+
+    if sync:
+        kwargs["set_pdeath_sig"] = True
+
+    environment = start(**kwargs)
+
+    if sync:
+        main_process_pid_file = get_main_process_pid_file_path(kwargs["path"])
+
+        with open(main_process_pid_file, "w") as f:
+            f.write(str(os.getpid()))
+
+        if quiet:
+            print(environment.id)
+
+        checking_thread = YTCheckingThread(environment, delay=sync_mode_sleep_timeout, timeout=timeout)
+        checking_thread.start()
+
+        def interrupt_action():
+            logger.info("Stopping local YT instance")
+            checking_thread.stop()
+            environment.stop()
+            os.remove(main_process_pid_file)
+            sys.exit(0)
+
+        with KeyboardInterruptsCatcher(interrupt_action):
+            while True:
+                time.sleep(sync_mode_sleep_timeout)
+    else:
+        print(environment.id)
+
+def add_start_subparser(subparsers):
+    parser = subparsers.add_parser("start", help="Start local YT environment with specified options",
+                                   func=start_func)
+    parser.add_argument("--master-count", type=int, default=_USE_START_DEFAULT, help="number of masters")
+    parser.add_argument("--node-count", type=int, default=_USE_START_DEFAULT, help="number of nodes")
+    parser.add_argument("--scheduler-count", type=int, default=_USE_START_DEFAULT, help="number of schedulers")
+
+    for service in ["master", "node", "scheduler", "proxy"]:
+        parser.add_argument("--{0}-config".format(service), help="{0} config path".format(service))
+
+    parser.add_argument("--sync", action="store_true", default=False,
+                        help="start in synchronized mode (hangs up console and prints info there)")
+    parser.add_argument("--id", help="local YT id (guid will be generated if not specified)")
+    parser.add_argument("--local-cypress-dir", help="local Cypress directory (map_nodes and tables will be created in "
+                                                    "Cypress according to this directory layout)")
+
+    parser.add_argument("-q", "--quiet", action="store_true", default=False,
+                        help="decrease verbosity (leave only warnings and errors)")
+
+    parser.add_argument("--use-proxy-from-yt-source", action="store_true", default=False,
+                        help="Do not start proxy from package, start from YT source tree using run_proxy.sh. "
+                             "Can be specified through YT_LOCAL_USE_PROXY_FROM_SOURCE.")
+    parser.add_argument("--no-proxy", action="store_true", default=False, help="do not start proxy")
+    parser.add_argument("--proxy-port", type=int, help="proxy port for http requests")
+    parser.add_argument("--enable-debug-logging", action="store_true", default=False,
+                        help="set logging level threshold to DEBUG")
+    parser.add_argument("--tmpfs-path", help="path to mounted tmpfs. "
+                                             "Will be used to store performance critical parts.")
+    parser.add_argument("--port-range-start", type=int,
+                        help="assign ports from continuous range starting from this port number.")
+    parser.add_argument("--fqdn", help="FQDN to use in all addresses. Detected automatically if not specified.")
+    parser.add_argument("--prepare-only", action="store_true", default=False,
+                        help="Only prepare environment, but don't start.")
+
+    parser.add_argument("--jobs-memory-limit", type=int, default=_USE_START_DEFAULT,
+                        help="memory limit for jobs in bytes")
+    parser.add_argument("--jobs-cpu-limit", type=int, default=_USE_START_DEFAULT, help="cpu limit for jobs")
+    parser.add_argument("--jobs-user-slot-count", type=int, default=_USE_START_DEFAULT,
+                        help="slot count for user jobs")
+
+    parser.add_argument("--node-chunk-store-quota", type=int, default=_USE_START_DEFAULT,
+                        help="size for node chunk storage in bytes")
+    parser.add_argument("--forbid-chunk-storage-in-tmpfs", action="store_true", default=False,
+                        help="disables chunk storage in tmpfs")
+
+    parser.add_argument("--wait-tablet-cell-initialization", action="store_true", default=False,
+                        help="wait until tablet cell (created during world initialization) health is good")
+    parser.add_argument("--timeout", type=int,
+                        help="time in seconds after which local YT will be stopped automatically "
+                             "(applies only to sync mode)")
+
+    # Compatibility options
+    parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--nodes-count", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--schedulers-count", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--ports-range-start", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--operations-memory-limit", type=int, help=argparse.SUPPRESS)
+    # Options for tests
+    parser.add_argument("--sync-mode-sleep-timeout", type=int, default=2, help=argparse.SUPPRESS)
+
+def add_stop_subparser(subparsers):
+    parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)
+    parser.add_argument("id", help="local YT id")
+    parser.add_argument("--delete", help="remove working directory after stopping", action="store_true",
+                        dest="remove_working_dir")
+
+def add_delete_subparser(subparsers):
+    parser = subparsers.add_parser("delete", help="Delete stopped local YT working directory.",
+                                   func=delete)
+    parser.add_argument("id", help="local YT id")
+
+def get_proxy_func(**kwargs):
+    print(get_proxy(**kwargs))
+
+def add_get_proxy_subparser(subparsers):
+    parser = subparsers.add_parser("get_proxy", help="Get proxy address for local YT with given id",
+                                   func=get_proxy_func)
+    parser.add_argument("id", help="local YT id")
+
+def print_instances(**kwargs):
+    for instance_id, status, proxy_address in list_instances(**kwargs):
+        if status == "running":
+            if proxy_address is None:
+                print("{0}\tstatus: {1}\tproxy: not started".format(instance_id, status))
+            else:
+                print("{0}\tstatus: {1}\tproxy: {2}".format(instance_id, status, proxy_address))
+        else:
+            print("{0}\tstatus: {1}".format(instance_id, status))
+
+def add_list_subparser(subparsers):
+    subparsers.add_parser("list", help="List local YT instances", func=print_instances)
+
+def main():
+    options_parser = argparse.ArgumentParser(add_help=False)
+    options_parser.add_argument("--path", help="local YTs root path, can be specified "
+                                               "with YT_LOCAL_ROOT_PATH variable")
+
+    parser = argparse.ArgumentParser(parents=[options_parser],
+                                     description=DESCRIPTION)
+
+    subparsers = parser.add_subparsers(metavar="command")
+    patch_add_parser(subparsers)
+
+    add_start_subparser(subparsers)
+    add_stop_subparser(subparsers)
+    add_delete_subparser(subparsers)
+    add_get_proxy_subparser(subparsers)
+    add_list_subparser(subparsers)
+
+    options, remaining_args = options_parser.parse_known_args()
+    args = parser.parse_args(remaining_args)
+
+    func_args = dict(vars(args))
+    func_args.update(vars(options))
+
+    func_args.pop("func")
+    args.func(**func_args)
+
+if __name__ == "__main__":
+    run_main(main)
+

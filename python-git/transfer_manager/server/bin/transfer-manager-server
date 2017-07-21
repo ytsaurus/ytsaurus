@@ -1,0 +1,1454 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+from yt.transfer_manager.server.logger import TaskIdLogger, RequestIdLogger
+from yt.transfer_manager.server.yt_client import clone_client
+from yt.transfer_manager.server.flask_helpers import process_gzip
+from yt.transfer_manager.server.pattern_matching import match_copy_pattern
+from yt.transfer_manager.server.lock import CountedRLock
+from yt.transfer_manager.server.task_types import Task
+from yt.transfer_manager.server.clusters_configuration import get_clusters_configuration_from_config
+from yt.transfer_manager.server.errors import RequestFailed, SchedulingError
+from yt.transfer_manager.server.precheck import perform_precheck
+from yt.transfer_manager.server.helpers import log_yt_exception, get_token_and_user, \
+                                               SafeThread, get_cluster_version, configure_logger, filter_out_keys
+from yt.transfer_manager.server.task_executor import TaskExecutorProcess, TaskProcessClient
+
+from yt.tools.logging_server import LogRecordSocketReceiver
+
+from yt.common import remove_file
+from yt.wrapper.common import generate_uuid, get_value, update, parse_bool
+import yt.json as json
+
+from yt.packages.expiringdict import ExpiringDict
+from yt.packages.six import iteritems, PY3
+from yt.packages.six.moves import xrange, zip as izip
+
+import yt.wrapper as yt
+
+from cherrypy import wsgiserver
+import pympler.muppy as pympler_muppy
+import pympler.summary as pympler_summary
+from pympler.asizeof import asizeof
+
+from flask import Flask, request, jsonify, Response, make_response, send_file
+
+try:
+    import yappi
+except ImportError:
+    yappi = None
+
+import os
+import gc
+import sys
+import time
+import prctl
+import signal
+import socket
+import logging
+import logging.handlers
+import tempfile
+import argparse
+import traceback
+from copy import deepcopy
+from datetime import datetime
+from collections import defaultdict, deque
+from threading import RLock
+from multiprocessing import Process
+from itertools import chain
+
+OS_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
+
+def get_node_size(obj):
+    result = 1
+    if isinstance(obj, list):
+        for item in obj:
+            result += get_node_size(item)
+    elif isinstance(obj, dict):
+        for item in obj.values():
+            result += get_node_size(item)
+    return result
+
+SIGTERM_SENT = False
+def sigterm_handler(signum, frame):
+    global SIGTERM_SENT
+    if not SIGTERM_SENT:
+        print("Handling SIGTERM, killing process group", file=sys.stderr)
+        SIGTERM_SENT = True
+        os.killpg(0, signal.SIGINT)
+        time.sleep(0.5)
+        os.killpg(0, signal.SIGTERM)
+
+    os._exit(1)
+
+def make_solomon_sensor(name, value, **kwargs):
+    labels = update({"sensor": name}, deepcopy(kwargs))
+    return {"labels": labels, "value": value}
+
+def now_str():
+    return str(datetime.utcnow().isoformat() + "Z")
+
+class Application(object):
+    ERROR_BUFFER_SIZE = 2 ** 16
+
+    def __init__(self, config_path):
+        self._start_time = time.time()
+        self._pid = os.getpid()
+        self._fqdn = socket.getfqdn()
+        self._daemon = Flask(__name__)
+
+        self._sleep_step = 0.5
+
+        self._config_path = config_path
+
+        self._config = json.load(open(config_path))
+        self._last_successfully_loaded_config = deepcopy(self._config)
+        self._mutex = CountedRLock()
+        self._cypress_mutexes = defaultdict(CountedRLock)
+        self._user_mutexes = defaultdict(CountedRLock)
+        self._yt = yt.YtClient(**self._config["yt_backend_options"])
+
+        self._profiling_mutex = RLock()
+        self._profiling = {
+            "execution_time": defaultdict(deque),
+            "execution_cumtime": defaultdict(float),
+            "instant_call_count": defaultdict(int),
+            "total_call_count": defaultdict(int),
+            "pending_task_count": defaultdict(int),
+            "running_task_count": defaultdict(int)
+        }
+
+        self._clusters_config_mutex = RLock()
+        self._clusters_configuration = get_clusters_configuration_from_config(self._config)
+
+        self._path = self._config["path"]
+
+    def start_processes(self):
+        # We should register sigterm handler only for main transfer manager process.
+        signal.signal(signal.SIGTERM, sigterm_handler)
+
+        # Starting yappi.
+        if yappi is not None:
+            yappi.set_clock_type("cpu")
+            yappi.start()
+
+        # Run logging process. It inherits current logging configuration.
+        self._logging_process = Process(target=self._run_logging_server, name="LoggingThread")
+        self._logging_process.daemon = True
+        self._logging_process.start()
+
+        # Replace current logger with socket logger.
+        configure_logger(self._config.get("logging", {}))
+        self.logger = logging.getLogger("TM.main")
+
+        # Run executor process.
+        task_executor_process = TaskExecutorProcess(self._config["task_executor"])
+        task_executor_process.start()
+        self._task_executor_address = task_executor_process.address
+
+        # Prepare auth node if it is missing
+        self._auth_path = os.path.join(self._path, "auth")
+        self._yt.create("map_node", self._auth_path, ignore_existing=True)
+
+        # Run lock thread
+        self._terminating = False
+        self._lock_acquired = False
+        self._tasks_loaded = False
+        self._lock_path = os.path.join(self._path, "lock")
+        self._lock_timeout = 10.0
+        self._check_lock_acquired_timeout = 1.0
+        self._yt.create("map_node", self._lock_path, ignore_existing=True)
+        self._lock_thread = SafeThread(target=self._take_lock, name="LockThread")
+        self._lock_thread.daemon = True
+        self._lock_thread.start()
+
+        # Run execution thread
+        self._task_processes = {}
+        self._execution_thread = SafeThread(target=self._schedule_tasks, name="SchedulingThread")
+        self._execution_thread.daemon = True
+        self._execution_thread.start()
+
+        # Tasks cache
+        self._cache_tasks_mutex = RLock()
+        self._cache_tasks_response = None
+        self._last_tasks_cache_update_time = 0
+        self._tasks_cache_expiration_timeout = \
+            self._config["tasks_cache_expiration_timeout"] / 1000.0
+        self._tmp_config_counter = defaultdict(int)
+
+        # Incoming requests counter
+        self._incoming_requests_counter_mutex = RLock()
+        self._incoming_requests_count = 0
+
+        # Run config reloading thread.
+        self._clusters_config_reloading_thread = SafeThread(target=self._reload_clusters_config,
+                                                            name="ClustersConfigReloadingThread")
+        self._clusters_config_reloading_thread.daemon = True
+        self._clusters_config_reloading_thread.start()
+
+        # Initialize mutating requests cache.
+        self._mutating_requests_cache = ExpiringDict(
+            self._config["mutating_requests_cache_size"],
+            self._config["mutating_requests_cache_expiration_timeout"] / 1000.0,
+            logger=self.logger.info)
+
+        # Requests in progress set.
+        self._requests_in_progress = set()
+        self._requests_in_progress_mutex = RLock()
+
+        self._add_rule("/", 'main', methods=["GET"], depends_on_lock=False)
+        # User rules
+        self._add_rule("/tasks/", 'get_tasks', methods=["GET"], is_heavy=True)
+        self._add_rule("/tasks/", 'add_task', methods=["POST"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/", 'delete_tasks', methods=["DELETE"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/<id>/", 'get_task', methods=["GET"], is_heavy=True)
+        self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/<id>/abort/", 'abort_task', methods=["POST"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/<id>/restart/", 'restart_task', methods=["POST"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/<id>/ping/", 'ping_task', methods=["POST"])
+        self._add_rule("/tasks/<id>/ping_and_get/", 'ping_and_get_task', methods=["POST"])
+        # Service rules
+        self._add_rule("/config/", 'config', methods=["GET"])
+        self._add_rule("/ping/", 'ping', methods=["GET"])
+        self._add_rule("/match/", 'match', methods=["POST"])
+        self._add_rule("/profiling/call_tracker/", 'profiling_call_tracker', methods=["GET"])
+        self._add_rule("/profiling/memory_tracker/", 'profiling_memory_tracker', methods=["GET"])
+        self._add_rule("/profiling/stats/", 'profiling_stats', methods=["GET"])
+        self._add_rule("/solomon_sensors/", 'solomon_sensors', methods=["GET"])
+
+    def terminate(self):
+        self._terminating = True
+        self._lock_thread.join(self._sleep_step)
+        self._execution_thread.join(self._sleep_step)
+
+    def _add_rule(self, rule, endpoint, methods, depends_on_lock=True, is_mutating=False, is_heavy=False):
+        def process_mutation_request():
+            if is_mutating:
+                return (self._process_mutating_request, ())
+            return (None, ())
+
+        def check_request_rate_limit():
+            if is_heavy:
+                return (self._check_requests_limit, ())
+            return (None, ())
+
+        methods.append("OPTIONS")
+
+        middlewares = [(self._log_request, ()),
+                       (self._process_exception, ()),
+                       check_request_rate_limit(),
+                       (self._add_call_statistics, (endpoint, )),
+                       (self._process_lock, (depends_on_lock, )),
+                       process_mutation_request(),
+                       (process_gzip, ()),
+                       (self._process_cors, (methods, )),
+                       (self._process_exception, ())]
+
+        endpoint_method = Application.__dict__[endpoint]
+        for middleware, middleware_args in reversed(middlewares):
+            if middleware is not None:
+                endpoint_method = middleware(endpoint_method, *middleware_args)
+
+        self._daemon.add_url_rule(rule, endpoint, endpoint_method, methods=methods)
+
+    def _log_request(self, func):
+        def decorator(*args, **kwargs):
+            id = generate_uuid()
+            request_logger = RequestIdLogger(self.logger, id)
+            headers = dict(request.headers)
+            filtered_headers = filter_out_keys(headers, ["Content-Length", "Host", "Accept",
+                                               "Content-Type", "Authorization"])
+            request_logger.info("Request recieved (url: %s, data: %s, headers: %s)",
+                                request.url, str(request.data), filtered_headers)
+            request.id = id
+            try:
+                return func(*args, **kwargs)
+            finally:
+                request_logger.info("Request processing finished")
+        return decorator
+
+    def _process_lock(self, func, depends_on_lock):
+        def decorator(*args, **kwargs):
+            if depends_on_lock:
+                if not self._lock_acquired:
+                    return "Lock is not acquired, instance in the slave mode", 500
+                if not self._tasks_loaded:
+                    return "Lock is acquired, loading tasks", 500
+            return func(*args, **kwargs)
+        return decorator
+
+    def _process_cors(self, func, methods):
+        def decorator(*args, **kwargs):
+            if request.method == "OPTIONS":
+                rsp = self._daemon.make_default_options_response()
+                rsp.headers["Access-Control-Allow-Origin"] = "*"
+                rsp.headers["Access-Control-Allow-Methods"] = ", ".join(methods)
+                rsp.headers["Access-Control-Allow-Headers"] = ", ".join(["Authorization", "Origin", "Content-Type", "Accept"])
+                rsp.headers["Access-Control-Max-Age"] = 3600
+                return rsp
+            else:
+                rsp = make_response(func(self, *args, **kwargs))
+                rsp.headers["Access-Control-Allow-Origin"] = "*"
+                return rsp
+
+        return decorator
+
+    def _process_exception(self, func):
+        def decorator(*args, **kwargs):
+            try:
+                request_logger = RequestIdLogger(self.logger, request.id)
+                return func(*args, **kwargs)
+            except RequestFailed as error:
+                log_yt_exception(request_logger)
+                return json.dumps(error.simplify()), error.attributes["http_code"]
+            except Exception as error:
+                log_yt_exception(request_logger)
+                return json.dumps({"code": 1, "message": "Unknown error: " + traceback.format_exc()}), 404
+
+        return decorator
+
+    def _add_call_statistics(self, func, method_name):
+        def decorator(*args, **kwargs):
+            now = time.time()
+
+            with self._profiling_mutex:
+                self._profiling["instant_call_count"][method_name] += 1
+                self._profiling["total_call_count"][method_name] += 1
+
+            try:
+                return func(*args, **kwargs)
+            finally:
+                elapsed = time.time() - now
+
+                with self._profiling_mutex:
+                    self._profiling["execution_cumtime"][method_name] += elapsed
+                    self._profiling["instant_call_count"][method_name] -= 1
+
+                    deque = self._profiling["execution_time"][method_name]
+                    deque.append((datetime.now().isoformat(), elapsed))
+                    if len(deque) > self._config["profiling"]["queue_limit"]:
+                        deque.popleft()
+
+        return decorator
+
+    def _check_requests_limit(self, func):
+        def decorator(*args, **kwargs):
+            with self._incoming_requests_counter_mutex:
+                if self._incoming_requests_count > self._config["incoming_requests_limit"]:
+                    return "Incoming requests limit exceeded, try again later", 500
+                self._incoming_requests_count += 1
+
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                with self._incoming_requests_counter_mutex:
+                    self._incoming_requests_count -= 1
+
+            return result
+
+        return decorator
+
+    def _process_mutating_request(self, func):
+        def decorator(*args, **kwargs):
+            params = json.loads_as_bytes(request.headers.get("X-TM-Parameters", "{}"))
+            mutation_id = params.get("mutation_id")
+            retry = parse_bool(params.get("retry", "false"))
+
+            if retry and time.time() - self._start_time < self._mutating_requests_cache.max_age:
+                raise RequestFailed("Transfer Manager just started and cannot process retry requests")
+
+            if mutation_id is None:
+                if retry:
+                    raise RequestFailed('Cannot process retry request without specified "mutation_id" header')
+                return func(*args, **kwargs)
+
+            with self._requests_in_progress_mutex:
+                if mutation_id in self._requests_in_progress:
+                    if not retry:
+                        raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
+                                            .format(mutation_id))
+                    raise RequestFailed("Request with mutation id {0} is being processed. "
+                                        "Retry again later".format(mutation_id), http_code=503)
+
+            processed_request = self._mutating_requests_cache.get(mutation_id)
+            if processed_request is not None:
+                if not retry:
+                    raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
+                                        .format(mutation_id))
+                return processed_request
+
+            with self._requests_in_progress_mutex:
+                self._requests_in_progress.add(mutation_id)
+
+            response = func(*args, **kwargs)
+
+            self._mutating_requests_cache[mutation_id] = response
+
+            with self._requests_in_progress_mutex:
+                self._requests_in_progress.remove(mutation_id)
+
+            return response
+
+        return decorator
+
+    def _take_lock(self):
+        yt_client = clone_client(self._yt)
+        with yt_client.Transaction(attributes={"title": "Transfer manager lock"}) as tx:
+            while True:
+                try:
+                    yt_client.lock(self._lock_path)
+                    break
+                except yt.YtError as err:
+                    if err.is_concurrent_transaction_lock_conflict():
+                        self.logger.info("Failed to take lock under transaction %s", tx.transaction_id)
+                        time.sleep(self._lock_timeout)
+                        continue
+                    log_yt_exception(self.logger)
+                    raise
+
+            self.logger.info("Lock acquired under transaction %s", tx.transaction_id)
+
+            self._lock_acquired = True
+
+            self._yt = yt.create_client_with_command_params(
+                prerequisite_transaction_ids=[tx.transaction_id],
+                client=self._yt)
+
+            # Loading tasks from cypress
+            self._load_tasks(os.path.join(self._path, "tasks"))
+
+            self._tasks_loaded = True
+
+            self.logger.info("Start processing requests")
+
+            # Set attribute outside of transaction
+            self._yt.set_attribute(self._path, "address", socket.getfqdn())
+
+            # Sleep infinitely long
+            while True:
+                if self._terminating:
+                    return
+                time.sleep(self._sleep_step)
+
+    def _get_clusters_configuration(self):
+        with self._clusters_config_mutex:
+            return deepcopy(self._clusters_configuration)
+
+    def _reload_clusters_config(self):
+        reload_timeout = self._config["clusters_config_reload_timeout"] / 1000.0
+        while True:
+            if not self._tasks_loaded:
+                time.sleep(self._check_lock_acquired_timeout)
+                continue
+
+            time.sleep(reload_timeout)
+
+            try:
+                config = json.load(open(self._config_path))
+                with self._clusters_config_mutex:
+                    if self._last_successfully_loaded_config == config:
+                        self.logger.debug("Config is not changed, reloading skipped")
+                        continue
+
+                configuration = get_clusters_configuration_from_config(config)
+                with self._clusters_config_mutex:
+                    self._clusters_configuration = configuration
+                    self._last_successfully_loaded_config = config
+
+                self.logger.info("Clusters configuration was successfully reloaded")
+            except:
+                self.logger.exception("Failed to update clusters configuration")
+
+    def _run_logging_server(self):
+        prctl.set_pdeathsig(signal.SIGINT)
+        configure_logger(self._config["logging"], is_logger_thread=True)
+        socket_reciever = LogRecordSocketReceiver(lambda record: logging.getLogger("TM").handle(record),
+                                                  port=self._config["logging"]["port"])
+        socket_reciever.serve_until_stopped()
+
+    def _load_tasks(self, tasks_path):
+        self.logger.info("Loading tasks from cypress")
+
+        self._tasks_path = tasks_path
+        if not self._yt.exists(self._tasks_path):
+            self._yt.create("map_node", self._tasks_path)
+
+        # From id to task description
+        self._tasks = {}
+
+        # From ... to task ids
+        self._running_tasks_per_direction = defaultdict(list)
+
+        # List of tasks sorted by creation time
+        self._pending_tasks = []
+
+        # User task count (pending + running)
+        self._user_task_count = defaultdict(int)
+
+        running_tasks = []
+
+        portion_size = 500
+
+        responses = []
+        task_ids = self._yt.list(tasks_path)
+        for portion_index in xrange(1 + len(task_ids) / portion_size):
+            start_index = min(portion_index * portion_size, len(task_ids))
+            end_index = min((portion_index + 1) * portion_size, len(task_ids))
+            requests = [{"command": "get", "parameters": {"path": yt.ypath_join(tasks_path, task_ids[index])}}
+                        for index in xrange(start_index, end_index)]
+            responses += self._yt.execute_batch(requests)
+
+        for task_id, response in izip(task_ids, responses):
+            task_logger = TaskIdLogger(self.logger, task_id)
+
+            if "error" in response and response["error"]:
+                task_logger.warning("Failed to load task: %s", str(yt.YtResponseError(response["error"])))
+                continue
+
+            task_options = response["output"]
+            task_options["logger"] = task_logger
+
+            try:
+                task = Task(**task_options)
+            except Exception as err:
+                task_logger.warning("Failed to load task: %s", str(err))
+                continue
+
+            task._last_ping_time = time.time()
+
+            try:
+                active_client, passive_client = task.get_active_and_passive_clients(
+                    self._get_clusters_configuration())
+            except yt.YtError as err:
+                task_logger.warning("Failed to load task: %s", str(err))
+                continue
+
+            if active_client._type == "yt" and task.pool is None:
+                task_logger.warning("Failed load task: task has no pool")
+                continue
+
+            self._tasks[task_id] = task
+            if task.state == "running":
+                running_tasks.append(task_id)
+                task.state = "pending"
+                task.state_description = "Waiting for the start of Transfer Manager"
+                # To optimize start time we do not change state in Cypress here.
+                # It lead us to the situation when state in cypress differ from state in memory,
+                # but for such tasks it is not bad.
+                #self._change_task_state(id, "pending")
+            if task.state == "pending":
+                self._append_pending_task(task)
+                task.state_description = "Waiting for the start of Transfer Manager"
+
+        self.logger.info("Tasks loaded from cypress")
+
+        self._pending_tasks.sort(key=lambda task_id: self._tasks[task_id].creation_time)
+
+        # Abort tasks operations (TM can fail but operations will go on)
+        self._abort_running_operations(running_tasks)
+
+        self.logger.info("Tasks loaded")
+
+    def _append_pending_task(self, task):
+        self._pending_tasks.append(task.id)
+        with self._user_mutexes[task.user]:
+            self._user_task_count[task.user] += 1
+        with self._profiling_mutex:
+            self._profiling["pending_task_count"][task.get_direction_id_with_user()] += 1
+
+    def _change_task_state(self, id, new_state, new_state_description=None):
+        with self._mutex:
+            old_state = self._tasks[id].state
+            self._tasks[id].state = new_state
+            if new_state_description:
+                self._tasks[id].state_description = new_state_description
+            self._dump_task(id)
+            self._tasks[id].logger.info("Task change state: %s -> %s", old_state, new_state)
+
+    def _dump_task(self, id):
+        with self._mutex:
+            start_time = time.time()
+            path = os.path.join(self._tasks_path, id)
+            value = self._tasks[id].dict()
+
+            node_count = get_node_size(value)
+            node_count_limit = self._config.get("task_node_count_limit", 1000)
+            if node_count > node_count_limit:
+                self.logger.info("Task %s takes %d nodes (>%d)", id, node_count, node_count_limit)
+
+            object_size = asizeof(value)
+            object_size_limit = self._config.get("task_object_size_limit", 1000000)
+            if object_size > object_size_limit:
+                self.logger.info("Task %s takes %d bytes in python (>%d)", id, object_size, object_size_limit)
+
+            os.path.join(self._tasks_path, id)
+            client = yt.YtClient(**self._config["yt_backend_options"])
+            with self._mutex.discharge():
+                with self._cypress_mutexes[path]:
+                    start_set_time = time.time()
+                    client.set(path, value)
+                    end_set_time = time.time()
+            if not self._cypress_mutexes[path].is_acquired():
+                del self._cypress_mutexes[path]
+            self._tasks[id].logger.info("State of task dumped to cypress (total time: %.2lf, cypress_set time: %.2lf)",
+                                        time.time() - start_time, end_set_time - start_set_time)
+
+    def _create_pool(self, yt_client, destination_cluster_name):
+        pool_name = "transfer_" + destination_cluster_name
+        pool_path = "//sys/pools/transfer_manager/" + pool_name
+        yt_client = clone_client(yt_client)
+        yt_client.config["token"] = self._yt.config["token"]
+        try:
+            if not yt_client.exists(pool_path):
+                yt_client.create("map_node", pool_path, recursive=True, ignore_existing=True)
+                yt_client.set(pool_path + "/@resource_limits", {"user_slots": 200})
+                yt_client.set(pool_path + "/@mode", "fifo")
+            while not yt_client.exists("//sys/scheduler/orchid/scheduler/pools/" + pool_name):
+                time.sleep(0.5)
+        except yt.YtError as err:
+            raise yt.YtError("Transfer manager failed to create pool path: %s" % pool_path, inner_errors=[err])
+        return pool_name
+
+    def _initialize_pool(self, task, clusters_configuration):
+        if task.pool is not None:
+            return
+
+        active_client, passive_client = task.get_active_and_passive_clients(clusters_configuration)
+        if active_client._type != "yt":
+            return
+
+        name = passive_client._name
+        if name in active_client._pools:
+            pool = active_client._pools[name]
+        else:
+            pool = self._create_pool(active_client, name)
+        task.pool = pool
+
+    def _check_permission(self, id, headers, action_name):
+        _, user = get_token_and_user(request, yt.YtClient(**self._config["yt_backend_options"]))
+        if self._tasks[id].user != user:
+            with self._mutex.discharge():
+                self._check_administer_permission(action_name, headers=headers, user=user)
+
+    def _check_administer_permission(self, action_name, headers=None, user=None):
+        client = yt.YtClient(**self._config["yt_backend_options"])
+        if user is None:
+            _, user = get_token_and_user(request, client)
+        if client.check_permission(user, "administer", self._auth_path)["action"] != "allow":
+            raise RequestFailed("{0} task is not permitted".format(action_name), http_code=403)
+
+    def _set_defaults(self, task, clusters_configuration):
+        source_client = task.get_source_client(clusters_configuration.clusters)
+        destination_client = task.get_destination_client(clusters_configuration.clusters)
+        if task.kiwi_user is None and destination_client._type == "kiwi":
+            task.kiwi_user = self._config.get("default_kiwi_user")
+        if source_client._type == "yt" and destination_client._type == "yt":
+            if task.copy_method is None:
+                task.copy_method = "proxy" if get_cluster_version(source_client) != get_cluster_version(destination_client) else "native"
+
+            is_destination_cluster_marx = task.destination_cluster == "marx"
+            if task.intermediate_format is None and task.copy_method == "proxy":
+                if is_destination_cluster_marx:
+                    task.intermediate_format = "<annotate_with_types=%true>json"
+                else:
+                    task.intermediate_format = "yson"
+
+            if task.pack_yt_wrapper is None:
+                task.pack_yt_wrapper = self._config.get("pack_yt_wrapper", True)
+            if task.pack_yson_bindings is None:
+                task.pack_yson_bindings = self._config.get("pack_yson_bindings", not is_destination_cluster_marx)
+
+            # TODO(asaitgalin): Remove this when marx is updated to version which supports fractional cpu.
+            if is_destination_cluster_marx:
+                copy_spec = get_value(task.copy_spec, {})
+                task.copy_spec = update({"mapper": {"cpu_limit": 0}}, copy_spec)
+
+    def _can_run(self, task):
+        direction_running_task_count = len(self._running_tasks_per_direction[task.get_direction_id()])
+        if direction_running_task_count >= self._config["running_tasks_limit_per_direction"]:
+            task.state_description = "Waiting in the direction queue"
+            return False
+
+        client, _ = task.get_active_and_passive_clients(self._get_clusters_configuration())
+        if client._type == "yt":
+            if task.pool is None:
+                raise SchedulingError("Task has no pool")
+            return True
+
+        return True
+
+    def _renew_lease(self, task_id):
+        # NB: Fields of Task must be serializable.
+        # Such operation in object field is thread-safe.
+        self._tasks[task_id]._last_ping_time = time.time()
+
+    def _force_abort(self, process):
+        process.aborted = True
+        if process.poll() is None:
+            try:
+                os.kill(process.pid, signal.SIGTERM)
+            except OSError:
+                pass
+
+    # NB: return generator for waiting actual task abort.
+    def _abort_task(self, id, reason):
+        process = None
+        with self._mutex:
+            if self._tasks[id].state in ["aborting", "aborted", "completed", "failed"]:
+                return
+
+            self._tasks[id].logger.info("Aborting task")
+
+            task_was_executed = id in self._task_processes
+            task_is_aborted = False
+
+            if task_was_executed:
+                process = self._task_processes[id]
+                process.aborting = True
+                process.aborting_start_time = datetime.now()
+                self._tasks[id].logger.info("Killing process with pid %d", process.pid)
+                try:
+                    os.kill(process.pid, signal.SIGINT)
+                except OSError:
+                    pass
+                if process.poll() is not None:
+                    process.aborted = True
+                    task_is_aborted = True
+
+            if id in self._pending_tasks:
+                self._user_task_count[self._tasks[id].user] -= 1
+                self._pending_tasks.remove(id)
+
+            if self._tasks[id].state not in ["aborted", "completed", "failed"]:
+                self._tasks[id].finish_time = now_str()
+                new_state = "aborted"
+                if task_was_executed and not task_is_aborted:
+                    new_state = "aborting"
+
+                new_state_description = "{0}. Reason: {1}".format(new_state.title(), reason)
+                self._change_task_state(id, new_state, new_state_description)
+
+        if not task_was_executed:
+            return
+
+        def wait():
+            while True:
+                with self._mutex:
+                    if process.aborted:
+                        return
+                yield
+
+        return wait()
+
+    def _schedule_tasks(self):
+        while True:
+            if self._terminating:
+                return
+
+            if not self._tasks_loaded:
+                time.sleep(self._check_lock_acquired_timeout)
+                continue
+
+            self.logger.info("Starting new scheduling round")
+            start_time = time.time()
+
+            with self._mutex:
+                self.logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
+
+                now = time.time()
+                for id in chain(self._pending_tasks, self._task_processes):
+                    task = self._tasks[id]
+                    if task.lease_timeout is not None and (now - task._last_ping_time > task.lease_timeout):
+                        task.logger.info("Lease of task has expired")
+                        self._abort_task(id, reason="lease of task has expired")
+
+                for id, process in list(iteritems(self._task_processes)):
+                    task = self._tasks[id]
+                    task.logger.info("Task %s", self._tasks[id].state)
+
+                    error = None
+                    completed = False
+                    complete_type = None
+
+                    process_is_alive = process.poll() is None
+
+                    for message in process.get_messages():
+                        if message["type"] == "error":
+                            error = message["error"]
+                        elif message["type"] == "operation_started":
+                            self._tasks[id].progress["operations"].append(message["operation"])
+                            self._dump_task(id)
+                            task.state_description = "Running the operation"
+                        elif message["type"] == "transaction_started":
+                            self._tasks[id].progress["transactions"].append(message["transaction"])
+                            self._dump_task(id)
+                        elif message["type"] in ["completed", "skipped"]:
+                            completed = True
+                            complete_type = message["type"]
+                            task.state_description = message["type"].title()
+                        else:
+                            assert False, "Incorrect message type: " + message["type"]
+
+                    task.logger.info("Messages from queue fetched")
+
+                    if process.aborting and not process.aborted:
+                        if (datetime.now() - process.aborting_start_time).total_seconds() > self._sleep_step:
+                            self._force_abort(process)
+                            self._change_task_state(id, "aborted")
+                        else:
+                            continue
+
+                    if not process_is_alive and not (process.aborting or process.aborted or error is not None or completed):
+                        message = "Process of task died silently"
+                        task.logger.warning(message)
+                        error = {"message": message, "code": 1}
+
+                    if process.aborted or error is not None or completed:
+                        self._tasks[id].finish_time = now_str()
+                        if process.aborted:
+                            pass
+                        elif error is not None:
+                            self._tasks[id].error = error
+                            self._change_task_state(id, "failed", "An error has occured")
+                        elif completed:
+                            if process_is_alive:
+                                task.logger.warning("Task completed, but process still alive!")
+                            self._change_task_state(id, complete_type)
+
+                        self._dump_task(id)
+                        self._running_tasks_per_direction[self._tasks[id].get_direction_id()].remove(id)
+                        self._user_task_count[self._tasks[id].user] -= 1
+
+                        with self._profiling_mutex:
+                            self._profiling["running_task_count"][self._tasks[id].get_direction_id_with_user()] -= 1
+
+                        self._tmp_config_counter[process.temporary_config] -= 1
+                        if self._tmp_config_counter[process.temporary_config] == 0:
+                            remove_file(process.temporary_config, force=True)
+                            del self._tmp_config_counter[process.temporary_config]
+                        self._task_processes[id].remove()
+                        del self._task_processes[id]
+
+                        task.logger.info("Task processed")
+
+                # Prepare config once.
+                temporary_config = None
+                runned_tasks = 0
+                scheduling_complete = False
+                for id in self._pending_tasks:
+                    task = self._tasks[id]
+                    if scheduling_complete:
+                        task.state_description = "Waiting in scheduler queue"
+                        continue
+                    try:
+                        if not self._can_run(self._tasks[id]):
+                            task.logger.info("Task pending")
+                            continue
+                    except SchedulingError as error:
+                        self._tasks[id].error = error.simplify()
+                        self._change_task_state(id, "failed", "An error has occured")
+                        continue
+
+                    direction_id = self._tasks[id].get_direction_id()
+                    self._running_tasks_per_direction[direction_id].append(id)
+
+                    user_and_direction = self._tasks[id].get_direction_id_with_user()
+                    with self._profiling_mutex:
+                        self._profiling["pending_task_count"][user_and_direction] -= 1
+                        self._profiling["running_task_count"][user_and_direction] += 1
+
+                    self._tasks[id].start_time = now_str()
+                    self._tasks[id].progress = {"operations": [], "transactions": []}
+                    self._change_task_state(id, "running", "Preparing to start the operation")
+
+                    if temporary_config is None:
+                        with tempfile.NamedTemporaryFile(delete=False, dir=self._config.get("default_tmp_dir")) as fout:
+                            temporary_config = fout.name
+                            json.dump(self._get_config(), fout)
+
+                    task.logger.info("Starting subprocess for task")
+                    task_process = TaskProcessClient(self._task_executor_address, task.logger)
+                    task_process.start(id, temporary_config, json.dumps(self._tasks[id].dict()))
+                    task.logger.info("Subprocess for task started")
+                    task_process.aborting = False
+                    task_process.aborted = False
+                    task_process.temporary_config = temporary_config
+                    self._task_processes[id] = task_process
+
+                    self._tmp_config_counter[task_process.temporary_config] += 1
+
+                    runned_tasks += 1
+                    if runned_tasks >= self._config["max_tasks_to_run_per_scheduling_round"]:
+                        scheduling_complete = True
+
+                self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
+
+            self.logger.info("Scheduling round takes %.2lf seconds (%.2lf for waiting mutex)", time.time() - start_time, now - start_time)
+
+            time.sleep(self._sleep_step)
+
+    def _get_config(self):
+        # NB: Build the config, that actually used by transfer manager.
+        config = deepcopy(self._config)
+        with self._clusters_config_mutex:
+            # Clusters configuration is reloadable. Apply available changes to config.
+            for key in self._clusters_configuration.__dict__:
+                config[key] = deepcopy(self._last_successfully_loaded_config[key])
+        return config
+
+    def _get_task_description(self, task):
+        task_description = task.dict(hide_token=True)
+        direction_index = 1
+        with self._mutex:
+            for queue_index, id in enumerate(self._pending_tasks):
+                if id == task.id:
+                    task_description["direction_index"] = direction_index
+                    # XXX(asaitgalin): Frontend can use this attribute
+                    task_description["queue_index"] = queue_index + 1
+                    task_description["state_description"] += " (direction_index: {0}, queue_index: {0})" \
+                        .format(direction_index, queue_index + 1)
+                    break
+
+                if self._tasks[id].get_direction_id() == task.get_direction_id():
+                    direction_index += 1
+
+        return task_description
+
+    def _abort_running_operations(self, running_tasks):
+        self.logger.info("Aborting running operations and transactions of tasks")
+        clusters = self._get_clusters_configuration().clusters
+
+        def do_abort(task, object_dict, abort_func, type_):
+            cluster_name, object_id = object_dict["cluster_name"], object_dict["id"]
+            if cluster_name not in clusters:
+                return
+
+            if clusters[cluster_name]._type == "hadoop":
+                # NB: To avoid aborting Hadoop tasks.
+                # TODO(ignat): support aborting Hadoop task.
+                return
+            if clusters[cluster_name]._type != "yt":
+                task.logger.warning("Transfer manager does not support progress for non-YT cluster, "
+                                    "but it unexpectedly found for %s cluster",
+                                    clusters[cluster_name]._type)
+                return
+
+            cluster_client = clusters[cluster_name]
+            if cluster_name == task.source_cluster:
+                cluster_client.config["token"] = task.source_cluster_token
+            else:
+                cluster_client.config["token"] = task.destination_cluster_token
+
+            try:
+                abort_func(object_id, cluster_client)
+                task.logger.info("Aborted outdated {0} {1} ".format(type_, object_id))
+            except yt.YtError:
+                log_yt_exception(task.logger, "Failed abort {0} {1}".format(type_, object_id))
+
+        def safe_abort_operation(operation_id, client):
+            root_client = clone_client(client)
+            root_client.config["token"] = self._yt.config["token"]
+            if not root_client.exists("//sys/operations/{0}".format(operation_id)) or \
+                   root_client.get_operation_state(operation_id).is_finished():
+                return
+            root_client.abort_operation(operation_id)
+
+        def abort_operations_and_transactions(task):
+            if not task.progress:
+                return
+
+            for operation in task.progress.get("operations", []):
+                do_abort(task, operation, safe_abort_operation, "operation")
+            for transaction in task.progress.get("transactions", []):
+                do_abort(task, transaction,
+                         lambda obj_id, client: client.abort_transaction(obj_id), "transaction")
+
+        for task_id in running_tasks:
+            task = self._tasks[task_id]
+            abort_operations_and_transactions(task)
+
+    def _create_task(self, params, token, user, dry_run, make_precheck):
+        id = generate_uuid()
+        task_logger = TaskIdLogger(self.logger, id, request.id)
+        task_logger.info("Adding task %s", json.dumps(params))
+        task_logger.request_id = None
+        # Move this check to precheck function
+        required_parameters = set(["source_cluster", "source_table", "destination_cluster"])
+        if not set(params) >= required_parameters:
+            raise RequestFailed("All required parameters ({}) must be presented".format(", ".join(required_parameters)))
+        if "destination_table" not in params:
+            params["destination_table"] = None
+        if "backend_tag" not in params:
+            params["backend_tag"] = self._config.get("backend_tag")
+
+        try:
+            task = Task(
+                id=id,
+                creation_time=now_str(),
+                user=user,
+                token=token,
+                state="pending",
+                state_description="Waiting in scheduler queue",
+                logger=task_logger,
+                **params)
+        except TypeError as error:
+            raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
+
+        if len(self._pending_tasks) > self._config["pending_tasks_limit"]:
+            raise RequestFailed("Too many pending tasks (>{0})".format(len(self._pending_tasks)), http_code=500)
+
+        if self._user_task_count[task.user] > self._config["tasks_limit_per_user"]:
+            raise RequestFailed("Too many tasks per user (total and pending) (>{0})".format(self._user_task_count[task.user]),
+                                http_code=500)
+
+        if task.queue_name is not None:
+            client = yt.YtClient(**self._config["yt_backend_options"])
+            try:
+                if client.check_permission(task.user, "write",
+                                           "{0}/queues/{1}".format(self._path, task.queue_name))["action"] != "allow":
+                    raise RequestFailed("There is not permission to create task in queue {0}".format(task.queue_name))
+            except yt.YtResponseError as err:
+                if err.is_resolve_error():
+                    raise RequestFailed("Queue {0} is missing".format(task.queue_name))
+                raise
+
+        clusters_configuration = self._get_clusters_configuration()
+        self._set_defaults(task, clusters_configuration)
+        if make_precheck:
+            try:
+                perform_precheck(task, clusters_configuration, task_logger)
+            except yt.YtError as error:
+                raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error]), None, sys.exc_info()[2]
+
+        if task.skip_if_destination_exists:
+            destination_client = task.get_destination_client(clusters_configuration.clusters)
+            if destination_client._type == "yt" and destination_client.exists(task.destination_table):
+                task.state = "skipped"
+                task.state_description = "Skipped since destination table exists"
+                task.finish_time = now_str()
+
+        if not dry_run:
+            self._initialize_pool(task, clusters_configuration)
+
+            client = yt.YtClient(**self._config["yt_backend_options"])
+            client.create("document", os.path.join(self._tasks_path, task.id), attributes={"value": task.dict()})
+
+            if task.lease_timeout is not None:
+                task._last_ping_time = time.time()
+
+            with self._mutex:
+                self._tasks[task.id] = task
+
+                if task.state == "skipped":
+                    task_logger.info('Task skipped since "skip_if_destination_exists" option '
+                                     'is specified and destination table exists')
+                    return task.id
+
+                self._append_pending_task(task)
+
+            task_logger.info("Task added")
+
+        return task.id
+
+    def _delete_tasks(self, ids):
+        client = yt.YtClient(**self._config["yt_backend_options"])
+
+        failed_ids = []
+        ids_to_delete = []
+
+        with self._mutex:
+            for id_ in ids:
+                task = self._tasks.get(id_)
+                is_running = id_ in self._task_processes
+                if task is None or task.state not in ["aborted", "failed", "completed", "skipped"] or is_running:
+                    failed_ids.append(id_)
+                    continue
+
+                del self._tasks[id_]
+                ids_to_delete.append(id_)
+
+        for id_ in ids_to_delete:
+            client.remove(os.path.join(self._tasks_path, id_), recursive=True, force=True)
+
+        if failed_ids:
+            raise RequestFailed("The following tasks not finished or do not exist "
+                                "and can't be deleted: {0}".format(", ".join(failed_ids)))
+
+    # Public interface
+    def run(self, *args, **kwargs):
+        self.logger.info("Starting transfer manager (pid %s)", self._pid)
+
+        dispatcher = wsgiserver.WSGIPathInfoDispatcher({'/': self._daemon})
+        server = wsgiserver.CherryPyWSGIServer((self._config.get("host", "::"), self._config["port"]), dispatcher,
+                                               numthreads=self._config["thread_count"])
+        try:
+           server.start()
+        except KeyboardInterrupt:
+           server.stop()
+
+
+    # Url handlers
+    def main(self):
+        return "This is YT transfer manager"
+
+    def add_task(self):
+        try:
+            params = json.loads_as_bytes(request.data)
+        except ValueError as error:
+            raise RequestFailed("Cannot parse JSON from body '{}'".format(request.data),
+                                inner_errors=[yt.YtError(error.message)], http_code=500)
+
+        token, user = get_token_and_user(request, yt.YtClient(**self._config["yt_backend_options"]))
+        dry_run = request.args.get("dry_run", False)
+
+        if isinstance(params, list):
+            ids = []
+            for task_params in params:
+                ids.append(
+                    self._create_task(
+                        params=task_params,
+                        token=token, user=user,
+                        dry_run=dry_run,
+                        make_precheck=False))
+            return ids
+        else:
+            enable_early_precheck = self._config.get("enable_early_precheck", True)
+            return self._create_task(
+                params=params,
+                token=token,
+                user=user,
+                dry_run=dry_run,
+                make_precheck=enable_early_precheck)
+
+    def abort_task(self, id):
+        if id not in self._tasks:
+            raise RequestFailed("Unknown task " + id)
+
+        with self._mutex:
+            self._check_permission(id, request.headers, "Aborting")
+
+        waiting_abort = self._abort_task(id, "user request")
+        if waiting_abort is not None:
+            for _ in waiting_abort:
+                time.sleep(self._sleep_step)
+
+        return ""
+
+    def restart_task(self, id):
+        if id not in self._tasks:
+            raise RequestFailed("Unknown task " + id)
+
+        self._tasks[id].logger.info("Restarting task")
+
+        with self._mutex:
+            self._check_permission(id, request.headers, "Restarting")
+            if self._tasks[id].state not in ["completed", "aborted", "failed"]:
+                raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
+
+            if self._tasks[id].history is None:
+                self._tasks[id].history = []
+
+            history_element = {
+                "progress": self._tasks[id].progress,
+                "error": self._tasks[id].error,
+                "start_time": self._tasks[id].start_time,
+                "finish_time": self._tasks[id].finish_time
+            }
+            for bad_key in [key for key, value in iteritems(history_element) if value is None]:
+                del history_element[bad_key]
+
+            self._tasks[id].history.append(history_element)
+
+            self._tasks[id].state = "pending"
+            self._tasks[id].state_description = "Waiting in scheduler queue"
+            self._tasks[id].restart_time = now_str()
+            self._tasks[id]._last_ping_time = time.time()
+
+            self._tasks[id].progress = None
+            self._tasks[id].error = None
+            self._tasks[id].start_time = None
+            self._tasks[id].finish_time = None
+
+            self._dump_task(id)
+            self._pending_tasks.append(id)
+
+        return ""
+
+    def get_task(self, id):
+        task = self._tasks.get(id)
+        if task is None:
+            raise RequestFailed("Unknown task " + id)
+
+        task_description = self._get_task_description(task)
+
+        return jsonify(**task_description)
+
+    def ping_and_get_task(self, id):
+        self.ping_task(id)
+        return self.get_task(id)
+
+    def ping_task(self, id):
+        if id not in self._tasks:
+            raise RequestFailed("Unknown task " + id)
+
+        self._renew_lease(id)
+
+        return ""
+
+    def delete_tasks(self):
+        try:
+            ids = json.loads_as_bytes(request.data)
+        except ValueError as error:
+            raise RequestFailed("Cannot parse JSON from body '{}'".format(request.data), inner_errors=[yt.YtError(error.message)])
+
+        self._check_administer_permission("delete", headers=request.headers)
+
+        self._delete_tasks(ids)
+
+        return ""
+
+    def delete_task(self, id):
+        with self._mutex:
+            if id in self._tasks:
+                self._check_permission(id, request.headers, "Deleting")
+
+        self._delete_tasks([id])
+
+        return ""
+
+    def get_tasks(self):
+        start_time = time.time()
+
+        user = request.args.get("user")
+        fields = request.args.getlist("fields[]")
+        allow_cache = parse_bool(request.args.get("allow_cache", "true"))
+        if not fields:
+            fields = None
+        else:
+            fields = set(fields)
+
+        if user is not None or fields is not None:
+            allow_cache = False
+
+        if allow_cache:
+            with self._cache_tasks_mutex:
+                if start_time - self._last_tasks_cache_update_time < self._tasks_cache_expiration_timeout:
+                    self.logger.info("Get tasks responded from cache")
+                    return Response(self._cache_tasks_response, mimetype="application/json")
+
+        # Thread safe method to save copies of dict and list shared among threads.
+        # In Python 3 this method does not return list so mutex should be taken.
+        if not PY3:
+            tasks = dict(self._tasks.items())
+        else:
+            with self._mutex:
+                tasks = deepcopy(self._tasks)
+        pending_tasks = self._pending_tasks[:]
+
+        copy_finished_time = time.time()
+
+        tasks_direction_indexes = {}
+        tasks_queue_indexes = {}
+        queue_sizes = defaultdict(int)
+        for queue_index, id in enumerate(pending_tasks):
+            direction_id = tasks[id].get_direction_id()
+            queue_sizes[direction_id] += 1
+            tasks_direction_indexes[id] = queue_sizes[direction_id]
+            tasks_queue_indexes[id] = queue_index + 1
+
+        if user is not None:
+            tasks = dict([(id, task) for id, task in iteritems(tasks) if task.user == user])
+
+        last_check_time = time.time()
+        tasks_descriptions = []
+        for id, task in iteritems(tasks):
+
+            if allow_cache and time.time() - last_check_time > 1:
+                last_check_time = datetime.now()
+                with self._cache_tasks_mutex:
+                    if start_time - self._last_tasks_cache_update_time < self._tasks_cache_expiration_timeout:
+                        self.logger.info("Get tasks responded from cache")
+                        return Response(self._cache_tasks_response, mimetype="application/json")
+            description = task.dict(hide_token=True, fields=fields)
+            if id in tasks_direction_indexes:
+                description["direction_index"] = tasks_direction_indexes[id]
+                # XXX(asaitgalin): Frontend can use this attribute
+                description["queue_index"] = tasks_queue_indexes[id]
+                description["state_description"] = description.get("state_description", "") + " (direction_index: {0}, queue_index: {0})" \
+                    .format(description["direction_index"], description["queue_index"])
+            try:
+                json.dumps(description)
+            except UnicodeDecodeError:
+                task.logger.warning("Cannot decode in JSON struct '%s'", repr(description))
+                continue
+
+            tasks_descriptions.append(description)
+
+        data = json.dumps(tasks_descriptions)
+
+        if user is None and fields is None:
+            with self._cache_tasks_mutex:
+                self._last_tasks_cache_update_time = start_time
+                self._cache_tasks_response = data
+                self.logger.info("Updated tasks cache")
+
+        self.logger.info("Get tasks finished timings: total=%.2lf, copy=%.2lf, processing=%.2lf",
+                         time.time() - start_time, copy_finished_time - start_time, time.time() - copy_finished_time)
+
+        return Response(data, mimetype="application/json")
+
+    def config(self):
+        def hide_token(obj):
+            if isinstance(obj, dict):
+                for key in obj:
+                    if key == "token":
+                        obj[key] = "token_is_hidden"
+                    else:
+                        hide_token(obj[key])
+            elif isinstance(obj, list):
+                for elem in obj:
+                    hide_token(elem)
+
+        config = self._get_config()
+        hide_token(config)
+
+        return jsonify(config)
+
+    def ping(self):
+        return "OK", 200
+
+    def match(self):
+        params = json.loads_as_bytes(request.data)
+
+        source_pattern = params["source_pattern"]
+        destination_pattern = params["destination_pattern"]
+        source_cluster = params["source_cluster"]
+        include_files = params.get("include_files", False)
+
+        clusters_configuration = self._get_clusters_configuration()
+        if source_cluster not in clusters_configuration.clusters:
+            raise yt.YtError("Unknown cluster " + source_cluster)
+        client = clusters_configuration.clusters[source_cluster]
+        if client._type == "yt":
+            token, _ = get_token_and_user(request, yt.YtClient(**self._config["yt_backend_options"]))
+            new_client = clone_client(client)
+            new_client.config["token"] = get_value(params.get("source_cluster_token"), token)
+            new_client._type = client._type
+            client = new_client
+        else:
+            client = deepcopy(client)
+
+        matchings = match_copy_pattern(client, source_pattern, destination_pattern, include_files)
+        return Response(json.dumps(matchings), mimetype="application/json")
+
+    def profiling_call_tracker(self):
+        with self._profiling_mutex:
+            profiling_dict = deepcopy(self._profiling)
+
+        for key in profiling_dict["execution_time"]:
+            profiling_dict["execution_time"][key] = list(profiling_dict["execution_time"][key])
+
+        return Response(json.dumps(profiling_dict), mimetype="application/json")
+
+    def profiling_memory_tracker(self):
+        info = request.args.get("format", "object_types_top_table")
+        if info in ("object_types_top_table", "object_types_summary"):
+            objects = pympler_muppy.get_objects()
+            summary = pympler_summary.summarize(objects)
+            limit = int(request.args.get("limit", "50"))
+            if info == "object_types_top_table":
+                summary_repr = "\n".join(list(pympler_summary.format_(summary, limit=limit))) + "\n"
+                return summary_repr, 200
+            else:
+                return json.dumps(summary), 200
+        elif info == "gc_info":
+            return json.dumps({"garbage_size": len(gc.garbage), "counts": gc.get_count()}), 200
+        elif info == "application_field_sizes":
+            return json.dumps(dict([(key, len(value)) for key, value in iteritems(self.__dict__)
+                                    if isinstance(value, list) or isinstance(value, dict)])), 200
+        else:
+            return "Unknown value of info option", 200
+
+    def profiling_stats(self):
+        stats_type = request.args.get("type", "callgrind")
+
+        fd, filename = tempfile.mkstemp(prefix="stats",
+                                        dir=self._config.get("default_tmp_dir"))
+        os.close(fd)
+        try:
+            if yappi is not None:
+                yappi.get_func_stats().save(filename, type=stats_type)
+                return send_file(filename,
+                                 as_attachment=True,
+                                 attachment_filename=os.path.basename(filename))
+
+            return "yappi module is currently unavailable", 500
+        finally:
+            remove_file(filename, force=True)
+
+    def solomon_sensors(self):
+        sensors = []
+
+        sensors.append(make_solomon_sensor("pending_count", len(self._pending_tasks)))
+        sensors.append(make_solomon_sensor("running_count", len(self._task_processes)))
+
+        with open("/proc/{0}/statm".format(self._pid)) as f:
+            memory_info = f.readline().strip()
+            rss_mem = int(memory_info.split()[1]) * OS_PAGE_SIZE // 1024
+            sensors.append(make_solomon_sensor("rss_memory_kb", rss_mem))
+
+        with self._profiling_mutex:
+            profiling = deepcopy(self._profiling)
+
+        for key in profiling["instant_call_count"]:
+            if key == "solomon_sensors":
+                continue
+            sensors.append(make_solomon_sensor("call_count", profiling["instant_call_count"][key], method=key))
+
+        def queue_kwarg(queue):
+            if queue is not None:
+                return {"queue": queue}
+            return {}
+
+        total_count = defaultdict(int)
+        for type_ in ["pending", "running"]:
+            for key in profiling[type_ + "_task_count"]:
+                queue, user, src_cluster, dst_cluster = key
+                sensors.append(make_solomon_sensor(
+                    type_ + "_count",
+                    profiling[type_ + "_task_count"][key],
+                    user=user,
+                    src_cluster=src_cluster,
+                    dst_cluster=dst_cluster,
+                    **queue_kwarg(queue)))
+                total_count[key] += profiling[type_ + "_task_count"][key]
+
+        for (queue, user, src_cluster, dst_cluster), count in iteritems(total_count):
+            sensors.append(make_solomon_sensor(
+                "total_count",
+                count,
+                user=user,
+                src_cluster=src_cluster,
+                dst_cluster=dst_cluster,
+                **queue_kwarg(queue)))
+
+        sensors.append(make_solomon_sensor(
+            "active_instance",
+            int(self._lock_acquired),
+            host=self._fqdn))
+
+        return Response(json.dumps({"sensors": sensors}), mimetype="application/json")
+
+def main():
+    parser = argparse.ArgumentParser(description="Transfer manager.")
+    parser.add_argument("--config", required=True)
+    args = parser.parse_args()
+
+    app = Application(args.config)
+    app.start_processes()
+    app.run()
+    app.terminate()
+
+if __name__ == "__main__":
+    main()

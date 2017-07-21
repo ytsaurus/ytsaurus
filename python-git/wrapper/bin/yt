@@ -1,0 +1,1138 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+from yt.common import copy_docstring_from
+
+import yt.wrapper.yson as yson
+from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, \
+                              DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
+                              chunk_iter_rows
+from yt.wrapper.cli_helpers import write_silently, run_main
+from yt.wrapper.default_config import get_default_config
+import yt.wrapper.job_tool as job_tool
+import yt.wrapper.completers as completers
+import yt.json as json
+
+from yt.packages.six import PY3
+from yt.packages.six.moves import builtins, map as imap
+
+import yt.wrapper as yt
+
+import os
+import sys
+import inspect
+import fnmatch
+import shlex
+from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
+
+DESCRIPTION = '''Shell utility to work with YT system.\n
+Cypress (metainformation tree) commands:
+    create, remove, exists, list, find, get, set,
+    copy, link, move
+File commands:
+    write-file, read-file
+Table commands:
+    read, write, alter-table, create-temp-table
+Tablet commands:
+    mount-table, unmount-table, remount-table, reshard-table
+ACL commands:
+    add-member, remove-member, check-permission
+Operation commands:
+    map-reduce, map, sort, reduce, join-reduce, merge, erase,
+    remote-copy, abort-op, suspend-op, resume-op, track-op, complete-op
+Transaction commands:
+    lock, start-tx, abort-tx, commit-tx, ping-tx
+Job commands:
+    get-job-stderr, run-job-shell, abort-job
+Other commands:
+    transform'''
+
+EPILOG = '''Examples:
+
+List content of root directory of Plato cluster and check access to system.
+$  yt list / --proxy plato.yt.yandex.net
+>> home
+   kiwi
+   userdata
+   sys
+   statbox
+   tmp
+
+Set YT_PROXY = plato.yt.yandex.net to avoid usage --proxy option.
+$ export YT_PROXY=plato.yt.yandex.net
+(Add this string to ~/.bashrc)
+
+$  yt create table //tmp/sepulki
+>> [...] Access denied: "write" permission for node //tmp is not allowed by any matching ACE [...]
+
+Oops! Forgotten token. Follow https://wiki.yandex-team.ru/yt/gettingstarted
+
+$  yt create table //tmp/sepulki
+>> 1-2-3-4
+
+See all attributes created table.
+$ yt get "//tmp/sepulki/@"
+>> {
+        "chunk_list_id" = "5c6a-1c2459-65-1f9943e3";
+        "inherit_acl" = "true";
+        [...]
+    }
+
+You can use GUID of object #1-2-3-4 instead path.
+See also https://wiki.yandex-team.ru/yt/userdoc/ypath
+
+Note! Create parent directory of table before writing to it. Recursive path creating is not available during operation.
+
+Write to table in Cypress from local file.
+$ cat my_data_in_json | yt write //tmp/sepulki --format json
+
+For appending to table instead rewriting specify append mode.
+$ cat my_data_in_yson | yt write '<append=true>//tmp/sepulki' --format yson
+
+Output table to client stdout.
+$ yt read //tmp/test_table --format dsv
+>> b=hello  a=10
+   b=world  a=20
+
+Run map-reduce operation, append result to destination table.
+$ yt map-reduce --mapper "python my_mapper.py" --map-local-file "~/my_mapper.py" --reducer "./my_reducer.pl" --reduce-file "//tmp/my_reducer.pl"
+--src //project/some_existing_table  --src some_another_table_in_prefix_directory --dst <append=true>//tmp/sepulki
+--reduce-by "column_one" --reduce-by "column_two"
+>> [...] operation 5-6-7-8 initializing [...]
+
+Note! Without modification `append=true` destination table is overwritten.
+Note! Specify paths to user scripts!
+
+Lookup rows from dynamic table.
+$ echo '{host=abc.com}' | yt lookup-rows //my/dynamic/table
+>> {"host"="abc.com";"last_seen_time": "2017-04-10T12:35:10"}
+
+
+See also:
+    YT CLI client           https://wiki.yandex-team.ru/yt/userdoc/ytbinary
+
+    YT system               https://wiki.yandex-team.ru/yt
+    access to the system    https://wiki.yandex-team.ru/yt/gettingstarted
+    tutorial                https://wiki.yandex-team.ru/yt/userdoc/forbeginners
+    user documentations     https://wiki.yandex-team.ru/yt/userdoc
+    command specification   https://wiki.yandex-team.ru/yt/userdoc/api
+    ACL                     https://wiki.yandex-team.ru/yt/userdoc/accesscontrol
+    transactions            https://wiki.yandex-team.ru/yt/userdoc/transactions
+'''
+
+def fix_parser(parser):
+    old_add_argument = parser.add_argument
+    def add_argument(*args, **kwargs):
+        help = []
+        if kwargs.get("required", False):
+            help.append("(Required) ")
+        help.append(kwargs.get("help", ""))
+        if kwargs.get("action") == "append":
+            help.append(" Accepted multiple times.")
+        kwargs["help"] = "".join(help)
+        return old_add_argument(*args, **kwargs)
+    parser.add_argument = add_argument
+    return parser
+
+def yson_dumps(data):
+    return yson._dumps_to_native_str(data, yson_format="pretty", indent=2)
+
+YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
+YT_STRUCTURED_DATA_FORMAT = os.environ.get("YT_STRUCTURED_DATA_FORMAT", "yson")
+PARSERS = {"json": lambda string: yson.json_to_yson(json.loads(string)),
+           "yson": yson._loads_from_native_str}
+DUMPERS = {"json": lambda data: json.dumps(yson.yson_to_json(data), indent=2),
+           "yson": yson_dumps}
+OUTPUT_FORMATS = {"json": "<format=pretty>json",
+                  "yson": "<format=pretty>yson"}
+
+try:
+    parse_arguments = PARSERS[YT_ARGUMENTS_FORMAT]
+    parse_data = PARSERS[YT_STRUCTURED_DATA_FORMAT]
+    dump_data = DUMPERS[YT_STRUCTURED_DATA_FORMAT]
+    output_format = OUTPUT_FORMATS[YT_STRUCTURED_DATA_FORMAT]
+except KeyError as e:
+    raise yt.YtError("Incorrect structured format " + str(e))
+
+class ParseFormat(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, yt.create_format(values))
+
+class ParseStructuredArguments(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, builtins.list(imap(parse_arguments, values)))
+
+class ParseStructuredArgument(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Multiple times specified arguments are merged into single dict.
+        old_value = get_value(getattr(namespace, self.dest), {})
+        new_value = update(old_value, parse_arguments(values))
+        setattr(namespace, self.dest, new_value)
+
+class ParseStructuredData(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, parse_data(values))
+
+class ParseMemoryLimit(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values is not None:
+            values = yt.common.MB * int(values)
+        setattr(namespace, self.dest, values)
+
+def add_argument(parser, name, help, description, **kwargs):
+    if description:
+        if help:
+            help = "".join([help, ". ", description])
+        else:
+            help = description
+    return parser.add_argument(name, help=help, **kwargs)
+
+def add_hybrid_argument(parser, name, help=None, description=None, group_required=True, **kwargs):
+    group = parser.add_mutually_exclusive_group(required=group_required)
+    dest = None
+    positional_name = name
+    if "dest" in kwargs:
+        dest = kwargs.pop("dest")
+        positional_name = dest
+    # Positional argument
+    positional = add_argument(parser=group,
+                              name=positional_name,
+                              help=help,
+                              description=description,
+                              nargs="?",
+                              action=DoNotReplaceAction, **kwargs)
+    # Optional argument
+    if dest is not None:
+        kwargs["dest"] = dest
+    optional = add_argument(parser=group,
+                            name="--" + name.replace("_", "-"),
+                            help=help,
+                            description=description, **kwargs)
+    return positional, optional
+
+def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **kwargs):
+    description = "See also: https://wiki.yandex-team.ru/yt/userdoc/ypath"
+
+    if hybrid:
+        positional, optional = add_hybrid_argument(parser, name, help=help, description=description, **kwargs)
+        positional.completer = completers.complete_ypath
+        optional.completer = completers.complete_ypath
+    else:
+        argument = add_argument(parser, name, help, description=description, **kwargs)
+        argument.completer = completers.complete_ypath
+
+def add_structured_format_argument(parser, name="--format", help="", **kwargs):
+    description = 'response format: yson or json, for example: "<format=binary>yson". See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
+    add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
+
+def add_format_argument(parser, name="--format", help="", **kwargs):
+    description = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred_dsv", "schemaful_dsv" with modifications. See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
+    add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
+
+def add_structured_argument(parser, name, help="", **kwargs):
+    description = "structured %s in %s format" % (name.strip("-"), YT_ARGUMENTS_FORMAT)
+    add_argument(parser, name, help, description=description, action=ParseStructuredArgument, **kwargs)
+
+def add_type_argument(parser, name, hybrid=False):
+    NODE_TYPE_HELP = "one of table, file, document, account, user, list_node, map_node, "\
+                 "string_node, int64_node, uint64_node, double_node, ..."
+    if not hybrid:
+        add_argument(parser, name, "", description=NODE_TYPE_HELP)
+    else:
+        add_hybrid_argument(parser, name, "", description=NODE_TYPE_HELP)
+
+@copy_docstring_from(yt.exists)
+def exists(**args):
+    print("true" if yt.exists(**args) else "false")
+
+def add_exists_parser(add_parser):
+    parser = add_parser("exists", exists)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--read-from",
+                        help='You can specify read-from equaled to "cache"'
+                             'for enabling using system cache')
+
+def formatted_print(obj, path, long_format):
+    if long_format:
+        attrs = yt.get(path + "&/@")
+        type = attrs["type"]
+        link_tail = (" -> " + str(yt.get(path + "&/@target_path"))) if type == "link" else ""
+        user = attrs["account"]
+        size = get_disk_space_from_resources(yt.get(path + "&/@recursive_resource_usage"))
+        date, time = yt.get(path + "&/@modification_time").split("T")
+        time = time[:5]
+        sys.stdout.write("%10s %20s %18d %10s %5s %s%s\n" % (type, user, size, date, time, str(obj), link_tail))
+    else:
+        print(obj)
+
+@copy_docstring_from(yt.list)
+def list(**args):
+    list_args = dict(args)
+    list_args.pop("long_format")
+    list = yt.list(**list_args)
+    if args["format"] is None:
+        if args["attributes"] is not None:
+            print("WARNING! Attributes are ignored if format is not specified.", file=sys.stderr)
+        for elem in list:
+            formatted_print(elem, yt.ypath_join(args["path"], yt.escape_ypath_literal(elem)), args["long_format"])
+        if parse_bool(list.attributes.get("incomplete", "false")):
+            print("WARNING: list is incomplete, check --max-size option", file=sys.stderr)
+    else:
+        sys.stdout.write(list)
+
+def add_list_parser(add_parser):
+    parser = add_parser("list", list, help="Warning! --attribute arguments are ignored if format is not specified.")
+    add_ypath_argument(parser, "path", hybrid=True)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
+    add_structured_format_argument(group)
+    parser.add_argument("--attribute", action="append", dest="attributes", help="node attributes to add into response")
+    parser.add_argument("--max-size", type=int,
+                        help=("maximum size of entries returned by list; "
+                              "if actual directory size exceeds that value only subset "
+                              "of entries will be listed (it's not specified which subset); "
+                              "default value is enough to list any nonsystem directory."))
+    parser.add_argument("--read-from",
+                        help='You can specify read-from equaled to "cache"'
+                             'for enabling using system cache')
+    parser.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
+
+def find(**args):
+    path_filter = None
+    if args["name"] is not None:
+        path_filter = lambda path: fnmatch.fnmatch(os.path.basename(path), args["name"])
+
+    attributes = dict([(x, args[x]) for x in ["account", "owner"] if args[x] is not None])
+    if args["attribute_filter"] is not None:
+        attributes.update(yson._loads_from_native_str(args["attribute_filter"], yson_type="map_fragment"))
+
+    object_filter = lambda obj: \
+        all([obj.attributes.get(attr) == attributes[attr] for attr in attributes])
+
+    result = yt.search(args["path"],
+                       node_type=args["type"],
+                       path_filter=path_filter,
+                       attributes=builtins.list(attributes),
+                       object_filter=object_filter,
+                       depth_bound=args["depth"],
+                       follow_links=args["follow_links"],
+                       read_from=args["read_from"])
+
+    for elem in result:
+        formatted_print(elem, elem, args["long_format"])
+
+def add_find_parser(add_parser):
+    parser = add_parser("find", yt.search)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--name", "-name", help="pattern of node name, use shell-style wildcards: *, ?, [seq], [!seq]")
+    add_type_argument(parser, "--type")
+    parser.add_argument("--account")
+    parser.add_argument("--owner")
+    parser.add_argument("--follow-links", action="store_true", help="follow links")
+    parser.add_argument("--attribute-filter", help="yson map fragment with filtering attributes, e.g. k1=v1;k2=v2")
+    parser.add_argument("--depth", type=int, help="recursion depth (infinite by default)")
+    parser.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
+    parser.add_argument("--read-from",
+                        help='You can specify read-from equaled to "cache"'
+                             'for enabling using system cache')
+    parser.set_defaults(func=find)
+
+@copy_docstring_from(yt.read_table)
+def read_table(**args):
+    stream = yt.read_table(**args)
+    if yt.config["read_retries"]["enable"]:
+        iterator = chunk_iter_rows(stream, 16 * MB)
+    else:
+        iterator = chunk_iter_stream(stream, 16 * MB)
+    write_silently(iterator)
+
+def add_read_table_parser(add_parser):
+    for name, func in [("read", read_table), ("read-table", read_table)]:
+        parser = add_parser(name, func)
+        add_ypath_argument(parser, "table", hybrid=True)
+        add_format_argument(parser, help="output format")
+        add_structured_argument(parser, "--table-reader")
+        add_structured_argument(parser, "--control-attributes")
+        parser.add_argument("--unordered", action="store_true")
+
+@copy_docstring_from(yt.read_file)
+def read_file(**args):
+    write_silently(chunk_iter_stream(yt.read_file(**args), 16 * MB))
+
+def add_read_file_parser(add_parser):
+    for name, func in [("read-file", read_file), ("download", read_file)]:
+        parser = add_parser(name, func)
+        add_ypath_argument(parser, "path", hybrid=True)
+        add_structured_argument(parser, "--file-reader")
+        parser.add_argument("--offset", type=int, help="offset in input file in bytes, 0 by default")
+        parser.add_argument("--length", type=int, help="length in bytes of desired part of input file, all file without offset by default")
+
+@copy_docstring_from(yt.write_file)
+def write_file(**args):
+    func_args = dict(args)
+    func_args.pop("executable")
+    yt.write_file(stream=get_binary_std_stream(sys.stdin), **func_args)
+    if args["executable"]:
+        yt.set(args["destination"] + "/@executable", bool_to_string(True))
+
+def add_compressed_arg(parser):
+    parser.add_argument("--compressed", action="store_true", dest="is_stream_compressed",
+                        help="expect stream to contain compressed file data. Warning! This option disables retries. "
+                             "Data is passed directly to proxy without recompression.")
+
+def add_write_file_parser(add_parser):
+    for name, func in [("write-file", write_file), ("upload", write_file)]:
+        parser = add_parser(name, func)
+        add_ypath_argument(parser, "destination", hybrid=True)
+        add_structured_argument(parser, "--file-writer")
+        add_compressed_arg(parser)
+        parser.add_argument("--executable", action="store_true", help="do file executable")
+
+def add_write_table_parser(add_parser):
+    for name, func in [("write", yt.write_table), ("write-table", yt.write_table)]:
+        parser = add_parser(name, func, epilog="Rewrite table by default. For append mode specify <append=true> before path.")
+        add_ypath_argument(parser, "table", hybrid=True)
+        add_format_argument(parser, help="input format")
+        add_structured_argument(parser, "--table-writer")
+        add_compressed_arg(parser)
+        parser.set_defaults(func=yt.write_table, input_stream=get_binary_std_stream(sys.stdin))
+
+@copy_docstring_from(yt.create_temp_table)
+def create_temp_table(**args):
+    args["prefix"] = args.pop("name_prefix", None)
+    print(yt.create_temp_table(**args))
+
+def add_create_temp_table_parser(add_parser):
+    parser = add_parser("create-temp-table", create_temp_table)
+    add_ypath_argument(parser, "--path", help="path where temporary table will be created")
+    parser.add_argument("--name-prefix", help="prefix of table name")
+    parser.add_argument("--expiration-timeout", type=int, help="expiration timeout in ms")
+    add_structured_argument(parser, "--attributes")
+
+@copy_docstring_from(yt.create)
+def create(**args):
+    print(yt.create(**args))
+
+def add_create_parser(add_parser):
+    parser = add_parser("create", create)
+    add_type_argument(parser, "type", hybrid=True)
+    add_ypath_argument(parser, "path", hybrid=True, group_required=False)
+    parser.add_argument("-r", "--recursive", action="store_true")
+    parser.add_argument("-i", "--ignore-existing", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true")
+    add_structured_argument(parser, "--attributes")
+
+@copy_docstring_from(yt.get)
+def get(**args):
+    result = yt.get(**args)
+    if args["format"] is None:
+        result = dump_data(result)
+    print(result)
+
+def add_get_parser(add_parser):
+    parser = add_parser("get", get)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--max-size", type=int,
+                        help=("maximum size of entries returned by get; "
+                              "if actual directory size exceeds that value only subset "
+                              "of entries will be listed (it's not specified which subset); "
+                              "default value is enough to list any nonsystem directory."))
+    add_structured_format_argument(parser, default=output_format)
+    parser.add_argument("--attribute", action="append", dest="attributes", help="desired node attributes in the response")
+    parser.add_argument("--read-from",
+                        help='You can specify read-from equaled to "cache"'
+                             'for enabling using system cache')
+
+@copy_docstring_from(yt.set)
+def set(**args):
+    if args["value"] is None:
+        value = get_binary_std_stream(sys.stdin).read()
+    else:
+        value = args["value"]
+        if PY3:
+            value = value.encode("utf-8")
+    if args["format"] is None:
+        value = parse_arguments(value)
+    args["value"] = value
+    yt.set(**args)
+
+def add_set_parser(add_parser):
+    parser = add_parser("set", set)
+    add_ypath_argument(parser, "path", hybrid=True)
+    add_structured_format_argument(parser, default=YT_STRUCTURED_DATA_FORMAT)
+    add_hybrid_argument(parser, "value", group_required=False,
+                        help="new node attribute value, in {0} format. You can specify in bash pipe: "
+                             "\"cat file_with_value | yt set //tmp/my_node\"".format(YT_ARGUMENTS_FORMAT))
+
+def add_remove_parser(add_parser):
+    parser = add_parser("remove", yt.remove)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("-r", "--recursive", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true")
+
+def add_copy_parser(add_parser):
+    parser = add_parser("copy", yt.copy)
+
+    add_ypath_argument(parser, "source_path", help="source address, path must exist", hybrid=True)
+    add_ypath_argument(parser, "destination_path", help="destination address, path must not exist", hybrid=True)
+
+    parser.add_argument("--preserve-account", action="store_true",
+                        help="preserve account of copied nodes")
+    parser.add_argument("--preserve-expiration-time", action="store_true",
+                        help="preserve expiration time of copied nodes")
+    parser.add_argument("-r", "--recursive", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true")
+
+@copy_docstring_from(yt.move)
+def move(**args):
+    if "no_preserve_account" in args:
+        args["preserve_account"] = not args["no_preserve_account"]
+        del args["no_preserve_account"]
+    if "no_preserve_expiration_time" in args:
+        args["preserve_expiration_time"] = not args["no_preserve_expiration_time"]
+        del args["no_preserve_expiration_time"]
+    yt.move(**args)
+
+def add_move_parser(add_parser):
+    parser = add_parser("move", move)
+
+    add_ypath_argument(parser, "source_path", help="old node address, path must exist", hybrid=True)
+    add_ypath_argument(parser, "destination_path", help="new node address, path must not exist", hybrid=True)
+
+    parser.add_argument("--no-preserve-account", action="store_true",
+                        help="do not preserve account of moved nodes")
+    parser.add_argument("--no-preserve-expiration-time", action="store_true",
+                        help="do not preserve expiration time of moved nodes")
+    parser.add_argument("-r", "--recursive", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true")
+
+def add_link_parser(add_parser):
+    parser = add_parser("link", yt.link)
+
+    add_ypath_argument(parser, "target_path", help="address of original node to link, path must exist", hybrid=True)
+    add_ypath_argument(parser, "link_path", help="address of resulting link, path must not exist", hybrid=True)
+
+    parser.add_argument("-r", "--recursive", action="store_true", help="remove nodes and their subnodes recursively")
+    parser.add_argument("-i", "--ignore-existing", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true", help="force create link even if destination already exists "
+                                                                   "(supported only on cluster with 19+ version)")
+    add_structured_argument(parser, "--attributes")
+
+def add_concatenate_parser(add_parser):
+    parser = add_parser("concatenate", yt.concatenate)
+    parser.add_argument("--src", action="append", required=True, dest="source_paths", help="Source paths")
+    parser.add_argument("--dst", required=True, dest="destination_path", help="Destination paths")
+
+def tablet_args(parser):
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--first-tablet-index", type=int)
+    parser.add_argument("--last-tablet-index", type=int)
+
+def add_mount_table_parser(add_parser):
+    parser = add_parser("mount-table", yt.mount_table)
+    tablet_args(parser)
+    parser.add_argument("--cell-id", help="tablet cell id where the tablets will be mounted to, "
+                                          "if omitted then an appropriate cell is chosen automatically")
+    parser.add_argument("--freeze", action="store_true")
+    parser.add_argument("--sync", action="store_true")
+
+def add_unmount_table_parser(add_parser):
+    parser = add_parser("unmount-table", yt.unmount_table)
+    tablet_args(parser)
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--sync", action="store_true")
+
+def add_remount_table_parser(add_parser):
+    parser = add_parser("remount-table", yt.remount_table)
+    tablet_args(parser)
+
+def add_freeze_table_parser(add_parser):
+    parser = add_parser("freeze-table", yt.freeze_table)
+    tablet_args(parser)
+    parser.add_argument("--sync", action="store_true")
+
+def add_unfreeze_table_parser(add_parser):
+    parser = add_parser("unfreeze-table", yt.unfreeze_table)
+    tablet_args(parser)
+    parser.add_argument("--sync", action="store_true")
+
+@copy_docstring_from(yt.reshard_table)
+def reshard_table(**args):
+    if args.get("pivot_keys") == []:
+        del args["pivot_keys"]
+    yt.reshard_table(**args)
+
+def add_reshard_table_parser(add_parser):
+    parser = add_parser("reshard-table", reshard_table)
+    tablet_args(parser)
+    parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="*")
+    parser.add_argument("--tablet-count", type=int)
+
+def add_trim_rows_parser(add_parser):
+    parser = add_parser("trim-rows", yt.trim_rows)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("tablet_index", type=int)
+    parser.add_argument("trimmed_row_count", type=int)
+
+def add_alter_table_parser(add_parser):
+    parser = add_parser("alter-table", yt.alter_table)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--schema", action=ParseStructuredArgument, nargs="?", help="new schema value, in {0} format.".format(YT_ARGUMENTS_FORMAT))
+    dynamic_parser = parser.add_mutually_exclusive_group(required=False)
+    dynamic_parser.add_argument("--dynamic", dest="dynamic", default=None, action="store_true")
+    dynamic_parser.add_argument("--static", dest="dynamic", default=None, action="store_false")
+
+@copy_docstring_from(yt.alter_table_replica)
+def alter_table_replica(**args):
+    if args["enable"]:
+        args["enabled"] = True
+    if args["disable"]:
+        args["enabled"] = False
+
+    args.pop("enable")
+    args.pop("disable")
+
+    yt.alter_table_replica(**args)
+
+def add_alter_table_replica_parser(add_parser):
+    parser = add_parser("alter-table-replica", alter_table_replica)
+    parser.add_argument("replica_id")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--enable", action="store_true", help="enable table replica")
+    group.add_argument("--disable", action="store_true", help="disable table replica")
+    parser.add_argument("--mode", help='alternation mode, can be "sync" or "async"')
+
+@copy_docstring_from(yt.select_rows)
+def select_rows(**args):
+    write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), 16 * MB))
+
+def add_select_rows_parser(add_parser):
+    # TODO(ignat): remake by alias system
+    for name in ("select", "select-rows"):
+        parser = add_parser(name, select_rows, epilog="Supported features: https://wiki.yandex-team.ru/yt/userdoc/queries")
+        add_hybrid_argument(parser, "query")
+        parser.add_argument("--timestamp", type=int)
+        parser.add_argument("--input-row-limit", type=int)
+        parser.add_argument("--output-row-limit", type=int)
+        parser.add_argument("--verbose-logging", action="store_true", default=False)
+        parser.add_argument("--format", action=ParseFormat)
+
+@copy_docstring_from(yt.lookup_rows)
+def lookup_rows(**args):
+    write_silently(chunk_iter_stream(yt.lookup_rows(raw=True, **args), 16 * MB))
+
+def add_lookup_rows_parser(add_parser):
+    # TODO(ignat): remake by alias system
+    for name in ("lookup", "lookup-rows"):
+        parser = add_parser(name, lookup_rows)
+        add_ypath_argument(parser, "table", hybrid=True)
+        add_format_argument(parser, help="input format")
+        parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin))
+
+@copy_docstring_from(yt.insert_rows)
+def insert_rows(**args):
+    args["require_sync_replica"] = not args.pop("no_require_sync_replica")
+    yt.insert_rows(**args)
+
+def add_insert_rows_parser(add_parser):
+    # TODO(ignat): remake by alias system
+    for name in ("insert", "insert-rows"):
+        parser = add_parser(name, insert_rows)
+        add_ypath_argument(parser, "table", hybrid=True)
+        add_format_argument(parser, help="input format")
+        parser.add_argument("--no-require-sync-replica", action="store_true",
+                            help="do not require sync replication")
+        parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
+
+@copy_docstring_from(yt.delete_rows)
+def delete_rows(**args):
+    args["require_sync_replica"] = not args.pop("no_require_sync_replica")
+    yt.delete_rows(**args)
+
+def add_delete_rows_parser(add_parser):
+    # TODO(ignat): remake by alias system
+    for name in ("delete", "delete-rows"):
+        parser = add_parser(name, delete_rows)
+        add_ypath_argument(parser, "table", hybrid=True)
+        add_format_argument(parser, help="input format")
+        parser.add_argument("--no-require-sync-replica", action="store_true",
+                            help="do not require sync replication")
+        parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
+
+def add_src_arg(parser, **kwargs):
+    parser.add_argument("--src", action="append", nargs="+", required=True, dest="source_table", **kwargs)
+
+def operation_args(parser):
+    add_hybrid_argument(parser, "binary", metavar="command")
+    add_src_arg(parser)
+    parser.add_argument("--dst", action="append", required=True, dest="destination_table")
+    parser.add_argument("--file", action="append", dest="yt_files")
+    parser.add_argument("--local-file", action="append", dest="local_files")
+    parser.add_argument("--job-count", type=int)
+    parser.add_argument("--memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
+    add_structured_argument(parser, "--spec")
+    parser.add_argument("--format", action=ParseFormat)
+    parser.add_argument("--input-format", action=ParseFormat)
+    parser.add_argument("--output-format", action=ParseFormat)
+    parser.add_argument("--print-statistics", action="store_true", default=False)
+    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+
+def operation_handler(function):
+    def handler(*args, **kwargs):
+        print_statistics = kwargs.pop("print_statistics", False)
+        kwargs["sync"] = not kwargs.pop("async", False)
+
+        operation = function(*args, **kwargs)
+
+        if not kwargs["sync"]:
+            print(operation.id)
+
+        if print_statistics:
+            print(dump_data(operation.get_attributes()["progress"]), file=sys.stderr)
+
+    handler.__doc__ = inspect.getdoc(function)
+
+    return handler
+
+def add_erase_parser(add_parser):
+    parser = add_parser("erase", operation_handler(yt.run_erase), epilog="Note you can specify range in table to erase.")
+    add_ypath_argument(parser, "table", help="path to table to erase", hybrid=True)
+    parser.add_argument("--print-statistics", action="store_true", default=False)
+    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+
+def add_merge_parser(add_parser):
+    parser = add_parser("merge", operation_handler(yt.run_merge))
+    add_src_arg(parser)
+    add_ypath_argument(parser, "--dst", required=True, dest="destination_table",
+        help="path to destination table. For append mode add <append=true> before path.")
+    parser.add_argument("--mode", default="unordered", choices=["unordered", "ordered", "sorted", "auto"],
+        help="use sorted mode for saving sortedness. unordered mode by default, ordered for saving order of chunks. "
+             "Mode auto chooses from sorted and unordered modes depending on sortedness of source tables.")
+    parser.add_argument("--print-statistics", action="store_true", default=False)
+    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+    add_structured_argument(parser, "--spec")
+
+def add_sort_parser(add_parser):
+    parser = add_parser("sort", operation_handler(yt.run_sort))
+    add_src_arg(parser)
+    parser.add_argument("--dst", required=True, dest="destination_table")
+    parser.add_argument("--sort-by", action="append", required=True, help="Columns to sort by.")
+    parser.add_argument("--print-statistics", action="store_true", default=False)
+    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+    add_structured_argument(parser, "--spec")
+
+def add_map_parser(add_parser):
+    parser = add_parser("map", operation_handler(yt.run_map), epilog="See also yt map-reduce --help for brief options description.")
+    operation_args(parser)
+    parser.add_argument("--ordered", action="store_true", help="Force ordered input for mapper.")
+
+def add_reduce_parser(add_parser):
+    parser = add_parser("reduce", operation_handler(yt.run_reduce),
+        epilog="See also yt map-reduce --help for brief options description.\n Note, source tables must be sorted!\
+For reducing not sorted table use map-reduce command without --mapper")
+    operation_args(parser)
+    parser.add_argument("--reduce-by", action="append", required=True, help="Columns to reduce by.")
+    parser.add_argument("--sort-by", action="append", required=False, help="Columns to sort by.")
+    parser.add_argument("--join-by", action="append", required=False, help="Columns to join by.")
+
+def add_join_reduce_parser(add_parser):
+    parser = add_parser("join-reduce", operation_handler(yt.run_join_reduce),
+        epilog="See also yt map-reduce --help for brief options description.\n Note, source tables must be sorted!")
+    operation_args(parser)
+    parser.add_argument("--join-by", action="append", required=True, help="Columns to join by.")
+
+def add_remote_copy_parser(add_parser):
+    parser = add_parser("remote-copy", operation_handler(yt.run_remote_copy))
+    add_src_arg(parser, help="path to source tables in remote cluster")
+    parser.add_argument("--dst", required=True, dest="destination_table", help="path to destination table in current cluster")
+    parser.add_argument("--cluster", required=True, dest="cluster_name", help="remote cluster proxy, like smith")
+    parser.add_argument("--network", dest="network_name")
+    parser.add_argument("--copy-attributes", action="store_true", help="specify this flag to coping node attributes too")
+    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+    add_structured_argument(parser, "--cluster-connection")
+    add_structured_argument(parser, "--spec")
+
+def add_map_reduce_parser(add_parser):
+    MAP_REDUCE_EPILOG = '''Options --mapper, --reducer, --combiner specify bash commands to run.
+--mapper and --reduce-combiner suboperations are optional. Only --reducer is required!
+For pure bash command like "grep sepulki" there is no need for specifying any path.
+For user script like "python my_script.py" you must specify YT path to script by some way.
+User scripts are searched in all --<operation>-file path, and in //tmp path if --<operation>-local-file is specified.
+(--<operation>-local-file option specify path to script on your local machine and upload to yt //tmp directory.)
+These option --*-file can be specified multiple times.
+
+For every operation it is possible to specify memory limit per one user job (in MB), input and output formats.
+(Your script will receive binary or text data in input format. System will parse output of script as output format data).
+Option --format specify both input and output for all suboperations, more specific format overwrite it.
+
+Source and destination tables can be specified multiple times (but be ready to process table switchers in your scripts).
+
+For append mode in destination table add <append=true> modificator to path.
+'''
+    parser = add_parser("map-reduce", operation_handler(yt.run_map_reduce), epilog=MAP_REDUCE_EPILOG, formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument("--mapper", required=False)
+    parser.add_argument("--reducer", required=True)
+    parser.add_argument("--reduce-combiner", required=False)
+    parser.add_argument("--src", action="append", required=True, dest="source_table")
+    parser.add_argument("--dst", action="append", required=True, dest="destination_table")
+    parser.add_argument("--map-file", action="append", dest="map_yt_files")
+    parser.add_argument("--map-local-file", action="append", dest="map_local_files")
+    parser.add_argument("--reduce-file", action="append", dest="reduce_yt_files")
+    parser.add_argument("--reduce-local-file", action="append", dest="reduce_local_files")
+    parser.add_argument("--reduce-combiner-file", action="append", dest="reduce_combiner_yt_files")
+    parser.add_argument("--reduce-combiner-local-file", action="append", dest="reduce_combiner_local_files")
+    parser.add_argument("--mapper-memory-limit", "--map-memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
+    parser.add_argument("--reducer-memory-limit", "--reduce-memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
+    parser.add_argument("--reduce-combiner-memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
+    parser.add_argument("--reduce-by", action="append", required=True, help="Columns to reduce by.")
+    parser.add_argument("--sort-by", action="append", help="Columns to sort by. Must be superset of reduce-by columns. By default is equal to --reduce-by option.")
+    add_structured_argument(parser, "--spec")
+    add_format_argument(parser)
+    parser.add_argument("--map-input-format", action=ParseFormat, help="see --format help")
+    parser.add_argument("--map-output-format", action=ParseFormat, help="see --format help")
+    parser.add_argument("--reduce-input-format", action=ParseFormat, help="see --format help")
+    parser.add_argument("--reduce-output-format", action=ParseFormat, help="see --format help")
+    parser.add_argument("--reduce-combiner-input-format", action=ParseFormat, help="see --format help")
+    parser.add_argument("--reduce-combiner-output-format", action=ParseFormat, help="see --format help")
+    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+
+def operation_id_args(parser):
+    add_hybrid_argument(parser, "operation", help="operation id")
+
+def add_abort_op_parser(add_parser):
+    parser = add_parser("abort-op", yt.abort_operation)
+    operation_id_args(parser)
+
+def add_suspend_op_parser(add_parser):
+    parser = add_parser("suspend-op", yt.suspend_operation)
+    operation_id_args(parser)
+
+def add_resume_op_parser(add_parser):
+    parser = add_parser("resume-op", yt.resume_operation)
+    operation_id_args(parser)
+
+@copy_docstring_from(yt.Operation.wait)
+def track_op(**args):
+    yt.config["operation_tracker"]["abort_on_sigint"] = False
+    operation = yt.Operation("unknown", args["operation"])
+    operation.wait()
+
+def add_track_op_parser(add_parser):
+    parser = add_parser("track-op", track_op)
+    operation_id_args(parser)
+
+def add_complete_op_parser(add_parser):
+    parser = add_parser("complete-op", yt.complete_operation)
+    operation_id_args(parser)
+
+@copy_docstring_from(yt.start_transaction)
+def start_tx(**args):
+    print(yt.start_transaction(**args))
+
+def add_start_tx_parser(add_parser):
+    parser = add_parser("start-tx", start_tx)
+    add_structured_argument(parser, "--attributes")
+    parser.add_argument("--timeout", type=int,
+                        help="transaction lifetime singe last ping in milliseconds")
+
+def transaction_args(parser):
+    add_hybrid_argument(parser, "transaction",
+                        help="transaction id, for example: 5c51-24e204-1-9f3f6437")
+
+def add_commit_tx_parser(add_parser):
+    parser = add_parser("commit-tx", yt.commit_transaction)
+    transaction_args(parser)
+
+def add_abort_tx_parser(add_parser):
+    parser = add_parser("abort-tx", yt.abort_transaction)
+    transaction_args(parser)
+
+def add_ping_tx_parser(add_parser):
+    parser = add_parser("ping-tx", yt.ping_transaction)
+    transaction_args(parser)
+
+@copy_docstring_from(yt.lock)
+def lock(**args):
+    lock_id = yt.lock(**args)
+    if lock_id is not None:
+        print(lock_id)
+    else:
+        print("lock was not taken")
+
+def add_lock_parser(add_parser):
+    parser = add_parser("lock", lock)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--mode", help="blocking type, exclusive by default", choices=["snapshot", "shared", "exclusive"])
+    parser.add_argument("--waitable", action="store_true", help="wait for lock if node is under blocking")
+    parser.add_argument("--wait-for", type=int, help="wait interval in milliseconds")
+    parser.add_argument("--child-key", help="child key of shared lock")
+    parser.add_argument("--attribute-key", help="attribute key of shared lock")
+
+@copy_docstring_from(yt.check_permission)
+def check_permission(**args):
+    sys.stdout.write(yt.check_permission(**args))
+
+def add_check_permission_parser(add_parser):
+    parser = add_parser("check-permission", check_permission)
+    add_hybrid_argument(parser, "user")
+    add_hybrid_argument(parser, "permission", help="one of read, write, administer, create, use")
+    add_ypath_argument(parser, "path", hybrid=True)
+    add_structured_format_argument(parser, default=output_format)
+
+def member_args(parser):
+    add_hybrid_argument(parser, "member")
+    add_hybrid_argument(parser, "group")
+
+def add_add_member_parser(add_parser):
+    parser = add_parser("add-member", yt.add_member)
+    member_args(parser)
+
+def add_remove_member_parser(add_parser):
+    parser = add_parser("remove-member", yt.remove_member)
+    member_args(parser)
+
+def execute(**args):
+    data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in args["execute_params"] else None
+    result = yt.transaction_commands._make_transactional_request(args["command_name"],
+                                                                 args["execute_params"],
+                                                                 data=data)
+    if "output_format" in args["execute_params"]:
+        sys.stdout.write(result)
+
+def add_execute_parser(add_parser):
+    parser = add_parser("execute", help="execute your command")
+    parser.add_argument("command_name")
+    add_structured_argument(parser, "execute_params")
+    parser.set_defaults(func=execute)
+
+def execute_batch(**args):
+    print(dump_data(yt.execute_batch(**args)))
+
+def add_execute_batch_parser(add_parser):
+    parser = add_parser("execute-batch", help="execute your command")
+    parser.add_argument("requests", action=ParseStructuredArguments, nargs="+", help="Request description")
+    parser.set_defaults(func=execute_batch)
+
+def add_run_job_shell_parser(add_parser):
+    parser = add_parser("run-job-shell", yt.run_job_shell)
+    parser.add_argument("job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    parser.add_argument("--timeout", type=int, help="inactivity timeout in milliseconds after job has "
+                                                    "finished, by default 60000 milliseconds")
+    add_hybrid_argument(parser, "command", group_required=False)
+
+def add_abort_job_parser(add_parser):
+    parser = add_parser("abort-job", yt.abort_job)
+    parser.add_argument("job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    parser.add_argument("--timeout", type=int, help="try to interrupt job before abort during timeout, "
+                                                    "by default 10000 milliseconds")
+
+@copy_docstring_from(yt.get_job_stderr)
+def get_job_stderr(**args):
+    write_silently(chunk_iter_stream(yt.get_job_stderr(**args), 16 * MB))
+
+def add_run_get_job_stderr_parser(add_parser):
+    parser = add_parser("get-job-stderr", get_job_stderr)
+    parser.add_argument("--job-id", required=True, help="job id, for example: 5c51-24e204-384-9f3f6437")
+    parser.add_argument("--operation-id", required=True, help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+
+def add_transform_parser(add_parser):
+    parser = add_parser("transform", yt.transform)
+    add_hybrid_argument(parser, "src", help="source table", dest="source_table")
+    add_hybrid_argument(parser, "dst", dest="destination_table", group_required=False,
+                        help="destination table (if not specified source table will be overwritten)")
+    parser.add_argument("--erasure-codec", help="desired erasure codec for table")
+    parser.add_argument("--compression-codec", help="desired compression codec for table")
+    parser.add_argument("--optimize-for",
+                        help='desired chunk format for table. Possible values: ["scan", "lookup"]')
+    parser.add_argument("--desired-chunk-size", type=int, help="desired chunk size in bytes")
+    parser.add_argument("--check-codecs", action="store_true",
+                        help="check if table already has proper codecs before transforming")
+    add_structured_argument(parser, "--spec")
+
+def execute_job_tool(**args):
+    commands = {
+        "prepare-job-environment": job_tool.prepare_job_environment,
+        "run-job": job_tool.run_job
+    }
+    command = args.pop("command")
+    commands[command](**args)
+
+def add_job_tool_parser(add_parser):
+    parser = add_parser("job-tool", function=execute_job_tool, pythonic_help=job_tool.DESCRIPTION)
+    job_tool.create_job_tool_parser(parser)
+
+@copy_docstring_from(get_default_config)
+def show_default_config(**args):
+    print(dump_data(get_default_config()))
+
+def add_show_default_config_parser(add_parser):
+    add_parser("show-default-config", show_default_config)
+
+
+def main():
+    config_parser = ArgumentParser(add_help=False)
+    config_parser.add_argument("--proxy", help="specify cluster to run command, "
+                                               "by default YT_PROXY from environment")
+    config_parser.add_argument("--prefix", help="specify common prefix for all relative paths, "
+                                                "by default YT_PREFIX from environment")
+    config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration")
+    config_parser.add_argument("--tx", help="perform command in the context of the given "
+                                            "transaction, by default 0-0-0-0")
+    config_parser.add_argument("--master-cell-id", help="perform command in master specified by this id; "
+                                                        "supported only for native driver and testing purposes ")
+    config_parser.add_argument("--ping-ancestor-txs", action="store_true",
+                               help="turn on pinging ancestor transactions")
+    config_parser.add_argument("--trace", action="store_true")
+
+
+    parser = ArgumentParser(parents=[config_parser],
+                            formatter_class=RawDescriptionHelpFormatter,
+                            description=DESCRIPTION,
+                            epilog=EPILOG)
+
+    parser.add_argument("--version", action="version", version="Version: YT wrapper " + yt.get_version())
+
+    subparsers = parser.add_subparsers(metavar="command")
+    subparsers.required = True
+
+    def extract_help(help, function):
+        if not help:
+            help = function.__doc__.split("\n")[0]
+        pythonic_help = help.strip(" .")
+        pythonic_help = pythonic_help[0].lower() + pythonic_help[1:]
+        return pythonic_help
+
+    def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
+        if pythonic_help is None:
+            pythonic_help = extract_help(help, function)
+        parser = fix_parser(subparsers.add_parser(command_name, *args, description=help,
+                                                  help=pythonic_help, **kwargs))
+        parser.set_defaults(func=function)
+
+        add_structured_argument(parser, "--params", "specify additional params")
+        return parser
+
+    add_exists_parser(add_parser)
+    add_list_parser(add_parser)
+    add_find_parser(add_parser)
+    add_create_parser(add_parser)
+    add_read_table_parser(add_parser)
+    add_write_table_parser(add_parser)
+    add_create_temp_table_parser(add_parser)
+
+    add_read_file_parser(add_parser)
+    add_write_file_parser(add_parser)
+
+    add_get_parser(add_parser)
+    add_set_parser(add_parser)
+    add_copy_parser(add_parser)
+    add_move_parser(add_parser)
+    add_link_parser(add_parser)
+    add_remove_parser(add_parser)
+    add_concatenate_parser(add_parser)
+
+    add_mount_table_parser(add_parser)
+    add_unmount_table_parser(add_parser)
+    add_remount_table_parser(add_parser)
+    add_reshard_table_parser(add_parser)
+    add_trim_rows_parser(add_parser)
+    add_alter_table_parser(add_parser)
+    add_freeze_table_parser(add_parser)
+    add_unfreeze_table_parser(add_parser)
+
+    add_alter_table_replica_parser(add_parser)
+
+    add_select_rows_parser(add_parser)
+    add_lookup_rows_parser(add_parser)
+    add_insert_rows_parser(add_parser)
+    add_delete_rows_parser(add_parser)
+
+    add_erase_parser(add_parser)
+    add_merge_parser(add_parser)
+    add_sort_parser(add_parser)
+    add_map_parser(add_parser)
+    add_reduce_parser(add_parser)
+    add_join_reduce_parser(add_parser)
+    add_map_reduce_parser(add_parser)
+    add_remote_copy_parser(add_parser)
+
+    add_abort_op_parser(add_parser)
+    add_suspend_op_parser(add_parser)
+    add_resume_op_parser(add_parser)
+    add_track_op_parser(add_parser)
+    add_complete_op_parser(add_parser)
+
+    add_start_tx_parser(add_parser)
+    add_abort_tx_parser(add_parser)
+    add_commit_tx_parser(add_parser)
+    add_ping_tx_parser(add_parser)
+
+    add_lock_parser(add_parser)
+
+    add_add_member_parser(add_parser)
+    add_remove_member_parser(add_parser)
+    add_check_permission_parser(add_parser)
+    add_execute_batch_parser(add_parser)
+
+    add_run_job_shell_parser(add_parser)
+    add_run_get_job_stderr_parser(add_parser)
+    add_abort_job_parser(add_parser)
+
+    add_execute_parser(add_parser)
+
+    add_transform_parser(add_parser)
+
+    add_job_tool_parser(add_parser)
+
+    add_show_default_config_parser(add_parser)
+
+    if "_ARGCOMPLETE" in os.environ:
+        completers.autocomplete(parser, enable_bash_fallback=False,
+                                append_space_if_only_suggestion=False)
+
+    aliases_filename = os.path.join(os.path.expanduser("~"), ".yt/aliases")
+    if os.path.isfile(aliases_filename):
+        aliases = {}
+        for line in open(aliases_filename, "r"):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            name, flags = line.split("=")
+            aliases[name] = shlex.split(flags)
+
+        if len(sys.argv) > 1 and sys.argv[1] in aliases:
+            sys.argv = sys.argv[0:1] + aliases[sys.argv[1]] + sys.argv[2:]
+
+    config_args, unparsed = config_parser.parse_known_args()
+
+    if config_args.tx is not None:
+        yt.config.COMMAND_PARAMS["transaction_id"] = config_args.tx
+        yt.config.COMMAND_PARAMS["ping_ancestor_transactions"]  = config_args.ping_ancestor_txs
+    if config_args.master_cell_id is not None:
+        yt.config.COMMAND_PARAMS["master_cell_id"] = config_args.master_cell_id
+    if config_args.proxy is not None:
+        yt.config["backend"] = "http"
+        yt.config["proxy"]["url"] = config_args.proxy
+    if config_args.prefix is not None:
+        yt.config["prefix"] = config_args.prefix
+    yt.config.COMMAND_PARAMS["trace"] = bool_to_string(config_args.trace)
+    yt.config.update_config(config_args.config)
+
+    yt.config["default_value_of_raw_option"] = True
+
+    args = parser.parse_args(unparsed)
+
+    func_args = dict(vars(args))
+
+    if func_args["params"] is not None:
+        params = func_args["params"]
+        for key in params:
+            yt.config.COMMAND_PARAMS[key] = params[key]
+
+    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "master_cell_id", "params"):
+        func_args.pop(key)
+    args.func(**func_args)
+
+if __name__ == "__main__":
+    run_main(main)

@@ -1,0 +1,67 @@
+#!/usr/bin/env python
+
+from yt.common import which
+from yt.logger_config import LOG_LEVEL, LOG_PATTERN
+
+import argparse
+import fcntl
+import logging
+import subprocess
+import time
+from logging.handlers import WatchedFileHandler
+
+logger = logging.getLogger("Yt.local.watcher")
+
+def configure_logging(log_path):
+    logger.setLevel(logging.__dict__[LOG_LEVEL.upper()])
+
+    handler = WatchedFileHandler(filename=log_path, mode="a")
+    handler.setFormatter(logging.Formatter(LOG_PATTERN))
+    logger.addHandler(handler)
+
+def main():
+    parser = argparse.ArgumentParser(add_help=False, description="YT watcher")
+    parser.add_argument("--lock-file-path", required=True,
+                        help="path of file which will be used to take a file lock")
+    parser.add_argument("--logrotate-config-path", required=True, help="path with config for logrotate")
+    parser.add_argument("--logrotate-state-file", required=True, help="path of logrotate state file")
+    parser.add_argument("--logrotate-interval", required=True, type=int,
+                        help="interval (seconds) before a next running of logrotate")
+    parser.add_argument("--log-path", required=True, help="path for watcher's logs")
+    options = parser.parse_args()
+
+    configure_logging(options.log_path)
+    logger.info("YT watcher started. Logrotate config file: %s", options.logrotate_config_path)
+
+    if options.lock_file_path:
+        lock_file_descriptor = open(options.lock_file_path, "w+")
+        try:
+            fcntl.lockf(lock_file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except IOError:
+            logger.error("YT watcher failed. Cannot take a file lock")
+            raise
+        logger.info("Lock acquired")
+
+    logrotate_enabled = True
+    if not which("logrotate"):
+        logrotate_enabled = False
+        logger.warning("Logrotate is disabled. Cannot find logrotate binary.")
+
+    while True:
+        if logrotate_enabled:
+            logger.info("Calling logrotate process...")
+            p = subprocess.Popen(["logrotate", options.logrotate_config_path, "--state", options.logrotate_state_file],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            stdout, stderr = p.communicate()
+            if p.returncode:
+                logger.error('logrotate process failed with exit code %d, '
+                             'stderr: "%s", stdout: "%s"', p.returncode, stderr, stdout)
+            else:
+                logger.info("Successful")
+            logger.info("Sleep %d seconds before next calling", options.logrotate_interval)
+
+        time.sleep(options.logrotate_interval)
+
+if __name__ == "__main__":
+    main()

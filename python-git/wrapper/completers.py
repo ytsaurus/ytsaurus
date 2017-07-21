@@ -1,0 +1,60 @@
+from yt.packages.argcomplete import *
+import yt.wrapper as yt
+
+if not yt.config["argcomplete_verbose"]:
+    warn = lambda *args, **kwargs: None
+
+def complete_map_node(path):
+    path = str(path).rsplit("/", 1)[0]
+    content = yt.list(path, max_size=10**5, attributes=["type"])
+    # Add attribute suggestion.
+    suggestions = [path + "/@"]
+    for item in content:
+        full_path = path + "/" + str(item)
+        if item.attributes["type"] == "map_node":
+            suggestions += [full_path + "/"]
+        else:
+            suggestions += [full_path]
+    return suggestions
+
+
+def complete_attributes(path):
+    path, attribute = str(path).rsplit("@", 1)
+    add_slash_after_attribute_path = False
+    if "/" in attribute:
+        attribute_path, attribute_part = attribute.rsplit("/", 1)
+        add_slash_after_attribute_path = True
+    else:
+        attribute_path, attirbute_part = "", attribute
+    
+    # Find all attributes that are siblings of a current attribute. 
+    attribute_list = yt.list(path + "@" + attribute_path)
+    suggestions = []
+    for sub_attribute in attribute_list:
+        suggestions.append(path + "@" + attribute_path + ("/" if add_slash_after_attribute_path else "") + sub_attribute)
+    
+    # Try to find all children attributes of a current attribute
+    # by treating it as a map atttribute.
+    children_attribute_list = []
+    try:
+        children_attribute_list = yt.list(path + "@" + attribute)
+    except yt.YtError as err:
+        if not err.is_resolve_error():
+            raise
+    for child_attribute in children_attribute_list:
+        suggestions.append(path + "@" + attribute + ("/" if attribute != "" else "") + child_attribute)
+
+    return suggestions
+
+def complete_ypath(prefix, parsed_args, **kwargs):
+    if prefix in ["", "/"]:
+        return ["//"]
+    try:
+        path = yt.TablePath(prefix)
+        if "/@" in str(path):
+            return complete_attributes(path)
+        else:
+            return complete_map_node(path)
+    except Exception as e:
+        warn("Caught following exception during completion:\n" + str(e))
+

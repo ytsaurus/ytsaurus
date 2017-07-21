@@ -1,0 +1,204 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+import yt.transfer_manager.client as tm
+from yt.transfer_manager.client.global_client import init_client
+
+from yt.wrapper.cli_helpers import run_main
+from yt.common import YtError, get_value
+import yt.json as json
+import yt.logger as logger
+
+from yt.packages.six.moves import map as imap
+
+import argparse
+import logging
+from functools import partial
+
+DESCRIPTION = """Command-line utility for working with Transfer Manager.
+Uses HTTP API for communication with TM backend.
+"""
+
+EPILOG = """
+Usage examples:
+
+Copy table from Aristotle to Plato:
+$ transfer-manager add-task --src-cluster aristotle --src-table //tmp/t --dst-cluster plato --dst-table //tmp/test_table
+<task_id>
+
+Abort started above task:
+$ transfer-manager abort-task <task_id>
+
+Start it again:
+$ transfer-manager restart-task <task_id>
+
+See also:
+    Transfer Manager wiki page:    https://wiki.yandex-team.ru/yt/userdoc/transfermanager/
+"""
+
+logger.LOGGER.setLevel(logging.INFO)
+
+def add_task_func(**kwargs):
+    # Replace short names with long names
+    kwargs["source_cluster"] = kwargs.pop("src_cluster")
+    kwargs["source_table"] = kwargs.pop("src_table")
+    kwargs["destination_cluster"] = kwargs.pop("dst_cluster")
+    kwargs["destination_table"] = kwargs.pop("dst_table")
+
+    params = get_value(kwargs.pop("params", None), "{}")
+    print(tm.add_task(params=json.loads(params), **kwargs))
+
+def add_tasks_func(**kwargs):
+    # Replace short names with long names
+    kwargs["source_cluster"] = kwargs.pop("src_cluster")
+    kwargs["source_pattern"] = kwargs.pop("src_pattern")
+    kwargs["destination_cluster"] = kwargs.pop("dst_cluster")
+    kwargs["destination_pattern"] = kwargs.pop("dst_pattern")
+
+    params = get_value(kwargs.pop("params", None), "{}")
+    for task in tm.add_tasks(params=json.loads(params), **kwargs):
+        print(task)
+
+def _add_new_task_parameters(parser):
+    parser.add_argument("--src-cluster", required=True, help="source cluster name, e.g. plato")
+    parser.add_argument("--dst-cluster", required=True, help="destination cluster name, e.g. redwood")
+    parser.add_argument("--params", help="task parameters (in JSON format)")
+
+    parser.add_argument("--sync", action="store_true", default=False,
+                        help="wait added tasks to be completed (default: False)")
+    parser.add_argument("--poll-period", type=int, help="task polling period in sync mode (in seconds)")
+    parser.add_argument("--attached", action="store_true", help="run task in attached mode", default=False)
+    parser.add_argument("--running-tasks-limit", type=int,
+                        help="in sync mode: maximum number of simultaneously running tasks (default: 10)")
+    parser.add_argument("--enable-failed-tasks-restarting", action="store_true", default=False,
+                        help="in sync mode: if True failed tasks will be automatically restarted if error is restartable")
+    parser.add_argument("--max-failed-tasks-restart-count", type=int, default=3,
+                        help="specifies restart count limit if --enable-failed-tasks-restarting flag is passed (default: 3)")
+    parser.add_argument("--failed-tasks-restart-sleep", type=int, default=15,
+                        help="specifies time in minutes between consequent failed task restarts (default: 15)")
+
+def add_new_task_subparser(subparsers):
+    parser = subparsers.add_parser("add-task", help="add new transfer task")
+    parser.add_argument("--src-table", required=True, help="source table name")
+    parser.add_argument("--dst-table", help="destination table name")
+    _add_new_task_parameters(parser)
+
+def add_new_tasks_subparser(subparsers):
+    parser = subparsers.add_parser("add-tasks", help="add new transfer tasks "
+                                                     "(using source and destination table name patterns)")
+    parser.add_argument("--src-pattern", required=True, help="source table name with placeholders")
+    parser.add_argument("--dst-pattern", required=True, help="destination table name with placeholders")
+    parser.add_argument("--enable-early-skip-if-destination-exists", action="store_true", default=False,
+                        help="enable client-side tasks skipping (only for YT destination clusters)")
+    parser.add_argument("--include-files", action="store_true", default=False, help="enable copying files")
+    _add_new_task_parameters(parser)
+
+def add_abort_task_subparser(subparsers):
+    parser = subparsers.add_parser("abort-task", help="abort started task")
+    parser.add_argument("task_id", help="task id")
+
+def add_restart_task_subparser(subparsers):
+    parser = subparsers.add_parser("restart-task", help="restart task")
+    parser.add_argument("task_id", help="task id")
+
+def get_task_info_func(**kwargs):
+    print(json.dumps(tm.get_task_info(**kwargs), indent=4))
+
+def add_get_task_info_subparser(subparsers):
+    parser = subparsers.add_parser("get-task-info", help="print task info in json format")
+    parser.add_argument("task_id", help="task id")
+
+def get_tasks_func(**kwargs):
+    json_output = kwargs.pop("json_output", False)
+    field = kwargs.pop("field", None)
+
+    if field is not None and not json_output:
+        raise YtError("--field options can be specified only with --json-output")
+
+    tasks = tm.get_tasks(fields=field, **kwargs)
+
+    if json_output:
+        print(json.dumps(tasks, indent=4))
+    else:
+        fields = ["id", "source_table", "source_cluster", "destination_table", "destination_cluster",
+                  "user", "state"]
+
+        safe_get = lambda task, field: task.get(field, "")
+
+        for task in tasks:
+            info = list(imap(partial(safe_get, task), fields))
+            print("task {0}: {1} ({2}) -> {3} ({4})\tuser: {5}\tstate: {6}".format(*info))
+
+def add_get_tasks_subparser(subparsers):
+    parser = subparsers.add_parser("get-tasks", help="get all existing tasks")
+    parser.add_argument("--json-output", action="store_true", default=False, help="output in JSON format")
+    parser.add_argument("--user", help="print tasks only with specified user")
+    parser.add_argument("--field", nargs="+", help="print only specified field. "
+                                                   "Can be used multiple times and only with --json-output option.")
+
+def get_config_func(**kwargs):
+    print(json.dumps(tm.get_backend_config(**kwargs), indent=4))
+
+def add_get_config_subparser(subparsers):
+    subparsers.add_parser("get-config", help="get actual backend config")
+
+def main():
+    options_parser = argparse.ArgumentParser(add_help=False)
+    options_parser.add_argument("--url", help="backend url")
+    options_parser.add_argument("--disable-http-retries", action="store_true", help="toogle http retries off")
+    options_parser.add_argument("--http-retry-count", type=int, default=6,
+                                help="number of http retries for each request (default: 6)")
+    options_parser.add_argument("--http-request-timeout", type=int, default=10000,
+                                help="http request timeout in ms (default: 10000)")
+    options_parser.add_argument("--force-ipv4", action="store_true", default=False, help="force ipv4 usage")
+    options_parser.add_argument("--force-ipv6", action="store_true", default=False, help="force ipv6 usage")
+    options_parser.add_argument("--token", help="YT token")
+
+    parser = argparse.ArgumentParser(parents=[options_parser],
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     epilog=EPILOG,
+                                     description=DESCRIPTION)
+
+    subparsers = parser.add_subparsers(metavar="command", dest="command")
+
+    add_new_task_subparser(subparsers)
+    add_new_tasks_subparser(subparsers)
+    add_abort_task_subparser(subparsers)
+    add_restart_task_subparser(subparsers)
+    add_get_task_info_subparser(subparsers)
+    add_get_tasks_subparser(subparsers)
+    add_get_config_subparser(subparsers)
+
+    options, remaining_args = options_parser.parse_known_args()
+    args = dict(vars(parser.parse_args(remaining_args)))
+
+    enable_retries = not options.disable_http_retries
+    init_client(
+        url=options.url,
+        token=options.token,
+        http_request_timeout=options.http_request_timeout,
+        enable_retries=enable_retries,
+        retry_count=options.http_retry_count,
+        force_ipv4=options.force_ipv4,
+        force_ipv6=options.force_ipv6)
+
+    for key in dict(vars(options)):
+        args.pop(key)
+
+    actions = {
+        "add-task": add_task_func,
+        "add-tasks": add_tasks_func,
+        "abort-task": tm.abort_task,
+        "restart-task": tm.restart_task,
+        "get-task-info": get_task_info_func,
+        "get-tasks": get_tasks_func,
+        "get-config": get_config_func
+    }
+
+    command = args.pop("command")
+
+    actions[command](**args)
+
+if __name__ == "__main__":
+    run_main(main)
