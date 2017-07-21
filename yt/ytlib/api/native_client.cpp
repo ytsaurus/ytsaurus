@@ -3372,13 +3372,13 @@ private:
         if (options.IncludeArchive) {
             TString conditions = Format("(operation_id_hi, operation_id_lo) = (%vu, %vu)",
                 operationId.Parts64[0], operationId.Parts64[1]);
-
+        
             if (options.JobType) {
-                conditions = Format("%v and type = %Qv", conditions, *options.JobType);
+                conditions = Format("%v and type = %Qv", conditions, FormatEnum(*options.JobType));
             }
 
             if (options.JobState) {
-                conditions = Format("%v and state = %Qv", conditions, *options.JobState);
+                conditions = Format("%v and state = %Qv", conditions, FormatEnum(*options.JobState));
             }
 
             auto selectFields = JoinSeq(",", {
@@ -3549,7 +3549,6 @@ private:
                 job.CoreInfos = attributes.Find<TString>("core_infos");
                 cypressJobs.push_back(job);
             }
-
             sortJobs(&cypressJobs);
             resultJobs = mergeJobs(resultJobs, cypressJobs);
         }
@@ -3600,8 +3599,8 @@ private:
                     job.Progress = progress->AsDouble()->GetValue();
                 }
 
-                resultJobs.push_back(job);
-            }
+                runtimeJobs.push_back(job);
+            } 
             sortJobs(&runtimeJobs);
             resultJobs = mergeJobs(resultJobs, runtimeJobs);
         }
