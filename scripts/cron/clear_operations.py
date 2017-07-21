@@ -393,7 +393,7 @@ class OperationArchiver(object):
 
             if "stderr" in value:
                 self.stderr_queue.put((op_id, job_id))
-                stderr = value['stderr']
+                stderr = value["stderr"]
                 if self.version >= 4:
                     row["stderr_size"] = yson.YsonUint64(stderr.attributes["uncompressed_data_size"])
 

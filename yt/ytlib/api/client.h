@@ -586,7 +586,9 @@ struct TListJobsOptions
 {
     TNullable<NJobTrackerClient::EJobType> JobType;
     TNullable<NJobTrackerClient::EJobState> JobState;
-
+    TNullable<TString> Address;
+    TNullable<bool> HasStderr;
+    
     EJobSortField SortField = EJobSortField::StartTime;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
 

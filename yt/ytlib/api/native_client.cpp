@@ -3437,6 +3437,18 @@ private:
                 conditions = Format("%v and state = %Qv", conditions, FormatEnum(*options.JobState));
             }
 
+            if (options.Address) {
+                conditions = Format("%v and address = %Qv", conditions, *options.Address);
+            }
+
+            if (options.HasStderr) {
+                if (*options.HasStderr) {
+                    conditions = Format("%v and stderr_size != 0 and not is_null(stderr_size)", conditions);
+                } else {
+                    conditions = Format("%v and (stderr_size = 0 or is_null(stderr_size))", conditions);
+                }
+            }
+
             auto selectFields = JoinSeq(",", {
                 "operation_id_hi",
                 "operation_id_lo",
@@ -3572,9 +3584,16 @@ private:
             std::vector<TJob> cypressJobs;
             for (const auto& item : items->GetChildren()) {
                 const auto& attributes = item.second->Attributes();
+                auto values = item.second->AsMap();
 
                 auto jobType = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<TString>("job_type"));
                 auto jobState = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<TString>("state"));
+                auto address = attributes.Get<TString>("address");
+                i64 stderrSize = -1;
+
+                if (auto stderr = values->FindChild("stderr")) {
+                    stderrSize = stderr->Attributes().Get<i64>("uncompressed_data_size");
+                }
 
                 if (options.JobType && jobType != *options.JobType) {
                     continue;
@@ -3584,7 +3603,18 @@ private:
                     continue;
                 }
 
-                auto values = item.second->AsMap();
+                if (options.Address && address != *options.Address) {
+                    continue;
+                }
+
+                if (options.HasStderr) {
+                    if (*options.HasStderr && stderrSize <= 0) {
+                        continue;
+                    } 
+                    if (!(*options.HasStderr) && stderrSize > 0) {
+                        continue;
+                    }
+                }
 
                 TGuid jobId = TGuid::FromString(item.first);
 
@@ -3594,15 +3624,14 @@ private:
                 job.JobState = jobState;
                 job.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
                 job.FinishTime = ConvertTo<TInstant>(attributes.Get<TString>("finish_time"));
-                job.Address = attributes.Get<TString>("address");
+                job.Address = address;
                 job.Error = attributes.FindYson("error");
                 job.Statistics = attributes.FindYson("statistics");
-                if (auto stderr = values->FindChild("stderr")) {
-                    job.StderrSize = stderr->Attributes().Get<i64>("uncompressed_data_size");
-                }
-
                 job.Progress = attributes.Find<double>("progress");
                 job.CoreInfos = attributes.Find<TString>("core_infos");
+                if (stderrSize > 0) {
+                    job.StderrSize = stderrSize;
+                }
                 cypressJobs.push_back(job);
             }
             sortJobs(&cypressJobs);
@@ -3629,12 +3658,21 @@ private:
                 auto values = item.second->AsMap();
                 auto jobType = ParseEnum<NJobTrackerClient::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
                 auto jobState = ParseEnum<NJobTrackerClient::EJobState>(values->GetChild("state")->AsString()->GetValue());
+                auto address = values->GetChild("address")->AsString()->GetValue();
 
                 if (options.JobType && jobType != *options.JobType) {
                     continue;
                 }
 
                 if (options.JobState && jobState != *options.JobState) {
+                    continue;
+                }
+
+                if (options.Address && address != *options.Address) {
+                    continue;
+                }
+
+                if (options.HasStderr && !(*options.HasStderr)) {
                     continue;
                 }
 
@@ -3645,7 +3683,7 @@ private:
                 job.JobType = jobType;
                 job.JobState = jobState;
                 job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
-                job.Address = values->GetChild("address")->AsString()->GetValue();
+                job.Address = address;
 
                 if (auto error = values->FindChild("error")) {
                     job.Error = TYsonString(error->AsString()->GetValue());
@@ -3656,7 +3694,7 @@ private:
                 }
 
                 runtimeJobs.push_back(job);
-            } 
+            }
             sortJobs(&runtimeJobs);
             resultJobs = mergeJobs(resultJobs, runtimeJobs);
         }
