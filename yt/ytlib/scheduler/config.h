@@ -376,6 +376,8 @@ public:
     //! be larger.
     TNullable<i64> DataSizePerJob;
 
+    bool ConsiderOnlyPrimarySize;
+
     TNullable<int> JobCount;
     TNullable<int> MaxJobCount;
 
