@@ -162,8 +162,8 @@ public:
         RegisterParameter("slot_initialization_failure_is_fatal", SlotInitializationFailureIsFatal)
             .Default(false);
         RegisterParameter("file_copy_chunk_size", FileCopyChunkSize)
-            .GreaterThanOrEqual(KB)
-            .Default(10 * MB);
+            .GreaterThanOrEqual(1_KB)
+            .Default(10_MB);
 
         RegisterParameter("job_proxy_socket_name_directory", JobProxySocketNameDirectory)
             .Default(Null);

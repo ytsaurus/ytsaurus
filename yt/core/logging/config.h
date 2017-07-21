@@ -99,8 +99,8 @@ public:
         RegisterParameter("check_space_period", CheckSpacePeriod)
             .Default();
         RegisterParameter("min_disk_space", MinDiskSpace)
-            .GreaterThanOrEqual(GB)
-            .Default(5 * GB);
+            .GreaterThanOrEqual(1_GB)
+            .Default(5_GB);
         RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
             .GreaterThan(0)
             .Default(10000000);

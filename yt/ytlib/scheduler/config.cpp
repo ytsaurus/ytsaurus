@@ -116,7 +116,7 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("max_data_weight_per_job", MaxDataWeightPerJob)
         .Alias("max_data_size_per_job")
-        .Default((i64) 200 * GB)
+        .Default(200_GB)
         .GreaterThan(0);
 
     RegisterParameter("max_failed_job_count", MaxFailedJobCount)
@@ -206,9 +206,9 @@ TUserJobSpec::TUserJobSpec()
         .Default()
         .GreaterThanOrEqual(TDuration::Seconds(1));
     RegisterParameter("memory_limit", MemoryLimit)
-        .Default(512 * MB)
+        .Default(512_MB)
         .GreaterThan(0)
-        .LessThanOrEqual(TB);
+        .LessThanOrEqual(1_TB);
     RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
         .Default(0.5)
         .GreaterThan(0.)
@@ -220,9 +220,9 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)
         .Default(false);
     RegisterParameter("max_stderr_size", MaxStderrSize)
-        .Default(5 * MB)
+        .Default(5_MB)
         .GreaterThan(0)
-        .LessThanOrEqual(GB);
+        .LessThanOrEqual(1_GB);
     RegisterParameter("custom_statistics_count_limit", CustomStatisticsCountLimit)
         .Default(128)
         .GreaterThan(0)
@@ -346,7 +346,7 @@ TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
         .NonEmpty();
 
     RegisterInitializer([&] () {
-        JobIO->TableReader->MaxBufferSize = 256 * MB;
+        JobIO->TableReader->MaxBufferSize = 256_MB;
     });
 }
 
@@ -519,7 +519,7 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .GreaterThan(0);
     RegisterParameter("data_weight_per_sort_job", DataWeightPerShuffleJob)
         .Alias("data_size_per_sort_job")
-        .Default((i64)2 * GB)
+        .Default(2_GB)
         .GreaterThan(0);
     RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
         .Default(0.75)
@@ -597,10 +597,10 @@ TSortOperationSpec::TSortOperationSpec()
         .Default(Null);
 
     RegisterInitializer([&] () {
-        PartitionJobIO->TableReader->MaxBufferSize = GB;
-        PartitionJobIO->TableWriter->MaxBufferSize = 2 * GB;
+        PartitionJobIO->TableReader->MaxBufferSize = 1_GB;
+        PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
-        SortJobIO->TableReader->MaxBufferSize = GB;
+        SortJobIO->TableReader->MaxBufferSize = 1_GB;
         SortJobIO->TableReader->RetryCount = 3;
         MergeJobIO->TableReader->RetryCount = 3;
 
@@ -672,10 +672,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     //   MapSelectivityFactor
 
     RegisterInitializer([&] () {
-        PartitionJobIO->TableReader->MaxBufferSize = 256 * MB;
-        PartitionJobIO->TableWriter->MaxBufferSize = 2 * GB;
+        PartitionJobIO->TableReader->MaxBufferSize = 256_MB;
+        PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
-        SortJobIO->TableReader->MaxBufferSize = GB;
+        SortJobIO->TableReader->MaxBufferSize = 1_GB;
 
         SortJobIO->TableReader->RetryCount = 3;
         MergeJobIO->TableReader->RetryCount = 3;
@@ -749,7 +749,7 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
     RegisterParameter("concurrency", Concurrency)
         .Default(4);
     RegisterParameter("block_buffer_size", BlockBufferSize)
-        .Default(64 * MB);
+        .Default(64_MB);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 }

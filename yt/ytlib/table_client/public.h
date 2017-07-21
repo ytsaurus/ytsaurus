@@ -56,17 +56,17 @@ const int MaxColumnGroupLength = 256;
 // Only for dynamic tables.
 const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
-const i64 MaxStringValueLength = 16 * MB;
-const i64 MaxAnyValueLength = 16 * MB;
-const i64 MaxVersionedRowDataWeight = 512 * MB;
+const i64 MaxStringValueLength = 16_MB;
+const i64 MaxAnyValueLength = 16_MB;
+const i64 MaxVersionedRowDataWeight = 512_MB;
 
 // Only for static tables.
-const i64 MaxRowWeightLimit = 128 * MB;
-const i64 MaxKeyWeightLimit = 256 * KB;
+const i64 MaxRowWeightLimit = 128_MB;
+const i64 MaxKeyWeightLimit = 256_KB;
 
 // NB(psushin): increasing this parameter requires rewriting all chunks,
 // so one probaly should never want to do it.
-const int MaxSampleSize = 64 * 1024;
+const int MaxSampleSize = 64_KB;
 
 // This is a hard limit for static tables,
 // imposed Id field size (16-bit) in TUnversionedValue.

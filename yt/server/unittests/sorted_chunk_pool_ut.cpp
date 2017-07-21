@@ -10,6 +10,7 @@
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>
+#include <yt/core/misc/size_literals.h>
 
 #include <util/stream/null.h>
 
@@ -31,7 +32,6 @@ using namespace ::testing;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A unit to measure all sizes in this file.
-static constexpr i64 KB = 1024;
 static constexpr i32 Inf32 = std::numeric_limits<i32>::max();
 static constexpr i64 Inf64 = std::numeric_limits<i64>::max();
 
@@ -144,7 +144,7 @@ protected:
         const TKey& minBoundaryKey,
         const TKey& maxBoundaryKey,
         int tableIndex,
-        i64 size = 1 * KB,
+        i64 size = 1_KB,
         const TKey& lowerLimit = TKey(),
         const TKey& upperLimit = TKey(),
         i64 rowCount = 1000)
@@ -615,7 +615,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports1)
     auto chunkA = CreateChunk(BuildRow({0, 10}), BuildRow({1, 11}), 0);
     auto chunkB = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 1);
     auto chunkC = CreateChunk(BuildRow({1, 10}), BuildRow({1, 13}), 2);
-    auto chunkD = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 3, 1 * KB, BuildRow({1, 13}), BuildRow({1, 17}));
+    auto chunkD = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 3, 1_KB, BuildRow({1, 13}), BuildRow({1, 17}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkD);
 
     CreateChunkPool();
@@ -653,7 +653,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports2)
     auto chunkA = CreateChunk(BuildRow({0, 10}), BuildRow({1, 11}), 0);
     auto chunkB = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 1);
     auto chunkC = CreateChunk(BuildRow({1, 10}), BuildRow({1, 13}), 2);
-    auto chunkD = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 3, 1 * KB, BuildRow({1, 13}), BuildRow({1, 17}));
+    auto chunkD = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 3, 1_KB, BuildRow({1, 13}), BuildRow({1, 17}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkD);
 
@@ -855,21 +855,21 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // _[==]_____
     // ___===[==]
     auto chunkA12 = CreateChunk(BuildRow({12, 1, 0}), BuildRow({12, 1, 4}), 0);
-    auto chunkB12 = CreateChunk(BuildRow({12, 1, 2}), BuildRow({12, 1, 8}), 1, 1 * KB, BuildRow({12, 1, 5}));
+    auto chunkB12 = CreateChunk(BuildRow({12, 1, 2}), BuildRow({12, 1, 8}), 1, 1_KB, BuildRow({12, 1, 5}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB12);
 
     // Yes/No (non-trivial lower limit coinciding with max key).
     // _[==]_____
     // ___=[====]
     auto chunkA13 = CreateChunk(BuildRow({13, 1, 0}), BuildRow({13, 1, 4}), 0);
-    auto chunkB13 = CreateChunk(BuildRow({13, 1, 2}), BuildRow({13, 1, 8}), 1, 1 * KB, BuildRow({13, 1, 4}));
+    auto chunkB13 = CreateChunk(BuildRow({13, 1, 2}), BuildRow({13, 1, 8}), 1, 1_KB, BuildRow({13, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB13);
 
     // No/No (they partially intersect with each other).
     // _[===]____
     // ___=[===]_
     auto chunkA14 = CreateChunk(BuildRow({14, 1, 0}), BuildRow({14, 1, 4}), 0);
-    auto chunkB14 = CreateChunk(BuildRow({14, 1, 2}), BuildRow({14, 1, 8}), 1, 1 * KB, BuildRow({14, 1, 3}));
+    auto chunkB14 = CreateChunk(BuildRow({14, 1, 2}), BuildRow({14, 1, 8}), 1, 1_KB, BuildRow({14, 1, 3}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA14);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB14);
 
@@ -877,28 +877,28 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // _[===]____
     // ___=[]____
     auto chunkA15 = CreateChunk(BuildRow({15, 1, 0}), BuildRow({15, 1, 4}), 0);
-    auto chunkB15 = CreateChunk(BuildRow({15, 1, 2}), BuildRow({15, 1, 4}), 1, 1 * KB, BuildRow({15, 1, 4}));
+    auto chunkB15 = CreateChunk(BuildRow({15, 1, 2}), BuildRow({15, 1, 4}), 1, 1_KB, BuildRow({15, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB15);
 
     // Yes/No (non-trivial upper limit).
     // ______[===]_
     // _[==)===____
     auto chunkA16 = CreateChunk(BuildRow({16, 1, 4}), BuildRow({16, 1, 8}), 0);
-    auto chunkB16 = CreateChunk(BuildRow({16, 1, 0}), BuildRow({16, 1, 6}), 1, 1 * KB, TKey(), BuildRow({16, 1, 3}));
+    auto chunkB16 = CreateChunk(BuildRow({16, 1, 0}), BuildRow({16, 1, 6}), 1, 1_KB, TKey(), BuildRow({16, 1, 3}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB16);
 
     // Yes/No (non-trivial upper limit).
     // ____[===]_
     // _[==)===__
     auto chunkA17 = CreateChunk(BuildRow({17, 1, 4}), BuildRow({17, 1, 8}), 0);
-    auto chunkB17 = CreateChunk(BuildRow({17, 1, 0}), BuildRow({17, 1, 6}), 1, 1 * KB, TKey(), BuildRow({17, 1, 4}));
+    auto chunkB17 = CreateChunk(BuildRow({17, 1, 0}), BuildRow({17, 1, 6}), 1, 1_KB, TKey(), BuildRow({17, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB17);
 
     // No/No (non-trivial upper limit).
     // ____[===]_
     // _[====)=__
     auto chunkA18 = CreateChunk(BuildRow({18, 1, 4}), BuildRow({18, 1, 8}), 0);
-    auto chunkB18 = CreateChunk(BuildRow({18, 1, 0}), BuildRow({18, 1, 6}), 1, 1 * KB, TKey(), BuildRow({18, 1, 5}));
+    auto chunkB18 = CreateChunk(BuildRow({18, 1, 0}), BuildRow({18, 1, 6}), 1, 1_KB, TKey(), BuildRow({18, 1, 5}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA18);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB18);
 
@@ -906,14 +906,14 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // __[]_______
     // ===[==)____
     auto chunkA19 = CreateChunk(BuildRow({19, 1, 4}), BuildRow({19, 1, 4}), 0);
-    auto chunkB19 = CreateChunk(BuildRow({19, 1, 0}), BuildRow({19, 1, 6}), 1, 1 * KB, BuildRow({19, 1, 4}));
+    auto chunkB19 = CreateChunk(BuildRow({19, 1, 0}), BuildRow({19, 1, 6}), 1, 1_KB, BuildRow({19, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB19);
 
     // Yes/No (first one is single-key touching the second one with non-trivial upper limit).
     // _____[]___
     // ___[==)===_
     auto chunkA20 = CreateChunk(BuildRow({20, 1, 4}), BuildRow({20, 1, 4}), 0);
-    auto chunkB20 = CreateChunk(BuildRow({20, 1, 0}), BuildRow({20, 1, 6}), 1, 1 * KB, TKey(), BuildRow({20, 1, 4}));
+    auto chunkB20 = CreateChunk(BuildRow({20, 1, 0}), BuildRow({20, 1, 6}), 1, 1_KB, TKey(), BuildRow({20, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB20);
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -975,7 +975,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // _________[==)======____________________________________
 
     auto chunkA27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 3, 42}), 0);
-    auto chunkB27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 2, 42}), 1, 1 * KB, TKey(), BuildRow({27, 1, 1, 46}));
+    auto chunkB27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 2, 42}), 1, 1_KB, TKey(), BuildRow({27, 1, 1, 46}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB27);
 
     // No/No (after shortening chunks will be intersecting).
@@ -984,7 +984,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // _________[========)======______________________________
 
     auto chunkA28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 0);
-    auto chunkB28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 1, 1 * KB, TKey(), BuildRow({28, 1, 2, 46}));
+    auto chunkB28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 1, 1_KB, TKey(), BuildRow({28, 1, 2, 46}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA28);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB28);
 
@@ -998,7 +998,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // _____________________==========[======================]______________________________________
     // _______________[==============================]______________________________________________
 
-    auto chunkA29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 1}), 0, 1 * KB, BuildRow({29, 1}));
+    auto chunkA29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 1}), 0, 1_KB, BuildRow({29, 1}));
     auto chunkB29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 0}), 1);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA29);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB29);
@@ -1009,7 +1009,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // ______________________________________[========================)==============________________
     // _____________________________________________________________________[=======]________________
 
-    auto chunkA30 = CreateChunk(BuildRow({30, 1, 0}), BuildRow({30, 2, 1}), 0, 1 * KB, TKey(), BuildRow({30, 2}));
+    auto chunkA30 = CreateChunk(BuildRow({30, 1, 0}), BuildRow({30, 2, 1}), 0, 1_KB, TKey(), BuildRow({30, 2}));
     auto chunkB30 = CreateChunk(BuildRow({30, 2, 0}), BuildRow({30, 2, 0}), 1);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA30);
 
@@ -1065,7 +1065,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimple)
     auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
     auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
     auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
-    auto chunkBSlices = SliceUnversionedChunk(chunkB, {BuildRow({3}), BuildRow({6})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkBSlices = SliceUnversionedChunk(chunkB, {BuildRow({3}), BuildRow({6})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
     CurrentMock().RegisterSliceableUnversionedChunk(chunkB, chunkBSlices);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
@@ -1137,7 +1137,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimpleWithGenericInputStreamDirectory)
     auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
     auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
     auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
-    auto chunkBSlices = SliceUnversionedChunk(chunkB, {BuildRow({3}), BuildRow({6})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkBSlices = SliceUnversionedChunk(chunkB, {BuildRow({3}), BuildRow({6})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
     CurrentMock().RegisterSliceableUnversionedChunk(chunkB, chunkBSlices);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
@@ -1393,14 +1393,14 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // _[==]_____
     // ___===[==]
     auto chunkA12 = CreateChunk(BuildRow({12, 1, 0}), BuildRow({12, 1, 4}), 0);
-    auto chunkB12 = CreateChunk(BuildRow({12, 1, 2}), BuildRow({12, 1, 8}), 1, 1 * KB, BuildRow({12, 1, 5}));
+    auto chunkB12 = CreateChunk(BuildRow({12, 1, 2}), BuildRow({12, 1, 8}), 1, 1_KB, BuildRow({12, 1, 5}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB12);
 
     // No/No (non-trivial lower limit coinciding with max key).
     // _[==]_____
     // ___=[====]
     auto chunkA13 = CreateChunk(BuildRow({13, 1, 0}), BuildRow({13, 1, 4}), 0);
-    auto chunkB13 = CreateChunk(BuildRow({13, 1, 2}), BuildRow({13, 1, 8}), 1, 1 * KB, BuildRow({13, 1, 4}));
+    auto chunkB13 = CreateChunk(BuildRow({13, 1, 2}), BuildRow({13, 1, 8}), 1, 1_KB, BuildRow({13, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA13);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB13);
 
@@ -1408,7 +1408,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // _[===]____
     // ___=[===]_
     auto chunkA14 = CreateChunk(BuildRow({14, 1, 0}), BuildRow({14, 1, 4}), 0);
-    auto chunkB14 = CreateChunk(BuildRow({14, 1, 2}), BuildRow({14, 1, 8}), 1, 1 * KB, BuildRow({14, 1, 3}));
+    auto chunkB14 = CreateChunk(BuildRow({14, 1, 2}), BuildRow({14, 1, 8}), 1, 1_KB, BuildRow({14, 1, 3}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA14);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB14);
 
@@ -1416,7 +1416,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // _[===]____
     // ___=[]____
     auto chunkA15 = CreateChunk(BuildRow({15, 1, 0}), BuildRow({15, 1, 4}), 0);
-    auto chunkB15 = CreateChunk(BuildRow({15, 1, 2}), BuildRow({15, 1, 4}), 1, 1 * KB, BuildRow({15, 1, 4}));
+    auto chunkB15 = CreateChunk(BuildRow({15, 1, 2}), BuildRow({15, 1, 4}), 1, 1_KB, BuildRow({15, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA15);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB15);
 
@@ -1424,21 +1424,21 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // ______[===]_
     // _[==)===____
     auto chunkA16 = CreateChunk(BuildRow({16, 1, 4}), BuildRow({16, 1, 8}), 0);
-    auto chunkB16 = CreateChunk(BuildRow({16, 1, 0}), BuildRow({16, 1, 6}), 1, 1 * KB, TKey(), BuildRow({16, 1, 3}));
+    auto chunkB16 = CreateChunk(BuildRow({16, 1, 0}), BuildRow({16, 1, 6}), 1, 1_KB, TKey(), BuildRow({16, 1, 3}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB16);
 
     // Yes/No (non-trivial upper limit).
     // ____[===]_
     // _[==)===__
     auto chunkA17 = CreateChunk(BuildRow({17, 1, 4}), BuildRow({17, 1, 8}), 0);
-    auto chunkB17 = CreateChunk(BuildRow({17, 1, 0}), BuildRow({17, 1, 6}), 1, 1 * KB, TKey(), BuildRow({17, 1, 4}));
+    auto chunkB17 = CreateChunk(BuildRow({17, 1, 0}), BuildRow({17, 1, 6}), 1, 1_KB, TKey(), BuildRow({17, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB17);
 
     // No/No (non-trivial upper limit).
     // ____[===]_
     // _[====)=__
     auto chunkA18 = CreateChunk(BuildRow({18, 1, 4}), BuildRow({18, 1, 8}), 0);
-    auto chunkB18 = CreateChunk(BuildRow({18, 1, 0}), BuildRow({18, 1, 6}), 1, 1 * KB, TKey(), BuildRow({18, 1, 5}));
+    auto chunkB18 = CreateChunk(BuildRow({18, 1, 0}), BuildRow({18, 1, 6}), 1, 1_KB, TKey(), BuildRow({18, 1, 5}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA18);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB18);
 
@@ -1446,7 +1446,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // __[]_______
     // ===[==)____
     auto chunkA19 = CreateChunk(BuildRow({19, 1, 4}), BuildRow({19, 1, 4}), 0);
-    auto chunkB19 = CreateChunk(BuildRow({19, 1, 0}), BuildRow({19, 1, 6}), 1, 1 * KB, BuildRow({19, 1, 4}));
+    auto chunkB19 = CreateChunk(BuildRow({19, 1, 0}), BuildRow({19, 1, 6}), 1, 1_KB, BuildRow({19, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA19);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB19);
 
@@ -1454,7 +1454,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // _____[]___
     // ___[==)===_
     auto chunkA20 = CreateChunk(BuildRow({20, 1, 4}), BuildRow({20, 1, 4}), 0);
-    auto chunkB20 = CreateChunk(BuildRow({20, 1, 0}), BuildRow({20, 1, 6}), 1, 1 * KB, TKey(), BuildRow({20, 1, 4}));
+    auto chunkB20 = CreateChunk(BuildRow({20, 1, 0}), BuildRow({20, 1, 6}), 1, 1_KB, TKey(), BuildRow({20, 1, 4}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB20);
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1524,7 +1524,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // _________[==)======____________________________________
 
     auto chunkA27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 3, 42}), 0);
-    auto chunkB27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 2, 42}), 1, 1 * KB, TKey(), BuildRow({27, 1, 1, 46}));
+    auto chunkB27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 2, 42}), 1, 1_KB, TKey(), BuildRow({27, 1, 1, 46}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA27);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB27);
 
@@ -1534,7 +1534,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // _________[========)======______________________________
 
     auto chunkA28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 0);
-    auto chunkB28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 1, 1 * KB, TKey(), BuildRow({28, 1, 2, 46}));
+    auto chunkB28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 1, 1_KB, TKey(), BuildRow({28, 1, 2, 46}));
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA28);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB28);
 
@@ -1548,7 +1548,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // _____________________==========[======================]______________________________________
     // _______________[==============================]______________________________________________
 
-    auto chunkA29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 1}), 0, 1 * KB, BuildRow({29, 1}));
+    auto chunkA29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 1}), 0, 1_KB, BuildRow({29, 1}));
     auto chunkB29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 0}), 1);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA29);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB29);
@@ -1559,7 +1559,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // ______________________________________[========================)==============________________
     // _____________________________________________________________________[=======]________________
 
-    auto chunkA30 = CreateChunk(BuildRow({30, 1, 0}), BuildRow({30, 2, 1}), 0, 1 * KB, TKey(), BuildRow({30, 2}));
+    auto chunkA30 = CreateChunk(BuildRow({30, 1, 0}), BuildRow({30, 2, 1}), 0, 1_KB, TKey(), BuildRow({30, 2}));
     auto chunkB30 = CreateChunk(BuildRow({30, 2, 0}), BuildRow({30, 2, 0}), 1);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA30);
 
@@ -1678,8 +1678,8 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendMappingTest)
     PrepareNewMock();
 
     auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
-    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1, 1 * KB, BuildRow({10}));
-    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1, 1_KB, BuildRow({10}));
+    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
     CurrentMock().RegisterSliceableUnversionedChunk(chunkAv1, chunkAv1Slices);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkBv1);
 
@@ -1720,7 +1720,7 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest1)
 
     auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
     auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
-    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
     auto chunkAv2 = CopyChunk(chunkAv1);
     chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
     chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
@@ -1790,7 +1790,7 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest2)
 
     auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
     auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
-    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
     auto chunkAv2 = CopyChunk(chunkAv1);
     chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
     chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
@@ -1874,7 +1874,7 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest3)
 
     auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
     auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
-    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {1_KB / 4, 1_KB / 2, 1_KB / 4});
     auto chunkAv2 = CopyChunk(chunkAv1);
     chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
     chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
@@ -2221,7 +2221,7 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     auto chunk = CreateChunk(BuildRow({10}), BuildRow({20}), 0);
     std::vector<TInputChunkSlicePtr> slices;
     for (int index = 0; index < 100; ++index) {
-        slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /* partIndex */, 10 * index, 10 * (index + 1), 1 * KB));
+        slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /* partIndex */, 10 * index, 10 * (index + 1), 1_KB));
         slices.back()->LowerLimit().Key = BuildRow({10});
         slices.back()->UpperLimit().Key = BuildRow({20});
     }
@@ -2255,13 +2255,13 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase)
         {false}
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
-    DataSizePerJob_ = 10 * KB;
+    DataSizePerJob_ = 10_KB;
     InitJobConstraints();
     PrepareNewMock();
 
-    auto chunkA = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 12 * KB);
-    auto chunkB = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3 * KB);
-    auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9 * KB, 3 * KB}, {500, 500});
+    auto chunkA = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 12_KB);
+    auto chunkB = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3_KB);
+    auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9_KB, 3_KB}, {500, 500});
     chunkASlices[1]->LowerLimit().Key = BuildRow({100});
     CurrentMock().RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
@@ -2303,14 +2303,14 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
         {false}
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
-    DataSizePerJob_ = 10 * KB;
+    DataSizePerJob_ = 10_KB;
     InitJobConstraints();
     PrepareNewMock();
 
-    auto chunkA = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 12 * KB);
-    auto chunkB = CreateChunk(BuildRow({100}), BuildRow({100}), 0, KB / 10);
-    auto chunkC = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3 * KB);
-    auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9 * KB, 3 * KB}, {500, 500});
+    auto chunkA = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 12_KB);
+    auto chunkB = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 1_KB / 10);
+    auto chunkC = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3_KB);
+    auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9_KB, 3_KB}, {500, 500});
     chunkASlices[1]->LowerLimit().Key = BuildRow({100});
     CurrentMock().RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
@@ -2355,12 +2355,12 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase3)
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 2;
     Options_.SortedJobOptions.ForeignPrefixLength = 1;
-    DataSizePerJob_ = 10 * KB;
+    DataSizePerJob_ = 10_KB;
     InitJobConstraints();
 
-    auto chunkA = CreateChunk(BuildRow({2}), BuildRow({2}), 0, KB / 10);
-    auto chunkB = CreateChunk(BuildRow({1, 0}), BuildRow({5, 0}), 1, 100 * KB);
-    auto chunkC = CreateChunk(BuildRow({2, 1}), BuildRow({2, 2}), 2, 3 * KB);
+    auto chunkA = CreateChunk(BuildRow({2}), BuildRow({2}), 0, 1_KB / 10);
+    auto chunkB = CreateChunk(BuildRow({1, 0}), BuildRow({5, 0}), 1, 100_KB);
+    auto chunkC = CreateChunk(BuildRow({2, 1}), BuildRow({2, 2}), 2, 3_KB);
 
     CreateChunkPool();
 
@@ -2600,17 +2600,17 @@ TEST_F(TSortedChunkPoolTest, SliceByPrimaryDataSize)
         {false, false} /* isTeleportable */,
         {false, false} /* isVersioned */
     );
-    DataSizePerJob_ = 10 * KB;
-    PrimaryDataWeightPerJob_ = 1 * KB;
+    DataSizePerJob_ = 10_KB;
+    PrimaryDataWeightPerJob_ = 1_KB;
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     InitJobConstraints();
 
     std::vector<TInputChunkPtr> chunks;
     for (int index = 0; index < 100; ++index) {
-        chunks.push_back(CreateChunk(BuildRow({10 * index}), BuildRow({10 * index + 9}), 0, 1 * KB));
+        chunks.push_back(CreateChunk(BuildRow({10 * index}), BuildRow({10 * index + 9}), 0, 1_KB));
     }
     for (int index = 0; index < 10; ++index) {
-        chunks.push_back(CreateChunk(BuildRow({10 * 42 + index}), BuildRow({10 * 42 + index}), 1, 1 * KB));
+        chunks.push_back(CreateChunk(BuildRow({10 * 42 + index}), BuildRow({10 * 42 + index}), 1, 1_KB));
     }
 
     CreateChunkPool();
@@ -2640,9 +2640,9 @@ TEST_F(TSortedChunkPoolTest, ExtractByDataSize)
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     DataSizePerJob_ = 1;
-    auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 10 * KB);
-    auto chunkA2 = CreateChunk(BuildRow({6}), BuildRow({10}), 0, 5 * KB);
-    auto chunkA3 = CreateChunk(BuildRow({11}), BuildRow({15}), 0, 15 * KB);
+    auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 10_KB);
+    auto chunkA2 = CreateChunk(BuildRow({6}), BuildRow({10}), 0, 5_KB);
+    auto chunkA3 = CreateChunk(BuildRow({11}), BuildRow({15}), 0, 15_KB);
 
     InitJobConstraints();
 
@@ -2671,16 +2671,16 @@ TEST_F(TSortedChunkPoolTest, ExtractByDataSize)
 TEST_F(TSortedChunkPoolTest, MaximumDataWeightPerJobViolation)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
-    Options_.SortedJobOptions.MaxDataWeightPerJob = 10 * KB;
+    Options_.SortedJobOptions.MaxDataWeightPerJob = 10_KB;
     InitTables(
         {false, false} /* isForeign */,
         {false, false} /* isTeleportable */,
         {false, false} /* isVersioned */
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
-    DataSizePerJob_ = 5 * KB;
-    auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 7 * KB);
-    auto chunkB1 = CreateChunk(BuildRow({3}), BuildRow({8}), 0, 7 * KB);
+    DataSizePerJob_ = 5_KB;
+    auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 7_KB);
+    auto chunkB1 = CreateChunk(BuildRow({3}), BuildRow({8}), 0, 7_KB);
 
     InitJobConstraints();
 
@@ -2703,11 +2703,11 @@ TEST_F(TSortedChunkPoolTest, CartesianProductViaJoinReduce)
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.SortedJobOptions.ForeignPrefixLength = 1;
     DataSizePerJob_ = Inf64;
-    PrimaryDataWeightPerJob_ = 10 * KB;
+    PrimaryDataWeightPerJob_ = 10_KB;
     std::vector<TInputChunkPtr> chunks;
     for (int index = 0; index < 1000; ++index) {
-        chunks.emplace_back(CreateChunk(BuildRow({0}), BuildRow({0}), 0, 1 * KB));
-        chunks.emplace_back(CreateChunk(BuildRow({0}), BuildRow({0}), 1, 1 * KB));
+        chunks.emplace_back(CreateChunk(BuildRow({0}), BuildRow({0}), 0, 1_KB));
+        chunks.emplace_back(CreateChunk(BuildRow({0}), BuildRow({0}), 1, 1_KB));
     }
 
     InitJobConstraints();
@@ -2757,7 +2757,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         {false} /* isVersioned */
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
-    DataSizePerJob_ = 1 * KB;
+    DataSizePerJob_ = 1_KB;
     InitJobConstraints();
     PrepareNewMock();
 

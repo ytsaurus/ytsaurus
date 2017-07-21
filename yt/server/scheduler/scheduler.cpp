@@ -54,7 +54,7 @@
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/memory_constants.h>
+#include <yt/core/misc/size_literals.h>
 
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -1774,7 +1774,7 @@ private:
         TMemoryDistribution result;
         for (const auto& descriptor : execNodesList->Descriptors) {
             if (filter.CanSchedule(descriptor.Tags)) {
-                ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), GB)];
+                ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), 1_GB)];
             }
         }
         result = FilterLargestValues(result, Config_->MemoryDistributionDifferentNodeTypesThreshold);
