@@ -194,36 +194,38 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
 
     auto result = WaitFor(context->GetClient()->ListJobs(OperationId, Options))
         .ValueOrThrow();
-
-    std::vector<TUnversionedRow> rowset;
-    for (const auto& job : result) {
-        auto resultRow = buffer->AllocateUnversioned(11);
-        auto setValue = [&] (int id, auto value) {
-            TUnversionedValue unversionedValue = ToUnversionedValue(value);
-            unversionedValue.Id = id;
-            resultRow[id] = buffer->Capture(unversionedValue);
-        };
-
-        setValue(ids.JobId, ToString(job.JobId));
-        setValue(ids.JobType, job.JobType);
-        setValue(ids.JobState, job.JobState);
-        setValue(ids.StartTime, job.StartTime);
-        setValue(ids.FinishTime, job.FinishTime);
-        setValue(ids.Address, job.Address);
-        setValue(ids.Error, job.Error);
-        setValue(ids.Statistics, job.Statistics);
-        setValue(ids.StderrSize, job.StderrSize);
-        setValue(ids.Progress, job.Progress);
-        setValue(ids.CoreInfos, job.CoreInfos);
-
-        rowset.push_back(resultRow);
-    }
-
-    auto format = context->GetOutputFormat();
-    auto output = context->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, schema, output);
-
-    writer->Write(rowset);
+ 
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("jobs").BeginList()
+                .DoFor(result, [] (TFluentList fluent, const TJob& job) {
+                    fluent
+                        .Item().BeginMap()
+                            .Item("job_id").Value(job.JobId)
+                            .Item("type").Value(job.JobType)
+                            .Item("state").Value(job.JobState)
+                            .Item("start_time").Value(job.StartTime)
+                            .Item("finish_time").Value(job.FinishTime)
+                            .Item("address").Value(job.Address)
+                            .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("error").Value(job.Error);
+                            })
+                            .DoIf(job.Statistics.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("statistics").Value(job.Statistics);
+                            }) 
+                            .DoIf(job.StderrSize.HasValue(), [&] (TFluentMap fluent) {
+                                fluent.Item("stderr_size").Value(job.StderrSize);
+                            })
+                            .DoIf(job.Progress.HasValue(), [&] (TFluentMap fluent) {
+                                fluent.Item("progress").Value(job.Progress);
+                            })
+                            .DoIf(job.CoreInfos.HasValue(), [&] (TFluentMap fluent) {
+                                fluent.Item("core_infos").Value(job.CoreInfos);
+                            })
+                        .EndMap();
+                })
+            .EndList()
+        .EndMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

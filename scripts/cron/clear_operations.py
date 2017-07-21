@@ -391,13 +391,14 @@ class OperationArchiver(object):
             row["start_time"] = date_string_to_timestamp_mcs(attributes["start_time"])
             row["finish_time"] = date_string_to_timestamp_mcs(attributes["finish_time"])
 
-            stderr = value.get("stderr")
-            if self.version >= 4 and stderr:
-                row["stderr_size"] = yson.YsonUint64(stderr.attributes["uncompressed_data_size"])
-            rows.append(row)
-
             if "stderr" in value:
                 self.stderr_queue.put((op_id, job_id))
+                stderr = value['stderr']
+                if self.version >= 4:
+                    row["stderr_size"] = yson.YsonUint64(stderr.attributes["uncompressed_data_size"])
+
+            rows.append(row)
+
         return rows
 
     def do_archive_jobs(self, op_ids):

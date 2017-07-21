@@ -202,7 +202,7 @@ def get_job_stderr(operation_id, job_id, **kwargs):
 
 def list_jobs(operation_id, **kwargs):
     kwargs["operation_id"] = operation_id
-    return execute_command_with_output_format("list_jobs", kwargs)
+    return yson.loads(execute_command("list_jobs", kwargs))
 
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
@@ -752,20 +752,22 @@ def start_op(op_type, **kwargs):
     operation = Operation()
 
     wait_for_jobs = kwargs.get("wait_for_jobs", False)
-    if "command" in kwargs and wait_for_jobs:
-        label = kwargs.get("label", "test")
-        operation._tmpdir = create_tmpdir(label)
-        kwargs["command"] = (
-            "({1}\n"
-            "touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
-            "{2}\n"
-            "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n"
-            "{3}\n)"
-            .format(
-                operation._tmpdir,
-                kwargs.get("precommand", ""),
-                kwargs["command"],
-                kwargs.get("postcommand", "")))
+    for opt in ["command", "mapper_command", "reducer_command"]:
+        if opt in kwargs and wait_for_jobs:
+            label = kwargs.get("label", "test")
+            if not operation._tmpdir:
+                operation._tmpdir = create_tmpdir(label)
+            kwargs[opt] = (
+                "({1}\n"
+                "touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
+                "{2}\n"
+                "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n"
+                "{3}\n)"
+                .format(
+                    operation._tmpdir,
+                    kwargs.get("precommand", ""),
+                    kwargs[opt],
+                    kwargs.get("postcommand", "")))
 
     change(kwargs, "table_path", ["spec", "table_path"])
     change(kwargs, "in_", ["spec", input_name])
