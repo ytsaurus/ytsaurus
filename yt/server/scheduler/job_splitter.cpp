@@ -123,7 +123,7 @@ public:
     virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override
     {
         BuildYsonMapFluently(consumer)
-            .Item("build_time").Value(CpuInstantToInstant(GetCpuInstant()))
+            .Item("build_time").Value(NProfiling::GetInstant())
             .Item("running_job_count").Value(RunningJobs_.size())
             .Item("max_running_job_count").Value(MaxRunningJobCount_)
             .Item("running_jobs").DoMapFor(RunningJobs_,
