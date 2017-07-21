@@ -89,6 +89,8 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("job_state", Options.JobState)
         .Optional();
+    RegisterParameter("address", Options.Address)
+        .Optional();
 
     RegisterParameter("sort_field", Options.SortField)
         .Optional();
@@ -98,6 +100,9 @@ TListJobsCommand::TListJobsCommand()
     RegisterParameter("limit", Options.Limit)
         .Optional();
     RegisterParameter("offset", Options.Offset)
+        .Optional();
+
+    RegisterParameter("has_stderr", Options.HasStderr)
         .Optional();
 
     RegisterParameter("include_cypress", Options.IncludeCypress)
@@ -201,7 +206,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                 .DoFor(result, [] (TFluentList fluent, const TJob& job) {
                     fluent
                         .Item().BeginMap()
-                            .Item("job_id").Value(job.JobId)
+                            .Item("id").Value(job.JobId)
                             .Item("type").Value(job.JobType)
                             .Item("state").Value(job.JobState)
                             .Item("start_time").Value(job.StartTime)
