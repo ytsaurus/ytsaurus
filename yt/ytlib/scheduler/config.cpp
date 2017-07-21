@@ -689,6 +689,7 @@ void TMapReduceOperationSpec::OnLoaded()
         ReduceBy = SortBy;
     }
 
+    InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
     OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
 
     if (Mapper) {
