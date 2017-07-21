@@ -233,9 +233,9 @@ struct TSortOperationSpec
 
 enum EMergeMode : int
 {
-    MM_UNORDERED,
-    MM_ORDERED,
-    MM_SORTED
+    MM_UNORDERED    /* "unordered" */,
+    MM_ORDERED      /* "ordered" */,
+    MM_SORTED       /* "sorted" */,
 };
 
 struct TMergeOperationSpec

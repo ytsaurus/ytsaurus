@@ -6,6 +6,7 @@
 #include <library/unittest/registar.h>
 
 #include <util/generic/guid.h>
+#include <util/string/cast.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
@@ -36,7 +37,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         };
 
         for (const auto nodeType : nodeTypeList) {
-            auto nodeTypeStr = NYT::NDetail::ToString(nodeType);
+            auto nodeTypeStr = ::ToString(nodeType);
             const TString nodePath = "//testing/" + nodeTypeStr;
             const TString nodeTypePath = nodePath + "/@type";
             const TString nodeIdPath = nodePath + "/@id";
