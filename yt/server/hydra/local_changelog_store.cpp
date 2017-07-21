@@ -21,6 +21,7 @@ using namespace NHydra::NProto;
 
 DECLARE_REFCOUNTED_CLASS(TLocalChangelogStore)
 DECLARE_REFCOUNTED_CLASS(TLocalChangelogStoreFactory)
+DECLARE_REFCOUNTED_CLASS(TLocalChangelogStoreLock)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +36,27 @@ TString GetChangelogPath(const TString& path, int id)
 
 } // namespace
 
+class TLocalChangelogStoreLock
+    : public TSimpleRefCounted
+{
+public:
+    ui64 Acquire()
+    {
+        return ++CurrentEpoch_;
+    }
+
+    bool IsAcquired(ui64 epoch) const
+    {
+        return CurrentEpoch_.load() == epoch;
+    }
+
+private:
+    std::atomic<ui64> CurrentEpoch_ = {0};
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreLock)
+
 class TCachedLocalChangelog
     : public TAsyncCacheValueBase<int, TCachedLocalChangelog>
     , public IChangelog
@@ -42,8 +64,12 @@ class TCachedLocalChangelog
 public:
     TCachedLocalChangelog(
         int id,
+        ui64 epoch,
+        TLocalChangelogStoreLockPtr lock,
         IChangelogPtr underlyingChangelog)
         : TAsyncCacheValueBase(id)
+        , Epoch_(epoch)
+        , Lock_(lock)
         , UnderlyingChangelog_(underlyingChangelog)
     { }
 
@@ -64,6 +90,9 @@ public:
 
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
+        if (auto future = CheckLock()) {
+            return future;
+        }
         return UnderlyingChangelog_->Append(data);
     }
 
@@ -82,6 +111,9 @@ public:
 
     virtual TFuture<void> Truncate(int recordCount) override
     {
+        if (auto future = CheckLock()) {
+            return future;
+        }
         return UnderlyingChangelog_->Truncate(recordCount);
     }
 
@@ -91,8 +123,16 @@ public:
     }
 
 private:
+    const ui64 Epoch_;
+    const TLocalChangelogStoreLockPtr Lock_;
     const IChangelogPtr UnderlyingChangelog_;
 
+    TFuture<void> CheckLock()
+    {
+        return Lock_->IsAcquired(Epoch_)
+            ? Null
+            : MakeFuture<void>(TError("Changelog store lock expired"));
+    }
 };
 
 class TLocalChangelogStoreFactory
@@ -110,9 +150,9 @@ public:
             Config_,
             threadName,
             profiler))
-    {
-        Logger.AddTag("Path: %v", Config_->Path);
-    }
+        , Logger(NLogging::TLogger(HydraLogger)
+            .AddTag("Path: %v", Config_->Path))
+    { }
 
     void Start()
     {
@@ -122,18 +162,18 @@ public:
         NFS::CleanTempFiles(Config_->Path);
     }
 
-    TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta)
+    TFuture<IChangelogPtr> CreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
     {
         return BIND(&TLocalChangelogStoreFactory::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(id, meta);
+            .Run(id, epoch, meta);
     }
 
-    TFuture<IChangelogPtr> OpenChangelog(int id)
+    TFuture<IChangelogPtr> OpenChangelog(int id, ui64 epoch)
     {
         return BIND(&TLocalChangelogStoreFactory::DoOpenChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(id);
+            .Run(id, epoch);
     }
 
     virtual TFuture<IChangelogStorePtr> Lock() override
@@ -147,10 +187,12 @@ private:
     const TFileChangelogStoreConfigPtr Config_;
     const TFileChangelogDispatcherPtr Dispatcher_;
 
-    NLogging::TLogger Logger = HydraLogger;
+    const TLocalChangelogStoreLockPtr Lock_ = New<TLocalChangelogStoreLock>();
+
+    const NLogging::TLogger Logger;
 
 
-    IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
+    IChangelogPtr DoCreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
     {
         auto cookie = BeginInsert(id);
         if (!cookie.IsActive()) {
@@ -162,7 +204,7 @@ private:
 
         try {
             auto underlyingChangelog = Dispatcher_->CreateChangelog(path, meta, Config_);
-            auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
+            auto cachedChangelog = New<TCachedLocalChangelog>(id, epoch, Lock_, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error creating changelog %v",
@@ -173,7 +215,7 @@ private:
             .ValueOrThrow();
     }
 
-    IChangelogPtr DoOpenChangelog(int id)
+    IChangelogPtr DoOpenChangelog(int id, ui64 epoch)
     {
         auto cookie = BeginInsert(id);
         if (cookie.IsActive()) {
@@ -186,7 +228,7 @@ private:
             } else {
                 try {
                     auto underlyingChangelog = Dispatcher_->OpenChangelog(path, Config_);
-                    auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
+                    auto cachedChangelog = New<TCachedLocalChangelog>(id, epoch, Lock_, underlyingChangelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
                     LOG_FATAL(ex, "Error opening changelog %v",
@@ -248,18 +290,16 @@ private:
             return TVersion();
         }
 
-        IChangelogPtr changelog;
         try {
-            changelog = WaitFor(OpenChangelog(latestId))
+            auto epoch = Lock_->Acquire();
+            auto changelog = WaitFor(OpenChangelog(latestId, epoch))
                 .ValueOrThrow();
+            return TVersion(latestId, changelog->GetRecordCount());
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error opening changelog %v",
                 GetChangelogPath(Config_->Path, latestId));
         }
-
-        return TVersion(latestId, changelog->GetRecordCount());
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreFactory)
@@ -270,8 +310,10 @@ class TLocalChangelogStore
 public:
     TLocalChangelogStore(
         TLocalChangelogStoreFactoryPtr factory,
+        ui64 epoch,
         TVersion reachableVersion)
         : Factory_(factory)
+        , Epoch_(epoch)
         , ReachableVersion_(reachableVersion)
     { }
 
@@ -282,16 +324,17 @@ public:
 
     virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
     {
-        return Factory_->CreateChangelog(id, meta);
+        return Factory_->CreateChangelog(id, Epoch_, meta);
     }
 
     virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
     {
-        return Factory_->OpenChangelog(id);
+        return Factory_->OpenChangelog(id, Epoch_);
     }
 
 private:
     const TLocalChangelogStoreFactoryPtr Factory_;
+    const ui64 Epoch_;
     const TVersion ReachableVersion_;
 
 };
@@ -300,7 +343,7 @@ DEFINE_REFCOUNTED_TYPE(TLocalChangelogStore)
 
 IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(TVersion reachableVersion)
 {
-    return New<TLocalChangelogStore>(this, reachableVersion);
+    return New<TLocalChangelogStore>(this, Lock_->Acquire(), reachableVersion);
 }
 
 IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
