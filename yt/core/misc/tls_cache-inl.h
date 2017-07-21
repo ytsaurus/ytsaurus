@@ -5,6 +5,7 @@
 
 #include <util/generic/hash.h>
 #include <util/system/spinlock.h>
+#include <util/system/tls.h>
 
 #include <memory>
 
@@ -91,15 +92,15 @@ typename TTrait::TValue& GetGloballyCachedValue(U&&... u)
 template <typename TTrait, typename... U>
 typename TTrait::TValue& GetLocallyCachedValue(U&&... u)
 {
-    static thread_local NDetail::TCache<TTrait> cache;
-    return cache.Find(std::forward<U>(u)...);
+    Y_STATIC_THREAD(NDetail::TCache<TTrait>) cache;
+    return cache.Get().Find(std::forward<U>(u)...);
 }
 
 template <typename TTrait, typename... U>
 typename TTrait::TValue& GetLocallyGloballyCachedValue(U&&... u)
 {
-    static thread_local NDetail::TSingletonCache<TTrait> cache;
-    return *cache.Find(std::forward<U>(u)...);
+    Y_STATIC_THREAD(NDetail::TSingletonCache<TTrait>) cache;
+    return *cache.Get().Find(std::forward<U>(u)...);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
