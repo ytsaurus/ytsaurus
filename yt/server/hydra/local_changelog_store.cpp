@@ -247,9 +247,11 @@ private:
             WaitFor(Dispatcher_->FlushChangelogs())
                 .ThrowOnError();
 
-            auto reachableVersion = ComputeReachableVersion();
+            auto epoch = Lock_->Acquire();
 
-            return CreateStore(reachableVersion);
+            auto reachableVersion = ComputeReachableVersion(epoch);
+
+            return CreateStore(reachableVersion, epoch);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking local changelog store %v",
                 Config_->Path)
@@ -257,7 +259,7 @@ private:
         }
     }
 
-    IChangelogStorePtr CreateStore(TVersion reachableVersion);
+    IChangelogStorePtr CreateStore(TVersion reachableVersion, ui64 epoch);
 
     int GetLatestChangelogId()
     {
@@ -282,7 +284,7 @@ private:
         return latestId;
     }
 
-    TVersion ComputeReachableVersion()
+    TVersion ComputeReachableVersion(ui64 epoch)
     {
         int latestId = GetLatestChangelogId();
 
@@ -291,7 +293,6 @@ private:
         }
 
         try {
-            auto epoch = Lock_->Acquire();
             auto changelog = WaitFor(OpenChangelog(latestId, epoch))
                 .ValueOrThrow();
             return TVersion(latestId, changelog->GetRecordCount());
@@ -341,9 +342,9 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStore)
 
-IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(TVersion reachableVersion)
+IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(TVersion reachableVersion, ui64 epoch)
 {
-    return New<TLocalChangelogStore>(this, Lock_->Acquire(), reachableVersion);
+    return New<TLocalChangelogStore>(this, epoch, reachableVersion);
 }
 
 IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
