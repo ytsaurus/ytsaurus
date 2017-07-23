@@ -103,9 +103,15 @@ void DoDownloadChangelog(
                     downloadedRecordCount + actualChunkSize - 1);
             }
 
+            TFuture<void> asyncResult;
             for (const auto& data : recordsData) {
-                changelog->Append(data);
+                asyncResult = changelog->Append(data);
                 ++downloadedRecordCount;
+            }
+
+            if (asyncResult) {
+                WaitFor(asyncResult)
+                    .ThrowOnError();
             }
         }
 
