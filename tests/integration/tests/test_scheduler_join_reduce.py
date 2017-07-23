@@ -772,7 +772,6 @@ echo {v = 2} >&7
                 table_writer = {"block_size": 1024})
 
         create("table", "//tmp/out")
-        raw_input()
         join_reduce(
             in_=['//tmp/in', "<foreign=true>//tmp/in"],
             out="//tmp/out",
