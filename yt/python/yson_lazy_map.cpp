@@ -17,6 +17,7 @@ void LazyDictCopy(TLazyDict* source, TLazyDict* destination, bool deep)
         }
         auto module = Py::Object(ptr);
         deepcopyFunction = Py::Callable(Py::GetAttr(module, "deepcopy"));
+        deepcopyFunction.increment_reference_count();
     }
 
     for (const auto& item: *source->GetUnderlyingHashMap()) {
