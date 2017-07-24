@@ -51,7 +51,7 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t ReaderPoolSize = 16ULL * 1024;
+static const size_t ReaderPoolSize = 16 * KB;
 static const int SnapshotRowsPerRead = 1024;
 
 struct TSortedDynamicStoreReaderPoolTag

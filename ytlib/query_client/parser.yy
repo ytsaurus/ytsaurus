@@ -363,14 +363,14 @@ expression
             if (!inserted) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", $name);
             }
-            $$ = MakeExpression<TReferenceExpression>(@$, $name);
+            $$ = MakeExpression<TAliasExpression>(@$, $expr.front(), $name);
         }
 ;
 
 or-op-expr
     : or-op-expr[lhs] KwOr and-op-expr[rhs]
         {
-            $$ = MakeExpressionession<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
         }
     | and-op-expr
         { $$ = $1; }
@@ -380,7 +380,7 @@ and-op-expr
 
     : and-op-expr[lhs] KwAnd not-op-expr[rhs]
         {
-            $$ = MakeExpressionession<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
         }
     | not-op-expr
         { $$ = $1; }
@@ -389,7 +389,7 @@ and-op-expr
 not-op-expr
     : KwNot equal-op-expr[expr]
         {
-            $$ = MakeExpressionession<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
+            $$ = MakeExpression<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
         }
     | equal-op-expr
         { $$ = $1; }

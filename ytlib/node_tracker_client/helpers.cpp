@@ -38,8 +38,8 @@ TString FormatResourceUsage(
         usage.cpu(),
         limits.cpu(),
         // Memory (in MB)
-        usage.memory() / (1024 * 1024),
-        limits.memory() / (1024 * 1024),
+        usage.memory() / MB,
+        limits.memory() / MB,
         // Network
         usage.network(),
         limits.network(),
@@ -75,13 +75,13 @@ TString FormatResources(const TNodeResources& resources)
         "}",
         resources.user_slots(),
         resources.cpu(),
-        resources.memory() / (1024 * 1024),
+        resources.memory() / MB,
         resources.network(),
         resources.replication_slots(),
-        resources.replication_data_size() / (1024 * 1024),
+        resources.replication_data_size() / MB,
         resources.removal_slots(),
         resources.repair_slots(),
-        resources.repair_data_size() / (1024 * 1024),
+        resources.repair_data_size() / MB,
         resources.seal_slots());
 }
 

@@ -71,11 +71,6 @@ std::vector<std::vector<TBlock>> SplitBlocks(
     return groups;
 }
 
-i64 RoundUp(i64 num, i64 mod)
-{
-    return DivCeil(num, mod) * mod;
-}
-
 std::vector<i64> BlocksToSizes(const std::vector<TBlock>& blocks)
 {
     std::vector<i64> sizes;
@@ -252,7 +247,7 @@ void TErasureWriter::PrepareBlocks()
         }
         partSize = std::max(partSize, size);
     }
-    partSize = RoundUp(partSize, Codec_->GetWordSize());
+    partSize = RoundUp(partSize, static_cast<i64>(Codec_->GetWordSize()));
 
     ParityPartSplitInfo_ = TParityPartSplitInfo::Build(Config_->ErasureWindowSize, partSize);
 }

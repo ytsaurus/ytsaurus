@@ -2039,6 +2039,8 @@ private:
 
     TSortOperationSpecPtr Spec;
 
+    IFetcherChunkScraperPtr FetcherChunkScraper;
+
     // Custom bits of preparation pipeline.
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -2105,9 +2107,8 @@ private:
         PROFILE_TIMING ("/input_processing_time") {
             int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
 
-            TScrapeChunksCallback scraperCallback;
             if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-                scraperCallback = CreateScrapeChunksSessionCallback(
+                FetcherChunkScraper = CreateFetcherChunkScraper(
                     Config->ChunkScraper,
                     GetCancelableInvoker(),
                     Host->GetChunkLocationThrottlerManager(),
@@ -2129,7 +2130,7 @@ private:
                 InputNodeDirectory,
                 GetCancelableInvoker(),
                 samplesRowBuffer,
-                scraperCallback,
+                FetcherChunkScraper,
                 Host->GetMasterClient(),
                 Logger);
 
@@ -2145,6 +2146,8 @@ private:
 
         WaitFor(asyncSamplesResult)
             .ThrowOnError();
+
+        FetcherChunkScraper.Reset();
 
         InitJobIOConfigs();
 
@@ -2586,6 +2589,15 @@ private:
         return true;
     }
 
+    virtual i64 GetUnavailableInputChunkCount() const override
+    {
+        if (FetcherChunkScraper && State == EControllerState::Preparing) {
+            return FetcherChunkScraper->GetUnavailableChunkCount();
+        }
+
+        return TOperationControllerBase::GetUnavailableInputChunkCount();
+    }
+
     virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
@@ -2631,7 +2643,7 @@ private:
             SortedMergeJobCounter,
             // UnorderedMergeJobs
             UnorderedMergeJobCounter,
-            UnavailableInputChunkCount);
+            GetUnavailableInputChunkCount());
     }
 
     virtual void BuildProgress(IYsonConsumer* consumer) const override
@@ -3302,7 +3314,7 @@ private:
             FinalSortJobCounter,
             // SortedReduceJobs
             SortedMergeJobCounter,
-            UnavailableInputChunkCount);
+            GetUnavailableInputChunkCount());
     }
 
     virtual void BuildProgress(IYsonConsumer* consumer) const override

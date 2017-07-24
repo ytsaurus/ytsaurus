@@ -241,6 +241,8 @@ protected:
 
     i64 InputSliceDataSize_;
 
+    IFetcherChunkScraperPtr FetcherChunkScraper_;
+
     // Custom bits of preparation pipeline.
 
     TInputStreamDirectory GetInputStreamDirectory()
@@ -257,6 +259,15 @@ protected:
     {
         return SortedTask_->IsCompleted();
     }
+
+    virtual i64 GetUnavailableInputChunkCount() const override
+    {
+        if (FetcherChunkScraper_ && State == EControllerState::Preparing) {
+            return FetcherChunkScraper_->GetUnavailableChunkCount();
+        }
+
+        return TOperationControllerBase::GetUnavailableInputChunkCount();
+    };
 
     virtual void DoInitialize() override
     {
@@ -351,7 +362,7 @@ protected:
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
             JobCounter.GetInterruptedTotal(),
-            UnavailableInputChunkCount);
+            GetUnavailableInputChunkCount());
     }
 
     virtual TNullable<int> GetOutputTeleportTableIndex() const = 0;
@@ -470,7 +481,7 @@ protected:
     virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory()
     {
         return New<TChunkSliceFetcherFactory>(this /* controller */);
-    };
+    }
 
     virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions()
     {
@@ -487,6 +498,10 @@ protected:
             if (useNewEndpointKeys && useNewEndpointKeys->GetType() == ENodeType::Boolean) {
                 jobOptions.UseNewEndpointKeys = useNewEndpointKeys->AsBoolean()->GetValue();
             }
+            auto logEndpoints = Spec_->NightlyOptions->FindChild("log_endpoints");
+            if (logEndpoints && logEndpoints->GetType() == ENodeType::Boolean) {
+                jobOptions.LogEndpoints = logEndpoints->AsBoolean()->GetValue();
+            }
         }
 
         chunkPoolOptions.SortedJobOptions = jobOptions;
@@ -498,11 +513,10 @@ protected:
     }
 
 private:
-    IChunkSliceFetcherPtr CreateChunkSliceFetcher() const
+    IChunkSliceFetcherPtr CreateChunkSliceFetcher()
     {
-        TScrapeChunksCallback scraperCallback;
         if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            scraperCallback = CreateScrapeChunksSessionCallback(
+            FetcherChunkScraper_ = CreateFetcherChunkScraper(
                 Config->ChunkScraper,
                 GetCancelableInvoker(),
                 Host->GetChunkLocationThrottlerManager(),
@@ -518,7 +532,7 @@ private:
             ShouldSlicePrimaryTableByKeys(),
             InputNodeDirectory,
             GetCancelableInvoker(),
-            scraperCallback,
+            FetcherChunkScraper_,
             Host->GetMasterClient(),
             RowBuffer,
             Logger);

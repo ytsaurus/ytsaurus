@@ -18,9 +18,17 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TScrapeChunksCallback = TCallback<TFuture<void>(const yhash_set<TInputChunkPtr>& chunkSpecs)>;
+struct IFetcherChunkScraper
+    : public virtual TRefCounted
+{
+    //! Returns future, which gets set when all chunks become available.
+    virtual TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs) = 0;
 
-TScrapeChunksCallback CreateScrapeChunksSessionCallback(
+    //! Number of currently unavailable chunks.
+    virtual i64 GetUnavailableChunkCount() const = 0;
+};
+
+IFetcherChunkScraperPtr CreateFetcherChunkScraper(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
@@ -31,7 +39,7 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IFetcher
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     virtual void AddChunk(TInputChunkPtr chunk) = 0;
 
@@ -49,7 +57,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         NTableClient::TRowBufferPtr rowBuffer,
-        TScrapeChunksCallback scraperCallback,
+        IFetcherChunkScraperPtr chunkScraper,
         NApi::INativeClientPtr client,
         const NLogging::TLogger& logger);
 
@@ -61,7 +69,7 @@ protected:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const IInvokerPtr Invoker_;
     const NTableClient::TRowBufferPtr RowBuffer_;
-    const TScrapeChunksCallback ScraperCallback_;
+    const IFetcherChunkScraperPtr ChunkScraper_;
     const NLogging::TLogger Logger;
 
     //! All chunks for which info is to be fetched.
@@ -98,7 +106,6 @@ private:
     std::set< std::pair<NNodeTrackerClient::TNodeId, TChunkId> > DeadChunks_;
 
     TPromise<void> Promise_ = NewPromise<void>();
-
 
     void OnFetchingRoundCompleted(const TError& error);
     void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas);

@@ -667,6 +667,8 @@ TEST(TYsonSerializableTest, EnumAsKeyToYHash)
     ASSERT_EQ(original, deserialized);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYTree
 } // namespace NYT

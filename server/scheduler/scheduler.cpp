@@ -54,6 +54,7 @@
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/memory_constants.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -101,15 +102,6 @@ static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static const i64 GB = 1024 * 1024 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
-i64 RoundUp(i64 num, i64 mod)
-{
-    return DivCeil(num, mod) * mod;
-}
 
 template <class K, class V>
 yhash<K, V> FilterLargestValues(const yhash<K, V>& input, size_t threshold)

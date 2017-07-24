@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "enum.h"
+#include "memory_constants.h"
 
 // Google Protobuf forward declarations.
 namespace google {

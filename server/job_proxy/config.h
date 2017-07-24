@@ -90,7 +90,7 @@ public:
             .Default();
 
         RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
-            .Default(200 * 1024 * 1024);
+            .Default(200 * MB);
     }
 };
 

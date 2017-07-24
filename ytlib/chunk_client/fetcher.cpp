@@ -28,11 +28,15 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TScrapeChunksSession
-    : public TRefCounted
+DEFINE_REFCOUNTED_TYPE(IFetcherChunkScraper)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFetcherChunkScraper
+    : public IFetcherChunkScraper
 {
 public:
-    TScrapeChunksSession(
+    TFetcherChunkScraper(
         const TChunkScraperConfigPtr config,
         const IInvokerPtr invoker,
         TThrottlerManagerPtr throttlerManager,
@@ -47,30 +51,16 @@ public:
         , Logger(logger)
     { }
 
-    TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs)
+    virtual TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs) override
     {
-        yhash_set<TChunkId> chunkIds;
-        ChunkMap_.clear();
-        for (const auto& chunkSpec : chunkSpecs) {
-            const auto& chunkId = chunkSpec->ChunkId();
-            chunkIds.insert(chunkId);
-            ChunkMap_[chunkId].ChunkSpecs.push_back(chunkSpec);
-        }
-        UnavailableFetcherChunkCount_ = chunkIds.size();
+        return BIND(&TFetcherChunkScraper::DoScrapeChunks, MakeStrong(this))
+            .AsyncVia(Invoker_)
+            .Run(chunkSpecs);
+    }
 
-        Scraper_ = New<TChunkScraper>(
-            Config_,
-            Invoker_,
-            ThrottlerManager_,
-            Client_,
-            NodeDirectory_,
-            std::move(chunkIds),
-            BIND(&TScrapeChunksSession::OnChunkLocated, MakeWeak(this)),
-            Logger);
-        Scraper_->Start();
-
-        BatchLocatedPromise_ = NewPromise<void>();
-        return BatchLocatedPromise_;
+    virtual i64 GetUnavailableChunkCount() const override
+    {
+        return UnavailableFetcherChunkCount_;
     }
 
 private:
@@ -95,6 +85,31 @@ private:
 
     int ChunkLocatedCallCount_ = 0;
 
+    TFuture<void> DoScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs)
+    {
+        yhash_set<TChunkId> chunkIds;
+        ChunkMap_.clear();
+        for (const auto& chunkSpec : chunkSpecs) {
+            const auto& chunkId = chunkSpec->ChunkId();
+            chunkIds.insert(chunkId);
+            ChunkMap_[chunkId].ChunkSpecs.push_back(chunkSpec);
+        }
+        UnavailableFetcherChunkCount_ = chunkIds.size();
+
+        Scraper_ = New<TChunkScraper>(
+            Config_,
+            Invoker_,
+            ThrottlerManager_,
+            Client_,
+            NodeDirectory_,
+            std::move(chunkIds),
+            BIND(&TFetcherChunkScraper::OnChunkLocated, MakeWeak(this)),
+            Logger);
+        Scraper_->Start();
+
+        BatchLocatedPromise_ = NewPromise<void>();
+        return BatchLocatedPromise_;
+    }
 
     void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
     {
@@ -144,11 +159,11 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TScrapeChunksSession)
+DEFINE_REFCOUNTED_TYPE(TFetcherChunkScraper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TScrapeChunksCallback CreateScrapeChunksSessionCallback(
+IFetcherChunkScraperPtr CreateFetcherChunkScraper(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
@@ -156,15 +171,13 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger)
 {
-    auto scrapeChunksSession = New<TScrapeChunksSession>(
+    return New<TFetcherChunkScraper>(
         config,
         invoker,
         throttlerManager,
         client,
         nodeDirectory,
         logger);
-    return BIND(&TScrapeChunksSession::ScrapeChunks, scrapeChunksSession)
-        .AsyncVia(invoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,14 +187,14 @@ TFetcherBase::TFetcherBase(
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TRowBufferPtr rowBuffer,
-    TScrapeChunksCallback scraperCallback,
+    IFetcherChunkScraperPtr chunkScraper,
     INativeClientPtr client,
     const NLogging::TLogger& logger)
     : Config_(std::move(config))
     , NodeDirectory_(std::move(nodeDirectory))
     , Invoker_(invoker)
     , RowBuffer_(std::move(rowBuffer))
-    , ScraperCallback_(std::move(scraperCallback))
+    , ChunkScraper_(std::move(chunkScraper))
     , Logger(logger)
     , Client_(std::move(client))
 { }
@@ -227,7 +240,7 @@ void TFetcherBase::StartFetchingRound()
             }
         }
         if (!chunkAvailable) {
-            if (ScraperCallback_) {
+            if (ChunkScraper_) {
                 unavailableChunks.insert(chunk);
             } else {
                 Promise_.Set(TError(
@@ -239,10 +252,10 @@ void TFetcherBase::StartFetchingRound()
         }
     }
 
-    if (!unavailableChunks.empty() && ScraperCallback_) {
+    if (!unavailableChunks.empty() && ChunkScraper_) {
         LOG_DEBUG("Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)",
             unavailableChunks.size());
-        auto error = WaitFor(ScraperCallback_.Run(std::move(unavailableChunks)));
+        auto error = WaitFor(ChunkScraper_->ScrapeChunks(std::move(unavailableChunks)));
         LOG_DEBUG("All unavailable chunks are located");
         DeadNodes_.clear();
         DeadChunks_.clear();
