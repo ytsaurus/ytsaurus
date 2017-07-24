@@ -1757,7 +1757,7 @@ size_t MakeCodegenGroupOp(
             builder->CreateRetVoid();
         });
 
-        auto consume = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "Consume", [&] (
+        auto consume = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ConsumeGroupedRows", [&] (
             TCGOperatorContext& builder,
             Value* buffer,
             Value* finalGroupedRows,

@@ -142,7 +142,7 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     const IServiceContextPtr& context)
 {
     if (context->GetMethod() == "Exists") {
-        return TResolveResult::Here(path);
+        return TResolveResultHere{path};
     }
 
     ThrowCannotHaveChildren(this);
@@ -218,7 +218,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
             tokenizer.Advance();
             tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-            return IYPathService::TResolveResult::Here("/" + path);
+            return IYPathService::TResolveResultHere{"/" + path};
         }
 
         case NYPath::ETokenType::Literal: {
@@ -238,13 +238,13 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
                     method == "Remove" ||
                     method == "Set" && lastToken)
                 {
-                    return IYPathService::TResolveResult::Here("/" + path);
+                    return IYPathService::TResolveResultHere{"/" + path};
                 } else {
                     ThrowNoSuchChildKey(this, key);
                 }
             }
 
-            return IYPathService::TResolveResult::There(child, suffix);
+            return IYPathService::TResolveResultThere{std::move(child), std::move(suffix)};
         }
 
         default:
@@ -378,7 +378,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             tokenizer.Advance();
             tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-            return IYPathService::TResolveResult::Here("/" + path);
+            return IYPathService::TResolveResultHere{"/" + path};
         }
 
         case NYPath::ETokenType::Literal: {
@@ -389,7 +389,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
                 tokenizer.Advance();
                 tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-                return IYPathService::TResolveResult::Here("/" + path);
+                return IYPathService::TResolveResultHere{"/" + path};
             } else if (token.StartsWith(ListBeforeToken) ||
                        token.StartsWith(ListAfterToken))
             {
@@ -400,17 +400,17 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
                 tokenizer.Advance();
                 tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-                return IYPathService::TResolveResult::Here("/" + path);
+                return IYPathService::TResolveResultHere{"/" + path};
             } else {
                 int index = ParseListIndex(token);
                 int adjustedIndex = AdjustChildIndex(index);
                 auto child = FindChild(adjustedIndex);
                 const auto& method = context->GetMethod();
                 if (!child && method == "Exists") {
-                    return IYPathService::TResolveResult::Here("/" + path);
+                    return IYPathService::TResolveResultHere{"/" + path};
                 }
 
-                return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
+                return IYPathService::TResolveResultThere{std::move(child), tokenizer.GetSuffix()};
             }
         }
 
@@ -490,7 +490,7 @@ IYPathService::TResolveResult TNonexistingService::Resolve(
     const TYPath& path,
     const IServiceContextPtr& /*context*/)
 {
-    return TResolveResult::Here(path);
+    return TResolveResultHere{path};
 }
 
 void TNonexistingService::ExistsSelf(

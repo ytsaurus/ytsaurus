@@ -511,7 +511,6 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
     auto schema = query->GetRenamedSchema();
-    TSchemaProfiler::Profile(schema);
 
     size_t currentSlot = MakeCodegenScanOp(codegenSource, slotCount);
 
@@ -584,7 +583,6 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
             joinClause->CommonKeyPrefix);
 
         schema = joinClause->GetTableSchema(schema);
-        TSchemaProfiler::Profile(schema);
     }
 
     if (whereClause) {
@@ -605,7 +603,6 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr 
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
     auto schema = query->GetRenamedSchema();
-    TSchemaProfiler::Profile(schema);
 
     size_t currentSlot = MakeCodegenScanOp(codegenSource, slotCount);
 
