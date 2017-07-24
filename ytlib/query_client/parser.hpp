@@ -289,9 +289,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // unary-op
       char dummy3[sizeof(EUnaryOp)];
 
-      // "string literal"
-      char dummy4[sizeof(TString)];
-
       // expression
       // or-op-expr
       // and-op-expr
@@ -306,30 +303,33 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // comma-expr
       // unary-expr
       // atomic-expr
-      char dummy5[sizeof(TExpressionList)];
+      char dummy4[sizeof(TExpressionList)];
 
       // identifier-list
-      char dummy6[sizeof(TIdentifierList)];
+      char dummy5[sizeof(TIdentifierList)];
 
       // const-list
       // const-tuple
-      char dummy7[sizeof(TLiteralValueList)];
+      char dummy6[sizeof(TLiteralValueList)];
 
       // const-tuple-list
-      char dummy8[sizeof(TLiteralValueTupleList)];
+      char dummy7[sizeof(TLiteralValueTupleList)];
 
       // literal-value
       // const-value
-      char dummy9[sizeof(TNullable<TLiteralValue>)];
+      char dummy8[sizeof(TNullable<TLiteralValue>)];
 
       // join-predicate
-      char dummy10[sizeof(TNullableExpressionList)];
+      char dummy9[sizeof(TNullableExpressionList)];
 
       // order-expr-list
-      char dummy11[sizeof(TOrderExpressionList)];
+      char dummy10[sizeof(TOrderExpressionList)];
 
       // qualified-identifier
-      char dummy12[sizeof(TReferenceExpressionPtr)];
+      char dummy11[sizeof(TReferenceExpressionPtr)];
+
+      // "string literal"
+      char dummy12[sizeof(TString)];
 
       // "identifier"
       char dummy13[sizeof(TStringBuf)];
@@ -464,8 +464,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   basic_symbol (typename Base::kind_type t, const EUnaryOp v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TString v, const location_type& l);
-
   basic_symbol (typename Base::kind_type t, const TExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TIdentifierList v, const location_type& l);
@@ -481,6 +479,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const TOrderExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TReferenceExpressionPtr v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TString v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 

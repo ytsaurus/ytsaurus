@@ -59,7 +59,7 @@ TSamplesFetcher::TSamplesFetcher(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TRowBufferPtr rowBuffer,
-    TScrapeChunksCallback scraperCallback,
+    IFetcherChunkScraperPtr chunkScraper,
     NApi::INativeClientPtr client,
     const NLogging::TLogger& logger)
     : TFetcherBase(
@@ -67,7 +67,7 @@ TSamplesFetcher::TSamplesFetcher(
         nodeDirectory,
         invoker,
         rowBuffer,
-        scraperCallback,
+        chunkScraper,
         client,
         logger)
     , SamplingPolicy_(samplingPolicy)

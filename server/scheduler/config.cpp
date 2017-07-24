@@ -145,7 +145,7 @@ TJobSplitterConfig::TJobSplitterConfig()
         .Default(20.0);
 
     RegisterParameter("min_total_data_size", MinTotalDataSize)
-        .Default((i64)1024 * 1024 * 1024);
+        .Default(GB);
 
     RegisterParameter("update_period", UpdatePeriod)
         .Default(TDuration::Seconds(60));
@@ -180,11 +180,11 @@ TOperationOptions::TOperationOptions()
         .GreaterThan(0);
 
     RegisterParameter("max_slice_data_size", MaxSliceDataSize)
-        .Default((i64)256 * 1024 * 1024)
+        .Default(256 * MB)
         .GreaterThan(0);
 
     RegisterParameter("min_slice_data_size", MinSliceDataSize)
-        .Default((i64)1 * 1024 * 1024)
+        .Default(MB)
         .GreaterThan(0);
 
     RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
@@ -208,7 +208,7 @@ TSimpleOperationOptions::TSimpleOperationOptions()
         .Default(100000);
 
     RegisterParameter("data_size_per_job", DataSizePerJob)
-        .Default((i64) 256 * 1024 * 1024)
+        .Default(256 * MB)
         .GreaterThan(0);
 }
 
@@ -222,7 +222,7 @@ TMapOperationOptions::TMapOperationOptions()
         .DefaultNew();
 
     RegisterInitializer([&] () {
-        DataSizePerJob = (i64) 128 * 1024 * 1024;
+        DataSizePerJob = 128 * MB;
     });
 }
 
@@ -234,7 +234,7 @@ TReduceOperationOptions::TReduceOperationOptions()
         .DefaultNew();
 
     RegisterInitializer([&] () {
-        DataSizePerJob = (i64) 128 * 1024 * 1024;
+        DataSizePerJob = 128 * MB;
     });
 }
 
@@ -251,30 +251,30 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
         .GreaterThan(0);
 
     RegisterParameter("partition_job_max_slice_data_size", PartitionJobMaxSliceDataSize)
-        .Default((i64)256 * 1024 * 1024)
+        .Default(256 * MB)
         .GreaterThan(0);
 
     RegisterParameter("sort_job_max_slice_data_size", SortJobMaxSliceDataSize)
-        .Default((i64)256 * 1024 * 1024)
+        .Default(256 * MB)
         .GreaterThan(0);
 
     RegisterParameter("max_sample_size", MaxSampleSize)
-        .Default(10 * 1024)
-        .GreaterThanOrEqual(1024)
+        .Default(10 * KB)
+        .GreaterThanOrEqual(KB)
         // NB(psushin): removing this validator may lead to weird errors in sorting.
         .LessThanOrEqual(NTableClient::MaxSampleSize);
 
     RegisterParameter("compressed_block_size", CompressedBlockSize)
-        .Default(1 * 1024 * 1024)
+        .Default(MB)
         .GreaterThanOrEqual(1024);
 
     RegisterParameter("min_partition_size", MinPartitionSize)
-        .Default(256 * 1024 * 1024)
+        .Default(256 * MB)
         .GreaterThanOrEqual(1);
 
     // Minimum is 1 for tests.
     RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
-        .Default(1024 * 1024)
+        .Default(MB)
         .GreaterThanOrEqual(1);
 
     RegisterParameter("partition_job_size_adjuster", PartitionJobSizeAdjuster)
@@ -306,7 +306,7 @@ TOperationAlertsConfig::TOperationAlertsConfig()
         .Default(0.2);
 
     RegisterParameter("tmpfs_alert_min_unused_space_threshold", TmpfsAlertMinUnusedSpaceThreshold)
-        .Default((i64) 512 * 1024 * 1024)
+        .Default(512 * MB)
         .GreaterThan(0);
 
     RegisterParameter("aborted_jobs_alert_max_aborted_time", AbortedJobsAlertMaxAbortedTime)
@@ -321,14 +321,14 @@ TOperationAlertsConfig::TOperationAlertsConfig()
         .Default(TDuration::Minutes(1));
 
     RegisterParameter("short_jobs_alert_min_job_count", ShortJobsAlertMinJobCount)
-        .Default((i64) 1000);
+        .Default(1000);
 
     RegisterParameter("intermediate_data_skew_alert_min_partition_size", IntermediateDataSkewAlertMinPartitionSize)
-        .Default((i64) 10 * 1024 * 1024 * 1024)
+        .Default(10 * GB)
         .GreaterThan(0);
 
     RegisterParameter("intermediate_data_skew_alert_min_interquartile_range", IntermediateDataSkewAlertMinInterquartileRange)
-        .Default((i64) 1024 * 1024 * 1024)
+        .Default(GB)
         .GreaterThan(0);
 
     RegisterParameter("job_spec_throttling_alert_activation_count_threshold", JobSpecThrottlingAlertActivationCountThreshold)
@@ -463,7 +463,7 @@ TSchedulerConfig::TSchedulerConfig()
         .GreaterThan(0);
 
     RegisterParameter("max_file_size", MaxFileSize)
-        .Default((i64) 10 * 1024 * 1024 * 1024);
+        .Default(10 * GB);
 
     RegisterParameter("max_input_table_count", MaxInputTableCount)
         .Default(1000)
@@ -637,7 +637,7 @@ TSchedulerConfig::TSchedulerConfig()
         .DefaultNew();
 
     RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
-        .Default((i64) 64 * 1024)
+        .Default(64 * KB)
         .GreaterThan(0);
 
     RegisterParameter("main_nodes_filter", MainNodesFilterFormula)
@@ -658,7 +658,7 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterInitializer([&] () {
         ChunkLocationThrottler->Limit = 10000;
 
-        EventLog->MaxRowWeight = (i64) 128 * 1024 * 1024;
+        EventLog->MaxRowWeight = 128 * MB;
     });
 
     RegisterValidator([&] () {

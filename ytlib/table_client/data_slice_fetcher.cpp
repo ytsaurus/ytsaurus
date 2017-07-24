@@ -21,7 +21,7 @@ TDataSliceFetcher::TDataSliceFetcher(
     bool sliceByKeys,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    TScrapeChunksCallback scraperCallback,
+    IFetcherChunkScraperPtr chunkScraper,
     NApi::INativeClientPtr client,
     TRowBufferPtr rowBuffer,
     const NLogging::TLogger& logger)
@@ -32,7 +32,7 @@ TDataSliceFetcher::TDataSliceFetcher(
         sliceByKeys,
         std::move(nodeDirectory),
         std::move(invoker),
-        std::move(scraperCallback),
+        std::move(chunkScraper),
         std::move(client),
         std::move(rowBuffer),
         logger))

@@ -49,7 +49,7 @@ public:
         bool sliceByKeys,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        TScrapeChunksCallback scraperCallback,
+        IFetcherChunkScraperPtr chunkScraper,
         NApi::INativeClientPtr client,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& logger)
@@ -58,7 +58,7 @@ public:
             nodeDirectory,
             invoker,
             rowBuffer,
-            scraperCallback,
+            chunkScraper,
             client,
             logger)
         , ChunkSliceSize_(chunkSliceSize)
@@ -236,7 +236,7 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     bool sliceByKeys,
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    TScrapeChunksCallback scraperCallback,
+    IFetcherChunkScraperPtr chunkScraper,
     NApi::INativeClientPtr client,
     TRowBufferPtr rowBuffer,
     const NLogging::TLogger& logger)
@@ -248,7 +248,7 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
         sliceByKeys,
         nodeDirectory,
         invoker,
-        scraperCallback,
+        chunkScraper,
         client,
         rowBuffer,
         logger);

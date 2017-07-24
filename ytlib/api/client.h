@@ -707,6 +707,7 @@ struct IClientBase
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = TTableWriterOptions()) = 0;
 
+    // TODO(sandello): Non-transactional!
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
@@ -767,6 +768,7 @@ struct IClientBase
 
 
     // Objects
+    // TODO(sandello): Non-transactional!
     virtual TFuture<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
         const TCreateObjectOptions& options = TCreateObjectOptions()) = 0;

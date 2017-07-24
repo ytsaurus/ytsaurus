@@ -64,7 +64,7 @@ const int MaxReplicationFactor = 10;
 const int DefaultReplicationFactor = 3;
 
 //! Estimated memory overhead per chunk reader.
-const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
+const i64 ChunkReaderMemorySize = 16 * KB;
 
 //! Used as an expected upper bound in SmallVector.
 /*
@@ -80,7 +80,7 @@ extern const TString DefaultStoreMediumName;
 extern const TString DefaultCacheMediumName;
 constexpr int MaxMediumPriority = 10;
 
-const i64 DefaultMaxBlockSize = (i64) 16 * 1024 * 1024;;
+const i64 DefaultMaxBlockSize = 16 * MB;
 const int MaxInputChunkReplicaCount = 16;
 
 class TChunkReplica;
@@ -180,6 +180,8 @@ DECLARE_REFCOUNTED_CLASS(TFetcherConfig)
 DECLARE_REFCOUNTED_CLASS(TBlockCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkScraperConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporterConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IFetcherChunkScraper)
 
 DECLARE_REFCOUNTED_CLASS(TEncodingWriter)
 DECLARE_REFCOUNTED_CLASS(TEncodingChunkWriter)

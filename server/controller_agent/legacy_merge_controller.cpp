@@ -582,7 +582,7 @@ protected:
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
             JobCounter.GetInterruptedTotal(),
-            UnavailableInputChunkCount);
+            GetUnavailableInputChunkCount());
     }
 
 
@@ -1345,6 +1345,8 @@ protected:
 
     std::vector<TInputDataSlicePtr> VersionedDataSlices;
 
+    IFetcherChunkScraperPtr FetcherChunkScraper;
+
     virtual bool ShouldSlicePrimaryTableByKeys() const
     {
         return true;
@@ -1360,6 +1362,15 @@ protected:
         return false;
     }
 
+    virtual i64 GetUnavailableInputChunkCount() const override
+    {
+        if (FetcherChunkScraper && State == EControllerState::Preparing) {
+            return FetcherChunkScraper->GetUnavailableChunkCount();
+        }
+
+        return TOperationControllerBase::GetUnavailableInputChunkCount();
+    }
+
     virtual void PrepareOutputTables() override
     {
         // NB: we need to do this after locking input tables but before preparing ouput tables.
@@ -1372,9 +1383,8 @@ protected:
 
         CalculateSizes();
 
-        TScrapeChunksCallback scraperCallback;
         if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            scraperCallback = CreateScrapeChunksSessionCallback(
+            FetcherChunkScraper = CreateFetcherChunkScraper(
                 Config->ChunkScraper,
                 GetCancelableInvoker(),
                 Host->GetChunkLocationThrottlerManager(),
@@ -1390,7 +1400,7 @@ protected:
             ShouldSlicePrimaryTableByKeys(),
             InputNodeDirectory,
             GetCancelableInvoker(),
-            scraperCallback,
+            FetcherChunkScraper,
             Host->GetMasterClient(),
             RowBuffer,
             Logger);
@@ -1399,6 +1409,8 @@ protected:
 
         WaitFor(ChunkSliceFetcher->Fetch())
             .ThrowOnError();
+
+        FetcherChunkScraper.Reset();
 
         if (ShouldSlicePrimaryTableByKeys()) {
             CollectEndpoints();
