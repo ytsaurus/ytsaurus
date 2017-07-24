@@ -2161,11 +2161,6 @@ private:
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
 
-        partitionCount = AdjustPartitionCountToWriterBufferSize(
-            partitionCount,
-            PartitionJobIOConfig->TableWriter);
-        LOG_INFO("Adjusted partition count %v", partitionCount);
-
         YCHECK(partitionCount > 0);
         SimpleSort = (partitionCount == 1);
 
