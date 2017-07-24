@@ -285,7 +285,9 @@ protected:
             Spec_,
             Options_,
             GetOutputTablePaths().size(),
-            PrimaryInputDataSize + ForeignInputDataSize);
+            PrimaryInputDataSize,
+            std::numeric_limits<i32>::max() /* InputRowCount */, // It is not important in sorted operations.
+            ForeignInputDataSize);
 
         InputSliceDataSize_ = JobSizeConstraints_->GetInputSliceDataSize();
 

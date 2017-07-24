@@ -631,8 +631,6 @@ class TQueryEvaluateTest
 protected:
     virtual void SetUp() override
     {
-        WriterMock_ = New<StrictMock<TWriterMock>>();
-
         ActionQueue_ = New<TActionQueue>("Test");
 
         auto bcImplementations = UDF_BC(test_udfs);
@@ -881,7 +879,6 @@ protected:
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
-    TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
 
     TTypeInferrerMapPtr TypeInferers_ = New<TTypeInferrerMap>();
@@ -3996,48 +3993,6 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
     }, resultSplit);
 
     Evaluate("cardinality(a) < 2020 as upper, cardinality(a) > 1980 as lower from [//t] group by 1", split, source, ResultMatcher(result));
-}
-
-TEST_F(TQueryEvaluateTest, TestLinkingError1)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64}
-    });
-
-    std::vector<TString> source = {
-        "a=3",
-    };
-
-    EvaluateExpectingError("exp_udf(abs_udf(a), 3) from [//t]", split, source, EFailureLocation::Codegen);
-    EvaluateExpectingError("abs_udf(exp_udf(a, 3)) from [//t]", split, source, EFailureLocation::Codegen);
-}
-
-TEST_F(TQueryEvaluateTest, TestLinkingError2)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64}
-    });
-
-    std::vector<TString> source = {
-        "a=3"
-    };
-
-    EvaluateExpectingError("sum_udf(abs_udf_o(a), 3) as r from [//t]", split, source, EFailureLocation::Codegen);
-    EvaluateExpectingError("abs_udf_o(sum_udf(a, 3)) as r from [//t]", split, source, EFailureLocation::Codegen);
-}
-
-TEST_F(TQueryEvaluateTest, TestLinkingError3)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64}
-    });
-
-    std::vector<TString> source = {
-        "a=3"
-    };
-
-    EvaluateExpectingError("abs_udf_o(exp_udf_o(a, 3)) as r from [//t]", split, source, EFailureLocation::Codegen);
-    EvaluateExpectingError("exp_udf_o(abs_udf_o(a), 3) as r from [//t]", split, source, EFailureLocation::Codegen);
 }
 
 TEST_F(TQueryEvaluateTest, TestCasts)

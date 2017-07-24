@@ -195,7 +195,7 @@ const TSharedRef& TClientRequest::GetSerializedBody() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
-    : StartTime_(TInstant::Now())
+    : StartTime_(NProfiling::GetInstant())
     , ClientContext_(std::move(clientContext))
 { }
 

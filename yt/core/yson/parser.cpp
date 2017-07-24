@@ -158,6 +158,33 @@ void ParseYsonStringBuffer(
         enableContext);
 }
 
+void ParseYsonSharedRefArray(
+    const TSharedRefArray& refArray,
+    EYsonType type,
+    IYsonConsumer* consumer,
+    bool enableLinePositionInfo,
+    i64 memoryLimit,
+    bool enableContext)
+{
+    typedef TCoroutine<int(const char* begin, const char* end, bool finish)> TParserCoroutine;
+    TParserCoroutine parserCoroutine(BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
+        ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>>(
+            TBlockReader<TParserCoroutine>(self, begin, end, finish),
+            consumer,
+            type,
+            enableLinePositionInfo,
+            memoryLimit,
+            enableContext);
+    }));
+
+    for (const auto& blob: refArray) {
+        auto buffer = TStringBuf(blob.Begin(), blob.End());
+        parserCoroutine.Run(buffer.begin(), buffer.end(), false);
+    }
+
+    parserCoroutine.Run(nullptr, nullptr, true);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYson
