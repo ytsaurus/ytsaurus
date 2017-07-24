@@ -301,6 +301,8 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
     RegisterParameter("data_size_per_job", DataSizePerJob)
         .Default()
         .GreaterThan(0);
+    RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
+        .Default(false);
     RegisterParameter("job_count", JobCount)
         .Default()
         .GreaterThan(0);

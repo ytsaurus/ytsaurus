@@ -762,6 +762,38 @@ echo {v = 2} >&7
         assert get("//tmp/out/@row_count") == 200
 
     @unix_only
+    def test_join_reduce_cartesian_product(self):
+        create("table", "//tmp/in")
+        for i in range(20):
+            write_table(
+                "<append=true>//tmp/in",
+                [{"fake_key": ""} for num in xrange(i * 100, (i + 1) * 100)],
+                sorted_by = ["fake_key"],
+                table_writer = {"block_size": 1024})
+
+        create("table", "//tmp/out")
+        join_reduce(
+            in_=['//tmp/in', "<foreign=true>//tmp/in"],
+            out="//tmp/out",
+            command="echo a=$JOB_INDEX",
+            join_by=["fake_key"],
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                },
+                "max_failed_job_count": 1,
+                "job_count": 10,
+                "use_legacy_controller": False,
+                "nightly_options" : {
+                    "use_new_endpoint_keys": True
+                },
+                "consider_only_primary_size": True
+            })
+
+        job_count = get("//tmp/out/@row_count")
+        assert 9 <= job_count <= 11
+
+    @unix_only
     def test_join_reduce_input_paths_attr(self):
         create("table", "//tmp/in1")
         for i in xrange(0, 5, 2):
@@ -965,6 +997,7 @@ done
         interrupted = completed["interrupted"]
         assert completed["total"] >= 6
         assert interrupted["job_split"] >= 1
+
 
 
 ##################################################################

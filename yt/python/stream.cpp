@@ -69,5 +69,102 @@ void TOutputStreamWrap::DoWrite(const void* buf, size_t len)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TInputStreamBlobTag { };
+
+TStreamReader::TStreamReader(TInputStream* stream)
+    : Stream_(stream)
+{
+    ReadNextBlob();
+    if (!Finished_) {
+        RefreshBlock();
+    }
+}
+
+const char* TStreamReader::Begin() const
+{
+    return BeginPtr_;
+}
+
+const char* TStreamReader::End() const
+{
+    return EndPtr_;
+}
+
+void TStreamReader::RefreshBlock()
+{
+    YCHECK(BeginPtr_ == EndPtr_);
+    YCHECK(!Finished_);
+
+    Blobs_.push_back(NextBlob_);
+    BeginPtr_ = NextBlob_.Begin();
+    EndPtr_ = NextBlob_.Begin() + NextBlobSize_;
+
+    if (NextBlobSize_ < BlockSize_) {
+        Finished_ = true;
+    } else {
+        ReadNextBlob();
+    }
+}
+
+void TStreamReader::Advance(size_t bytes)
+{
+    BeginPtr_ += bytes;
+    ReadByteCount_ += bytes;
+}
+
+bool TStreamReader::IsFinished() const
+{
+    return Finished_;
+}
+
+TSharedRef TStreamReader::ExtractPrefix()
+{
+    YCHECK(!Blobs_.empty());
+
+    if (!PrefixStart_) {
+        PrefixStart_ = Blobs_.front().Begin();
+    }
+
+    TSharedMutableRef result;
+
+    if (Blobs_.size() == 1) {
+        result = Blobs_[0].Slice(PrefixStart_, BeginPtr_);
+    } else {
+        result = TSharedMutableRef::Allocate<TInputStreamBlobTag>(ReadByteCount_, false);
+
+        size_t index = 0;
+        auto append = [&] (const char* begin, const char* end) {
+            std::copy(begin, end, result.Begin() + index);
+            index += end - begin;
+        };
+
+        append(PrefixStart_, Blobs_.front().End());
+        for (int i = 1; i + 1 < Blobs_.size(); ++i) {
+            append(Blobs_[i].Begin(), Blobs_[i].End());
+        }
+        append(Blobs_.back().Begin(), BeginPtr_);
+
+        while (Blobs_.size() > 1) {
+            Blobs_.pop_front();
+        }
+    }
+
+    PrefixStart_ = BeginPtr_;
+    ReadByteCount_ = 0;
+
+    return result;
+}
+
+void TStreamReader::ReadNextBlob()
+{
+    NextBlob_ = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
+    NextBlobSize_ = Stream_->Load(NextBlob_.Begin(), NextBlob_.Size());
+    if (NextBlobSize_ == 0) {
+        Finished_ = true;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NPython
 } // namespace NYT

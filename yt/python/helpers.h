@@ -1,5 +1,10 @@
 #pragma once
 
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/ref.h>
+
+#include <yt/core/ytree/public.h>
+
 #include <util/generic/noncopyable.h>
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
@@ -50,6 +55,38 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TPythonClassObject
+{
+public:
+    TPythonClassObject();
+    explicit TPythonClassObject(PyTypeObject* typeObject);
+    Py::Callable Get();
+
+private:
+    Py::Callable ClassObject_;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TPythonStringCache
+{
+public:
+    TPythonStringCache();
+    TPythonStringCache(bool enableCache, const TNullable<TString>& encoding);
+    PyObject* GetPythonString(const TStringBuf& string);
+
+private:
+    bool CacheEnabled_;
+    std::unique_ptr<yhash<TStringBuf, PyObject*>> Cache_;
+    TNullable<TString> Encoding_;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+Py::Callable GetYsonTypeClass(const std::string& name);
+
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
 } // namespace NYT
