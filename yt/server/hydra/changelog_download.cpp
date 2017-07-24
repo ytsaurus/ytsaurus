@@ -10,10 +10,6 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
-
-#include <yt/core/misc/serialize.h>
-
 namespace NYT {
 namespace NHydra {
 
@@ -57,7 +53,7 @@ void DoDownloadChangelog(
 
         LOG_INFO("Downloading records %v-%v from peer %v",
             changelog->GetRecordCount(),
-            recordCount,
+            recordCount - 1,
             changelogInfo.PeerId);
 
         THydraServiceProxy proxy(cellManager->GetPeerChannel(changelogInfo.PeerId));
@@ -107,9 +103,15 @@ void DoDownloadChangelog(
                     downloadedRecordCount + actualChunkSize - 1);
             }
 
+            TFuture<void> asyncResult;
             for (const auto& data : recordsData) {
-                changelog->Append(data);
+                asyncResult = changelog->Append(data);
                 ++downloadedRecordCount;
+            }
+
+            if (asyncResult) {
+                WaitFor(asyncResult)
+                    .ThrowOnError();
             }
         }
 
@@ -133,7 +135,7 @@ TFuture<void> DownloadChangelog(
     int recordCount)
 {
     return BIND(&DoDownloadChangelog)
-        .AsyncVia(GetHydraIOInvoker())
+        .AsyncVia(GetCurrentInvoker())
         .Run(config, cellManager, changelogStore, changelogId, recordCount);
 }
 

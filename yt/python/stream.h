@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/core/misc/ref.h>
+
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/stream/str.h>
@@ -57,6 +59,41 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TStreamReader
+{
+public:
+    explicit TStreamReader(TInputStream* stream);
+
+    const char* Begin() const;
+    const char* End() const;
+
+    void RefreshBlock();
+    void Advance(size_t bytes);
+
+    bool IsFinished() const;
+    TSharedRef ExtractPrefix();
+
+private:
+    TInputStream* Stream_;
+
+    std::deque<TSharedMutableRef> Blobs_;
+
+    TSharedMutableRef NextBlob_;
+    i64 NextBlobSize_ = 0;
+
+    char* BeginPtr_ = nullptr;
+    char* EndPtr_ = nullptr;
+
+    char* PrefixStart_ = nullptr;
+    i64 ReadByteCount_ = 0;
+
+    bool Finished_ = false;
+    static const size_t BlockSize_ = 1024 * 1024;
+
+    void ReadNextBlob();
+};
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
 } // namespace NYT

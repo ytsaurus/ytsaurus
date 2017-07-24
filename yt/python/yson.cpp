@@ -3,6 +3,9 @@
 #include "serialize.h"
 #include "shutdown.h"
 #include "stream.h"
+#include "lazy_parser.h"
+#include "yson_lazy_map.h"
+#include "object_builder.h"
 
 #include <yt/ytlib/ypath/rich.h>
 
@@ -184,6 +187,73 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLazyYsonIterator
+    : public Py::PythonClass<TLazyYsonIterator>
+{
+public:
+    TLazyYsonIterator(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
+        : Py::PythonClass<TLazyYsonIterator>::PythonClass(self, args, kwargs)
+    { }
+
+    void Init(
+        TInputStream* inputStream,
+        std::unique_ptr<TInputStream> inputStreamOwner,
+        Py::Tuple& loadsParams,
+        const TNullable<TString>& encoding,
+        bool alwaysCreateAttributes)
+    {
+        InputStreamOwner_ = std::move(inputStreamOwner);
+        Lexer_ = TListFragmentLexer(inputStream);
+        LoadsParams_ = loadsParams;
+        Encoding_ = encoding;
+        AlwaysCreateAttributes_ = alwaysCreateAttributes;
+        KeyCache_ = TPythonStringCache(true, Encoding_);
+    }
+
+    Py::Object iter()
+    {
+        return self();
+    }
+
+    PyObject* iternext()
+    {
+        try {
+            auto item = Lexer_.NextItem();
+            if (!item) {
+                PyErr_SetNone(PyExc_StopIteration);
+                return nullptr;
+            }
+            auto result = TString(item.Begin(), item.Size() - 1);
+            TOwningStringInput rawStream(result);
+            return ParseLazyDict(&rawStream, NYson::EYsonType::Node, Encoding_, AlwaysCreateAttributes_, &KeyCache_);
+        } CATCH("Yson load failed");
+    }
+
+    virtual ~TLazyYsonIterator()
+    { }
+
+    static void InitType()
+    {
+        behaviors().name("Yson iterator");
+        behaviors().doc("Iterates over stream with YSON rows");
+        behaviors().supportGetattro();
+        behaviors().supportSetattro();
+        behaviors().supportIter();
+
+        behaviors().readyType();
+    }
+
+private:
+    std::unique_ptr<TInputStream> InputStreamOwner_;
+    TListFragmentLexer Lexer_;
+    Py::Tuple LoadsParams_;
+    TPythonStringCache KeyCache_;
+    TNullable<TString> Encoding_;
+    bool AlwaysCreateAttributes_;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TYsonModule
     : public Py::ExtensionModule<TYsonModule>
 {
@@ -199,6 +269,12 @@ public:
 
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();
+        TLazyYsonIterator::InitType();
+        PyType_Ready(&TLazyYsonMapBaseType);
+        PyType_Ready(&TLazyYsonMapType);
+
+        YsonLazyMapBaseClass = TPythonClassObject(&TLazyYsonMapBaseType);
+        YsonLazyMapClass = TPythonClassObject(&TLazyYsonMapType);
 
         add_keyword_method("load", &TYsonModule::Load, "Loads YSON from stream");
         add_keyword_method("loads", &TYsonModule::Loads, "Loads YSON from string");
@@ -295,7 +371,7 @@ private:
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-                ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToString(arg));
+            ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToString(arg));
         }
 
         bool alwaysCreateAttributes = true;
@@ -326,7 +402,38 @@ private:
 #endif
         }
 
+        bool lazy = false;
+        if (HasArgument(args, kwargs, "lazy")) {
+            auto arg = ExtractArgument(args, kwargs, "lazy");
+            lazy = Py::Boolean(arg);
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
+
+        if (lazy) {
+            if (raw) {
+                throw CreateYsonError("Raw mode is not supported in lazy mode");
+            }
+
+            Py::Object encodingParam;
+            if (encoding) {
+                encodingParam = Py::String(encoding.Get());
+            } else {
+                encodingParam = Py::None();
+            }
+            Py::TupleN params(encodingParam, Py::Boolean(alwaysCreateAttributes));
+            if (ysonType == NYson::EYsonType::ListFragment) {
+                Py::Callable classType(TLazyYsonIterator::type());
+                Py::PythonClassObject<TLazyYsonIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
+
+                auto* iter = pythonIter.getCxxObject();
+                iter->Init(inputStreamPtr, std::move(inputStream), params, encoding, alwaysCreateAttributes);
+                return pythonIter;
+            }
+            TPythonStringCache keyCacher(false, encoding);
+
+            return Py::Object(ParseLazyDict(inputStreamPtr, ysonType, encoding, alwaysCreateAttributes, &keyCacher));
+        }
 
         if (ysonType == NYson::EYsonType::ListFragment) {
             if (raw) {

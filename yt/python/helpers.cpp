@@ -129,5 +129,77 @@ TGilGuard::~TGilGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPythonClassObject::TPythonClassObject()
+{ }
+
+TPythonClassObject::TPythonClassObject(PyTypeObject* typeObject)
+    : ClassObject_(Py::Callable(reinterpret_cast<PyObject*>(typeObject)))
+{ }
+
+Py::Callable TPythonClassObject::Get()
+{
+    return ClassObject_;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+TPythonStringCache::TPythonStringCache()
+{ }
+
+TPythonStringCache::TPythonStringCache(bool enableCache, const TNullable<TString>& encoding)
+    : CacheEnabled_(enableCache)
+    , Encoding_(encoding)
+{
+    if (CacheEnabled_) {
+        Cache_.reset(new yhash<TStringBuf, PyObject*>());
+    }
+}
+
+PyObject* TPythonStringCache::GetPythonString(const TStringBuf& string)
+{
+    if (CacheEnabled_) {
+        auto it = Cache_->find(string);
+        if (it != Cache_->end()) {
+            return it->second;
+        }
+    }
+    auto result = PyBytes_FromStringAndSize(~string, string.size());
+    if (!result) {
+        throw Py::Exception();
+    }
+
+    auto ownedCachedString = ConvertToStringBuf(Py::Bytes(result));
+    if (Encoding_) {
+        auto unicodeObject = PyUnicode_FromEncodedObject(result, ~Encoding_.Get(), "strict");
+        if (!unicodeObject) {
+            throw Py::Exception();
+        }
+        Py_DECREF(result);
+        result = unicodeObject;
+    }
+    if (CacheEnabled_) {
+        Cache_->emplace(ownedCachedString, result);
+    }
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+Py::Callable GetYsonTypeClass(const std::string& name)
+{
+    // TODO(ignat): Make singleton
+    static Py::Object ysonTypesModule;
+    if (ysonTypesModule.isNone()) {
+        auto ptr = PyImport_ImportModule("yt.yson.yson_types");
+        if (!ptr) {
+            throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
+        }
+        ysonTypesModule = ptr;
+    }
+    return Py::Callable(GetAttr(ysonTypesModule, name));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NPython
 } // namespace NYT

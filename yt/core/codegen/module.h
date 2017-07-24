@@ -4,6 +4,8 @@
 #include "function.h"
 #include "routine_registry.h"
 
+#include <yt/core/misc/ref.h>
+
 #include <memory>
 
 #ifdef DEBUG
@@ -57,6 +59,10 @@ public:
     bool FunctionIsLoaded(const TString& function) const;
 
     void AddLoadedFunction(const TString& function);
+
+    bool ModuleIsLoaded(const TSharedRef& data) const;
+
+    void AddLoadedModule(const TSharedRef& data);
 
 private:
     class TImpl;
