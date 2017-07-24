@@ -2666,6 +2666,44 @@ TEST_F(TSortedChunkPoolTest, ExtractByDataSize)
     EXPECT_GT(stripeListDataSizes[1], stripeListDataSizes[2]);
 }
 
+TEST_F(TSortedChunkPoolTest, CartesianProductViaJoinReduce)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, true} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.ForeignPrefixLength = 1;
+    DataSizePerJob_ = Inf64;
+    PrimaryDataSizePerJob_ = 10 * KB;
+    std::vector<TInputChunkPtr> chunks;
+    for (int index = 0; index < 1000; ++index) {
+        chunks.emplace_back(CreateChunk(BuildRow({0}), BuildRow({0}), 0, 1 * KB));
+        chunks.emplace_back(CreateChunk(BuildRow({0}), BuildRow({0}), 1, 1 * KB));
+    }
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (const auto& chunk : chunks) {
+        AddChunk(chunk);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_GE(stripeLists.size(), 90);
+    EXPECT_LE(stripeLists.size(), 110);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolTestRandomized

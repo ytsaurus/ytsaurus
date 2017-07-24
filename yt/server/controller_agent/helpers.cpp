@@ -82,9 +82,13 @@ public:
 
     virtual i64 GetDataSizePerJob() const override
     {
-        return JobCount_ > 0
-            ? DivCeil(InputDataSize_, JobCount_)
-            : 1;
+        if (Spec_->ConsiderOnlyPrimarySize) {
+            return std::numeric_limits<i64>::max();
+        } else {
+            return JobCount_ > 0
+                ? DivCeil(InputDataSize_, JobCount_)
+                : 1;
+        }
     }
 
     virtual i64 GetPrimaryDataSizePerJob() const override

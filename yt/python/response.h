@@ -1,5 +1,6 @@
 #pragma once
 
+#include "object_builder.h"
 #include "serialize.h"
 #include "stream.h"
 
