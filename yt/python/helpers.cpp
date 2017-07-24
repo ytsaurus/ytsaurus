@@ -167,6 +167,8 @@ PyObject* TPythonStringCache::GetPythonString(const TStringBuf& string)
     if (!result) {
         throw Py::Exception();
     }
+
+    auto ownedCachedString = ConvertToStringBuf(Py::Bytes(result));
     if (Encoding_) {
         auto unicodeObject = PyUnicode_FromEncodedObject(result, ~Encoding_.Get(), "strict");
         if (!unicodeObject) {
@@ -176,7 +178,6 @@ PyObject* TPythonStringCache::GetPythonString(const TStringBuf& string)
         result = unicodeObject;
     }
     if (CacheEnabled_) {
-        auto ownedCachedString = ConvertToStringBuf(Py::Bytes(result));
         Cache_->emplace(ownedCachedString, result);
     }
     return result;
