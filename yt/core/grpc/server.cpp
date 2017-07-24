@@ -493,6 +493,7 @@ private:
 
             TError error;
             if (responseHeader.has_error() && responseHeader.error().code() != static_cast<int>(NYT::EErrorCode::OK)) {
+                FromProto(&error, responseHeader.error());
                 ErrorMessage_ = ToString(error);
                 TrailingMetadataBuilder_.Add(ErrorMetadataKey, SerializeError(error));
             } else {
