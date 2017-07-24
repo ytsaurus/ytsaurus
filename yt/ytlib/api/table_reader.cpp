@@ -469,9 +469,9 @@ public:
         : Reader_(std::move(reader))
         , PartIndexColumnName_(partIndexColumnName ? *partIndexColumnName : TBlobTableSchema::PartIndexColumn)
         , DataColumnName_(dataColumnName ? *dataColumnName : TBlobTableSchema::DataColumn)
+        , NextPartIndex_(startPartIndex)
         , Offset_(offset.Get(0))
         , PartSize_(partSize)
-        , NextPartIndex_(startPartIndex)
     {
         Rows_.reserve(1);
         ColumnIndex_[EColumnType::PartIndex] = Reader_->GetNameTable()->GetIdOrRegisterName(PartIndexColumnName_);
