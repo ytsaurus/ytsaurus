@@ -239,7 +239,7 @@ def _run_tests(options, python_version):
     with tempfile.NamedTemporaryFile() as handle:
         additional_args = []
         if options.enable_parallel_testing:
-            # Currently python tests can only scale up to three processes.
+            # Currently python tests can only scale up to fifteen processes.
             additional_args.append("--process-count=15")
 
         try:
