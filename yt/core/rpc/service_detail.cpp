@@ -216,7 +216,7 @@ private:
         if (RequestHeader_->has_start_time()) {
             // Decode timing information.
             auto retryStart = FromProto<TInstant>(RequestHeader_->start_time());
-            auto now = CpuInstantToInstant(GetCpuInstant());
+            auto now = NProfiling::GetInstant();
 
             // Make sanity adjustments to account for possible clock skew.
             retryStart = std::min(retryStart, now);

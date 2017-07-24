@@ -95,15 +95,15 @@ IYPathService::TResolveResult TServiceCombiner::ResolveRecursive(
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::Literal);
-    auto key = tokenizer.GetLiteralValue();
+    const auto& key = tokenizer.GetLiteralValue();
     auto iterator = keyMapping.find(key);
     if (iterator == keyMapping.end()) {
         if (context->GetMethod() == "Exists") {
-            return TResolveResult::Here(path);
+            return TResolveResultHere{path};
         }
         THROW_ERROR_EXCEPTION("Node has no child with key %Qv", ToYPathLiteral(key));
     }
-    return TResolveResult::There(iterator->second, "/" + path);
+    return TResolveResultThere{iterator->second, "/" + path};
 }
 
 void TServiceCombiner::ValidateKeyMapping()

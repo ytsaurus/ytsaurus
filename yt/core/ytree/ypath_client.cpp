@@ -199,9 +199,16 @@ void ResolveYPath(
                 << TErrorAttribute("limit", MaxYPathResolveIterations);
         }
 
-        IYPathService::TResolveResult result;
         try {
-            result = currentService->Resolve(currentPath, context);
+            auto result = currentService->Resolve(currentPath, context);
+            if (auto* hereResult = result.TryAs<IYPathService::TResolveResultHere>()) {
+                *suffixService = currentService;
+                *suffixPath = std::move(hereResult->Path);
+                break;
+            }
+            auto& thereResult = result.As<IYPathService::TResolveResultThere>();
+            currentService = std::move(thereResult.Service);
+            currentPath = std::move(thereResult.Path);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
@@ -210,15 +217,6 @@ void ResolveYPath(
                 << TErrorAttribute("method", context->GetMethod())
                 << ex;
         }
-
-        if (result.IsHere()) {
-            *suffixService = currentService;
-            *suffixPath = result.GetPath();
-            break;
-        }
-
-        currentService = result.GetService();
-        currentPath = result.GetPath();
     }
 }
 

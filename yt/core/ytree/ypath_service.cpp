@@ -23,30 +23,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult IYPathService::TResolveResult::Here(const TYPath& path)
-{
-    TResolveResult result;
-    result.Path_ = path;
-    return result;
-}
-
-IYPathService::TResolveResult IYPathService::TResolveResult::There(IYPathServicePtr service, const TYPath& path)
-{
-    Y_ASSERT(service);
-
-    TResolveResult result;
-    result.Service_ = service;
-    result.Path_ = path;
-    return result;
-}
-
-bool IYPathService::TResolveResult::IsHere() const
-{
-    return !Service_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TFromProducerYPathService
     : public TYPathServiceBase
     , public TSupportsGet
@@ -62,10 +38,10 @@ public:
     {
         // Try to handle root get requests without constructing ephemeral YTree.
         if (path.empty() && context->GetMethod() == "Get") {
-            return TResolveResult::Here(path);
+            return TResolveResultHere{path};
         } else {
             auto node = BuildNodeFromProducer();
-            return TResolveResult::There(node, path);
+            return TResolveResultThere{std::move(node), path};
         }
     }
 
@@ -155,7 +131,7 @@ public:
         const TYPath& path,
         const IServiceContextPtr& /*context*/) override
     {
-        return TResolveResult::Here(path);
+        return TResolveResultHere{path};
     }
 
     virtual bool ShouldHideAttributes() override
@@ -206,7 +182,7 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
-        return TResolveResult::Here(path);
+        return TResolveResultHere{path};
     }
 
 private:
