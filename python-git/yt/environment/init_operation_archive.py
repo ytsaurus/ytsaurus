@@ -619,6 +619,7 @@ def main():
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--archive-path", type=str, default=BASE_PATH)
     parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
+    parser.add_argument("--latest", action="store_true")
 
     args = parser.parse_args()
 
@@ -635,8 +636,11 @@ def main():
 
     next_version = current_version + 1
 
-    target_version = args.target_version
-    transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
+    if args.latest:
+        create_tables_latest_version(client)
+    else:
+        target_version = args.target_version
+        transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
 
 if __name__ == "__main__":
     main()
