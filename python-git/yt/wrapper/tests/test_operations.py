@@ -64,7 +64,7 @@ class CreateModulesArchive(object):
     def __call__(self, tempfiles_manager=None, custom_python_used=False):
         return create_modules_archive_default(tempfiles_manager, custom_python_used, None)
 
-@pytest.mark.usefixtures("yt_env", "test_dynamic_library")
+@pytest.mark.usefixtures("yt_env")
 class TestOperations(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
@@ -1155,6 +1155,7 @@ if __name__ == "__main__":
         finally:
             logger.LOGGER.setLevel(old_level)
 
+    @pytest.mark.usefixtures("test_dynamic_library")
     @add_failed_operation_stderrs_to_error_message
     def test_enable_dynamic_libraries_collection(self, test_dynamic_library):
         libs_dir, so_file = test_dynamic_library
@@ -1334,6 +1335,7 @@ if __name__ == "__main__":
         yt.run_map(mapper, table, table, files=['<file_name="cool_name.dat">' + f.name])
         check(yt.read_table(table), [{"k": "etwas"}])
 
+    @pytest.mark.usefixtures("test_dynamic_library")
     @add_failed_operation_stderrs_to_error_message
     def test_modules_compatibility_filter(self, test_dynamic_library):
         libs_dir, so_file = test_dynamic_library
