@@ -137,7 +137,7 @@ class TJobSplitterConfig
 public:
     TDuration MinJobTime;
     double ExecToPrepareTimeRatio;
-    i64 MinTotalDataSize;
+    i64 MinTotalDataWeight;
     TDuration UpdatePeriod;
     TDuration MedianExcessDuration;
     double CandidatePercentile;
@@ -161,13 +161,13 @@ public:
     NYTree::INodePtr SpecTemplate;
 
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
-    double SliceDataSizeMultiplier;
+    double SliceDataWeightMultiplier;
 
     //! Maximum number of primary data slices per job.
     int MaxDataSlicesPerJob;
 
-    i64 MaxSliceDataSize;
-    i64 MinSliceDataSize;
+    i64 MaxSliceDataWeight;
+    i64 MinSliceDataWeight;
 
     //! Maximum number of output tables times job count an operation can have.
     int MaxOutputTablesTimesJobsCount;
@@ -185,7 +185,7 @@ private:
 
 public:
     int MaxJobCount;
-    i64 DataSizePerJob;
+    i64 DataWeightPerJob;
 
     TSimpleOperationOptions();
 };
@@ -291,11 +291,11 @@ private:
 public:
     int MaxPartitionJobCount;
     int MaxPartitionCount;
-    i64 SortJobMaxSliceDataSize;
-    i64 PartitionJobMaxSliceDataSize;
+    i64 SortJobMaxSliceDataWeight;
+    i64 PartitionJobMaxSliceDataWeight;
     i32 MaxSampleSize;
     i64 CompressedBlockSize;
-    i64 MinPartitionSize;
+    i64 MinPartitionWeight;
     i64 MinUncompressedBlockSize;
     NControllerAgent::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
 

@@ -75,7 +75,7 @@ public:
         Persist(context, JobIOConfig_);
         Persist(context, JobSpecTemplate_);
         Persist(context, JobSizeConstraints_);
-        Persist(context, InputSliceDataSize_);
+        Persist(context, InputSliceDataWeight_);
         Persist(context, OrderedTaskGroup_);
         Persist(context, OrderedTask_);
         Persist(context, OrderedOutputRequired_);
@@ -148,7 +148,7 @@ protected:
             return Controller_->Spec_->LocalityTimeout;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
@@ -216,7 +216,7 @@ protected:
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
-    i64 InputSliceDataSize_;
+    i64 InputSliceDataWeight_;
 
     bool OrderedOutputRequired_ = false;
 
@@ -273,12 +273,12 @@ protected:
 
         IsExplicitJobCount_ = JobSizeConstraints_->IsExplicitJobCount();
 
-        InputSliceDataSize_ = JobSizeConstraints_->GetInputSliceDataSize();
+        InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
-        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, InputSliceDataSize: %v)",
+        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
             JobSizeConstraints_->GetJobCount(),
-            JobSizeConstraints_->GetMaxDataSizePerJob(),
-            InputSliceDataSize_);
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            InputSliceDataWeight_);
     }
 
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
@@ -298,7 +298,7 @@ protected:
             InitTeleportableInputTables();
 
             int sliceCount = 0;
-            for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataSize_)) {
+            for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
                 RegisterInputStripe(CreateChunkStripe(std::move(slice)), OrderedTask_);
                 ++sliceCount;
                 yielder.TryYield();
@@ -560,9 +560,9 @@ private:
         }
     }
 
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -756,9 +756,9 @@ private:
         return true;
     }
 
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -824,7 +824,7 @@ private:
 
     TEraseOperationSpecPtr Spec_;
 
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
         Y_UNREACHABLE();
     }

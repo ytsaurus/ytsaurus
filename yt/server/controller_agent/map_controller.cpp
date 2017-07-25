@@ -116,7 +116,7 @@ protected:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller->GetUnorderedOperationResources(
                 joblet->InputStripeList->GetStatistics());
@@ -281,7 +281,7 @@ protected:
     virtual void CustomPrepare() override
     {
         // The total data size for processing (except teleport chunks).
-        i64 totalDataSize = 0;
+        i64 totalDataWeight = 0;
         i64 totalRowCount = 0;
 
         // The number of output partitions generated so far.
@@ -307,31 +307,29 @@ protected:
                     ++currentPartitionIndex;
                 } else {
                     mergedChunks.push_back(chunk);
-                    totalDataSize += chunk->GetUncompressedDataSize();
+                    totalDataWeight += chunk->GetDataWeight();
                     totalRowCount += chunk->GetRowCount();
                 }
             }
 
             auto versionedInputStatistics = CalculatePrimaryVersionedChunksStatistics();
-            totalDataSize += versionedInputStatistics.first;
+            totalDataWeight += versionedInputStatistics.first;
             totalRowCount += versionedInputStatistics.second;
 
             // Create the task, if any data.
-            if (totalDataSize > 0) {
                 auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
                     Spec,
                     Options,
                     GetOutputTablePaths().size(),
                     totalDataSize,
                     totalRowCount);
+            if (totalDataWeight > 0) {
 
                 IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
 
                 std::vector<TChunkStripePtr> stripes;
                 SliceUnversionedChunks(mergedChunks, jobSizeConstraints, &stripes);
                 SlicePrimaryVersionedChunks(jobSizeConstraints, &stripes);
-
-                //auto stripes = SliceChunks(mergedChunks, jobSizeConstraints);
 
                 InitUnorderedPool(
                     std::move(jobSizeConstraints),
@@ -483,9 +481,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -655,9 +653,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override

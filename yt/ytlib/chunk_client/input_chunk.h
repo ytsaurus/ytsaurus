@@ -44,7 +44,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
     DEFINE_BYVAL_RW_PROPERTY(i64, RowCount);
     DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize); // for TSortControllerBase
-    DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
+    DEFINE_BYVAL_RW_PROPERTY(i64, DataWeight);
     DEFINE_BYVAL_RO_PROPERTY(i64, MaxBlockSize); // for TChunkStripeStatistics
 
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys, false); // for TChunkStripeStatistics

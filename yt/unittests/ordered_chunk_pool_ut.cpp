@@ -74,6 +74,7 @@ protected:
         inputChunk->ChunkId() = TChunkId::Create();
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetUncompressedDataSize(size);
+        inputChunk->SetDataWeight(size);
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
         UnversionedTableRowCounts_[tableIndex] += rowCount;

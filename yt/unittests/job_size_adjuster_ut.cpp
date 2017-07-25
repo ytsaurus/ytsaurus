@@ -12,23 +12,23 @@ namespace {
 
 TEST(TJobSizeAdjusterTest, Simple)
 {
-    i64 dataSizePerJob = 128LL * 1024 * 1024;
+    i64 dataWeightPerJob = 128LL * 1024 * 1024;
     auto config = New<TJobSizeAdjusterConfig>();
     config->MinJobTime = TDuration::Seconds(20);
     config->ExecToPrepareTimeRatio = 10.0;
     auto jobSizeAdjuster = CreateJobSizeAdjuster(
-        dataSizePerJob,
+        dataWeightPerJob,
         config);
 
-    EXPECT_EQ(dataSizePerJob, jobSizeAdjuster->GetDataSizePerJob());
-    i64 jobDataSize = 150LL * 1024 * 1024;
+    EXPECT_EQ(dataWeightPerJob, jobSizeAdjuster->GetDataWeightPerJob());
+    i64 jobDataWeight = 150LL * 1024 * 1024;
 
-    jobSizeAdjuster->UpdateStatistics(jobDataSize, TDuration::MilliSeconds(20), TDuration::Seconds(19));
-    EXPECT_LT(static_cast<i64>(jobDataSize), jobSizeAdjuster->GetDataSizePerJob());
-    EXPECT_GT(static_cast<i64>(1.1 * jobDataSize), jobSizeAdjuster->GetDataSizePerJob());
+    jobSizeAdjuster->UpdateStatistics(jobDataWeight, TDuration::MilliSeconds(20), TDuration::Seconds(19));
+    EXPECT_LT(static_cast<i64>(jobDataWeight), jobSizeAdjuster->GetDataWeightPerJob());
+    EXPECT_GT(static_cast<i64>(1.1 * jobDataWeight), jobSizeAdjuster->GetDataWeightPerJob());
 
-    jobSizeAdjuster->UpdateStatistics(jobDataSize, TDuration::MilliSeconds(20), TDuration::Seconds(1));
-    EXPECT_EQ(static_cast<i64>(JobSizeBoostFactor * jobDataSize), jobSizeAdjuster->GetDataSizePerJob());
+    jobSizeAdjuster->UpdateStatistics(jobDataWeight, TDuration::MilliSeconds(20), TDuration::Seconds(1));
+    EXPECT_EQ(static_cast<i64>(JobSizeBoostFactor * jobDataWeight), jobSizeAdjuster->GetDataWeightPerJob());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

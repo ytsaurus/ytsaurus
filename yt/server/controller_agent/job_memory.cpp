@@ -44,7 +44,7 @@ i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig)
 i64 GetIntermediateOutputIOMemorySize(TJobIOConfigPtr ioConfig)
 {
     auto result = GetOutputWindowMemorySize(ioConfig) +
-                  ioConfig->TableWriter->MaxBufferSize;
+        ioConfig->TableWriter->MaxBufferSize;
 
     return result;
 }
@@ -61,7 +61,9 @@ i64 GetInputIOMemorySize(
     // Group can be overcommited by one block.
     i64 groupSize = stat.MaxBlockSize + ioConfig->TableReader->GroupSize;
     i64 windowSize = std::max(stat.MaxBlockSize, ioConfig->TableReader->WindowSize);
-    i64 bufferSize = std::min(stat.DataSize, concurrentReaders * (windowSize + groupSize));
+
+    // Data weight here is upper bound on the cumulative size of uncompressed blocks.
+    i64 bufferSize = std::min(stat.DataWeight, concurrentReaders * (windowSize + groupSize));
     // One block for table chunk reader.
     bufferSize += concurrentReaders * (ChunkReaderMemorySize + stat.MaxBlockSize);
 
@@ -78,7 +80,7 @@ i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
         return 0;
 
     return static_cast<i64>(
-        stat.DataSize * (1 + dataOverheadFactor) +
+        stat.DataWeight * (1 + dataOverheadFactor) +
         stat.ChunkCount * (ChunkReaderMemorySize + ChunkSpecOverhead));
 }
 

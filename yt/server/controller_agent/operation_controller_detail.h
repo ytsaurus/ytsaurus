@@ -308,13 +308,13 @@ protected:
     int TotalEstimatedInputChunkCount = 0;
     i64 TotalEstimatedInputDataWeight = 0;
     i64 TotalEstimatedInputRowCount = 0;
-    i64 TotalEstimatedCompressedDataSize = 0;
-    i64 TotalEstimatedInputDataSize = 0;
+    i64 TotalEstimatedInputCompressedDataSize = 0;
+    i64 TotalEstimatedInputUncompressedDataSize = 0;
 
     // Total uncompressed data size for input tables.
     // Used only during preparation, not persisted.
-    i64 PrimaryInputDataSize = 0;
-    i64 ForeignInputDataSize = 0;
+    i64 PrimaryInputDataWeight = 0;
+    i64 ForeignInputDataWeight = 0;
 
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
@@ -568,7 +568,7 @@ protected:
             const TJobId& jobId,
             TTaskPtr sourceTask,
             NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-            i64 dataSize,
+            i64 dataWeight,
             NChunkPools::IChunkPoolInput* destinationPool,
             NChunkPools::IChunkPoolInput::TCookie inputCookie,
             const NScheduler::TJobNodeDescriptor& nodeDescriptor)
@@ -576,7 +576,7 @@ protected:
             , JobId(jobId)
             , SourceTask(std::move(sourceTask))
             , OutputCookie(outputCookie)
-            , DataSize(dataSize)
+            , DataWeight(dataWeight)
             , DestinationPool(destinationPool)
             , InputCookie(inputCookie)
             , NodeDescriptor(nodeDescriptor)
@@ -588,7 +588,7 @@ protected:
 
         TTaskPtr SourceTask;
         NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
-        i64 DataSize;
+        i64 DataWeight;
 
         NChunkPools::IChunkPoolInput* DestinationPool;
         NChunkPools::IChunkPoolInput::TCookie InputCookie;
@@ -639,7 +639,7 @@ protected:
 
         TJobResources GetMinNeededResources() const;
 
-        virtual NScheduler::TExtendedJobResources GetNeededResources(TJobletPtr joblet) const = 0;
+        virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
 
         void ResetCachedMinNeededResources();
 
@@ -675,9 +675,9 @@ protected:
 
         virtual bool IsActive() const;
 
-        i64 GetTotalDataSize() const;
-        i64 GetCompletedDataSize() const;
-        i64 GetPendingDataSize() const;
+        i64 GetTotalDataWeight() const;
+        i64 GetCompletedDataWeight() const;
+        i64 GetPendingDataWeight() const;
 
         TNullable<i64> GetMaximumUsedTmpfsSize() const;
 
@@ -961,8 +961,8 @@ protected:
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
 
-    //! Called in jobs duration analyzer to get proper data size parameter name in spec.
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const = 0;
+    //! Called in jobs duration analyzer to get proper data weight parameter name in spec.
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const = 0;
 
     //! Called in jobs duration analyzer to get interesting for analysis jobs set.
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const = 0;

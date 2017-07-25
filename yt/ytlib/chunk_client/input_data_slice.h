@@ -35,7 +35,7 @@ public:
         TNullable<i64> tag = Null);
 
     int GetChunkCount() const;
-    i64 GetDataSize() const;
+    i64 GetDataWeight() const;
     i64 GetRowCount() const;
     i64 GetMaxBlockSize() const;
 
@@ -99,7 +99,7 @@ TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool chec
 bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
 bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
 i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices);
-i64 GetCumulativeDataSize(const std::vector<TInputDataSlicePtr>& dataSlices);
+i64 GetCumulativeDataWeight(const std::vector<TInputDataSlicePtr>& dataSlices);
 
 ////////////////////////////////////////////////////////////////////////////////
 

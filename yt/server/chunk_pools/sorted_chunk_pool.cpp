@@ -321,10 +321,10 @@ private:
                     "PrimarySliceCount: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
                     "PreliminaryForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
                     static_cast<int>(Jobs_.size()) - 1,
-                    Jobs_.back()->GetPrimaryDataSize(),
+                    Jobs_.back()->GetPrimaryDataWeight(),
                     Jobs_.back()->GetPrimaryRowCount(),
                     Jobs_.back()->GetPrimarySliceCount(),
-                    Jobs_.back()->GetPreliminaryForeignDataSize(),
+                    Jobs_.back()->GetPreliminaryForeignDataWeight(),
                     Jobs_.back()->GetPreliminaryForeignRowCount(),
                     Jobs_.back()->GetPreliminaryForeignSliceCount(),
                     Jobs_.back()->LowerPrimaryKey(),
@@ -377,8 +377,8 @@ private:
             if (Options_.PivotKeys.empty()) {
                 bool jobIsLargeEnough =
                     Jobs_.back()->GetPreliminarySliceCount() + openedSlicesLowerLimits.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-                    Jobs_.back()->GetPreliminaryDataSize() >= JobSizeConstraints_->GetDataSizePerJob() ||
-                    Jobs_.back()->GetPrimaryDataSize() >= JobSizeConstraints_->GetPrimaryDataSizePerJob();
+                    Jobs_.back()->GetPreliminaryDataWeight() >= JobSizeConstraints_->GetDataWeightPerJob() ||
+                    Jobs_.back()->GetPrimaryDataWeight() >= JobSizeConstraints_->GetPrimaryDataWeightPerJob();
 
                 // If next teleport chunk is closer than next data slice then we are obligated to close the job here.
                 bool beforeTeleportChunk = nextKeyIndex == index + 1 &&
@@ -551,14 +551,14 @@ public:
         JobManager_->SetLogger(Logger);
 
         LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
-            "ForeignPrefixLenght: %v, UseNewEndpointKeys: %v, DataSizePerJob: %v, "
-            "PrimaryDataSizePerJob: %v, MaxDataSlicesPerJob: %v)",
+            "ForeignPrefixLenght: %v, UseNewEndpointKeys: %v, DataWeightPerJob: %v, "
+            "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
             SortedJobOptions_.PrimaryPrefixLength,
             SortedJobOptions_.ForeignPrefixLength,
             SortedJobOptions_.UseNewEndpointKeys,
-            JobSizeConstraints_->GetDataSizePerJob(),
-            JobSizeConstraints_->GetPrimaryDataSizePerJob(),
+            JobSizeConstraints_->GetDataWeightPerJob(),
+            JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob());
     }
 
@@ -714,24 +714,24 @@ public:
         JobManager_->Lost(cookie);
     }
 
-    virtual i64 GetTotalDataSize() const override
+    virtual i64 GetTotalDataWeight() const override
     {
-        return JobManager_->DataSizeCounter().GetTotal();
+        return JobManager_->DataWeightCounter().GetTotal();
     }
 
-    virtual i64 GetRunningDataSize() const override
+    virtual i64 GetRunningDataWeight() const override
     {
-        return JobManager_->DataSizeCounter().GetRunning();
+        return JobManager_->DataWeightCounter().GetRunning();
     }
 
-    virtual i64 GetCompletedDataSize() const override
+    virtual i64 GetCompletedDataWeight() const override
     {
-        return JobManager_->DataSizeCounter().GetCompletedTotal();
+        return JobManager_->DataWeightCounter().GetCompletedTotal();
     }
 
-    virtual i64 GetPendingDataSize() const override
+    virtual i64 GetPendingDataWeight() const override
     {
-        return JobManager_->DataSizeCounter().GetPending();
+        return JobManager_->DataWeightCounter().GetPending();
     }
 
     virtual i64 GetTotalRowCount() const override
@@ -909,10 +909,10 @@ private:
             if (!EnableKeyGuarantee_ &&
                 chunk->IsCompleteChunk() &&
                 CompareRows(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, PrimaryPrefixLength_) == 0 &&
-                chunkSlice->GetDataSize() > JobSizeConstraints_->GetInputSliceDataSize())
+                chunkSlice->GetDataWeight() > JobSizeConstraints_->GetInputSliceDataWeight())
             {
                 auto smallerSlices = chunkSlice->SliceEvenly(
-                    JobSizeConstraints_->GetInputSliceDataSize(),
+                    JobSizeConstraints_->GetInputSliceDataWeight(),
                     JobSizeConstraints_->GetInputSliceRowCount());
                 for (const auto& smallerSlice : smallerSlices) {
                     auto dataSlice = CreateUnversionedInputDataSlice(smallerSlice);
@@ -1168,19 +1168,16 @@ private:
         std::vector<TInputDataSlicePtr> foreignInputDataSlices,
         int splitJobCount)
     {
-        i64 dataSize = 0;
+        i64 dataWeight = 0;
         for (const auto& dataSlice : unreadInputDataSlices) {
-            dataSize += dataSlice->GetDataSize();
+            dataWeight += dataSlice->GetDataWeight();
         }
         for (const auto& dataSlice : foreignInputDataSlices) {
-            dataSize += dataSlice->GetDataSize();
+            dataWeight += dataSlice->GetDataWeight();
         }
-        i64 dataSizePerJob;
-        if (splitJobCount == 1) {
-            dataSizePerJob = std::numeric_limits<i64>::max();
-        } else {
-            dataSizePerJob = DivCeil(dataSize, static_cast<i64>(splitJobCount));
-        }
+        i64 dataWeightPerJob = splitJobCount == 1
+            ? std::numeric_limits<i64>::max()
+            : DivCeil(dataWeight, static_cast<i64>(splitJobCount));
 
         // We create new job size constraints by incorporating the new desired data size per job
         // into the old job size constraints.
@@ -1188,12 +1185,13 @@ private:
             false /* canAdjustDataSizePerJob */,
             false /* isExplicitJobCount */,
             splitJobCount /* jobCount */,
-            dataSizePerJob,
+            dataWeightPerJob,
             std::numeric_limits<i64>::max(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
-            JobSizeConstraints_->GetMaxDataSizePerJob(),
-            JobSizeConstraints_->GetInputSliceDataSize(),
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount());
+
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
         std::vector<TInputChunkPtr> teleportChunks;

@@ -80,7 +80,7 @@ public:
         Persist(context, JobIOConfig_);
         Persist(context, JobSpecTemplate_);
         Persist(context, JobSizeConstraints_);
-        Persist(context, InputSliceDataSize_);
+        Persist(context, InputSliceDataWeight_);
         Persist(context, SortedTaskGroup_);
         Persist(context, SortedTask_);
         Persist(context, PrimaryKeyColumns_);
@@ -132,7 +132,7 @@ protected:
             return Controller_->Spec_->LocalityTimeout;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
@@ -239,7 +239,7 @@ protected:
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
-    i64 InputSliceDataSize_;
+    i64 InputSliceDataWeight_;
 
     IFetcherChunkScraperPtr FetcherChunkScraper_;
 
@@ -292,10 +292,10 @@ protected:
         InputSliceDataSize_ = JobSizeConstraints_->GetInputSliceDataSize();
 
         LOG_INFO(
-            "Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, InputSliceDataSize: %v)",
+            "Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
             JobSizeConstraints_->GetJobCount(),
-            JobSizeConstraints_->GetMaxDataSizePerJob(),
-            InputSliceDataSize_);
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            InputSliceDataWeight_);
     }
 
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
@@ -324,7 +324,7 @@ protected:
                 ++primaryUnversionedSlices;
                 yielder.TryYield();
             }
-            for (const auto& slice : CollectPrimaryVersionedDataSlices(InputSliceDataSize_)) {
+            for (const auto& slice : CollectPrimaryVersionedDataSlices(InputSliceDataWeight_)) {
                 RegisterInputStripe(CreateChunkStripe(slice), SortedTask_);
                 ++primaryVersionedSlices;
                 yielder.TryYield();
@@ -529,7 +529,7 @@ private:
 
         return NTableClient::CreateChunkSliceFetcher(
             Config->Fetcher,
-            InputSliceDataSize_,
+            InputSliceDataWeight_,
             PrimaryKeyColumns_,
             ShouldSlicePrimaryTableByKeys(),
             InputNodeDirectory,
@@ -698,9 +698,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -1035,9 +1035,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -1157,9 +1157,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override

@@ -94,7 +94,7 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
         Y_UNREACHABLE();
     }
@@ -145,7 +145,7 @@ private:
             return false;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             return GetRemoteCopyResources(
                 joblet->InputStripeList->GetStatistics());
@@ -391,7 +391,7 @@ private:
             InputTableAttributes_ = ConvertToAttributes(TYsonString(rsp->value()));
         }
 
-        BuildTasks(stripes);
+        BuildTasks(stripes, jobSizeConstraints);
 
         LOG_INFO("Inputs processed");
 
@@ -426,7 +426,7 @@ private:
         }
     }
 
-    void BuildTasks(const std::vector<TChunkStripePtr>& stripes)
+    void BuildTasks(const std::vector<TChunkStripePtr>& stripes, const IJobSizeConstraintsPtr& jobSizeConstraints)
     {
         auto addTask = [this] (const std::vector<TChunkStripePtr>& stripes, int index) {
             auto task = New<TRemoteCopyTask>(this, index);
@@ -436,16 +436,18 @@ private:
             RegisterTask(task);
         };
 
-        i64 currentDataSize = 0;
-        i64 dataSizePerJob = Spec_->DataSizePerJob.Get(Options_->DataSizePerJob);
+        i64 currentDataWeight = 0;
+        i64 dataWeightPerJob = jobSizeConstraints->GetDataWeightPerJob();
         std::vector<TChunkStripePtr> currentStripes;
         for (auto stripe : stripes) {
             currentStripes.push_back(stripe);
-            currentDataSize += stripe->GetStatistics().DataSize;
-            if (currentDataSize >= dataSizePerJob || currentStripes.size() == Options_->MaxDataSlicesPerJob) {
+            currentDataWeight += stripe->GetStatistics().DataWeight;
+            if (currentDataWeight >= dataWeightPerJob ||
+                currentStripes.size() == jobSizeConstraints->GetMaxDataSlicesPerJob())
+            {
                 addTask(currentStripes, Tasks.size());
                 currentStripes.clear();
-                currentDataSize = 0;
+                currentDataWeight = 0;
             }
         }
         if (!currentStripes.empty()) {

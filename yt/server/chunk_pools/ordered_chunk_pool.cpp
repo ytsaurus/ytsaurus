@@ -216,24 +216,24 @@ public:
         JobManager_->Lost(cookie);
     }
 
-    virtual i64 GetTotalDataSize() const override
+    virtual i64 GetTotalDataWeight() const override
     {
-        return JobManager_->DataSizeCounter().GetTotal();
+        return JobManager_->DataWeightCounter().GetTotal();
     }
 
-    virtual i64 GetRunningDataSize() const override
+    virtual i64 GetRunningDataWeight() const override
     {
-        return JobManager_->DataSizeCounter().GetRunning();
+        return JobManager_->DataWeightCounter().GetRunning();
     }
 
-    virtual i64 GetCompletedDataSize() const override
+    virtual i64 GetCompletedDataWeight() const override
     {
-        return JobManager_->DataSizeCounter().GetCompletedTotal();
+        return JobManager_->DataWeightCounter().GetCompletedTotal();
     }
 
-    virtual i64 GetPendingDataSize() const override
+    virtual i64 GetPendingDataWeight() const override
     {
-        return JobManager_->DataSizeCounter().GetPending();
+        return JobManager_->DataWeightCounter().GetPending();
     }
 
     virtual i64 GetTotalRowCount() const override
@@ -390,14 +390,14 @@ private:
                 std::vector<TInputDataSlicePtr> slicedDataSlices;
                 if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsUnversioned()) {
                     auto chunkSlices = CreateInputChunkSlice(dataSlice->GetSingleUnversionedChunkOrThrow())
-                        ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataSize(), JobSizeConstraints_->GetInputSliceRowCount());
+                        ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
                     for (const auto& chunkSlice : chunkSlices) {
                         auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
                         dataSlice->InputStreamIndex = dataSlice->InputStreamIndex;
-                        AddPrimaryDataSlice(dataSlice, inputCookie, JobSizeConstraints_->GetDataSizePerJob());
+                        AddPrimaryDataSlice(dataSlice, inputCookie, JobSizeConstraints_->GetDataWeightPerJob());
                     }
                 } else {
-                    AddPrimaryDataSlice(dataSlice, inputCookie, JobSizeConstraints_->GetDataSizePerJob());
+                    AddPrimaryDataSlice(dataSlice, inputCookie, JobSizeConstraints_->GetDataWeightPerJob());
                 }
             }
         }
@@ -411,7 +411,7 @@ private:
     {
         i64 dataSize = 0;
         for (const auto& dataSlice : unreadInputDataSlices) {
-            dataSize += dataSlice->GetDataSize();
+            dataSize += dataSlice->GetDataWeight();
         }
         i64 dataSizePerJob;
         if (splitJobCount == 1) {
@@ -440,7 +440,7 @@ private:
     {
         bool jobIsLargeEnough =
             CurrentJob()->GetPreliminarySliceCount() + 1 > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-            CurrentJob()->GetDataSize() >= dataSizePerJob;
+                CurrentJob()->GetDataWeight() >= dataSizePerJob;
         if (jobIsLargeEnough) {
             EndJob();
         }
@@ -453,9 +453,9 @@ private:
     void EndJob()
     {
         if (CurrentJob()->GetSliceCount() > 0) {
-            LOG_DEBUG("Ordered job created (Index: %v, DataSize: %v, RowCount: %v, SliceCount: %v)",
+            LOG_DEBUG("Ordered job created (Index: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
                 JobIndex_,
-                CurrentJob()->GetPrimaryDataSize(),
+                CurrentJob()->GetPrimaryDataWeight(),
                 CurrentJob()->GetPrimaryRowCount(),
                 CurrentJob()->GetPrimarySliceCount());
 

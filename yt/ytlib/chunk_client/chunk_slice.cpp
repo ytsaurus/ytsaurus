@@ -28,15 +28,18 @@ TChunkSlice::TChunkSlice(
     const NProto::TChunkMeta& meta,
     const TOwningKey& lowerKey,
     const TOwningKey& upperKey,
-    TNullable<i64> dataSize,
+    TNullable<i64> dataWeight,
     TNullable<i64> rowCount)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta.extensions());
-    DataSize_ = miscExt.uncompressed_data_size();
+    DataWeight_ = miscExt.has_data_weight()
+        ? miscExt.data_weight()
+        : miscExt.uncompressed_data_size();
+
     RowCount_ = miscExt.row_count();
 
-    if (rowCount && dataSize && (DataSize_ != *dataSize || RowCount_ != *rowCount)) {
-        DataSize_ = *dataSize;
+    if (rowCount && dataWeight && (DataWeight_ != *dataWeight || RowCount_ != *rowCount)) {
+        DataWeight_ = *dataWeight;
         RowCount_ = *rowCount;
         SizeOverridden_ = true;
     }
@@ -62,10 +65,10 @@ TChunkSlice::TChunkSlice(
     const TChunkSlice& chunkSlice,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    i64 dataSize)
+    i64 dataWeight)
     : LowerLimit_(chunkSlice.LowerLimit())
     , UpperLimit_(chunkSlice.UpperLimit())
-    , DataSize_(dataSize)
+    , DataWeight_(dataWeight)
     , RowCount_(upperRowIndex - lowerRowIndex)
     , SizeOverridden_(true)
 {
@@ -78,8 +81,8 @@ TChunkSlice::TChunkSlice(
     const NProto::TChunkMeta& meta,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    i64 dataSize)
-    : DataSize_(dataSize)
+    i64 dataWeight)
+    : DataWeight_(dataWeight)
     , SizeOverridden_(true)
 {
     if (sliceReq.has_lower_limit()) {
@@ -97,15 +100,15 @@ TChunkSlice::TChunkSlice(
 
 void TChunkSlice::SliceEvenly(
     std::vector<TChunkSlice>& result,
-    i64 sliceDataSize) const
+    i64 sliceDataWeight) const
 {
-    YCHECK(sliceDataSize > 0);
+    YCHECK(sliceDataWeight > 0);
 
     i64 lowerRowIndex = LowerLimit_.HasRowIndex() ? LowerLimit_.GetRowIndex() : 0;
     i64 upperRowIndex = UpperLimit_.HasRowIndex() ? UpperLimit_.GetRowIndex() : RowCount_;
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
-    int count = std::max(std::min(DataSize_ / sliceDataSize, rowCount), i64(1));
+    int count = std::max(std::min(DataWeight_ / sliceDataWeight, rowCount), i64(1));
 
     for (int i = 0; i < count; ++i) {
         i64 sliceLowerRowIndex = lowerRowIndex + rowCount * i / count;
@@ -115,7 +118,7 @@ void TChunkSlice::SliceEvenly(
                 *this,
                 sliceLowerRowIndex,
                 sliceUpperRowIndex,
-                (DataSize_ + count - 1) / count);
+                (DataWeight_ + count - 1) / count);
         }
     }
 }
@@ -130,11 +133,11 @@ void TChunkSlice::SetKeys(const NTableClient::TOwningKey& lowerKey, const NTable
 
 TString ToString(const TChunkSlice& slice)
 {
-    return Format("LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataSize: %v",
+    return Format("LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v",
         slice.LowerLimit(),
         slice.UpperLimit(),
         slice.GetRowCount(),
-        slice.GetDataSize());
+                  slice.GetDataWeight());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,12 +169,17 @@ public:
         YCHECK(FindBoundaryKeys(Meta_, &MinKey_, &MaxKey_));
 
         auto miscExt = GetProtoExtension<NProto::TMiscExt>(Meta_.extensions());
-        i64 chunkDataSize = miscExt.uncompressed_data_size();
+        i64 chunkDataWeight = miscExt.has_data_weight()
+            ? miscExt.data_weight()
+            : miscExt.uncompressed_data_size();
+
         i64 chunkRowCount = miscExt.row_count();
 
         YCHECK(chunkRowCount > 0);
 
-        i64 dataSizePerRow = std::max((i64)1, chunkDataSize / chunkRowCount);
+        i64 dataWeightPerRow = std::max((i64)1, chunkDataWeight / chunkRowCount);
+
+        Cerr << "Data weight per row " << dataWeightPerRow << Endl;
 
         auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(Meta_.extensions());
 
@@ -188,7 +196,7 @@ public:
                 indexKey,
                 rowCount,
                 chunkRowCount,
-                rowCount * dataSizePerRow});
+                rowCount * dataWeightPerRow});
         }
 
         BeginIndex_ = 0;
@@ -223,7 +231,7 @@ public:
         }
     }
 
-    std::vector<TChunkSlice> SliceByKeys(i64 sliceDataSize, int keyColumnCount)
+    std::vector<TChunkSlice> SliceByKeys(i64 sliceDataWeight, int keyColumnCount)
     {
         // Leave only key prefix.
         const auto& lowerKey = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].Key : MinKey_;
@@ -248,7 +256,7 @@ public:
             upperRowIndex = std::min(upperRowIndex, UpperLimit_.GetRowIndex());
         }
 
-        i64 dataSize = 0;
+        i64 dataWeight = 0;
         i64 sliceRowCount = 0;
         for (i64 currentIndex = BeginIndex_; currentIndex < EndIndex_; ++currentIndex) {
             i64 rowCount = IndexKeys_[currentIndex].RowCount;
@@ -259,10 +267,10 @@ public:
                 rowCount = std::max(rowCount - (IndexKeys_[currentIndex].ChunkRowCount - upperRowIndex), i64(0));
             }
             if (rowCount != IndexKeys_[currentIndex].RowCount) {
-                i64 dataPerRow = IndexKeys_[currentIndex].DataSize / IndexKeys_[currentIndex].RowCount;
-                dataSize += rowCount * dataPerRow;
+                i64 dataWeightPerRow = IndexKeys_[currentIndex].DataWeight / IndexKeys_[currentIndex].RowCount;
+                dataWeight += rowCount * dataWeightPerRow;
             } else {
-                dataSize += IndexKeys_[currentIndex].DataSize;
+                dataWeight += IndexKeys_[currentIndex].DataWeight;
             }
             sliceRowCount += rowCount;
 
@@ -278,15 +286,15 @@ public:
                 }
             }
 
-            if (dataSize > sliceDataSize || currentIndex == EndIndex_ - 1) {
+            if (dataWeight > sliceDataWeight || currentIndex == EndIndex_ - 1) {
                 YCHECK(CompareRows(lowerKeyPrefix, key) <= 0);
 
                 auto upperKeyPrefix = GetKeyPrefixSuccessor(key, keyColumnCount);
-                slices.emplace_back(SliceReq_, Meta_, lowerKeyPrefix, upperKeyPrefix, dataSize, sliceRowCount);
+                slices.emplace_back(SliceReq_, Meta_, lowerKeyPrefix, upperKeyPrefix, dataWeight, sliceRowCount);
 
                 lowerKeyPrefix = upperKeyPrefix;
                 startRowIndex = IndexKeys_[currentIndex].ChunkRowCount;
-                dataSize = 0;
+                dataWeight = 0;
                 sliceRowCount = 0;
             }
         }
@@ -294,7 +302,7 @@ public:
     }
 
     // Slice by rows with keys estimates.
-    std::vector<TChunkSlice> SliceByRows(i64 sliceDataSize, int keyColumnCount)
+    std::vector<TChunkSlice> SliceByRows(i64 sliceDataWeight, int keyColumnCount)
     {
         // Leave only key prefix.
         const auto& lowerKey = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].Key : MinKey_;
@@ -317,7 +325,7 @@ public:
         if (UpperLimit_.HasRowIndex()) {
             upperRowIndex = std::min(upperRowIndex, UpperLimit_.GetRowIndex());
         }
-        i64 dataSize = 0;
+        i64 dataWeight = 0;
         i64 sliceRowCount = 0;
 
         for (i64 currentIndex = BeginIndex_; currentIndex < EndIndex_; ++currentIndex) {
@@ -329,27 +337,27 @@ public:
                 rowCount = std::max(rowCount - (IndexKeys_[currentIndex].ChunkRowCount - upperRowIndex), i64(0));
             }
             if (rowCount != IndexKeys_[currentIndex].RowCount) {
-                i64 dataPerRow = IndexKeys_[currentIndex].DataSize / IndexKeys_[currentIndex].RowCount;
-                dataSize += rowCount * dataPerRow;
+                i64 dataWeightPerRow = IndexKeys_[currentIndex].DataWeight / IndexKeys_[currentIndex].RowCount;
+                dataWeight += rowCount * dataWeightPerRow;
             } else {
-                dataSize += IndexKeys_[currentIndex].DataSize;
+                dataWeight += IndexKeys_[currentIndex].DataWeight;
             }
             sliceRowCount += rowCount;
 
             const auto& key = IndexKeys_[currentIndex].Key;
 
-            if (dataSize > sliceDataSize || currentIndex == EndIndex_ - 1) {
+            if (dataWeight > sliceDataWeight || currentIndex == EndIndex_ - 1) {
                 YCHECK(CompareRows(lowerKeyPrefix, key) <= 0);
 
                 auto upperKeyPrefix = GetKeyPrefixSuccessor(key, keyColumnCount);
 
-                auto slice = TChunkSlice(SliceReq_, Meta_, startRowIndex, startRowIndex + sliceRowCount, dataSize);
+                auto slice = TChunkSlice(SliceReq_, Meta_, startRowIndex, startRowIndex + sliceRowCount, dataWeight);
                 slice.SetKeys(lowerKeyPrefix, upperKeyPrefix);
-                slice.SliceEvenly(slices, sliceDataSize);
+                slice.SliceEvenly(slices, sliceDataWeight);
 
                 lowerKeyPrefix = GetKeyPrefix(key, keyColumnCount);
                 startRowIndex = IndexKeys_[currentIndex].ChunkRowCount;
-                dataSize = 0;
+                dataWeight = 0;
                 sliceRowCount = 0;
             }
         }
@@ -362,7 +370,7 @@ private:
         TOwningKey Key;
         i64 RowCount;
         i64 ChunkRowCount;
-        i64 DataSize;
+        i64 DataWeight;
     };
 
     const NProto::TSliceRequest& SliceReq_;
@@ -382,15 +390,15 @@ private:
 std::vector<TChunkSlice> SliceChunk(
     const NProto::TSliceRequest& sliceReq,
     const NProto::TChunkMeta& meta,
-    i64 sliceDataSize,
+    i64 sliceDataWeight,
     int keyColumnCount,
     bool sliceByKeys)
 {
     TSortedChunkSlicer slicer(sliceReq, meta);
     if (sliceByKeys) {
-        return slicer.SliceByKeys(sliceDataSize, keyColumnCount);
+        return slicer.SliceByKeys(sliceDataWeight, keyColumnCount);
     } else {
-        return slicer.SliceByRows(sliceDataSize, keyColumnCount);
+        return slicer.SliceByRows(sliceDataWeight, keyColumnCount);
     }
 }
 
@@ -405,7 +413,7 @@ void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice
         ToProto(protoChunkSlice->mutable_upper_limit(), chunkSlice.UpperLimit());
     }
     if (chunkSlice.GetSizeOverridden()) {
-        protoChunkSlice->set_uncompressed_data_size_override(chunkSlice.GetDataSize());
+        protoChunkSlice->set_data_weight_override(chunkSlice.GetDataWeight());
         protoChunkSlice->set_row_count_override(chunkSlice.GetRowCount());
     }
 }
@@ -434,7 +442,7 @@ void ToProto(
     }
 
     if (chunkSlice.GetSizeOverridden()) {
-        protoChunkSlice->set_uncompressed_data_size_override(chunkSlice.GetDataSize());
+        protoChunkSlice->set_data_weight_override(chunkSlice.GetDataWeight());
         protoChunkSlice->set_row_count_override(chunkSlice.GetRowCount());
     }
 }

@@ -148,7 +148,7 @@ TInputChunkSlice::TInputChunkSlice(
     TKey lowerKey,
     TKey upperKey)
     : InputChunk_(inputChunk)
-    , DataSize_(inputChunk->GetUncompressedDataSize())
+    , DataWeight_(inputChunk->GetDataWeight())
     , RowCount_(inputChunk->GetRowCount())
 {
     if (inputChunk->LowerLimit()) {
@@ -175,7 +175,7 @@ TInputChunkSlice::TInputChunkSlice(
     , UpperLimit_(inputSlice.UpperLimit())
     , PartIndex_(inputSlice.GetPartIndex())
     , SizeOverridden_(inputSlice.GetSizeOverridden())
-    , DataSize_(inputSlice.GetDataSize())
+    , DataWeight_(inputSlice.GetDataWeight())
     , RowCount_(inputSlice.GetRowCount())
 {
     if (lowerKey) {
@@ -190,14 +190,14 @@ TInputChunkSlice::TInputChunkSlice(
     const TInputChunkSlice& chunkSlice,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    i64 dataSize)
+    i64 dataWeight)
     : InputChunk_(chunkSlice.GetInputChunk())
     , LowerLimit_(chunkSlice.LowerLimit())
     , UpperLimit_(chunkSlice.UpperLimit())
 {
     LowerLimit_.RowIndex = lowerRowIndex;
     UpperLimit_.RowIndex = upperRowIndex;
-    OverrideSize(upperRowIndex - lowerRowIndex, dataSize);
+    OverrideSize(upperRowIndex - lowerRowIndex, dataWeight);
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -205,7 +205,7 @@ TInputChunkSlice::TInputChunkSlice(
     int partIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    i64 dataSize)
+    i64 dataWeight)
     : InputChunk_(inputChunk)
     , PartIndex_(partIndex)
 {
@@ -219,7 +219,7 @@ TInputChunkSlice::TInputChunkSlice(
     }
     UpperLimit_.MergeUpperRowIndex(upperRowIndex);
 
-    OverrideSize(*UpperLimit_.RowIndex - *LowerLimit_.RowIndex, dataSize);
+    OverrideSize(*UpperLimit_.RowIndex - *LowerLimit_.RowIndex, dataWeight);
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -233,9 +233,9 @@ TInputChunkSlice::TInputChunkSlice(
     UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet));
     PartIndex_ = DefaultPartIndex;
 
-    if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_uncompressed_data_size_override()) {
-        YCHECK((protoChunkSlice.has_row_count_override() && protoChunkSlice.has_uncompressed_data_size_override()));
-        OverrideSize(protoChunkSlice.row_count_override(), protoChunkSlice.uncompressed_data_size_override());
+    if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
+        YCHECK((protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override()));
+        OverrideSize(protoChunkSlice.row_count_override(), protoChunkSlice.data_weight_override());
     }
 }
 
@@ -250,15 +250,15 @@ TInputChunkSlice::TInputChunkSlice(
     UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSpec.upper_limit(), rowBuffer, DummyKeys));
     PartIndex_ = DefaultPartIndex;
 
-    if (protoChunkSpec.has_row_count_override() || protoChunkSpec.has_uncompressed_data_size_override()) {
-        YCHECK((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_uncompressed_data_size_override()));
-        OverrideSize(protoChunkSpec.row_count_override(), protoChunkSpec.uncompressed_data_size_override());
+    if (protoChunkSpec.has_row_count_override() || protoChunkSpec.has_data_weight_override()) {
+        YCHECK((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
+        OverrideSize(protoChunkSpec.row_count_override(), protoChunkSpec.data_weight_override());
     }
 }
 
-std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize, i64 sliceRowCount) const
+std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount) const
 {
-    YCHECK(sliceDataSize > 0);
+    YCHECK(sliceDataWeight > 0);
     YCHECK(sliceRowCount > 0);
 
     i64 lowerRowIndex = LowerLimit_.RowIndex.Get(0);
@@ -266,7 +266,7 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
-    i64 count = std::max(GetDataSize() / sliceDataSize, rowCount / sliceRowCount);
+    i64 count = std::max(GetDataWeight() / sliceDataWeight, rowCount / sliceRowCount);
     count = std::max(std::min(count, rowCount), static_cast<i64>(1));
 
     std::vector<TInputChunkSlicePtr> result;
@@ -278,7 +278,7 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize
                 *this,
                 sliceLowerRowIndex,
                 sliceUpperRowIndex,
-                DivCeil(GetDataSize(), count)));
+                DivCeil(GetDataWeight(), count)));
         }
     }
     return result;
@@ -298,17 +298,17 @@ std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRow
             *this,
             lowerRowIndex,
             lowerRowIndex + splitRow,
-            GetDataSize() / rowCount * splitRow),
+            GetDataWeight() / rowCount * splitRow),
         New<TInputChunkSlice>(
             *this,
             lowerRowIndex + splitRow,
             upperRowIndex,
-            GetDataSize() / rowCount * (rowCount - splitRow)));
+            GetDataWeight() / rowCount * (rowCount - splitRow)));
 }
 
 i64 TInputChunkSlice::GetLocality(int replicaPartIndex) const
 {
-    i64 result = GetDataSize();
+    i64 result = GetDataWeight();
 
     if (PartIndex_ == DefaultPartIndex) {
         // For erasure chunks without specified part index,
@@ -341,9 +341,9 @@ bool TInputChunkSlice::GetSizeOverridden() const
     return SizeOverridden_;
 }
 
-i64 TInputChunkSlice::GetDataSize() const
+i64 TInputChunkSlice::GetDataWeight() const
 {
-    return SizeOverridden_ ? DataSize_ : InputChunk_->GetUncompressedDataSize();
+    return SizeOverridden_ ? DataWeight_ : InputChunk_->GetDataWeight();
 }
 
 i64 TInputChunkSlice::GetRowCount() const
@@ -351,10 +351,10 @@ i64 TInputChunkSlice::GetRowCount() const
     return SizeOverridden_ ? RowCount_ : InputChunk_->GetRowCount();
 }
 
-void TInputChunkSlice::OverrideSize(i64 rowCount, i64 dataSize)
+void TInputChunkSlice::OverrideSize(i64 rowCount, i64 dataWeight)
 {
     RowCount_ = rowCount;
-    DataSize_ = dataSize;
+    DataWeight_ = dataWeight;
     SizeOverridden_ = true;
 }
 
@@ -367,19 +367,19 @@ void TInputChunkSlice::Persist(const TPersistenceContext& context)
     Persist(context, PartIndex_);
     Persist(context, SizeOverridden_);
     Persist(context, RowCount_);
-    Persist(context, DataSize_);
+    Persist(context, DataWeight_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TInputChunkSlicePtr& slice)
 {
-    return Format("ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataSize: %v, PartIndex: %v",
+    return Format("ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v, PartIndex: %v",
         slice->GetInputChunk()->ChunkId(),
         slice->LowerLimit(),
         slice->UpperLimit(),
         slice->GetRowCount(),
-        slice->GetDataSize(),
+        slice->GetDataWeight(),
         slice->GetPartIndex());
 }
 
@@ -471,7 +471,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
         ToProto(chunkSpec->mutable_upper_limit(), inputSlice->UpperLimit());
     }
 
-    chunkSpec->set_uncompressed_data_size_override(inputSlice->GetDataSize());
+    chunkSpec->set_data_weight_override(inputSlice->GetDataWeight());
     chunkSpec->set_row_count_override(inputSlice->GetRowCount());
 }
 
