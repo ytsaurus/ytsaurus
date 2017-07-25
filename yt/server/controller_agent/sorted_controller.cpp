@@ -281,15 +281,28 @@ protected:
 
     void CalculateSizes()
     {
-        JobSizeConstraints_ = CreateSimpleJobSizeConstraints(
-            Spec_,
-            Options_,
-            GetOutputTablePaths().size(),
-            PrimaryInputDataSize,
-            std::numeric_limits<i32>::max() /* InputRowCount */, // It is not important in sorted operations.
-            ForeignInputDataSize);
+        auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
+            switch (OperationType) {
+                case EOperationType::Merge:
+                    return CreateMergeJobSizeConstraints(
+                        Spec_,
+                        Options_,
+                        PrimaryInputDataWeight,
+                        static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
 
-        InputSliceDataSize_ = JobSizeConstraints_->GetInputSliceDataSize();
+                default:
+                    return CreateSimpleJobSizeConstraints(
+                        Spec_,
+                        Options_,
+                        OutputTables.size(),
+                        PrimaryInputDataWeight,
+		        std::numeric_limits<i32>::max() /* InputRowCount */, // It is not important in sorted operations.
+                        ForeignInputDataWeight);
+            }
+        };
+
+        JobSizeConstraints_ = createJobSizeConstraints();
+        InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
         LOG_INFO(
             "Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",

@@ -357,11 +357,11 @@ private:
             stripes.push_back(New<TChunkStripe>(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunkSpec))));
         }
 
-        auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
+        auto jobSizeConstraints = CreateMergeJobSizeConstraints(
             Spec_,
             Options_,
-            GetOutputTablePaths().size(),
-            TotalEstimatedInputDataSize);
+            TotalEstimatedInputDataWeight,
+            static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobSizeConstraints->GetJobCount()) {
             THROW_ERROR_EXCEPTION("Too many chunks per job: actual %v, limit %v; "

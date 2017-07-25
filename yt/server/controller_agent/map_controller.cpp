@@ -317,14 +317,27 @@ protected:
             totalRowCount += versionedInputStatistics.second;
 
             // Create the task, if any data.
-                auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
-                    Spec,
-                    Options,
-                    GetOutputTablePaths().size(),
-                    totalDataSize,
-                    totalRowCount);
             if (totalDataWeight > 0) {
+                auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
+                    switch (OperationType) {
+                        case EOperationType::Merge:
+                            return CreateMergeJobSizeConstraints(
+                                Spec,
+                                Options,
+                                totalDataWeight,
+                                static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
 
+                        default:
+                            return CreateSimpleJobSizeConstraints(
+                                Spec,
+                                Options,
+                                GetOutputTablePaths().size(),
+                                totalDataWeight,
+                                totalRowCount);
+                    }
+                };
+
+                auto jobSizeConstraints = createJobSizeConstraints();
                 IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
 
                 std::vector<TChunkStripePtr> stripes;

@@ -265,11 +265,26 @@ protected:
 
     void CalculateSizes()
     {
-        JobSizeConstraints_ = CreateSimpleJobSizeConstraints(
-            Spec_,
-            Options_,
-            OutputTables.size(),
-            PrimaryInputDataSize + ForeignInputDataSize);
+        auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
+            switch (OperationType) {
+                case EOperationType::Merge:
+                case EOperationType::Erase:
+                    return CreateMergeJobSizeConstraints(
+                        Spec_,
+                        Options_,
+                        PrimaryInputDataWeight,
+                        static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+
+                default:
+                    return CreateSimpleJobSizeConstraints(
+                        Spec_,
+                        Options_,
+                        OutputTables.size(),
+                        PrimaryInputDataWeight + ForeignInputDataWeight);
+            }
+        };
+
+        JobSizeConstraints_ = createJobSizeConstraints();
 
         IsExplicitJobCount_ = JobSizeConstraints_->IsExplicitJobCount();
 
