@@ -508,11 +508,26 @@ protected:
 
     void CalculateSizes()
     {
-        auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
-            Spec,
-            Options,
-            GetOutputTablePaths().size(),
-            PrimaryInputDataSize);
+        auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
+            switch (OperationType) {
+                case EOperationType::Merge:
+                case EOperationType::Erase:
+                    return CreateMergeJobSizeConstraints(
+                        Spec,
+                        Options,
+                        PrimaryInputDataWeight,
+                        static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+
+                default:
+                    return CreateSimpleJobSizeConstraints(
+                        Spec,
+                        Options,
+                        GetOutputTablePaths().size(),
+                        PrimaryInputDataWeight);
+            }
+        };
+
+        auto jobSizeConstraints = createJobSizeConstraints();
 
         MaxDataWeightPerJob = jobSizeConstraints->GetDataWeightPerJob();
         ChunkSliceSize = jobSizeConstraints->GetInputSliceDataWeight();
