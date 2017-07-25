@@ -77,6 +77,9 @@ class YtTestEnvironment(object):
                 "enable_cgroups" : ENABLE_JOB_CONTROL,
                 "slot_manager" : {
                     "enforce_job_control" : ENABLE_JOB_CONTROL
+                },
+                "statistics_reporter": {
+                    "reporting_period": 1000
                 }
             },
             "data_node": {
