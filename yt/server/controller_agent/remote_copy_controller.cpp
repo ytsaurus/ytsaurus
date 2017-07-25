@@ -1,6 +1,7 @@
 #include "remote_copy_controller.h"
 #include "private.h"
 #include "helpers.h"
+#include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 

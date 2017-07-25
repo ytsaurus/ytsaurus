@@ -24,6 +24,10 @@ DECLARE_REFCOUNTED_CLASS(TMasterConnector)
 
 class TJobMetricsUpdater;
 
+DECLARE_REFCOUNTED_STRUCT(TFinishedJobInfo)
+DECLARE_REFCOUNTED_STRUCT(TJobInfo)
+DECLARE_REFCOUNTED_STRUCT(TJoblet)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const double ApproximateSizesBoostFactor;

@@ -3,6 +3,7 @@
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "intermediate_chunk_scraper.h"
+#include "job_info.h"
 #include "job_helpers.h"
 #include "job_metrics_updater.h"
 #include "master_connector.h"
@@ -259,78 +260,6 @@ void TOperationControllerBase::TCompletedJob::Persist(const TPersistenceContext&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationControllerBase::TJoblet::TJoblet()
-    : JobIndex(-1)
-    , StartRowIndex(-1)
-    , OutputCookie(-1)
-{ }
-
-TOperationControllerBase::TJoblet::TJoblet(TOperationControllerBase* controller, TTaskPtr task, int jobIndex)
-    : Task(std::move(task))
-    , JobIndex(jobIndex)
-    , StartRowIndex(-1)
-    , OutputCookie(IChunkPoolOutput::NullCookie)
-    , JobMetricsUpdater_(controller->CreateJobMetricsUpdater())
-{ }
-
-TOperationControllerBase::TJoblet::~TJoblet() = default;
-
-void TOperationControllerBase::TJoblet::SendJobMetrics(const TStatistics& jobStatistics, bool flush)
-{
-    // NOTE: after snapshot is loaded JobMetricsUpdater_ can be missing.
-    if (JobMetricsUpdater_) {
-        const auto timestamp = jobStatistics.GetTimestamp().Get(CpuInstantToInstant(GetCpuInstant()));
-        const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(jobStatistics);
-        JobMetricsUpdater_->Update(timestamp, jobMetrics);
-        if (flush) {
-            JobMetricsUpdater_->Flush();
-        }
-    }
-}
-
-void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& context)
-{
-    // NB: Every joblet is aborted after snapshot is loaded.
-    // Here we only serialize a subset of members required for ReinstallJob to work
-    // properly.
-    using NYT::Persist;
-    Persist(context, Task);
-    Persist(context, InputStripeList);
-    Persist(context, OutputCookie);
-
-    TJobInfoBase::Persist(context);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TOperationControllerBase::TJobInfoBase::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, JobId);
-    Persist(context, JobType);
-    Persist(context, NodeDescriptor);
-    Persist(context, StartTime);
-    Persist(context, FinishTime);
-    Persist(context, Account);
-    Persist(context, Suspicious);
-    Persist(context, LastActivityTime);
-    Persist(context, BriefStatistics);
-    Persist(context, Progress);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TOperationControllerBase::TFinishedJobInfo::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, Summary);
-    Persist(context, InputPaths);
-
-    TJobInfoBase::Persist(context);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TOperationControllerBase::TTaskGroup::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -548,7 +477,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
 
     bool intermediateOutput = IsIntermediateOutput();
     int jobIndex = Controller->JobIndexGenerator.Next();
-    auto joblet = New<TJoblet>(Controller, this, jobIndex);
+    auto joblet = New<TJoblet>(Controller->CreateJobMetricsUpdater(), this, jobIndex);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;
@@ -6018,20 +5947,20 @@ void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)
     YCHECK(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
 }
 
-TOperationControllerBase::TJobletPtr TOperationControllerBase::FindJoblet(const TJobId& jobId) const
+TJobletPtr TOperationControllerBase::FindJoblet(const TJobId& jobId) const
 {
     auto it = JobletMap.find(jobId);
     return it == JobletMap.end() ? nullptr : it->second;
 }
 
-TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId) const
+TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId) const
 {
     auto joblet = FindJoblet(jobId);
     YCHECK(joblet);
     return joblet;
 }
 
-TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJobletOrThrow(const TJobId& jobId) const
+TJobletPtr TOperationControllerBase::GetJobletOrThrow(const TJobId& jobId) const
 {
     auto joblet = FindJoblet(jobId);
     if (!joblet) {

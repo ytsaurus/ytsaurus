@@ -2,6 +2,7 @@
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
+#include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 
