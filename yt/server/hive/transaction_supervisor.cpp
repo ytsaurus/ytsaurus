@@ -218,6 +218,7 @@ private:
         {
             return EnqueueRequest(
                 false,
+                true,
                 [transactionId = commit->GetTransactionId()]
                 (const ITransactionParticipantPtr& participant) {
                     return participant->PrepareTransaction(transactionId);
@@ -228,6 +229,7 @@ private:
         {
             return EnqueueRequest(
                 true,
+                false,
                 [transactionId = commit->GetTransactionId(), commitTimestamps = commit->CommitTimestamps()]
                 (const ITransactionParticipantPtr& participant) {
                     auto cellTag = participant->GetTimestampProvider()->GetCellTag();
@@ -240,6 +242,7 @@ private:
         {
             return EnqueueRequest(
                 true,
+                false,
                 [transactionId = commit->GetTransactionId()]
                 (const ITransactionParticipantPtr& participant) {
                     return participant->AbortTransaction(transactionId);
@@ -316,7 +319,10 @@ private:
         }
 
         template <class F>
-        TFuture<void> EnqueueRequest(bool succeedOnInvalid, F func)
+        TFuture<void> EnqueueRequest(
+            bool succeedOnInvalid,
+            bool mustSendImmediately,
+            F func)
         {
             auto promise = NewPromise<void>();
 
@@ -340,6 +346,9 @@ private:
             });
 
             if (!TrySendRequestImmediately(sender, &guard)) {
+                if (mustSendImmediately) {
+                    return MakeFuture<void>(MakeDownError());
+                }
                 PendingSenders_.emplace_back(std::move(sender));
             }
 
@@ -378,6 +387,14 @@ private:
             return TError(
                 NRpc::EErrorCode::Unavailable,
                 "Participant cell %v is currently unavailable",
+                CellId_);
+        }
+
+        TError MakeDownError() const
+        {
+            return TError(
+                NRpc::EErrorCode::Unavailable,
+                "Participant cell %v is currently down",
                 CellId_);
         }
     };
