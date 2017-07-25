@@ -40,8 +40,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, RangeIndex);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
 
-    DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
-    DEFINE_BYVAL_RW_PROPERTY(i64, RowCount);
+    DEFINE_BYVAL_RW_PROPERTY(i64, TotalUncompressedDataSize);
+    DEFINE_BYVAL_RW_PROPERTY(i64, TotalRowCount);
     DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize); // for TSortControllerBase
     DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
     DEFINE_BYVAL_RO_PROPERTY(i64, MaxBlockSize); // for TChunkStripeStatistics
@@ -58,7 +58,6 @@ public:
 
 private:
     void CheckOffsets();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +102,9 @@ public:
     void ReleaseBoundaryKeys();
     //! Releases memory occupied by PartitionsExt
     void ReleasePartitionsExt();
+
+    i64 GetRowCount() const;
+    i64 GetUncompressedDataSize() const;
 
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
 };
