@@ -4,6 +4,7 @@
 #include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "task.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
@@ -302,7 +303,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
 
         switch (Spec_->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
@@ -456,7 +457,7 @@ private:
         }
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     { }
 
     virtual bool IsOutputLivePreviewSupported() const override
