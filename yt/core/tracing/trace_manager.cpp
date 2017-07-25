@@ -91,7 +91,7 @@ public:
         event.set_trace_id(context.GetTraceId());
         event.set_span_id(context.GetSpanId());
         event.set_parent_span_id(context.GetParentSpanId());
-        event.set_timestamp(ToProto(TInstant::Now()));
+        event.set_timestamp(ToProto<i64>(TInstant::Now()));
         event.set_service_name(serviceName);
         event.set_span_name(spanName);
         event.set_annotation_name(annotationName);
@@ -110,7 +110,7 @@ public:
         event.set_trace_id(context.GetTraceId());
         event.set_span_id(context.GetSpanId());
         event.set_parent_span_id(context.GetParentSpanId());
-        event.set_timestamp(ToProto(TInstant::Now()));
+        event.set_timestamp(ToProto<i64>(TInstant::Now()));
         event.set_annotation_key(annotationKey);
         event.set_annotation_value(annotationValue);
         EnqueueEvent(event);

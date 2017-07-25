@@ -451,8 +451,8 @@ void TJobProxy::ReportResult(
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
     req->set_statistics(statistics.GetData());
-    req->set_start_time(ToProto(startTime));
-    req->set_finish_time(ToProto(finishTime));
+    req->set_start_time(ToProto<i64>(startTime));
+    req->set_finish_time(ToProto<i64>(finishTime));
 
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {

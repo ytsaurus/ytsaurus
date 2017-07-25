@@ -31,9 +31,9 @@ void TUserStatistics::Persist(NCellMaster::TPersistenceContext& context)
 void ToProto(NProto::TUserStatistics* protoStatistics, const TUserStatistics& statistics)
 {
     protoStatistics->set_request_count(statistics.RequestCount);
-    protoStatistics->set_read_request_time(ToProto(statistics.ReadRequestTime));
-    protoStatistics->set_write_request_time(ToProto(statistics.WriteRequestTime));
-    protoStatistics->set_access_time(ToProto(statistics.AccessTime));
+    protoStatistics->set_read_request_time(ToProto<i64>(statistics.ReadRequestTime));
+    protoStatistics->set_write_request_time(ToProto<i64>(statistics.WriteRequestTime));
+    protoStatistics->set_access_time(ToProto<i64>(statistics.AccessTime));
 }
 
 void FromProto(TUserStatistics* statistics, const NProto::TUserStatistics& protoStatistics)

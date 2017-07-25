@@ -397,7 +397,7 @@ private:
             header->set_method(MethodName_);
             header->set_protocol_version(GenericProtocolVersion);
             if (Timeout_) {
-                header->set_timeout(ToProto(*Timeout_));
+                header->set_timeout(ToProto<i64>(*Timeout_));
             }
             // TODO: start time
             // TODO: user
