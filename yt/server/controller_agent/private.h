@@ -26,7 +26,19 @@ class TJobMetricsUpdater;
 
 DECLARE_REFCOUNTED_STRUCT(TFinishedJobInfo)
 DECLARE_REFCOUNTED_STRUCT(TJobInfo)
-DECLARE_REFCOUNTED_STRUCT(TJoblet)
+DECLARE_REFCOUNTED_CLASS(TJoblet)
+DECLARE_REFCOUNTED_STRUCT(TCompletedJob)
+
+DECLARE_REFCOUNTED_CLASS(TTask)
+DECLARE_REFCOUNTED_STRUCT(TTaskGroup)
+
+DECLARE_REFCOUNTED_STRUCT(ITaskHost)
+
+struct IJobSplitter;
+
+struct TLivePreviewTableBase;
+struct TInputTable;
+struct TOutputTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

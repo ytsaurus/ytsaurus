@@ -31,7 +31,7 @@ TJoblet::TJoblet()
     , OutputCookie(-1)
 { }
 
-TJoblet::TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TOperationControllerBase::TTaskPtr task, int jobIndex)
+TJoblet::TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTaskPtr task, int jobIndex)
     : Task(std::move(task))
     , JobIndex(jobIndex)
     , StartRowIndex(-1)
@@ -103,6 +103,42 @@ void TFinishedJobInfo::Persist(const TPersistenceContext& context)
 
     TJobInfoBase::Persist(context);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompletedJob::TCompletedJob(
+    const TJobId& jobId,
+    TTaskPtr sourceTask,
+    NChunkPools::IChunkPoolOutput::TCookie outputCookie,
+    i64 dataSize,
+    NChunkPools::IChunkPoolInput* destinationPool,
+    NChunkPools::IChunkPoolInput::TCookie inputCookie,
+    const NScheduler::TJobNodeDescriptor& nodeDescriptor)
+    : Lost(false)
+    , JobId(jobId)
+    , SourceTask(std::move(sourceTask))
+    , OutputCookie(outputCookie)
+    , DataWeight(dataSize)
+    , DestinationPool(destinationPool)
+    , InputCookie(inputCookie)
+    , NodeDescriptor(nodeDescriptor)
+{ }
+
+void TCompletedJob::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Lost);
+    Persist(context, JobId);
+    Persist(context, SourceTask);
+    Persist(context, OutputCookie);
+    Persist(context, DataWeight);
+    Persist(context, DestinationPool);
+    Persist(context, InputCookie);
+    Persist(context, NodeDescriptor);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

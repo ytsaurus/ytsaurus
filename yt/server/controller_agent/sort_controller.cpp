@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller_detail.h"
+#include "task.h"
 
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -1461,7 +1462,7 @@ protected:
                 ? static_cast<TTaskPtr>(partition->UnorderedMergeTask)
                 : static_cast<TTaskPtr>(partition->SortTask);
 
-            AddTaskLocalityHint(task, nodeId);
+            AddTaskLocalityHint(nodeId, task);
 
             std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
             node->AssignedDataWeight += partition->ChunkPoolOutput->GetTotalDataWeight();
@@ -2047,7 +2048,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
         table.Options->EvaluateComputedColumns = false;
 
@@ -2103,7 +2104,7 @@ private:
                     GetCancelableInvoker(),
                     Host->GetChunkLocationThrottlerManager(),
                     AuthenticatedInputMasterClient,
-                    InputNodeDirectory,
+                    InputNodeDirectory_,
                     Logger);
             }
 
@@ -2117,7 +2118,7 @@ private:
                 sampleCount,
                 Spec->SortBy,
                 Options->MaxSampleSize,
-                InputNodeDirectory,
+                InputNodeDirectory_,
                 GetCancelableInvoker(),
                 samplesRowBuffer,
                 FetcherChunkScraper,
@@ -3091,7 +3092,7 @@ private:
         }
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         switch (joblet->JobType) {
             case EJobType::PartitionMap:
@@ -3110,7 +3111,7 @@ private:
         }
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto getUserJobSpec = [=] () -> TUserJobSpecPtr {
             switch (EJobType(jobSpec->type())) {

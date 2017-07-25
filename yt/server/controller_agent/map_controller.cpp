@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "private.h"
 #include "operation_controller_detail.h"
+#include "task.h"
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -608,13 +609,13 @@ private:
             Spec->JobNodeAccount);
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex;
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
@@ -714,7 +715,7 @@ private:
         bool isSchemaCompatible =
             ValidateTableSchemaCompatibility(
                 InputTables[chunkSpec->GetTableIndex()].Schema,
-                OutputTables[0].TableUploadOptions.TableSchema,
+                OutputTables_[0].TableUploadOptions.TableSchema,
                 false)
             .IsOK();
 
@@ -740,7 +741,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
 
         auto validateOutputNotSorted = [&] () {
             if (table.TableUploadOptions.TableSchema.IsSorted()) {

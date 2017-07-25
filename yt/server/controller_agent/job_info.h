@@ -1,6 +1,6 @@
 #pragma once
 
-#include "operation_controller_detail.h"
+#include "task.h"
 #include "public.h"
 #include "serialize.h"
 
@@ -47,15 +47,15 @@ DEFINE_REFCOUNTED_TYPE(TJobInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJoblet
+class TJoblet
     : public TJobInfo
 {
 public:
     //! Default constructor is for serialization only.
     TJoblet();
-    TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TOperationControllerBase::TTaskPtr task, int jobIndex);
+    TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTaskPtr task, int jobIndex);
 
-    TOperationControllerBase::TTaskPtr Task;
+    TTaskPtr Task;
     int JobIndex;
     i64 StartRowIndex;
     bool Restarted = false;
@@ -105,6 +105,41 @@ struct TFinishedJobInfo
 };
 
 DEFINE_REFCOUNTED_TYPE(TFinishedJobInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCompletedJob
+    : public TIntrinsicRefCounted
+{
+    //! For persistence only.
+    TCompletedJob() = default;
+
+    TCompletedJob(
+        const TJobId& jobId,
+        TTaskPtr sourceTask,
+        NChunkPools::IChunkPoolOutput::TCookie outputCookie,
+        i64 dataSize,
+        NChunkPools::IChunkPoolInput* destinationPool,
+        NChunkPools::IChunkPoolInput::TCookie inputCookie,
+        const NScheduler::TJobNodeDescriptor& nodeDescriptor);
+
+    bool Lost = false;
+
+    TJobId JobId;
+
+    TTaskPtr SourceTask;
+    NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
+    i64 DataWeight;
+
+    NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
+    NChunkPools::IChunkPoolInput::TCookie InputCookie;
+
+    NScheduler::TJobNodeDescriptor NodeDescriptor;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompletedJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -280,7 +280,7 @@ protected:
                     return CreateSimpleJobSizeConstraints(
                         Spec_,
                         Options_,
-                        OutputTables.size(),
+                        OutputTables_.size(),
                         PrimaryInputDataWeight + ForeignInputDataWeight);
             }
         };
@@ -361,7 +361,7 @@ protected:
                 if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
-                        OutputTables[0].TableUploadOptions.TableSchema,
+                        OutputTables_[0].TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                 }
             }
@@ -511,7 +511,7 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
@@ -542,7 +542,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
 
         auto inferFromInput = [&] () {
             if (Spec_->InputQuery) {
@@ -669,13 +669,13 @@ private:
             .EndMap();
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
@@ -935,12 +935,12 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
         table.TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
@@ -989,7 +989,7 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-        const auto& table = OutputTables[0];
+        const auto& table = OutputTables_[0];
         if (table.TableUploadOptions.TableSchema.IsSorted()) {
             ToProto(jobSpecExt->mutable_key_columns(), table.TableUploadOptions.TableSchema.GetKeyColumns());
         }

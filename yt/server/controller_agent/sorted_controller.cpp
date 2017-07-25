@@ -5,6 +5,7 @@
 #include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "task.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
@@ -295,7 +296,7 @@ protected:
                     return CreateSimpleJobSizeConstraints(
                         Spec_,
                         Options_,
-                        OutputTables.size(),
+                        OutputTables_.size(),
                         PrimaryInputDataWeight,
 		        std::numeric_limits<i32>::max() /* InputRowCount */, // It is not important in sorted operations.
                         ForeignInputDataWeight);
@@ -406,7 +407,7 @@ protected:
                 if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
-                        OutputTables[*tableIndex].TableUploadOptions.TableSchema,
+                        OutputTables_[*tableIndex].TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                     if (GetJobType() == EJobType::SortedReduce) {
                         InputTables[index].IsTeleportable &= InputTables[index].Path.GetTeleport();
@@ -537,7 +538,7 @@ private:
                 GetCancelableInvoker(),
                 Host->GetChunkLocationThrottlerManager(),
                 AuthenticatedInputMasterClient,
-                InputNodeDirectory,
+                InputNodeDirectory_,
                 Logger);
         }
 
@@ -546,7 +547,7 @@ private:
             InputSliceDataWeight_,
             PrimaryKeyColumns_,
             ShouldSlicePrimaryTableByKeys(),
-            InputNodeDirectory,
+            InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper_,
             Host->GetMasterClient(),
@@ -667,7 +668,7 @@ public:
         // Check that all input tables are sorted by the same key columns.
         TSortedControllerBase::PrepareOutputTables();
 
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
         auto prepareOutputKeyColumns = [&] () {
@@ -801,7 +802,7 @@ public:
         return 0;
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
@@ -842,7 +843,7 @@ public:
         reduceJobSpecExt->set_join_key_column_count(ForeignKeyColumns_.size());
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
@@ -855,8 +856,8 @@ public:
         TSortedControllerBase::DoInitialize();
 
         int teleportOutputCount = 0;
-        for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
-            if (OutputTables[i].Path.GetTeleport()) {
+        for (int i = 0; i < static_cast<int>(OutputTables_.size()); ++i) {
+            if (OutputTables_[i].Path.GetTeleport()) {
                 ++teleportOutputCount;
                 OutputTeleportTableIndex_ = i;
             }

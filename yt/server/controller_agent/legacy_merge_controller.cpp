@@ -5,6 +5,7 @@
 #include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "task.h"
 
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -665,7 +666,7 @@ protected:
                 {
                     IsInputTableTeleportable[index] = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
-                        OutputTables[*tableIndex].TableUploadOptions.TableSchema,
+                        OutputTables_[*tableIndex].TableUploadOptions.TableSchema,
                         false).IsOK();
                 }
             }
@@ -911,13 +912,13 @@ private:
             Spec->JobNodeAccount);
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex;
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
@@ -987,7 +988,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
 
         auto inferFromInput = [&] () {
             if (Spec->InputQuery) {
@@ -1045,7 +1046,7 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual bool IsRowCountPreserved() const override
@@ -1143,7 +1144,7 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual void DoInitialize() override
@@ -1179,7 +1180,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
         table.TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
@@ -1403,7 +1404,7 @@ protected:
                 GetCancelableInvoker(),
                 Host->GetChunkLocationThrottlerManager(),
                 AuthenticatedInputMasterClient,
-                InputNodeDirectory,
+                InputNodeDirectory_,
                 Logger);
         }
 
@@ -1412,7 +1413,7 @@ protected:
             ChunkSliceSize,
             SortKeyColumns,
             ShouldSlicePrimaryTableByKeys(),
-            InputNodeDirectory,
+            InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper,
             Host->GetMasterClient(),
@@ -1863,7 +1864,7 @@ private:
         // Check that all input tables are sorted by the same key columns.
         TLegacySortedMergeControllerBase::PrepareOutputTables();
 
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
         auto prepareOutputKeyColumns = [&] () {
@@ -2018,8 +2019,8 @@ protected:
         TLegacySortedMergeControllerBase::DoInitialize();
 
         int teleportOutputCount = 0;
-        for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
-            if (OutputTables[i].Path.GetTeleport()) {
+        for (int i = 0; i < static_cast<int>(OutputTables_.size()); ++i) {
+            if (OutputTables_[i].Path.GetTeleport()) {
                 ++teleportOutputCount;
                 TeleportOutputTable = i;
             }
@@ -2257,13 +2258,13 @@ protected:
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex;
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(

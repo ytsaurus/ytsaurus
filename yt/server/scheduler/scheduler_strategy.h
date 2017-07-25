@@ -129,7 +129,7 @@ struct ISchedulerStrategy
 
     virtual void ProcessUpdatedAndCompletedJobs(
         const std::vector<TUpdatedJob>& updatedJobs,
-        const std::vector<TCompletedJob>& completedJobs) = 0;
+        const std::vector<NScheduler::TCompletedJob>& completedJobs) = 0;
 
     virtual void ApplyJobMetricsDelta(
         const TOperationId& operationId,
