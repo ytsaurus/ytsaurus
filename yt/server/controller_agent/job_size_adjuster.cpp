@@ -19,9 +19,9 @@ public:
     { }
 
     TJobSizeAdjuster(
-        i64 dataSizePerJob,
+        i64 dataWeightPerJob,
         const TJobSizeAdjusterConfigPtr& config)
-        : DataSizePerJob_(static_cast<double>(dataSizePerJob))
+        : DataWeightPerJob_(static_cast<double>(dataWeightPerJob))
         , MinJobTime_(static_cast<double>(config->MinJobTime.MicroSeconds()))
         , MaxJobTime_(static_cast<double>(config->MaxJobTime.MicroSeconds()))
         , ExecToPrepareTimeRatio_(config->ExecToPrepareTimeRatio)
@@ -32,38 +32,38 @@ public:
         if (!summary.Abandoned) {
             YCHECK(summary.Statistics);
             UpdateStatistics(
-                GetNumericValue(*summary.Statistics, "/data/input/uncompressed_data_size"),
+                GetNumericValue(*summary.Statistics, "/data/input/data_weight"),
                 summary.PrepareDuration.Get(TDuration()) - summary.DownloadDuration.Get(TDuration()),
                 summary.ExecDuration.Get(TDuration()));
         }
     }
 
-    virtual void UpdateStatistics(i64 jobDataSize, TDuration prepareDuration, TDuration execDuration) override
+    virtual void UpdateStatistics(i64 jobDataWeight, TDuration prepareDuration, TDuration execDuration) override
     {
-        Statistics_.AddSample(jobDataSize, prepareDuration, execDuration);
+        Statistics_.AddSample(jobDataWeight, prepareDuration, execDuration);
 
         if (!Statistics_.IsEmpty()) {
             double idealExecTime = std::max(MinJobTime_, ExecToPrepareTimeRatio_ * Statistics_.GetMeanPrepareTime());
             idealExecTime = std::min(idealExecTime, MaxJobTime_);
 
-            double idealDataSize = idealExecTime / Statistics_.GetMeanExecTimePerByte();
+            double idealDataWeight = idealExecTime / Statistics_.GetMeanExecTimePerByte();
 
-            DataSizePerJob_ = ClampVal(
-                idealDataSize,
-                DataSizePerJob_,
-                DataSizePerJob_ * JobSizeBoostFactor);
+            DataWeightPerJob_ = ClampVal(
+                idealDataWeight,
+                DataWeightPerJob_,
+                DataWeightPerJob_ * JobSizeBoostFactor);
         }
     }
 
-    virtual i64 GetDataSizePerJob() const override
+    virtual i64 GetDataWeightPerJob() const override
     {
-        return static_cast<i64>(DataSizePerJob_);
+        return static_cast<i64>(DataWeightPerJob_);
     }
 
     void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
-        Persist(context, DataSizePerJob_);
+        Persist(context, DataWeightPerJob_);
         Persist(context, MinJobTime_);
         Persist(context, MaxJobTime_);
         Persist(context, ExecToPrepareTimeRatio_);
@@ -82,21 +82,21 @@ private:
 
             if (dataSize > 0 && prepareTime > 0 && execTime > 0) {
                 ++Count_;
-                PrepareTimeTotal_ += prepareTime;
-                ExecTimeTotal_ += execTime;
-                DataSizeTotal_ += dataSize;
-                DataSizeMax_ = std::max(DataSizeMax_, dataSize);
+                TotalPrepareTime_ += prepareTime;
+                TotalExecTime_ += execTime;
+                TotalDataWeight_ += dataSize;
+                MaxDataWeight_ = std::max(MaxDataWeight_, dataSize);
             }
         }
 
         double GetMeanPrepareTime() const
         {
-            return PrepareTimeTotal_ / Count_;
+            return TotalPrepareTime_ / Count_;
         }
 
         double GetMeanExecTimePerByte() const
         {
-            return std::max(ExecTimeTotal_ / DataSizeTotal_, 1e-12);
+            return std::max(TotalExecTime_ / TotalDataWeight_, 1e-12);
         }
 
         bool IsEmpty() const
@@ -108,24 +108,23 @@ private:
         {
             using NYT::Persist;
             Persist(context, Count_);
-            Persist(context, PrepareTimeTotal_);
-            Persist(context, ExecTimeTotal_);
-            Persist(context, DataSizeTotal_);
-            Persist(context, DataSizeMax_);
+            Persist(context, TotalPrepareTime_);
+            Persist(context, TotalExecTime_);
+            Persist(context, TotalDataWeight_);
+            Persist(context, MaxDataWeight_);
         }
 
     private:
         int Count_ = 0;
-        double PrepareTimeTotal_ = 0.0;
-        double ExecTimeTotal_ = 0.0;
-        double DataSizeTotal_ = 0.0;
-        double DataSizeMax_ = 0.0;
+        double TotalPrepareTime_ = 0.0;
+        double TotalExecTime_ = 0.0;
+        double TotalDataWeight_ = 0.0;
+        double MaxDataWeight_ = 0.0;
     };
 
     DECLARE_DYNAMIC_PHOENIX_TYPE(TJobSizeAdjuster, 0xf8338721);
 
-    double DataSizePerJob_ = 0.0;
-    double MaxDataSizePerJob_ = 0.0;
+    double DataWeightPerJob_ = 0.0;
     double MinJobTime_ = 0.0;
     double MaxJobTime_ = 0.0;
     double ExecToPrepareTimeRatio_ = 0.0;
@@ -138,11 +137,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSizeAdjuster);
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
-    i64 dataSizePerJob,
+    i64 dataWeightPerJob,
     const TJobSizeAdjusterConfigPtr& config)
 {
     return std::unique_ptr<IJobSizeAdjuster>(new TJobSizeAdjuster(
-        dataSizePerJob,
+        dataWeightPerJob,
         config));
 }
 

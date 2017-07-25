@@ -228,7 +228,7 @@ private:
     public:
         explicit TRunningJob(const TChunkStripeListPtr& inputStripeList)
             : TotalRowCount_(inputStripeList->TotalRowCount)
-            , TotalDataSize_(inputStripeList->TotalDataSize)
+            , TotalDataWeight_(inputStripeList->TotalDataWeight)
         { }
 
         void UpdateCompletionTime(TStatistics* statistics, const TJobSummary& summary)
@@ -262,7 +262,7 @@ private:
                 PrepareWithoutDownloadDuration_ * config->ExecToPrepareTimeRatio);
             return ExecDuration_ > minJobTime &&
                 RemainingDuration_ > minJobTime &&
-                TotalDataSize_ > config->MinTotalDataSize;
+                TotalDataWeight_ > config->MinTotalDataWeight;
         }
 
         TCpuInstant GetCompletionTime() const
@@ -286,7 +286,7 @@ private:
 
     private:
         i64 TotalRowCount_ = 1.0;
-        i64 TotalDataSize_ = 1.0;
+        i64 TotalDataWeight_ = 1.0;
         TDuration PrepareWithoutDownloadDuration_;
         TDuration ExecDuration_;
         TDuration RemainingDuration_;

@@ -26,13 +26,13 @@ class TShuffleChunkPool
 public:
     //! For persistence only.
     TShuffleChunkPool()
-        : DataSizeThreshold(-1)
+        : DataWeightThreshold(-1)
     { }
 
     TShuffleChunkPool(
         int partitionCount,
         i64 dataSizeThreshold)
-        : DataSizeThreshold(dataSizeThreshold)
+        : DataWeightThreshold(dataSizeThreshold)
     {
         Outputs.resize(partitionCount);
         for (int index = 0; index < partitionCount; ++index) {
@@ -80,6 +80,8 @@ public:
                 YCHECK(partitionsExt->row_counts(index) <= RowCountThreshold);
                 Outputs[index]->AddStripe(
                     elementaryIndex,
+                    // NB: currently uncompressed data size and data weight for partition chunks are roughly
+                    // equal, since we use horizontal chunk format.
                     partitionsExt->uncompressed_data_sizes(index),
                     partitionsExt->row_counts(index));
             }
@@ -173,7 +175,7 @@ public:
         TChunkPoolInputBase::Persist(context);
 
         using NYT::Persist;
-        Persist(context, DataSizeThreshold);
+        Persist(context, DataWeightThreshold);
         Persist(context, Outputs);
         Persist(context, InputStripes);
         Persist(context, ElementaryStripes);
@@ -187,7 +189,7 @@ private:
     // NB: sort job cannot handle more than numeric_limits<i32>::max() rows.
     static const i64 RowCountThreshold = std::numeric_limits<i32>::max();
 
-    i64 DataSizeThreshold;
+    i64 DataWeightThreshold;
 
     class TOutput
         : public TChunkPoolOutputBase
@@ -209,11 +211,11 @@ private:
             AddNewRun();
         }
 
-        void AddStripe(int elementaryIndex, i64 dataSize, i64 rowCount)
+        void AddStripe(int elementaryIndex, i64 dataWeight, i64 rowCount)
         {
             auto* run = &Runs.back();
-            if (run->TotalDataSize > 0) {
-                if (run->TotalDataSize + dataSize > Owner->DataSizeThreshold ||
+            if (run->TotalDataWeight > 0) {
+                if (run->TotalDataWeight + dataWeight > Owner->DataWeightThreshold ||
                     run->TotalRowCount + rowCount > Owner->RowCountThreshold)
                 {
                     SealLastRun();
@@ -224,10 +226,10 @@ private:
 
             YCHECK(elementaryIndex == run->ElementaryIndexEnd);
             run->ElementaryIndexEnd = elementaryIndex + 1;
-            run->TotalDataSize += dataSize;
+            run->TotalDataWeight += dataWeight;
             run->TotalRowCount += rowCount;
 
-            DataSizeCounter.Increment(dataSize);
+            DataWeightCounter.Increment(dataWeight);
             RowCounter.Increment(rowCount);
         }
 
@@ -254,7 +256,7 @@ private:
         void FinishInput()
         {
             auto& lastRun = Runs.back();
-            if (lastRun.TotalDataSize > 0) {
+            if (lastRun.TotalDataWeight > 0) {
                 SealLastRun();
             } else {
                 Runs.pop_back();
@@ -279,11 +281,11 @@ private:
 
             // NB: cannot estimate MaxBlockSize here.
             stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
-            stat.DataSize = run.TotalDataSize;
+            stat.DataWeight = run.TotalDataWeight;
             stat.RowCount = run.TotalRowCount;
 
             if (run.IsApproximate) {
-                stat.DataSize *= ApproximateSizesBoostFactor;
+                stat.DataWeight *= ApproximateSizesBoostFactor;
                 stat.RowCount *= ApproximateSizesBoostFactor;
             }
 
@@ -301,7 +303,7 @@ private:
         {
             int result = static_cast<int>(Runs.size());
             // Handle empty last run properly.
-            if (!Runs.empty() && Runs.back().TotalDataSize == 0) {
+            if (!Runs.empty() && Runs.back().TotalDataWeight == 0) {
                 --result;
             }
             return result;
@@ -332,7 +334,7 @@ private:
             run.State = ERunState::Running;
 
             JobCounter.Start(1);
-            DataSizeCounter.Start(run.TotalDataSize);
+            DataWeightCounter.Start(run.TotalDataWeight);
             RowCounter.Start(run.TotalRowCount);
 
             return cookie;
@@ -350,9 +352,9 @@ private:
                 list->TotalChunkCount += stripe->GetChunkCount();
             }
 
-            // NB: never ever make TotalDataSize and TotalBoostFactor approximate.
+            // NB: never ever make TotalDataWeight and TotalBoostFactor approximate.
             // Otherwise sort data size and row counters will be severely corrupted
-            list->TotalDataSize = run.TotalDataSize;
+            list->TotalDataWeight = run.TotalDataWeight;
             list->TotalRowCount = run.TotalRowCount;
 
             list->IsApproximate = run.IsApproximate;
@@ -373,7 +375,7 @@ private:
             run.State = ERunState::Completed;
 
             JobCounter.Completed(1);
-            DataSizeCounter.Completed(run.TotalDataSize);
+            DataWeightCounter.Completed(run.TotalDataWeight);
             RowCounter.Completed(run.TotalRowCount);
         }
 
@@ -386,7 +388,7 @@ private:
             UpdatePendingRunSet(run);
 
             JobCounter.Failed(1);
-            DataSizeCounter.Failed(run.TotalDataSize);
+            DataWeightCounter.Failed(run.TotalDataWeight);
             RowCounter.Failed(run.TotalRowCount);
         }
 
@@ -399,7 +401,7 @@ private:
             UpdatePendingRunSet(run);
 
             JobCounter.Aborted(1, reason);
-            DataSizeCounter.Aborted(run.TotalDataSize, reason);
+            DataWeightCounter.Aborted(run.TotalDataWeight, reason);
             RowCounter.Aborted(run.TotalRowCount, reason);
         }
 
@@ -412,7 +414,7 @@ private:
             UpdatePendingRunSet(run);
 
             JobCounter.Lost(1);
-            DataSizeCounter.Lost(run.TotalDataSize);
+            DataWeightCounter.Lost(run.TotalDataWeight);
             RowCounter.Lost(run.TotalRowCount);
         }
 
@@ -441,7 +443,7 @@ private:
         {
             int ElementaryIndexBegin = 0;
             int ElementaryIndexEnd = 0;
-            i64 TotalDataSize = 0;
+            i64 TotalDataWeight = 0;
             i64 TotalRowCount = 0;
             int SuspendCount = 0;
             ERunState State = ERunState::Initializing;
@@ -452,7 +454,7 @@ private:
                 using NYT::Persist;
                 Persist(context, ElementaryIndexBegin);
                 Persist(context, ElementaryIndexEnd);
-                Persist(context, TotalDataSize);
+                Persist(context, TotalDataWeight);
                 Persist(context, TotalRowCount);
                 Persist(context, SuspendCount);
                 Persist(context, State);
@@ -508,7 +510,7 @@ private:
         void SealLastRun()
         {
             auto& run = Runs.back();
-            YCHECK(run.TotalDataSize > 0);
+            YCHECK(run.TotalDataWeight > 0);
             YCHECK(run.State == ERunState::Initializing);
             run.State = ERunState::Pending;
             UpdatePendingRunSet(run);
@@ -539,11 +541,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool::TOutput);
 
 std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
     int partitionCount,
-    i64 dataSizeThreshold)
+    i64 dataWeightThreshold)
 {
     return std::unique_ptr<IShuffleChunkPool>(new TShuffleChunkPool(
         partitionCount,
-        dataSizeThreshold));
+        dataWeightThreshold));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

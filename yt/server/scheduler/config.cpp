@@ -144,7 +144,8 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
         .Default(20.0);
 
-    RegisterParameter("min_total_data_size", MinTotalDataSize)
+    RegisterParameter("min_total_data_weight", MinTotalDataWeight)
+        .Alias("min_total_data_size")
         .Default(GB);
 
     RegisterParameter("update_period", UpdatePeriod)
@@ -171,7 +172,8 @@ TOperationOptions::TOperationOptions()
         .Default()
         .MergeBy(NYTree::EMergeStrategy::Combine);
 
-    RegisterParameter("slice_data_size_multiplier", SliceDataSizeMultiplier)
+    RegisterParameter("slice_data_weight_multiplier", SliceDataWeightMultiplier)
+        .Alias("slice_data_size_multiplier")
         .Default(0.51)
         .GreaterThan(0.0);
 
@@ -179,11 +181,13 @@ TOperationOptions::TOperationOptions()
         .Default(100000)
         .GreaterThan(0);
 
-    RegisterParameter("max_slice_data_size", MaxSliceDataSize)
-        .Default(256 * MB)
+    RegisterParameter("max_slice_data_weight", MaxSliceDataWeight)
+        .Alias("max_slice_data_size")
+        .Default((i64)256 * MB)
         .GreaterThan(0);
 
-    RegisterParameter("min_slice_data_size", MinSliceDataSize)
+    RegisterParameter("min_slice_data_weight", MinSliceDataWeight)
+        .Alias("min_slice_data_size")
         .Default(MB)
         .GreaterThan(0);
 
@@ -192,10 +196,10 @@ TOperationOptions::TOperationOptions()
         .GreaterThanOrEqual(100000);
 
     RegisterValidator([&] () {
-        if (MaxSliceDataSize < MinSliceDataSize) {
-            THROW_ERROR_EXCEPTION("Minimum slice data size must be less than or equal to maximum slice data size")
-                << TErrorAttribute("min_slice_data_size", MinSliceDataSize)
-                << TErrorAttribute("max_slice_data_size", MaxSliceDataSize);
+        if (MaxSliceDataWeight < MinSliceDataWeight) {
+            THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
+                << TErrorAttribute("min_slice_data_weight", MinSliceDataWeight)
+                << TErrorAttribute("max_slice_data_weight", MaxSliceDataWeight);
         }
     });
 }
@@ -207,8 +211,9 @@ TSimpleOperationOptions::TSimpleOperationOptions()
     RegisterParameter("max_job_count", MaxJobCount)
         .Default(100000);
 
-    RegisterParameter("data_size_per_job", DataSizePerJob)
-        .Default(256 * MB)
+    RegisterParameter("data_weight_per_job", DataWeightPerJob)
+        .Alias("data_size_per_job")
+        .Default((i64) 256 * MB)
         .GreaterThan(0);
 }
 
@@ -222,7 +227,7 @@ TMapOperationOptions::TMapOperationOptions()
         .DefaultNew();
 
     RegisterInitializer([&] () {
-        DataSizePerJob = 128 * MB;
+        DataWeightPerJob = (i64) 128 * MB;
     });
 }
 
@@ -234,7 +239,7 @@ TReduceOperationOptions::TReduceOperationOptions()
         .DefaultNew();
 
     RegisterInitializer([&] () {
-        DataSizePerJob = 128 * MB;
+        DataWeightPerJob = (i64) 128 * MB;
     });
 }
 
@@ -250,12 +255,14 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
         .Default(10000)
         .GreaterThan(0);
 
-    RegisterParameter("partition_job_max_slice_data_size", PartitionJobMaxSliceDataSize)
-        .Default(256 * MB)
+    RegisterParameter("partition_job_max_slice_data_weight", PartitionJobMaxSliceDataWeight)
+        .Alias("partition_job_max_slice_data_size")
+        .Default((i64)256 * MB)
         .GreaterThan(0);
 
-    RegisterParameter("sort_job_max_slice_data_size", SortJobMaxSliceDataSize)
-        .Default(256 * MB)
+    RegisterParameter("sort_job_max_slice_data_weight", SortJobMaxSliceDataWeight)
+        .Alias("sort_job_max_slice_data_size")
+        .Default((i64)256 * MB)
         .GreaterThan(0);
 
     RegisterParameter("max_sample_size", MaxSampleSize)
@@ -268,7 +275,8 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
         .Default(MB)
         .GreaterThanOrEqual(1024);
 
-    RegisterParameter("min_partition_size", MinPartitionSize)
+    RegisterParameter("min_partition_weight", MinPartitionWeight)
+        .Alias("min_partition_size")
         .Default(256 * MB)
         .GreaterThanOrEqual(1);
 

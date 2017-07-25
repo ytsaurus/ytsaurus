@@ -234,9 +234,9 @@ protected:
         rowCount = upperRowIndex - rowIndex;
 
         chunk.set_row_count_override(rowCount);
-        i64 dataSize = DivCeil(misc.uncompressed_data_size(), misc.row_count()) * rowCount;
-        YCHECK(dataSize > 0);
-        chunk.set_uncompressed_data_size_override(dataSize);
+        i64 dataWeight = DivCeil(misc.uncompressed_data_size(), misc.row_count()) * rowCount;
+        YCHECK(dataWeight > 0);
+        chunk.set_data_weight_override(dataWeight);
         return unreadDescriptors;
     }
 

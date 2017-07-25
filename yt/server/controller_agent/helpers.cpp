@@ -21,7 +21,7 @@ class TSimpleJobSizeConstraints
 {
 public:
     TSimpleJobSizeConstraints()
-        : InputDataSize_(-1)
+        : InputDataWeight_(-1)
         , InputRowCount_(-1)
     { }
 
@@ -29,20 +29,20 @@ public:
         const TSimpleOperationSpecBasePtr& spec,
         const TSimpleOperationOptionsPtr& options,
         int outputTableCount,
-        i64 primaryInputDataSize,
+        i64 primaryInputDataWeight,
         i64 inputRowCount,
-        i64 foreignInputDataSize)
+        i64 foreignInputDataWeight)
         : Spec_(spec)
         , Options_(options)
-        , InputDataSize_(primaryInputDataSize + foreignInputDataSize)
-        , PrimaryInputDataSize_(primaryInputDataSize)
+        , InputDataWeight_(primaryInputDataWeight + foreignInputDataWeight)
+        , PrimaryInputDataWeight_(primaryInputDataWeight)
         , InputRowCount_(inputRowCount)
     {
         if (Spec_->JobCount) {
             JobCount_ = *Spec_->JobCount;
         } else {
-            i64 dataSizePerJob = Spec_->DataSizePerJob.Get(Options_->DataSizePerJob);
-            JobCount_ = DivCeil(PrimaryInputDataSize_, dataSizePerJob);
+            i64 dataWeightPerJob = Spec_->DataWeightPerJob.Get(Options_->DataWeightPerJob);
+            JobCount_ = DivCeil(PrimaryInputDataWeight_, dataWeightPerJob);
         }
 
         i64 maxJobCount = Options_->MaxJobCount;
@@ -60,19 +60,19 @@ public:
         }
 
         YCHECK(JobCount_ >= 0);
-        YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
+        YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
     }
 
-    virtual bool CanAdjustDataSizePerJob() const override
+    virtual bool CanAdjustDataWeightPerJob() const override
     {
-        return !Spec_->DataSizePerJob && !Spec_->JobCount;
+        return !Spec_->DataWeightPerJob && !Spec_->JobCount;
     }
 
     virtual bool IsExplicitJobCount() const override
     {
-        // If #DataSizePerJob == 1, we guarantee #JobCount == #RowCount (if row count doesn't exceed #MaxJobCount).
+        // If #DataWeightPerJob == 1, we guarantee #JobCount == #RowCount (if row count doesn't exceed #MaxJobCount).
         return static_cast<bool>(Spec_->JobCount) ||
-            (static_cast<bool>(Spec_->DataSizePerJob) && Spec_->DataSizePerJob.Get() == 1);
+            (static_cast<bool>(Spec_->DataWeightPerJob) && Spec_->DataWeightPerJob.Get() == 1);
     }
 
     virtual int GetJobCount() const override
@@ -80,21 +80,21 @@ public:
         return JobCount_;
     }
 
-    virtual i64 GetDataSizePerJob() const override
+    virtual i64 GetDataWeightPerJob() const override
     {
         if (Spec_->ConsiderOnlyPrimarySize) {
             return std::numeric_limits<i64>::max();
         } else {
             return JobCount_ > 0
-                ? DivCeil(InputDataSize_, JobCount_)
+                ? DivCeil(InputDataWeight_, JobCount_)
                 : 1;
         }
     }
 
-    virtual i64 GetPrimaryDataSizePerJob() const override
+    virtual i64 GetPrimaryDataWeightPerJob() const override
     {
         return JobCount_ > 0
-            ? DivCeil(PrimaryInputDataSize_, JobCount_)
+            ? DivCeil(PrimaryInputDataWeight_, JobCount_)
             : 1;
     }
 
@@ -103,30 +103,30 @@ public:
         return Options_->MaxDataSlicesPerJob;
     }
 
-    virtual i64 GetMaxDataSizePerJob() const override
+    virtual i64 GetMaxDataWeightPerJob() const override
     {
-        return Spec_->MaxDataSizePerJob;
+        return Spec_->MaxDataWeightPerJob;
     }
 
-    virtual i64 GetInputSliceDataSize() const override
+    virtual i64 GetInputSliceDataWeight() const override
     {
-        if (JobCount_ == 0 || InputDataSize_ == 0) {
+        if (JobCount_ == 0 || InputDataWeight_ == 0) {
             return 1;
         }
 
-        i64 sliceDataSize = Clamp<i64>(
-            Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_,
+        i64 sliceDataWeight = Clamp<i64>(
+            Options_->SliceDataWeightMultiplier * InputDataWeight_ / JobCount_,
             1,
-            Options_->MaxSliceDataSize);
+            Options_->MaxSliceDataWeight);
 
-        if (sliceDataSize < Options_->MinSliceDataSize) {
+        if (sliceDataWeight < Options_->MinSliceDataWeight) {
             // Non-trivial multiplier should be used only if input data size is large enough.
             // Otherwise we do not want to have more slices than job count.
 
-            sliceDataSize = DivCeil(InputDataSize_, JobCount_);
+            sliceDataWeight = DivCeil(InputDataWeight_, JobCount_);
         }
 
-        return sliceDataSize;
+        return sliceDataWeight;
     }
 
     virtual i64 GetInputSliceRowCount() const override
@@ -141,9 +141,9 @@ public:
         using NYT::Persist;
         Persist(context, Spec_);
         Persist(context, Options_);
-        Persist(context, InputDataSize_);
+        Persist(context, InputDataWeight_);
         Persist(context, InputRowCount_);
-        Persist(context, PrimaryInputDataSize_);
+        Persist(context, PrimaryInputDataWeight_);
         Persist(context, JobCount_);
     }
 
@@ -153,8 +153,8 @@ private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
 
-    i64 InputDataSize_;
-    i64 PrimaryInputDataSize_;
+    i64 InputDataWeight_;
+    i64 PrimaryInputDataWeight_;
     i64 InputRowCount_;
 
     i64 JobCount_;
@@ -165,28 +165,151 @@ DEFINE_REFCOUNTED_TYPE(TSimpleJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMergeJobSizeConstraints
+    : public IJobSizeConstraints
+{
+public:
+    TMergeJobSizeConstraints()
+        : InputDataWeight_(-1)
+    { }
+
+    TMergeJobSizeConstraints(
+        const TSimpleOperationSpecBasePtr& spec,
+        const TSimpleOperationOptionsPtr& options,
+        i64 inputDataWeight,
+        double compressionRatio)
+        : Spec_(spec)
+        , Options_(options)
+        , InputDataWeight_(inputDataWeight)
+    {
+        if (Spec_->JobCount) {
+            JobCount_ = *Spec_->JobCount;
+        } else if (Spec_->DataWeightPerJob) {
+            JobCount_ = DivCeil(InputDataWeight_, *Spec_->DataWeightPerJob);
+        } else {
+            i64 dataWeightPerJob = Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio;
+            JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
+        }
+
+        i64 maxJobCount = Options_->MaxJobCount;
+        if (Spec_->MaxJobCount) {
+            maxJobCount = std::min(maxJobCount, static_cast<i64>(*Spec_->MaxJobCount));
+        }
+        JobCount_ = std::min(JobCount_, maxJobCount);
+
+        YCHECK(JobCount_ >= 0);
+        YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
+    }
+
+    virtual bool CanAdjustDataWeightPerJob() const override
+    {
+        return !Spec_->DataWeightPerJob && !Spec_->JobCount;
+    }
+
+    virtual bool IsExplicitJobCount() const override
+    {
+        return false;
+    }
+
+    virtual int GetJobCount() const override
+    {
+        return JobCount_;
+    }
+
+    virtual i64 GetDataWeightPerJob() const override
+    {
+        return JobCount_ > 0
+               ? DivCeil(InputDataWeight_, JobCount_)
+               : 1;
+    }
+
+    virtual i64 GetPrimaryDataWeightPerJob() const override
+    {
+        return GetDataWeightPerJob();
+    }
+
+    virtual i64 GetMaxDataSlicesPerJob() const override
+    {
+        return Options_->MaxDataSlicesPerJob;
+    }
+
+    virtual i64 GetMaxDataWeightPerJob() const override
+    {
+        return Spec_->MaxDataWeightPerJob;
+    }
+
+    virtual i64 GetInputSliceDataWeight() const override
+    {
+        if (JobCount_ == 0 || InputDataWeight_ == 0) {
+            return 1;
+        }
+
+        i64 sliceDataWeight = Clamp<i64>(
+            Options_->SliceDataWeightMultiplier * InputDataWeight_ / JobCount_,
+            1,
+            Options_->MaxSliceDataWeight);
+
+        if (sliceDataWeight < Options_->MinSliceDataWeight) {
+            // Non-trivial multiplier should be used only if input data size is large enough.
+            // Otherwise we do not want to have more slices than job count.
+
+            sliceDataWeight = DivCeil(InputDataWeight_, JobCount_);
+        }
+
+        return sliceDataWeight;
+    }
+
+    virtual i64 GetInputSliceRowCount() const override
+    {
+        return std::numeric_limits<i64>::max();
+    }
+
+    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    {
+        using NYT::Persist;
+        Persist(context, Spec_);
+        Persist(context, Options_);
+        Persist(context, InputDataWeight_);
+        Persist(context, JobCount_);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeJobSizeConstraints, 0x3f1caf80);
+
+    TSimpleOperationSpecBasePtr Spec_;
+    TSimpleOperationOptionsPtr Options_;
+
+    i64 InputDataWeight_;
+    i64 JobCount_;
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeJobSizeConstraints);
+DEFINE_REFCOUNTED_TYPE(TMergeJobSizeConstraints)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSimpleSortJobSizeConstraints
     : public IJobSizeConstraints
 {
 public:
     TSimpleSortJobSizeConstraints()
-        : InputDataSize_(-1)
+        : InputDataWeight_(-1)
     { }
 
     TSimpleSortJobSizeConstraints(
         const TSortOperationSpecBasePtr& spec,
         const TSortOperationOptionsBasePtr& options,
-        i64 inputDataSize)
+        i64 inputDataWeight)
         : Spec_(spec)
         , Options_(options)
-        , InputDataSize_(inputDataSize)
+        , InputDataWeight_(inputDataWeight)
     {
-        JobCount_ = DivCeil(InputDataSize_, Spec_->DataSizePerShuffleJob);
+        JobCount_ = DivCeil(InputDataWeight_, Spec_->DataWeightPerShuffleJob);
         YCHECK(JobCount_ >= 0);
-        YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
+        YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
     }
 
-    virtual bool CanAdjustDataSizePerJob() const override
+    virtual bool CanAdjustDataWeightPerJob() const override
     {
         return false;
     }
@@ -201,14 +324,14 @@ public:
         return JobCount_;
     }
 
-    virtual i64 GetDataSizePerJob() const override
+    virtual i64 GetDataWeightPerJob() const override
     {
         return JobCount_ > 0
-            ? DivCeil(InputDataSize_, JobCount_)
+            ? DivCeil(InputDataWeight_, JobCount_)
             : 1;
     }
 
-    virtual i64 GetPrimaryDataSizePerJob() const override
+    virtual i64 GetPrimaryDataWeightPerJob() const override
     {
         Y_UNREACHABLE();
     }
@@ -218,30 +341,30 @@ public:
         return Options_->MaxDataSlicesPerJob;
     }
 
-    virtual i64 GetMaxDataSizePerJob() const override
+    virtual i64 GetMaxDataWeightPerJob() const override
     {
-        return Spec_->MaxDataSizePerJob;
+        return Spec_->MaxDataWeightPerJob;
     }
 
-    virtual i64 GetInputSliceDataSize() const override
+    virtual i64 GetInputSliceDataWeight() const override
     {
-        if (JobCount_ == 0 || InputDataSize_ == 0) {
+        if (JobCount_ == 0 || InputDataWeight_ == 0) {
             return 1;
         }
 
-        i64 sliceDataSize = Clamp<i64>(
-            Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_,
+        i64 sliceDataWeight = Clamp<i64>(
+            Options_->SliceDataWeightMultiplier * InputDataWeight_ / JobCount_,
             1,
-            Options_->MaxSliceDataSize);
+            Options_->MaxSliceDataWeight);
 
-        if (sliceDataSize < Options_->MinSliceDataSize) {
+        if (sliceDataWeight < Options_->MinSliceDataWeight) {
             // Non-trivial multiplier should be used only if input data size is large enough.
             // Otherwise we do not want to have more slices than job count.
 
-            sliceDataSize = DivCeil(InputDataSize_, JobCount_);
+            sliceDataWeight = DivCeil(InputDataWeight_, JobCount_);
         }
 
-        return sliceDataSize;
+        return sliceDataWeight;
     }
 
     virtual i64 GetInputSliceRowCount() const override
@@ -254,7 +377,7 @@ public:
         using NYT::Persist;
         Persist(context, Spec_);
         Persist(context, Options_);
-        Persist(context, InputDataSize_);
+        Persist(context, InputDataWeight_);
         Persist(context, JobCount_);
     }
 
@@ -264,7 +387,7 @@ private:
     TSortOperationSpecBasePtr Spec_;
     TSortOperationOptionsBasePtr Options_;
 
-    i64 InputDataSize_;
+    i64 InputDataWeight_;
 
     i64 JobCount_;
 };
@@ -279,26 +402,27 @@ class TPartitionJobSizeConstraints
 {
 public:
     TPartitionJobSizeConstraints()
-        : InputDataSize_(-1)
+        : InputDataWeight_(-1)
         , InputRowCount_(-1)
     { }
 
     TPartitionJobSizeConstraints(
         const TSortOperationSpecBasePtr& spec,
         const TSortOperationOptionsBasePtr& options,
-        i64 inputDataSize,
+        i64 inputDataWeight,
         i64 inputRowCount,
+        // TODO(psushin): this compression ratio must be calculated from data weight.
         double compressionRatio)
         : Spec_(spec)
         , Options_(options)
-        , InputDataSize_(inputDataSize)
+        , InputDataWeight_(inputDataWeight)
         , InputRowCount_(inputRowCount)
     {
         if (Spec_->PartitionJobCount) {
             JobCount_ = *Spec_->PartitionJobCount;
-        } else if (Spec_->DataSizePerPartitionJob) {
-            i64 dataSizePerJob = *Spec_->DataSizePerPartitionJob;
-            JobCount_ = DivCeil(InputDataSize_, dataSizePerJob);
+        } else if (Spec_->DataWeightPerPartitionJob) {
+            i64 dataWeightPerJob = *Spec_->DataWeightPerPartitionJob;
+            JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
         } else {
             // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
@@ -306,22 +430,22 @@ public:
             uncompressedBlockSize = std::min(uncompressedBlockSize, Spec_->PartitionJobIO->TableWriter->BlockSize);
 
             // Product may not fit into i64.
-            double partitionJobDataSize = sqrt(InputDataSize_) * sqrt(uncompressedBlockSize);
-            partitionJobDataSize = std::min(partitionJobDataSize, static_cast<double>(Spec_->PartitionJobIO->TableWriter->MaxBufferSize));
+            double partitionJobDataWeight = sqrt(InputDataWeight_) * sqrt(uncompressedBlockSize);
+            partitionJobDataWeight = std::min(partitionJobDataWeight, static_cast<double>(Spec_->PartitionJobIO->TableWriter->MaxBufferSize));
 
-            JobCount_ = DivCeil(InputDataSize_, static_cast<i64>(partitionJobDataSize));
+            JobCount_ = DivCeil(InputDataWeight_, static_cast<i64>(partitionJobDataWeight));
         }
 
         YCHECK(JobCount_ >= 0);
-        YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
+        YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
 
         JobCount_ = std::min(JobCount_, static_cast<i64>(Options_->MaxPartitionJobCount));
         JobCount_ = std::min(JobCount_, InputRowCount_);
     }
 
-    virtual bool CanAdjustDataSizePerJob() const override
+    virtual bool CanAdjustDataWeightPerJob() const override
     {
-        return !Spec_->DataSizePerPartitionJob && !Spec_->PartitionJobCount;
+        return !Spec_->DataWeightPerPartitionJob && !Spec_->PartitionJobCount;
     }
 
     virtual bool IsExplicitJobCount() const override
@@ -334,14 +458,14 @@ public:
         return JobCount_;
     }
 
-    virtual i64 GetDataSizePerJob() const override
+    virtual i64 GetDataWeightPerJob() const override
     {
         return JobCount_ > 0
-            ? DivCeil(InputDataSize_, JobCount_)
+            ? DivCeil(InputDataWeight_, JobCount_)
             : 1;
     }
 
-    virtual i64 GetPrimaryDataSizePerJob() const override
+    virtual i64 GetPrimaryDataWeightPerJob() const override
     {
         Y_UNREACHABLE();
     }
@@ -351,27 +475,27 @@ public:
         return Options_->MaxDataSlicesPerJob;
     }
 
-    virtual i64 GetMaxDataSizePerJob() const override
+    virtual i64 GetMaxDataWeightPerJob() const override
     {
-        return Spec_->MaxDataSizePerJob;
+        return Spec_->MaxDataWeightPerJob;
     }
 
-    virtual i64 GetInputSliceDataSize() const override
+    virtual i64 GetInputSliceDataWeight() const override
     {
-        if (JobCount_ == 0 || InputDataSize_ == 0) {
+        if (JobCount_ == 0 || InputDataWeight_ == 0) {
             return 1;
         }
 
         i64 sliceDataSize = Clamp<i64>(
-            Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_,
+            Options_->SliceDataWeightMultiplier * InputDataWeight_ / JobCount_,
             1,
-            Options_->MaxSliceDataSize);
+            Options_->MaxSliceDataWeight);
 
-        if (sliceDataSize < Options_->MinSliceDataSize) {
+        if (sliceDataSize < Options_->MinSliceDataWeight) {
             // Non-trivial multiplier should be used only if input data size is large enough.
             // Otherwise we do not want to have more slices than job count.
 
-            sliceDataSize = DivCeil(InputDataSize_, JobCount_);
+            sliceDataSize = DivCeil(InputDataWeight_, JobCount_);
         }
 
         return sliceDataSize;
@@ -389,7 +513,7 @@ public:
         using NYT::Persist;
         Persist(context, Spec_);
         Persist(context, Options_);
-        Persist(context, InputDataSize_);
+        Persist(context, InputDataWeight_);
         Persist(context, InputRowCount_);
         Persist(context, JobCount_);
     }
@@ -400,7 +524,7 @@ private:
     TSortOperationSpecBasePtr Spec_;
     TSortOperationOptionsBasePtr Options_;
 
-    i64 InputDataSize_;
+    i64 InputDataWeight_;
     i64 InputRowCount_;
 
     i64 JobCount_;
@@ -420,29 +544,29 @@ public:
     { }
 
     TExplicitJobSizeConstraints(
-        bool canAdjustDataSizePerJob,
+        bool canAdjustDataWeightPerJob,
         bool isExplicitJobCount,
         int jobCount,
-        i64 dataSizePerJob,
-        i64 primaryDataSizePerJob,
+        i64 dataWeightPerJob,
+        i64 primaryDataWeightPerJob,
         i64 maxDataSlicesPerJob,
-        i64 maxDataSizePerJob,
-        i64 inputSliceDataSize,
+        i64 maxDataWeightPerJob,
+        i64 inputSliceDataWeight,
         i64 inputSliceRowCount)
-        : CanAdjustDataSizePerJob_(canAdjustDataSizePerJob)
+        : CanAdjustDataWeightPerJob_(canAdjustDataWeightPerJob)
         , IsExplicitJobCount_(isExplicitJobCount)
         , JobCount_(jobCount)
-        , DataSizePerJob_(dataSizePerJob)
-        , PrimaryDataSizePerJob_(primaryDataSizePerJob)
+        , DataWeightPerJob_(dataWeightPerJob)
+        , PrimaryDataWeightPerJob_(primaryDataWeightPerJob)
         , MaxDataSlicesPerJob_(maxDataSlicesPerJob)
-        , MaxDataSizePerJob_(maxDataSizePerJob)
-        , InputSliceDataSize_(inputSliceDataSize)
+        , MaxDataWeightPerJob_(maxDataWeightPerJob)
+        , InputSliceDataWeight_(inputSliceDataWeight)
         , InputSliceRowCount_(inputSliceRowCount)
     { }
 
-    virtual bool CanAdjustDataSizePerJob() const override
+    virtual bool CanAdjustDataWeightPerJob() const override
     {
-        return CanAdjustDataSizePerJob_;
+        return CanAdjustDataWeightPerJob_;
     }
 
     virtual bool IsExplicitJobCount() const override
@@ -455,9 +579,9 @@ public:
         return JobCount_;
     }
 
-    virtual i64 GetDataSizePerJob() const override
+    virtual i64 GetDataWeightPerJob() const override
     {
-        return DataSizePerJob_;
+        return DataWeightPerJob_;
     }
 
     virtual i64 GetMaxDataSlicesPerJob() const override
@@ -465,19 +589,19 @@ public:
         return MaxDataSlicesPerJob_;
     }
 
-    virtual i64 GetPrimaryDataSizePerJob() const override
+    virtual i64 GetPrimaryDataWeightPerJob() const override
     {
-        return PrimaryDataSizePerJob_;
+        return PrimaryDataWeightPerJob_;
     }
 
-    virtual i64 GetMaxDataSizePerJob() const override
+    virtual i64 GetMaxDataWeightPerJob() const override
     {
-        return MaxDataSizePerJob_;
+        return MaxDataWeightPerJob_;
     }
 
-    virtual i64 GetInputSliceDataSize() const override
+    virtual i64 GetInputSliceDataWeight() const override
     {
-        return InputSliceDataSize_;
+        return InputSliceDataWeight_;
     }
 
     virtual i64 GetInputSliceRowCount() const override
@@ -488,28 +612,28 @@ public:
     virtual void Persist(const NPhoenix::TPersistenceContext& context) override
     {
         using NYT::Persist;
-        Persist(context, CanAdjustDataSizePerJob_);
+        Persist(context, CanAdjustDataWeightPerJob_);
         Persist(context, IsExplicitJobCount_);
         Persist(context, JobCount_);
-        Persist(context, DataSizePerJob_);
-        Persist(context, PrimaryDataSizePerJob_);
+        Persist(context, DataWeightPerJob_);
+        Persist(context, PrimaryDataWeightPerJob_);
         Persist(context, MaxDataSlicesPerJob_);
-        Persist(context, MaxDataSizePerJob_);
-        Persist(context, InputSliceDataSize_);
+        Persist(context, MaxDataWeightPerJob_);
+        Persist(context, InputSliceDataWeight_);
         Persist(context, InputSliceRowCount_);
     }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints, 0xab6bc389);
 
-    bool CanAdjustDataSizePerJob_;
+    bool CanAdjustDataWeightPerJob_;
     bool IsExplicitJobCount_;
     int JobCount_;
-    i64 DataSizePerJob_;
-    i64 PrimaryDataSizePerJob_;
+    i64 DataWeightPerJob_;
+    i64 PrimaryDataWeightPerJob_;
     i64 MaxDataSlicesPerJob_;
-    i64 MaxDataSizePerJob_;
-    i64 InputSliceDataSize_;
+    i64 MaxDataWeightPerJob_;
+    i64 InputSliceDataWeight_;
     i64 InputSliceRowCount_;
 };
 
@@ -527,6 +651,19 @@ IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
     i64 foreignInputDataSize)
 {
     return New<TSimpleJobSizeConstraints>(spec, options, outputTableCount, primaryInputDataSize, inputRowCount, foreignInputDataSize);
+}
+
+IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
+    const NScheduler::TSimpleOperationSpecBasePtr& spec,
+    const NScheduler::TSimpleOperationOptionsPtr& options,
+    i64 inputDataWeight,
+    double compressionRatio)
+{
+    return New<TMergeJobSizeConstraints>(
+        spec,
+        options,
+        inputDataWeight,
+        compressionRatio);
 }
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
@@ -559,10 +696,10 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     i64 jobsPerPartition = DivCeil(
         options->MaxOutputTablesTimesJobsCount,
         outputTableCount * options->MaxPartitionCount);
-    i64 estimatedDataSizePerPartition = 2 * spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob);
+    i64 estimatedDataSizePerPartition = 2 * spec->DataWeightPerSortedJob.Get(spec->DataWeightPerShuffleJob);
 
     i64 minDataSizePerJob = std::max(estimatedDataSizePerPartition / jobsPerPartition, (i64)1);
-    i64 dataSizePerJob = std::max(minDataSizePerJob, spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob));
+    i64 dataSizePerJob = std::max(minDataSizePerJob, spec->DataWeightPerSortedJob.Get(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
         false /* canAdjustDataSizePerJob */,

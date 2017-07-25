@@ -24,7 +24,7 @@ namespace NChunkPools {
 struct TChunkStripeStatistics
 {
     int ChunkCount = 0;
-    i64 DataSize = 0;
+    i64 DataWeight = 0;
     i64 RowCount = 0;
     i64 MaxBlockSize = 0;
 
@@ -87,11 +87,11 @@ struct TChunkStripeList
 
     TNullable<int> PartitionTag;
 
-    //! If True then TotalDataSize and TotalRowCount are approximate (and are hopefully upper bounds).
+    //! If True then TotalDataWeight and TotalRowCount are approximate (and are hopefully upper bounds).
     bool IsApproximate = false;
 
-    i64 TotalDataSize = 0;
-    i64 LocalDataSize = 0;
+    i64 TotalDataWeight = 0;
+    i64 LocalDataWeight = 0;
 
     i64 TotalRowCount = 0;
 
@@ -142,10 +142,10 @@ struct IChunkPoolOutput
     typedef int TCookie;
     static constexpr TCookie NullCookie = -1;
 
-    virtual i64 GetTotalDataSize() const = 0;
-    virtual i64 GetRunningDataSize() const = 0;
-    virtual i64 GetCompletedDataSize() const = 0;
-    virtual i64 GetPendingDataSize() const = 0;
+    virtual i64 GetTotalDataWeight() const = 0;
+    virtual i64 GetRunningDataWeight() const = 0;
+    virtual i64 GetCompletedDataWeight() const = 0;
+    virtual i64 GetPendingDataWeight() const = 0;
 
     virtual i64 GetTotalRowCount() const = 0;
 
@@ -192,13 +192,13 @@ public:
 
     // IChunkPoolOutput implementation.
 
-    virtual i64 GetTotalDataSize() const override;
+    virtual i64 GetTotalDataWeight() const override;
 
-    virtual i64 GetRunningDataSize() const override;
+    virtual i64 GetRunningDataWeight() const override;
 
-    virtual i64 GetCompletedDataSize() const override;
+    virtual i64 GetCompletedDataWeight() const override;
 
-    virtual i64 GetPendingDataSize() const override;
+    virtual i64 GetPendingDataWeight() const override;
 
     virtual i64 GetTotalRowCount() const override;
 
@@ -216,7 +216,7 @@ public:
     DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
 
 protected:
-    NControllerAgent::TProgressCounter DataSizeCounter;
+    NControllerAgent::TProgressCounter DataWeightCounter;
     NControllerAgent::TProgressCounter RowCounter;
     NControllerAgent::TProgressCounter JobCounter;
 

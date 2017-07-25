@@ -348,11 +348,15 @@ private:
         }
 
         chunkSpec->set_row_count_override(upperRowLimit - lowerRowLimit);
+        i64 dataWeight = chunk->MiscExt().data_weight() > 0
+            ? chunk->MiscExt().data_weight()
+            : chunk->MiscExt().uncompressed_data_size();
+
         if (chunkSpec->row_count_override() >= chunk->MiscExt().row_count()) {
-            chunkSpec->set_uncompressed_data_size_override(chunk->MiscExt().uncompressed_data_size());
+            chunkSpec->set_data_weight_override(dataWeight);
         } else {
-            chunkSpec->set_uncompressed_data_size_override(
-                DivCeil(chunk->MiscExt().uncompressed_data_size(), chunk->MiscExt().row_count()) * chunkSpec->row_count_override());
+            chunkSpec->set_data_weight_override(
+                DivCeil(dataWeight, chunk->MiscExt().row_count()) * chunkSpec->row_count_override());
         }
 
         return true;

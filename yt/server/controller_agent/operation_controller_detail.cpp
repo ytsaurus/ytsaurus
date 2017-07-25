@@ -251,7 +251,7 @@ void TOperationControllerBase::TCompletedJob::Persist(const TPersistenceContext&
     Persist(context, JobId);
     Persist(context, SourceTask);
     Persist(context, OutputCookie);
-    Persist(context, DataSize);
+    Persist(context, DataWeight);
     Persist(context, DestinationPool);
     Persist(context, InputCookie);
     Persist(context, NodeDescriptor);
@@ -613,19 +613,19 @@ void TOperationControllerBase::TTask::ScheduleJob(
 
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
-            schedulerJobSpecExt->set_input_uncompressed_data_size(static_cast<i64>(
-                schedulerJobSpecExt->input_uncompressed_data_size() *
+            schedulerJobSpecExt->set_input_data_weight(static_cast<i64>(
+                schedulerJobSpecExt->input_data_weight() *
                 ApproximateSizesBoostFactor));
             schedulerJobSpecExt->set_input_row_count(static_cast<i64>(
                 schedulerJobSpecExt->input_row_count() *
                 ApproximateSizesBoostFactor));
         }
 
-        if (schedulerJobSpecExt->input_uncompressed_data_size() > controller->Spec->MaxDataSizePerJob) {
+        if (schedulerJobSpecExt->input_data_weight() > controller->Spec->MaxDataWeightPerJob) {
             controller->OnOperationFailed(TError(
-                "Maximum allowed data size per job violated: %v > %v",
-                schedulerJobSpecExt->input_uncompressed_data_size(),
-                controller->Spec->MaxDataSizePerJob));
+                "Maximum allowed data weight per job violated: %v > %v",
+                schedulerJobSpecExt->input_data_weight(),
+                controller->Spec->MaxDataWeightPerJob));
         }
     });
 
@@ -651,7 +651,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
-        "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
+        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
         joblet->JobId,
         Controller->OperationId,
@@ -662,8 +662,8 @@ void TOperationControllerBase::TTask::ScheduleJob(
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
         joblet->InputStripeList->IsApproximate,
-        joblet->InputStripeList->TotalDataSize,
-        joblet->InputStripeList->LocalDataSize,
+        joblet->InputStripeList->TotalDataWeight,
+        joblet->InputStripeList->LocalDataWeight,
         joblet->InputStripeList->TotalRowCount,
         restarted,
         FormatResources(estimatedResourceUsage),
@@ -717,19 +717,19 @@ bool TOperationControllerBase::TTask::IsActive() const
     return true;
 }
 
-i64 TOperationControllerBase::TTask::GetTotalDataSize() const
+i64 TOperationControllerBase::TTask::GetTotalDataWeight() const
 {
-    return GetChunkPoolOutput()->GetTotalDataSize();
+    return GetChunkPoolOutput()->GetTotalDataWeight();
 }
 
-i64 TOperationControllerBase::TTask::GetCompletedDataSize() const
+i64 TOperationControllerBase::TTask::GetCompletedDataWeight() const
 {
-    return GetChunkPoolOutput()->GetCompletedDataSize();
+    return GetChunkPoolOutput()->GetCompletedDataWeight();
 }
 
-i64 TOperationControllerBase::TTask::GetPendingDataSize() const
+i64 TOperationControllerBase::TTask::GetPendingDataWeight() const
 {
-    return GetChunkPoolOutput()->GetPendingDataSize();
+    return GetChunkPoolOutput()->GetPendingDataWeight();
 }
 
 void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context)
@@ -981,9 +981,9 @@ void TOperationControllerBase::TTask::UpdateInputSpecTotals(
 {
     const auto& list = joblet->InputStripeList;
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    schedulerJobSpecExt->set_input_uncompressed_data_size(
-        schedulerJobSpecExt->input_uncompressed_data_size() +
-        list->TotalDataSize);
+    schedulerJobSpecExt->set_input_data_weight(
+        schedulerJobSpecExt->input_data_weight() +
+        list->TotalDataWeight);
     schedulerJobSpecExt->set_input_row_count(
         schedulerJobSpecExt->input_row_count() +
         list->TotalRowCount);
@@ -1131,7 +1131,7 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         joblet->JobId,
         this,
         joblet->OutputCookie,
-        joblet->InputStripeList->TotalDataSize,
+        joblet->InputStripeList->TotalDataWeight,
         destinationPool,
         inputCookie,
         joblet->NodeDescriptor);
@@ -2366,23 +2366,23 @@ void TOperationControllerBase::InitializeHistograms()
 void TOperationControllerBase::AddValueToEstimatedHistogram(TJobletPtr joblet)
 {
     if (EstimatedInputDataSizeHistogram_) {
-        EstimatedInputDataSizeHistogram_->AddValue(joblet->InputStripeList->TotalDataSize);
+        EstimatedInputDataSizeHistogram_->AddValue(joblet->InputStripeList->TotalDataWeight);
     }
 }
 
 void TOperationControllerBase::RemoveValueFromEstimatedHistogram(TJobletPtr joblet)
 {
     if (EstimatedInputDataSizeHistogram_) {
-        EstimatedInputDataSizeHistogram_->RemoveValue(joblet->InputStripeList->TotalDataSize);
+        EstimatedInputDataSizeHistogram_->RemoveValue(joblet->InputStripeList->TotalDataWeight);
     }
 }
 
 void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statistics)
 {
     if (InputDataSizeHistogram_) {
-        auto dataSize = FindNumericValue(statistics, "/data/input/uncompressed_data_size");
-        if (dataSize && *dataSize > 0) {
-            InputDataSizeHistogram_->AddValue(*dataSize);
+        auto dataWeight = FindNumericValue(statistics, "/data/input/data_weight");
+        if (dataWeight && *dataWeight > 0) {
+            InputDataSizeHistogram_->AddValue(*dataWeight);
         }
     }
 }
@@ -3296,7 +3296,7 @@ void TOperationControllerBase::AnalyzeJobsDuration() const
                 "Duration of %Qlv jobs is less than %v seconds, try increasing %v in operation spec",
                 jobType,
                 Config->OperationAlertsConfig->ShortJobsAlertMinJobDuration.Seconds(),
-                GetDataSizeParameterNameForJob(jobType))
+                GetDataWeightParameterNameForJob(jobType))
                     << TErrorAttribute("max_job_duration", maxJobDuration);
 
             innerErrors.push_back(error);
@@ -3667,12 +3667,12 @@ void TOperationControllerBase::DoScheduleLocalJob(
         if (bestTask) {
             LOG_DEBUG(
                 "Attempting to schedule a local job (Task: %v, Address: %v, Locality: %v, JobLimits: %v, "
-                "PendingDataSize: %v, PendingJobCount: %v)",
+                "PendingDataWeight: %v, PendingJobCount: %v)",
                 bestTask->GetId(),
                 address,
                 bestLocality,
                 FormatResources(jobLimits),
-                bestTask->GetPendingDataSize(),
+                bestTask->GetPendingDataWeight(),
                 bestTask->GetPendingJobCount());
 
             if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput(), bestTask->IsStderrTableEnabled(), bestTask->IsCoreTableEnabled())) {
@@ -3792,11 +3792,11 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
                 LOG_DEBUG(
                     "Attempting to schedule a non-local job (Task: %v, Address: %v, JobLimits: %v, "
-                    "PendingDataSize: %v, PendingJobCount: %v)",
+                    "PendingDataWeight: %v, PendingJobCount: %v)",
                     task->GetId(),
                     address,
                     FormatResources(jobLimits),
-                    task->GetPendingDataSize(),
+                    task->GetPendingDataWeight(),
                     task->GetPendingJobCount());
 
                 if (!HasEnoughChunkLists(task->IsIntermediateOutput(), task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
@@ -5231,14 +5231,14 @@ void TOperationControllerBase::CollectTotals()
             }
 
             if (table.IsPrimary()) {
-                PrimaryInputDataSize += inputChunk->GetUncompressedDataSize();
+                PrimaryInputDataWeight += inputChunk->GetDataWeight();
             } else {
-                ForeignInputDataSize += inputChunk->GetUncompressedDataSize();
+                ForeignInputDataWeight += inputChunk->GetDataWeight();
             }
 
-            TotalEstimatedInputDataSize += inputChunk->GetUncompressedDataSize();
+            TotalEstimatedInputUncompressedDataSize += inputChunk->GetUncompressedDataSize();
             TotalEstimatedInputRowCount += inputChunk->GetRowCount();
-            TotalEstimatedCompressedDataSize += inputChunk->GetCompressedDataSize();
+            TotalEstimatedInputCompressedDataSize += inputChunk->GetCompressedDataSize();
             TotalEstimatedInputDataWeight += inputChunk->GetDataWeight();
             ++TotalEstimatedInputChunkCount;
         }
@@ -5247,8 +5247,8 @@ void TOperationControllerBase::CollectTotals()
     LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v)",
         TotalEstimatedInputChunkCount,
         TotalEstimatedInputRowCount,
-        TotalEstimatedInputDataSize,
-        TotalEstimatedCompressedDataSize,
+        TotalEstimatedInputUncompressedDataSize,
+        TotalEstimatedInputCompressedDataSize,
         TotalEstimatedInputDataWeight);
 }
 
@@ -5307,17 +5307,17 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryVersionedChu
 
 std::pair<i64, i64> TOperationControllerBase::CalculatePrimaryVersionedChunksStatistics() const
 {
-    i64 dataSize = 0;
+    i64 dataWeight = 0;
     i64 rowCount = 0;
     for (const auto& table : InputTables) {
         if (!table.IsForeign() && table.IsDynamic && table.Schema.IsSorted()) {
             for (const auto& chunk : table.Chunks) {
-                dataSize += chunk->GetUncompressedDataSize();
+                dataWeight += chunk->GetDataWeight();
                 rowCount += chunk->GetRowCount();
             }
         }
     }
-    return std::make_pair(dataSize, rowCount);
+    return std::make_pair(dataWeight, rowCount);
 }
 
 std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
@@ -5505,14 +5505,14 @@ void TOperationControllerBase::SliceUnversionedChunks(
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
             auto slices = SliceChunkByRowIndexes(
                 chunkSpec,
-                jobSizeConstraints->GetInputSliceDataSize(),
+                jobSizeConstraints->GetInputSliceDataWeight(),
                 jobSizeConstraints->GetInputSliceRowCount());
 
             appendStripes(slices);
         } else {
             for (const auto& slice : CreateErasureInputChunkSlices(chunkSpec, codecId)) {
                 auto slices = slice->SliceEvenly(
-                    jobSizeConstraints->GetInputSliceDataSize(),
+                    jobSizeConstraints->GetInputSliceDataWeight(),
                     jobSizeConstraints->GetInputSliceRowCount());
 
                 appendStripes(slices);
@@ -5536,7 +5536,7 @@ void TOperationControllerBase::SlicePrimaryVersionedChunks(
     const IJobSizeConstraintsPtr& jobSizeConstraints,
     std::vector<TChunkStripePtr>* result)
 {
-    for (const auto& dataSlice : CollectPrimaryVersionedDataSlices(jobSizeConstraints->GetInputSliceDataSize())) {
+    for (const auto& dataSlice : CollectPrimaryVersionedDataSlices(jobSizeConstraints->GetInputSliceDataWeight())) {
         result->push_back(New<TChunkStripe>(dataSlice));
     }
 }
@@ -6081,8 +6081,8 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
         .Item("job_statistics").Value(JobStatistics)
         .Item("estimated_input_statistics").BeginMap()
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
-            .Item("uncompressed_data_size").Value(TotalEstimatedInputDataSize)
-            .Item("compressed_data_size").Value(TotalEstimatedCompressedDataSize)
+            .Item("uncompressed_data_size").Value(TotalEstimatedInputUncompressedDataSize)
+            .Item("compressed_data_size").Value(TotalEstimatedInputCompressedDataSize)
             .Item("data_weight").Value(TotalEstimatedInputDataWeight)
             .Item("row_count").Value(TotalEstimatedInputRowCount)
             .Item("unavailable_chunk_count").Value(GetUnavailableInputChunkCount())
@@ -6904,9 +6904,9 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, TotalEstimatedInputChunkCount);
-    Persist(context, TotalEstimatedInputDataSize);
+    Persist(context, TotalEstimatedInputUncompressedDataSize);
     Persist(context, TotalEstimatedInputRowCount);
-    Persist(context, TotalEstimatedCompressedDataSize);
+    Persist(context, TotalEstimatedInputCompressedDataSize);
     Persist(context, TotalEstimatedInputDataWeight);
 
     Persist(context, UnavailableInputChunkCount);

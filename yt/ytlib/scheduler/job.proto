@@ -164,7 +164,7 @@ message TSchedulerJobSpecExt
     optional NNodeTrackerClient.NProto.TNodeDirectory input_node_directory = 5;
 
     // Total input uncompressed data size estimate.
-    optional int64 input_uncompressed_data_size = 6 [default = 0];
+    optional int64 input_data_weight = 6 [default = 0];
 
     // Total input row count estimate.
     optional int64 input_row_count = 7 [default = 0];

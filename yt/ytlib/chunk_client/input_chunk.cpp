@@ -26,15 +26,17 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     const auto& chunkMeta = chunkSpec.chunk_meta();
     auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta.extensions());
 
-    UncompressedDataSize_ = chunkSpec.has_uncompressed_data_size_override()
-        ? chunkSpec.uncompressed_data_size_override()
-        : miscExt.uncompressed_data_size();
+    UncompressedDataSize_ = miscExt.uncompressed_data_size();
+
     RowCount_ = chunkSpec.has_row_count_override()
         ? chunkSpec.row_count_override()
         : miscExt.row_count();
 
     CompressedDataSize_ = miscExt.compressed_data_size();
-    DataWeight_ = miscExt.data_weight();
+    DataWeight_ = chunkSpec.has_data_weight_override()
+        ? chunkSpec.data_weight_override()
+        : (miscExt.has_data_weight() ? miscExt.data_weight() : UncompressedDataSize_);
+
     MaxBlockSize_ = miscExt.has_max_block_size()
         ? miscExt.max_block_size()
         : DefaultMaxBlockSize;

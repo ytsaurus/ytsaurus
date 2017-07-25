@@ -222,7 +222,7 @@ public:
     //! What to do during operation progress when some chunks get unavailable.
     EUnavailableChunkAction UnavailableChunkTactics;
 
-    i64 MaxDataSizePerJob;
+    i64 MaxDataWeightPerJob;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -374,7 +374,7 @@ public:
     //! groups of chunks are partitioned into tasks of this or smaller size.
     //! This number, however, is merely an estimate, i.e. some tasks may still
     //! be larger.
-    TNullable<i64> DataSizePerJob;
+    TNullable<i64> DataWeightPerJob;
 
     bool ConsiderOnlyPrimarySize;
 
@@ -609,16 +609,16 @@ public:
 
     //! Amount of (uncompressed) data to be distributed to one partition.
     //! It used only to determine partition count.
-    TNullable<i64> PartitionDataSize;
+    TNullable<i64> PartitionDataWeight;
     TNullable<int> PartitionCount;
 
     //! Amount of (uncompressed) data to be given to a single partition job.
     //! It used only to determine partition job count.
-    TNullable<i64> DataSizePerPartitionJob;
+    TNullable<i64> DataWeightPerPartitionJob;
     TNullable<int> PartitionJobCount;
 
     //! Data size per shuffle job.
-    i64 DataSizePerShuffleJob;
+    i64 DataWeightPerShuffleJob;
 
     //! The expected ratio of data size after partitioning to data size before partitioning.
     //! For sort operations, this is always 1.0.
@@ -650,8 +650,8 @@ public:
     bool EnablePartitionedDataBalancing;
 
     //! When #EnablePartitionedDataBalancing is |true| the scheduler tries to maintain the following
-    //! invariant regarding (uncompressed) |DataSize(i)| assigned to each node |i|:
-    //! |max_i DataSize(i) <= avg_i DataSize(i) + DataSizePerJob * PartitionedDataBalancingTolerance|
+    //! invariant regarding |DataWeight(i)| assigned to each node |i|:
+    //! |max_i DataWeight(i) <= avg_i DataWeight(i) + DataWeightPerJob * PartitionedDataBalancingTolerance|
     double PartitionedDataBalancingTolerance;
 
     // For all kinds of sort jobs: simple_sort, intermediate_sort, final_sort.
@@ -659,7 +659,7 @@ public:
     // For partition and partition_map jobs.
     TLogDigestConfigPtr PartitionJobProxyMemoryDigest;
 
-    TNullable<i64> DataSizePerSortedJob;
+    TNullable<i64> DataWeightPerSortedJob;
 
     TSortOperationSpecBase();
 

@@ -13,13 +13,13 @@ using namespace NChunkClient;
 
 void AddStripeToList(
     const TChunkStripePtr& stripe,
-    i64 stripeDataSize,
+    i64 stripeDataWeight,
     i64 stripeRowCount,
     const TChunkStripeListPtr& list,
     TNodeId nodeId)
 {
     list->Stripes.push_back(stripe);
-    list->TotalDataSize += stripeDataSize;
+    list->TotalDataWeight += stripeDataWeight;
     list->TotalRowCount += stripeRowCount;
     list->TotalChunkCount += stripe->GetChunkCount();
     if (nodeId == InvalidNodeId) {
@@ -32,7 +32,7 @@ void AddStripeToList(
                 if (replica.GetNodeId() == nodeId) {
                     i64 locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
-                        list->LocalDataSize += locality;
+                        list->LocalDataWeight += locality;
                         isLocal = true;
                     }
                 }
@@ -76,8 +76,8 @@ TChunkStripeListPtr ApplyChunkMappingToStripe(
     }
 
     mappedStripeList->IsApproximate = stripeList->IsApproximate;
-    mappedStripeList->TotalDataSize = stripeList->TotalDataSize;
-    mappedStripeList->LocalDataSize = stripeList->LocalDataSize;
+    mappedStripeList->TotalDataWeight = stripeList->TotalDataWeight;
+    mappedStripeList->LocalDataWeight = stripeList->LocalDataWeight;
     mappedStripeList->TotalRowCount = stripeList->TotalRowCount;
     mappedStripeList->TotalChunkCount = stripeList->TotalChunkCount;
     mappedStripeList->LocalChunkCount = stripeList->LocalChunkCount;

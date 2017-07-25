@@ -3290,7 +3290,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
             write_table("<append=true>//tmp/t_input", row, verbose=False)
         chunk_ids = get("//tmp/t_input/@chunk_ids")
         chunk_id = chunk_ids[0]
-        chunk_size = get("#{0}/@uncompressed_data_size".format(chunk_id))
+        chunk_size = get("#{0}/@data_weight".format(chunk_id))
         create("table", "//tmp/t_output")
 
         op = map(
