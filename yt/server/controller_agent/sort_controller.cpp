@@ -1744,10 +1744,6 @@ protected:
         }
         auto data = keySetWriter->Finish();
         partitionJobSpecExt->set_wire_partition_keys(ToString(data));
-
-        // COMPAT(psushin).
-        // NB: This dummy key guards us from old nodes and silent sort corruptions.
-        partitionJobSpecExt->add_partition_keys("not_a_key");
     }
 
     i64 GetMaxPartitionJobBufferSize() const

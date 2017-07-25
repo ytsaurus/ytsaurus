@@ -291,11 +291,7 @@ message TPartitionJobSpecExt
     // Deprecated = 2.
     // Deprecated = 3.
     // Deprecated = 4.
-
-    // If empty then THashPartitioner is used.
-    // Otherwise TOrderedPartitioner is used.
-
-    repeated string partition_keys = 5;
+    // Deprecated = 5.
 
     // Sort key columns (may be wider than reduce key).
     required NTableClient.NProto.TKeyColumnsExt sort_key_columns = 6;
@@ -303,6 +299,8 @@ message TPartitionJobSpecExt
     // Size of key prefix used for bucket decision.
     optional int32 reduce_key_column_count = 7;
 
+    // If empty then THashPartitioner is used.
+    // Otherwise TOrderedPartitioner is used.
     optional bytes wire_partition_keys = 8;
 }
 
