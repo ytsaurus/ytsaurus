@@ -116,17 +116,17 @@ public:
         TimestampProvider_ = CreateRemoteTimestampProvider(
             PrimaryMasterCellTag_,
             timestampProviderConfig,
-            LightChannelFactory_);
+            ChannelFactory_);
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
-            LightChannelFactory_,
+            ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
 
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
-            LightChannelFactory_,
+            ChannelFactory_,
             GetNetworks());
         CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
         for (const auto& cellConfig : Config_->SecondaryMasters) {
@@ -228,19 +228,14 @@ public:
         return it->second;
     }
 
-    virtual IChannelPtr GetSchedulerChannel() override
+    virtual const IChannelPtr& GetSchedulerChannel() override
     {
         return SchedulerChannel_;
     }
 
-    virtual IChannelFactoryPtr GetLightChannelFactory() override
+    virtual const IChannelFactoryPtr& GetChannelFactory() override
     {
-        return LightChannelFactory_;
-    }
-
-    virtual IChannelFactoryPtr GetHeavyChannelFactory() override
-    {
-        return HeavyChannelFactory_;
+        return ChannelFactory_;
     }
 
     virtual IBlockCachePtr GetBlockCache() override
@@ -336,8 +331,7 @@ private:
     const TNativeConnectionConfigPtr Config_;
     const TNativeConnectionOptions Options_;
 
-    const NRpc::IChannelFactoryPtr LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
-    const NRpc::IChannelFactoryPtr HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+    const NRpc::IChannelFactoryPtr ChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
     TCellId PrimaryMasterCellId_;
     TCellTag PrimaryMasterCellTag_;
@@ -367,7 +361,7 @@ private:
     {
         auto channel = NHydra::CreatePeerChannel(
             config,
-            LightChannelFactory_,
+            ChannelFactory_,
             kind);
 
         auto isRetryableError = BIND([options = Options_] (const TError& error) {

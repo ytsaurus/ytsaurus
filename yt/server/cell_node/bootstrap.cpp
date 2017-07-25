@@ -255,7 +255,7 @@ void TBootstrap::DoRun()
             ToRedirectorCellId(config->CellId),
             Config->BatchingChunkService,
             config,
-            MasterConnection->GetLightChannelFactory()));
+            MasterConnection->GetChannelFactory()));
     };
 
     createBatchingChunkService(Config->ClusterConnection->PrimaryMaster);
@@ -473,7 +473,7 @@ void TBootstrap::DoRun()
         CreateDefaultTimeoutChannel(
             CreatePeerChannel(
                 Config->ClusterConnection->PrimaryMaster,
-                MasterConnection->GetLightChannelFactory(),
+                MasterConnection->GetChannelFactory(),
                 EPeerKind::Follower),
             Config->ClusterConnection->PrimaryMaster->RpcTimeout),
         GetCellId());

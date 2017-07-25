@@ -21,6 +21,8 @@
 
 #include <yt/core/rpc/rpc.pb.h>
 
+#include <array>
+
 namespace NYT {
 namespace NRpc {
 
@@ -65,7 +67,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            auto session = GetOrCreateSession();
+            auto session = GetOrCreateSession(options.MultiplexingBand);
             return session->Send(
                 std::move(request),
                 std::move(responseHandler),
@@ -81,22 +83,26 @@ public:
         YCHECK(!error.IsOK());
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TSessionPtr session;
+        std::vector<TSessionPtr> sessions;
         {
-            auto guard = Guard(SpinLock_);
+            TWriterGuard guard(SpinLock_);
 
             if (Terminated_) {
                 return VoidFuture;
             }
 
-            session = Session_;
-            Session_.Reset();
+            for (auto& session : Sessions_) {
+                if (session) {
+                    sessions.push_back(session);
+                    session.Reset();
+                }
+            }
 
             Terminated_ = true;
             TerminationError_ = error;
         }
 
-        if (session) {
+        for (const auto& session : sessions) {
             session->Terminate(error);
         }
 
@@ -112,20 +118,38 @@ private:
 
     const IBusClientPtr Client_;
 
-    TSpinLock SpinLock_;
+    TReaderWriterSpinLock SpinLock_;
     bool Terminated_ = false;
     TError TerminationError_;
-    TSessionPtr Session_;
+    std::array<TSessionPtr, MaxMultiplexingBand - MinMultiplexingBand + 1> Sessions_;
 
-    TSessionPtr GetOrCreateSession()
+    TSessionPtr* GetPerBandSession(int band)
     {
+        return &Sessions_[MinMultiplexingBand + band];
+    }
+
+    TSessionPtr GetOrCreateSession(int band)
+    {
+        auto* perBandSession = GetPerBandSession(band);
+
+        // Fast path.
+        {
+            TReaderGuard guard(SpinLock_);
+
+            if (*perBandSession) {
+                return *perBandSession;
+            }
+        }
+
         IBusPtr bus;
         TSessionPtr session;
-        {
-            auto guard = Guard(SpinLock_);
 
-            if (Session_) {
-                return Session_;
+        // Slow path.
+        {
+            TWriterGuard guard(SpinLock_);
+
+            if (*perBandSession) {
+                return *perBandSession;
             }
 
             if (Terminated_) {
@@ -135,20 +159,20 @@ private:
 
             session = New<TSession>();
             auto messageHandler = New<TMessageHandler>(session);
-
             bus = Client_->CreateBus(messageHandler);
             session->Initialize(bus);
-            Session_ = session;
+            *perBandSession = session;
         }
 
         bus->SubscribeTerminated(BIND(
             &TBusChannel::OnBusTerminated,
             MakeWeak(this),
-            MakeWeak(session)));
+            MakeWeak(session),
+            band));
         return session;
     }
 
-    void OnBusTerminated(TWeakPtr<TSession> session, const TError& error)
+    void OnBusTerminated(const TWeakPtr<TSession>& session, int band, const TError& error)
     {
         auto session_ = session.Lock();
         if (!session_) {
@@ -156,10 +180,11 @@ private:
         }
 
         {
-            auto guard = Guard(SpinLock_);
+            TWriterGuard guard(SpinLock_);
 
-            if (Session_ == session_) {
-                Session_.Reset();
+            auto* perBandSession = GetPerBandSession(band);
+            if (*perBandSession == session_) {
+                perBandSession->Reset();
             }
         }
 
@@ -174,7 +199,7 @@ private:
     {
     public:
         explicit TMessageHandler(TSessionPtr session)
-            : Session_(session)
+            : Session_(std::move(session))
         { }
 
         virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) throw() override
@@ -199,7 +224,7 @@ private:
         void Initialize(IBusPtr bus)
         {
             YCHECK(bus);
-            Bus_ = bus;
+            Bus_ = std::move(bus);
         }
 
         void Terminate(const TError& error)

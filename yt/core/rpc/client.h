@@ -47,6 +47,9 @@ struct IClientRequest
     virtual bool GetRetry() const = 0;
     virtual void SetRetry(bool value) = 0;
 
+    virtual int GetMultiplexingBand() const = 0;
+    virtual void SetMultiplexingBand(int band) = 0;
+
     virtual size_t GetHash() const = 0;
 };
 
@@ -115,12 +118,16 @@ public:
 
     virtual size_t GetHash() const override;
 
+    virtual int GetMultiplexingBand() const override;
+    virtual void SetMultiplexingBand(int band) override;
+
 protected:
     const IChannelPtr Channel_;
 
     NProto::TRequestHeader Header_;
     mutable TSharedRef SerializedBody_;
     mutable TNullable<size_t> Hash_;
+    int MultiplexingBand_ = MinMultiplexingBand;
     bool FirstTimeSerialization_ = true;
 
 

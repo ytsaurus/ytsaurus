@@ -463,11 +463,8 @@ public:
 
         SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
 
-        LightChannelFactory_ = CreateNodeChannelFactory(
-            wrapChannelFactory(Connection_->GetLightChannelFactory()),
-            Connection_->GetNetworks());
-        HeavyChannelFactory_ = CreateNodeChannelFactory(
-            wrapChannelFactory(Connection_->GetHeavyChannelFactory()),
+        ChannelFactory_ = CreateNodeChannelFactory(
+            wrapChannelFactory(Connection_->GetChannelFactory()),
             Connection_->GetNetworks());
 
         SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
@@ -523,14 +520,9 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual INodeChannelFactoryPtr GetLightChannelFactory() override
+    virtual const INodeChannelFactoryPtr& GetChannelFactory() override
     {
-        return LightChannelFactory_;
-    }
-
-    virtual INodeChannelFactoryPtr GetHeavyChannelFactory() override
-    {
-        return HeavyChannelFactory_;
+        return ChannelFactory_;
     }
 
     virtual TFuture<void> Terminate() override
@@ -853,8 +845,7 @@ private:
 
     TEnumIndexedVector<yhash<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
-    INodeChannelFactoryPtr LightChannelFactory_;
-    INodeChannelFactoryPtr HeavyChannelFactory_;
+    INodeChannelFactoryPtr ChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TFunctionImplCachePtr FunctionImplCache_;
     IFunctionRegistryPtr FunctionRegistry_;
@@ -1089,7 +1080,7 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, EPeerKind::Leader);
-        return HeavyChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddress(Connection_->GetNetworks()));
+        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddress(Connection_->GetNetworks()));
     }
 
 
@@ -1211,6 +1202,7 @@ private:
             const auto& batch = Batches_[InvokeBatchIndex_];
 
             auto req = InvokeProxy_->Read();
+            req->SetMultiplexingBand(NRpc::DefaultHeavyMultiplexingBand);
             ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
             req->set_mount_revision(batch->TabletInfo->MountRevision);
             req->set_timestamp(Options_.Timestamp);
@@ -1440,7 +1432,7 @@ private:
         for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
             asyncResults.push_back(session->Invoke(
-                GetHeavyChannelFactory(),
+                ChannelFactory_,
                 Connection_->GetCellDirectory()));
         }
 
@@ -1517,7 +1509,7 @@ private:
 
         auto queryExecutor = CreateQueryExecutor(
             Connection_,
-            HeavyChannelFactory_,
+            ChannelFactory_,
             FunctionImplCache_);
 
         TQueryPtr query;
@@ -2674,10 +2666,11 @@ private:
                 FromProto(&jobNodeDescriptor, rsp->node_descriptor());
             }
 
-            auto nodeChannel = GetHeavyChannelFactory()->CreateChannel(jobNodeDescriptor);
+            auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
             NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
 
             auto req = jobProberServiceProxy.GetStderr();
+            req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
             ToProto(req->mutable_job_id(), jobId);
             auto rsp = WaitFor(req->Invoke())
                 .ValueOrThrow();
@@ -4002,6 +3995,7 @@ private:
             proxy.SetDefaultRequestAck(false);
 
             auto req = proxy.Write();
+            req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
             ToProto(req->mutable_transaction_id(), owner->GetId());
             if (owner->GetAtomicity() == EAtomicity::Full) {
                 req->set_transaction_start_timestamp(owner->GetStartTimestamp());

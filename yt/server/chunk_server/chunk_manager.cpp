@@ -1062,7 +1062,7 @@ public:
             replicas,
             Config_->JournalRpcTimeout,
             chunk->GetReadQuorum(),
-            Bootstrap_->GetLightNodeChannelFactory());
+            Bootstrap_->GetNodeChannelFactory());
     }
 
 
