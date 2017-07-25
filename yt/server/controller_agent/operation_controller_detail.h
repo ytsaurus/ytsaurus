@@ -254,27 +254,269 @@ public:
         IOperationHost* host,
         TOperation* operation);
 
-protected:
-    // Forward declarations.
-    class TTask;
-    typedef TIntrusivePtr<TTask> TTaskPtr;
-
     struct TTaskGroup;
     typedef TIntrusivePtr<TTaskGroup> TTaskGroupPtr;
 
-    struct TJobInfo;
-    typedef TIntrusivePtr<TJobInfo> TJobInfoPtr;
-
-    struct TJoblet;
-    typedef TIntrusivePtr<TJoblet> TJobletPtr;
-
-    struct TFinishedJobInfo;
-    typedef TIntrusivePtr<TFinishedJobInfo> TFinishedJobInfoPtr;
 
     struct TCompletedJob;
     typedef TIntrusivePtr<TCompletedJob> TCompletedJobPtr;
 
+    class TTask;
+    typedef TIntrusivePtr<TTask> TTaskPtr;
 
+    class TTask
+        : public TRefCounted
+        , public IPersistent
+    {
+    public:
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+
+    public:
+        //! For persistence only.
+        TTask();
+        explicit TTask(TOperationControllerBase* controller);
+
+        void Initialize();
+
+        virtual TString GetId() const = 0;
+        virtual TTaskGroupPtr GetGroup() const = 0;
+
+        virtual int GetPendingJobCount() const;
+        int GetPendingJobCountDelta();
+
+        virtual int GetTotalJobCount() const;
+        int GetTotalJobCountDelta();
+
+        const TProgressCounter& GetJobCounter() const;
+
+        virtual TJobResources GetTotalNeededResources() const;
+        TJobResources GetTotalNeededResourcesDelta();
+
+        virtual bool IsIntermediateOutput() const;
+
+        bool IsStderrTableEnabled() const;
+
+        bool IsCoreTableEnabled() const;
+
+        virtual TDuration GetLocalityTimeout() const = 0;
+        virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
+        virtual bool HasInputLocality() const;
+
+        TJobResources GetMinNeededResources() const;
+
+        virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
+
+        void ResetCachedMinNeededResources();
+
+        void AddInput(NChunkPools::TChunkStripePtr stripe);
+        void AddInput(const std::vector<NChunkPools::TChunkStripePtr>& stripes);
+        void FinishInput();
+
+        void CheckCompleted();
+
+        void ScheduleJob(
+            NScheduler::ISchedulingContext* context,
+            const TJobResources& jobLimits,
+            NScheduler::TScheduleJobResult* scheduleJobResult);
+
+        virtual void OnJobCompleted(TJobletPtr joblet, const NScheduler::TCompletedJobSummary& jobSummary);
+        virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary);
+        virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary);
+        virtual void OnJobLost(TCompletedJobPtr completedJob);
+
+        // First checks against a given node, then against all nodes if needed.
+        void CheckResourceDemandSanity(
+            const TJobResources& nodeResourceLimits,
+            const TJobResources& neededResources);
+
+        // Checks against all available nodes.
+        void CheckResourceDemandSanity(
+            const TJobResources& neededResources);
+
+        void DoCheckResourceDemandSanity(const TJobResources& neededResources);
+
+        bool IsPending() const;
+        bool IsCompleted() const;
+
+        virtual bool IsActive() const;
+
+        i64 GetTotalDataWeight() const;
+        i64 GetCompletedDataWeight() const;
+        i64 GetPendingDataWeight() const;
+
+        TNullable<i64> GetMaximumUsedTmpfsSize() const;
+
+        virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
+        virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const = 0;
+
+        virtual void Persist(const TPersistenceContext& context) override;
+
+        virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
+
+        virtual EJobType GetJobType() const = 0;
+
+    protected:
+        NLogging::TLogger Logger;
+
+        TOperationControllerBase* Controller;
+
+        virtual bool CanScheduleJob(
+            NScheduler::ISchedulingContext* context,
+            const TJobResources& jobLimits);
+
+        virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
+
+        virtual void OnTaskCompleted();
+
+        virtual void PrepareJoblet(TJobletPtr joblet);
+        virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
+
+        virtual void OnJobStarted(TJobletPtr joblet);
+
+        void AddPendingHint();
+        void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
+
+        void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
+
+        std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
+            NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
+        void AddSequentialInputSpec(
+            NJobTrackerClient::NProto::TJobSpec* jobSpec,
+            TJobletPtr joblet);
+        void AddParallelInputSpec(
+            NJobTrackerClient::NProto::TJobSpec* jobSpec,
+            TJobletPtr joblet);
+        void AddChunksToInputSpec(
+            NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
+            NScheduler::NProto::TTableInputSpec* inputSpec,
+            NChunkPools::TChunkStripePtr stripe);
+
+        void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddIntermediateOutputSpec(
+            NJobTrackerClient::NProto::TJobSpec* jobSpec,
+            TJobletPtr joblet,
+            const NTableClient::TKeyColumns& keyColumns);
+
+        static void UpdateInputSpecTotals(
+            NJobTrackerClient::NProto::TJobSpec* jobSpec,
+            TJobletPtr joblet);
+
+        void RegisterIntermediate(
+            TJobletPtr joblet,
+            NChunkPools::TChunkStripePtr stripe,
+            TTaskPtr destinationTask,
+            bool attachToLivePreview);
+        void RegisterIntermediate(
+            TJobletPtr joblet,
+            NChunkPools::TChunkStripePtr stripe,
+            NChunkPools::IChunkPoolInput* destinationPool,
+            bool attachToLivePreview);
+
+        static NChunkPools::TChunkStripePtr BuildIntermediateChunkStripe(
+            google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
+
+        void RegisterOutput(
+            TJobletPtr joblet,
+            TOutputChunkTreeKey key,
+            const NScheduler::TCompletedJobSummary& jobSummary);
+
+        void AddFootprintAndUserJobResources(NScheduler::TExtendedJobResources& jobResources) const;
+
+    private:
+        int CachedPendingJobCount;
+        int CachedTotalJobCount;
+
+        TNullable<i64> MaximumUsedTmfpsSize;
+
+        TJobResources CachedTotalNeededResources;
+        mutable TNullable<NScheduler::TExtendedJobResources> CachedMinNeededResources;
+
+        NProfiling::TCpuInstant DemandSanityCheckDeadline;
+        bool CompletedFired;
+
+        //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
+        yhash<NChunkPools::IChunkPoolOutput::TCookie, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
+
+        TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
+
+        void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
+    };
+
+    struct TCompletedJob
+        : public TIntrinsicRefCounted
+    {
+        //! For persistence only.
+        TCompletedJob()
+            : Lost(false)
+            , DestinationPool(nullptr)
+        { }
+
+        TCompletedJob(
+            const TJobId& jobId,
+            TTaskPtr sourceTask,
+            NChunkPools::IChunkPoolOutput::TCookie outputCookie,
+            i64 dataWeight,
+            NChunkPools::IChunkPoolInput* destinationPool,
+            NChunkPools::IChunkPoolInput::TCookie inputCookie,
+            const NScheduler::TJobNodeDescriptor& nodeDescriptor)
+            : Lost(false)
+            , JobId(jobId)
+            , SourceTask(std::move(sourceTask))
+            , OutputCookie(outputCookie)
+            , DataWeight(dataWeight)
+            , DestinationPool(destinationPool)
+            , InputCookie(inputCookie)
+            , NodeDescriptor(nodeDescriptor)
+        { }
+
+        bool Lost;
+
+        TJobId JobId;
+
+        TTaskPtr SourceTask;
+        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
+        i64 DataWeight;
+
+        NChunkPools::IChunkPoolInput* DestinationPool;
+        NChunkPools::IChunkPoolInput::TCookie InputCookie;
+
+        NScheduler::TJobNodeDescriptor NodeDescriptor;
+
+        void Persist(const TPersistenceContext& context);
+
+    };
+
+    //! Groups provide means:
+    //! - to prioritize tasks
+    //! - to skip a vast number of tasks whose resource requirements cannot be met
+    struct TTaskGroup
+        : public TIntrinsicRefCounted
+    {
+        //! No task from this group is considered for scheduling unless this requirement is met.
+        TJobResources MinNeededResources;
+
+        //! All non-local tasks.
+        yhash_set<TTaskPtr> NonLocalTasks;
+
+        //! Non-local tasks that may possibly be ready (but a delayed check is still needed)
+        //! keyed by min memory demand (as reported by TTask::GetMinNeededResources).
+        std::multimap<i64, TTaskPtr> CandidateTasks;
+
+        //! Non-local tasks keyed by deadline.
+        std::multimap<TInstant, TTaskPtr> DelayedTasks;
+
+        //! Local tasks keyed by node id.
+        yhash<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
+
+        TTaskGroup()
+        {
+            MinNeededResources.SetUserSlots(1);
+        }
+
+        void Persist(const TPersistenceContext& context);
+    };
+
+protected:
     TSchedulerConfigPtr Config;
     IOperationHost* Host;
     TMasterConnectorPtr MasterConnector;
@@ -468,361 +710,17 @@ protected:
 
     TNullable<TInputQuery> InputQuery;
 
-    struct TJobInfoBase
-    {
-        TJobId JobId;
-        EJobType JobType;
-
-        NScheduler::TJobNodeDescriptor NodeDescriptor;
-
-        TInstant StartTime;
-        TInstant FinishTime;
-
-        TString Account;
-        bool Suspicious = false;
-        TInstant LastActivityTime;
-        TBriefJobStatisticsPtr BriefStatistics;
-        double Progress = 0.0;
-        NYson::TYsonString StatisticsYson;
-
-        virtual void Persist(const TPersistenceContext& context);
-    };
-
-    struct TJobInfo
-        : public TIntrinsicRefCounted
-        , public TJobInfoBase
-    {
-        TJobInfo() = default;
-        TJobInfo(const TJobInfoBase& jobInfoBase)
-            : TJobInfoBase(jobInfoBase)
-        { }
-    };
-
-    struct TJoblet
-        : public TJobInfo
-    {
-    public:
-        //! Default constructor is for serialization only.
-        TJoblet();
-        TJoblet(TOperationControllerBase* controller, TTaskPtr task, int jobIndex);
-
-        ~TJoblet();
-
-        TTaskPtr Task;
-        int JobIndex;
-        i64 StartRowIndex;
-        bool Restarted = false;
-
-        NScheduler::TExtendedJobResources EstimatedResourceUsage;
-        TNullable<double> JobProxyMemoryReserveFactor;
-        TNullable<double> UserJobMemoryReserveFactor;
-        TJobResources ResourceLimits;
-
-        NChunkPools::TChunkStripeListPtr InputStripeList;
-        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
-
-        //! All chunk lists allocated for this job.
-        /*!
-         *  For jobs with intermediate output this list typically contains one element.
-         *  For jobs with final output this list typically contains one element per each output table.
-         */
-        std::vector<NChunkClient::TChunkListId> ChunkListIds;
-
-        NChunkClient::TChunkListId StderrTableChunkListId;
-        NChunkClient::TChunkListId CoreTableChunkListId;
-
-        virtual void Persist(const TPersistenceContext& context) override;
-        void SendJobMetrics(const NJobTrackerClient::TStatistics& jobStatistics, bool flush);
-    private:
-        std::unique_ptr<TJobMetricsUpdater> JobMetricsUpdater_;
-    };
-
-    struct TFinishedJobInfo
-        : public TJobInfo
-    {
-        TFinishedJobInfo()
-        { }
-
-        TFinishedJobInfo(
-            const TJobletPtr& joblet,
-            NScheduler::TJobSummary summary,
-            NYson::TYsonString inputPaths)
-            : TJobInfo(TJobInfoBase(*joblet))
-            , Summary(std::move(summary))
-            , InputPaths(std::move(inputPaths))
-        { }
-
-        NScheduler::TJobSummary Summary;
-        NYson::TYsonString InputPaths;
-
-        virtual void Persist(const TPersistenceContext& context) override;
-    };
-
-    struct TCompletedJob
-        : public TIntrinsicRefCounted
-    {
-        //! For persistence only.
-        TCompletedJob()
-            : Lost(false)
-            , DestinationPool(nullptr)
-        { }
-
-        TCompletedJob(
-            const TJobId& jobId,
-            TTaskPtr sourceTask,
-            NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-            i64 dataWeight,
-            NChunkPools::IChunkPoolInput* destinationPool,
-            NChunkPools::IChunkPoolInput::TCookie inputCookie,
-            const NScheduler::TJobNodeDescriptor& nodeDescriptor)
-            : Lost(false)
-            , JobId(jobId)
-            , SourceTask(std::move(sourceTask))
-            , OutputCookie(outputCookie)
-            , DataWeight(dataWeight)
-            , DestinationPool(destinationPool)
-            , InputCookie(inputCookie)
-            , NodeDescriptor(nodeDescriptor)
-        { }
-
-        bool Lost;
-
-        TJobId JobId;
-
-        TTaskPtr SourceTask;
-        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
-        i64 DataWeight;
-
-        NChunkPools::IChunkPoolInput* DestinationPool;
-        NChunkPools::IChunkPoolInput::TCookie InputCookie;
-
-        NScheduler::TJobNodeDescriptor NodeDescriptor;
-
-        void Persist(const TPersistenceContext& context);
-
-    };
-
-    class TTask
-        : public TRefCounted
-        , public IPersistent
-    {
-    public:
-        DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
-
-    public:
-        //! For persistence only.
-        TTask();
-        explicit TTask(TOperationControllerBase* controller);
-
-        void Initialize();
-
-        virtual TString GetId() const = 0;
-        virtual TTaskGroupPtr GetGroup() const = 0;
-
-        virtual int GetPendingJobCount() const;
-        int GetPendingJobCountDelta();
-
-        virtual int GetTotalJobCount() const;
-        int GetTotalJobCountDelta();
-
-        const TProgressCounter& GetJobCounter() const;
-
-        virtual TJobResources GetTotalNeededResources() const;
-        TJobResources GetTotalNeededResourcesDelta();
-
-        virtual bool IsIntermediateOutput() const;
-
-        bool IsStderrTableEnabled() const;
-
-        bool IsCoreTableEnabled() const;
-
-        virtual TDuration GetLocalityTimeout() const = 0;
-        virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
-        virtual bool HasInputLocality() const;
-
-        TJobResources GetMinNeededResources() const;
-
-        virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
-
-        void ResetCachedMinNeededResources();
-
-        void AddInput(NChunkPools::TChunkStripePtr stripe);
-        void AddInput(const std::vector<NChunkPools::TChunkStripePtr>& stripes);
-        void FinishInput();
-
-        void CheckCompleted();
-
-        void ScheduleJob(
-            NScheduler::ISchedulingContext* context,
-            const TJobResources& jobLimits,
-            NScheduler::TScheduleJobResult* scheduleJobResult);
-
-        virtual void OnJobCompleted(TJobletPtr joblet, const NScheduler::TCompletedJobSummary& jobSummary);
-        virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary);
-        virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary);
-        virtual void OnJobLost(TCompletedJobPtr completedJob);
-
-        // First checks against a given node, then against all nodes if needed.
-        void CheckResourceDemandSanity(
-            const TJobResources& nodeResourceLimits,
-            const TJobResources& neededResources);
-
-        // Checks against all available nodes.
-        void CheckResourceDemandSanity(
-            const TJobResources& neededResources);
-
-        void DoCheckResourceDemandSanity(const TJobResources& neededResources);
-
-        bool IsPending() const;
-        bool IsCompleted() const;
-
-        virtual bool IsActive() const;
-
-        i64 GetTotalDataWeight() const;
-        i64 GetCompletedDataWeight() const;
-        i64 GetPendingDataWeight() const;
-
-        TNullable<i64> GetMaximumUsedTmpfsSize() const;
-
-        virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
-        virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const = 0;
-
-        virtual void Persist(const TPersistenceContext& context) override;
-
-        virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
-
-        virtual EJobType GetJobType() const = 0;
-
-    private:
-        TOperationControllerBase* Controller;
-
-        int CachedPendingJobCount;
-        int CachedTotalJobCount;
-
-        TNullable<i64> MaximumUsedTmfpsSize;
-
-        TJobResources CachedTotalNeededResources;
-        mutable TNullable<NScheduler::TExtendedJobResources> CachedMinNeededResources;
-
-        NProfiling::TCpuInstant DemandSanityCheckDeadline;
-        bool CompletedFired;
-
-        //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
-        yhash<NChunkPools::IChunkPoolOutput::TCookie, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
-
-    private:
-        TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
-
-        void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
-
-    protected:
-        NLogging::TLogger Logger;
-
-    protected:
-        virtual bool CanScheduleJob(
-            NScheduler::ISchedulingContext* context,
-            const TJobResources& jobLimits);
-
-        virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
-
-        virtual void OnTaskCompleted();
-
-        virtual void PrepareJoblet(TJobletPtr joblet);
-        virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
-
-        virtual void OnJobStarted(TJobletPtr joblet);
-
-        void AddPendingHint();
-        void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
-
-        void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
-
-        std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
-            NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
-        void AddSequentialInputSpec(
-            NJobTrackerClient::NProto::TJobSpec* jobSpec,
-            TJobletPtr joblet);
-        void AddParallelInputSpec(
-            NJobTrackerClient::NProto::TJobSpec* jobSpec,
-            TJobletPtr joblet);
-        void AddChunksToInputSpec(
-            NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
-            NScheduler::NProto::TTableInputSpec* inputSpec,
-            NChunkPools::TChunkStripePtr stripe);
-
-        void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
-        void AddIntermediateOutputSpec(
-            NJobTrackerClient::NProto::TJobSpec* jobSpec,
-            TJobletPtr joblet,
-            const NTableClient::TKeyColumns& keyColumns);
-
-        static void UpdateInputSpecTotals(
-            NJobTrackerClient::NProto::TJobSpec* jobSpec,
-            TJobletPtr joblet);
-
-        void RegisterIntermediate(
-            TJobletPtr joblet,
-            NChunkPools::TChunkStripePtr stripe,
-            TTaskPtr destinationTask,
-            bool attachToLivePreview);
-        void RegisterIntermediate(
-            TJobletPtr joblet,
-            NChunkPools::TChunkStripePtr stripe,
-            NChunkPools::IChunkPoolInput* destinationPool,
-            bool attachToLivePreview);
-
-        static NChunkPools::TChunkStripePtr BuildIntermediateChunkStripe(
-            google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
-
-        void RegisterOutput(
-            TJobletPtr joblet,
-            TOutputChunkTreeKey key,
-            const NScheduler::TCompletedJobSummary& jobSummary);
-
-        void AddFootprintAndUserJobResources(NScheduler::TExtendedJobResources& jobResources) const;
-    };
-
     //! All tasks declared by calling #RegisterTask, mostly for debugging purposes.
     std::vector<TTaskPtr> Tasks;
 
 
-    //! Groups provide means:
-    //! - to prioritize tasks
-    //! - to skip a vast number of tasks whose resource requirements cannot be met
-    struct TTaskGroup
-        : public TIntrinsicRefCounted
-    {
-        //! No task from this group is considered for scheduling unless this requirement is met.
-        TJobResources MinNeededResources;
-
-        //! All non-local tasks.
-        yhash_set<TTaskPtr> NonLocalTasks;
-
-        //! Non-local tasks that may possibly be ready (but a delayed check is still needed)
-        //! keyed by min memory demand (as reported by TTask::GetMinNeededResources).
-        std::multimap<i64, TTaskPtr> CandidateTasks;
-
-        //! Non-local tasks keyed by deadline.
-        std::multimap<TInstant, TTaskPtr> DelayedTasks;
-
-        //! Local tasks keyed by node id.
-        yhash<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
-
-        TTaskGroup()
-        {
-            MinNeededResources.SetUserSlots(1);
-        }
-
-        void Persist(const TPersistenceContext& context);
-    };
+    //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
+    std::vector<TTaskGroupPtr> TaskGroups;
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::INativeClientPtr client,
         const NTransactionClient::TTransactionId& parentTransactionId = NTransactionClient::NullTransactionId);
-
-    //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
-    std::vector<TTaskGroupPtr> TaskGroups;
 
     void RegisterTask(TTaskPtr task);
     void RegisterTaskGroup(TTaskGroupPtr group);
