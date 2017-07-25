@@ -345,10 +345,9 @@ protected:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
-            auto result = Controller->GetPartitionResources(
-                joblet->InputStripeList->GetStatistics());
+            auto result = Controller->GetPartitionResources(joblet->InputStripeList->GetStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -658,7 +657,7 @@ protected:
             return Controller->SortTaskGroup;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = GetNeededResourcesForChunkStripe(
                 joblet->InputStripeList->GetAggregateStatistics());
@@ -696,15 +695,10 @@ protected:
         }
 
     protected:
-        TExtendedJobResources GetNeededResourcesForChunkStripe(
-            const TChunkStripeStatistics& stat) const
+        TExtendedJobResources GetNeededResourcesForChunkStripe(const TChunkStripeStatistics& stat) const
         {
             if (Controller->SimpleSort) {
-                // Value count estimate has been removed, using 0 instead.
-                i64 valueCount = 0;
-                return Controller->GetSimpleSortResources(
-                    stat,
-                    valueCount);
+                return Controller->GetSimpleSortResources(stat);
             } else {
                 return Controller->GetPartitionSortResources(Partition, stat);
             }
@@ -1692,8 +1686,7 @@ protected:
         const TChunkStripeStatisticsVector& statistics) const = 0;
 
     virtual TExtendedJobResources GetSimpleSortResources(
-        const TChunkStripeStatistics& stat,
-        i64 valueCount) const = 0;
+        const TChunkStripeStatistics& stat) const = 0;
 
     virtual TExtendedJobResources GetPartitionSortResources(
         const TPartitionPtr& partition,
@@ -2533,20 +2526,16 @@ private:
         return result;
     }
 
-    virtual TExtendedJobResources GetSimpleSortResources(
-        const TChunkStripeStatistics& stat,
-        i64 valueCount) const override
+    virtual TExtendedJobResources GetSimpleSortResources(const TChunkStripeStatistics& stat) const override
     {
-        // ToDo(psushin): rewrite simple sort estimates.
         TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetSortCpuLimit());
         result.SetJobProxyMemory(GetSortInputIOMemorySize(stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
-            GetSortBuffersMemorySize(stat) +
-            // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
-            // starts reserving arrays of appropriate sizes.
-            (i64) 32 * valueCount * 2);
+            // Data weight is an approximate estimate for string data + row data
+            // memory footprint inside SchemalessSortingReader.
+            stat.DataWeight);
         return result;
     }
 
@@ -3215,9 +3204,7 @@ private:
         return result;
     }
 
-    virtual TExtendedJobResources GetSimpleSortResources(
-        const TChunkStripeStatistics& stat,
-        i64 valueCount) const override
+    virtual TExtendedJobResources GetSimpleSortResources(const TChunkStripeStatistics& stat) const override
     {
         Y_UNREACHABLE();
     }
