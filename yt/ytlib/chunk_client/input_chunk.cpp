@@ -4,6 +4,9 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -26,12 +29,9 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     const auto& chunkMeta = chunkSpec.chunk_meta();
     auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta.extensions());
 
-    UncompressedDataSize_ = chunkSpec.has_uncompressed_data_size_override()
-        ? chunkSpec.uncompressed_data_size_override()
-        : miscExt.uncompressed_data_size();
-    RowCount_ = chunkSpec.has_row_count_override()
-        ? chunkSpec.row_count_override()
-        : miscExt.row_count();
+    // NB(psushin): we don't use overrides from master, since we can do the same estimates ourself.
+    TotalUncompressedDataSize_ = miscExt.uncompressed_data_size();
+    TotalRowCount_ = miscExt.row_count();
 
     CompressedDataSize_ = miscExt.compressed_data_size();
     DataWeight_ = miscExt.data_weight();
@@ -74,6 +74,8 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
     }
 }
 
+
+
 // Workaround for TSerializationDumpPodWriter.
 TString ToString(const TInputChunkBase&)
 {
@@ -90,8 +92,8 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 88, "invalid offset");
     static_assert(offsetof(TInputChunkBase, RangeIndex_) == 96, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TableChunkFormat_) == 100, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UncompressedDataSize_) == 104, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, RowCount_) == 112, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 104, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 112, "invalid offset");
     static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 120, "invalid offset");
     static_assert(offsetof(TInputChunkBase, DataWeight_) == 128, "invalid offset");
     static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 136, "invalid offset");
@@ -172,6 +174,31 @@ void TInputChunk::ReleaseBoundaryKeys()
 void TInputChunk::ReleasePartitionsExt()
 {
     PartitionsExt_.reset();
+}
+
+i64 TInputChunk::GetRowCount() const
+{
+    i64 lowerRowIndex = LowerLimit_ && LowerLimit_->HasRowIndex()
+        ? LowerLimit_->GetRowIndex()
+        : 0;
+
+    i64 upperRowIndex = UpperLimit_ && UpperLimit_->HasRowIndex()
+        ? UpperLimit_->GetRowIndex()
+        : TotalRowCount_;
+
+    return upperRowIndex - lowerRowIndex;
+}
+
+i64 TInputChunk::GetUncompressedDataSize() const
+{
+    auto rowCount = GetRowCount();
+
+    if (rowCount == TotalRowCount_) {
+        return TotalUncompressedDataSize_;
+    } else {
+        i64 dataSizePerRow = DivCeil(TotalUncompressedDataSize_, TotalRowCount_);
+        return dataSizePerRow * rowCount;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

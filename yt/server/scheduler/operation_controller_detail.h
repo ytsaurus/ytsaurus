@@ -290,6 +290,9 @@ protected:
     i64 TotalEstimatedCompressedDataSize = 0;
     i64 TotalEstimatedInputDataSize = 0;
 
+    // Only used during materialization, not persisted.
+    double InputCompressionRatio = 0.0;
+
     // Total uncompressed data size for input tables.
     // Used only during preparation, not persisted.
     i64 PrimaryInputDataSize = 0;
