@@ -86,7 +86,6 @@ struct TNode
     {
         return Error.IsOK();
     }
-
 };
 
 TString ToString(const TNodePtr& node)
@@ -327,6 +326,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
 
     TDataNodeServiceProxy proxy(node->HeavyChannel);
     auto req = proxy.PutBlocks();
+    req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
     req->SetTimeout(writer->Config_->NodeRpcTimeout);
     TSessionId sessionId(writer->ChunkId_, node->ChunkReplica.GetMediumIndex());
     ToProto(req->mutable_session_id(), sessionId);
@@ -584,10 +584,10 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     auto address = nodeDescriptor.GetAddress(Networks_);
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
-    auto lightChannel = Client_->GetLightChannelFactory()->CreateChannel(address);
+    auto lightChannel = Client_->GetChannelFactory()->CreateChannel(address);
     auto heavyChannel = CreateRetryingChannel(
         Config_->NodeChannel,
-        Client_->GetHeavyChannelFactory()->CreateChannel(address),
+        lightChannel,
         BIND([] (const TError& error) {
             return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
         }));

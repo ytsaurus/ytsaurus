@@ -107,6 +107,16 @@ size_t TYPathRequest::GetHash() const
     return 0;
 }
 
+int TYPathRequest::GetMultiplexingBand() const
+{
+    return MinMultiplexingBand;
+}
+
+void TYPathRequest::SetMultiplexingBand(int band)
+{
+    Y_UNREACHABLE();
+}
+
 const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const
 {
     return Header_;

@@ -447,7 +447,7 @@ public:
             auto channelFactory = Bootstrap_
                 ->GetMasterClient()
                 ->GetNativeConnection()
-                ->GetLightChannelFactory();
+                ->GetChannelFactory();
             CellManager_ = New<TCellManager>(
                 cellConfig,
                 channelFactory,

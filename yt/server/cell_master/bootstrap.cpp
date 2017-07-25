@@ -294,14 +294,9 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return ControlQueue_->GetInvoker();
 }
 
-const INodeChannelFactoryPtr& TBootstrap::GetLightNodeChannelFactory() const
+const INodeChannelFactoryPtr& TBootstrap::GetNodeChannelFactory() const
 {
-    return LightNodeChannelFactory_;
-}
-
-const INodeChannelFactoryPtr& TBootstrap::GetHeavyNodeChannelFactory() const
-{
-    return HeavyNodeChannelFactory_;
+    return NodeChannelFactory_;
 }
 
 void TBootstrap::Initialize()
@@ -407,17 +402,15 @@ void TBootstrap::DoInitialize()
             localPeerId);
     }
 
-    auto heavyChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
-    auto lightChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
+    auto channelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
 
     const auto& networks = Config_->Networks;
 
-    LightNodeChannelFactory_ = CreateNodeChannelFactory(lightChannelFactory, networks);
-    HeavyNodeChannelFactory_ = CreateNodeChannelFactory(heavyChannelFactory, networks);
+    NodeChannelFactory_ = CreateNodeChannelFactory(channelFactory, networks);
 
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
-        lightChannelFactory,
+        channelFactory,
         networks);
 
     YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
@@ -444,7 +437,7 @@ void TBootstrap::DoInitialize()
 
     CellManager_ = New<TCellManager>(
         localCellConfig,
-        lightChannelFactory,
+        channelFactory,
         localPeerId);
 
     ChangelogStoreFactory_ = CreateLocalChangelogStoreFactory(
@@ -508,7 +501,7 @@ void TBootstrap::DoInitialize()
     auto timestampProvider = CreateRemoteTimestampProvider(
         CellTagFromId(Config_->PrimaryMaster->CellId),
         Config_->TimestampProvider,
-        lightChannelFactory);
+        channelFactory);
 
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,

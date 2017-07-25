@@ -519,7 +519,7 @@ protected:
         return BannedPeers_.find(address) != BannedPeers_.end() || reader->IsPeerBannedForever(address);
     }
 
-    IChannelPtr GetHeavyChannel(const TString& address)
+    IChannelPtr GetChannel(const TString& address)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
@@ -528,7 +528,7 @@ protected:
 
         IChannelPtr channel;
         try {
-            auto channelFactory = reader->Client_->GetHeavyChannelFactory();
+            const auto& channelFactory = reader->Client_->GetChannelFactory();
             channel = channelFactory->CreateChannel(address);
         } catch (const std::exception& ex) {
             RegisterError(ex);
@@ -945,7 +945,7 @@ private:
         std::vector<TPeer> probePeers;
 
         for (const auto& peer : candidates) {
-            auto channel = GetHeavyChannel(peer.Address);
+            auto channel = GetChannel(peer.Address);
             if (!channel) {
                 continue;
             }
@@ -1108,7 +1108,7 @@ private:
         }
 
         const auto& peerAddress = maybePeer->Address;
-        auto channel = GetHeavyChannel(peerAddress);
+        auto channel = GetChannel(peerAddress);
         if (!channel) {
             RequestBlocks();
             return;
@@ -1118,6 +1118,7 @@ private:
         proxy.SetDefaultTimeout(reader->Config_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockSet();
+        req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(reader->Config_->PopulateCache);
@@ -1325,7 +1326,7 @@ private:
         }
 
         const auto& peerAddress = candidates.front().Address;
-        auto channel = GetHeavyChannel(peerAddress);
+        auto channel = GetChannel(peerAddress);
         if (!channel) {
             RequestBlocks();
             return;
@@ -1340,6 +1341,7 @@ private:
         proxy.SetDefaultTimeout(reader->Config_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockRange();
+        req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
@@ -1524,7 +1526,7 @@ private:
         }
 
         const auto& peerAddress = candidates.front().Address;
-        auto channel = GetHeavyChannel(peerAddress);
+        auto channel = GetChannel(peerAddress);
         if (!channel) {
             RequestMeta();
             return;
@@ -1536,6 +1538,9 @@ private:
         proxy.SetDefaultTimeout(reader->Config_->MetaRpcTimeout);
 
         auto req = proxy.GetChunkMeta();
+        // TODO(babenko): consider using light band instead when all metas become thin
+        // CC: psushin@
+        req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);

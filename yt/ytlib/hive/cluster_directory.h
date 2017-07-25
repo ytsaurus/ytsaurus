@@ -6,6 +6,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/ytree/public.h>
+
 namespace NYT {
 namespace NHiveClient {
 

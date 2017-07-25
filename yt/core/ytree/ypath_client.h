@@ -42,6 +42,9 @@ public:
 
     virtual size_t GetHash() const override;
 
+    virtual int GetMultiplexingBand() const override;
+    virtual void SetMultiplexingBand(int band) override;
+
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
