@@ -251,7 +251,7 @@ public:
                 ToProto(startRequest.mutable_parent_id(), parent->GetId());
             }
             if (timeout) {
-                startRequest.set_timeout(ToProto(*timeout));
+                startRequest.set_timeout(ToProto<i64>(*timeout));
             }
             startRequest.set_user_name(user->GetName());
             if (title) {

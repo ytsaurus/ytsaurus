@@ -1623,7 +1623,7 @@ private:
                 req->set_update_mode(static_cast<int>(TableUploadOptions_.UpdateMode));
                 req->set_lock_mode(static_cast<int>(TableUploadOptions_.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v", path));
-                req->set_upload_transaction_timeout(ToProto(Config_->UploadTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto<i64>(Config_->UploadTransactionTimeout));
                 SetTransactionId(req, Transaction_);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "begin_upload");

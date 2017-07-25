@@ -76,8 +76,8 @@ void ToProto(
             proto->set_read_from(NProto::TMasterReadOptions_EMasterReadKind_CACHE);
             break;
     }
-    proto->set_success_expiration_time(NYT::ToProto(options.ExpireAfterSuccessfulUpdateTime));
-    proto->set_failure_expiration_time(NYT::ToProto(options.ExpireAfterFailedUpdateTime));
+    proto->set_success_expiration_time(NYT::ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
+    proto->set_failure_expiration_time(NYT::ToProto<i64>(options.ExpireAfterFailedUpdateTime));
     proto->set_cache_sticky_group_size(options.CacheStickyGroupSize);
 }
 

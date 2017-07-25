@@ -1005,8 +1005,8 @@ private:
     {
         if (options.ReadFrom == EMasterChannelKind::Cache) {
             auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-            cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
-            cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
         }
     }
 
@@ -2468,7 +2468,7 @@ private:
                 // NB: Replicate upload transaction to each secondary cell since we have
                 // no idea as of where the chunks we're about to attach may come from.
                 ToProto(req->mutable_upload_transaction_secondary_cell_tags(), Connection_->GetSecondaryMasterCellTags());
-                req->set_upload_transaction_timeout(ToProto(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto<i64>(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
                 NRpc::GenerateMutationId(req);
                 SetTransactionId(req, options, true);
 
@@ -3735,7 +3735,7 @@ private:
         auto req = JobProberProxy_->AbortJob();
         ToProto(req->mutable_job_id(), jobId);
         if (options.InterruptTimeout) {
-            req->set_interrupt_timeout(ToProto(*options.InterruptTimeout));
+            req->set_interrupt_timeout(ToProto<i64>(*options.InterruptTimeout));
         }
 
         WaitFor(req->Invoke())
