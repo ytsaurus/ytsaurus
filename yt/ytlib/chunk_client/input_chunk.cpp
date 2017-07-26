@@ -74,8 +74,6 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
     }
 }
 
-
-
 // Workaround for TSerializationDumpPodWriter.
 TString ToString(const TInputChunkBase&)
 {
@@ -186,7 +184,9 @@ i64 TInputChunk::GetRowCount() const
         ? UpperLimit_->GetRowIndex()
         : TotalRowCount_;
 
-    return upperRowIndex - lowerRowIndex;
+    auto rowCount = upperRowIndex - lowerRowIndex;
+    YCHECK(rowCount > 0);
+    return rowCount;
 }
 
 i64 TInputChunk::GetUncompressedDataSize() const
