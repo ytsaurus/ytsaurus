@@ -39,12 +39,19 @@ ui64 TTabletProfilerTraitBase::ToKey(const TTagIdList& list)
 {
     /*
      * The magic is the following:
-     * - front() returns tablet id tag,
-     * - back()  returns user id tag.
+     * - front() returns tablet_id tag,
+     * - back()  returns user tag or replica_id tag.
      *
      * Those 2 tags are unique to lookup appropriate counters for specific tablet.
      */
     return (static_cast<ui64>(list.front()) << 32) | (static_cast<ui64>(list.back()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSimpleProfilerTraitBase::TKey TSimpleProfilerTraitBase::ToKey(const TTagIdList& list)
+{
+    return list[0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

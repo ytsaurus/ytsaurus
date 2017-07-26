@@ -1,6 +1,7 @@
 package NYT.NTabletClient.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/core/misc/error.proto";
 import "yt/ytlib/hive/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +49,7 @@ message TTableReplicaInfo
 {
     required NYT.NProto.TGuid replica_id = 1;
     required TTableReplicaStatistics statistics = 2;
+    optional NYT.NProto.TError error = 3;
 }
 
 message TTabletInfo

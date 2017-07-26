@@ -504,6 +504,8 @@ void TBootstrap::DoInitialize()
     TimestampProvider_ = CreateRemoteTimestampProvider(
         Config_->TimestampProvider,
         channelFactory);
+
+    // Initialize periodic latest timestamp update.
     TimestampProvider_->GetLatestTimestamp();
 
     TransactionSupervisor_ = New<TTransactionSupervisor>(
