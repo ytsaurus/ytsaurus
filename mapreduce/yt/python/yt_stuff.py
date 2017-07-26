@@ -334,6 +334,12 @@ class YtStuff(object):
         self.yt_client.config["proxy"]["url"] = self.get_server()
         self.yt_client.config["proxy"]["enable_proxy_discovery"] = False
         self.env["YT_PROXY"] = self.get_server()
+
+        tmpdir = os.environ.get("TMPDIR")
+        if tmpdir:
+            self.yt_client.config["local_temp_directory"] = tmpdir
+            self.yt_wrapper.config["local_temp_directory"] = tmpdir
+
         self._log("Local YT was started with id=%s", self.yt_id)
         return True
 
