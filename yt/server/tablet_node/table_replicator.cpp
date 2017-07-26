@@ -204,7 +204,7 @@ private:
                     TabletNodeProfiler.Update(counters->TimestampLag, TimestampDiffToValue(timestampLag));
                 }
             };
-            auto updateSuccessTimestamp = [&] {
+            auto updateLastReplicationTimestamp = [&] {
                 replicaRuntimeData->LastReplicationTimestamp.store(
                     Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
                     std::memory_order_relaxed);
@@ -212,11 +212,11 @@ private:
             };
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             if (tabletRuntimeData->TotalRowCount <= lastReplicationRowIndex) {
-                updateSuccessTimestamp();
+                updateLastReplicationTimestamp();
                 return;
             }
             if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
-                updateSuccessTimestamp();
+                updateLastReplicationTimestamp();
                 return;
             }
 
