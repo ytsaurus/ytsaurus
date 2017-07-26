@@ -592,7 +592,7 @@ size_t GetDataWeight(TUnversionedRow row)
         return 0;
     }
 
-    return std::accumulate(
+    return 1 + std::accumulate(
         row.Begin(),
         row.End(),
         0ULL,
