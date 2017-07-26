@@ -471,6 +471,7 @@ public:
         , DataColumnName_(dataColumnName ? *dataColumnName : TBlobTableSchema::DataColumn)
         , Offset_(offset.Get(0))
         , PartSize_(partSize)
+        , PreviousPartSize_(partSize)
         , NextPartIndex_(startPartIndex)
     {
         Rows_.reserve(1);
@@ -500,6 +501,7 @@ private:
 
     i64 Offset_;
     TNullable<i64> PartSize_;
+    TNullable<i64> PreviousPartSize_;
 
     std::vector<TUnversionedRow> Rows_;
     size_t Index_ = 0;
@@ -582,12 +584,26 @@ private:
         NextPartIndex_ = partIndex + 1;
 
         auto value = GetAndValidateValue(row, DataColumnName_, EColumnType::Data, EValueType::String);
-        if (PartSize_ && value.Length != PartSize_.Get()) {
+
+        auto isPreviousPartWrong = PartSize_ && PreviousPartSize_.Get() != PartSize_.Get();
+        auto isCurrentPartWrong = PartSize_ && value.Length > PartSize_.Get();
+        if (isPreviousPartWrong || isCurrentPartWrong) {
+            i64 actualSize;
+            i64 wrongPartIndex;
+            if (isPreviousPartWrong) {
+                actualSize = PreviousPartSize_.Get();
+                wrongPartIndex = partIndex - 1;
+            } else {
+                actualSize = value.Length;
+                wrongPartIndex = partIndex;
+            }
+
             THROW_ERROR_EXCEPTION("Inconsistent part size")
                 << TErrorAttribute("expected_size", PartSize_.Get())
-                << TErrorAttribute("actual_size", value.Length)
-                << TErrorAttribute("part_index", Offset_);
+                << TErrorAttribute("actual_size", actualSize)
+                << TErrorAttribute("part_index", wrongPartIndex);
         }
+        PreviousPartSize_ = value.Length;
         return value;
     }
 };
