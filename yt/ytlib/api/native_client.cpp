@@ -397,11 +397,8 @@ public:
 
         SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
 
-        LightChannelFactory_ = CreateNodeChannelFactory(
-            wrapChannelFactory(Connection_->GetLightChannelFactory()),
-            Connection_->GetNetworks());
-        HeavyChannelFactory_ = CreateNodeChannelFactory(
-            wrapChannelFactory(Connection_->GetHeavyChannelFactory()),
+        ChannelFactory_ = CreateNodeChannelFactory(
+            wrapChannelFactory(Connection_->GetChannelFactory()),
             Connection_->GetNetworks());
 
         SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
@@ -469,14 +466,9 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual INodeChannelFactoryPtr GetLightChannelFactory() override
+    virtual const INodeChannelFactoryPtr& GetChannelFactory() override
     {
-        return LightChannelFactory_;
-    }
-
-    virtual INodeChannelFactoryPtr GetHeavyChannelFactory() override
-    {
-        return HeavyChannelFactory_;
+        return ChannelFactory_;
     }
 
     virtual TFuture<void> Terminate() override
@@ -830,8 +822,7 @@ private:
 
     TEnumIndexedVector<yhash<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
-    INodeChannelFactoryPtr LightChannelFactory_;
-    INodeChannelFactoryPtr HeavyChannelFactory_;
+    INodeChannelFactoryPtr ChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TFunctionImplCachePtr FunctionImplCache_;
     IFunctionRegistryPtr FunctionRegistry_;
@@ -1052,7 +1043,7 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, EPeerKind::Leader);
-        return HeavyChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddress(Connection_->GetNetworks()));
+        return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddress(Connection_->GetNetworks()));
     }
 
 
@@ -1171,6 +1162,7 @@ private:
             const auto& batch = Batches_[InvokeBatchIndex_];
 
             auto req = InvokeProxy_->Read();
+            req->SetMultiplexingBand(NRpc::DefaultHeavyMultiplexingBand);
             ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
             req->set_mount_revision(batch->TabletInfo->MountRevision);
             req->set_timestamp(Options_.Timestamp);
@@ -1369,7 +1361,7 @@ private:
             cellCount,
             tabletCount);
 
-        const auto& channelFactory = Connection_->GetLightChannelFactory();
+        const auto& channelFactory = Connection_->GetChannelFactory();
         const auto& cellDirectory = Connection_->GetCellDirectory();
         std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncResults;
         for (const auto& pair : cellIdToTabletIds) {
@@ -1633,7 +1625,7 @@ private:
         for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
             asyncResults.push_back(session->Invoke(
-                GetHeavyChannelFactory(),
+                ChannelFactory_,
                 Connection_->GetCellDirectory()));
         }
 
@@ -1722,7 +1714,7 @@ private:
 
         auto queryExecutor = CreateQueryExecutor(
             Connection_,
-            HeavyChannelFactory_,
+            ChannelFactory_,
             FunctionImplCache_);
 
         auto fragment = PreparePlanFragment(
@@ -2748,13 +2740,13 @@ private:
             .ThrowOnError();
     }
 
-    int DoGetOperationsArchiveVersion() 
+    int DoGetOperationsArchiveVersion()
     {
         auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
         auto versionNodeOrError = WaitFor(asyncVersionResult);
         int version = 0;
 
-        if (versionNodeOrError.IsOK()) { 
+        if (versionNodeOrError.IsOK()) {
             try {
                 version = ConvertTo<int>(versionNodeOrError.Value());
             } catch (const std::exception& ex) {
@@ -2869,7 +2861,7 @@ private:
             auto ysonResult = BuildYsonStringFluently()
                 .BeginMap()
                     .Item("id").Value(TGuid(rows[0][0].Data.Uint64, rows[0][1].Data.Uint64))
-                    SET_ITEM_STRING_VALUE("state", 2) 
+                    SET_ITEM_STRING_VALUE("state", 2)
                     SET_ITEM_STRING_VALUE("authenticated_user", 3)
                     SET_ITEM_STRING_VALUE("operation_type", 4)
                     SET_ITEM_YSON_STRING_VALUE("progress", 5)
@@ -2931,7 +2923,7 @@ private:
 
             auto asyncSchedulerProgressValue = GetNode(GetOperationsProgressFromScheduler(operationId), optionsToScheduler);
             auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
-    
+
             if (schedulerProgressValueOrError.GetCode() == NYT::EErrorCode::OK) {
                 auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
                 auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
@@ -2943,7 +2935,7 @@ private:
             } else {
                 THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId);
             }
-           
+
             return attrNodeValue;
         } else if (attrNodeOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
             LOG_DEBUG("No such operation %v in Cypress", operationId);
@@ -2965,7 +2957,7 @@ private:
                     THROW_ERROR_EXCEPTION("Failed to get operation from archive")
                         << TErrorAttribute("operation_id", operationId)
                         << exception.Error();
-                }    
+                }
             }
         }
 
@@ -2994,7 +2986,7 @@ private:
         if (version < 7) {
             THROW_ERROR_EXCEPTION("Failed to get job input: operations archive version is too old: expected >= 7, got %v", version);
         }
-    
+
         auto nameTable = New<TNameTable>();
 
         TLookupRowsOptions lookupOptions;
@@ -3130,10 +3122,11 @@ private:
                 FromProto(&jobNodeDescriptor, rsp->node_descriptor());
             }
 
-            auto nodeChannel = GetHeavyChannelFactory()->CreateChannel(jobNodeDescriptor);
+            auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
             NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
 
             auto req = jobProberServiceProxy.GetStderr();
+            req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
             ToProto(req->mutable_job_id(), jobId);
             auto rsp = WaitFor(req->Invoke())
                 .ValueOrThrow();
@@ -3293,7 +3286,7 @@ private:
         } else {
             LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
         }
- 
+
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
             << TErrorAttribute("operation_id", operationId)
             << TErrorAttribute("job_id", jobId);

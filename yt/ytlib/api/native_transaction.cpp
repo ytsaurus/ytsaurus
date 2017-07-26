@@ -1039,6 +1039,7 @@ private:
             proxy.SetDefaultRequestAck(false);
 
             auto req = proxy.Write();
+            req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
             ToProto(req->mutable_transaction_id(), transaction->GetId());
             if (transaction->GetAtomicity() == EAtomicity::Full) {
                 req->set_transaction_start_timestamp(transaction->GetStartTimestamp());

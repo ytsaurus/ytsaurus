@@ -55,10 +55,10 @@ void TPeerBlockUpdater::Update()
     auto localDescriptor = Bootstrap_
         ->GetMasterConnector()
         ->GetLocalDescriptor();
-    auto channelFactory = Bootstrap_
+    const auto& channelFactory = Bootstrap_
         ->GetMasterClient()
         ->GetNativeConnection()
-        ->GetHeavyChannelFactory();
+        ->GetChannelFactory();
 
     typedef TDataNodeServiceProxy TProxy;
     yhash<TString, TProxy::TReqUpdatePeerPtr> requests;
@@ -75,6 +75,7 @@ void TPeerBlockUpdater::Update()
                 auto channel = channelFactory->CreateChannel(sourceAddress);
                 TProxy proxy(channel);
                 request = proxy.UpdatePeer();
+                request->SetMultiplexingBand(NRpc::DefaultHeavyMultiplexingBand);
                 ToProto(request->mutable_peer_descriptor(), localDescriptor);
                 request->set_peer_expiration_time(expirationTime.GetValue());
                 requests.insert(std::make_pair(sourceAddress, request));

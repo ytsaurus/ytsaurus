@@ -152,7 +152,7 @@ protected:
         inputChunk->ChunkId() = TChunkId::Create();
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetUncompressedDataSize(size);
-        inputChunk->SetDataWeight(size);
+        inputChunk->SetTotalDataWeight(size);
         inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys {
             TOwningKey(minBoundaryKey),
             TOwningKey(maxBoundaryKey)
@@ -169,7 +169,7 @@ protected:
         if (!InputTables_[tableIndex].IsVersioned() && !InputTables_[tableIndex].IsForeign()) {
             CreatedUnversionedPrimaryChunks_.insert(inputChunk);
         }
-        inputChunk->SetRowCount(rowCount);
+        inputChunk->SetTotalRowCount(rowCount);
         return inputChunk;
     }
 
@@ -182,7 +182,7 @@ protected:
         int tableIndex = chunk->GetTableIndex();
         chunkCopy->SetTableIndex(tableIndex);
         chunkCopy->SetTableRowIndex(chunk->GetTableRowIndex());
-        chunkCopy->SetRowCount(chunk->GetRowCount());
+        chunkCopy->SetTotalRowCount(chunk->GetRowCount());
         if (chunk->LowerLimit()) {
             chunkCopy->LowerLimit() = std::make_unique<TReadLimit>(*chunk->LowerLimit());
         }
@@ -1929,7 +1929,7 @@ TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
     PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({1, 2}), BuildRow({1, 42}), 0);
-    chunkA->SetRowCount(10000);
+    chunkA->SetTotalRowCount(10000);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
 
     CreateChunkPool();

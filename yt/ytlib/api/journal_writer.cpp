@@ -244,8 +244,8 @@ private:
                 IChannelPtr heavyChannel,
                 TDuration rpcTimeout)
                 : Descriptor(descriptor)
-                , LightProxy(lightChannel)
-                , HeavyProxy(heavyChannel)
+                , LightProxy(std::move(lightChannel))
+                , HeavyProxy(std::move(heavyChannel))
                 , FirstPendingRowIndex(firstPendingRowIndex)
             {
                 LightProxy.SetDefaultTimeout(rpcTimeout);
@@ -580,10 +580,10 @@ private:
             const auto& networks = Client_->GetNativeConnection()->GetNetworks();
             for (const auto& target : targets) {
                 auto address = target.GetAddress(networks);
-                auto lightChannel = Client_->GetLightChannelFactory()->CreateChannel(address);
+                auto lightChannel = Client_->GetChannelFactory()->CreateChannel(address);
                 auto heavyChannel = CreateRetryingChannel(
                     Config_->NodeChannel,
-                    Client_->GetHeavyChannelFactory()->CreateChannel(address),
+                    lightChannel,
                     BIND([] (const TError& error) {
                         return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
                     }));
@@ -1045,6 +1045,7 @@ private:
             i64 flushDataSize = 0;
 
             auto req = node->HeavyProxy.PutBlocks();
+            req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
             ToProto(req->mutable_session_id(), CurrentSession_->Id);
             req->set_first_block_index(node->FirstPendingBlockIndex);
             req->set_flush_blocks(true);

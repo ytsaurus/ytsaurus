@@ -1067,8 +1067,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto factory = GetMasterClient()->GetLightChannelFactory();
-        auto channel = factory->CreateChannel(address);
+        const auto& channelFactory = GetMasterClient()->GetChannelFactory();
+        auto channel = channelFactory->CreateChannel(address);
 
         TJobProberServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Config_->JobProberRpcTimeout);
