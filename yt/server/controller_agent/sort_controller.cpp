@@ -1720,12 +1720,6 @@ protected:
         return static_cast<i64>((double) totalRowCount * dataWeight / totalDataWeight);
     }
 
-    // Returns compression ratio of input data.
-    double GetCompressionRatio() const
-    {
-        return static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight;
-    }
-
     void InitTemplatePartitionKeys(TPartitionJobSpecExt* partitionJobSpecExt)
     {
         auto keySetWriter = New<TKeySetWriter>();
@@ -1758,8 +1752,11 @@ protected:
         } else {
             // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
-            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
+            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / InputCompressionRatio);
             uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
+
+            // Just in case compression ratio is very large.
+            uncompressedBlockSize = std::max(i64(1), uncompressedBlockSize);
 
             // Product may not fit into i64.
             double partitionDataWeight = sqrt(dataWeightAfterPartition) * sqrt(uncompressedBlockSize);
@@ -2198,7 +2195,7 @@ private:
                 Options,
                 TotalEstimatedInputDataWeight,
                 TotalEstimatedInputRowCount,
-                GetCompressionRatio());
+                InputCompressionRatio);
 
             // Finally adjust partition count wrt block size constraints.
             partitionCount = AdjustPartitionCountToWriterBufferSize(
@@ -2338,6 +2335,13 @@ private:
         }
 
         InitShufflePool();
+
+        auto jobSizeConstraints = CreatePartitionJobSizeConstraints(
+            Spec,
+            Options,
+            TotalEstimatedInputDataWeight,
+            TotalEstimatedInputRowCount,
+            InputCompressionRatio);
 
         std::vector<TChunkStripePtr> stripes;
         SlicePrimaryUnversionedChunks(partitionJobSizeConstraints, &stripes);
@@ -2890,7 +2894,7 @@ private:
             Options,
             TotalEstimatedInputDataWeight,
             TotalEstimatedInputRowCount,
-            GetCompressionRatio());
+            InputCompressionRatio);
 
         partitionCount = AdjustPartitionCountToWriterBufferSize(
             partitionCount,
@@ -2910,6 +2914,13 @@ private:
         }
 
         InitShufflePool();
+
+        auto jobSizeConstraints = CreatePartitionJobSizeConstraints(
+            Spec,
+            Options,
+            TotalEstimatedInputDataWeight,
+            TotalEstimatedInputRowCount,
+            InputCompressionRatio);
 
         std::vector<TChunkStripePtr> stripes;
         SlicePrimaryUnversionedChunks(partitionJobSizeConstraints, &stripes);

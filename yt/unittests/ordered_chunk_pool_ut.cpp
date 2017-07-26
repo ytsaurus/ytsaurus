@@ -74,14 +74,14 @@ protected:
         inputChunk->ChunkId() = TChunkId::Create();
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetUncompressedDataSize(size);
-        inputChunk->SetDataWeight(size);
+        inputChunk->SetTotalDataWeight(size);
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
         UnversionedTableRowCounts_[tableIndex] += rowCount;
         if (!InputTables_[tableIndex].IsVersioned()) {
             CreatedUnversionedPrimaryChunks_.insert(inputChunk);
         }
-        inputChunk->SetRowCount(rowCount);
+        inputChunk->SetTotalRowCount(rowCount);
         return inputChunk;
     }
 
@@ -93,7 +93,7 @@ protected:
         int tableIndex = chunk->GetTableIndex();
         chunkCopy->SetTableIndex(tableIndex);
         chunkCopy->SetTableRowIndex(chunk->GetTableRowIndex());
-        chunkCopy->SetRowCount(chunk->GetRowCount());
+        chunkCopy->SetTotalRowCount(chunk->GetTotalRowCount());
         if (!InputTables_[tableIndex].IsVersioned()) {
             CreatedUnversionedPrimaryChunks_.insert(chunkCopy);
         }

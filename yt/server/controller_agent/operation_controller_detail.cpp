@@ -5201,6 +5201,9 @@ void TOperationControllerBase::WriteInputQueryToJobSpec(
 
 void TOperationControllerBase::CollectTotals()
 {
+    // This is the sum across all input chunks not accounting lower/upper read limits.
+    // Used to calculate compression ratio.
+    i64 totalInputDataWeight = 0;
     for (const auto& table : InputTables) {
         for (const auto& inputChunk : table.Chunks) {
             if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
@@ -5236,6 +5239,7 @@ void TOperationControllerBase::CollectTotals()
                 ForeignInputDataWeight += inputChunk->GetDataWeight();
             }
 
+            totalInputDataWeight += inputChunk->GetTotalDataWeight();
             TotalEstimatedInputUncompressedDataSize += inputChunk->GetUncompressedDataSize();
             TotalEstimatedInputRowCount += inputChunk->GetRowCount();
             TotalEstimatedInputCompressedDataSize += inputChunk->GetCompressedDataSize();
@@ -5243,6 +5247,8 @@ void TOperationControllerBase::CollectTotals()
             ++TotalEstimatedInputChunkCount;
         }
     }
+
+    InputCompressionRatio = static_cast<double>(TotalEstimatedInputCompressedDataSize) / totalInputDataWeight;
 
     LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v)",
         TotalEstimatedInputChunkCount,

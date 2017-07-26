@@ -297,7 +297,7 @@ private:
 
         auto remoteExecutor = CreateQueryExecutor(
             client->GetNativeConnection(),
-            client->GetHeavyChannelFactory(),
+            client->GetChannelFactory(),
             FunctionImplCache_);
 
         auto functionGenerators = New<TFunctionProfilerMap>();

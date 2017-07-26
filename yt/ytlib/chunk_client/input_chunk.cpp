@@ -4,6 +4,9 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -28,14 +31,11 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
 
     UncompressedDataSize_ = miscExt.uncompressed_data_size();
 
-    RowCount_ = chunkSpec.has_row_count_override()
-        ? chunkSpec.row_count_override()
-        : miscExt.row_count();
+    // NB(psushin): we don't use overrides from master, since we can do the same estimates ourself.
+    TotalDataWeight_ = miscExt.has_data_weight() ? miscExt.data_weight() : UncompressedDataSize_;
+    TotalRowCount_ = miscExt.row_count();
 
     CompressedDataSize_ = miscExt.compressed_data_size();
-    DataWeight_ = chunkSpec.has_data_weight_override()
-        ? chunkSpec.data_weight_override()
-        : (miscExt.has_data_weight() ? miscExt.data_weight() : UncompressedDataSize_);
 
     MaxBlockSize_ = miscExt.has_max_block_size()
         ? miscExt.max_block_size()
@@ -94,9 +94,9 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, TableChunkFormat_) == 100, "invalid offset");
     static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 104, "invalid offsetof");
     static_assert(offsetof(TInputChunkBase, UncompressedDataSize_) == 112, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, RowCount_) == 120, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 120, "invalid offset");
     static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 128, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, DataWeight_) == 136, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 136, "invalid offset");
     static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 144, "invalid offset");
     static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 152, "invalid offset");
     static_assert(sizeof(TInputChunkBase) == 160, "invalid sizeof");
@@ -170,6 +170,33 @@ void TInputChunk::ReleaseBoundaryKeys()
 void TInputChunk::ReleasePartitionsExt()
 {
     PartitionsExt_.reset();
+}
+
+i64 TInputChunk::GetRowCount() const
+{
+    i64 lowerRowIndex = LowerLimit_ && LowerLimit_->HasRowIndex()
+        ? LowerLimit_->GetRowIndex()
+        : 0;
+
+    i64 upperRowIndex = UpperLimit_ && UpperLimit_->HasRowIndex()
+        ? UpperLimit_->GetRowIndex()
+        : TotalRowCount_;
+
+    auto rowCount = upperRowIndex - lowerRowIndex;
+    YCHECK(rowCount > 0);
+    return rowCount;
+}
+
+i64 TInputChunk::GetDataWeight() const
+{
+    auto rowCount = GetRowCount();
+
+    if (rowCount == TotalRowCount_) {
+        return TotalDataWeight_;
+    } else {
+        i64 dataWeightPerRow = DivCeil(TotalDataWeight_, TotalRowCount_);
+        return dataWeightPerRow * rowCount;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
