@@ -266,7 +266,7 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
-    i64 count = std::max(GetDataWeight() / sliceDataWeight, rowCount / sliceRowCount);
+    i64 count = std::max(DivCeil(GetDataWeight(), sliceDataWeight), DivCeil(rowCount, sliceRowCount));
     count = std::max(std::min(count, rowCount), static_cast<i64>(1));
 
     std::vector<TInputChunkSlicePtr> result;
@@ -448,10 +448,10 @@ void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice, const TR
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,
-    i64 sliceDataSize,
+    i64 sliceDataWeight,
     i64 sliceRowCount)
 {
-    return CreateInputChunkSlice(inputChunk)->SliceEvenly(sliceDataSize, sliceRowCount);
+    return CreateInputChunkSlice(inputChunk)->SliceEvenly(sliceDataWeight, sliceRowCount);
 }
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlice, EDataSourceType dataSourceType)

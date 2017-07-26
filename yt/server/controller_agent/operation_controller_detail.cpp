@@ -4507,6 +4507,10 @@ void TOperationControllerBase::SliceUnversionedChunks(
         }
     };
 
+    LOG_DEBUG("Slicing unversioned chunks (SliceDataWeight: %v, SliceRowCount: %v)",
+        jobSizeConstraints->GetInputSliceDataWeight(),
+        jobSizeConstraints->GetInputSliceRowCount());
+
     for (const auto& chunkSpec : unversionedChunks) {
         int oldSize = result->size();
 
