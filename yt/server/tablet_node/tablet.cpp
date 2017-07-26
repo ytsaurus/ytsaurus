@@ -415,6 +415,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, RuntimeData_->TotalRowCount);
     Save(context, RuntimeData_->TrimmedRowCount);
     Save(context, RuntimeData_->LastCommitTimestamp);
+    Save(context, RuntimeData_->LastWriteTimestamp);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
 
@@ -461,6 +462,12 @@ void TTablet::Load(TLoadContext& context)
     Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
     Load(context, RuntimeData_->LastCommitTimestamp);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 100007) {
+        RuntimeData_->LastWriteTimestamp.store(RuntimeData_->LastCommitTimestamp.load());
+    } else {
+        Load(context, RuntimeData_->LastWriteTimestamp);
+    }
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
 
@@ -908,9 +915,20 @@ TTimestamp TTablet::GetLastCommitTimestamp() const
     return RuntimeData_->LastCommitTimestamp;
 }
 
-void TTablet::SetLastCommitTimestamp(TTimestamp value)
+void TTablet::UpdateLastCommitTimestamp(TTimestamp value)
 {
-    RuntimeData_->LastCommitTimestamp = value;
+    RuntimeData_->LastCommitTimestamp = std::max(value, GetLastCommitTimestamp());
+    RuntimeData_->LastWriteTimestamp = std::max(value, GetLastWriteTimestamp());
+}
+
+TTimestamp TTablet::GetLastWriteTimestamp() const
+{
+    return RuntimeData_->LastWriteTimestamp;
+}
+
+void TTablet::UpdateLastWriteTimestamp(TTimestamp value)
+{
+    RuntimeData_->LastWriteTimestamp = std::max(value, GetLastWriteTimestamp());
 }
 
 TTimestamp TTablet::GetUnflushedTimestamp() const

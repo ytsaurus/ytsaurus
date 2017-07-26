@@ -223,7 +223,6 @@ void TSortedStoreManager::CommitRow(TTransaction* transaction, const TSortedDyna
         CheckForUnlockedStore(rowRef.Store);
         ActiveStore_->CommitRow(transaction, migratedRow);
     }
-    UpdateLastCommitTimestamp(transaction, transaction->GetCommitTimestamp());
 }
 
 void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
