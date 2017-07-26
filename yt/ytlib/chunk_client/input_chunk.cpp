@@ -32,7 +32,10 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     UncompressedDataSize_ = miscExt.uncompressed_data_size();
 
     // NB(psushin): we don't use overrides from master, since we can do the same estimates ourself.
-    TotalDataWeight_ = miscExt.has_data_weight() ? miscExt.data_weight() : UncompressedDataSize_;
+    TotalDataWeight_ = miscExt.has_data_weight() && miscExt.data_weight() > 0
+        ? miscExt.data_weight()
+        : UncompressedDataSize_;
+
     TotalRowCount_ = miscExt.row_count();
 
     CompressedDataSize_ = miscExt.compressed_data_size();
@@ -183,7 +186,7 @@ i64 TInputChunk::GetRowCount() const
         : TotalRowCount_;
 
     auto rowCount = upperRowIndex - lowerRowIndex;
-    YCHECK(rowCount > 0);
+    YCHECK(rowCount > 0 && rowCount <= TotalRowCount_);
     return rowCount;
 }
 

@@ -2336,13 +2336,6 @@ private:
 
         InitShufflePool();
 
-        auto jobSizeConstraints = CreatePartitionJobSizeConstraints(
-            Spec,
-            Options,
-            TotalEstimatedInputDataWeight,
-            TotalEstimatedInputRowCount,
-            InputCompressionRatio);
-
         std::vector<TChunkStripePtr> stripes;
         SlicePrimaryUnversionedChunks(partitionJobSizeConstraints, &stripes);
         SlicePrimaryVersionedChunks(partitionJobSizeConstraints, &stripes);
@@ -2914,13 +2907,6 @@ private:
         }
 
         InitShufflePool();
-
-        auto jobSizeConstraints = CreatePartitionJobSizeConstraints(
-            Spec,
-            Options,
-            TotalEstimatedInputDataWeight,
-            TotalEstimatedInputRowCount,
-            InputCompressionRatio);
 
         std::vector<TChunkStripePtr> stripes;
         SlicePrimaryUnversionedChunks(partitionJobSizeConstraints, &stripes);
