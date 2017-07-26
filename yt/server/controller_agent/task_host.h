@@ -25,8 +25,6 @@ struct ITaskHost
     , public IPersistent
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
-    virtual NLogging::TLogger GetLogger() const = 0;
-
     virtual IInvokerPtr GetCancelableInvoker() const = 0;
 
     //! Called to extract stderr table path from the spec.

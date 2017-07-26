@@ -247,8 +247,6 @@ public:
 
     // ITaskHost implementation.
 
-    virtual NLogging::TLogger GetLogger() const override;
-
     virtual IInvokerPtr GetCancelableInvoker() const override;
 
     virtual TNullable<NYPath::TRichYPath> GetStderrTablePath() const override;

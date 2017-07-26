@@ -60,7 +60,7 @@ TTask::TTask(ITaskHostPtr taskHost)
 
 void TTask::Initialize()
 {
-    Logger = TaskHost_->GetLogger();
+    Logger.AddTag("OperationId: %v", TaskHost_->GetOperationId());
     Logger.AddTag("Task: %v", GetId());
 }
 

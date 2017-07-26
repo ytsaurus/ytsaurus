@@ -69,7 +69,6 @@ void TIntermediateTable::Persist(const TPersistenceContext& context)
     TLivePreviewTableBase::Persist(context);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
