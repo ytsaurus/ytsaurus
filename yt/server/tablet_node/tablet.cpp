@@ -448,6 +448,7 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, TableId_);
     Load(context, MountRevision_);
+    // COMPAT(gridem)
     if (context.GetVersion() > 100004) {
         Load(context, TablePath_);
     }
