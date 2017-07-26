@@ -1050,7 +1050,13 @@ class TestTables(YTEnvSetup):
             {"key": "x", "part_index": 0, "data": "hello "},
             {"key": "x", "part_index": 1, "data": "world!"},
             {"key": "y", "part_index": 0, "data": "AAA"},
-            {"key": "z", "part_index": 0}])
+            {"key": "z", "part_index": 0},
+            {"key": "za", "part_index": 0, "data": "abacaba"},
+            {"key": "za", "part_index": 1, "data": "abac"},
+            {"key": "zb", "part_index": 0, "data": "abacaba"},
+            {"key": "zb", "part_index": 1, "data": "abacabacab"},
+            {"key": "zc", "part_index": 0, "data": "abac"},
+            {"key": "zc", "part_index": 1, "data": "abacaba"}])
 
         with pytest.raises(YtError):
             read_blob_table("//tmp/ttt", part_size=6)
@@ -1076,7 +1082,15 @@ class TestTables(YTEnvSetup):
         assert "hello world!" == read_blob_table("//tmp/ttt[x]", part_size=6)
         assert "AAA" == read_blob_table("//tmp/ttt[y]", part_size=3)
         with pytest.raises(YtError):
-            assert "AAA" == read_blob_table("//tmp/ttt[(x:z)]", part_size=3)
+            read_blob_table("//tmp/ttt[x:z]", part_size=3)
+
+        assert "abacabaabac" == read_blob_table("//tmp/ttt[za]", part_size=7)
+
+        with pytest.raises(YtError):
+            read_blob_table("//tmp/ttt[zb]", part_size=7)
+
+        with pytest.raises(YtError):
+            read_blob_table("//tmp/ttt[zc]", part_size=7)
 
         write_table("//tmp/ttt", [
             {"key": "x", "index": 0, "value": "hello "},
