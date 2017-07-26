@@ -73,6 +73,10 @@ TCellPeerConfig TCellPeerDescriptor::ToConfig(const TNetworkPreferenceList& netw
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCellDescriptor::TCellDescriptor(const TCellId& cellId)
+    : CellId(cellId)
+{ }
+
 TCellConfigPtr TCellDescriptor::ToConfig(const TNetworkPreferenceList& networks) const
 {
     auto config = New<TCellConfig>();

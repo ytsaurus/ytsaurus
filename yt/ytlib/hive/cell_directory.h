@@ -58,12 +58,15 @@ void FromProto(TCellPeerDescriptor* descriptor, const NProto::TCellPeerDescripto
 
 struct TCellDescriptor
 {
-    TCellId CellId;
-    int ConfigVersion = -1;
-    std::vector<TCellPeerDescriptor> Peers;
+    TCellDescriptor() = default;
+    explicit TCellDescriptor(const TCellId& cellId);
 
     NElection::TCellConfigPtr ToConfig(const NNodeTrackerClient::TNetworkPreferenceList& networks) const;
     TCellInfo ToInfo() const;
+
+    TCellId CellId;
+    int ConfigVersion = -1;
+    std::vector<TCellPeerDescriptor> Peers;
 };
 
 void ToProto(NProto::TCellDescriptor* protoDescriptor, const TCellDescriptor& descriptor);

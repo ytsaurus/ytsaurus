@@ -214,6 +214,7 @@ public:
         TTabletSlot* owner,
         int slotIndex,
         TTabletNodeConfigPtr config,
+        const TCreateTabletSlotInfo& createInfo,
         NCellNode::TBootstrap* bootstrap)
         : Owner_(owner)
         , SlotIndex_(slotIndex)
@@ -224,12 +225,20 @@ public:
             TEnumTraits<EAutomatonThreadQueue>::GetDomainNames()))
         , SnapshotQueue_(New<TActionQueue>(
             Format("TabletSnap:%v", SlotIndex_)))
+        , PeerId_(createInfo.peer_id())
+        , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
+        , TagIdList_{
+            NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellDescriptor_.CellId),
+            NProfiling::TProfileManager::Get()->RegisterTag("peer_id", PeerId_)
+        }
+        , OptionsString_(TYsonString(createInfo.options()))
+        , Logger(NLogging::TLogger(TabletNodeLogger)
+            .AddTag("CellId: %v, PeerId: %v",
+                CellDescriptor_.CellId,
+                PeerId_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
-        TagIdList_.push_back(NProfiling::TProfileManager::Get()->RegisterTag("slot", SlotIndex_));
-
-        Logger.AddTag("Slot: %v", SlotIndex_);
         ResetEpochInvokers();
         ResetGuardedInvokers();
     }
@@ -366,20 +375,14 @@ public:
             version.SegmentId);
     }
 
-    void Initialize(const TCreateTabletSlotInfo& createInfo)
+    void Initialize()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(!Initialized_);
 
-        CellDescriptor_.CellId = FromProto<TCellId>(createInfo.cell_id());
-        PeerId_ = createInfo.peer_id();
-        Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options()));
+        Options_ = ConvertTo<TTabletCellOptionsPtr>(OptionsString_);
 
         Initialized_ = true;
-
-        Logger.AddTag("CellId: %v, PeerId: %v",
-            CellDescriptor_.CellId,
-            PeerId_);
 
         LOG_INFO("Slot initialized");
     }
@@ -598,6 +601,8 @@ public:
 
     const NProfiling::TTagIdList& GetTagIdList()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return TagIdList_;
     }
 
@@ -621,9 +626,14 @@ private:
     const TSnapshotStoreThunkPtr SnapshotStoreThunk_ = New<TSnapshotStoreThunk>();
     const TChangelogStoreFactoryThunkPtr ChangelogStoreFactoryThunk_ = New<TChangelogStoreFactoryThunk>();
 
-    TPeerId PeerId_ = InvalidPeerId;
+    const TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
+
+    const NProfiling::TTagIdList TagIdList_;
+
+    const TYsonString OptionsString_;
     TTabletCellOptionsPtr Options_;
+
     TTransactionId PrerequisiteTransactionId_;
     ITransactionPtr PrerequisiteTransaction_;  // only created for leaders
 
@@ -656,11 +666,9 @@ private:
     bool Finalizing_ = false;
     TFuture<void> FinalizeResult_;
 
-    NLogging::TLogger Logger = TabletNodeLogger;
-
     IYPathServicePtr OrchidService_;
 
-    NProfiling::TTagIdList TagIdList_;
+    NLogging::TLogger Logger;
 
 
     IYPathServicePtr CreateOrchidService()
@@ -830,11 +838,13 @@ private:
 TTabletSlot::TTabletSlot(
     int slotIndex,
     TTabletNodeConfigPtr config,
+    const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo,
     NCellNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         this,
         slotIndex,
         config,
+        createInfo,
         bootstrap))
 { }
 
@@ -930,9 +940,9 @@ TObjectId TTabletSlot::GenerateId(EObjectType type)
     return Impl_->GenerateId(type);
 }
 
-void TTabletSlot::Initialize(const TCreateTabletSlotInfo& createInfo)
+void TTabletSlot::Initialize()
 {
-    Impl_->Initialize(createInfo);
+    Impl_->Initialize();
 }
 
 bool TTabletSlot::CanConfigure() const
@@ -964,7 +974,6 @@ const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const
 {
     return Impl_->GetRuntimeData();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
