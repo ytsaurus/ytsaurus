@@ -2847,11 +2847,6 @@ TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const
     return CancelableContext;
 }
 
-NLogging::TLogger TOperationControllerBase::GetLogger() const
-{
-    return Logger;
-}
-
 IInvokerPtr TOperationControllerBase::GetCancelableInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
