@@ -668,7 +668,8 @@ class TestTableCommands(object):
             yt.read_blob_table(table, part_size=6)
 
         with pytest.raises(yt.YtError):
-            yt.read_blob_table(table + "[test0]", part_size=7)
+            stream = yt.read_blob_table(table + "[test0]", part_size=7)
+            stream.read()
 
         with pytest.raises(yt.YtError):
             yt.read_blob_table(table + "[test0]")
@@ -696,6 +697,23 @@ class TestTableCommands(object):
 
         stream = yt.read_blob_table(table + "[test5]")
         assert stream.read() == b""
+
+        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 3, "data": "ab"}])
+        stream = yt.read_blob_table(table + "[test]")
+        assert stream.read() == b"data0data1data2ab"
+
+        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 4, "data": "data4"}])
+        with pytest.raises(yt.YtError):
+            stream = yt.read_blob_table(table + "[test]")
+            stream.read()
+
+        yt.write_table(table, [{"key": "test",
+                                "part_index": j,
+                                "data": "data" + str(j)} for j in xrange(3)])
+        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 3, "data": "data03"}])
+        with pytest.raises(yt.YtError):
+            stream = yt.read_blob_table(table + "[test]")
+            stream.read()
 
     def test_read_blob_table_with_retries(self):
         with set_config_option("read_retries/enable", True):
