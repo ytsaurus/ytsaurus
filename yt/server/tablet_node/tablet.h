@@ -77,6 +77,7 @@ struct TRuntimeTabletData
     std::atomic<i64> TotalRowCount = {0};
     std::atomic<i64> TrimmedRowCount = {0};
     std::atomic<TTimestamp> LastCommitTimestamp = {NullTimestamp};
+    std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
 };
 
@@ -375,7 +376,10 @@ public:
     void SetTrimmedRowCount(i64 value);
 
     TTimestamp GetLastCommitTimestamp() const;
-    void SetLastCommitTimestamp(TTimestamp value);
+    void UpdateLastCommitTimestamp(TTimestamp value);
+
+    TTimestamp GetLastWriteTimestamp() const;
+    void UpdateLastWriteTimestamp(TTimestamp value);
 
     TTimestamp GetUnflushedTimestamp() const;
 
