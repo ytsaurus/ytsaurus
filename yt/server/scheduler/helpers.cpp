@@ -333,6 +333,9 @@ public:
             i64 uncompressedBlockSize = static_cast<i64>(Options_->CompressedBlockSize / compressionRatio);
             uncompressedBlockSize = std::min(uncompressedBlockSize, Spec_->PartitionJobIO->TableWriter->BlockSize);
 
+            // Just in case compression ratio is very large.
+            uncompressedBlockSize = std::max(i64(1), uncompressedBlockSize);
+
             // Product may not fit into i64.
             double partitionJobDataSize = sqrt(InputDataSize_) * sqrt(uncompressedBlockSize);
             partitionJobDataSize = std::min(partitionJobDataSize, static_cast<double>(Spec_->PartitionJobIO->TableWriter->MaxBufferSize));
