@@ -29,7 +29,7 @@ BY_START_TIME_ARCHIVE_PATH = "{}/ordered_by_start_time".format(OPERATIONS_ARCHIV
 STDERRS_PATH = "{}/stderrs".format(OPERATIONS_ARCHIVE_PATH)
 JOBS_PATH = "{}/jobs".format(OPERATIONS_ARCHIVE_PATH)
 
-Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
+Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state"])
 
 logger.set_formatter(Formatter("%(asctime)-15s\t{}\t%(message)s".format(yt.config["proxy"]["url"])))
 
@@ -551,14 +551,13 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         operations = yt.list(
             "//sys/operations",
             max_size=100000,
-            attributes=["state", "start_time", "finish_time", "spec", "authenticated_user"])
+            attributes=["state", "start_time", "finish_time", "authenticated_user"])
     operations = [Operation(
         maybe_parse_time(op.attributes.get("start_time", None)),
         maybe_parse_time(op.attributes.get("finish_time", None)),
         str(op),
         op.attributes["authenticated_user"],
-        op.attributes["state"],
-        op.attributes["spec"]) for op in operations]
+        op.attributes["state"]) for op in operations]
     operations.sort(key=lambda op: op.start_time, reverse=True)
 
     metrics["initial_count"] = len(operations)
@@ -637,7 +636,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
                 OperationArchiver,
                 thread_count,
                 (remove_queue, stderr_queue, version, archive_jobs, thread_safe_metrics),
-                batch_size=64,
+                batch_size=32,
                 failed_items=failed_to_archive)
             failed_to_archive.extend(wait_for_queue(archive_queue, "archive_operation", operation_archiving_time_limit))
 
