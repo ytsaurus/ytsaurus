@@ -309,8 +309,7 @@ class YtStuff(object):
                 if os.path.lexists(special_file):
                     break
                 if not yt_daemon.is_alive():
-                    self._log("yt_local process failed.")
-                    break
+                    raise Exception("yt_local process failed.")
                 time.sleep(SLEEP_TIME)
             else:
                 self._log("Can't find 'started' file for %d seconds.", MAX_WAIT_TIME)
