@@ -33,6 +33,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/heap.h>
@@ -52,6 +54,10 @@ using namespace NHydra;
 using namespace NHiveServer;
 using namespace NCellNode;
 using namespace NTabletClient::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -474,30 +480,18 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (PreparedTransactions_.empty()) {
-            const auto& timestampProvider = Bootstrap_
-                ->GetMasterClient()
-                ->GetConnection()
-                ->GetTimestampProvider();
-            return timestampProvider->GetLatestTimestamp();
-        } else {
-            return PreparedTransactions_.begin()->first;
-        }
+        return PreparedTransactions_.empty()
+            ? GetLatestTimestamp()
+            : PreparedTransactions_.begin()->first;
     }
 
     TTimestamp GetMinCommitTimestamp() const
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (SerializingTransactionHeap_.empty()) {
-            const auto& timestampProvider = Bootstrap_
-                ->GetMasterClient()
-                ->GetConnection()
-                ->GetTimestampProvider();
-            return timestampProvider->GetLatestTimestamp();
-        } else {
-            return (*SerializingTransactionHeap_.begin())->GetCommitTimestamp();
-        }
+        return SerializingTransactionHeap_.empty()
+            ? GetLatestTimestamp()
+            : (*SerializingTransactionHeap_.begin())->GetCommitTimestamp();
     }
 
 private:
@@ -505,8 +499,13 @@ private:
     const TTransactionLeaseTrackerPtr LeaseTracker_;
     const TCellTag NativeCellTag_;
 
+    const NProfiling::TProfiler& Profiler = TabletNodeProfiler;
+    NProfiling::TAggregateCounter TransactionSerializationLagCounter_ = {"/transaction_serialization_lag"};
+
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
+
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     NConcurrency::TPeriodicExecutorPtr BarrierCheckExecutor_;
     std::vector<TTransaction*> SerializingTransactionHeap_;
@@ -670,6 +669,12 @@ private:
 
         TransientBarrierTimestamp_ = MinTimestamp;
 
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Slot_->GetEpochAutomatonInvoker(),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
+
         BarrierCheckExecutor_ = New<TPeriodicExecutor>(
             Slot_->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnPeriodicBarrierCheck, MakeWeak(this)),
@@ -684,6 +689,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnStopLeading();
+
+        if (ProfilingExecutor_) {
+            ProfilingExecutor_->Stop();
+            ProfilingExecutor_.Reset();
+        }
 
         if (BarrierCheckExecutor_) {
             BarrierCheckExecutor_->Stop();
@@ -866,8 +876,43 @@ private:
     }
 
 
+    TTimestamp GetLatestTimestamp() const
+    {
+        return Bootstrap_
+            ->GetMasterClient()
+            ->GetConnection()
+            ->GetTimestampProvider()
+            ->GetLatestTimestamp();
+    }
+
+    TDuration ComputeTransactionSerializationLag() const
+    {
+        if (PreparedTransactions_.empty()) {
+            return TDuration::Zero();
+        }
+
+        auto latestTimestamp = GetLatestTimestamp();
+        auto minPrepareTimestamp = PreparedTransactions_.begin()->first;
+        if (minPrepareTimestamp > latestTimestamp) {
+            return TDuration::Zero();
+        }
+
+        return TimestampDiffToDuration(minPrepareTimestamp, latestTimestamp).second;
+    }
+
+
+    void OnProfiling()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        Profiler.Update(TransactionSerializationLagCounter_, NProfiling::DurationToValue(ComputeTransactionSerializationLag()));
+    }
+
+
     void OnPeriodicBarrierCheck()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %llx, MinPrepareTimestamp: %llx)",
             TransientBarrierTimestamp_,
             GetMinPrepareTimestamp());
