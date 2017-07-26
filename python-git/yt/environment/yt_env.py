@@ -220,6 +220,7 @@ class YTInstance(object):
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
         self._started = False
+        self._wait_functions = []
 
         if watcher_config is None:
             watcher_config = get_watcher_config()
@@ -363,12 +364,20 @@ class YTInstance(object):
             if self.has_proxy:
                 self.start_proxy(use_proxy_from_package=use_proxy_from_package)
             self.start_all_masters(start_secondary_master_cells=start_secondary_master_cells)
+
+            for func in self._wait_functions:
+                func()
+
+            self._wait_functions = []
             if on_masters_started_func is not None:
                 on_masters_started_func()
             if self.node_count > 0:
                 self.start_nodes()
             if self.scheduler_count > 0:
                 self.start_schedulers()
+
+            for func in self._wait_functions:
+                func()
 
             self._start_watcher()
             self._started = True
@@ -683,7 +692,7 @@ class YTInstance(object):
 
             cell_ready = quorum_ready_and_cell_registered
 
-        self._wait_for(cell_ready, master_name, max_wait_time=30)
+        self._wait_functions.append(lambda: self._wait_for(cell_ready, master_name, max_wait_time=30))
 
     def start_all_masters(self, start_secondary_master_cells):
         self.start_master_cell()
@@ -722,7 +731,7 @@ class YTInstance(object):
             nodes = native_client.list("//sys/nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
 
-        self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20))
+        self._wait_functions.append(lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20)))
 
     def _prepare_schedulers(self, scheduler_configs, scheduler_dirs):
         for scheduler_index in xrange(self.scheduler_count):
@@ -782,7 +791,7 @@ class YTInstance(object):
                     raise
                 return False, err
 
-        self._wait_for(schedulers_ready, "scheduler")
+        self._wait_functions.append(lambda: self._wait_for(schedulers_ready, "scheduler"))
 
     def create_client(self):
         if self.has_proxy:
@@ -939,7 +948,7 @@ class YTInstance(object):
 
             return True
 
-        self._wait_for(proxy_ready, "proxy", max_wait_time=20)
+        self._wait_functions.append(lambda: self._wait_for(proxy_ready, "proxy", max_wait_time=20))
 
     def _validate_process_is_running(self, process, name, number=None):
         if number is not None:
