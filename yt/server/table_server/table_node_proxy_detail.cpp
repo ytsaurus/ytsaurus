@@ -835,6 +835,7 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonCon
                         .Item("state").Value(replica->GetState())
                         .Item("mode").Value(replica->GetMode())
                         .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime())
+                        .Item("errors").Value(replica->GetErrors())
                     .EndMap();
             });
         return true;
