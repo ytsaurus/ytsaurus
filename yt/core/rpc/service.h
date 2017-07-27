@@ -72,7 +72,7 @@ struct IServiceContext
     virtual void Reply(const TError& error) = 0;
 
     //! Parses the message and forwards to the client.
-    virtual void Reply(TSharedRefArray message) = 0;
+    virtual void Reply(const TSharedRefArray& message) = 0;
 
     //! Called by the service request handler (prior to calling #Reply or #ReplyFrom) to indicate
     //! that the bulk of the request processing is complete.
