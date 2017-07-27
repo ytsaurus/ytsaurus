@@ -574,6 +574,9 @@ def action_pull(ctx, args):
     else:
         pull_revision = last_changed_revision
 
+    if pull_revision == push_revision:
+        raise CheckError("Nothing to pull: everything is up-to-date")
+
     if pull_revision <= push_revision or pull_revision > last_changed_revision:
         raise CheckError("Pulled revision %s is out of range; expected > last push %s and <= last changed %s" % (
             pull_revision, push_revision, last_changed_revision))
