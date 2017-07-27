@@ -7,6 +7,7 @@ from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .ypath import TablePath
+from .py_wrapper import OperationParameters
 from .table_commands import is_empty, is_sorted
 from .table_helpers import (FileUploader, _prepare_formats, _is_python_function,
                             _prepare_binary, _prepare_source_tables, _prepare_destination_tables,
@@ -332,12 +333,20 @@ class UserJobSpecBuilder(object):
         builder_func(self)
         return spec_builder
 
-    def _prepare_job_files(self, spec, group_by, local_files_to_remove, input_format, output_format, client):
+    def _prepare_job_files(self, spec, group_by, local_files_to_remove, input_format,
+                           output_format, output_table_count, client):
         file_uploader = FileUploader(client=client)
         files = file_uploader(spec.get("local_files"))
 
-        prepare_result = _prepare_binary(spec["command"], self._job_name, input_format, output_format,
-                                         group_by, file_uploader, client=client)
+        params = OperationParameters(
+            input_format=input_format,
+            output_format=output_format,
+            operation_type=self._job_name,
+            group_by=group_by,
+            output_table_count=output_table_count,
+            use_yamr_descriptors=spec.get("use_yamr_descriptors", False))
+
+        prepare_result = _prepare_binary(spec["command"], file_uploader, params, client=client)
 
         tmpfs_size = prepare_result.tmpfs_size
         environment = prepare_result.environment
@@ -433,7 +442,7 @@ class UserJobSpecBuilder(object):
     def _set_spec_override(self, spec):
         self._spec_override = spec
 
-    def build(self, local_files_to_remove=None, group_by=None, client=None):
+    def build(self, output_table_count, local_files_to_remove=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
         spec = update(self._spec_override, self._deepcopy_spec())
@@ -447,7 +456,7 @@ class UserJobSpecBuilder(object):
 
         spec = self._prepare_ld_library_path(spec, client)
         spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, local_files_to_remove,
-                                                              input_format, output_format, client)
+                                                              input_format, output_format, output_table_count, client)
         spec.setdefault("use_yamr_descriptors",
                         bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]))
         spec.setdefault("check_input_fully_consumed",
@@ -566,11 +575,12 @@ class SpecBuilder(object):
         if single_output_table:
             spec[output_tables_param] = unlist(spec[output_tables_param])
 
-    def _build_user_job_spec(self, spec, job_name, group_by=None, client=None):
+    def _build_user_job_spec(self, spec, job_name, output_table_count=1, group_by=None, client=None):
         if isinstance(spec[job_name], UserJobSpecBuilder):
             job_spec_builder = spec[job_name]
             spec[job_name] = job_spec_builder.build(group_by=group_by,
                                                     local_files_to_remove=self._local_files_to_remove,
+                                                    output_table_count=output_table_count,
                                                     client=client)
         return spec
 
@@ -789,6 +799,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
 
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec, job_name="reducer",
+                                             output_table_count=len(self.get_output_table_paths()),
                                              group_by=spec.get("join_by"),
                                              client=client)
         return spec
@@ -842,7 +853,8 @@ class MapSpecBuilder(SpecBuilder):
         spec = self._prepared_spec
 
         if "mapper" in spec:
-            spec = self._build_user_job_spec(spec=spec, job_name="mapper", client=client)
+            spec = self._build_user_job_spec(spec=spec, job_name="mapper",
+                                             output_table_count=len(self.get_output_table_paths()), client=client)
         return spec
 
     def supports_user_job_spec(self):
@@ -958,6 +970,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_name="reducer",
+                                             output_table_count=len(self.get_output_table_paths()),
                                              group_by=spec.get("reduce_by"),
                                              client=client)
         if "reduce_combiner" in spec:

@@ -53,6 +53,22 @@ class WrapResult(object):
         self.local_files_to_remove = local_files_to_remove
         self.title = title
 
+class OperationParameters(object):
+    __slots__ = ["input_format", "output_format", "operation_type", "group_by", "output_table_count",
+                 "use_yamr_descriptors", "attributes", "python_version", "is_local_mode"]
+
+    def __init__(self, input_format=None, output_format=None, operation_type=None, group_by=None, python_version=None,
+                 output_table_count=None, use_yamr_descriptors=None, attributes=None, is_local_mode=None):
+        self.input_format = input_format
+        self.output_format = output_format
+        self.operation_type = operation_type
+        self.group_by = group_by
+        self.output_table_count = output_table_count
+        self.use_yamr_descriptors = use_yamr_descriptors
+        self.attributes = attributes
+        self.python_version = python_version
+        self.is_local_mode = is_local_mode
+
 # Md5 tools.
 def init_md5():
     return []
@@ -436,8 +452,7 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
 
     return arguments
 
-def build_function_and_config_arguments(function, operation_type, input_format, output_format, group_by,
-                                        create_temp_file, file_argument_builder, is_local_mode, client):
+def build_function_and_config_arguments(function, create_temp_file, file_argument_builder, is_local_mode, params, client):
     function_filename = create_temp_file(prefix=get_function_name(function) + ".pickle")
 
     pickler_name = get_config(client)["pickling"]["framework"]
@@ -446,9 +461,11 @@ def build_function_and_config_arguments(function, operation_type, input_format, 
         pickler.load_types()
 
     with open(function_filename, "wb") as fout:
-        attributes = function.attributes if hasattr(function, "attributes") else {}
-        pickler.dump((function, attributes, operation_type, input_format,
-            output_format, group_by, get_python_version(), is_local_mode), fout)
+        params.attributes = function.attributes if hasattr(function, "attributes") else {}
+        params.python_version = get_python_version()
+        params.is_local_mode = is_local_mode
+
+        pickler.dump((function, params), fout)
 
     config_filename = create_temp_file(prefix="config_dump")
     with open(config_filename, "wb") as fout:
@@ -456,7 +473,7 @@ def build_function_and_config_arguments(function, operation_type, input_format, 
 
     return list(imap(file_argument_builder, [function_filename, config_filename]))
 
-def build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client):
+def build_modules_arguments(modules_info, create_temp_file, file_argument_builder):
     # COMPAT: previous version of create_modules_archive returns string.
     if isinstance(modules_info, (text_type, binary_type)):
         modules_info = [{"filename": modules_info, "hash": calc_md5_string_from_file(modules_info), "tmpfs": False}]
@@ -512,8 +529,8 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
 
     return [file_argument_builder(main_filename), module_import_path, main_module_type]
 
-def do_wrap(function, operation_type, tempfiles_manager, input_format, output_format, group_by, local_mode, uploader, client):
-    assert operation_type in ["mapper", "reducer", "reduce_combiner"]
+def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
+    assert params.operation_type in ["mapper", "reducer", "reduce_combiner"]
 
     def create_temp_file(prefix="", suffix=""):
         return tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
@@ -550,10 +567,11 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
 
     caller_arguments = build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_argument_builder, environment, client)
     function_and_config_arguments = build_function_and_config_arguments(
-        function, operation_type, input_format, output_format, group_by,
+        function,
         create_temp_file,
         file_argument_builder,
         local_mode,
+        params,
         client)
 
     if is_standalone_binary:
@@ -562,7 +580,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         main_file_arguments = []
     else:
         modules_info = create_modules_archive(tempfiles_manager, is_standalone_binary or use_local_python_in_jobs, client)
-        modules_arguments, tmpfs_size = build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client)
+        modules_arguments, tmpfs_size = build_modules_arguments(modules_info, create_temp_file, file_argument_builder)
         main_file_arguments = build_main_file_arguments(function, create_temp_file, file_argument_builder)
 
     cmd = " ".join(caller_arguments + function_and_config_arguments + modules_arguments + main_file_arguments)
