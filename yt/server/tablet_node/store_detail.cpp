@@ -477,9 +477,16 @@ TChunkStoreBase::TChunkStoreBase(
 
 void TChunkStoreBase::Initialize(const TAddStoreDescriptor* descriptor)
 {
-    const auto& storeManager = Tablet_->GetStoreManager();
+    auto inMemoryMode = Tablet_->GetConfig()->InMemoryMode;
+    ui64 inMemoryConfigRevision = 0;
 
-    SetInMemoryMode(storeManager->GetInMemoryMode(), storeManager->GetInMemoryConfigRevision());
+    // When recovering from a snapshot, the store manager is not installed yet.
+    const auto& storeManager = Tablet_->GetStoreManager();
+    if (storeManager) {
+        inMemoryConfigRevision = storeManager->GetInMemoryConfigRevision();
+    }
+
+    SetInMemoryMode(inMemoryMode, inMemoryConfigRevision);
 
     if (descriptor) {
         ChunkMeta_->CopyFrom(descriptor->chunk_meta());
