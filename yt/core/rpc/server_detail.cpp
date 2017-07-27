@@ -76,7 +76,7 @@ void TServiceContextBase::Reply(const TError& error)
     }
 }
 
-void TServiceContextBase::Reply(TSharedRefArray responseMessage)
+void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
 {
     Y_ASSERT(!Replied_);
     Y_ASSERT(responseMessage.Size() >= 1);
@@ -142,6 +142,11 @@ TSharedRefArray TServiceContextBase::GetResponseMessage() const
                 ResponseBody_,
                 ResponseAttachments_)
             : CreateErrorResponseMessage(header);
+
+        auto responseMessageError = CheckBusMessageLimits(ResponseMessage_);
+        if (!responseMessageError.IsOK()) {
+            ResponseMessage_ = CreateErrorResponseMessage(responseMessageError);
+        }
     }
 
     return ResponseMessage_;
@@ -365,7 +370,7 @@ void TServiceContextWrapper::Reply(const TError& error)
     UnderlyingContext_->Reply(error);
 }
 
-void TServiceContextWrapper::Reply(TSharedRefArray responseMessage)
+void TServiceContextWrapper::Reply(const TSharedRefArray& responseMessage)
 {
     UnderlyingContext_->Reply(responseMessage);
 }

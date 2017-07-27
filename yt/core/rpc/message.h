@@ -79,6 +79,8 @@ i64 GetMessageBodySize(const TSharedRefArray& message);
 int GetMessageAttachmentCount(const TSharedRefArray& message);
 i64 GetTotalMesageAttachmentSize(const TSharedRefArray& message);
 
+TError CheckBusMessageLimits(const TSharedRefArray& message);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc
