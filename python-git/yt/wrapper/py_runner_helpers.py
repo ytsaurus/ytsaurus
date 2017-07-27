@@ -1,5 +1,7 @@
 from .common import EMPTY_GENERATOR, YtError, get_binary_std_stream
 
+from yt.packages.six.moves import xrange
+
 import inspect
 import os
 import sys
@@ -37,12 +39,6 @@ class WrappedStreams(object):
     def __exit__(self, exc_type, exc_value, exc_traceback):
        sys.stdin = self.stdin
        sys.stdout = self.stdout
-
-    def get_original_stdin(self):
-        return self.stdin
-
-    def get_original_stdout(self):
-        return self.stdout
 
 class Context(object):
     def __init__(self):
@@ -100,6 +96,13 @@ def check_job_environment_variables():
             sys.stderr.write("Warning! {0} is not set. If this job is not run "
                              "manually for testing purposes then this is a bug.\n".format(name))
 
+class FDOutputStream(object):
+    def __init__(self, fd):
+        self._fd = fd
+
+    def write(self, str):
+        os.write(self._fd, str)
+
 def process_rows(operation_dump_filename, config_dump_filename, start_time):
     from itertools import chain, groupby, starmap
     try:
@@ -132,9 +135,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
     if unpickler_name == "dill" and yt.wrapper.config.config["pickling"]["load_additional_dill_types"]:
         unpickler.load_types()
 
-    operation, attributes, operation_type, \
-        input_format, output_format, group_by_keys, python_version, is_local_mode = \
-            unpickler.load(open(operation_dump_filename, "rb"))
+    operation, params = unpickler.load(open(operation_dump_filename, "rb"))
 
     if yt.wrapper.config["pickling"]["enable_job_statistics"]:
         try:
@@ -144,50 +145,54 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         except ImportError:
             pass
 
-    if yt.wrapper.config["pickling"]["check_python_version"] and yt.wrapper.common.get_python_version() != python_version:
+    if yt.wrapper.config["pickling"]["check_python_version"] and yt.wrapper.common.get_python_version() != params.python_version:
         sys.stderr.write("Python version on cluster differs from local python version")
         sys.exit(1)
 
-    if attributes.get("is_raw_io", False):
+    if params.attributes.get("is_raw_io", False):
         operation()
         return
 
-    raw = attributes.get("is_raw", False)
+    raw = params.attributes.get("is_raw", False)
 
-    if not is_local_mode and isinstance(input_format, YsonFormat):
-        input_format._check_bindings()
+    if not params.is_local_mode and isinstance(params.input_format, YsonFormat):
+        params.input_format._check_bindings()
 
-    rows = input_format.load_rows(get_binary_std_stream(sys.stdin), raw=raw)
+    rows = params.input_format.load_rows(get_binary_std_stream(sys.stdin), raw=raw)
 
     context = None
-    if attributes.get("with_context", False):
+    if params.attributes.get("with_context", False):
         rows, context = extract_context(rows)
     start, run, finish = yt.wrapper.py_runner_helpers.extract_operation_methods(operation, context)
     wrap_stdin = wrap_stdout = yt.wrapper.config["pickling"]["safe_stream_mode"]
-    with yt.wrapper.py_runner_helpers.WrappedStreams(wrap_stdin, wrap_stdout) as streams:
-        if attributes.get("is_aggregator", False):
+    with yt.wrapper.py_runner_helpers.WrappedStreams(wrap_stdin, wrap_stdout):
+        if params.attributes.get("is_aggregator", False):
             result = run(rows)
         else:
-            if operation_type == "mapper" or raw:
+            if params.operation_type == "mapper" or raw:
                 result = chain(
                     start(),
                     chain.from_iterable(imap(run, rows)),
                     finish())
             else:
-                if attributes.get("is_reduce_aggregator"):
-                    result = run(groupby(rows, lambda row: extract_key(row, group_by_keys)))
+                if params.attributes.get("is_reduce_aggregator"):
+                    result = run(groupby(rows, lambda row: extract_key(row, params.group_by)))
                 else:
                     result = chain(
                         start(),
                         chain.from_iterable(
                             starmap(run,
-                                groupby(rows, lambda row: extract_key(row, group_by_keys)))),
+                                groupby(rows, lambda row: extract_key(row, params.group_by)))),
                         finish())
 
         result = process_frozen_dict(result)
-        output_format.dump_rows(result, get_binary_std_stream(streams.get_original_stdout()), raw=raw)
+
+        if params.use_yamr_descriptors:
+            output_streams = [FDOutputStream(i + 3) for i in xrange(params.output_table_count)]
+        else:
+            output_streams = [FDOutputStream(i * 3 + 1) for i in xrange(params.output_table_count)]
+        params.output_format.dump_rows(result, output_streams, raw=raw)
 
     # Read out all input
     for row in rows:
         pass
-

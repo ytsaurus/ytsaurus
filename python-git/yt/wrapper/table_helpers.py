@@ -217,19 +217,16 @@ def _prepare_formats(format, input_format, output_format, binary, client):
 
     return input_format, output_format
 
-def _prepare_binary(binary, operation_type, input_format, output_format,
-                    group_by, file_uploader, client=None):
+def _prepare_binary(binary, file_uploader, params, client=None):
     if _is_python_function(binary):
         start_time = time.time()
-        if isinstance(input_format, YamrFormat) and group_by is not None and set(group_by) != set(["key"]):
-            raise YtError("Yamr format does not support reduce by %r", group_by)
+        if isinstance(params.input_format, YamrFormat) and params.group_by is not None \
+                and set(params.group_by) != set(["key"]):
+            raise YtError("Yamr format does not support reduce by %r", params.group_by)
         wrap_result = \
             py_wrapper.wrap(function=binary,
-                            operation_type=operation_type,
-                            input_format=input_format,
-                            output_format=output_format,
-                            group_by=group_by,
                             uploader=file_uploader,
+                            params=params,
                             client=client)
 
         logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)

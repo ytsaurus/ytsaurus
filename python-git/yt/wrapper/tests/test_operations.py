@@ -1419,3 +1419,126 @@ if __name__ == "__main__":
 
         finally:
             stop(instance.id, path=dir)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_yson_several_output_tables(self):
+        def first_mapper(row):
+            row["@table_index"] = row["x"]
+            yield row
+
+        def second_mapper(row):
+            yield yt.create_table_switch(row["x"])
+            yield row
+
+        def third_mapper(row):
+            yield yt.create_table_switch(row["x"] + 5)
+            yield row
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+
+        yt.run_map(first_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="row_fields"))
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": 1}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": 2}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        yt.run_map(second_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="iterator"))
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": 1}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": 2}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        with pytest.raises(yt.YtError):
+            yt.run_map(third_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="iterator"))
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_json_several_output_tables(self):
+        def first_mapper(row):
+            row["@table_index"] = row["x"]
+            yield row
+
+        def second_mapper(row):
+            yield {"$value": None, "$attributes": {"table_index": row["x"]}}
+            yield row
+
+        def third_mapper(row):
+            yield {"$value": None, "$attributes": {"table_index": row["x"] + 5}}
+            yield row
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+
+        yt.run_map(first_mapper, table, output_tables, format=yt.JsonFormat(control_attributes_mode="row_fields"))
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": 1}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": 2}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        yt.run_map(second_mapper, table, output_tables, format=yt.JsonFormat(control_attributes_mode="iterator"))
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": 1}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": 2}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        with pytest.raises(yt.YtError):
+            yt.run_map(third_mapper, table, output_tables, format=yt.JsonFormat(control_attributes_mode="iterator"))
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_yamr_several_output_tables(self):
+        def first_mapper(rec):
+            rec.tableIndex = int(rec.value)
+            yield rec
+
+        def second_mapper(rec):
+            rec.tableIndex = int(rec.value + 5)
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "x", "value": str(i)} for i in xrange(3)])
+
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+
+        yt.run_map(first_mapper, table, output_tables, format=yt.YamrFormat())
+
+        assert list(yt.read_table(output_tables[0])) == [{"key": "x", "value": "0"}]
+        assert list(yt.read_table(output_tables[1])) == [{"key": "x", "value": "1"}]
+        assert list(yt.read_table(output_tables[2])) == [{"key": "x", "value": "2"}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        with pytest.raises(yt.YtError):
+            yt.run_map(second_mapper, table, output_tables, format=yt.YamrFormat())
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_schemaful_dsv_several_output_tables(self):
+        def mapper(row):
+            row["@table_index"] = int(row["x"])
+            yield row
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "0"}, {"x": "1"}, {"x": "2"}])
+
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+
+        yt.run_map(mapper, table, output_tables,
+                   format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
+                   spec={"mapper": {"enable_input_table_index": True}})
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": "0"}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": "1"}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": "2"}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        yt.write_table(table, [{"x": "0"}, {"x": "5"}, {"x": "6"}])
+        with pytest.raises(yt.YtError):
+            yt.run_map(mapper, table, output_tables,
+                       format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
+                       spec={"mapper": {"enable_input_table_index": True}})
