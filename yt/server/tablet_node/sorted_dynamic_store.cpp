@@ -1800,9 +1800,13 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             .ThrowOnError();
 
         auto chunkWriter = New<TMemoryWriter>();
+
         auto tableWriterConfig = New<TChunkWriterConfig>();
+        tableWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery);
+
         auto tableWriterOptions = New<TTabletWriterOptions>();
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
+
         auto tableWriter = CreateVersionedChunkWriter(
             tableWriterConfig,
             tableWriterOptions,
