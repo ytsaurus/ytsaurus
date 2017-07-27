@@ -654,7 +654,6 @@ private:
             return;
         }
         Iterator_ = TIterator();
-        return;
     }
 
     TVersionedRow ProduceRow(const TSortedDynamicRow& dynamicRow)
@@ -1794,6 +1793,9 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
     auto tableReader = CreateSnapshotReader();
 
     return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
+        LOG_DEBUG("Store snapshot serialization started");
+
+        LOG_DEBUG("Opening table reader");
         WaitFor(tableReader->Open())
             .ThrowOnError();
 
@@ -1806,15 +1808,20 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             tableWriterOptions,
             Schema_,
             chunkWriter);
+
+        LOG_DEBUG("Opening table writer");
         WaitFor(tableWriter->Open())
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
 
+        LOG_DEBUG("Serializing store snapshot");
+
         i64 rowCount = 0;
         while (tableReader->Read(&rows)) {
             if (rows.empty()) {
+                LOG_DEBUG("Waiting for table reader");
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
@@ -1822,6 +1829,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
 
             rowCount += rows.size();
             if (!tableWriter->Write(rows)) {
+                LOG_DEBUG("Waiting for table writer");
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -1836,11 +1844,20 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         Save(context, true);
 
         // NB: This also closes chunkWriter.
+        LOG_DEBUG("Closing table writer");
         WaitFor(tableWriter->Close())
             .ThrowOnError();
 
         Save(context, chunkWriter->GetChunkMeta());
-        Save(context, TBlock::Unwrap(chunkWriter->GetBlocks()));
+
+        auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
+        LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v, ByteSize: %v)",
+            rowCount,
+            blocks.size());
+
+        Save(context, blocks);
+
+        LOG_DEBUG("Store snapshot serialization complete");
     });
 }
 
