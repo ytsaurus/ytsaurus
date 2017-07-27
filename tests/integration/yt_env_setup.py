@@ -512,9 +512,9 @@ class YTEnvSetup(object):
         yt_commands.remove("//sys/pools/*", driver=driver)
 
     def _find_ut_file(self, file_name):
-        unittester_path = find_executable("unittester")
+        unittester_path = find_executable("unittester-ytlib")
         assert unittester_path is not None
-        unittests_path = os.path.join(os.path.dirname(unittester_path), "..", "yt", "unittests")
+        unittests_path = os.path.join(os.path.dirname(unittester_path), "..", "yt", "ytlib", "unittests")
         assert os.path.exists(unittests_path)
         result_path = os.path.join(unittests_path, file_name)
         assert os.path.exists(result_path)
