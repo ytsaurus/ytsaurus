@@ -279,7 +279,10 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         LOG_DEBUG("Store snapshot serialization started");
 
         auto chunkWriter = New<TMemoryWriter>();
+
         auto tableWriterConfig = New<TChunkWriterConfig>();
+        tableWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery);
+
         auto tableWriterOptions = New<TChunkWriterOptions>();
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
 
