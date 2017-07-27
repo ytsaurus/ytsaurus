@@ -234,7 +234,7 @@ private:
     const bool Sticky_;
 
     class TClient;
-    const std::unique_ptr<TClient> Client_;
+    const TInstruvePtr<TClient> Client_;
 
     std::vector<TFuture<void>> AsyncRequests_;
 };

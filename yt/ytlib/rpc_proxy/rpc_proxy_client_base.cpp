@@ -61,7 +61,6 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     }
     // XXX(sandello): Better? Remove these fields from the protocol at all?
     req->set_auto_abort(false);
-    req->set_auto_abort(options.AutoAbort);
     bool sticky = type == NTransactionClient::ETransactionType::Tablet
         ? true
         : options.Sticky;
