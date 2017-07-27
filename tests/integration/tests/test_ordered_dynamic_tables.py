@@ -90,7 +90,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 get_counter("commit/" + count_name))
 
         assert get_all_counters("rows") == (0, 10, 10)
-        assert get_all_counters("bytes") == (0, 236, 236)
+        assert get_all_counters("bytes") == (0, 246, 246)
         assert get_counter("select/cpu_time") == 0
 
         select_rows("* from [//tmp/t]")
@@ -98,7 +98,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         sleep(1)
 
         assert get_all_counters("rows") == (20, 10, 10)
-        assert get_all_counters("bytes") == (872, 236, 236)
+        assert get_all_counters("bytes") == (892, 246, 246)
         assert get_counter("select/cpu_time") > 0
 
     def test_insert(self):
@@ -135,10 +135,10 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         for i in xrange(10):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
-            
+
         for i in xrange(10):
             assert select_rows("a from [//tmp/t] where [$tablet_index] = " + str(i)) == [{"a": i}]
-    
+
     def _test_select_from_single_tablet(self, dynamic):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -194,7 +194,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         query_rows = [{"$tablet_index": 0, "$row_index": i, "a": i % 100} for i in xrange(10, 490)]
         assert select_rows("[$tablet_index], [$row_index], a from [//tmp/t] where [$row_index] between 10 and 489") == query_rows
-        
+
     def test_select_with_limits(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -239,7 +239,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         alter_table("//tmp/t", dynamic=True)
         assert get("//tmp/t/@dynamic")
-        
+
         self.sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t]") == [{"a": i % 100} for i in xrange(1000)]
 
@@ -273,7 +273,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-        
+
         with pytest.raises(YtError): trim_rows("//tmp/t", -1, 0)
         with pytest.raises(YtError): trim_rows("//tmp/t", +1, 0)
         with pytest.raises(YtError): trim_rows("//tmp/t", 0, 100)
@@ -282,7 +282,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-        
+
         trim_rows("//tmp/t", 0, -10)
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 0)
 
@@ -299,7 +299,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         alter_table("//tmp/t", dynamic=True)
         self.sync_mount_table("//tmp/t")
-        
+
         root_chunk_list_id = get("//tmp/t/@chunk_list_id")
         tablet_chunk_list_id = get("#{0}/@child_ids/0".format(root_chunk_list_id))
 
@@ -320,7 +320,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         insert_rows("//tmp/t", [{"a": i} for i in xrange(100)])
         trim_rows("//tmp/t", 0, 30)
         assert select_rows("a from [//tmp/t]") == [{"a": i} for i in xrange(30, 100)]
-          
+
     def test_make_static_after_trim(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -349,7 +349,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         alter_table("//tmp/t", dynamic=True)
         self.sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [{"a": j} for j in xrange(110, 121)]
-        
+
         trim_rows("//tmp/t", 0, 100)
 
         sleep(0.2)
@@ -599,7 +599,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         _check_preload_state("disabled")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
-        
+
         # Re-enable in-memory mode
         set("//tmp/t/@in_memory_mode", mode)
         remount_table("//tmp/t")

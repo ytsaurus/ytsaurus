@@ -197,7 +197,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 get_counter("commit/" + count_name))
 
         assert get_all_counters("rows") == (0, 0, 1, 1)
-        assert get_all_counters("bytes") == (0, 0, 9, 9)
+        assert get_all_counters("bytes") == (0, 0, 10, 10)
         assert get_counter("lookup/cpu_time") == 0
         assert get_counter("select/cpu_time") == 0
 
@@ -207,7 +207,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sleep(1)
 
         assert get_all_counters("rows") == (1, 0, 1, 1)
-        assert get_all_counters("bytes") == (9, 0, 9, 9)
+        assert get_all_counters("bytes") == (10, 0, 10, 10)
         assert get_counter("lookup/cpu_time") > 0
         assert get_counter("select/cpu_time") == 0
 
@@ -217,7 +217,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sleep(1)
 
         assert get_all_counters("rows") == (1, 2, 1, 1)
-        assert get_all_counters("bytes") == (9, 9*2+8, 9, 9)
+        assert get_all_counters("bytes") == (10, 10*2+8, 10, 10)
         assert get_counter("lookup/cpu_time") > 0
         assert get_counter("select/cpu_time") > 0
 
@@ -1636,11 +1636,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         wait(lambda: len(__builtin__.set(get("//tmp/t1/@chunk_ids")).intersection(original_chunk_ids1)) == 0)
         wait(lambda: len(__builtin__.set(get("//tmp/t2/@chunk_ids")).intersection(original_chunk_ids2)) == 0)
-        
+
         compacted_chunk_ids1 = __builtin__.set(get("//tmp/t1/@chunk_ids"))
         compacted_chunk_ids2 = __builtin__.set(get("//tmp/t2/@chunk_ids"))
         assert len(compacted_chunk_ids1.intersection(compacted_chunk_ids2)) == 0
-        
+
         assert_items_equal(select_rows("key from [//tmp/t1]"), rows + ext_rows1)
         assert_items_equal(select_rows("key from [//tmp/t2]"), rows + ext_rows2)
 
@@ -1788,7 +1788,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", pivot_keys=[[], [1], [2], [3]])
         assert get("//tmp/t/@tablet_count") == 4
 
-    
+
     def test_type_conversion(self):
         self.sync_create_cells(1)
         create("table", "//tmp/t",
@@ -1949,7 +1949,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[2])) == [chunk_id]
         with pytest.raises(YtError):
             reshard_table("//tmp/t", [[]])
- 
+
 ##################################################################
 
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
