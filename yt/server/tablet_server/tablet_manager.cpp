@@ -4086,11 +4086,17 @@ private:
                     continue;
                 }
 
-                auto request = TYPathProxy::List("");
+                auto request = TYPathProxy::List(TYPath());
+                std::vector<TString> attributeKeys{
+                    "compressed_data_size"
+                };
+                ToProto(request->mutable_attributes()->mutable_keys(), attributeKeys);
+
                 auto response = WaitFor(ExecuteVerb(snapshotsMap, request))
                     .ValueOrThrow();
                 auto list = ConvertTo<IListNodePtr>(TYsonString(response->value()));
                 auto children = list->GetChildren();
+
                 std::vector<TSnapshotInfo> snapshots;
                 std::vector<TString> snapshotKeys;
                 snapshots.reserve(children.size());
@@ -4146,7 +4152,7 @@ private:
                                 }
                             }));
                         }
-                    } catch (const std::exception& ex) {
+                    } catch (const std::exception&) {
                         // Ignore, cf. logging above.
                     }
                 }
@@ -4159,7 +4165,7 @@ private:
                     continue;
                 }
 
-                auto changelogKeys = SyncYPathList(changelogsMap, "");
+                auto changelogKeys = SyncYPathList(changelogsMap, TYPath());
                 for (const auto& key : changelogKeys) {
                     int changelogId;
                     try {
