@@ -42,20 +42,20 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTask::TTask()
-    : CachedPendingJobCount_(-1)
+    : Logger(OperationLogger)
+    , CachedPendingJobCount_(-1)
     , CachedTotalJobCount_(-1)
     , DemandSanityCheckDeadline_(0)
     , CompletedFired_(false)
-    , Logger(OperationLogger)
 { }
 
 TTask::TTask(ITaskHostPtr taskHost)
-    : TaskHost_(taskHost.Get())
+    : Logger(OperationLogger)
+    , TaskHost_(taskHost.Get())
     , CachedPendingJobCount_(0)
     , CachedTotalJobCount_(0)
     , DemandSanityCheckDeadline_(0)
     , CompletedFired_(false)
-    , Logger(OperationLogger)
 { }
 
 void TTask::Initialize()
