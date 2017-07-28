@@ -1,15 +1,5 @@
 include(Sources.txt)
 
-list(APPEND YT_SRCS
-  ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_ut.cpp
-)
-
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
 udf_bc(${CMAKE_CURRENT_LIST_DIR}/udf/malloc_udf.c YT_SRCS_RESOLVED)
@@ -38,12 +28,11 @@ udf_bc(${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_fc.cpp
 
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
-add_executable(unittester
+add_executable(unittester-ytlib
   ${YT_SRCS_RESOLVED}
 )
 
-target_link_libraries(unittester
+target_link_libraries(unittester-ytlib
   yt-core-test-framework
   yt-library-client
-  yt-library-server
 )
