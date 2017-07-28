@@ -254,22 +254,6 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     else:
         return format.load_rows(response)
 
-
-def alter_table(path, schema=None, dynamic=None, client=None):
-    """Sets schema of the dynamic table.
-
-    :param path: path to table.
-    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-    :param schema: json-able object.
-    :param bool dynamic: dynamic.
-    """
-
-    params = {"path": TablePath(path, client=client)}
-    set_param(params, "schema", schema)
-    set_param(params, "dynamic", dynamic)
-
-    _make_transactional_request("alter_table", params, client=client)
-
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None,
                 freeze=False, sync=False, client=None):
     """Mounts table.
