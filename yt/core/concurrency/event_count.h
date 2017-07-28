@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/misc/nullable.h>
+
 #ifndef _linux_
     #include <util/system/mutex.h>
     #include <util/system/condvar.h>
@@ -90,12 +92,12 @@ public:
 
     TCookie PrepareWait();
     void CancelWait();
-    void Wait(TCookie cookie);
+    bool Wait(TCookie cookie, TNullable<TInstant> deadline = Null);
 
     //! Wait for |condition()| to become |true|.
     //! Will clean up appropriately if |condition()| throws, and then rethrow.
     template <class TCondition>
-    void Await(TCondition condition);
+    bool Await(TCondition condition, TNullable<TInstant> deadline = Null);
 
 private:
     void DoNotify(int n);
@@ -132,7 +134,7 @@ public:
     void NotifyAll();
 
     bool Test() const;
-    void Wait();
+    bool Wait(TNullable<TInstant> deadline = Null);
 
 private:
     std::atomic<bool> Set_ = {false};

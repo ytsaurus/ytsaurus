@@ -218,6 +218,27 @@ public:
         return *Value_;
     }
 
+    bool TimedWait(TDuration timeout) const
+    {
+        // Fast path.
+        if (Set_) {
+            return true;
+        }
+
+        // Slow path.
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (Set_) {
+                return true;
+            }
+            if (!ReadyEvent_) {
+                ReadyEvent_.reset(new NConcurrency::TEvent());
+            }
+        }
+
+        return ReadyEvent_->Wait(timeout.ToDeadLine());
+    }
+
     TNullable<TErrorOr<T>> TryGet() const
     {
         return Set_ ? Value_ : Null;
@@ -557,6 +578,13 @@ const TErrorOr<T>& TFutureBase<T>::Get() const
 {
     Y_ASSERT(Impl_);
     return Impl_->Get();
+}
+
+template <class T>
+bool TFutureBase<T>::TimedWait(TDuration timeout) const
+{
+    Y_ASSERT(Impl_);
+    return Impl_->TimedWait(timeout);
 }
 
 template <class T>
