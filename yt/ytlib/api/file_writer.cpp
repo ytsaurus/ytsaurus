@@ -63,11 +63,11 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
-    {
-        Logger.AddTag("Path: %v, TransactionId: %v",
-            Path_,
-            Options_.TransactionId);
-    }
+        , Logger(NLogging::TLogger(ApiLogger)
+            .AddTag("Path: %v, TransactionId: %v",
+                Path_,
+                Options_.TransactionId))
+    { }
 
     virtual TFuture<void> Open() override
     {
@@ -78,13 +78,17 @@ public:
 
     virtual TFuture<void> Write(const TSharedRef& data) override
     {
-        ValidateAborted();
+        try {
+            ValidateAborted();
 
-        if (Writer_->Write(data)) {
-            return VoidFuture;
+            if (Writer_->Write(data)) {
+                return VoidFuture;
+            }
+
+            return Writer_->GetReadyEvent();
+        } catch (const std::exception& ex) {
+            return MakeFuture<void>(ex);
         }
-
-        return Writer_->GetReadyEvent();
     }
 
     virtual TFuture<void> Close() override
@@ -108,7 +112,7 @@ private:
     TCellTag CellTag_ = InvalidCellTag;
     TObjectId ObjectId_;
 
-    NLogging::TLogger Logger = ApiLogger;
+    const NLogging::TLogger Logger;
 
 
     void DoOpen()
@@ -275,16 +279,6 @@ private:
             .ThrowOnError();
 
         LOG_INFO("File opened");
-    }
-
-    void DoWrite(const TSharedRef& data)
-    {
-        ValidateAborted();
-
-        if (!Writer_->Write(data)) {
-            WaitFor(Writer_->GetReadyEvent())
-                .ThrowOnError();
-        }
     }
 
     void DoClose()
