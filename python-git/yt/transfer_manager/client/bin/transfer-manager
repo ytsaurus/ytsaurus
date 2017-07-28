@@ -159,6 +159,7 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
                                      epilog=EPILOG,
                                      description=DESCRIPTION)
+    parser.add_argument("--version", action="version", version=tm.__version__)
 
     subparsers = parser.add_subparsers(metavar="command", dest="command")
 
