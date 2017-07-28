@@ -2176,6 +2176,7 @@ private:
 
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
+            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
 
             rowCount += context.RowCount;
         }
