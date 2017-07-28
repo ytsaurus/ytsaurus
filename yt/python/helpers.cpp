@@ -212,5 +212,25 @@ Py::Callable GetYsonTypeClass(const std::string& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool WaitForSettingFuture(TFuture<void> future)
+{
+    while (true) {
+        {
+            TGilGuard guard;
+            auto signals = PyErr_CheckSignals();
+            if (signals == -1) {
+                return false;
+            }
+        }
+
+        auto result = future.TimedWait(TDuration::MilliSeconds(100));
+        if (result) {
+            return true;
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NPython
 } // namespace NYT
