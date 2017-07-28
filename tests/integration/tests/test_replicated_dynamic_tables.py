@@ -135,43 +135,43 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         def get_counter(counter_name):
             return self._get_tablet_node_profiling_counter(addresses[0], counter_name)
 
-        def get_row_lag():
-            return get_counter("replica/row_lag")
+        def get_lag_row_count():
+            return get_counter("replica/lag_row_count")
 
-        def get_timestamp_lag():
-            return get_counter("replica/timestamp_lag") / 1e6  # conversion from us to s
+        def get_lag_time():
+            return get_counter("replica/lag_time") / 1e6 # conversion from ms to s
 
         self.sync_enable_table_replica(replica_id)
         sleep(1.0)
 
-        assert get_row_lag() == 0
-        assert get_timestamp_lag() == 0
+        assert get_lag_row_count() == 0
+        assert get_lag_time() == 0
 
         insert_rows("//tmp/t", [{"key": 0, "value1": "test", "value2": 123}], require_sync_replica=False)
         sleep(1.0)
 
-        assert get_row_lag() == 0
-        assert get_timestamp_lag() == 0
+        assert get_lag_row_count() == 0
+        assert get_lag_time() == 0
 
         self.sync_unmount_table("//tmp/r", driver=self.replica_driver)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
         sleep(2.0)
 
-        assert get_row_lag() == 1
-        assert 0 < get_timestamp_lag() < 5
+        assert get_lag_row_count() == 1
+        assert 0 < get_lag_time() < 5
 
         insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 123}], require_sync_replica=False)
         sleep(1.0)
 
-        assert get_row_lag() == 2
-        assert 0 < get_timestamp_lag() < 5
+        assert get_lag_row_count() == 2
+        assert 0 < get_lag_time() < 5
 
         self.sync_mount_table("//tmp/r", driver=self.replica_driver)
         sleep(2.0)
 
-        assert get_row_lag() == 0
-        assert get_timestamp_lag() == 0
+        assert get_lag_row_count() == 0
+        assert get_lag_time() == 0
 
     def test_replication_error(self):
         self._create_cells()

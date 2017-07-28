@@ -51,8 +51,8 @@ struct TReplicaCounters
 {
     TReplicaCounters(const NProfiling::TTagIdList& list);
 
-    NProfiling::TSimpleCounter RowLag;
-    NProfiling::TSimpleCounter TimestampLag;
+    NProfiling::TSimpleCounter LagRowCount;
+    NProfiling::TSimpleCounter LagTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

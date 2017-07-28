@@ -80,8 +80,8 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicaCounters::TReplicaCounters(const TTagIdList& list)
-    : RowLag("/replica/row_lag", list)
-    , TimestampLag("/replica/timestamp_lag", list)
+    : LagRowCount("/replica/lag_row_count", list)
+    , LagTime("/replica/lag_time", list)
 { }
 
 // Uses tablet_id and replica_id as the key.
