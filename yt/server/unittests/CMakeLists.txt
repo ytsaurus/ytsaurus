@@ -1,0 +1,15 @@
+include(Sources.txt)
+
+resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
+
+list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
+
+add_executable(unittester-server
+  ${YT_SRCS_RESOLVED}
+)
+
+target_link_libraries(unittester-server
+  yt-core-test-framework
+  yt-library-client
+  yt-library-server
+)
