@@ -139,7 +139,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             return get_counter("replica/lag_row_count")
 
         def get_lag_time():
-            return get_counter("replica/lag_time") / 1e6 # conversion from ms to s
+            return get_counter("replica/lag_time") / 1e6 # conversion from us to s
 
         self.sync_enable_table_replica(replica_id)
         sleep(1.0)
