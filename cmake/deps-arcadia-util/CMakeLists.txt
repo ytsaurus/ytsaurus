@@ -42,7 +42,6 @@ set(GENERIC_SRCS
   ${GENERIC_BASE}/algorithm.cpp
   ${GENERIC_BASE}/array_ref.cpp
   ${GENERIC_BASE}/array_size.cpp
-  ${GENERIC_BASE}/avltree.cpp
   ${GENERIC_BASE}/bitmap.cpp
   ${GENERIC_BASE}/bitops.cpp
   ${GENERIC_BASE}/bt_exception.cpp
