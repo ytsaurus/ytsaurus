@@ -189,37 +189,39 @@ private:
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
-            auto updateCounters = [&] (i64 rowCount, TDuration time) {
+
+            auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
+            auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
+            if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
+                // Some log rows are prepared for replication, hence replication cannot proceed.
+                // Seeing this is unusual since we're waiting for the replication commit to complete (see below).
+                // However we may occasionally run into this check on epoch change.
+                return;
+            }
+
+            auto updateCountersGuard = Finally([&] {
+                auto rowCount = std::max(
+                    static_cast<i64>(0),
+                    tabletRuntimeData->TotalRowCount.load() - replicaRuntimeData->CurrentReplicationRowIndex.load());
+                auto time = (rowCount == 0)
+                    ? TDuration::Zero()
+                    : TimestampDiffToDuration(replicaRuntimeData->CurrentReplicationTimestamp, tabletRuntimeData->LastWriteTimestamp).second;
                 auto* counters = replicaSnapshot->Counters;
                 if (counters) {
                     TabletNodeProfiler.Update(counters->LagRowCount, rowCount);
                     TabletNodeProfiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
                 }
-            };
-            auto updateLastReplicationTimestamp = [&] {
+            });
+
+            if (totalRowCount <= lastReplicationRowIndex) {
+                // All committed rows are replicated.
                 replicaRuntimeData->LastReplicationTimestamp.store(
                     Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
                     std::memory_order_relaxed);
-                updateCounters(0, TDuration::Zero());
-            };
-            auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
-            if (tabletRuntimeData->TotalRowCount <= lastReplicationRowIndex) {
-                updateLastReplicationTimestamp();
-                return;
-            }
-            if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
-                updateLastReplicationTimestamp();
                 return;
             }
 
             LOG_DEBUG("Starting replication transactions");
-
-            auto updateCountersGuard = Finally(
-                [&] {
-                    updateCounters(
-                        tabletRuntimeData->TotalRowCount - replicaRuntimeData->CurrentReplicationRowIndex,
-                        TimestampDiffToDuration(replicaRuntimeData->CurrentReplicationTimestamp, tabletRuntimeData->LastWriteTimestamp).second);
-                });
 
             auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::ReplicatorUserName));
             auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
