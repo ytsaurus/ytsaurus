@@ -273,11 +273,7 @@ private:
             snapshots.push_back({snapshotId, snapshotSize});
         }
 
-        std::sort(snapshots.begin(), snapshots.end(), [] (const TSnapshotInfo& lhs, const TSnapshotInfo& rhs) {
-            return lhs.Id < rhs.Id;
-        });
-
-        auto thresholdId = NYT::NHydra::GetSnapshotThresholdId(
+        auto thresholdId = NHydra::GetSnapshotThresholdId(
             snapshots,
             Config_->HydraManager->MaxSnapshotCountToKeep,
             Config_->HydraManager->MaxSnapshotSizeToKeep);

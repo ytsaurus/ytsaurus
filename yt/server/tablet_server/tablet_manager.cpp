@@ -4119,11 +4119,7 @@ private:
                     snapshots.push_back({snapshotId, attributes.Get<i64>("compressed_data_size")});
                 }
 
-                std::sort(snapshots.begin(), snapshots.end(), [] (const TSnapshotInfo& lhs, const TSnapshotInfo& rhs) {
-                    return lhs.Id < rhs.Id;
-                });
-
-                auto thresholdId = NYT::NHydra::GetSnapshotThresholdId(
+                auto thresholdId = NHydra::GetSnapshotThresholdId(
                     snapshots,
                     Config_->MaxSnapshotCountToKeep,
                     Config_->MaxSnapshotSizeToKeep);
@@ -4134,12 +4130,18 @@ private:
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
 
+                int snapshotsRemoved = 0;
                 for (const auto& key : snapshotKeys) {
+                    if (snapshotsRemoved >= Config_->MaxSnapshotCountToRemovePerCheck) {
+                        break;
+                    }
+
                     int snapshotId;
-                    if (TryFromString<int>(key, snapshotId)) {
+                    if (!TryFromString<int>(key, snapshotId)) {
                         // Ignore, cf. logging above.
                         continue;
                     }
+
                     if (snapshotId <= *thresholdId) {
                         LOG_INFO("Removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
                             cellId,
@@ -4157,6 +4159,7 @@ private:
                                         snapshotId);
                                 }
                             }));
+                        ++snapshotsRemoved;
                     }
                 }
 
@@ -4170,8 +4173,13 @@ private:
                     continue;
                 }
 
+                int changelogsRemoved = 0;
                 auto changelogKeys = SyncYPathList(changelogsMap, TYPath());
                 for (const auto& key : changelogKeys) {
+                    if (changelogsRemoved >= Config_->MaxChangelogCountToRemovePerCheck) {
+                        break;
+                    }
+
                     int changelogId;
                     if (!TryFromString<int>(key, changelogId)) {
                         LOG_WARNING("Unrecognized item in tablet changelog store (CellId: %v, Name: %v)",
@@ -4179,6 +4187,7 @@ private:
                             key);
                         continue;
                     }
+
                     if (changelogId <= *thresholdId) {
                         LOG_INFO("Removing tablet cell changelog (CellId: %v, ChangelogId: %v)",
                             cellId,
@@ -4196,6 +4205,7 @@ private:
                                         changelogId);
                                 }
                             }));;
+                        ++changelogsRemoved;
                     }
                 }
             }
