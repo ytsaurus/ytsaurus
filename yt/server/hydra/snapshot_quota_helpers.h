@@ -18,11 +18,11 @@ struct TSnapshotInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 TNullable<int> GetSnapshotThresholdId(
-    const std::vector<TSnapshotInfo>& snapshots,
+    std::vector<TSnapshotInfo> snapshots,
     TNullable<int> maxSnapshotCountToKeep,
     TNullable<i64> maxSnapshotSizeToKeep);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NHydra
+} // namespace NYT
