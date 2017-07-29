@@ -386,7 +386,7 @@ void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescr
         const auto& extensions = descriptor.chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
         if (miscExt.has_max_timestamp()) {
-            UpdateLastCommitTimestamp(nullptr, miscExt.max_timestamp());
+            Tablet_->UpdateLastCommitTimestamp(miscExt.max_timestamp());
         }
     }
 
@@ -568,22 +568,8 @@ TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timest
 {
     auto lastCommitTimestamp = Tablet_->GetLastCommitTimestamp();
     auto monotonicTimestamp = std::max(lastCommitTimestamp + 1, timestampHint);
-    UpdateLastCommitTimestamp(nullptr, monotonicTimestamp);
+    Tablet_->UpdateLastCommitTimestamp(monotonicTimestamp);
     return monotonicTimestamp;
-}
-
-void TStoreManagerBase::UpdateLastCommitTimestamp(TTransaction* transaction, TTimestamp timestamp)
-{
-    if (transaction &&
-        !transaction->GetForeign() &&
-        Tablet_->GetAtomicity() == EAtomicity::Full &&
-        TabletContext_->GetAutomatonState() == EPeerState::Leading)
-    {
-        YCHECK(Tablet_->GetUnflushedTimestamp() <= timestamp);
-    }
-    Tablet_->SetLastCommitTimestamp(std::max(
-        Tablet_->GetLastCommitTimestamp(),
-        timestamp));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -863,10 +863,7 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (SnapshotParamsPromise_ && SnapshotParamsPromise_.ToFuture().Cancel()) {
-        LOG_INFO("Snapshot canceled");
-    }
-    SnapshotParamsPromise_.Reset();
+    CancelSnapshot();
 
     auto loggedVersion = GetLoggedVersion();
 
@@ -1230,6 +1227,14 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
     NLogging::TLogManager::Get()->SetPerThreadBatchingPeriod(Config_->AutomatonThreadLogBatchingPeriod);
 }
 
+void TDecoratedAutomaton::CancelSnapshot()
+{
+    if (SnapshotParamsPromise_ && SnapshotParamsPromise_.ToFuture().Cancel()) {
+        LOG_INFO("Snapshot canceled");
+    }
+    SnapshotParamsPromise_.Reset();
+}
+
 void TDecoratedAutomaton::StopEpoch()
 {
     auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
@@ -1253,10 +1258,7 @@ void TDecoratedAutomaton::StopEpoch()
     SnapshotVersion_ = TVersion();
     LoggedVersion_ = TVersion();
     CommittedVersion_ = TVersion();
-    if (SnapshotParamsPromise_) {
-        SnapshotParamsPromise_.ToFuture().Cancel();
-        SnapshotParamsPromise_.Reset();
-    }
+    CancelSnapshot();
     RecoveryRecordCount_ = 0;
     RecoveryDataSize_ = 0;
 

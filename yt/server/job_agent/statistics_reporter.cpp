@@ -51,7 +51,6 @@ struct TJobSpecTag
 
 namespace {
 
-static const auto& Logger = JobTrackerServerLogger;
 static const TProfiler JobProfiler("/statistics_reporter/jobs");
 static const TProfiler JobSpecProfiler("/statistics_reporter/job_specs");
 
@@ -67,7 +66,7 @@ bool IsSpecEntry(const TJobStatistics& stat)
 class TLimiter
 {
 public:
-    TLimiter(ui64 maxValue)
+    explicit TLimiter(ui64 maxValue)
         : MaxValue_(maxValue)
     { }
 

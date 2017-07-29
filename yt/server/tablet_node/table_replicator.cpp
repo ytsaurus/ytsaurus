@@ -23,6 +23,7 @@
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/transaction_client/action.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/security_client/public.h>
 
@@ -50,15 +51,6 @@ static const auto MountConfigUpdatePeriod = TDuration::Seconds(3);
 static const auto ReplicationTickPeriod = TDuration::MilliSeconds(100);
 static const int TabletRowsPerRead = 1000;
 static const auto HardErrorAttribute = TErrorAttribute("hard", true);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TTimestampDiff = TTimestamp;
-
-NProfiling::TValue TimestampDiffToValue(TTimestampDiff timestamp)
-{
-    return NProfiling::DurationToValue(TDuration::Seconds(timestamp >> TimestampCounterWidth));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,36 +189,36 @@ private:
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
-            auto updateCounters = [&] (i64 rowLag, TTimestampDiff timestampLag) {
+            auto updateCounters = [&] (i64 rowCount, TDuration time) {
                 auto* counters = replicaSnapshot->Counters;
                 if (counters) {
-                    TabletNodeProfiler.Update(counters->RowLag, rowLag);
-                    TabletNodeProfiler.Update(counters->TimestampLag, TimestampDiffToValue(timestampLag));
+                    TabletNodeProfiler.Update(counters->LagRowCount, rowCount);
+                    TabletNodeProfiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
                 }
             };
-            auto updateSuccessTimestamp = [&] {
+            auto updateLastReplicationTimestamp = [&] {
                 replicaRuntimeData->LastReplicationTimestamp.store(
                     Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
                     std::memory_order_relaxed);
-                updateCounters(0, 0);
+                updateCounters(0, TDuration::Zero());
             };
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             if (tabletRuntimeData->TotalRowCount <= lastReplicationRowIndex) {
-                updateSuccessTimestamp();
+                updateLastReplicationTimestamp();
                 return;
             }
             if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
-                updateSuccessTimestamp();
+                updateLastReplicationTimestamp();
                 return;
             }
 
             LOG_DEBUG("Starting replication transactions");
 
-            auto updater = Finally(
+            auto updateCountersGuard = Finally(
                 [&] {
                     updateCounters(
                         tabletRuntimeData->TotalRowCount - replicaRuntimeData->CurrentReplicationRowIndex,
-                        tabletRuntimeData->LastCommitTimestamp - replicaRuntimeData->CurrentReplicationTimestamp);
+                        TimestampDiffToDuration(replicaRuntimeData->CurrentReplicationTimestamp, tabletRuntimeData->LastWriteTimestamp).second);
                 });
 
             auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::ReplicatorUserName));

@@ -263,6 +263,8 @@ private:
     void AcquireSystemLock();
     void ReleaseSystemLock();
 
+    void CancelSnapshot();
+
     void StartEpoch(TEpochContextPtr epochContext);
     void StopEpoch();
 
