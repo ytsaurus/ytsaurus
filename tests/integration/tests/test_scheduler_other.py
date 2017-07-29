@@ -28,12 +28,18 @@ def set_banned_flag(value, nodes=None):
     for address in nodes:
         set("//sys/nodes/{0}/@banned".format(address), flag)
 
-    # Give it enough time to register or unregister the node
-    time.sleep(1.0)
+    for iter in xrange(50):
+        ok = True
+        for address in nodes:
+            if get("//sys/nodes/{0}/@state".format(address)) != state:
+                ok = False
+                break
+        if ok:
+            for address in nodes:
+                print >>sys.stderr, "Node {0} is {1}".format(address, state)
+            break
 
-    for address in nodes:
-        assert get("//sys/nodes/{0}/@state".format(address)) == state
-        print >>sys.stderr, "Node {0} is {1}".format(address, state)
+        time.sleep(0.1)
 
 ##################################################################
 
@@ -80,6 +86,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         }
     }
 
+    @flaky(max_runs=3)
     def test_revive(self):
         def get_connection_time():
             return datetime.strptime(get("//sys/scheduler/@connection_time"), "%Y-%m-%dT%H:%M:%S.%fZ")

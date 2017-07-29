@@ -123,8 +123,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         int index = GetFreeSlotIndex();
-        Slots_[index] = New<TTabletSlot>(index, Config_, Bootstrap_);
-        Slots_[index]->Initialize(createInfo);
+        Slots_[index] = New<TTabletSlot>(index, Config_, createInfo, Bootstrap_);
+        Slots_[index]->Initialize();
         ++UsedSlotCount_;
     }
 

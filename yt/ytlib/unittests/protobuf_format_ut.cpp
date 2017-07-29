@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/ytlib/unittests/protobuf_format_ut.pb.h>
 
-#include <yt/unittests/protobuf_format_ut.pb.h>
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/fluent.h>

@@ -507,7 +507,8 @@ void TLeaderCommitter::OnAutoCheckpointCheck()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod &&
+    if (DecoratedAutomaton_->GetLastSnapshotTime() != TInstant::Zero() &&
+        TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod &&
         DecoratedAutomaton_->GetLoggedVersion().RecordId > 0)
     {
         LOG_INFO("Requesting periodic snapshot (LastSnapshotTime: %v, SnapshotBuildPeriod: %v)",

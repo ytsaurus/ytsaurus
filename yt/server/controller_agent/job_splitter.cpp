@@ -25,18 +25,17 @@ public:
     TJobSplitter(const TJobSplitterConfigPtr& config, const TOperationId& operationId)
         : Config_(config)
         , Statistics_(config)
-        , Logger(OperationLogger)
+        , Logger(NLogging::TLogger(OperationLogger)
+            .AddTag("OperationId: %v", operationId))
     {
-        YCHECK(config);
-
-        Logger.AddTag("OperationId: %v", operationId);
+        YCHECK(Config_);
     }
 
     virtual bool IsJobSplittable(const TJobId& jobId) const override
     {
         auto it = RunningJobs_.find(jobId);
         YCHECK(it != RunningJobs_.end());
-        auto& job = it->second;
+        const auto& job = it->second;
         return (IsResidual() || Statistics_.GetInterruptHint(jobId)) && job.IsSplittable(Config_);
     }
 
@@ -88,8 +87,7 @@ public:
         auto getMedianCompletionDuration = [&] () {
             auto medianCompletionTime = Statistics_.GetMedianCompletionTime();
             if (!IsResidual() && medianCompletionTime) {
-                return CpuDurationToDuration(medianCompletionTime).SecondsFloat() -
-                    CpuDurationToDuration(GetCpuInstant()).SecondsFloat();
+                return medianCompletionTime.SecondsFloat() - GetInstant().SecondsFloat();
             }
 
             // If running job count is small, we don't pay attention to median completion time
@@ -128,7 +126,7 @@ public:
     virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override
     {
         BuildYsonMapFluently(consumer)
-            .Item("build_time").Value(NProfiling::GetInstant())
+            .Item("build_time").Value(GetInstant())
             .Item("running_job_count").Value(RunningJobs_.size())
             .Item("max_running_job_count").Value(MaxRunningJobCount_)
             .Item("running_jobs").DoMapFor(RunningJobs_,
@@ -154,51 +152,54 @@ private:
             : Config_(config)
         { }
 
-        void AddSample(TCpuInstant completionTime, const TJobId& jobId)
+        void SetSample(TInstant completionTime, const TJobId& jobId)
         {
-            CompletionTimeSet_.insert({completionTime, jobId});
+            JobIdToCompletionTime_[jobId] = completionTime;
         }
 
-        void RemoveSample(TCpuInstant completionTime, const TJobId& jobId)
+        void RemoveSample(const TJobId& jobId)
         {
-            if (completionTime != 0) {
-                auto it = CompletionTimeSet_.find(std::make_pair(completionTime, jobId));
-                YCHECK(it != CompletionTimeSet_.end());
-                CompletionTimeSet_.erase(it);
-            }
+            JobIdToCompletionTime_.erase(jobId);
         }
 
         void Update()
         {
             constexpr double ExcessFactor = 2.1;
 
-            if (CompletionTimeSet_.empty()) {
-                MedianCompletionTime_ = 0;
+            if (JobIdToCompletionTime_.empty()) {
+                MedianCompletionTime_ = TInstant::Zero();
                 return;
             }
-            if (GetCpuInstant() > NextUpdateTime_) {
-                NextUpdateTime_ = GetCpuInstant() + DurationToCpuDuration(Config_->UpdatePeriod);
 
-                int medianIndex = CompletionTimeSet_.size() / 2;
-                int percentileIndex = static_cast<int>(std::floor(static_cast<double>(CompletionTimeSet_.size()) * Config_->CandidatePercentile));
-                percentileIndex = std::max(percentileIndex, medianIndex);
+            if (GetInstant() < NextUpdateTime_) {
+                return;
+            }
 
-                std::vector<std::pair<TCpuInstant, TJobId>> samples(CompletionTimeSet_.begin(), CompletionTimeSet_.end());
-                std::nth_element(samples.begin(), samples.begin() + medianIndex, samples.end());
-                MedianCompletionTime_ = samples[medianIndex].first;
+            NextUpdateTime_ = GetInstant() + Config_->UpdatePeriod;
 
-                std::nth_element(samples.begin() + medianIndex, samples.begin() + percentileIndex, samples.end());
-                InterruptCandidateSet_.clear();
-                for (auto it = samples.begin() + percentileIndex; it < samples.end(); ++it) {
-                    if (it->first / MedianCompletionTime_ >= ExcessFactor) {
-                        // If we are going to split job at least into 2 + epsilon parts.
-                        InterruptCandidateSet_.insert(it->second);
-                    }
+            int medianIndex = JobIdToCompletionTime_.size() / 2;
+            int percentileIndex = static_cast<int>(std::floor(static_cast<double>(JobIdToCompletionTime_.size()) * Config_->CandidatePercentile));
+            percentileIndex = std::max(percentileIndex, medianIndex);
+
+            std::vector<std::pair<TInstant, TJobId>> samples;
+            samples.reserve(JobIdToCompletionTime_.size());
+            for (const auto& pair : JobIdToCompletionTime_) {
+                samples.push_back({pair.second, pair.first});
+            }
+            std::nth_element(samples.begin(), samples.begin() + medianIndex, samples.end());
+            MedianCompletionTime_ = samples[medianIndex].first;
+
+            std::nth_element(samples.begin() + medianIndex, samples.begin() + percentileIndex, samples.end());
+            InterruptCandidateSet_.clear();
+            for (auto it = samples.begin() + percentileIndex; it < samples.end(); ++it) {
+                if (it->first.SecondsFloat() / MedianCompletionTime_.SecondsFloat() >= ExcessFactor) {
+                    // If we are going to split job at least into 2 + epsilon parts.
+                    InterruptCandidateSet_.insert(it->second);
                 }
             }
         }
 
-        TCpuInstant GetMedianCompletionTime() const
+        TInstant GetMedianCompletionTime() const
         {
             return MedianCompletionTime_;
         }
@@ -211,16 +212,16 @@ private:
         void BuildStatistics(NYson::IYsonConsumer* consumer) const
         {
             BuildYsonMapFluently(consumer)
-                .Item("median_remaining_duration").Value(SecondsFromNow(MedianCompletionTime_))
-                .Item("next_update_time").Value(CpuInstantToInstant(NextUpdateTime_));
+                .Item("median_remaining_duration").Value(MedianCompletionTime_ - GetInstant())
+                .Item("next_update_time").Value(NextUpdateTime_);
         }
 
     private:
         TJobSplitterConfigPtr Config_;
-        yhash_set<std::pair<TCpuInstant, TJobId>> CompletionTimeSet_;
+        yhash<TJobId, TInstant> JobIdToCompletionTime_;
         yhash_set<TJobId> InterruptCandidateSet_;
-        TCpuInstant NextUpdateTime_ = 0;
-        TCpuInstant MedianCompletionTime_ = GetCpuInstant();
+        TInstant NextUpdateTime_;
+        TInstant MedianCompletionTime_ = GetInstant();
     };
 
     class TRunningJob
@@ -237,21 +238,22 @@ private:
             if (!summary.ExecDuration) {
                 return;
             }
+
             ExecDuration_ = summary.ExecDuration.Get(TDuration());
             YCHECK(summary.Statistics);
+
             RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").Get(0);
             if (RowCount_ == 0) {
                 return;
             }
+
             SecondsPerRow_ = std::max(ExecDuration_.SecondsFloat() / RowCount_, 1e-12);
-            if (RowCount_ < TotalRowCount_) {
-                RemainingDuration_ = TDuration::Seconds((TotalRowCount_ - RowCount_) * SecondsPerRow_);
-            } else {
-                RemainingDuration_ = TDuration();
-            }
-            statistics->RemoveSample(CompletionTime_, summary.Id);
-            CompletionTime_ = GetCpuInstant() + DurationToCpuDuration(RemainingDuration_);
-            statistics->AddSample(CompletionTime_, summary.Id);
+            RemainingDuration_ = RowCount_ < TotalRowCount_
+                ? TDuration::Seconds((TotalRowCount_ - RowCount_) * SecondsPerRow_)
+                : TDuration::Zero();
+            CompletionTime_ = GetInstant() + RemainingDuration_;
+
+            statistics->SetSample(CompletionTime_, summary.Id);
             statistics->Update();
         }
 
@@ -265,7 +267,7 @@ private:
                 TotalDataWeight_ > config->MinTotalDataWeight;
         }
 
-        TCpuInstant GetCompletionTime() const
+        TInstant GetCompletionTime() const
         {
             return CompletionTime_;
         }
@@ -281,7 +283,7 @@ private:
                 .Item("row_count").Value(RowCount_)
                 .Item("total_row_count").Value(TotalRowCount_)
                 .Item("seconds_per_row").Value(SecondsPerRow_)
-                .Item("remaining_duration").Value(SecondsFromNow(CompletionTime_));
+                .Item("remaining_duration").Value(CompletionTime_ - GetInstant());
         }
 
     private:
@@ -290,23 +292,24 @@ private:
         TDuration PrepareWithoutDownloadDuration_;
         TDuration ExecDuration_;
         TDuration RemainingDuration_;
-        TCpuInstant CompletionTime_ = 0;
+        TInstant CompletionTime_;
         i64 RowCount_ = 0;
         double SecondsPerRow_ = 0;
     };
 
-    TJobSplitterConfigPtr Config_;
+    const TJobSplitterConfigPtr Config_;
+
     yhash<TJobId, TRunningJob> RunningJobs_;
     TStatistics Statistics_;
     i64 MaxRunningJobCount_ = 0;
-    NLogging::TLogger Logger;
+
+    const NLogging::TLogger Logger;
 
     void OnJobFinished(const TJobSummary& summary)
     {
         auto it = RunningJobs_.find(summary.Id);
         YCHECK(it != RunningJobs_.end());
-        const auto& job = it->second;
-        Statistics_.RemoveSample(job.GetCompletionTime(), summary.Id);
+        Statistics_.RemoveSample(summary.Id);
         RunningJobs_.erase(it);
         Statistics_.Update();
     }

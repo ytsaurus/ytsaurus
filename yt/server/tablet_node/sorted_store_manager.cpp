@@ -96,27 +96,6 @@ bool TSortedStoreManager::ExecuteWrites(
         auto readerCheckpoint = reader->GetCurrent();
         auto command = reader->ReadCommand();
 
-        //switch (command) {
-        //    case EWireProtocolCommand::WriteRow:
-        //    case EWireProtocolCommand::DeleteRow:
-        //        if (Tablet_->GetReplicationMode() != ETableReplicationMode::None) {
-        //            THROW_ERROR_EXCEPTION("Unversioned writes in %Qlv replication mode are not allowed",
-        //                Tablet_->GetReplicationMode());
-        //        }
-        //        break;
-        //
-        //    case EWireProtocolCommand::VersionedWriteRow:
-        //        if (Tablet_->GetReplicationMode() != ETableReplicationMode::AsynchronousSink) {
-        //            THROW_ERROR_EXCEPTION("Versioned writes in %Qlv replication mode are not allowed",
-        //                Tablet_->GetReplicationMode());
-        //        }
-        //        break;
-        //
-        //    default:
-        //        THROW_ERROR_EXCEPTION("Unsupported write command %v",
-        //            command);
-        //}
-
         switch (command) {
             case EWireProtocolCommand::WriteRow: {
                 auto row = reader->ReadUnversionedRow(false);
@@ -223,7 +202,6 @@ void TSortedStoreManager::CommitRow(TTransaction* transaction, const TSortedDyna
         CheckForUnlockedStore(rowRef.Store);
         ActiveStore_->CommitRow(transaction, migratedRow);
     }
-    UpdateLastCommitTimestamp(transaction, transaction->GetCommitTimestamp());
 }
 
 void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)

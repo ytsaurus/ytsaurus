@@ -419,7 +419,6 @@ void SetPermissions(int fd, int permissions)
 
 void SetUid(int uid)
 {
-
     // Set unprivileged uid for user process.
     if (setuid(0) != 0) {
         THROW_ERROR_EXCEPTION("Unable to set zero uid")
@@ -427,12 +426,12 @@ void SetUid(int uid)
     }
 
     errno  = 0;
+#ifdef _linux_
     const auto* passwd = getpwuid(uid);
     int gid = (passwd && errno == 0)
       ? passwd->pw_gid
       : uid; // fallback value.
 
-#ifdef _linux_
     if (setresgid(gid, gid, gid) != 0) {
         THROW_ERROR_EXCEPTION("Unable to set gids")
                 << TErrorAttribute("uid", uid)
