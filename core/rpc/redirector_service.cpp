@@ -124,6 +124,16 @@ public:
         return 0;
     }
 
+    virtual int GetMultiplexingBand() const override
+    {
+        return MinMultiplexingBand;
+    }
+
+    virtual void SetMultiplexingBand(int band) override
+    {
+        Y_UNREACHABLE();
+    }
+
 private:
     const std::unique_ptr<TRequestHeader> Header_;
     const TSharedRefArray Message_;

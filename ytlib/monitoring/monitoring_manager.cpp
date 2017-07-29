@@ -88,7 +88,7 @@ private:
 
         virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
         {
-            return TResolveResult::There(Owner_->GetRoot(), path);
+            return TResolveResultThere{Owner_->GetRoot(), path};
         }
 
     private:

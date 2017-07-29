@@ -1,8 +1,10 @@
 #include "remote_copy_controller.h"
 #include "private.h"
 #include "helpers.h"
+#include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "task.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
@@ -94,7 +96,7 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
         Y_UNREACHABLE();
     }
@@ -145,7 +147,7 @@ private:
             return false;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             return GetRemoteCopyResources(
                 joblet->InputStripeList->GetStatistics());
@@ -301,7 +303,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
 
         switch (Spec_->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
@@ -357,11 +359,11 @@ private:
             stripes.push_back(New<TChunkStripe>(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunkSpec))));
         }
 
-        auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
+        auto jobSizeConstraints = CreateMergeJobSizeConstraints(
             Spec_,
             Options_,
-            GetOutputTablePaths().size(),
-            TotalEstimatedInputDataSize);
+            TotalEstimatedInputDataWeight,
+            static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobSizeConstraints->GetJobCount()) {
             THROW_ERROR_EXCEPTION("Too many chunks per job: actual %v, limit %v; "
@@ -391,7 +393,7 @@ private:
             InputTableAttributes_ = ConvertToAttributes(TYsonString(rsp->value()));
         }
 
-        BuildTasks(stripes);
+        BuildTasks(stripes, jobSizeConstraints);
 
         LOG_INFO("Inputs processed");
 
@@ -426,7 +428,7 @@ private:
         }
     }
 
-    void BuildTasks(const std::vector<TChunkStripePtr>& stripes)
+    void BuildTasks(const std::vector<TChunkStripePtr>& stripes, const IJobSizeConstraintsPtr& jobSizeConstraints)
     {
         auto addTask = [this] (const std::vector<TChunkStripePtr>& stripes, int index) {
             auto task = New<TRemoteCopyTask>(this, index);
@@ -436,16 +438,18 @@ private:
             RegisterTask(task);
         };
 
-        i64 currentDataSize = 0;
-        i64 dataSizePerJob = Spec_->DataSizePerJob.Get(Options_->DataSizePerJob);
+        i64 currentDataWeight = 0;
+        i64 dataWeightPerJob = jobSizeConstraints->GetDataWeightPerJob();
         std::vector<TChunkStripePtr> currentStripes;
         for (auto stripe : stripes) {
             currentStripes.push_back(stripe);
-            currentDataSize += stripe->GetStatistics().DataSize;
-            if (currentDataSize >= dataSizePerJob || currentStripes.size() == Options_->MaxDataSlicesPerJob) {
+            currentDataWeight += stripe->GetStatistics().DataWeight;
+            if (currentDataWeight >= dataWeightPerJob ||
+                currentStripes.size() == jobSizeConstraints->GetMaxDataSlicesPerJob())
+            {
                 addTask(currentStripes, Tasks.size());
                 currentStripes.clear();
-                currentDataSize = 0;
+                currentDataWeight = 0;
             }
         }
         if (!currentStripes.empty()) {
@@ -453,7 +457,7 @@ private:
         }
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     { }
 
     virtual bool IsOutputLivePreviewSupported() const override

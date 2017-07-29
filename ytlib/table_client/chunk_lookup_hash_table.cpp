@@ -69,7 +69,7 @@ class TSimpleBlockCache
     : public IBlockCache
 {
 public:
-    explicit TSimpleBlockCache(const std::vector<TSharedRef>& blocks)
+    explicit TSimpleBlockCache(const std::vector<TBlock>& blocks)
         : Blocks_(blocks)
     { }
 
@@ -88,7 +88,7 @@ public:
     {
         Y_ASSERT(type == EBlockType::UncompressedData);
         Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
-        return TBlock(Blocks_[id.BlockIndex]);
+        return Blocks_[id.BlockIndex];
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override
@@ -97,13 +97,13 @@ public:
     }
 
 private:
-    const std::vector<TSharedRef>& Blocks_;
+    const std::vector<TBlock>& Blocks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkLookupHashTablePtr CreateChunkLookupHashTable(
-    const std::vector<TSharedRef>& blocks,
+    const std::vector<TBlock>& blocks,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TKeyComparer keyComparer)
 {

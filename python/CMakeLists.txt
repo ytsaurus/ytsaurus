@@ -6,6 +6,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
   ${CMAKE_CURRENT_LIST_DIR}/stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lazy_dict.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson_lazy_map.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lazy_parser.cpp
 )
 
 execute_process(COMMAND lsb_release --codename --short

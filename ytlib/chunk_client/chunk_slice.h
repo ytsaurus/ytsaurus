@@ -24,7 +24,7 @@ class TChunkSlice
     DEFINE_BYREF_RO_PROPERTY(TReadLimit, LowerLimit);
     DEFINE_BYREF_RO_PROPERTY(TReadLimit, UpperLimit);
 
-    DEFINE_BYVAL_RO_PROPERTY(i64, DataSize);
+    DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
     DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
@@ -38,24 +38,24 @@ public:
         const NProto::TChunkMeta& meta,
         const NTableClient::TOwningKey& lowerKey,
         const NTableClient::TOwningKey& upperKey,
-        TNullable<i64> dataSize = Null,
+        TNullable<i64> dataWeight = Null,
         TNullable<i64> rowCount = Null);
 
     TChunkSlice(
         const TChunkSlice& chunkSlice,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        i64 dataSize);
+        i64 dataWeight);
 
     TChunkSlice(
         const NProto::TSliceRequest& sliceReq,
         const NProto::TChunkMeta& meta,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        i64 dataSize);
+        i64 dataWeight);
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
-    void SliceEvenly(std::vector<TChunkSlice>& result, i64 sliceDataSize) const;
+    void SliceEvenly(std::vector<TChunkSlice>& result, i64 sliceDataWeight) const;
 
     void SetKeys(const NTableClient::TOwningKey& lowerKey, const NTableClient::TOwningKey& upperKey);
 };
@@ -69,7 +69,7 @@ TString ToString(const TChunkSlice& slice);
 std::vector<TChunkSlice> SliceChunk(
     const NProto::TSliceRequest& sliceReq,
     const NProto::TChunkMeta& meta,
-    i64 sliceDataSize,
+    i64 sliceDataWeight,
     int keyColumnCount,
     bool sliceByKeys);
 

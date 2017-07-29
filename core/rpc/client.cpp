@@ -55,6 +55,7 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
     options.Timeout = Timeout_;
     options.RequestAck = RequestAck_;
     options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
+    options.MultiplexingBand = MultiplexingBand_;
     return Channel_->Send(
         this,
         std::move(responseHandler),
@@ -149,6 +150,16 @@ size_t TClientRequest::GetHash() const
     return *Hash_;
 }
 
+int TClientRequest::GetMultiplexingBand() const
+{
+    return MultiplexingBand_;
+}
+
+void TClientRequest::SetMultiplexingBand(int band)
+{
+    MultiplexingBand_ = ClampVal(band, MinMultiplexingBand, MaxMultiplexingBand);
+}
+
 TClientContextPtr TClientRequest::CreateClientContext()
 {
     auto traceContext = NTracing::CreateChildTraceContext();
@@ -195,7 +206,7 @@ const TSharedRef& TClientRequest::GetSerializedBody() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
-    : StartTime_(TInstant::Now())
+    : StartTime_(NProfiling::GetInstant())
     , ClientContext_(std::move(clientContext))
 { }
 

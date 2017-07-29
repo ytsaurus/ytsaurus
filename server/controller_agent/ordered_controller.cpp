@@ -2,6 +2,7 @@
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
+#include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 
@@ -75,7 +76,7 @@ public:
         Persist(context, JobIOConfig_);
         Persist(context, JobSpecTemplate_);
         Persist(context, JobSizeConstraints_);
-        Persist(context, InputSliceDataSize_);
+        Persist(context, InputSliceDataWeight_);
         Persist(context, OrderedTaskGroup_);
         Persist(context, OrderedTask_);
         Persist(context, OrderedOutputRequired_);
@@ -148,7 +149,7 @@ protected:
             return Controller_->Spec_->LocalityTimeout;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
@@ -216,7 +217,7 @@ protected:
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
-    i64 InputSliceDataSize_;
+    i64 InputSliceDataWeight_;
 
     bool OrderedOutputRequired_ = false;
 
@@ -265,20 +266,35 @@ protected:
 
     void CalculateSizes()
     {
-        JobSizeConstraints_ = CreateSimpleJobSizeConstraints(
-            Spec_,
-            Options_,
-            OutputTables.size(),
-            PrimaryInputDataSize + ForeignInputDataSize);
+        auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
+            switch (OperationType) {
+                case EOperationType::Merge:
+                case EOperationType::Erase:
+                    return CreateMergeJobSizeConstraints(
+                        Spec_,
+                        Options_,
+                        PrimaryInputDataWeight,
+                        static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+
+                default:
+                    return CreateSimpleJobSizeConstraints(
+                        Spec_,
+                        Options_,
+                        OutputTables_.size(),
+                        PrimaryInputDataWeight + ForeignInputDataWeight);
+            }
+        };
+
+        JobSizeConstraints_ = createJobSizeConstraints();
 
         IsExplicitJobCount_ = JobSizeConstraints_->IsExplicitJobCount();
 
-        InputSliceDataSize_ = JobSizeConstraints_->GetInputSliceDataSize();
+        InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
-        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, InputSliceDataSize: %v)",
+        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
             JobSizeConstraints_->GetJobCount(),
-            JobSizeConstraints_->GetMaxDataSizePerJob(),
-            InputSliceDataSize_);
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            InputSliceDataWeight_);
     }
 
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
@@ -298,7 +314,7 @@ protected:
             InitTeleportableInputTables();
 
             int sliceCount = 0;
-            for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataSize_)) {
+            for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
                 RegisterInputStripe(CreateChunkStripe(std::move(slice)), OrderedTask_);
                 ++sliceCount;
                 yielder.TryYield();
@@ -345,7 +361,7 @@ protected:
                 if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
-                        OutputTables[0].TableUploadOptions.TableSchema,
+                        OutputTables_[0].TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                 }
             }
@@ -495,7 +511,7 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
@@ -526,7 +542,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
 
         auto inferFromInput = [&] () {
             if (Spec_->InputQuery) {
@@ -560,9 +576,9 @@ private:
         }
     }
 
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -653,13 +669,13 @@ private:
             .EndMap();
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
@@ -756,9 +772,9 @@ private:
         return true;
     }
 
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -824,7 +840,7 @@ private:
 
     TEraseOperationSpecPtr Spec_;
 
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
         Y_UNREACHABLE();
     }
@@ -919,12 +935,12 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
         table.TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
@@ -973,7 +989,7 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-        const auto& table = OutputTables[0];
+        const auto& table = OutputTables_[0];
         if (table.TableUploadOptions.TableSchema.IsSorted()) {
             ToProto(jobSpecExt->mutable_key_columns(), table.TableUploadOptions.TableSchema.GetKeyColumns());
         }

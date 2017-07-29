@@ -33,11 +33,11 @@ int TInputDataSlice::GetChunkCount() const
     return ChunkSlices.size();
 }
 
-i64 TInputDataSlice::GetDataSize() const
+i64 TInputDataSlice::GetDataWeight() const
 {
     i64 result = 0;
     for (const auto& chunkSlice : ChunkSlices) {
-        result += chunkSlice->GetDataSize();
+        result += chunkSlice->GetDataWeight();
     }
     return result;
 }
@@ -327,11 +327,11 @@ i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices)
     return result;
 }
 
-i64 GetCumulativeDataSize(const std::vector<TInputDataSlicePtr>& dataSlices)
+i64 GetCumulativeDataWeight(const std::vector<TInputDataSlicePtr>& dataSlices)
 {
     i64 result = 0;
 for (const auto& dataSlice : dataSlices) {
-        result += dataSlice->GetDataSize();
+        result += dataSlice->GetDataWeight();
     }
     return result;
 }

@@ -47,27 +47,20 @@ static const size_t RowBufferCapacity = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLookupProfilerTrait
-    : public TTabletProfilerTraitBase
+struct TLookupCounters
 {
-    struct TValue
-    {
-        TValue(const TTagIdList& list)
-            : Rows("/lookup/rows", list)
-            , Bytes("/lookup/bytes", list)
-            , CpuTime("/lookup/cpu_time", list)
-        { }
+    TLookupCounters(const TTagIdList& list)
+        : Rows("/lookup/rows", list)
+        , Bytes("/lookup/bytes", list)
+        , CpuTime("/lookup/cpu_time", list)
+    { }
 
-        TSimpleCounter Rows;
-        TSimpleCounter Bytes;
-        TSimpleCounter CpuTime;
-    };
-
-    static TValue ToValue(const TTagIdList& list)
-    {
-        return list;
-    }
+    TSimpleCounter Rows;
+    TSimpleCounter Bytes;
+    TSimpleCounter CpuTime;
 };
+
+using TLookupProfilerTrait = TTabletProfilerTrait<TLookupCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

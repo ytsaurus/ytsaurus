@@ -36,9 +36,7 @@ struct INativeConnection
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
-    // TODO(sandello): Consider joining these two in favor of a partitioned channel.
-    virtual const NRpc::IChannelFactoryPtr& GetLightChannelFactory() = 0;
-    virtual const NRpc::IChannelFactoryPtr& GetHeavyChannelFactory() = 0;
+    virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual INativeClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
 

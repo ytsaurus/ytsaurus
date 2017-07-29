@@ -104,6 +104,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
     DEFINE_BYVAL_RW_PROPERTY(i64, CurrentReplicationRowIndex, 0);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, CurrentReplicationTimestamp, NTransactionClient::NullTimestamp);
+    DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
 public:
     void Save(NCellMaster::TSaveContext& context) const;

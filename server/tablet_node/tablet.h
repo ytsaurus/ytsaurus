@@ -19,6 +19,7 @@
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/atomic_object.h>
 
 #include <atomic>
 
@@ -36,6 +37,7 @@ struct TRuntimeTableReplicaData
     std::atomic<TTimestamp> CurrentReplicationTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> LastReplicationTimestamp = {NullTimestamp};
     std::atomic<i64> PreparedReplicationRowIndex = {-1};
+    TAtomicObject<TError> Error;
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFrom(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
@@ -45,11 +47,22 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReplicaCounters
+{
+    TReplicaCounters(const NProfiling::TTagIdList& list);
+
+    NProfiling::TSimpleCounter RowLag;
+    NProfiling::TSimpleCounter TimestampLag;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTableReplicaSnapshot
     : public TIntrinsicRefCounted
 {
     NTransactionClient::TTimestamp StartReplicationTimestamp;
     TRuntimeTableReplicaDataPtr RuntimeData;
+    TReplicaCounters* Counters = nullptr;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
@@ -95,6 +108,7 @@ struct TTabletSnapshot
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
+    ui64 InMemoryConfigRevision = 0;
 
     TPartitionSnapshotPtr Eden;
 
@@ -197,6 +211,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
 
     DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
+    DEFINE_BYVAL_RW_PROPERTY(TReplicaCounters*, Counters, nullptr);
 
 public:
     TTableReplicaInfo() = default;
@@ -381,6 +396,7 @@ public:
     i64 GetTabletLockCount() const;
 
     void FillProfilerTags(const TCellId& cellId);
+    void UpdateReplicaCounters();
     bool IsProfilingEnabled() const;
 
 private:

@@ -52,7 +52,7 @@ TRpcProxyTransaction::TRpcProxyTransaction(
     , TransactionId_(transactionId)
     , StartTimestamp_(startTimestamp)
     , Sticky_(sticky)
-    , Client_(std::make_unique<TClient>(this))
+    , Client_(New<TClient>(this))
 {
     Connection_->RegisterTransaction(this);
 }

@@ -88,9 +88,7 @@ public:
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     const NHiveClient::TCellDirectoryPtr& GetCellDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
-
-    const NNodeTrackerClient::INodeChannelFactoryPtr& GetLightNodeChannelFactory() const;
-    const NNodeTrackerClient::INodeChannelFactoryPtr& GetHeavyNodeChannelFactory() const;
+    const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
 
     void Initialize();
     void Run();
@@ -137,8 +135,7 @@ private:
     NConcurrency::TActionQueuePtr ControlQueue_;
     TCoreDumperPtr CoreDumper_;
 
-    NNodeTrackerClient::INodeChannelFactoryPtr LightNodeChannelFactory_;
-    NNodeTrackerClient::INodeChannelFactoryPtr HeavyNodeChannelFactory_;
+    NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 
     static NElection::TPeerId ComputePeerId(
         NElection::TCellConfigPtr config,

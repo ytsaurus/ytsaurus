@@ -94,8 +94,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("unavailable_chunk_tactics", UnavailableChunkTactics)
         .Default(EUnavailableChunkAction::Wait);
 
-    RegisterParameter("max_data_size_per_job", MaxDataSizePerJob)
-        .Default(200 * GB)
+    RegisterParameter("max_data_weight_per_job", MaxDataWeightPerJob)
+        .Alias("max_data_size_per_job")
+        .Default((i64) 200 * GB)
         .GreaterThan(0);
 
     RegisterParameter("max_failed_job_count", MaxFailedJobCount)
@@ -298,9 +299,12 @@ TOperationWithLegacyControllerSpec::TOperationWithLegacyControllerSpec()
 
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
 {
-    RegisterParameter("data_size_per_job", DataSizePerJob)
+    RegisterParameter("data_weight_per_job", DataWeightPerJob)
+        .Alias("data_size_per_job")
         .Default()
         .GreaterThan(0);
+    RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
+        .Default(false);
     RegisterParameter("job_count", JobCount)
         .Default()
         .GreaterThan(0);
@@ -489,11 +493,13 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterParameter("partition_count", PartitionCount)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("partition_data_size", PartitionDataSize)
+    RegisterParameter("partition_data_weight", PartitionDataWeight)
+        .Alias("partition_data_size")
         .Default()
         .GreaterThan(0);
-    RegisterParameter("data_size_per_sort_job", DataSizePerShuffleJob)
-        .Default(2 * GB)
+    RegisterParameter("data_weight_per_sort_job", DataWeightPerShuffleJob)
+        .Alias("data_size_per_sort_job")
+        .Default((i64)2 * GB)
         .GreaterThan(0);
     RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
         .Default(0.75)
@@ -548,7 +554,8 @@ TSortOperationSpec::TSortOperationSpec()
     RegisterParameter("partition_job_count", PartitionJobCount)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("data_size_per_partition_job", DataSizePerPartitionJob)
+    RegisterParameter("data_weight_per_partition_job", DataWeightPerPartitionJob)
+        .Alias("data_size_per_partition_job")
         .Default()
         .GreaterThan(0);
     RegisterParameter("simple_sort_locality_timeout", SimpleSortLocalityTimeout)
@@ -565,7 +572,8 @@ TSortOperationSpec::TSortOperationSpec()
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
-    RegisterParameter("data_size_per_sorted_merge_job", DataSizePerSortedJob)
+    RegisterParameter("data_weight_per_sorted_merge_job", DataWeightPerSortedJob)
+        .Alias("data_size_per_sorted_merge_job")
         .Default(Null);
 
     RegisterInitializer([&] () {
@@ -612,7 +620,8 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("map_job_count", PartitionJobCount)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("data_size_per_map_job", DataSizePerPartitionJob)
+    RegisterParameter("data_weight_per_map_job", DataWeightPerPartitionJob)
+        .Alias("data_size_per_map_job")
         .Default()
         .GreaterThan(0);
     RegisterParameter("map_locality_timeout", PartitionLocalityTimeout)
@@ -630,7 +639,8 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("reduce_combiner_job_proxy_memory_digest", ReduceCombinerJobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
 
-    RegisterParameter("data_size_per_reduce_job", DataSizePerSortedJob)
+    RegisterParameter("data_weight_per_reduce_job", DataWeightPerSortedJob)
+        .Alias("data_size_per_reduce_job")
         .Default(Null);
 
     RegisterParameter("force_reduce_combiners", ForceReduceCombiners)

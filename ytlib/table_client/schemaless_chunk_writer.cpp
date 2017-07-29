@@ -330,7 +330,7 @@ protected:
 
     i64 UpdateDataWeight(TUnversionedRow row)
     {
-        i64 weight = 0;
+        i64 weight = 1;
         int keyColumnCount = IsSorted() ? Schema_.GetKeyColumnCount() : 0;
 
         for (int index = 0; index < keyColumnCount; ++index) {

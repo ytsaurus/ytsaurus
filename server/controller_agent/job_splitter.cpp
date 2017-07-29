@@ -128,7 +128,7 @@ public:
     virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override
     {
         BuildYsonMapFluently(consumer)
-            .Item("build_time").Value(CpuInstantToInstant(GetCpuInstant()))
+            .Item("build_time").Value(NProfiling::GetInstant())
             .Item("running_job_count").Value(RunningJobs_.size())
             .Item("max_running_job_count").Value(MaxRunningJobCount_)
             .Item("running_jobs").DoMapFor(RunningJobs_,
@@ -170,6 +170,8 @@ private:
 
         void Update()
         {
+            constexpr double ExcessFactor = 2.1;
+
             if (CompletionTimeSet_.empty()) {
                 MedianCompletionTime_ = 0;
                 return;
@@ -188,7 +190,10 @@ private:
                 std::nth_element(samples.begin() + medianIndex, samples.begin() + percentileIndex, samples.end());
                 InterruptCandidateSet_.clear();
                 for (auto it = samples.begin() + percentileIndex; it < samples.end(); ++it) {
-                    InterruptCandidateSet_.insert(it->second);
+                    if (it->first / MedianCompletionTime_ >= ExcessFactor) {
+                        // If we are going to split job at least into 2 + epsilon parts.
+                        InterruptCandidateSet_.insert(it->second);
+                    }
                 }
             }
         }
@@ -223,7 +228,7 @@ private:
     public:
         explicit TRunningJob(const TChunkStripeListPtr& inputStripeList)
             : TotalRowCount_(inputStripeList->TotalRowCount)
-            , TotalDataSize_(inputStripeList->TotalDataSize)
+            , TotalDataWeight_(inputStripeList->TotalDataWeight)
         { }
 
         void UpdateCompletionTime(TStatistics* statistics, const TJobSummary& summary)
@@ -257,7 +262,7 @@ private:
                 PrepareWithoutDownloadDuration_ * config->ExecToPrepareTimeRatio);
             return ExecDuration_ > minJobTime &&
                 RemainingDuration_ > minJobTime &&
-                TotalDataSize_ > config->MinTotalDataSize;
+                TotalDataWeight_ > config->MinTotalDataWeight;
         }
 
         TCpuInstant GetCompletionTime() const
@@ -281,7 +286,7 @@ private:
 
     private:
         i64 TotalRowCount_ = 1.0;
-        i64 TotalDataSize_ = 1.0;
+        i64 TotalDataWeight_ = 1.0;
         TDuration PrepareWithoutDownloadDuration_;
         TDuration ExecDuration_;
         TDuration RemainingDuration_;
@@ -308,8 +313,10 @@ private:
 
     bool IsResidual() const
     {
+        constexpr i64 MinSmallJobCount = 10;
+
         i64 runningJobCount = RunningJobs_.size();
-        i64 smallJobCount = static_cast<i64>(std::sqrt(static_cast<double>(MaxRunningJobCount_)));
+        i64 smallJobCount = std::max(MinSmallJobCount, static_cast<i64>(std::sqrt(static_cast<double>(MaxRunningJobCount_))));
         return runningJobCount <= smallJobCount;
     }
 };

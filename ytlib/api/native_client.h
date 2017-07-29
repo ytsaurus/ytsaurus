@@ -31,8 +31,7 @@ struct INativeClient
         const NElection::TCellId& cellId) = 0;
 
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
-    virtual NNodeTrackerClient::INodeChannelFactoryPtr GetLightChannelFactory() = 0;
-    virtual NNodeTrackerClient::INodeChannelFactoryPtr GetHeavyChannelFactory() = 0;
+    virtual const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual INativeTransactionPtr AttachNativeTransaction(
         const NTransactionClient::TTransactionId& transactionId,

@@ -135,7 +135,7 @@ private:
 
     void DoKillProcess(const TString& address, const TKillProcessOptions& options)
     {
-        auto channel = Connection_->GetLightChannelFactory()->CreateChannel(address);
+        auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
 
         TAdminServiceProxy proxy(channel);
         auto req = proxy.Die();
@@ -150,7 +150,7 @@ private:
 
     TString DoWriteCoreDump(const TString& address, const TWriteCoreDumpOptions& options)
     {
-        auto channel = Connection_->GetLightChannelFactory()->CreateChannel(address);
+        auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
 
         TAdminServiceProxy proxy(channel);
         auto req = proxy.WriteCoreDump();

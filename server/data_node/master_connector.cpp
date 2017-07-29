@@ -749,6 +749,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 auto* protoReplicaInfo = protoTabletInfo->add_replicas();
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
                 replicaSnapshot->RuntimeData->Populate(protoReplicaInfo->mutable_statistics());
+                ToProto(protoReplicaInfo->mutable_error(), replicaSnapshot->RuntimeData->Error.Load());
             }
 
             auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();

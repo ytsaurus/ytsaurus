@@ -71,16 +71,16 @@ private:
 
 // Expand macros to null but take care of the trailing semicolon.
 #define DECLARE_THREAD_AFFINITY_SLOT(slot)               struct PP_CONCAT(TNullThreadAffinitySlot_,  __LINE__) { }
-#define VERIFY_THREAD_AFFINITY(slot)                     do { } while (0)
-#define VERIFY_SPINLOCK_AFFINITY(spinLock)               do { } while (0)
-#define VERIFY_INVOKER_AFFINITY(invoker)                 do { } while (0)
-#define VERIFY_INVOKERS_AFFINITY(invokers)               do { } while (0)
-#define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)    do { } while (0)
+#define VERIFY_THREAD_AFFINITY(slot)                     do { } while (false)
+#define VERIFY_SPINLOCK_AFFINITY(spinLock)               do { } while (false)
+#define VERIFY_INVOKER_AFFINITY(invoker)                 do { } while (false)
+#define VERIFY_INVOKERS_AFFINITY(invokers)               do { } while (false)
+#define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)    do { } while (false)
 
 #endif
 
 //! This is a mere declaration and intentionally does not check anything.
-#define VERIFY_THREAD_AFFINITY_ANY() do { } while (0)
+#define VERIFY_THREAD_AFFINITY_ANY() do { } while (false)
 
 ////////////////////////////////////////////////////////////////////////////////
 

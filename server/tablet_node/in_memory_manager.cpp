@@ -49,7 +49,27 @@ const auto& Logger = TabletNodeLogger;
 
 namespace {
 
-EBlockType InMemoryModeToBlockType(EInMemoryMode mode)
+void FinalizeChunkData(
+    const TInMemoryChunkDataPtr& data,
+    const TChunkId& id,
+    const TChunkMeta& meta,
+    const TTabletSnapshotPtr& tabletSnapshot)
+{
+    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, meta, tabletSnapshot->PhysicalSchema);
+    if (tabletSnapshot->HashTableSize > 0) {
+        data->LookupHashTable = CreateChunkLookupHashTable(
+            data->Blocks,
+            data->ChunkMeta,
+            tabletSnapshot->RowKeyComparer);
+        if (data->LookupHashTable && data->MemoryTrackerGuard) {
+            data->MemoryTrackerGuard.UpdateSize(data->LookupHashTable->GetByteSize());
+        }
+    }
+}
+
+} // namespace
+
+EBlockType MapInMemoryModeToBlockType(EInMemoryMode mode)
 {
     switch (mode) {
         case EInMemoryMode::Compressed:
@@ -65,27 +85,6 @@ EBlockType InMemoryModeToBlockType(EInMemoryMode mode)
             Y_UNREACHABLE();
     }
 }
-
-void FinalizeChunkData(
-    const TInMemoryChunkDataPtr& data,
-    const TChunkId& chunkId,
-    const TChunkMeta& chunkMeta,
-    const TTabletSnapshotPtr& tabletSnapshot)
-{
-    data->ChunkMeta = TCachedVersionedChunkMeta::Create(
-        chunkId,
-        chunkMeta,
-        tabletSnapshot->PhysicalSchema);
-
-    if (tabletSnapshot->HashTableSize > 0) {
-        data->LookupHashTable = CreateChunkLookupHashTable(
-            TBlock::Unwrap(data->Blocks),
-            data->ChunkMeta,
-            tabletSnapshot->RowKeyComparer);
-    }
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,11 +106,11 @@ public:
         slotManager->SubscribeScanSlot(BIND(&TImpl::ScanSlot, MakeStrong(this)));
     }
 
-    IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode)
+    IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode, ui64 configRevision)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return New<TInterceptingBlockCache>(this, mode);
+        return New<TInterceptingBlockCache>(this, mode, configRevision);
     }
 
     TInMemoryChunkDataPtr EvictInterceptedChunkData(const TChunkId& chunkId)
@@ -125,15 +124,15 @@ public:
             return nullptr;
         }
 
-        auto data = it->second;
-        data->MemoryTrackerGuard.Release();
+        auto chunkData = std::move(it->second);
         ChunkIdToData_.erase(it);
 
-        LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v)",
+        LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v, ConfigRevision: %v)",
             chunkId,
-            data->InMemoryMode);
+            chunkData->InMemoryMode,
+            chunkData->InMemoryConfigRevision);
 
-        return data;
+        return chunkData;
     }
 
     void FinalizeChunk(
@@ -142,10 +141,6 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot)
     {
         TInMemoryChunkDataPtr data;
-        auto mode = tabletSnapshot->Config->InMemoryMode;
-        if (mode == EInMemoryMode::None) {
-            return;
-        }
 
         {
             TWriterGuard guard(InterceptedDataSpinLock_);
@@ -156,14 +151,9 @@ public:
         }
 
         if (!data) {
-            LOG_INFO("Cannot find intercepted chunk data for finalization (TabletId: %v, Mode: %v, ChunkId: %v)",
-                tabletSnapshot->TabletId,
-                mode,
-                chunkId);
+            LOG_INFO("Cannot find intercepted chunk data for finalization (ChunkId: %v)", chunkId);
             return;
         }
-
-        YCHECK(data->InMemoryMode == mode);
 
         FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot);
     }
@@ -180,7 +170,7 @@ private:
     yhash<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 
-    void ScanSlot(TTabletSlotPtr slot)
+    void ScanSlot(const TTabletSlotPtr& slot)
     {
         const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
@@ -189,84 +179,116 @@ private:
         }
     }
 
-    void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
+    void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
     {
         auto state = tablet->GetState();
-        if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+        if (IsInUnmountWorkflow(state)) {
             return;
         }
 
         const auto& storeManager = tablet->GetStoreManager();
+        auto mode = storeManager->GetInMemoryMode();
+        auto configRevision = storeManager->GetInMemoryConfigRevision();
+
         while (true) {
             auto store = storeManager->PeekStoreForPreload();
-            if (!store)
+            if (!store) {
                 break;
+            }
             auto guard = TAsyncSemaphoreGuard::TryAcquire(PreloadSemaphore_);
             if (!guard) {
                 break;
             }
-            ScanStore(slot, tablet, store, std::move(guard));
+            auto preloadStoreCallback =
+                BIND(
+                    &TImpl::PreloadStore,
+                    MakeStrong(this),
+                    Passed(std::move(guard)),
+                    slot,
+                    tablet,
+                    mode,
+                    configRevision,
+                    store,
+                    storeManager)
+                .AsyncVia(tablet->GetEpochAutomatonInvoker());
+            storeManager->BeginStorePreload(store, preloadStoreCallback);
         }
-    }
-
-    void ScanStore(TTabletSlotPtr slot, TTablet* tablet, IChunkStorePtr store, TAsyncSemaphoreGuard guard)
-    {
-        const auto& storeManager = tablet->GetStoreManager();
-        auto preloadStoreCallback =
-            BIND(
-                &TImpl::PreloadStore,
-                MakeStrong(this),
-                Passed(std::move(guard)),
-                slot,
-                tablet,
-                store,
-                storeManager)
-            .AsyncVia(tablet->GetEpochAutomatonInvoker());
-
-        storeManager->BeginStorePreload(store, preloadStoreCallback);
     }
 
     void PreloadStore(
         TAsyncSemaphoreGuard /*guard*/,
-        TTabletSlotPtr slot,
+        const TTabletSlotPtr& slot,
         TTablet* tablet,
-        IChunkStorePtr store,
-        IStoreManagerPtr storeManager)
+        EInMemoryMode mode,
+        ui64 configRevision,
+        const IChunkStorePtr& store,
+        const IStoreManagerPtr& storeManager)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, StoreId: %v, CellId: %v",
+        Logger.AddTag("TabletId: %v, StoreId: %v, Mode: %v, ConfigRevision: %v",
             tablet->GetId(),
             store->GetId(),
-            slot->GetCellId());
-
-        auto invoker = tablet->GetEpochAutomatonInvoker();
+            mode,
+            configRevision);
 
         try {
-            auto revision = storeManager->GetInMemoryConfigRevision();
+            // Fail quickly.
+            if (storeManager->GetInMemoryConfigRevision() != configRevision) {
+                THROW_ERROR_EXCEPTION("In-memory config revision has changed")
+                    << TErrorAttribute("expected", configRevision)
+                    << TErrorAttribute("actual", storeManager->GetInMemoryConfigRevision());
+            }
+
+            // We can create finalizer after the previous check, because if the check did not succeed,
+            // the condition within the finalizer would not succeed either.
             auto finalizer = Finally(
-                [&] () {
+                [&, invoker = tablet->GetEpochAutomatonInvoker()] () {
+                    // Finalizer may be invoked from a finalizer thread,
+                    // thus we reschedule backoff to a proper thread to avoid unsynchronized access.
                     LOG_WARNING("Backing off tablet store preload");
-                    invoker->Invoke(BIND([revision, storeManager, store] {
-                        if (storeManager->GetInMemoryConfigRevision() == revision) {
+                    invoker->Invoke(BIND([configRevision, storeManager, store] {
+                        if (storeManager->GetInMemoryConfigRevision() == configRevision) {
                             storeManager->BackoffStorePreload(store);
                         }
                     }));
                 });
-            if (IsMemoryLimitExceeded()) {
-                LOG_INFO("Store preload is disabled due to memory pressure");
-                return;
-            }
+
             auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
-            PreloadInMemoryStore(tabletSnapshot, store, CompressionInvoker_);
-            finalizer.Release();
-            if (storeManager->GetInMemoryConfigRevision() == revision) {
-                storeManager->EndStorePreload(store);
+
+            if (tabletSnapshot->Config->InMemoryMode != mode) {
+                THROW_ERROR_EXCEPTION("In-memory mode does not match the snapshot")
+                    << TErrorAttribute("expected", mode)
+                    << TErrorAttribute("actual", tabletSnapshot->Config->InMemoryMode);
             }
+
+            if (tabletSnapshot->InMemoryConfigRevision != configRevision) {
+                THROW_ERROR_EXCEPTION("In-memory config revision does not match the snapshot")
+                    << TErrorAttribute("expected", mode)
+                    << TErrorAttribute("actual", tabletSnapshot->Config->InMemoryMode);
+            }
+
+            // This call may suspend the current fiber.
+            auto chunkData = PreloadInMemoryStore(
+                tabletSnapshot,
+                store,
+                Bootstrap_->GetMemoryUsageTracker(),
+                CompressionInvoker_);
+            // Now, check is the revision in still the same.
+
+            if (storeManager->GetInMemoryConfigRevision() != configRevision) {
+                THROW_ERROR_EXCEPTION("In-memory config revision has changed")
+                    << TErrorAttribute("expected", configRevision)
+                    << TErrorAttribute("actual", storeManager->GetInMemoryConfigRevision());
+            }
+
+            finalizer.Release();
+            store->Preload(std::move(chunkData));
+            storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error preloading tablet store, backed off");
         }
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(slot, tablet);
     }
 
@@ -274,12 +296,11 @@ private:
         : public IBlockCache
     {
     public:
-        TInterceptingBlockCache(
-            TImplPtr owner,
-            EInMemoryMode mode)
+        TInterceptingBlockCache(TImplPtr owner, EInMemoryMode mode, ui64 configRevision)
             : Owner_(owner)
             , Mode_(mode)
-            , BlockType_(InMemoryModeToBlockType(Mode_))
+            , ConfigRevision_(configRevision)
+            , BlockType_(MapInMemoryModeToBlockType(Mode_))
         { }
 
         ~TInterceptingBlockCache()
@@ -315,27 +336,30 @@ private:
             auto it = ChunkIds_.find(id.ChunkId);
             TInMemoryChunkDataPtr data;
             if (it == ChunkIds_.end()) {
-                data = Owner_->CreateChunkData(id.ChunkId, Mode_);
+                data = Owner_->CreateChunkData(id.ChunkId, Mode_, ConfigRevision_);
                 YCHECK(ChunkIds_.insert(id.ChunkId).second);
             } else {
-                data = Owner_->GetChunkData(id.ChunkId, Mode_);
+                data = Owner_->GetChunkData(id.ChunkId, Mode_, ConfigRevision_);
             }
 
             if (data->Blocks.size() <= id.BlockIndex) {
+                size_t blockCapacity = std::max(data->Blocks.capacity(), static_cast<size_t>(1));
+                while (blockCapacity <= id.BlockIndex) {
+                    blockCapacity *= 2;
+                }
+                data->Blocks.reserve(blockCapacity);
                 data->Blocks.resize(id.BlockIndex + 1);
             }
 
-            if (!data->Blocks[id.BlockIndex].Data) {
-                data->Blocks[id.BlockIndex] = block;
+            YCHECK(!data->Blocks[id.BlockIndex].Data);
+            data->Blocks[id.BlockIndex] = block;
+            if (data->MemoryTrackerGuard) {
                 data->MemoryTrackerGuard.UpdateSize(block.Size());
             }
-
             YCHECK(!data->ChunkMeta);
         }
 
-        virtual TBlock Find(
-            const TBlockId& /*id*/,
-            EBlockType /*type*/) override
+        virtual TBlock Find(const TBlockId& /*id*/, EBlockType /*type*/) override
         {
             return TBlock();
         }
@@ -348,6 +372,7 @@ private:
     private:
         const TImplPtr Owner_;
         const EInMemoryMode Mode_;
+        const ui64 ConfigRevision_;
         const EBlockType BlockType_;
 
         TSpinLock SpinLock_;
@@ -355,35 +380,40 @@ private:
         bool Dropped_ = false;
     };
 
-    TInMemoryChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    TInMemoryChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode, ui64 configRevision)
     {
         TReaderGuard guard(InterceptedDataSpinLock_);
 
         auto it = ChunkIdToData_.find(chunkId);
         YCHECK(it != ChunkIdToData_.end());
-        auto data = it->second;
-        YCHECK(data->InMemoryMode == mode);
-        return data;
+
+        auto chunkData = it->second;
+        YCHECK(chunkData->InMemoryMode == mode);
+        YCHECK(chunkData->InMemoryConfigRevision == configRevision);
+
+        return chunkData;
     }
 
-    TInMemoryChunkDataPtr CreateChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    TInMemoryChunkDataPtr CreateChunkData(const TChunkId& chunkId, EInMemoryMode mode, ui64 configRevision)
     {
         TWriterGuard guard(InterceptedDataSpinLock_);
 
         auto chunkData = New<TInMemoryChunkData>();
+        chunkData->InMemoryMode = mode;
+        chunkData->InMemoryConfigRevision = configRevision;
         chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
             Bootstrap_->GetMemoryUsageTracker(),
             EMemoryCategory::TabletStatic,
             0,
             MemoryUsageGranularity);
-        chunkData->InMemoryMode = mode;
 
         // Replace the old data, if any, by a new one.
         ChunkIdToData_[chunkId] = chunkData;
 
-        LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
+        LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v, ConfigRevision: %v)",
             chunkId,
-            mode);
+            mode,
+            configRevision);
 
         return chunkData;
     }
@@ -415,9 +445,9 @@ TInMemoryManager::TInMemoryManager(
 
 TInMemoryManager::~TInMemoryManager() = default;
 
-IBlockCachePtr TInMemoryManager::CreateInterceptingBlockCache(EInMemoryMode mode)
+IBlockCachePtr TInMemoryManager::CreateInterceptingBlockCache(EInMemoryMode mode, ui64 configRevision)
 {
-    return Impl_->CreateInterceptingBlockCache(mode);
+    return Impl_->CreateInterceptingBlockCache(mode, configRevision);
 }
 
 TInMemoryChunkDataPtr TInMemoryManager::EvictInterceptedChunkData(const TChunkId& chunkId)
@@ -435,28 +465,26 @@ void TInMemoryManager::FinalizeChunk(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PreloadInMemoryStore(
+TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
+    TMemoryUsageTracker<EMemoryCategory>* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker)
 {
-    if (!tabletSnapshot) {
-        return;
-    }
-
     auto mode = tabletSnapshot->Config->InMemoryMode;
-    if (mode == EInMemoryMode::None) {
-        return;
-    }
+    auto configRevision = tabletSnapshot->InMemoryConfigRevision;
 
     NLogging::TLogger Logger(TabletNodeLogger);
-    Logger.AddTag("TabletId: %v, StoreId: %v", tabletSnapshot->TabletId, store->GetId());
+    Logger.AddTag(
+        "TabletId: %v, StoreId: %v, Mode: %v, ConfigRevision: %v",
+        tabletSnapshot->TabletId, store->GetId(), mode, configRevision);
+
     LOG_INFO("Store preload started");
 
     auto reader = store->GetChunkReader();
     auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
-    auto asyncMeta = reader->GetMeta(TWorkloadDescriptor(workloadDescriptor));
-    auto meta = WaitFor(asyncMeta)
+
+    auto meta = WaitFor(reader->GetMeta(TWorkloadDescriptor(workloadDescriptor)))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
@@ -464,27 +492,45 @@ void PreloadInMemoryStore(
 
     auto erasureCodec = NErasure::ECodec(miscExt.erasure_codec());
     if (erasureCodec != NErasure::ECodec::None) {
-        THROW_ERROR_EXCEPTION("Could not preload erasure coded store %v",
-            store->GetId());
+        THROW_ERROR_EXCEPTION("Could not preload erasure coded store %v", store->GetId());
     }
 
     auto codecId = NCompression::ECodec(miscExt.compression_codec());
     auto* codec = NCompression::GetCodec(codecId);
 
-    auto chunkData = New<TInMemoryChunkData>();
-    chunkData->InMemoryMode = mode;
-
     int startBlockIndex = 0;
     int totalBlockCount = blocksExt.blocks_size();
+
+    i64 preallocatedMemory = 0;
+    i64 allocatedMemory = 0;
+    for (int i = 0; i < totalBlockCount; ++i) {
+        preallocatedMemory += blocksExt.blocks(i).size();
+    }
+
+    if (memoryUsageTracker && memoryUsageTracker->GetFree(EMemoryCategory::TabletStatic) < preallocatedMemory) {
+        THROW_ERROR_EXCEPTION("Preload is cancelled due to memory pressure");
+    }
+
+    auto chunkData = New<TInMemoryChunkData>();
+    chunkData->InMemoryMode = mode;
+    chunkData->InMemoryConfigRevision = configRevision;
+    if (memoryUsageTracker) {
+        chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
+            memoryUsageTracker,
+            EMemoryCategory::TabletStatic,
+            preallocatedMemory,
+            MemoryUsageGranularity);
+    }
+    chunkData->Blocks.reserve(totalBlockCount);
+
     while (startBlockIndex < totalBlockCount) {
         LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
             startBlockIndex);
 
-        auto asyncResult = reader->ReadBlocks(
+        auto compressedBlocks = WaitFor(reader->ReadBlocks(
             workloadDescriptor,
             startBlockIndex,
-            totalBlockCount - startBlockIndex);
-        auto compressedBlocks = WaitFor(asyncResult)
+            totalBlockCount - startBlockIndex))
             .ValueOrThrow();
 
         int readBlockCount = compressedBlocks.size();
@@ -494,25 +540,30 @@ void PreloadInMemoryStore(
 
         std::vector<TBlock> cachedBlocks;
         switch (mode) {
-            case EInMemoryMode::Compressed:
+            case EInMemoryMode::Compressed: {
                 cachedBlocks = std::move(compressedBlocks);
                 break;
+            }
 
             case EInMemoryMode::Uncompressed: {
-                LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v)",
+                LOG_DEBUG("Started decompressing chunk blocks (Blocks: %v-%v)",
                     startBlockIndex,
                     startBlockIndex + readBlockCount - 1);
 
                 std::vector<TFuture<TSharedRef>> asyncUncompressedBlocks;
-                for (const auto& compressedBlock : compressedBlocks) {
+                for (auto& compressedBlock : compressedBlocks) {
                     asyncUncompressedBlocks.push_back(
-                        BIND([=] () { return codec->Decompress(compressedBlock.Data); })
+                        BIND(
+                            static_cast<TSharedRef(NCompression::ICodec::*)(const TSharedRef&)>(&NCompression::ICodec::Decompress),
+                            Unretained(codec),
+                            std::move(compressedBlock.Data))
                             .AsyncVia(compressionInvoker)
                             .Run());
                 }
 
                 cachedBlocks = TBlock::Wrap(WaitFor(Combine(asyncUncompressedBlocks))
                     .ValueOrThrow());
+
                 break;
             }
 
@@ -520,16 +571,30 @@ void PreloadInMemoryStore(
                 Y_UNREACHABLE();
         }
 
-        chunkData->Blocks.insert(chunkData->Blocks.end(), cachedBlocks.begin(), cachedBlocks.end());
+        for (const auto& cachedBlock : cachedBlocks) {
+            allocatedMemory += cachedBlock.Size();
+        }
+
+        chunkData->Blocks.insert(
+            chunkData->Blocks.end(),
+            std::make_move_iterator(cachedBlocks.begin()),
+            std::make_move_iterator(cachedBlocks.end()));
 
         startBlockIndex += readBlockCount;
     }
 
+    if (chunkData->MemoryTrackerGuard) {
+        chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);
+    }
+
     FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
 
-    store->Preload(chunkData);
+    LOG_INFO(
+        "Store preload completed (MemoryUsage: %v, LookupHashTable: %v)",
+        allocatedMemory,
+        static_cast<bool>(chunkData->LookupHashTable));
 
-    LOG_INFO("Store preload completed (LookupHashTable: %v)", static_cast<bool>(chunkData->LookupHashTable));
+    return chunkData;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

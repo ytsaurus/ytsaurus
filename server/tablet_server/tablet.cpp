@@ -206,6 +206,7 @@ void TTableReplicaInfo::Save(NCellMaster::TSaveContext& context) const
     Save(context, State_);
     Save(context, CurrentReplicationRowIndex_);
     Save(context, CurrentReplicationTimestamp_);
+    Save(context, Error_);
 }
 
 void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
@@ -215,6 +216,9 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, CurrentReplicationRowIndex_);
     Load(context, CurrentReplicationTimestamp_);
+    if (context.GetVersion() >= 610) {
+        Load(context, Error_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

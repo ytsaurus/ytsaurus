@@ -113,7 +113,7 @@ void TRequestTracker::DoChargeUser(
         objectManager->WeakRefObject(user);
     }
     
-    auto now = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
+    auto now = NProfiling::GetInstant();
     auto* entry = Request_.mutable_entries(index);
     auto* statistics = entry->mutable_statistics();
     statistics->set_request_count(statistics->request_count() + requestCount);

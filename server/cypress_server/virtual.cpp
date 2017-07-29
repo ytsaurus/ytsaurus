@@ -98,7 +98,7 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
 
     if (!proxy) {
         if (context->GetMethod() == "Exists") {
-            return TResolveResult::Here(path);
+            return TResolveResultHere{path};
         }
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
@@ -106,7 +106,7 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
             objectId);
     }
 
-    return TResolveResult::There(proxy, tokenizer.GetSuffix());
+    return TResolveResultThere{std::move(proxy), tokenizer.GetSuffix()};
 }
 
 void TVirtualMulticellMapBase::GetSelf(
@@ -583,7 +583,7 @@ private:
             method != "GetBasicAttributes" &&
             method != "CheckPermission")
         {
-            return TResolveResult::There(service, path);
+            return TResolveResultThere{std::move(service), path};
         } else {
             return TBase::ResolveSelf(path, context);
         }
@@ -596,9 +596,9 @@ private:
         switch (tokenizer.Advance()) {
             case NYPath::ETokenType::EndOfStream:
             case NYPath::ETokenType::Slash:
-                return TResolveResult::There(service, path);
+                return TResolveResultThere{std::move(service), path};
             default:
-                return TResolveResult::There(service, "/" + path);
+                return TResolveResultThere{std::move(service), "/" + path};
         }
     }
 

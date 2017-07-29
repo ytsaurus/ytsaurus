@@ -17,7 +17,7 @@ message TChunkSlice
     required TReadLimit upper_limit = 3;
 
     optional int64 row_count_override = 4;
-    optional int64 uncompressed_data_size_override = 5;
+    optional int64 data_weight_override = 5;
 }
 
 message TSliceRequest

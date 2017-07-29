@@ -243,7 +243,7 @@ private:
                 replicas,
                 Config_->JournalRpcTimeout,
                 chunk->GetReadQuorum(),
-                Bootstrap_->GetLightNodeChannelFactory());
+                Bootstrap_->GetNodeChannelFactory());
             WaitFor(asyncResult)
                 .ThrowOnError();
         }
@@ -255,7 +255,7 @@ private:
                 replicas,
                 Config_->JournalRpcTimeout,
                 chunk->GetReadQuorum(),
-                Bootstrap_->GetLightNodeChannelFactory());
+                Bootstrap_->GetNodeChannelFactory());
             miscExt = WaitFor(asyncMiscExt)
                 .ValueOrThrow();
             miscExt.set_sealed(true);

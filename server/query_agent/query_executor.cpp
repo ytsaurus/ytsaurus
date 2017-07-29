@@ -119,33 +119,20 @@ struct TDataKeys
     TSharedRange<TRow> Keys;
 };
 
-struct TSelectProfilerTrait
+struct TSelectCounters
 {
-    using TKey = TTagId;
+    TSelectCounters(const TTagIdList& list)
+        : Rows("/select/rows", list)
+        , Bytes("/select/bytes", list)
+        , CpuTime("/select/cpu_time", list)
+    { }
 
-    static TTagId ToKey(const NProfiling::TTagIdList& list)
-    {
-        return list[0];
-    }
-
-    struct TValue
-    {
-        TValue(const TTagIdList& list)
-            : Rows("/select/rows", list)
-            , Bytes("/select/bytes", list)
-            , CpuTime("/select/cpu_time", list)
-        { }
-
-        TSimpleCounter Rows;
-        TSimpleCounter Bytes;
-        TSimpleCounter CpuTime;
-    };
-
-    static TValue ToValue(const TTagIdList& list)
-    {
-        return list;
-    }
+    TSimpleCounter Rows;
+    TSimpleCounter Bytes;
+    TSimpleCounter CpuTime;
 };
+
+using TSelectProfilerTrait = TSimpleProfilerTrait<TSelectCounters>;
 
 auto& GetProfilerCounters(const TString& user)
 {
@@ -297,7 +284,7 @@ private:
 
         auto remoteExecutor = CreateQueryExecutor(
             client->GetNativeConnection(),
-            client->GetHeavyChannelFactory(),
+            client->GetChannelFactory(),
             FunctionImplCache_);
 
         auto functionGenerators = New<TFunctionProfilerMap>();
