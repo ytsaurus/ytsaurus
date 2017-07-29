@@ -2960,7 +2960,7 @@ std::vector<TJobResources> TOperationControllerBase::GetMinNeededJobResources() 
     std::vector<TJobResources> result;
     for (const auto& pair : minNeededJobResources) {
         result.push_back(pair.second);
-        LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %lv, MinNeededResources: %v)",
+        LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
             pair.first,
             FormatResources(pair.second));
     }
