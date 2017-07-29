@@ -101,45 +101,31 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TWriteProfilerTrait
-    : public TTabletProfilerTraitBase
+struct TWriteCounters
 {
-    struct TValue
-    {
-        TValue(const TTagIdList& list)
-            : Rows("/write/rows", list)
-            , Bytes("/write/bytes", list)
-        { }
+    TWriteCounters(const TTagIdList& list)
+        : Rows("/write/rows", list)
+        , Bytes("/write/bytes", list)
+    { }
 
-        TSimpleCounter Rows;
-        TSimpleCounter Bytes;
-    };
-
-    static TValue ToValue(const TTagIdList& list)
-    {
-        return list;
-    }
+    TSimpleCounter Rows;
+    TSimpleCounter Bytes;
 };
 
-struct TCommitProfilerTrait
-    : public TTabletProfilerTraitBase
+using TWriteProfilerTrait = TTabletProfilerTrait<TWriteCounters>;
+
+struct TCommitCounters
 {
-    struct TValue
-    {
-        TValue(const TTagIdList& list)
-            : Rows("/commit/rows", list)
-            , Bytes("/commit/bytes", list)
-        { }
+    TCommitCounters(const TTagIdList& list)
+        : Rows("/commit/rows", list)
+        , Bytes("/commit/bytes", list)
+    { }
 
-        TSimpleCounter Rows;
-        TSimpleCounter Bytes;
-    };
-
-    static TValue ToValue(const TTagIdList& list)
-    {
-        return list;
-    }
+    TSimpleCounter Rows;
+    TSimpleCounter Bytes;
 };
+
+using TCommitProfilerTrait = TTabletProfilerTrait<TCommitCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -720,6 +706,7 @@ private:
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
             tablet->FillProfilerTags(Slot_->GetCellId());
+            tablet->UpdateReplicaCounters();
         }
 
         const auto& transactionManager = Slot_->GetTransactionManager();
@@ -978,7 +965,7 @@ private:
             }
         } else {
             auto state = tablet->GetState();
-            if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+            if (IsInUnmountWorkflow(state)) {
                 LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in %Qlv state, ignored (TabletId: %v)",
                     state,
                     tabletId);
@@ -1030,9 +1017,7 @@ private:
         }
 
         auto state = tablet->GetState();
-        if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast ||
-            state >= ETabletState::FreezeFirst && state <= ETabletState::FreezeLast)
-        {
+        if (IsInUnmountWorkflow(state) || IsInFreezeWorkflow(state)) {
             LOG_INFO_UNLESS(IsRecovery(), "Requested to freeze a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
@@ -1096,7 +1081,7 @@ private:
         switch (requestedState) {
             case ETabletState::FreezeFlushing: {
                 auto state = tablet->GetState();
-                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                if (IsInUnmountWorkflow(state)) {
                     LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
                         requestedState,
                         state,
@@ -1151,7 +1136,7 @@ private:
 
             case ETabletState::Frozen: {
                 auto state = tablet->GetState();
-                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                if (IsInUnmountWorkflow(state)) {
                     LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
                         requestedState,
                         state,
@@ -3008,6 +2993,8 @@ private:
         if (IsLeader()) {
             StartTableReplicaEpoch(tablet, &replicaInfo);
         }
+
+        tablet->UpdateReplicaCounters();
 
         UpdateTabletSnapshot(tablet);
 

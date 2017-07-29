@@ -7,6 +7,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/variant.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -34,22 +35,23 @@ namespace NYTree {
 struct IYPathService
     : public virtual TRefCounted
 {
-    class TResolveResult
+    //! A result indicating that resolution is finished.
+    struct TResolveResultHere
     {
-    public:
-        DEFINE_BYVAL_RO_PROPERTY(IYPathServicePtr, Service);
-        DEFINE_BYVAL_RO_PROPERTY(TYPath, Path);
-
-    public:
-        //! Creates a result indicating that resolution is finished.
-        static TResolveResult Here(const TYPath& path);
-
-        //! Creates a result indicating that resolution must proceed.
-        static TResolveResult There(IYPathServicePtr service, const TYPath& path);
-
-        //! Returns |true| iff the resolution is finished.
-        bool IsHere() const;
+        TYPath Path;
     };
+
+    //! A result indicating that resolution must proceed.
+    struct TResolveResultThere
+    {
+        IYPathServicePtr Service;
+        TYPath Path;
+    };
+
+    using TResolveResult = TVariant<
+        TResolveResultHere,
+        TResolveResultThere
+    >;
 
     //! Resolves the given path by either returning "here" or "there" result.
     virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) = 0;

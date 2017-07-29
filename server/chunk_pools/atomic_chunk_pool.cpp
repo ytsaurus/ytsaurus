@@ -39,7 +39,7 @@ public:
         TSuspendableStripe suspendableStripe(stripe);
         Stripes.push_back(suspendableStripe);
 
-        DataSizeCounter.Increment(suspendableStripe.GetStatistics().DataSize);
+        DataWeightCounter.Increment(suspendableStripe.GetStatistics().DataWeight);
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
 
         return cookie;
@@ -93,7 +93,7 @@ public:
 
     virtual int GetTotalJobCount() const override
     {
-        return Finished && HasPrimaryStripes && DataSizeCounter.GetTotal() > 0 ? 1 : 0;
+        return Finished && HasPrimaryStripes && DataWeightCounter.GetTotal() > 0 ? 1 : 0;
     }
 
     virtual int GetPendingJobCount() const override
@@ -101,7 +101,7 @@ public:
         return
             Finished &&
             SuspendedStripeCount == 0 &&
-            DataSizeCounter.GetPending() > 0 &&
+            DataWeightCounter.GetPending() > 0 &&
             HasPrimaryStripes
             ? 1 : 0;
     }
@@ -127,14 +127,14 @@ public:
             auto stat = stripe->GetStatistics();
             AddStripeToList(
                 stripe,
-                stat.DataSize,
+                stat.DataWeight,
                 stat.RowCount,
                 ExtractedList,
                 nodeId);
         }
 
         JobCounter.Start(1);
-        DataSizeCounter.Start(DataSizeCounter.GetTotal());
+        DataWeightCounter.Start(DataWeightCounter.GetTotal());
         RowCounter.Start(RowCounter.GetTotal());
 
         return 0;
@@ -165,7 +165,7 @@ public:
         YCHECK(Finished);
 
         JobCounter.Completed(1, jobSummary.InterruptReason);
-        DataSizeCounter.Completed(DataSizeCounter.GetTotal());
+        DataWeightCounter.Completed(DataWeightCounter.GetTotal());
         RowCounter.Completed(RowCounter.GetTotal());
 
         ExtractedList = nullptr;
@@ -178,7 +178,7 @@ public:
         YCHECK(Finished);
 
         JobCounter.Failed(1);
-        DataSizeCounter.Failed(DataSizeCounter.GetTotal());
+        DataWeightCounter.Failed(DataWeightCounter.GetTotal());
         RowCounter.Failed(RowCounter.GetTotal());
 
         ExtractedList = nullptr;
@@ -191,7 +191,7 @@ public:
         YCHECK(Finished);
 
         JobCounter.Aborted(1, reason);
-        DataSizeCounter.Aborted(DataSizeCounter.GetTotal(), reason);
+        DataWeightCounter.Aborted(DataWeightCounter.GetTotal(), reason);
         RowCounter.Aborted(RowCounter.GetTotal(), reason);
 
         ExtractedList = nullptr;
@@ -204,7 +204,7 @@ public:
         YCHECK(Finished);
 
         JobCounter.Lost(1);
-        DataSizeCounter.Lost(DataSizeCounter.GetTotal());
+        DataWeightCounter.Lost(DataWeightCounter.GetTotal());
         RowCounter.Lost(RowCounter.GetTotal());
     }
 

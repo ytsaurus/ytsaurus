@@ -150,7 +150,7 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
 
     if (InMemoryManager_ &&
         store->IsChunk() &&
-        Tablet_->GetConfig()->InMemoryMode != EInMemoryMode::None)
+        GetInMemoryMode() != EInMemoryMode::None)
     {
         auto chunkStore = store->AsChunk();
         if (!onMount) {
@@ -267,17 +267,13 @@ void TStoreManagerBase::ScheduleStorePreload(IChunkStorePtr store)
     Tablet_->PreloadStoreIds().push_back(store->GetId());
     store->SetPreloadState(EStorePreloadState::Scheduled);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v, Mode: %v)",
-        store->GetId(),
-        Tablet_->GetConfig()->InMemoryMode);
+    LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
 }
 
 bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     IChunkStorePtr store,
     TInMemoryChunkDataPtr chunkData)
 {
-    YCHECK(store);
-
     if (!chunkData) {
         LOG_WARNING_UNLESS(IsRecovery(), "Intercepted chunk data for in-memory store is missing (StoreId: %v)",
             store->GetId());
@@ -288,8 +284,6 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     YCHECK(state == EStorePreloadState::None);
 
     auto mode = Tablet_->GetConfig()->InMemoryMode;
-    YCHECK(mode != EInMemoryMode::None);
-
     if (mode != chunkData->InMemoryMode) {
         LOG_WARNING_UNLESS(IsRecovery(), "Intercepted chunk data for in-memory store has invalid mode (StoreId: %v, ExpectedMode: %v, ActualMode: %v)",
             store->GetId(),
@@ -298,12 +292,22 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
         return false;
     }
 
+    auto configRevision = GetInMemoryConfigRevision();
+    if (configRevision != chunkData->InMemoryConfigRevision) {
+        LOG_WARNING_UNLESS(IsRecovery(), "Intercepted chunk data for in-memory store has invalid config revision (StoreId: %v, ExpectedRevision: %v, ActualRevision: %v)",
+            store->GetId(),
+            configRevision,
+            chunkData->InMemoryConfigRevision);
+        return false;
+    }
+
     store->Preload(chunkData);
     store->SetPreloadState(EStorePreloadState::Complete);
 
-    LOG_INFO_UNLESS(IsRecovery(), "In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
+    LOG_INFO_UNLESS(IsRecovery(), "In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v, ConfigRevision: %v)",
         store->GetId(),
-        mode);
+        mode,
+        configRevision);
 
     return true;
 }
@@ -350,9 +354,14 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
 {
     YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
     store->SetPreloadState(EStorePreloadState::None);
-    store->UpdatePreloadAttempt();
     store->SetPreloadFuture(TFuture<void>());
+    store->UpdatePreloadAttempt();
     ScheduleStorePreload(store);
+}
+
+EInMemoryMode TStoreManagerBase::GetInMemoryMode() const
+{
+    return Tablet_->GetConfig()->InMemoryMode;
 }
 
 ui64 TStoreManagerBase::GetInMemoryConfigRevision() const
@@ -531,13 +540,16 @@ void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
 void TStoreManagerBase::UpdateInMemoryMode()
 {
     ++InMemoryConfigRevision_;
+    LOG_INFO_UNLESS(IsRecovery(), "Promoted in-memory config revision to %v", InMemoryConfigRevision_);
+
     Tablet_->PreloadStoreIds().clear();
-    auto mode = Tablet_->GetConfig()->InMemoryMode;
+    auto mode = GetInMemoryMode();
+    auto configRevision = GetInMemoryConfigRevision();
     for (const auto& pair : Tablet_->StoreIdMap()) {
         const auto& store = pair.second;
         if (store->IsChunk()) {
             auto chunkStore = store->AsChunk();
-            chunkStore->SetInMemoryMode(mode);
+            chunkStore->SetInMemoryMode(mode, configRevision);
             CleanupStorePreload(chunkStore);
             if (mode != EInMemoryMode::None) {
                 ScheduleStorePreload(chunkStore);

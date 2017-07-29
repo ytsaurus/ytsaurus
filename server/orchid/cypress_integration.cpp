@@ -48,7 +48,7 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
-        return TResolveResult::Here(path);
+        return TResolveResultHere{path};
     }
 
     virtual void Invoke(const IServiceContextPtr& context) override
@@ -80,6 +80,7 @@ public:
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
         auto outerRequest = proxy.Execute();
+        outerRequest->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
         LOG_DEBUG("Sending request to remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
@@ -149,7 +150,7 @@ private:
         }
     }
 
-    static TString GetRedirectPath(TOrchidManifestPtr manifest, const TYPath& path)
+    static TString GetRedirectPath(const TOrchidManifestPtr& manifest, const TYPath& path)
     {
         return manifest->RemoteRoot + path;
     }
@@ -161,7 +162,7 @@ INodeTypeHandlerPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap)
         bootstrap,
         EObjectType::Orchid,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
-            return New<TOrchidYPathService>(bootstrap->GetHeavyNodeChannelFactory(), owningNode);
+            return New<TOrchidYPathService>(bootstrap->GetNodeChannelFactory(), owningNode);
         }),
         EVirtualNodeOptions::None);
 }

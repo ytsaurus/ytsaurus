@@ -305,7 +305,7 @@ void TFetcherBase::StartFetchingRound()
 IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(nodeId);
-    auto channel = Client_->GetLightChannelFactory()->CreateChannel(descriptor);
+    auto channel = Client_->GetChannelFactory()->CreateChannel(descriptor);
     return CreateRetryingChannel(Config_->NodeChannel, channel);
 }
 

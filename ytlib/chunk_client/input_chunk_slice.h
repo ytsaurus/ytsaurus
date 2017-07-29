@@ -56,7 +56,7 @@ class TInputChunkSlice
     : public TIntrinsicRefCounted
 {
 public:
-    DECLARE_BYVAL_RO_PROPERTY(i64, DataSize);
+    DECLARE_BYVAL_RO_PROPERTY(i64, DataWeight);
     DECLARE_BYVAL_RO_PROPERTY(i64, RowCount);
 
     DECLARE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
@@ -106,20 +106,20 @@ public:
         const NProto::TChunkSpec& protoChunkSpec);
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
-    std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataSize, i64 sliceRowCount) const;
+    std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount) const;
     std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr>  SplitByRowIndex(i64 splitRow) const;
 
     i64 GetLocality(int replicaIndex) const;
 
     void Persist(const NTableClient::TPersistenceContext& context);
 
-    void OverrideSize(i64 rowCount, i64 dataSize);
+    void OverrideSize(i64 rowCount, i64 dataWeight);
 
 private:
     int PartIndex_ = DefaultPartIndex;
 
     bool SizeOverridden_ = false;
-    i64 DataSize_ = 0;
+    i64 DataWeight_ = 0;
     i64 RowCount_ = 0;
 };
 

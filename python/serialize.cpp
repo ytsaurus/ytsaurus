@@ -1,5 +1,7 @@
 #include "serialize.h"
 #include "helpers.h"
+#include "stream.h"
+#include "yson_lazy_map.h"
 
 #include <yt/core/yson/lexer_detail.h>
 
@@ -22,22 +24,9 @@ using NYson::EYsonType;
 using NYson::IYsonConsumer;
 using NYTree::INodePtr;
 using NYTree::ENodeType;
+using NPython::GetYsonTypeClass;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-Py::Callable GetYsonType(const std::string& name)
-{
-    // TODO(ignat): Make singleton
-    static Py::Object ysonTypesModule;
-    if (ysonTypesModule.isNone()) {
-        auto ptr = PyImport_ImportModule("yt.yson.yson_types");
-        if (!ptr) {
-            throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
-        }
-        ysonTypesModule = ptr;
-    }
-    return Py::Callable(GetAttr(ysonTypesModule, name));
-}
 
 Py::Exception CreateYsonError(const std::string& message, TContext* context)
 {
@@ -85,6 +74,7 @@ Py::Exception CreateYsonError(const std::string& message, TContext* context)
     auto ysonError = ysonErrorClass.apply(Py::Tuple(), options);
     return Py::Exception(*ysonError.type(), ysonError);
 }
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -95,7 +85,7 @@ namespace NPython {
 
 Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
 {
-    auto result = GetYsonType(className).apply(Py::TupleN(object));
+    auto result = GetYsonTypeClass(className).apply(Py::TupleN(object));
     result.setAttr("attributes", attributes);
     return result;
 }
@@ -138,6 +128,37 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& en
     }
 }
 
+void SerializeLazyMapFragment(
+    const Py::Object& map,
+    IYsonConsumer* consumer,
+    const TNullable<TString>& encoding,
+    bool ignoreInnerAttributes,
+    EYsonType ysonType,
+    int depth,
+    TContext* context)
+{
+    TLazyYsonMapBase* obj = reinterpret_cast<TLazyYsonMapBase*>(map.ptr());
+    for (const auto& item: *obj->Dict->GetUnderlyingHashMap()) {
+        const auto& key = item.first;
+        const auto& value = item.second;
+
+        if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
+            throw Py::RuntimeError(Format("Map key should be string, found '%s'", Py::Repr(key)));
+        }
+
+        auto mapKey = ConvertToStringBuf(EncodeStringObject(key, encoding, context));
+        consumer->OnKeyedItem(mapKey);
+        context->Push(mapKey);
+
+        if (value.Value) {
+            Serialize(value.Value.Get(), consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
+        } else {
+            consumer->OnRaw(value.Data, NYson::EYsonType::Node);
+        }
+        context->Pop();
+    }
+}
+
 void SerializeMapFragment(
     const Py::Object& map,
     IYsonConsumer* consumer,
@@ -147,6 +168,11 @@ void SerializeMapFragment(
     int depth,
     TContext* context)
 {
+    if (IsYsonLazyMap(map.ptr())) {
+        SerializeLazyMapFragment(map, consumer, encoding, ignoreInnerAttributes, ysonType, depth, context);
+        return;
+    }
+
     auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
     auto iterator = Py::Object(PyObject_GetIter(*items), true);
     while (auto* item = PyIter_Next(*iterator)) {
@@ -172,15 +198,15 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
 {
     static Py::Callable YsonBooleanClass;
     if (YsonBooleanClass.isNone()) {
-        YsonBooleanClass = GetYsonType("YsonBoolean");
+        YsonBooleanClass = GetYsonTypeClass("YsonBoolean");
     }
     static Py::Callable YsonUint64Class;
     if (YsonUint64Class.isNone()) {
-        YsonUint64Class = GetYsonType("YsonUint64");
+        YsonUint64Class = GetYsonTypeClass("YsonUint64");
     }
     static Py::Callable YsonInt64Class;
     if (YsonInt64Class.isNone()) {
-        YsonInt64Class = GetYsonType("YsonInt64");
+        YsonInt64Class = GetYsonTypeClass("YsonInt64");
     }
     static Py::LongLong SignedInt64Min(std::numeric_limits<i64>::min());
     static Py::LongLong SignedInt64Max(std::numeric_limits<i64>::max());
@@ -240,6 +266,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     }
 }
 
+
 void Serialize(
     const Py::Object& obj,
     IYsonConsumer* consumer,
@@ -251,7 +278,7 @@ void Serialize(
 {
     static Py::Callable YsonEntityClass;
     if (YsonEntityClass.isNone()) {
-        YsonEntityClass = GetYsonType("YsonEntity");
+        YsonEntityClass = GetYsonTypeClass("YsonEntity");
     }
 
     const char* attributesStr = "attributes";
@@ -283,7 +310,7 @@ void Serialize(
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (Py::IsInteger(obj)) {
         SerializePythonInteger(obj, consumer, context);
-    } else if (obj.isMapping() && obj.hasAttr("items")) {
+    } else if (obj.isMapping() && obj.hasAttr("items") || IsYsonLazyMap(obj.ptr())) {
         bool allowBeginEnd =  depth > 0 || ysonType != NYson::EYsonType::MapFragment;
         if (allowBeginEnd) {
             consumer->OnBeginMap();
@@ -319,212 +346,6 @@ void Serialize(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<TString>& encoding)
-    : YsonMap(GetYsonType("YsonMap"))
-    , YsonList(GetYsonType("YsonList"))
-    , YsonString(GetYsonType("YsonString"))
-#if PY_MAJOR_VERSION >= 3
-    , YsonUnicode(GetYsonType("YsonUnicode"))
-#endif
-    , YsonInt64(GetYsonType("YsonInt64"))
-    , YsonUint64(GetYsonType("YsonUint64"))
-    , YsonDouble(GetYsonType("YsonDouble"))
-    , YsonBoolean(GetYsonType("YsonBoolean"))
-    , YsonEntity(GetYsonType("YsonEntity"))
-    , AlwaysCreateAttributes_(alwaysCreateAttributes)
-    , Encoding_(encoding)
-{ }
-
-TPythonObjectBuilder::PyObjectPtr TPythonObjectBuilder::MakePyObjectPtr(PyObject* obj)
-{
-    return std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>(obj, &Py::_XDECREF);
-}
-
-void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
-{
-    auto bytes = MakePyObjectPtr(PyBytes_FromStringAndSize(~value, value.size()));
-    if (!bytes) {
-        throw Py::Exception();
-    }
-
-    if (Encoding_) {
-        auto decodedString = MakePyObjectPtr(
-            PyUnicode_FromEncodedObject(bytes.get(), ~Encoding_.Get(), "strict"));
-        if (!decodedString) {
-            throw Py::Exception();
-        }
-#if PY_MAJOR_VERSION < 3
-        auto utf8String = MakePyObjectPtr(PyUnicode_AsUTF8String(decodedString.get()));
-        AddObject(std::move(utf8String), YsonString);
-#else
-        AddObject(std::move(decodedString), YsonUnicode);
-#endif
-    } else {
-        AddObject(std::move(bytes), YsonString);
-    }
-}
-
-void TPythonObjectBuilder::OnInt64Scalar(i64 value)
-{
-    AddObject(MakePyObjectPtr(PyLong_FromLongLong(value)), YsonInt64);
-}
-
-void TPythonObjectBuilder::OnUint64Scalar(ui64 value)
-{
-    AddObject(MakePyObjectPtr(PyLong_FromUnsignedLongLong(value)), YsonUint64, EPythonObjectType::Other, true);
-}
-
-void TPythonObjectBuilder::OnDoubleScalar(double value)
-{
-    AddObject(MakePyObjectPtr(PyFloat_FromDouble(value)), YsonDouble);
-}
-
-void TPythonObjectBuilder::OnBooleanScalar(bool value)
-{
-    AddObject(MakePyObjectPtr(PyBool_FromLong(value ? 1 : 0)), YsonBoolean);
-}
-
-void TPythonObjectBuilder::OnEntity()
-{
-    AddObject(MakePyObjectPtr(Py::new_reference_to(Py_None)), YsonEntity);
-}
-
-void TPythonObjectBuilder::OnBeginList()
-{
-    AddObject(MakePyObjectPtr(PyList_New(0)), YsonList, EPythonObjectType::List);
-}
-
-void TPythonObjectBuilder::OnListItem()
-{
-}
-
-void TPythonObjectBuilder::OnEndList()
-{
-    Pop();
-}
-
-void TPythonObjectBuilder::OnBeginMap()
-{
-    AddObject(MakePyObjectPtr(PyDict_New()), YsonMap, EPythonObjectType::Map);
-}
-
-void TPythonObjectBuilder::OnKeyedItem(const TStringBuf& key)
-{
-    PyObject* pyKey = nullptr;
-
-    auto it = KeyCache_.find(key);
-    if (it == KeyCache_.end()) {
-        auto pyKeyPtr = MakePyObjectPtr(PyBytes_FromStringAndSize(~key, key.size()));
-        if (!pyKeyPtr) {
-            throw Py::Exception();
-        }
-
-        auto ownedKey = ConvertToStringBuf(Py::Bytes(pyKeyPtr.get()));
-
-        if (Encoding_) {
-            auto originalPyKeyObj = pyKeyPtr.get();
-            OriginalKeyCache_.emplace_back(std::move(pyKeyPtr));
-
-            pyKeyPtr = MakePyObjectPtr(
-                PyUnicode_FromEncodedObject(originalPyKeyObj, ~Encoding_.Get(), "strict"));
-            if (!pyKeyPtr) {
-                throw Py::Exception();
-            }
-        }
-
-        auto res = KeyCache_.emplace(ownedKey, std::move(pyKeyPtr));
-        YCHECK(res.second);
-        pyKey = res.first->second.get();
-    } else {
-        pyKey = it->second.get();
-    }
-
-    Keys_.push(pyKey);
-}
-
-void TPythonObjectBuilder::OnEndMap()
-{
-    Pop();
-}
-
-void TPythonObjectBuilder::OnBeginAttributes()
-{
-    Push(MakePyObjectPtr(PyDict_New()), EPythonObjectType::Attributes);
-}
-
-void TPythonObjectBuilder::OnEndAttributes()
-{
-    Attributes_ = Pop();
-}
-
-void TPythonObjectBuilder::AddObject(
-    PyObjectPtr obj,
-    const Py::Callable& type,
-    EPythonObjectType objType,
-    bool forceYsonTypeCreation)
-{
-    static const char* attributesStr = "attributes";
-
-    if (!obj) {
-        throw Py::Exception();
-    }
-
-    if (Attributes_ || forceYsonTypeCreation || AlwaysCreateAttributes_) {
-        auto tuplePtr = MakePyObjectPtr(PyTuple_New(1));
-        PyTuple_SetItem(tuplePtr.get(), 0, Py::new_reference_to(obj.get()));
-        obj = MakePyObjectPtr(PyObject_CallObject(type.ptr(), tuplePtr.get()));
-        if (!obj.get()) {
-            throw Py::Exception();
-        }
-    }
-
-    if (Attributes_) {
-        PyObject_SetAttrString(obj.get(), attributesStr, Attributes_->get());
-        Attributes_ = Null;
-    }
-
-    if (ObjectStack_.empty()) {
-        Objects_.push(Py::Object(obj.get()));
-    } else if (ObjectStack_.top().second == EPythonObjectType::List) {
-        PyList_Append(ObjectStack_.top().first.get(), obj.get());
-    } else {
-        PyDict_SetItem(ObjectStack_.top().first.get(), Keys_.top(), obj.get());
-        Keys_.pop();
-    }
-
-    if (objType == EPythonObjectType::List || objType == EPythonObjectType::Map) {
-        Push(std::move(obj), objType);
-    }
-}
-
-void TPythonObjectBuilder::Push(PyObjectPtr objPtr, EPythonObjectType objectType)
-{
-    ObjectStack_.emplace(std::move(objPtr), objectType);
-}
-
-TPythonObjectBuilder::PyObjectPtr TPythonObjectBuilder::Pop()
-{
-    auto obj = std::move(ObjectStack_.top().first);
-    ObjectStack_.pop();
-    return obj;
-}
-
-
-Py::Object TPythonObjectBuilder::ExtractObject()
-{
-    auto obj = Objects_.front();
-    Objects_.pop();
-    return obj;
-}
-
-bool TPythonObjectBuilder::HasObject() const
-{
-    return Objects_.size() > 1 || (Objects_.size() == 1 && ObjectStack_.size() == 0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 
 TGilGuardedYsonConsumer::TGilGuardedYsonConsumer(IYsonConsumer* consumer)
     : Consumer_(consumer)
@@ -668,129 +489,11 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInputStreamBlobTag { };
-
-class TStreamReader
-{
-public:
-    explicit TStreamReader(TInputStream* stream)
-        : Stream_(stream)
-    {
-        ReadNextBlob();
-        if (!Finished_) {
-            RefreshBlock();
-        }
-    }
-
-    const char* Begin() const
-    {
-        return BeginPtr_;
-    }
-
-    const char* End() const
-    {
-        return EndPtr_;
-    }
-
-    void RefreshBlock()
-    {
-        YCHECK(BeginPtr_ == EndPtr_);
-        YCHECK(!Finished_);
-
-        Blobs_.push_back(NextBlob_);
-        BeginPtr_ = NextBlob_.Begin();
-        EndPtr_ = NextBlob_.Begin() + NextBlobSize_;
-
-        if (NextBlobSize_ < BlockSize_) {
-            Finished_ = true;
-        } else {
-            ReadNextBlob();
-        }
-    }
-
-    void Advance(size_t bytes)
-    {
-        BeginPtr_ += bytes;
-        ReadByteCount_ += bytes;
-    }
-
-    bool IsFinished() const
-    {
-        return Finished_;
-    }
-
-    TSharedRef ExtractPrefix()
-    {
-        YCHECK(!Blobs_.empty());
-
-        if (!PrefixStart_) {
-            PrefixStart_ = Blobs_.front().Begin();
-        }
-
-        TSharedMutableRef result;
-
-        if (Blobs_.size() == 1) {
-            result = Blobs_[0].Slice(PrefixStart_, BeginPtr_);
-        } else {
-            result = TSharedMutableRef::Allocate<TInputStreamBlobTag>(ReadByteCount_, false);
-
-            size_t index = 0;
-            auto append = [&] (const char* begin, const char* end) {
-                std::copy(begin, end, result.Begin() + index);
-                index += end - begin;
-            };
-
-            append(PrefixStart_, Blobs_.front().End());
-            for (int i = 1; i + 1 < Blobs_.size(); ++i) {
-                append(Blobs_[i].Begin(), Blobs_[i].End());
-            }
-            append(Blobs_.back().Begin(), BeginPtr_);
-
-            while (Blobs_.size() > 1) {
-                Blobs_.pop_front();
-            }
-        }
-
-        PrefixStart_ = BeginPtr_;
-        ReadByteCount_ = 0;
-
-        return result;
-    }
-
-private:
-    TInputStream* Stream_;
-
-    std::deque<TSharedMutableRef> Blobs_;
-
-    TSharedMutableRef NextBlob_;
-    i64 NextBlobSize_ = 0;
-
-    char* BeginPtr_ = nullptr;
-    char* EndPtr_ = nullptr;
-
-    char* PrefixStart_ = nullptr;
-    i64 ReadByteCount_ = 0;
-
-    bool Finished_ = false;
-    static const size_t BlockSize_ = 1024 * 1024;
-
-    void ReadNextBlob()
-    {
-        NextBlob_ = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
-        NextBlobSize_ = Stream_->Load(NextBlob_.Begin(), NextBlob_.Size());
-        if (NextBlobSize_ == 0) {
-            Finished_ = true;
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TListFragmentLexer::TImpl
 {
 public:
     explicit TImpl(TInputStream* stream)
-        : Lexer_(TStreamReader(stream))
+        : Lexer_(NYT::NPython::TStreamReader(stream))
     { }
 
     TSharedRef NextItem()
@@ -858,7 +561,7 @@ public:
     }
 
 private:
-    NYson::NDetail::TLexer<TStreamReader, true> Lexer_;
+    NYson::NDetail::TLexer<NYT::NPython::TStreamReader, true> Lexer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

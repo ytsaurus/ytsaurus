@@ -37,7 +37,7 @@ void TChunkStripeStatistics::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ChunkCount);
-    Persist(context, DataSize);
+    Persist(context, DataWeight);
     Persist(context, RowCount);
     Persist(context, MaxBlockSize);
 }
@@ -60,7 +60,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
     TChunkStripeStatistics result;
 
     for (const auto& dataSlice : DataSlices) {
-        result.DataSize += dataSlice->GetDataSize();
+        result.DataWeight += dataSlice->GetDataWeight();
         result.RowCount += dataSlice->GetRowCount();
         ++result.ChunkCount;
         result.MaxBlockSize = std::max(result.MaxBlockSize, dataSlice->GetMaxBlockSize());
@@ -106,7 +106,7 @@ TChunkStripeStatistics operator + (
 {
     TChunkStripeStatistics result;
     result.ChunkCount = lhs.ChunkCount + rhs.ChunkCount;
-    result.DataSize = lhs.DataSize + rhs.DataSize;
+    result.DataWeight = lhs.DataWeight + rhs.DataWeight;
     result.RowCount = lhs.RowCount + rhs.RowCount;
     result.MaxBlockSize = std::max(lhs.MaxBlockSize, rhs.MaxBlockSize);
     return result;
@@ -117,7 +117,7 @@ TChunkStripeStatistics& operator += (
     const TChunkStripeStatistics& rhs)
 {
     lhs.ChunkCount += rhs.ChunkCount;
-    lhs.DataSize += rhs.DataSize;
+    lhs.DataWeight += rhs.DataWeight;
     lhs.RowCount += rhs.RowCount;
     lhs.MaxBlockSize = std::max(lhs.MaxBlockSize, rhs.MaxBlockSize);
     return lhs;
@@ -155,10 +155,10 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
     result.ChunkCount = TotalChunkCount;
     if (IsApproximate) {
         result.RowCount = TotalRowCount * ApproximateSizesBoostFactor;
-        result.DataSize = TotalDataSize * ApproximateSizesBoostFactor;
+        result.DataWeight = TotalDataWeight * ApproximateSizesBoostFactor;
     } else {
         result.RowCount = TotalRowCount;
-        result.DataSize = TotalDataSize;
+        result.DataWeight = TotalDataWeight;
     }
     return result;
 }
@@ -169,8 +169,8 @@ void TChunkStripeList::Persist(const TPersistenceContext& context)
     Persist(context, Stripes);
     Persist(context, PartitionTag);
     Persist(context, IsApproximate);
-    Persist(context, TotalDataSize);
-    Persist(context, LocalDataSize);
+    Persist(context, TotalDataWeight);
+    Persist(context, LocalDataWeight);
     Persist(context, TotalRowCount);
     Persist(context, TotalChunkCount);
     Persist(context, LocalChunkCount);
@@ -330,30 +330,30 @@ void TSuspendableStripe::Persist(const TPersistenceContext& context)
 
 
 TChunkPoolOutputBase::TChunkPoolOutputBase()
-    : DataSizeCounter(0)
+    : DataWeightCounter(0)
     , RowCounter(0)
 { }
 
 // IChunkPoolOutput implementation.
 
-i64 TChunkPoolOutputBase::GetTotalDataSize() const
+i64 TChunkPoolOutputBase::GetTotalDataWeight() const
 {
-    return DataSizeCounter.GetTotal();
+    return DataWeightCounter.GetTotal();
 }
 
-i64 TChunkPoolOutputBase::GetRunningDataSize() const
+i64 TChunkPoolOutputBase::GetRunningDataWeight() const
 {
-    return DataSizeCounter.GetRunning();
+    return DataWeightCounter.GetRunning();
 }
 
-i64 TChunkPoolOutputBase::GetCompletedDataSize() const
+i64 TChunkPoolOutputBase::GetCompletedDataWeight() const
 {
-    return DataSizeCounter.GetCompletedTotal();
+    return DataWeightCounter.GetCompletedTotal();
 }
 
-i64 TChunkPoolOutputBase::GetPendingDataSize() const
+i64 TChunkPoolOutputBase::GetPendingDataWeight() const
 {
-    return DataSizeCounter.GetPending();
+    return DataWeightCounter.GetPending();
 }
 
 i64 TChunkPoolOutputBase::GetTotalRowCount() const
@@ -371,7 +371,7 @@ const TProgressCounter& TChunkPoolOutputBase::GetJobCounter() const
 void TChunkPoolOutputBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, DataSizeCounter);
+    Persist(context, DataWeightCounter);
     Persist(context, RowCounter);
     Persist(context, JobCounter);
 }

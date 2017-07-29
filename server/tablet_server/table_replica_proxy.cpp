@@ -112,7 +112,7 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(table->Tablets(), [=] (TFluentList fluent, TTablet* tablet) {
                     const auto* chunkList = tablet->GetChunkList();
-                    const auto& replicaInfo = tablet->GetReplicaInfo(replica);
+                    const auto* replicaInfo = tablet->GetReplicaInfo(replica);
                     fluent
                         .Item().BeginMap()
                             .Item("tablet_id").Value(tablet->GetId())
@@ -120,6 +120,9 @@ private:
                             .Item("current_replication_row_index").Value(replicaInfo->GetCurrentReplicationRowIndex())
                             .Item("current_replication_timestamp").Value(replicaInfo->GetCurrentReplicationTimestamp())
                             .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(*replicaInfo))
+                            .DoIf(!replicaInfo->Error().IsOK(), [&] (TFluentMap fluent) {
+                                fluent.Item("replication_error").Value(replicaInfo->Error());
+                            })
                             .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
                             .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount)
                         .EndMap();

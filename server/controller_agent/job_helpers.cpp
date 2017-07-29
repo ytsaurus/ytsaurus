@@ -22,6 +22,7 @@ using namespace NScheduler;
 static const TString InputRowCountPath = "/data/input/row_count";
 static const TString InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
 static const TString InputCompressedDataSizePath = "/data/input/compressed_data_size";
+static const TString InputDataWeightPath = "/data/input/data_weight";
 static const TString InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
 static const TString JobProxyCpuUsagePath = "/job_proxy/cpu/user";
 
@@ -34,6 +35,7 @@ void TBriefJobStatistics::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, ProcessedInputRowCount);
     Persist(context, ProcessedInputUncompressedDataSize);
     Persist(context, ProcessedInputCompressedDataSize);
+    Persist(context, ProcessedInputDataWeight);
     Persist(context, ProcessedOutputRowCount);
     Persist(context, ProcessedOutputUncompressedDataSize);
     Persist(context, ProcessedOutputCompressedDataSize);
@@ -60,6 +62,7 @@ void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* 
             .Item("processed_input_row_count").Value(briefJobStatistics->ProcessedInputRowCount)
             .Item("processed_input_uncompressed_data_size").Value(briefJobStatistics->ProcessedInputUncompressedDataSize)
             .Item("processed_input_compressed_data_size").Value(briefJobStatistics->ProcessedInputCompressedDataSize)
+            .Item("processed_input_data_weight").Value(briefJobStatistics->ProcessedInputDataWeight)
             .Item("processed_output_uncompressed_data_size").Value(briefJobStatistics->ProcessedOutputUncompressedDataSize)
             .Item("processed_output_compressed_data_size").Value(briefJobStatistics->ProcessedOutputCompressedDataSize)
             .DoIf(static_cast<bool>(briefJobStatistics->InputPipeIdleTime), [&] (TFluentMap fluent) {
@@ -103,6 +106,7 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, InputRowCountPath);
     briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, InputUncompressedDataSizePath);
     briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, InputCompressedDataSizePath);
+    briefStatistics->ProcessedInputDataWeight = GetNumericValue(statistics, InputDataWeightPath);
     briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, InputPipeIdleTimePath);
     briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
     briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());

@@ -70,6 +70,20 @@ TDuration TTableReplica::ComputeReplicationLagTime() const
     return result;
 }
 
+std::vector<TError> TTableReplica::GetErrors() const
+{
+    std::vector<TError> errors;
+    errors.reserve(Table_->Tablets().size());
+    for (auto* tablet : Table_->Tablets()) {
+        const auto* replicaInfo = tablet->GetReplicaInfo(this);
+        const auto& error = replicaInfo->Error();
+        if (!error.IsOK()) {
+            errors.push_back(error);
+        }
+    }
+    return errors;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletServer

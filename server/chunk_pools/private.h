@@ -22,8 +22,6 @@ using IPersistent = NPhoenix::ICustomPersistent<TPersistenceContext>;
 
 DECLARE_REFCOUNTED_CLASS(TJobManager)
 
-DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
-
 DECLARE_REFCOUNTED_CLASS(TOutputOrder)
 
 struct IChunkPoolInput;

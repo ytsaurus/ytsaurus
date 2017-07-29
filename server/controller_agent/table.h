@@ -1,0 +1,101 @@
+#pragma once
+
+#include "helpers.h"
+#include "private.h"
+#include "serialize.h"
+#include "output_chunk_tree.h"
+
+#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+
+#include <yt/ytlib/cypress_client/public.h>
+
+#include <yt/ytlib/table_client/helpers.h>
+
+namespace NYT {
+namespace NControllerAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EOutputTableType,
+    (Output)
+    (Stderr)
+    (Core)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLivePreviewTableBase
+{
+    // Live preview table id.
+    NCypressClient::TNodeId LivePreviewTableId;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+struct TInputTable
+    : public TLockedUserObject
+{
+    //! Number of chunks in the whole table (without range selectors).
+    int ChunkCount = -1;
+    std::vector<NChunkClient::TInputChunkPtr> Chunks;
+    NTableClient::TTableSchema Schema;
+    NTableClient::ETableSchemaMode SchemaMode;
+    bool IsDynamic;
+
+    //! Set to true when schema of the table is compatible with the output
+    //! teleport table and when no special options set that disallow chunk
+    //! teleporting (like force_transform = %true).
+    bool IsTeleportable = false;
+
+    bool IsForeign() const;
+
+    bool IsPrimary() const;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+struct TOutputTable
+    : public NChunkClient::TUserObject
+    , public TLivePreviewTableBase
+{
+    NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
+    NTableClient::TTableUploadOptions TableUploadOptions;
+    bool ChunkPropertiesUpdateNeeded = false;
+    EOutputTableType OutputType = EOutputTableType::Output;
+
+    // Server-side upload transaction.
+    NTransactionClient::TTransactionId UploadTransactionId;
+
+    // Chunk list for appending the output.
+    NChunkClient::TChunkListId OutputChunkListId;
+
+    // Statistics returned by EndUpload call.
+    NChunkClient::NProto::TDataStatistics DataStatistics;
+
+    //! Chunk trees comprising the output (the order matters).
+    //! Chunk trees are sorted according to either:
+    //! * integer key (e.g. in remote copy);
+    //! * boundary keys (when the output is sorted).
+    std::vector<std::pair<TOutputChunkTreeKey, NChunkClient::TChunkTreeId>> OutputChunkTreeIds;
+
+    NYson::TYsonString EffectiveAcl;
+
+    NYson::TYsonString WriterConfig;
+
+    NTransactionClient::TTimestamp Timestamp;
+
+    bool IsBeginUploadCompleted() const;
+    void Persist(const TPersistenceContext& context);
+};
+
+struct TIntermediateTable
+    : public TLivePreviewTableBase
+{
+    void Persist(const TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NControllerAgent
+} // namespace NYT
+

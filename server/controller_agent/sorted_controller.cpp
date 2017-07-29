@@ -2,8 +2,10 @@
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
+#include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "task.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
@@ -80,7 +82,7 @@ public:
         Persist(context, JobIOConfig_);
         Persist(context, JobSpecTemplate_);
         Persist(context, JobSizeConstraints_);
-        Persist(context, InputSliceDataSize_);
+        Persist(context, InputSliceDataWeight_);
         Persist(context, SortedTaskGroup_);
         Persist(context, SortedTask_);
         Persist(context, PrimaryKeyColumns_);
@@ -132,7 +134,7 @@ protected:
             return Controller_->Spec_->LocalityTimeout;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
@@ -239,7 +241,7 @@ protected:
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
-    i64 InputSliceDataSize_;
+    i64 InputSliceDataWeight_;
 
     IFetcherChunkScraperPtr FetcherChunkScraper_;
 
@@ -281,19 +283,34 @@ protected:
 
     void CalculateSizes()
     {
-        JobSizeConstraints_ = CreateSimpleJobSizeConstraints(
-            Spec_,
-            Options_,
-            GetOutputTablePaths().size(),
-            PrimaryInputDataSize + ForeignInputDataSize);
+        auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
+            switch (OperationType) {
+                case EOperationType::Merge:
+                    return CreateMergeJobSizeConstraints(
+                        Spec_,
+                        Options_,
+                        PrimaryInputDataWeight,
+                        static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
 
-        InputSliceDataSize_ = JobSizeConstraints_->GetInputSliceDataSize();
+                default:
+                    return CreateSimpleJobSizeConstraints(
+                        Spec_,
+                        Options_,
+                        OutputTables_.size(),
+                        PrimaryInputDataWeight,
+		        std::numeric_limits<i32>::max() /* InputRowCount */, // It is not important in sorted operations.
+                        ForeignInputDataWeight);
+            }
+        };
+
+        JobSizeConstraints_ = createJobSizeConstraints();
+        InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
         LOG_INFO(
-            "Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, InputSliceDataSize: %v)",
+            "Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
             JobSizeConstraints_->GetJobCount(),
-            JobSizeConstraints_->GetMaxDataSizePerJob(),
-            InputSliceDataSize_);
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            InputSliceDataWeight_);
     }
 
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
@@ -322,7 +339,7 @@ protected:
                 ++primaryUnversionedSlices;
                 yielder.TryYield();
             }
-            for (const auto& slice : CollectPrimaryVersionedDataSlices(InputSliceDataSize_)) {
+            for (const auto& slice : CollectPrimaryVersionedDataSlices(InputSliceDataWeight_)) {
                 RegisterInputStripe(CreateChunkStripe(slice), SortedTask_);
                 ++primaryVersionedSlices;
                 yielder.TryYield();
@@ -390,7 +407,7 @@ protected:
                 if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
-                        OutputTables[*tableIndex].TableUploadOptions.TableSchema,
+                        OutputTables_[*tableIndex].TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                     if (GetJobType() == EJobType::SortedReduce) {
                         InputTables[index].IsTeleportable &= InputTables[index].Path.GetTeleport();
@@ -521,16 +538,16 @@ private:
                 GetCancelableInvoker(),
                 Host->GetChunkLocationThrottlerManager(),
                 AuthenticatedInputMasterClient,
-                InputNodeDirectory,
+                InputNodeDirectory_,
                 Logger);
         }
 
         return NTableClient::CreateChunkSliceFetcher(
             Config->Fetcher,
-            InputSliceDataSize_,
+            InputSliceDataWeight_,
             PrimaryKeyColumns_,
             ShouldSlicePrimaryTableByKeys(),
-            InputNodeDirectory,
+            InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper_,
             Host->GetMasterClient(),
@@ -651,7 +668,7 @@ public:
         // Check that all input tables are sorted by the same key columns.
         TSortedControllerBase::PrepareOutputTables();
 
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
         auto prepareOutputKeyColumns = [&] () {
@@ -696,9 +713,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -785,7 +802,7 @@ public:
         return 0;
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
@@ -826,7 +843,7 @@ public:
         reduceJobSpecExt->set_join_key_column_count(ForeignKeyColumns_.size());
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
@@ -839,8 +856,8 @@ public:
         TSortedControllerBase::DoInitialize();
 
         int teleportOutputCount = 0;
-        for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
-            if (OutputTables[i].Path.GetTeleport()) {
+        for (int i = 0; i < static_cast<int>(OutputTables_.size()); ++i) {
+            if (OutputTables_[i].Path.GetTeleport()) {
                 ++teleportOutputCount;
                 OutputTeleportTableIndex_ = i;
             }
@@ -1033,9 +1050,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -1155,9 +1172,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override

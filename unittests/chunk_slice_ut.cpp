@@ -174,6 +174,7 @@ protected:
         TMiscExt miscExt;
         miscExt.set_row_count(chunkRows);
         miscExt.set_uncompressed_data_size(chunkRows * rowBytes);
+        //miscExt.set_data_weight(chunkRows * rowBytes);
         SetProtoExtension<TMiscExt>(chunkMeta.mutable_extensions(), miscExt);
 
         TChunkSpec chunkSpec;
@@ -188,7 +189,7 @@ protected:
 
     std::vector<NChunkClient::TChunkSlice> SliceChunk(
         const TChunkSpec& chunkSpec,
-        i64 sliceDataSize,
+        i64 sliceDataWeight,
         int keyColumnCount,
         bool sliceByKeys)
     {
@@ -203,7 +204,7 @@ protected:
         }
         sliceRequest.set_erasure_codec(chunkSpec.erasure_codec());
 
-        return NChunkClient::SliceChunk(sliceRequest, chunkSpec.chunk_meta(), sliceDataSize, keyColumnCount, sliceByKeys);
+        return NChunkClient::SliceChunk(sliceRequest, chunkSpec.chunk_meta(), sliceDataWeight, keyColumnCount, sliceByKeys);
     }
 };
 
@@ -212,7 +213,7 @@ TEST_F(TChunkSliceTest, OneKeyChunkSmallSlice)
     const auto& chunkSpec = OneKeyChunk_;
     auto keySlices = SliceChunk(
         chunkSpec,
-        500, // sliceDataSize
+        500, // sliceDataWeight
         1,   // keyColumnCount
         DoSliceByKeys);
     EXPECT_EQ(1, keySlices.size());
@@ -223,12 +224,17 @@ TEST_F(TChunkSliceTest, OneKeyChunkSmallSlice)
 
     auto rowSlices = SliceChunk(
         chunkSpec,
-        500, // sliceDataSize
+        500, // sliceDataWeight
         1,   // keyColumnCount
         DoSliceByRows);
     EXPECT_EQ(7, rowSlices.size());
 
     EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10000"];"row_index"=0})_"));
+
+    Cerr << ConvertToYsonString(rowSlices[0].UpperLimit(), EYsonFormat::Pretty).GetData() << Endl;
+    Cerr << ConvertToYsonString(rowSlices[6].LowerLimit(), EYsonFormat::Pretty).GetData() << Endl;
+    Cerr << ConvertToYsonString(rowSlices[6].UpperLimit(), EYsonFormat::Pretty).GetData() << Endl;
+
     EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=39})_"));
     EXPECT_THAT(rowSlices[0], HasRowCount(39));
 

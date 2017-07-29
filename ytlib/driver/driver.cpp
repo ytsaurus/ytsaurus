@@ -176,7 +176,7 @@ public:
         REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
         REGISTER(TGetJobInputCommand,          "get_job_input",           Null,       Binary,     false, true);
         REGISTER(TGetJobStderrCommand,         "get_job_stderr",          Null,       Binary,     false, true);
-        REGISTER(TListJobsCommand,             "list_jobs",               Null,       Tabular,    false, true);
+        REGISTER(TListJobsCommand,             "list_jobs",               Null,       Structured, false, true);
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
         REGISTER(TSignalJobCommand,            "signal_job",              Null,       Null,       false, false);
         REGISTER(TAbandonJobCommand,           "abandon_job",             Null,       Null,       false, false);

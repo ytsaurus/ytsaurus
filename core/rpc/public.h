@@ -1,6 +1,5 @@
 #pragma once
 
-#include <yt/core/misc/error.h>
 #include <yt/core/misc/guid.h>
 
 namespace NYT {
@@ -73,6 +72,12 @@ typedef TGuid TMutationId;
 extern const TMutationId NullMutationId;
 
 extern const TString RootUserName;
+
+constexpr int MinMultiplexingBand = 0;
+constexpr int MaxMultiplexingBand = 1;
+
+constexpr int DefaultLightMultiplexingBand = 0;
+constexpr int DefaultHeavyMultiplexingBand = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

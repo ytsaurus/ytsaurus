@@ -118,11 +118,11 @@ public:
         }
         TimestampProvider_ = CreateRemoteTimestampProvider(
             timestampProviderConfig,
-            LightChannelFactory_);
+            ChannelFactory_);
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
-            LightChannelFactory_,
+            ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
 
@@ -134,7 +134,7 @@ public:
 
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
-            LightChannelFactory_,
+            ChannelFactory_,
             GetNetworks(),
             Logger);
         CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
@@ -248,14 +248,9 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual const IChannelFactoryPtr& GetLightChannelFactory() override
+    virtual const IChannelFactoryPtr& GetChannelFactory() override
     {
-        return LightChannelFactory_;
-    }
-
-    virtual const IChannelFactoryPtr& GetHeavyChannelFactory() override
-    {
-        return HeavyChannelFactory_;
+        return ChannelFactory_;
     }
 
     virtual const IBlockCachePtr& GetBlockCache() override
@@ -378,8 +373,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    const NRpc::IChannelFactoryPtr LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
-    const NRpc::IChannelFactoryPtr HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+    const NRpc::IChannelFactoryPtr ChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
     TCellId PrimaryMasterCellId_;
     TCellTag PrimaryMasterCellTag_;
@@ -416,7 +410,7 @@ private:
     {
         auto channel = NHydra::CreatePeerChannel(
             config,
-            LightChannelFactory_,
+            ChannelFactory_,
             kind);
 
         auto isRetryableError = BIND([options = Options_] (const TError& error) {

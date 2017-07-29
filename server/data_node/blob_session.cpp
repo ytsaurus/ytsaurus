@@ -235,15 +235,16 @@ TFuture<void> TBlobSession::DoSendBlocks(
     int blockCount,
     const TNodeDescriptor& targetDescriptor)
 {
-    auto channelFactory = Bootstrap_
+    const auto& channelFactory = Bootstrap_
         ->GetMasterClient()
         ->GetNativeConnection()
-        ->GetHeavyChannelFactory();
+        ->GetChannelFactory();
     auto channel = channelFactory->CreateChannel(targetDescriptor.GetAddress(Bootstrap_->GetLocalNetworks()));
     TDataNodeServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();
+    req->SetMultiplexingBand(DefaultHeavyMultiplexingBand);
     ToProto(req->mutable_session_id(), SessionId_);
     req->set_first_block_index(firstBlockIndex);
 

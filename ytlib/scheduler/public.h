@@ -17,6 +17,17 @@ using NJobTrackerClient::EJobState;
 
 static const int MaxSchedulingTagRuleCount = 100;
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TSchedulerJobSpecExt;
+class TTableInputSpec;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EOperationType,
     (Map)
     (Merge)

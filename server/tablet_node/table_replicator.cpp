@@ -31,6 +31,8 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/delayed_executor.h>
 
+#include <yt/core/misc/finally.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -48,6 +50,15 @@ static const auto MountConfigUpdatePeriod = TDuration::Seconds(3);
 static const auto ReplicationTickPeriod = TDuration::MilliSeconds(100);
 static const int TabletRowsPerRead = 1000;
 static const auto HardErrorAttribute = TErrorAttribute("hard", true);
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TTimestampDiff = TTimestamp;
+
+NProfiling::TValue TimestampDiffToValue(TTimestampDiff timestamp)
+{
+    return NProfiling::DurationToValue(TDuration::Seconds(timestamp >> TimestampCounterWidth));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +170,20 @@ private:
 
     void FiberIteration()
     {
+        TTableReplicaSnapshotPtr replicaSnapshot;
         try {
+            auto tabletSnapshot = SlotManager_->FindTabletSnapshot(TabletId_);
+            if (!tabletSnapshot) {
+                THROW_ERROR_EXCEPTION("No tablet snapshot is available")
+                    << HardErrorAttribute;
+            }
+
+            replicaSnapshot = tabletSnapshot->FindReplicaSnapshot(ReplicaId_);
+            if (!replicaSnapshot) {
+                THROW_ERROR_EXCEPTION("No table replica snapshot is available")
+                    << HardErrorAttribute;
+            }
+
             auto mountConfig = GetMountConfig();
             if (!mountConfig) {
                 THROW_ERROR_EXCEPTION("No mount configuration is available");
@@ -171,24 +195,20 @@ private:
                     << HardErrorAttribute;
             }
 
-            auto tabletSnapshot = SlotManager_->FindTabletSnapshot(TabletId_);
-            if (!tabletSnapshot) {
-                THROW_ERROR_EXCEPTION("No tablet snapshot is available")
-                    << HardErrorAttribute;
-            }
-
-            auto replicaSnapshot = tabletSnapshot->FindReplicaSnapshot(ReplicaId_);
-            if (!replicaSnapshot) {
-                THROW_ERROR_EXCEPTION("No table replica snapshot is available")
-                    << HardErrorAttribute;
-            }
-
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
+            auto updateCounters = [&] (i64 rowLag, TTimestampDiff timestampLag) {
+                auto* counters = replicaSnapshot->Counters;
+                if (counters) {
+                    TabletNodeProfiler.Update(counters->RowLag, rowLag);
+                    TabletNodeProfiler.Update(counters->TimestampLag, TimestampDiffToValue(timestampLag));
+                }
+            };
             auto updateSuccessTimestamp = [&] {
                 replicaRuntimeData->LastReplicationTimestamp.store(
                     Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
                     std::memory_order_relaxed);
+                updateCounters(0, 0);
             };
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             if (tabletRuntimeData->TotalRowCount <= lastReplicationRowIndex) {
@@ -201,6 +221,13 @@ private:
             }
 
             LOG_DEBUG("Starting replication transactions");
+
+            auto updater = Finally(
+                [&] {
+                    updateCounters(
+                        tabletRuntimeData->TotalRowCount - replicaRuntimeData->CurrentReplicationRowIndex,
+                        tabletRuntimeData->LastCommitTimestamp - replicaRuntimeData->CurrentReplicationTimestamp);
+                });
 
             auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::ReplicatorUserName));
             auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
@@ -273,8 +300,13 @@ private:
             replicaRuntimeData->LastReplicationTimestamp.store(
                 newReplicationTimestamp,
                 std::memory_order_relaxed);
+            replicaRuntimeData->Error.Store(TError());
         } catch (const std::exception& ex) {
             TError error(ex);
+            if (replicaSnapshot) {
+                replicaSnapshot->RuntimeData->Error.Store(
+                    error << TErrorAttribute("tablet_id", TabletId_));
+            }
             if (error.Attributes().Get<bool>("hard", false)) {
                 DoHardBackoff(error);
             } else {

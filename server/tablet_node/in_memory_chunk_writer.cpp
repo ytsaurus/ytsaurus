@@ -57,13 +57,8 @@ public:
             if (!valueOrError.IsOK()) {
                 return;
             }
-
-            InMemoryManager_->FinalizeChunk(
-                GetChunkId(),
-                GetNodeMeta(),
-                TabletSnapshot_);
+            InMemoryManager_->FinalizeChunk(GetChunkId(), GetNodeMeta(), TabletSnapshot_);
         }));
-
         return result;
     }
 
@@ -201,8 +196,7 @@ public:
             if (!valueOrError.IsOK()) {
                 return;
             }
-
-            auto chunkSpecs = GetWrittenChunksFullMeta();
+            const auto& chunkSpecs = GetWrittenChunksFullMeta();
             for (const auto& chunkSpec : chunkSpecs) {
                 InMemoryManager_->FinalizeChunk(
                     FromProto<TChunkId>(chunkSpec.chunk_id()),
@@ -210,7 +204,6 @@ public:
                     TabletSnapshot_);
             }
         }));
-
         return result;
     }
 

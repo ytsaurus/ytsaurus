@@ -284,7 +284,9 @@ private:
                 EDataType::Structured,
                 &errorStream);
 
+            Serialize(response, consumer.get());
             consumer->Flush();
+            errorStream.Finish();
 
             TString delimiter;
             delimiter.append('\n');

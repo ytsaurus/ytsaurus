@@ -2,8 +2,10 @@
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
+#include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "task.h"
 
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -66,11 +68,11 @@ public:
         , Spec(spec)
         , Options(options)
         , TotalChunkCount(0)
-        , TotalDataSize(0)
-        , CurrentTaskDataSize(0)
+        , TotalDataWeight(0)
+        , CurrentTaskDataWeight(0)
         , CurrentTaskChunkCount(0)
         , CurrentPartitionIndex(0)
-        , MaxDataSizePerJob(0)
+        , MaxDataWeightPerJob(0)
         , ChunkSliceSize(0)
         , IsExplicitJobCount(false)
     { }
@@ -83,10 +85,10 @@ public:
 
         using NYT::Persist;
         Persist(context, TotalChunkCount);
-        Persist(context, TotalDataSize);
+        Persist(context, TotalDataWeight);
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
-        Persist(context, MaxDataSizePerJob);
+        Persist(context, MaxDataWeightPerJob);
         Persist(context, ChunkSliceSize);
         Persist(context, IsExplicitJobCount);
         Persist(context, MergeTaskGroup);
@@ -100,7 +102,7 @@ protected:
     int TotalChunkCount;
 
     //! The total data size for processing (teleports excluded).
-    i64 TotalDataSize;
+    i64 TotalDataWeight;
 
     //! For each input table, the corresponding entry holds the stripe
     //! containing the chunks collected so far.
@@ -112,7 +114,7 @@ protected:
 
     //! The total data size accumulated in #CurrentTaskStripes.
     //! Not serialized.
-    i64 CurrentTaskDataSize;
+    i64 CurrentTaskDataWeight;
 
     //! The total number of chunks in #CurrentTaskStripes.
     //! Not serialized.
@@ -133,7 +135,7 @@ protected:
     TJobSpec JobSpecTemplate;
 
     //! Overrides the spec limit to satisfy global job count limit.
-    i64 MaxDataSizePerJob;
+    i64 MaxDataWeightPerJob;
     i64 ChunkSliceSize;
 
     //! Flag set when job count was explicitly specified.
@@ -182,7 +184,7 @@ protected:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
@@ -308,7 +310,7 @@ protected:
     {
         CurrentTaskStripes.clear();
         CurrentTaskStripes.resize(InputTables.size());
-        CurrentTaskDataSize = 0;
+        CurrentTaskDataWeight = 0;
         CurrentTaskChunkCount = 0;
     }
 
@@ -317,11 +319,11 @@ protected:
         YCHECK(HasActiveTask());
 
         std::vector<TChunkStripePtr> taskStripes;
-        i64 taskDataSize =  0;
+        i64 taskDataWeight =  0;
         int taskChunkCount = 0;
 
         if (!breakpointKey) {
-            taskDataSize = CurrentTaskDataSize;
+            taskDataWeight = CurrentTaskDataWeight;
             taskChunkCount = CurrentTaskChunkCount;
             taskStripes = std::move(CurrentTaskStripes);
             ResetCurrentTaskStripes();
@@ -333,7 +335,7 @@ protected:
 
             auto addSlice = [&] (const TInputDataSlicePtr& dataSlice) {
                 ++taskChunkCount;
-                taskDataSize += dataSlice->GetDataSize();
+                taskDataWeight += dataSlice->GetDataWeight();
                 AddSliceToStripe(dataSlice, taskStripes);
             };
 
@@ -368,13 +370,13 @@ protected:
 
         RegisterTask(task);
 
-        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v, TaskChunkCount: %v, BreakpointKey: %v)",
+        LOG_DEBUG("Task finished (Id: %v, TaskDataWeight: %v, TaskChunkCount: %v, BreakpointKey: %v)",
             task->GetId(),
-            taskDataSize,
+            taskDataWeight,
             taskChunkCount,
             breakpointKey);
 
-        TotalDataSize += taskDataSize;
+        TotalDataWeight += taskDataWeight;
         TotalChunkCount += taskChunkCount;
 
         // Don't validate this limit if operation is already running.
@@ -421,15 +423,15 @@ protected:
     //! Returns True if some stripes are currently queued.
     bool HasActiveTask()
     {
-        return CurrentTaskDataSize > 0;
+        return CurrentTaskDataWeight > 0;
     }
 
     //! Returns True if the total data size of currently queued stripes exceeds the pre-configured limit
     //! or number of stripes greater than pre-configured limit.
     bool HasLargeActiveTask()
     {
-        YCHECK(MaxDataSizePerJob > 0);
-        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentTaskChunkCount >= Options->MaxDataSlicesPerJob;
+        YCHECK(MaxDataWeightPerJob > 0);
+        return CurrentTaskDataWeight >= MaxDataWeightPerJob || CurrentTaskChunkCount >= Options->MaxDataSlicesPerJob;
     }
 
     void AddSliceToStripe(const TInputDataSlicePtr& dataSlice, std::vector<TChunkStripePtr>& stripes)
@@ -449,9 +451,7 @@ protected:
     {
         AddSliceToStripe(dataSlice, CurrentTaskStripes);
 
-        i64 sliceDataSize = dataSlice->GetDataSize();
-
-        CurrentTaskDataSize += sliceDataSize;
+        CurrentTaskDataWeight += dataSlice->GetDataWeight();
         ++CurrentTaskChunkCount;
     }
 
@@ -473,7 +473,7 @@ protected:
     //! Create new task from unread input data slices.
     void AddTaskForUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices)
     {
-        CurrentTaskDataSize = 0;
+        CurrentTaskDataWeight = 0;
         CurrentTaskChunkCount = 0;
         ResetCurrentTaskStripes();
 
@@ -510,19 +510,34 @@ protected:
 
     void CalculateSizes()
     {
-        auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
-            Spec,
-            Options,
-            GetOutputTablePaths().size(),
-            PrimaryInputDataSize);
+        auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
+            switch (OperationType) {
+                case EOperationType::Merge:
+                case EOperationType::Erase:
+                    return CreateMergeJobSizeConstraints(
+                        Spec,
+                        Options,
+                        PrimaryInputDataWeight,
+                        static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
 
-        MaxDataSizePerJob = jobSizeConstraints->GetDataSizePerJob();
-        ChunkSliceSize = jobSizeConstraints->GetInputSliceDataSize();
+                default:
+                    return CreateSimpleJobSizeConstraints(
+                        Spec,
+                        Options,
+                        GetOutputTablePaths().size(),
+                        PrimaryInputDataWeight);
+            }
+        };
+
+        auto jobSizeConstraints = createJobSizeConstraints();
+
+        MaxDataWeightPerJob = jobSizeConstraints->GetDataWeightPerJob();
+        ChunkSliceSize = jobSizeConstraints->GetInputSliceDataWeight();
         IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
 
-        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v, IsExplicitJobCount: %v)",
+        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, ChunkSliceSize: %v, IsExplicitJobCount: %v)",
             jobSizeConstraints->GetJobCount(),
-            MaxDataSizePerJob,
+            MaxDataWeightPerJob,
             ChunkSliceSize,
             IsExplicitJobCount);
     }
@@ -550,8 +565,8 @@ protected:
         InitJobIOConfig();
         InitJobSpecTemplate();
 
-        LOG_INFO("Inputs processed (JobDataSize: %v, JobChunkCount: %v, JobCount: %v)",
-            TotalDataSize,
+        LOG_INFO("Inputs processed (JobDataWeight: %v, JobChunkCount: %v, JobCount: %v)",
+            TotalDataWeight,
             TotalChunkCount,
             Tasks.size());
     }
@@ -563,7 +578,7 @@ protected:
     void EndInputChunks()
     {
         // Close the last task, if any.
-        if (CurrentTaskDataSize > 0) {
+        if (CurrentTaskDataWeight > 0) {
             EndTaskIfActive();
         }
     }
@@ -651,7 +666,7 @@ protected:
                 {
                     IsInputTableTeleportable[index] = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
-                        OutputTables[*tableIndex].TableUploadOptions.TableSchema,
+                        OutputTables_[*tableIndex].TableUploadOptions.TableSchema,
                         false).IsOK();
                 }
             }
@@ -740,9 +755,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -897,13 +912,13 @@ private:
             Spec->JobNodeAccount);
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex;
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
@@ -949,9 +964,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -973,7 +988,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
 
         auto inferFromInput = [&] () {
             if (Spec->InputQuery) {
@@ -1031,7 +1046,7 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual bool IsRowCountPreserved() const override
@@ -1091,7 +1106,7 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
         Y_UNREACHABLE();
     }
@@ -1129,7 +1144,7 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual void DoInitialize() override
@@ -1165,7 +1180,7 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
         table.TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
@@ -1389,7 +1404,7 @@ protected:
                 GetCancelableInvoker(),
                 Host->GetChunkLocationThrottlerManager(),
                 AuthenticatedInputMasterClient,
-                InputNodeDirectory,
+                InputNodeDirectory_,
                 Logger);
         }
 
@@ -1398,7 +1413,7 @@ protected:
             ChunkSliceSize,
             SortKeyColumns,
             ShouldSlicePrimaryTableByKeys(),
-            InputNodeDirectory,
+            InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper,
             Host->GetMasterClient(),
@@ -1531,9 +1546,9 @@ public:
     }
 
 public:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -1849,7 +1864,7 @@ private:
         // Check that all input tables are sorted by the same key columns.
         TLegacySortedMergeControllerBase::PrepareOutputTables();
 
-        auto& table = OutputTables[0];
+        auto& table = OutputTables_[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
         auto prepareOutputKeyColumns = [&] () {
@@ -2004,8 +2019,8 @@ protected:
         TLegacySortedMergeControllerBase::DoInitialize();
 
         int teleportOutputCount = 0;
-        for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
-            if (OutputTables[i].Path.GetTeleport()) {
+        for (int i = 0; i < static_cast<int>(OutputTables_.size()); ++i) {
+            if (OutputTables_[i].Path.GetTeleport()) {
                 ++teleportOutputCount;
                 TeleportOutputTable = i;
             }
@@ -2094,7 +2109,7 @@ protected:
 
             AddForeignTablesToTask(CurrentTaskMinForeignKey, CurrentTaskMaxForeignKey);
 
-            if (CurrentTaskDataSize > 2 * MaxDataSizePerJob) {
+            if (CurrentTaskDataWeight > 2 * MaxDataWeightPerJob) {
                 // Task looks to large, let's try to split it further by foreign key.
                 std::vector<std::pair<TKey, i64>> sliceWeights;
                 for (const auto& stripe : CurrentTaskStripes) {
@@ -2103,13 +2118,13 @@ protected:
                     }
 
                     for (const auto& dataSlice : stripe->DataSlices) {
-                        sliceWeights.push_back(std::make_pair(dataSlice->UpperLimit().Key, dataSlice->GetDataSize()));
+                        sliceWeights.push_back(std::make_pair(dataSlice->UpperLimit().Key, dataSlice->GetDataWeight()));
                     }
                 }
 
                 std::sort(sliceWeights.begin(), sliceWeights.end());
 
-                i64 currentDataSize = 0;
+                i64 currentDataWeight = 0;
                 TKey breakpointKey;
                 TPeriodicYielder yielder(PrepareYieldPeriod);
                 for (const auto& sliceWeight : sliceWeights) {
@@ -2118,11 +2133,11 @@ protected:
                         continue;
                     }
 
-                    currentDataSize += sliceWeight.second;
+                    currentDataWeight += sliceWeight.second;
 
-                    if (currentDataSize > 2 * MaxDataSizePerJob && HasActiveTask()) {
+                    if (currentDataWeight > 2 * MaxDataWeightPerJob && HasActiveTask()) {
                         breakpointKey = GetKeyPrefixSuccessor(sliceWeight.first, ForeignKeyColumnCount, RowBuffer);
-                        currentDataSize = 0;
+                        currentDataWeight = 0;
                         EndTaskAtKey(breakpointKey);
                     }
                 }
@@ -2243,13 +2258,13 @@ protected:
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex;
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
@@ -2298,9 +2313,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -2643,9 +2658,9 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_size_per_job");
+        return STRINGBUF("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override

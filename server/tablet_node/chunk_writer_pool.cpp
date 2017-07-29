@@ -48,7 +48,9 @@ IVersionedMultiChunkWriterPtr TChunkWriterPool::AllocateWriter()
     if (FreshWriters_.empty()) {
         std::vector<TFuture<void>> asyncResults;
         for (int index = 0; index < PoolSize_; ++index) {
-            auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(TabletSnapshot_->Config->InMemoryMode);
+            auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(
+                TabletSnapshot_->Config->InMemoryMode,
+                TabletSnapshot_->InMemoryConfigRevision);
             auto underlyingWriter = CreateVersionedMultiChunkWriter(
                 WriterConfig_,
                 WriterOptions_,

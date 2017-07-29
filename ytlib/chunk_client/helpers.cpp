@@ -307,13 +307,13 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetChunkDataSize(const NProto::TChunkSpec& chunkSpec)
+i64 GetChunkDataWeight(const NProto::TChunkSpec& chunkSpec)
 {
-    if (chunkSpec.has_uncompressed_data_size_override()) {
-        return chunkSpec.uncompressed_data_size_override();
+    if (chunkSpec.has_data_weight_override()) {
+        return chunkSpec.data_weight_override();
     }
     auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
-    return miscExt->uncompressed_data_size();
+    return miscExt->data_weight();
 }
 
 i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)
@@ -321,7 +321,8 @@ i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChun
     // Misc may be cleared out by the scheduler (e.g. for partition chunks).
     auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
     if (miscExt) {
-        i64 currentSize = GetChunkDataSize(chunkSpec);
+        // NB: data weight is upper bound on the uncompressed data size.
+        i64 currentSize = GetChunkDataWeight(chunkSpec);
 
         // Block used by upper level chunk reader.
         i64 chunkBufferSize = ChunkReaderMemorySize + miscExt->max_block_size();

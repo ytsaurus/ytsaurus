@@ -10,7 +10,7 @@ namespace NChunkPools {
 
 std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
     int partitionCount,
-    i64 dataSizeThreshold);
+    i64 dataWeightThreshold);
 
 ////////////////////////////////////////////////////////////////////////////////
 

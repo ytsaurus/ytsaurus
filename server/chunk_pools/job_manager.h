@@ -26,9 +26,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, ForeignSliceCount, 0);
     DEFINE_BYVAL_RO_PROPERTY(int, PreliminaryForeignSliceCount, 0);
 
-    DEFINE_BYVAL_RO_PROPERTY(i64, PrimaryDataSize, 0);
-    DEFINE_BYVAL_RO_PROPERTY(i64, ForeignDataSize, 0);
-    DEFINE_BYVAL_RO_PROPERTY(i64, PreliminaryForeignDataSize, 0);
+    DEFINE_BYVAL_RO_PROPERTY(i64, PrimaryDataWeight, 0);
+    DEFINE_BYVAL_RO_PROPERTY(i64, ForeignDataWeight, 0);
+    DEFINE_BYVAL_RO_PROPERTY(i64, PreliminaryForeignDataWeight, 0);
 
     DEFINE_BYVAL_RO_PROPERTY(i64, PrimaryRowCount, 0);
     DEFINE_BYVAL_RO_PROPERTY(i64, ForeignRowCount, 0);
@@ -48,11 +48,11 @@ public:
     //! silly^W tricky sorted operation guarantees.
     void Finalize(bool sortByPosition);
 
-    i64 GetDataSize() const;
+    i64 GetDataWeight() const;
     i64 GetRowCount() const;
     int GetSliceCount() const;
 
-    i64 GetPreliminaryDataSize() const;
+    i64 GetPreliminaryDataWeight() const;
     i64 GetPreliminaryRowCount() const;
     int GetPreliminarySliceCount() const;
 
@@ -80,7 +80,7 @@ class TJobManager
 {
 public:
     // TODO(max42): Remove data size counter and row counter the hell outta here when YT-6673 is done.
-    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounter, DataSizeCounter);
+    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounter, DataWeightCounter);
     DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounter, RowCounter);
     DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounter, JobCounter);
     DEFINE_BYVAL_RO_PROPERTY(int, SuspendedJobCount);
@@ -157,7 +157,7 @@ private:
     {
     public:
         DEFINE_BYVAL_RO_PROPERTY(EJobState, State, EJobState::Pending);
-        DEFINE_BYVAL_RO_PROPERTY(i64, DataSize);
+        DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
         DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
         DEFINE_BYREF_RO_PROPERTY(TChunkStripeListPtr, StripeList);
 

@@ -19,6 +19,7 @@ struct TBriefJobStatistics
 
     i64 ProcessedInputRowCount = 0;
     i64 ProcessedInputUncompressedDataSize = 0;
+    i64 ProcessedInputDataWeight = 0;
     i64 ProcessedInputCompressedDataSize = 0;
     i64 ProcessedOutputRowCount = 0;
     i64 ProcessedOutputUncompressedDataSize = 0;
