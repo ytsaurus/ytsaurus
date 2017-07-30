@@ -237,17 +237,14 @@ public:
     //! Timeout for RegisterNode requests.
     TDuration RegisterTimeout;
 
-    //! Timeout for IncrementalHeartbeat requests.
-    /*!
-     *  This is usually much larger then the default RPC timeout.
-     */
+    //! Timeout for NodeTrackerService:IncrementalHeartbeat requests.
     TDuration IncrementalHeartbeatTimeout;
 
-    //! Timeout for FullHeartbeat requests.
-    /*!
-     *  This is usually much larger then the default RPC timeout.
-     */
+    //! Timeout for NodeTrackerService:FullHeartbeat requests.
     TDuration FullHeartbeatTimeout;
+
+    //! Timeout for JobTrackerService:Heartbeat requests.
+    TDuration JobHeartbeatTimeout;
 
     //! Cache for chunk metas.
     TSlruCacheConfigPtr ChunkMetaCache;
@@ -397,6 +394,8 @@ public:
         RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("job_heartbeat_timeout", JobHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
 
         RegisterParameter("chunk_meta_cache", ChunkMetaCache)
