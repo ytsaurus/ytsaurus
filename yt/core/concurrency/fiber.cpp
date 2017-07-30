@@ -151,11 +151,11 @@ void TFiber::Cancel()
     }
 
     if (awaitedFuture) {
-        LOG_DEBUG("Sending cancelation to fiber %" PRIx64 ", propagating to the awaited future",
+        LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %llx)",
             Id_);
         awaitedFuture.Cancel();
     } else {
-        LOG_DEBUG("Sending cancelation to fiber %" PRIx64,
+        LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %llx)",
             Id_);
     }
 }
@@ -224,6 +224,7 @@ void TFiber::Trampoline(void* opaque)
         fiber->Callee_.Run();
     } catch (const TFiberCanceledException&) {
         // Thrown intentionally, ignore.
+        LOG_DEBUG("Fiber canceled");
     }
     // NB: All other uncaught exceptions will lead to std::terminate().
     // This way we preserve the much-needed backtrace.
