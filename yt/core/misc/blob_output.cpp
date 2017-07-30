@@ -36,7 +36,9 @@ void TBlobOutput::Clear()
 
 TSharedRef TBlobOutput::Flush()
 {
-    return TSharedRef::FromBlob(std::move(Blob_));
+    auto result = TSharedRef::FromBlob(std::move(Blob_));
+    Blob_.Clear();
+    return result;
 }
 
 void swap(TBlobOutput& left, TBlobOutput& right)
