@@ -913,6 +913,7 @@ void TMasterConnector::ReportJobHeartbeat()
         TJobTrackerServiceProxy proxy(channel);
 
         auto req = proxy.Heartbeat();
+        req->SetTimeout(Config_->JobHeartbeatTimeout);
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->PrepareHeartbeatRequest(
