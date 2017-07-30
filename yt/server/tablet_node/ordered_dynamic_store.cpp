@@ -335,7 +335,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         Save(context, chunkWriter->GetChunkMeta());
 
         auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
-        LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v, ByteSize: %v)",
+        LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
             rowCount,
             blocks.size());
 
