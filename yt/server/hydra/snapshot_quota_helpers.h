@@ -17,7 +17,9 @@ struct TSnapshotInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<int> GetSnapshotThresholdId(
+//! All snapshots and changelogs with id less than or equal to this threshold
+//! could be safely deleted.
+int GetSnapshotThresholdId(
     std::vector<TSnapshotInfo> snapshots,
     TNullable<int> maxSnapshotCountToKeep,
     TNullable<i64> maxSnapshotSizeToKeep);

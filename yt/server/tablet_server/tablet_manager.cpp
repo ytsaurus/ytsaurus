@@ -4123,9 +4123,6 @@ private:
                     snapshots,
                     Config_->MaxSnapshotCountToKeep,
                     Config_->MaxSnapshotSizeToKeep);
-                if (!thresholdId) {
-                    continue;
-                }
 
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
@@ -4142,7 +4139,7 @@ private:
                         continue;
                     }
 
-                    if (snapshotId <= *thresholdId) {
+                    if (snapshotId <= thresholdId) {
                         LOG_INFO("Removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
                             cellId,
                             snapshotId);
@@ -4188,7 +4185,7 @@ private:
                         continue;
                     }
 
-                    if (changelogId <= *thresholdId) {
+                    if (changelogId <= thresholdId) {
                         LOG_INFO("Removing tablet cell changelog (CellId: %v, ChangelogId: %v)",
                             cellId,
                             changelogId);

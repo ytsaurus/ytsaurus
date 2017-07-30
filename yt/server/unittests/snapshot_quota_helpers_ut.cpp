@@ -13,7 +13,7 @@ namespace {
 
 TEST(TThresholdSnapshotId, EmptyVector)
 {
-    ASSERT_FALSE(GetSnapshotThresholdId({}, 1, 1));
+    ASSERT_LE(GetSnapshotThresholdId({}, 1, 1), 0);
 }
 
 TEST(TThresholdSnapshotId, ShortVector)
@@ -22,7 +22,7 @@ TEST(TThresholdSnapshotId, ShortVector)
         {1, 10},
         {2, 11}
     };
-    ASSERT_FALSE(GetSnapshotThresholdId(snapshots, 3, Null));
+    ASSERT_LE(GetSnapshotThresholdId(snapshots, 3, Null), 0);
 }
 
 TEST(TThresholdSnapshotId, LongVector)
@@ -42,7 +42,7 @@ TEST(TThresholdSnapshotId, SmallSize)
         {2, 3},
         {3, 7}
     };
-    ASSERT_FALSE(GetSnapshotThresholdId(snapshots, Null, 30));
+    ASSERT_LE(GetSnapshotThresholdId(snapshots, Null, 30), 0);
 }
 
 TEST(TThresholdSnapshotId, BigSize)
