@@ -1569,6 +1569,7 @@ private:
             auto chunkListId = FromProto<TChunkListId>(subrequest->chunk_list_id());
             chunkList = GetChunkListOrThrow(chunkListId);
             chunkList->ValidateSealed();
+            chunkList->ValidateUniqueAncestors();
         }
 
         // NB: Once the chunk is created, no exceptions could be thrown.

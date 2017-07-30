@@ -82,6 +82,7 @@ public:
     void IncrementVersion();
 
     void ValidateSealed();
+    void ValidateUniqueAncestors();
 
     ui64 GetVisitMark() const;
     void SetVisitMark(ui64 value);

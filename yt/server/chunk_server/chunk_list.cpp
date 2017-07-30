@@ -47,6 +47,22 @@ void TChunkList::ValidateSealed()
     }
 }
 
+void TChunkList::ValidateUniqueAncestors()
+{
+    const auto* current = this;
+    while (true) {
+        const auto& parents = current->Parents();
+        if (parents.Size() > 1) {
+            THROW_ERROR_EXCEPTION("Chunk list %v has more than one parent",
+                current->GetId());
+        }
+        if (parents.Empty()) {
+            break;
+        }
+        current = parents[0];
+    }
+}
+
 void TChunkList::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
