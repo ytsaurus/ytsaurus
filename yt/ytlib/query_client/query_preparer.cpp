@@ -810,6 +810,22 @@ struct TCastEliminator
             if (functionExpr->Type == functionExpr->Arguments[0]->Type) {
                 return Visit(functionExpr->Arguments[0]);
             }
+        } else if (functionExpr->FunctionName == "if") {
+            if (auto functionCondition = functionExpr->Arguments[0]->As<TFunctionExpression>()) {
+                auto reference1 = functionExpr->Arguments[2]->As<TReferenceExpression>();
+                if (functionCondition->FunctionName == "is_null" && reference1) {
+                    auto reference0 = functionCondition->Arguments[0]->As<TReferenceExpression>();
+                    if (reference0 && reference1->ColumnName == reference0->ColumnName) {
+                        return New<TFunctionExpression>(
+                            functionExpr->Type,
+                            "if_null",
+                            std::vector<TConstExpressionPtr>{
+                                functionCondition->Arguments[0],
+                                functionExpr->Arguments[1]});
+
+                    }
+                }
+            }
         }
 
         return TBase::OnFunction(functionExpr);
