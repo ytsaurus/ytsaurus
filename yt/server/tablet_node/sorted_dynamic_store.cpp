@@ -989,7 +989,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
 
     ++PerformanceCounters_->DynamicRowWriteCount;
     ++context->RowCount;
-    context->ByteSize += GetDataWeight(row);
+    context->DataWeight += GetDataWeight(row);
 
     return result;
 }
@@ -1071,7 +1071,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 
     ++PerformanceCounters_->DynamicRowWriteCount;
     ++context->RowCount;
-    context->ByteSize += GetDataWeight(row);
+    context->DataWeight += GetDataWeight(row);
 
     return result;
 }
