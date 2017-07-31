@@ -160,6 +160,17 @@ TKeyTriePtr ExtractMultipleConstraints(
     return TKeyTrie::Universal();
 }
 
+bool IsTrue(TConstExpressionPtr expr)
+{
+    if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        TValue value = literalExpr->Value;
+        if (value.Type == EValueType::Boolean) {
+            return value.Data.Boolean;
+        }
+    }
+    return false;
+}
+
 TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
 {
     if (auto literalExpr = lhs->As<TLiteralExpression>()) {

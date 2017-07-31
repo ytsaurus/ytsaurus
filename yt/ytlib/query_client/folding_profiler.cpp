@@ -647,7 +647,7 @@ void TQueryProfiler::Profile(
                     totalsSlotNew);
             }
 
-            if (query->HavingClause) {
+            if (query->HavingClause && !IsTrue(query->HavingClause)) {
                 Fold(static_cast<int>(EFoldingObjectType::HavingOp));
                 intermediateSlot = MakeCodegenFilterOp(
                     codegenSource,
@@ -703,7 +703,7 @@ void TQueryProfiler::Profile(
                     totalsSlot,
                     finalize);
 
-                if (groupClause->TotalsMode == ETotalsMode::BeforeHaving && query->HavingClause) {
+                if (groupClause->TotalsMode == ETotalsMode::BeforeHaving && query->HavingClause && !IsTrue(query->HavingClause)) {
                     Fold(static_cast<int>(EFoldingObjectType::HavingOp));
                     totalsSlot = MakeCodegenFilterOp(
                         codegenSource,
@@ -843,7 +843,8 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
         TConstExpressionPtr selfFilter;
         std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, schema);
 
-        if (selfFilter) {
+        if (selfFilter && !IsTrue(selfFilter)) {
+            Fold(static_cast<int>(EFoldingObjectType::FilterOp));
             TExpressionFragments filterExprFragments;
             size_t predicateId = TExpressionProfiler::Profile(selfFilter, schema, &filterExprFragments);
             auto fragmentInfos = filterExprFragments.ToFragmentInfos("selfFilter");
@@ -910,7 +911,7 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
         TSchemaProfiler::Profile(schema);
     }
 
-    if (whereClause) {
+    if (whereClause && !IsTrue(whereClause)) {
         Fold(static_cast<int>(EFoldingObjectType::FilterOp));
         TExpressionFragments filterExprFragments;
         size_t predicateId = TExpressionProfiler::Profile(whereClause, schema, &filterExprFragments);
