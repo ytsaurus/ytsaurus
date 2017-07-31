@@ -234,7 +234,7 @@ function(RAGEL source result_variable)
       COMMAND
         ${RAGEL_EXECUTABLE} -C -G2 ${_input} -o ${_output}
       COMMAND
-        ${PERL_EXECUTABLE} -ni -e 'print unless /^\#line/' ${_output}
+        ${PERL_EXECUTABLE} -ni -e 's/\t/    /g; print unless /^\#line/' ${_output}
       MAIN_DEPENDENCY
         ${_input}
       WORKING_DIRECTORY
@@ -267,11 +267,11 @@ function(BISON source result_variable)
       COMMAND
         ${BISON_EXECUTABLE} --locations -fcaret ${_realpath} -o ${_dirname}/${_basename}.cpp
       COMMAND
-        ${PERL_EXECUTABLE} -ni -e 'print unless /^\#line/' ${_dirname}/${_basename}.cpp
+        ${PERL_EXECUTABLE} -ni -e 's/\t/    /g; print unless /^\#line/' ${_dirname}/${_basename}.cpp
       COMMAND
-        ${PERL_EXECUTABLE} -ni -e 'print unless /^\#line/' ${_dirname}/${_basename}.hpp
+        ${PERL_EXECUTABLE} -ni -e 's/\t/    /g; print unless /^\#line/' ${_dirname}/${_basename}.hpp
       COMMAND
-        ${PERL_EXECUTABLE} -ni -e 'print unless /^\#line/' ${_dirname}/stack.hh
+        ${PERL_EXECUTABLE} -ni -e 's/\t/    /g; print unless /^\#line/' ${_dirname}/stack.hh
       MAIN_DEPENDENCY
         ${_realpath}
       WORKING_DIRECTORY
