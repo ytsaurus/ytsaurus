@@ -96,7 +96,7 @@ private:
     NProto::TChunkMeta ChunkMeta_;
     NProto::TDataStatistics DataStatistics_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     void OpenSession();
     TSessionId CreateChunk() const;
@@ -125,7 +125,8 @@ TConfirmingWriter::TConfirmingWriter(
     , Client_(client)
     , BlockCache_(blockCache)
     , Throttler_(throttler)
-    , Logger(ChunkClientLogger)
+    , Logger(NLogging::TLogger(ChunkClientLogger)
+        .AddTag("TransactionId: %v", TransactionId_))
 {
     Config_->UploadReplicationFactor = std::min(
         Config_->UploadReplicationFactor,
@@ -133,8 +134,6 @@ TConfirmingWriter::TConfirmingWriter(
     Config_->MinUploadReplicationFactor = std::min(
         Config_->MinUploadReplicationFactor,
         Options_->ReplicationFactor);
-
-    Logger.AddTag("TransactionId: %v", TransactionId_);
 }
 
 TFuture<void> TConfirmingWriter::Open()
@@ -150,7 +149,7 @@ TFuture<void> TConfirmingWriter::Open()
 
 bool TConfirmingWriter::WriteBlock(const TBlock& block)
 {
-    return WriteBlocks(std::vector<TBlock>(1, block));
+    return WriteBlocks({block});
 }
 
 bool TConfirmingWriter::WriteBlocks(const std::vector<TBlock>& blocks)
