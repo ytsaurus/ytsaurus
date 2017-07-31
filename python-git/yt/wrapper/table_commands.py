@@ -1,5 +1,5 @@
 from .common import (flatten, require, update, parse_bool, get_value, set_param, datetime_to_string,
-                     MB, EMPTY_GENERATOR, chunk_iter_stream)
+                     MB, chunk_iter_stream)
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
