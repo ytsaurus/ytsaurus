@@ -52,11 +52,6 @@ from .ypath import TablePath
 
 import yt.logger as logger
 
-<<<<<<< HEAD
-=======
-import os
-import shutil
->>>>>>> wrapper/stable/0_8_x
 import sys
 import time
 from copy import deepcopy
