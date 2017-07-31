@@ -177,7 +177,8 @@ protected:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);
 
-    ITaskHostPtr TaskHost_;
+    //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
+    ITaskHost* TaskHost_;
 
     int CachedPendingJobCount_;
     int CachedTotalJobCount_;
