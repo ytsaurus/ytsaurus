@@ -3,6 +3,7 @@
 #include "changelog.h"
 #include "config.h"
 #include "decorated_automaton.h"
+#include "checkpointer.h"
 #include "mutation_context.h"
 #include "serialize.h"
 
@@ -27,7 +28,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto AutoCheckpointCheckPeriod = TDuration::Seconds(15);
+static const auto AutoSnapshotCheckPeriod = TDuration::Seconds(15);
 static const auto& Profiler = HydraProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,15 +46,14 @@ TCommitterBase::TCommitterBase(
     , EpochContext_(epochContext)
     , CommitCounter_("/commits")
     , FlushCounter_("/flushes")
-    , Logger(HydraLogger)
+    , Logger(NLogging::TLogger(HydraLogger)
+        .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
     YCHECK(Config_);
     YCHECK(DecoratedAutomaton_);
     YCHECK(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
-
-    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,10 +67,9 @@ public:
         TVersion startVersion)
         : Owner_(owner)
         , StartVersion_(startVersion)
-        , Logger(Owner_->Logger)
-    {
-        Logger.AddTag("StartVersion: %v", StartVersion_);
-    }
+        , Logger(NLogging::TLogger(Owner_->Logger)
+            .AddTag("StartVersion: %v", StartVersion_))
+    { }
 
     void AddMutation(
         const TMutationRequest& request,
@@ -271,9 +270,9 @@ private:
     std::vector<TSharedRef> BatchedRecordsData_;
     TVersion CommittedVersion_;
 
-    NLogging::TLogger Logger;
-
     TTimer Timer_;
+
+    const NLogging::TLogger Logger;
 
 };
 
@@ -293,15 +292,15 @@ TLeaderCommitter::TLeaderCommitter(
         decoratedAutomaton,
         epochContext)
     , ChangelogStore_(changelogStore)
-    , AutoCheckpointCheckExecutor_(New<TPeriodicExecutor>(
+    , AutoSnapshotCheckExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochUserAutomatonInvoker,
-        BIND(&TLeaderCommitter::OnAutoCheckpointCheck, MakeWeak(this)),
-        AutoCheckpointCheckPeriod))
+        BIND(&TLeaderCommitter::OnAutoSnapshotCheck, MakeWeak(this)),
+        AutoSnapshotCheckPeriod))
 {
     YCHECK(CellManager_);
     YCHECK(ChangelogStore_);
 
-    AutoCheckpointCheckExecutor_->Start();
+    AutoSnapshotCheckExecutor_->Start();
 }
 
 TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& request)
@@ -344,12 +343,12 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& requ
         LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
             DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint(),
             Config_->MaxChangelogRecordCount);
-        CheckpointNeeded_.Fire();
+        CheckpointNeeded_.Fire(false);
     } else if (DecoratedAutomaton_->GetDataSizeSinceLastCheckpoint() >= Config_->MaxChangelogDataSize)  {
         LOG_INFO("Requesting checkpoint due to data size limit (DataSizeSinceLastCheckpoint: %v, MaxChangelogDataSize: %v)",
             DecoratedAutomaton_->GetDataSizeSinceLastCheckpoint(),
             Config_->MaxChangelogDataSize);
-        CheckpointNeeded_.Fire();
+        CheckpointNeeded_.Fire(false);
     }
 
     return commitResult;
@@ -503,18 +502,17 @@ void TLeaderCommitter::OnBatchCommitted(const TBatchPtr& batch, const TError& er
     DecoratedAutomaton_->CommitMutations(batch->GetCommittedVersion(), true);
 }
 
-void TLeaderCommitter::OnAutoCheckpointCheck()
+void TLeaderCommitter::OnAutoSnapshotCheck()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (DecoratedAutomaton_->GetLastSnapshotTime() != TInstant::Zero() &&
-        TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod &&
-        DecoratedAutomaton_->GetLoggedVersion().RecordId > 0)
+        TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod)
     {
         LOG_INFO("Requesting periodic snapshot (LastSnapshotTime: %v, SnapshotBuildPeriod: %v)",
             DecoratedAutomaton_->GetLastSnapshotTime(),
             Config_->SnapshotBuildPeriod);
-        CheckpointNeeded_.Fire();
+        CheckpointNeeded_.Fire(true);
     }
 }
 

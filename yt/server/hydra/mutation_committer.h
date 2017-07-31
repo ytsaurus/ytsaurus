@@ -41,7 +41,7 @@ protected:
     NProfiling::TSimpleCounter CommitCounter_;
     NProfiling::TSimpleCounter FlushCounter_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -92,7 +92,7 @@ public:
 
 
     //! Raised each time a checkpoint is needed.
-    DEFINE_SIGNAL(void(), CheckpointNeeded);
+    DEFINE_SIGNAL(void(bool snapshotIsMandatory), CheckpointNeeded);
 
     //! Raised on commit failure.
     DEFINE_SIGNAL(void(const TError& error), CommitFailed);
@@ -112,14 +112,14 @@ private:
         TFuture<void> localFlushResult);
     void FlushCurrentBatch();
 
-    void OnAutoCheckpointCheck();
+    void OnAutoSnapshotCheck();
 
     void FireCommitFailed(const TError& error);
 
 
     const IChangelogStorePtr ChangelogStore_;
 
-    const NConcurrency::TPeriodicExecutorPtr AutoCheckpointCheckExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr AutoSnapshotCheckExecutor_;
 
     struct TPendingMutation
     {
