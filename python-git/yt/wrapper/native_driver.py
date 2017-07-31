@@ -98,6 +98,18 @@ def get_command_descriptors(client=None):
     driver = get_driver_instance(client)
     return driver.get_command_descriptors()
 
+def chunk_iter(stream, response, size):
+    while True:
+        if response.is_set():
+            if not response.is_ok():
+                raise YtResponseError(response.error())
+            else:
+                break
+        yield stream.read(size)
+
+    while not stream.empty():
+        yield stream.read(size)
+
 def make_request(command_name, params,
                  data=None,
                  return_content=True,
@@ -166,7 +178,7 @@ def make_request(command_name, params,
 
         return ResponseStream(
             lambda: response,
-            driver_bindings.chunk_iter(output_stream, response, get_config(client)["read_buffer_size"]),
+            chunk_iter(output_stream, response, get_config(client)["read_buffer_size"]),
             lambda: None,
             process_error,
             lambda: response.response_parameters())
