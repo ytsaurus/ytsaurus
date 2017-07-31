@@ -396,6 +396,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
             assert "Job time limit exceeded" in inner_errors[0]["message"]
 
+    @flaky(max_runs=3)
     def test_within_job_time_limit(self):
         self._prepare_tables()
         map(in_="//tmp/t_in",
