@@ -268,6 +268,9 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
         if module_filter is not None and not module_filter(module):
             continue
         if hasattr(module, "__file__"):
+            if module.__file__ is None:
+                continue
+
             if custom_python_used:
                 # NB: Ignore frozen and compiled in binary modules.
                 if module.__name__ in extra_modules or module.__name__ + ".__init__"  in extra_modules:
