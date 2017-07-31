@@ -2,6 +2,7 @@
 #include "private.h"
 #include "cg_ir_builder.h"
 #include "cg_routines.h"
+#include "llvm_folding_set.h"
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>
@@ -776,6 +777,10 @@ struct TComparerManager
     Function* LessComparer;
     TValueTypeLabels LessLables;
 
+    yhash<llvm::FoldingSetNodeID, Function*> Hashers;
+    yhash<llvm::FoldingSetNodeID, Function*> EqComparers;
+    yhash<llvm::FoldingSetNodeID, Function*> LessComparers;
+
     Function* GetHasher(
         const std::vector<EValueType>& types,
         const TCGModulePtr& module,
@@ -870,47 +875,59 @@ Function* TComparerManager::GetHasher(
         size_t start,
         size_t finish)
 {
-    if (!Hasher) {
-        Hasher = MakeFunction<ui64(char**, TRow, size_t, size_t)>(module, "HasherImpl", [&] (
-            TCGBaseContext& builder,
-            Value* labelsArray,
-            Value* row,
-            Value* startIndex,
-            Value* finishIndex
-        ) {
-            Value* values = CodegenValuesPtrFromRow(builder, row);
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(start);
+    id.AddInteger(finish);
+    for (size_t index = start; index < finish; ++index)  {
+        id.AddInteger(static_cast<ui16>(types[index]));
+    }
 
-            HashLables = CodegenHasherBody(
-                builder,
-                labelsArray,
-                values,
-                startIndex,
-                finishIndex);
+    auto emplaced = Hashers.emplace(id, nullptr);
+    if (emplaced.second) {
+        if (!Hasher) {
+            Hasher = MakeFunction<ui64(char**, TRow, size_t, size_t)>(module, "HasherImpl", [&] (
+                TCGBaseContext& builder,
+                Value* labelsArray,
+                Value* row,
+                Value* startIndex,
+                Value* finishIndex
+            ) {
+                Value* values = CodegenValuesPtrFromRow(builder, row);
+
+                HashLables = CodegenHasherBody(
+                    builder,
+                    labelsArray,
+                    values,
+                    startIndex,
+                    finishIndex);
+            });
+        }
+
+        emplaced.first->second = MakeFunction<THasherFunction>(module, "Hasher", [&] (
+            TCGBaseContext& builder,
+            Value* row
+        ) {
+            Value* result;
+            if (start == finish) {
+                result = builder->getInt64(0);
+            } else {
+                result = builder->CreateCall(
+                    Hasher,
+                    {
+                        builder->CreatePointerCast(
+                            GetLabelsArray(builder, types, HashLables),
+                            TypeBuilder<char**, false>::get(builder->getContext())),
+                        row,
+                        builder->getInt64(start),
+                        builder->getInt64(finish)
+                    });
+            }
+
+            builder->CreateRet(result);
         });
     }
 
-    return MakeFunction<THasherFunction>(module, "Hasher", [&] (
-        TCGBaseContext& builder,
-        Value* row
-    ) {
-        Value* result;
-        if (start == finish) {
-            result = builder->getInt64(0);
-        } else {
-            result = builder->CreateCall(
-                Hasher,
-                {
-                    builder->CreatePointerCast(
-                        GetLabelsArray(builder, types, HashLables),
-                        TypeBuilder<char**, false>::get(builder->getContext())),
-                    row,
-                    builder->getInt64(start),
-                    builder->getInt64(finish)
-                });
-        }
-
-        builder->CreateRet(result);
-    });
+    return emplaced.first->second;
 }
 
 Function* TComparerManager::GetHasher(
@@ -930,52 +947,64 @@ Function* TComparerManager::GetEqComparer(
 {
     YCHECK(finish <= types.size());
 
-    if (!EqComparer) {
-        EqComparer = MakeFunction<char(char**, TRow, TRow, size_t, size_t)>(module, "EqComparerImpl", [&] (
-            TCGBaseContext& builder,
-            Value* labelsArray,
-            Value* lhsRow,
-            Value* rhsRow,
-            Value* startIndex,
-            Value* finishIndex
-        ) {
-            Value* lhsValues = CodegenValuesPtrFromRow(builder, lhsRow);
-            Value* rhsValues = CodegenValuesPtrFromRow(builder, rhsRow);
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(start);
+    id.AddInteger(finish);
+    for (size_t index = start; index < finish; ++index)  {
+        id.AddInteger(static_cast<ui16>(types[index]));
+    }
 
-            EqLables = CodegenEqComparerBody(
-                builder,
-                labelsArray,
-                lhsValues,
-                rhsValues,
-                startIndex,
-                finishIndex);
+    auto emplaced = EqComparers.emplace(id, nullptr);
+    if (emplaced.second) {
+        if (!EqComparer) {
+            EqComparer = MakeFunction<char(char**, TRow, TRow, size_t, size_t)>(module, "EqComparerImpl", [&] (
+                TCGBaseContext& builder,
+                Value* labelsArray,
+                Value* lhsRow,
+                Value* rhsRow,
+                Value* startIndex,
+                Value* finishIndex
+            ) {
+                Value* lhsValues = CodegenValuesPtrFromRow(builder, lhsRow);
+                Value* rhsValues = CodegenValuesPtrFromRow(builder, rhsRow);
+
+                EqLables = CodegenEqComparerBody(
+                    builder,
+                    labelsArray,
+                    lhsValues,
+                    rhsValues,
+                    startIndex,
+                    finishIndex);
+            });
+        }
+
+        emplaced.first->second = MakeFunction<char(TRow, TRow)>(module, "EqComparer", [&] (
+            TCGBaseContext& builder,
+            Value* lhsRow,
+            Value* rhsRow
+        ) {
+            Value* result;
+            if (start == finish) {
+                result = builder->getInt8(1);
+            } else {
+                result = builder->CreateCall(
+                    EqComparer,
+                    {
+                        builder->CreatePointerCast(
+                            GetLabelsArray(builder, types, EqLables),
+                            TypeBuilder<char**, false>::get(builder->getContext())),
+                        lhsRow,
+                        rhsRow,
+                        builder->getInt64(start),
+                        builder->getInt64(finish)
+                    });
+            }
+
+            builder->CreateRet(result);
         });
     }
 
-    return MakeFunction<char(TRow, TRow)>(module, "EqComparer", [&] (
-        TCGBaseContext& builder,
-        Value* lhsRow,
-        Value* rhsRow
-    ) {
-        Value* result;
-        if (start == finish) {
-            result = builder->getInt8(1);
-        } else {
-            result = builder->CreateCall(
-                EqComparer,
-                {
-                    builder->CreatePointerCast(
-                        GetLabelsArray(builder, types, EqLables),
-                        TypeBuilder<char**, false>::get(builder->getContext())),
-                    lhsRow,
-                    rhsRow,
-                    builder->getInt64(start),
-                    builder->getInt64(finish)
-                });
-        }
-
-        builder->CreateRet(result);
-    });
+    return emplaced.first->second;
 }
 
 Function* TComparerManager::GetEqComparer(
@@ -995,53 +1024,65 @@ Function* TComparerManager::GetLessComparer(
 {
     YCHECK(finish <= types.size());
 
-    if (!LessComparer) {
-        LessComparer = MakeFunction<char(char**, TRow, TRow, size_t, size_t)>(module, "LessComparerImpl", [&] (
-            TCGBaseContext& builder,
-            Value* labelsArray,
-            Value* lhsRow,
-            Value* rhsRow,
-            Value* startIndex,
-            Value* finishIndex
-        ) {
-            Value* lhsValues = CodegenValuesPtrFromRow(builder, lhsRow);
-            Value* rhsValues = CodegenValuesPtrFromRow(builder, rhsRow);
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(start);
+    id.AddInteger(finish);
+    for (size_t index = start; index < finish; ++index)  {
+        id.AddInteger(static_cast<ui16>(types[index]));
+    }
 
-            LessLables = CodegenLessComparerBody(
-                builder,
-                labelsArray,
-                nullptr,
-                lhsValues,
-                rhsValues,
-                startIndex,
-                finishIndex);
+    auto emplaced = LessComparers.emplace(id, nullptr);
+    if (emplaced.second) {
+        if (!LessComparer) {
+            LessComparer = MakeFunction<char(char**, TRow, TRow, size_t, size_t)>(module, "LessComparerImpl", [&] (
+                TCGBaseContext& builder,
+                Value* labelsArray,
+                Value* lhsRow,
+                Value* rhsRow,
+                Value* startIndex,
+                Value* finishIndex
+            ) {
+                Value* lhsValues = CodegenValuesPtrFromRow(builder, lhsRow);
+                Value* rhsValues = CodegenValuesPtrFromRow(builder, rhsRow);
+
+                LessLables = CodegenLessComparerBody(
+                    builder,
+                    labelsArray,
+                    nullptr,
+                    lhsValues,
+                    rhsValues,
+                    startIndex,
+                    finishIndex);
+            });
+        }
+
+        emplaced.first->second = MakeFunction<char(TRow, TRow)>(module, "LessComparer", [&] (
+            TCGBaseContext& builder,
+            Value* lhsRow,
+            Value* rhsRow
+        ) {
+            Value* result;
+            if (start == finish) {
+                result = builder->getInt8(0);
+            } else {
+                result = builder->CreateCall(
+                    LessComparer,
+                    {
+                        builder->CreatePointerCast(
+                            GetLabelsArray(builder, types, LessLables),
+                            TypeBuilder<char**, false>::get(builder->getContext())),
+                        lhsRow,
+                        rhsRow,
+                        builder->getInt64(start),
+                        builder->getInt64(finish)
+                    });
+            }
+
+            builder->CreateRet(result);
         });
     }
 
-    return MakeFunction<char(TRow, TRow)>(module, "LessComparer", [&] (
-        TCGBaseContext& builder,
-        Value* lhsRow,
-        Value* rhsRow
-    ) {
-        Value* result;
-        if (start == finish) {
-            result = builder->getInt8(0);
-        } else {
-            result = builder->CreateCall(
-                LessComparer,
-                {
-                    builder->CreatePointerCast(
-                        GetLabelsArray(builder, types, LessLables),
-                        TypeBuilder<char**, false>::get(builder->getContext())),
-                    lhsRow,
-                    rhsRow,
-                    builder->getInt64(start),
-                    builder->getInt64(finish)
-                });
-        }
-
-        builder->CreateRet(result);
-    });
+    return emplaced.first->second;
 }
 
 Function* TComparerManager::GetLessComparer(

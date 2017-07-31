@@ -342,4 +342,3 @@ struct TExpressionClosure;
 
 } // namespace NQueryClient
 } // namespace NYT
-

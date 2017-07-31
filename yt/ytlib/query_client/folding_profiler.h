@@ -2,13 +2,12 @@
 
 #include "evaluation_helpers.h"
 #include "query.h"
+#include "llvm_folding_set.h"
 
 #include <util/generic/hash_set.h>
 #include <util/generic/noncopyable.h>
 
 #include <limits>
-
-#include <llvm/ADT/FoldingSet.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -40,17 +39,3 @@ TCGQueryCallbackGenerator Profile(
 
 } // namespace NQueryClient
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-// A hasher for llvm::FoldingSetNodeID
-template <>
-struct hash<llvm::FoldingSetNodeID>
-{
-    inline size_t operator()(const llvm::FoldingSetNodeID& id) const
-    {
-        return id.ComputeHash();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////

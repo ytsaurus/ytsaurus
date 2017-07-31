@@ -248,4 +248,3 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate);
 
 } // namespace NQueryClient
 } // namespace NYT
-

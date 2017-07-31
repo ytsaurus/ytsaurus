@@ -3,6 +3,7 @@
 #include "functions.h"
 #include "functions_cg.h"
 #include "query_helpers.h"
+#include "llvm_folding_set.h"
 
 namespace NYT {
 namespace NQueryClient {
