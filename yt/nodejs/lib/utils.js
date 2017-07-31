@@ -335,18 +335,18 @@ exports.gather = function(object, prefix)
             if (/[0-9]+/.test(ks)) {
                 m = parseInt(ks);
                 if (m < 0 || m > 1000) {
-                    throw new Exception("Too many header parts for '" + prefix + "'");
+                    throw new Error("Too many header parts for '" + prefix + "'");
                 }
                 result[parseInt(ks)] = object[keys[i]];
             } else {
-                throw new Exception("Bad header part '" + k[i] + "'");
+                throw new Error("Bad header part '" + k[i] + "'");
             }
         }
     }
 
     for (i = 0, n = result.length; i < n; ++i) {
         if (typeof(result[i]) !== "string") {
-            throw new Exception("Missing part " + i + " for header '" + prefix + "'");
+            throw new Error("Missing part " + i + " for header '" + prefix + "'");
         }
     }
 
