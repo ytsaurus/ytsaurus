@@ -63,13 +63,16 @@ void Initialize(int argc, const char* argv[])
 
     TProcessState::Get()->SetCommandLine(argc, argv);
 
-    if (argc != 5) {
+    const bool isInsideJob = !GetEnv("YT_JOB_ID").empty();
+    if (!isInsideJob) {
         WriteVersionToLog();
         return;
     }
 
-    TString jobType(argv[1]);
-    if (jobType != "--yt-map" && jobType != "--yt-reduce") {
+    TString jobType = argv[1];
+    if (argc != 5 || jobType != "--yt-map" && jobType != "--yt-reduce") {
+        // We are inside job but probably using old API
+        // (i.e. both NYT::Initialize and NMR::Initialize are called).
         WriteVersionToLog();
         return;
     }
