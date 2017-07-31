@@ -289,11 +289,6 @@ public:
         return OpaquePointers_.data();
     }
 
-    size_t GetOpaqueCount() const
-    {
-        return OpaqueValues_.size();
-    }
-
     void Clear()
     {
         OpaquePointers_.clear();
@@ -338,6 +333,10 @@ TJoinParameters GetJoinEvaluator(
     i64 outputRowLimit,
     size_t batchSize,
     bool isOrdered);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TExpressionClosure;
 
 ////////////////////////////////////////////////////////////////////////////////
 

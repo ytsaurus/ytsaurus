@@ -39,15 +39,14 @@ class TIfFunctionCodegen
 public:
     static TCGValue CodegenValue(
         TCGExprContext& builder,
-        const std::vector<TCodegenExpression>& codegenArgs,
+        std::vector<size_t> argIds,
         EValueType type,
-        const TString& name,
-        Value* row)
+        const TString& name)
     {
         auto nameTwine = Twine(name.c_str());
 
-        YCHECK(codegenArgs.size() == 3);
-        auto condition = codegenArgs[0](builder, row);
+        YCHECK(argIds.size() == 3);
+        auto condition = CodegenFragment(builder, argIds[0]);
 
         if (condition.GetStaticType() == EValueType::Null) {
             return TCGValue::CreateNull(builder, type);
@@ -68,34 +67,34 @@ public:
                         builder->CreateZExtOrBitCast(condition.GetData(), builder->getInt64Ty()),
                         builder->getInt64(0)),
                     [&] (TCGExprContext& builder) {
-                        return codegenArgs[1](builder, row).Cast(builder, type);
+                        return CodegenFragment(builder, argIds[1]).Cast(builder, type);
                     },
                     [&] (TCGExprContext& builder) {
-                        return codegenArgs[2](builder, row).Cast(builder, type);
+                        return CodegenFragment(builder, argIds[2]).Cast(builder, type);
                     });
             },
             nameTwine);
     }
 
     virtual TCodegenExpression Profile(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::vector<bool> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
         return [
-            MOVE(codegenArgs),
+            MOVE(argIds),
             type,
             name
-        ] (TCGExprContext& builder, Value* row) {
+        ] (TCGExprContext& builder) {
             return CodegenValue(
                 builder,
-                codegenArgs,
+                argIds,
                 type,
-                name,
-                row);
+                name);
         };
     }
 };
@@ -149,21 +148,22 @@ class TIsNullCodegen
 {
 public:
     virtual TCodegenExpression Profile(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::vector<bool> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
-        YCHECK(codegenArgs.size() == 1);
+        YCHECK(argIds.size() == 1);
 
         return [
-            MOVE(codegenArgs),
+            MOVE(argIds),
             type,
             name
-        ] (TCGExprContext& builder, Value* row) {
-            auto argValue = codegenArgs[0](builder, row);
+        ] (TCGExprContext& builder) {
+            auto argValue = CodegenFragment(builder, argIds[0]);
             return TCGValue::CreateFromValue(
                 builder,
                 builder->getInt1(false),
@@ -181,22 +181,23 @@ class TIfNullCodegen
 {
 public:
     virtual TCodegenExpression Profile(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::vector<bool> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
-        YCHECK(codegenArgs.size() == 2);
+        YCHECK(argIds.size() == 2);
 
         return [
-            MOVE(codegenArgs),
+            MOVE(argIds),
             type,
             name
-        ] (TCGExprContext& builder, Value* row) {
-            auto argValue = codegenArgs[0](builder, row);
-            auto constant = codegenArgs[1](builder, row);
+        ] (TCGExprContext& builder) {
+            auto argValue = CodegenFragment(builder, argIds[0]);
+            auto constant = CodegenFragment(builder, argIds[1]);
 
             return TCGValue::CreateFromValue(
                 builder,
@@ -220,21 +221,22 @@ public:
     { }
 
     virtual TCodegenExpression Profile(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::vector<bool> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
-        YCHECK(codegenArgs.size() == 1);
+        YCHECK(argIds.size() == 1);
 
         return [
-            MOVE(codegenArgs),
+            MOVE(argIds),
             type,
             name
-        ] (TCGExprContext& builder, Value* row) {
-            return codegenArgs[0](builder, row).Cast(builder, type);
+        ] (TCGExprContext& builder) {
+            return CodegenFragment(builder, argIds[0]).Cast(builder, type);
         };
     }
 };
@@ -373,7 +375,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::Boolean,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_partial_match",
@@ -383,7 +386,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::Boolean,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_replace_first",
@@ -393,7 +397,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::String,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_replace_all",
@@ -403,7 +408,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::String,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_extract",
@@ -413,7 +419,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::String,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_escape",
@@ -423,7 +430,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::String,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
     constraints[typeArg] = std::vector<EValueType>{

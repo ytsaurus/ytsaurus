@@ -49,7 +49,7 @@ TString ToString(llvm::Type* tp)
 }
 
 Type* GetOpaqueType(
-    TCGExprContext& builder,
+    TCGBaseContext& builder,
     const char* name)
 {
     auto existingType = builder.Module
@@ -65,28 +65,27 @@ Type* GetOpaqueType(
         name);
 }
 
-void PushExecutionContext(
-    TCGExprContext& builder,
-    std::vector<Value*>& argumentValues)
+Value* GetTypedExecutionContext(
+    TCGBaseContext& builder,
+    Value* executionContext)
 {
-    auto fullContext = builder.GetBuffer();
+    auto fullContext = executionContext;
     auto contextType = GetOpaqueType(builder, ExecutionContextStructName);
     auto contextStruct = builder->CreateBitCast(
         fullContext,
         PointerType::getUnqual(contextType));
-    argumentValues.push_back(contextStruct);
+    return contextStruct;
 }
 
-void PushFunctionContext(
-    TCGExprContext& builder,
-    Value* functionContext,
-    std::vector<Value*>& argumentValues)
+Value* GetTypedFunctionContext(
+    TCGBaseContext& builder,
+    Value* functionContext)
 {
     auto contextType = GetOpaqueType(builder, FunctionContextStructName);
     auto contextStruct = builder->CreateBitCast(
         functionContext,
         PointerType::getUnqual(contextType));
-    argumentValues.push_back(contextStruct);
+    return contextStruct;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,40 +146,35 @@ void PushArgument(
 }
 
 TCGValue PropagateNullArguments(
-    std::vector<TCodegenExpression>& codegenArgs,
+    std::vector<TCodegenValue>& codegenArguments,
     std::vector<Value*>& argumentValues,
-    std::function<Value*(std::vector<Value*>)> codegenBody,
-    std::function<TCGValue(Value*)> codegenReturn,
+    std::function<TCGValue(std::vector<Value*>)> codegenBody,
     EValueType type,
     const TString& name,
-    TCGExprContext& builder,
-    Value* row)
+    TCGBaseContext& builder)
 {
-    if (codegenArgs.empty()) {
-        auto llvmResult = codegenBody(argumentValues);
-        return codegenReturn(llvmResult);
+    if (codegenArguments.empty()) {
+        return codegenBody(argumentValues);
     } else {
-        auto currentArgValue = codegenArgs.back()(builder, row);
-        codegenArgs.pop_back();
+        auto currentArgValue = codegenArguments.back()(builder);
+        codegenArguments.pop_back();
 
         PushArgument(argumentValues, currentArgValue);
 
-        return CodegenIf<TCGExprContext, TCGValue>(
+        return CodegenIf<TCGBaseContext, TCGValue>(
             builder,
             currentArgValue.IsNull(),
-            [&] (TCGExprContext& builder) {
+            [&] (TCGBaseContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
-            [&] (TCGExprContext& builder) {
+            [&] (TCGBaseContext& builder) {
                 return PropagateNullArguments(
-                    codegenArgs,
+                    codegenArguments,
                     argumentValues,
                     std::move(codegenBody),
-                    std::move(codegenReturn),
                     type,
                     name,
-                    builder,
-                    row);
+                    builder);
             },
             Twine(name.c_str()));
     }
@@ -190,80 +184,70 @@ TCGValue PropagateNullArguments(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
-    TCodegenValue codegenFunctionContext,
-    std::vector<TCodegenExpression> codegenArgs,
-    std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
+TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
+    TCGBaseContext& builder,
+    std::vector<TCodegenValue> codegenArguments,
+    std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
     EValueType type,
     const TString& name) const
 {
-    std::reverse(codegenArgs.begin(), codegenArgs.end());
-    return [
+    std::reverse(codegenArguments.begin(), codegenArguments.end());
+    auto llvmArgs = std::vector<Value*>();
+
+    std::function<TCGValue(std::vector<Value*>)> callUdf;
+    if (IsStringLikeType(type)) {
+        auto resultPtr = builder->CreateAlloca(
+            TDataTypeBuilder::get(builder->getContext(), EValueType::String),
+            nullptr,
+            "resultPtr");
+        llvmArgs.push_back(resultPtr);
+
+        auto resultLength = builder->CreateAlloca(
+            TTypeBuilder::TLength::get(builder->getContext()),
+            nullptr,
+            "resultLength");
+        llvmArgs.push_back(resultLength);
+
+        callUdf = [
+            &,
+            resultLength,
+            resultPtr
+        ] (std::vector<Value*> argValues) {
+            codegenBody(builder, argValues);
+            return TCGValue::CreateFromValue(
+                builder,
+                builder->getFalse(),
+                builder->CreateLoad(resultLength),
+                builder->CreateLoad(resultPtr),
+                type,
+                Twine(name.c_str()));
+        };
+    } else {
+        callUdf = [&] (std::vector<Value*> argValues) {
+            Value* llvmResult = codegenBody(builder, argValues);
+            return TCGValue::CreateFromValue(
+                builder,
+                builder->getFalse(),
+                nullptr,
+                llvmResult,
+                type);
+        };
+    }
+
+    return PropagateNullArguments(
+        codegenArguments,
+        llvmArgs,
+        callUdf,
         type,
         name,
-        MOVE(codegenArgs),
-        MOVE(codegenBody)
-    ] (TCGExprContext& builder, Value* row) {
-        auto llvmArgs = std::vector<Value*>();
-        PushExecutionContext(builder, llvmArgs);
-
-        auto callUdf = [&codegenBody, &builder] (std::vector<Value*> argValues) {
-            return codegenBody(argValues, builder);
-        };
-
-        std::function<TCGValue(Value*)> codegenReturn;
-        if (IsStringLikeType(type)) {
-            auto resultPointer = builder->CreateAlloca(
-                TDataTypeBuilder::get(
-                    builder->getContext(),
-                    EValueType::String));
-            llvmArgs.push_back(resultPointer);
-
-            auto resultLength = builder->CreateAlloca(
-                TTypeBuilder::TLength::get(builder->getContext()));
-            llvmArgs.push_back(resultLength);
-
-            codegenReturn = [
-                &,
-                resultLength,
-                resultPointer
-            ] (Value* llvmResult) {
-                return TCGValue::CreateFromValue(
-                    builder,
-                    builder->getFalse(),
-                    builder->CreateLoad(resultLength),
-                    builder->CreateLoad(resultPointer),
-                    type,
-                    Twine(name.c_str()));
-            };
-        } else {
-            codegenReturn = [&] (Value* llvmResult) {
-                    return TCGValue::CreateFromValue(
-                        builder,
-                        builder->getFalse(),
-                        nullptr,
-                        llvmResult,
-                        type);
-            };
-        }
-
-        auto codegenArgsCopy = codegenArgs;
-        return PropagateNullArguments(
-            codegenArgsCopy,
-            llvmArgs,
-            callUdf,
-            codegenReturn,
-            type,
-            name,
-            builder,
-            row);
-    };
+        builder);
 }
 
 llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
-    TCGExprContext& builder,
+    TCGBaseContext& builder,
     std::vector<EValueType> argumentTypes,
-    EValueType resultType) const
+    EValueType resultType,
+    bool useFunctionContext) const
 {
     llvm::Type* calleeResultType;
     auto calleeArgumentTypes = std::vector<llvm::Type*>();
@@ -301,94 +285,88 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedValueCallingConvention::TUnversionedValueCallingConvention(
-    int repeatedArgIndex,
-    bool useFunctionContext)
+    int repeatedArgIndex)
     : RepeatedArgIndex_(repeatedArgIndex)
-    , UseFunctionContext_(useFunctionContext)
 { }
 
-TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
-    TCodegenValue codegenFunctionContext,
-    std::vector<TCodegenExpression> codegenArgs,
-    std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
+TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
+    TCGBaseContext& builder,
+    std::vector<TCodegenValue> codegenArguments,
+    std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
     EValueType type,
     const TString& name) const
 {
-    return [=] (TCGExprContext& builder, Value* row) {
-        auto unversionedValueType =
-            llvm::TypeBuilder<TValue, false>::get(builder->getContext());
-        auto unversionedValueOpaqueType = GetOpaqueType(
-            builder,
-            UnversionedValueStructName);
+    auto argumentValues = std::vector<Value*>();
 
-        auto argumentValues = std::vector<Value*>();
+    auto unversionedValueType =
+        llvm::TypeBuilder<TValue, false>::get(builder->getContext());
+    auto unversionedValueOpaqueType = GetOpaqueType(
+        builder,
+        UnversionedValueStructName);
 
-        PushExecutionContext(builder, argumentValues);
+    auto resultPtr = builder->CreateAlloca(
+        unversionedValueType,
+        nullptr,
+        "resultPtr");
+    auto castedResultPtr = builder->CreateBitCast(
+        resultPtr,
+        PointerType::getUnqual(unversionedValueOpaqueType));
+    argumentValues.push_back(castedResultPtr);
 
-        if (UseFunctionContext_) {
-            auto functionContext = codegenFunctionContext(builder);
-            PushFunctionContext(builder, functionContext, argumentValues);
-        }
+    int argIndex = 0;
+    auto arg = codegenArguments.begin();
+    for (;
+        arg != codegenArguments.end() && argIndex != RepeatedArgIndex_;
+        arg++, argIndex++)
+    {
+        auto valuePtr = builder->CreateAlloca(unversionedValueType);
+        auto cgValue = (*arg)(builder);
+        cgValue.StoreToValue(builder, valuePtr, 0);
 
-        auto resultPtr = builder->CreateAlloca(unversionedValueType);
-        auto castedResultPtr = builder->CreateBitCast(
-            resultPtr,
+        auto castedValuePtr = builder->CreateBitCast(
+            valuePtr,
             PointerType::getUnqual(unversionedValueOpaqueType));
-        argumentValues.push_back(castedResultPtr);
+        argumentValues.push_back(castedValuePtr);
+    }
 
-        int argIndex = 0;
-        auto arg = codegenArgs.begin();
-        for (;
-            arg != codegenArgs.end() && argIndex != RepeatedArgIndex_;
-            arg++, argIndex++)
-        {
-            auto valuePtr = builder->CreateAlloca(unversionedValueType);
-            auto cgValue = (*arg)(builder, row);
-            cgValue.StoreToValue(builder, valuePtr, 0);
+    if (argIndex == RepeatedArgIndex_) {
+        auto varargSize = builder->getInt32(
+            codegenArguments.size() - RepeatedArgIndex_);
 
-            auto castedValuePtr = builder->CreateBitCast(
-                valuePtr,
-                PointerType::getUnqual(unversionedValueOpaqueType));
-            argumentValues.push_back(castedValuePtr);
-        }
+        auto varargPtr = builder->CreateAlloca(
+            unversionedValueType,
+            varargSize);
+        auto castedVarargPtr = builder->CreateBitCast(
+            varargPtr,
+            PointerType::getUnqual(unversionedValueOpaqueType));
 
-        if (argIndex == RepeatedArgIndex_) {
-            auto varargSize = builder->getInt32(
-                codegenArgs.size() - RepeatedArgIndex_);
+        argumentValues.push_back(castedVarargPtr);
+        argumentValues.push_back(varargSize);
 
-            auto varargPtr = builder->CreateAlloca(
-                unversionedValueType,
-                varargSize);
-            auto castedVarargPtr = builder->CreateBitCast(
+        for (int varargIndex = 0; arg != codegenArguments.end(); arg++, varargIndex++) {
+            auto valuePtr = builder->CreateConstGEP1_32(
                 varargPtr,
-                PointerType::getUnqual(unversionedValueOpaqueType));
+                varargIndex);
 
-            argumentValues.push_back(castedVarargPtr);
-            argumentValues.push_back(varargSize);
-
-            for (int varargIndex = 0; arg != codegenArgs.end(); arg++, varargIndex++) {
-                auto valuePtr = builder->CreateConstGEP1_32(
-                    varargPtr,
-                    varargIndex);
-
-                auto cgValue = (*arg)(builder, row);
-                cgValue.StoreToValue(builder, valuePtr, 0);
-            }
+            auto cgValue = (*arg)(builder);
+            cgValue.StoreToValue(builder, valuePtr, 0);
         }
+    }
 
-        codegenBody(argumentValues, builder);
+    codegenBody(builder, argumentValues);
 
-        return TCGValue::CreateFromLlvmValue(
-            builder,
-            resultPtr,
-            type);
-    };
+    return TCGValue::CreateFromLlvmValue(
+        builder,
+        resultPtr,
+        type);
+
 }
 
 llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
-    TCGExprContext& builder,
+    TCGBaseContext& builder,
     std::vector<EValueType> argumentTypes,
-    EValueType resultType) const
+    EValueType resultType,
+    bool useFunctionContext) const
 {
     llvm::Type* calleeResultType = builder->getVoidTy();
 
@@ -397,7 +375,7 @@ llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
     calleeArgumentTypes.push_back(PointerType::getUnqual(
         GetOpaqueType(builder, ExecutionContextStructName)));
 
-    if (UseFunctionContext_) {
+    if (useFunctionContext) {
         calleeArgumentTypes.push_back(PointerType::getUnqual(
             GetOpaqueType(builder, FunctionContextStructName)));
     }
@@ -427,8 +405,7 @@ llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
 ICallingConventionPtr GetCallingConvention(
     ECallingConvention callingConvention,
     int repeatedArgIndex,
-    TType repeatedArgType,
-    bool useFunctionContext)
+    TType repeatedArgType)
 {
     switch (callingConvention) {
         case ECallingConvention::Simple:
@@ -437,9 +414,9 @@ ICallingConventionPtr GetCallingConvention(
             if (repeatedArgType.TryAs<EValueType>()
                 && repeatedArgType.As<EValueType>() == EValueType::Null)
             {
-                return New<TUnversionedValueCallingConvention>(-1, useFunctionContext);
+                return New<TUnversionedValueCallingConvention>(-1);
             } else {
-                return New<TUnversionedValueCallingConvention>(repeatedArgIndex, useFunctionContext);
+                return New<TUnversionedValueCallingConvention>(repeatedArgIndex);
             }
         default:
             Y_UNREACHABLE();
@@ -570,8 +547,9 @@ void LoadLlvmFunctions(
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenExpression TExternalFunctionCodegen::Profile(
-    TCodegenValue codegenFunctionContext,
-    std::vector<TCodegenExpression> codegenArgs,
+    TCGVariables* variables,
+    std::vector<size_t> argIds,
+    std::vector<bool> literalArgs,
     std::vector<EValueType> argumentTypes,
     EValueType type,
     const TString& name,
@@ -583,36 +561,64 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
         id->AddString(ToStringRef(Fingerprint_));
     }
 
-    auto codegenBody = [
+    int functionContextIndex = -1;
+    if (UseFunctionContext_) {
+        functionContextIndex = variables->AddOpaque<TFunctionContext>(std::move(literalArgs));
+    }
+
+    return [
         this_ = MakeStrong(this),
-        MOVE(argumentTypes),
-        type
-    ] (std::vector<Value*> argumentValues, TCGExprContext& builder) {
-        auto functionType = this_->CallingConvention_->GetCalleeType(
-            builder,
-            argumentTypes,
-            type);
-
-        LoadLlvmFunctions(
-            builder,
-            this_->FunctionName_,
-            { std::make_pair(this_->SymbolName_, functionType) },
-            this_->ImplementationFile_);
-
-        auto callee = builder.Module->GetModule()->getFunction(
-            ToStringRef(this_->SymbolName_));
-        YCHECK(callee);
-
-        auto result = builder->CreateCall(callee, argumentValues);
-        return result;
-    };
-
-    return CallingConvention_->MakeCodegenFunctionCall(
-        codegenFunctionContext,
-        codegenArgs,
-        codegenBody,
         type,
-        name);
+        name,
+        functionContextIndex,
+        MOVE(argIds),
+        MOVE(argumentTypes)
+    ] (TCGExprContext& builder) {
+        std::vector<TCodegenValue> codegenArguments;
+        for (size_t id : argIds) {
+            codegenArguments.push_back([&, id] (TCGBaseContext& baseBuilder) {
+                TCGExprContext innerBuilder(TCGOpaqueValuesContext(baseBuilder, builder), builder);
+                return CodegenFragment(innerBuilder, id);
+            });
+        }
+        Value* buffer = builder.Buffer;
+
+        auto codegenBody = [&] (TCGBaseContext& baseBuilder, std::vector<Value*> arguments) {
+            TCGExprContext innerBuilder(TCGOpaqueValuesContext(baseBuilder, builder), builder);
+
+            if (this_->UseFunctionContext_) {
+                auto functionContext = innerBuilder.GetOpaqueValue(functionContextIndex);
+                arguments.insert(arguments.begin(), GetTypedFunctionContext(innerBuilder, functionContext));
+            }
+            arguments.insert(arguments.begin(), GetTypedExecutionContext(builder, buffer));
+
+            auto functionType = this_->CallingConvention_->GetCalleeType(
+                innerBuilder,
+                argumentTypes,
+                type,
+                this_->UseFunctionContext_);
+
+            LoadLlvmFunctions(
+                innerBuilder,
+                this_->FunctionName_,
+                { std::make_pair(this_->SymbolName_, functionType) },
+                this_->ImplementationFile_);
+
+            auto callee = innerBuilder.Module->GetModule()->getFunction(
+                ToStringRef(this_->SymbolName_));
+            YCHECK(callee);
+
+            auto result = innerBuilder->CreateCall(callee, arguments);
+            return result;
+        };
+
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
+            builder,
+            codegenArguments,
+            codegenBody,
+            type,
+            name);
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -644,9 +650,10 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         updateName,
         mergeName,
         finalizeName
-    ] (const TString& functionName) {
+    ] (const TString& functionName, Value* executionContext) {
         return [
             this_,
+            executionContext,
             argumentType,
             stateType,
             resultType,
@@ -655,13 +662,16 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             updateName,
             mergeName,
             finalizeName
-        ] (std::vector<Value*> argumentValues, TCGExprContext& builder) {
+        ] (TCGBaseContext& builder, std::vector<Value*> arguments) {
+            arguments.insert(arguments.begin(), GetTypedExecutionContext(builder, executionContext));
+
             auto aggregateFunctions = std::vector<std::pair<TString, llvm::FunctionType*>>();
 
             auto initType = this_->CallingConvention_->GetCalleeType(
                 builder,
                 std::vector<EValueType>(),
-                stateType);
+                stateType,
+                false);
             auto init = std::make_pair(initName, initType);
 
             auto updateType = this_->CallingConvention_->GetCalleeType(
@@ -669,7 +679,8 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 std::vector<EValueType>{
                     stateType,
                     argumentType},
-                stateType);
+                stateType,
+                false);
             auto update = std::make_pair(updateName, updateType);
 
 
@@ -678,13 +689,15 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 std::vector<EValueType>{
                     stateType,
                     stateType},
-                stateType);
+                stateType,
+                false);
             auto merge = std::make_pair(mergeName, mergeType);
 
             auto finalizeType = this_->CallingConvention_->GetCalleeType(
                 builder,
                 std::vector<EValueType>{stateType},
-                resultType);
+                resultType,
+                false);
             auto finalize = std::make_pair(finalizeName, finalizeType);
 
             aggregateFunctions.push_back(init);
@@ -701,7 +714,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             auto callee = builder.Module->GetModule()->getFunction(ToStringRef(functionName));
             YCHECK(callee);
 
-            return builder->CreateCall(callee, argumentValues);
+            return builder->CreateCall(callee, arguments);
         };
     };
 
@@ -713,13 +726,13 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGExprContext& builder, Value* row) {
+    ] (TCGBaseContext& builder, Value* buffer, Value* row) {
         return this_->CallingConvention_->MakeCodegenFunctionCall(
-            nullptr,
-            std::vector<TCodegenExpression>(),
-            makeCodegenBody(initName),
+            builder,
+            std::vector<TCodegenValue>(),
+            makeCodegenBody(initName, buffer),
             stateType,
-            name + "_init")(builder, row);
+            name + "_init");
     };
 
     codegenAggregate.Update = [
@@ -729,15 +742,15 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGExprContext& builder, Value* aggState, Value* newValue) {
-        auto codegenArgs = std::vector<TCodegenExpression>();
-        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
+    ] (TCGBaseContext& builder, Value* buffer, Value* aggState, Value* newValue) {
+        auto codegenArgs = std::vector<TCodegenValue>();
+        codegenArgs.push_back([=] (TCGBaseContext& builder) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 aggState,
                 stateType);
         });
-        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
+        codegenArgs.push_back([=] (TCGBaseContext& builder) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 newValue,
@@ -745,11 +758,11 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         });
 
         return this_->CallingConvention_->MakeCodegenFunctionCall(
-            nullptr,
+            builder,
             codegenArgs,
-            makeCodegenBody(updateName),
+            makeCodegenBody(updateName, buffer),
             stateType,
-            name + "_update")(builder, aggState);
+            name + "_update");
     };
 
     codegenAggregate.Merge = [
@@ -759,15 +772,15 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGExprContext& builder, Value* dstAggState, Value* aggState) {
-        auto codegenArgs = std::vector<TCodegenExpression>();
-        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
+    ] (TCGBaseContext& builder, Value* buffer, Value* dstAggState, Value* aggState) {
+        auto codegenArgs = std::vector<TCodegenValue>();
+        codegenArgs.push_back([=] (TCGBaseContext& builder) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 dstAggState,
                 stateType);
             });
-        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
+        codegenArgs.push_back([=] (TCGBaseContext& builder) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 aggState,
@@ -775,11 +788,11 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         });
 
         return this_->CallingConvention_->MakeCodegenFunctionCall(
-            nullptr,
+            builder,
             codegenArgs,
-            makeCodegenBody(mergeName),
+            makeCodegenBody(mergeName, buffer),
             stateType,
-            name + "_merge")(builder, aggState);
+            name + "_merge");
     };
 
     codegenAggregate.Finalize = [
@@ -789,9 +802,9 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGExprContext& builder, Value* aggState) {
-        auto codegenArgs = std::vector<TCodegenExpression>();
-        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
+    ] (TCGBaseContext& builder, Value* buffer, Value* aggState) {
+        auto codegenArgs = std::vector<TCodegenValue>();
+        codegenArgs.push_back([=] (TCGBaseContext& builder) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 aggState,
@@ -799,11 +812,11 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         });
 
         return this_->CallingConvention_->MakeCodegenFunctionCall(
-            nullptr,
+            builder,
             codegenArgs,
-            makeCodegenBody(finalizeName),
+            makeCodegenBody(finalizeName, buffer),
             argumentType,
-            name + "_finalize")(builder, aggState);
+            name + "_finalize");
     };
 
     return codegenAggregate;
