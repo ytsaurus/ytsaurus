@@ -254,6 +254,8 @@ TFuture<void> TEncodingWriter::GetReadyEvent()
 
 TFuture<void> TEncodingWriter::Flush()
 {
+    LOG_DEBUG("Flushing encoding writer");
+
     // This must be the last enqueued element.
     CompressionInvoker_->Invoke(BIND([this, this_ = MakeStrong(this)] () {
         PendingBlocks_.Enqueue(TError("Sentinel value"));
