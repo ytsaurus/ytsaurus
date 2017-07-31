@@ -15,7 +15,8 @@ void TFunctionRegistryBuilder::RegisterFunction(
     TType repeatedArgType,
     TType resultType,
     TSharedRef implementationFile,
-    ICallingConventionPtr callingConvention)
+    ICallingConventionPtr callingConvention,
+    bool useFunctionContext)
 {
     if (TypeInferrers_) {
         TypeInferrers_->emplace(functionName, New<TFunctionTypeInferrer>(
@@ -26,7 +27,7 @@ void TFunctionRegistryBuilder::RegisterFunction(
     }
     if (FunctionProfilers_) {
         FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
-            functionName, symbolName, implementationFile, callingConvention, TSharedRef()));
+            functionName, symbolName, implementationFile, callingConvention, TSharedRef(), useFunctionContext));
     }
 }
 
@@ -64,7 +65,7 @@ void TFunctionRegistryBuilder::RegisterFunction(
         repeatedArgType,
         resultType,
         implementationFile,
-        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType, false));
+        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType));
 }
 
 void TFunctionRegistryBuilder::RegisterAggregate(

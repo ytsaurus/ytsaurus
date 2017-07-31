@@ -1,13 +1,141 @@
 #include "cg_helpers.h"
+#include "cg_fragment_compiler.h"
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Value* TCGExprContext::GetFragmentResult(size_t index) const
+{
+    return Builder_->CreateInBoundsGEP(
+        ExpressionClosurePtr,
+        {
+            Builder_->getInt32(0),
+            Builder_->getInt32(TClosureTypeBuilder::Fields::FragmentResults),
+            Builder_->getInt32(ExpressionFragments.Items[index].Index)
+        },
+        Twine("fragment#") + Twine(index));
+}
+
+Value* TCGExprContext::GetFragmentFlag(size_t index) const
+{
+    return Builder_->CreateInBoundsGEP(
+        ExpressionClosurePtr,
+        {
+            Builder_->getInt32(0),
+            Builder_->getInt32(TClosureTypeBuilder::Fields::FragmentFlags),
+            Builder_->getInt32(ExpressionFragments.Items[index].Index)
+        },
+        Twine("flag#") + Twine(index));
+}
+
+TCGExprContext TCGExprContext::Make(
+    const TCGBaseContext& builder,
+    const TCodegenFragmentInfos& fragmentInfos,
+    Value* expressionClosurePtr)
+{
+    Value* expressionClosure = builder->CreateLoad(expressionClosurePtr);
+
+    Value* opaqueValues = builder->CreateExtractValue(
+        expressionClosure,
+        TClosureTypeBuilder::Fields::OpaqueValues,
+        "opaqueValues");
+
+    return TCGExprContext(
+        TCGOpaqueValuesContext(builder, opaqueValues),
+        TCGExprData(
+            fragmentInfos,
+            builder->CreateExtractValue(
+                expressionClosure,
+                TClosureTypeBuilder::Fields::Buffer,
+                "buffer"),
+            builder->CreateExtractValue(
+                expressionClosure,
+                TClosureTypeBuilder::Fields::RowValues,
+                "rowValues"),
+            expressionClosurePtr
+        ));
+}
+
+TCGExprContext TCGExprContext::Make(
+    const TCGOpaqueValuesContext& builder,
+    const TCodegenFragmentInfos& fragmentInfos,
+    Value* row,
+    Value* buffer)
+{
+    Value* rowValues = CodegenValuesPtrFromRow(builder, row);
+
+    llvm::StructType* type = TClosureTypeBuilder::get(builder->getContext(), fragmentInfos.Functions.size());
+
+    Value* expressionClosure = llvm::ConstantStruct::get(
+        type,
+        {
+            llvm::UndefValue::get(TypeBuilder<TValue*, false>::get(builder->getContext())),
+            llvm::UndefValue::get(TypeBuilder<void*, false>::get(builder->getContext())),
+            llvm::UndefValue::get(TypeBuilder<TRowBuffer*, false>::get(builder->getContext())),
+            llvm::ConstantAggregateZero::get(
+                llvm::ArrayType::get(TypeBuilder<char, false>::get(
+                    builder->getContext()),
+                    fragmentInfos.Functions.size())),
+            llvm::UndefValue::get(
+                llvm::ArrayType::get(TypeBuilder<TValue, false>::get(
+                    builder->getContext()),
+                    fragmentInfos.Functions.size()))
+        });
+
+    expressionClosure = builder->CreateInsertValue(
+        expressionClosure,
+        rowValues,
+        TClosureTypeBuilder::Fields::RowValues);
+
+    expressionClosure = builder->CreateInsertValue(
+        expressionClosure,
+        builder.GetOpaqueValues(),
+        TClosureTypeBuilder::Fields::OpaqueValues);
+
+    expressionClosure = builder->CreateInsertValue(
+        expressionClosure,
+        buffer,
+        TClosureTypeBuilder::Fields::Buffer);
+
+    Value* expressionClosurePtr = builder->CreateAlloca(
+        type,
+        nullptr,
+        "expressionClosurePtr");
+
+    builder->CreateStore(expressionClosure, expressionClosurePtr);
+
+    return TCGExprContext(
+        builder,
+        TCGExprData(
+            fragmentInfos,
+            buffer,
+            rowValues,
+            expressionClosurePtr
+        ));
+}
+
+Value* TCGExprContext::GetExpressionClosurePtr()
+{
+    return ExpressionClosurePtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCodegenConsumer& TCGOperatorContext::operator[] (size_t index) const
+{
+    if (!(*Consumers_)[index]) {
+        (*Consumers_)[index] = std::make_shared<TCodegenConsumer>();
+    }
+    return *(*Consumers_)[index];
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Row manipulation helpers
 //
 
-Value* CodegenValuesPtrFromRow(TCGIRBuilderPtr& builder, Value* row)
+Value* CodegenValuesPtrFromRow(const TCGIRBuilderPtr& builder, Value* row)
 {
     auto name = row->getName();
 
@@ -15,6 +143,7 @@ Value* CodegenValuesPtrFromRow(TCGIRBuilderPtr& builder, Value* row)
         row,
         TypeBuilder<TRow, false>::Fields::Header,
         Twine(name).concat(".headerPtr"));
+
     auto valuesPtr = builder->CreatePointerCast(
         builder->CreateConstInBoundsGEP1_32(nullptr, headerPtr, 1, "valuesPtrUncasted"),
         TypeBuilder<TValue*, false>::get(builder->getContext()),

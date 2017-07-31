@@ -12,14 +12,48 @@ namespace NQueryClient {
 
 typedef std::function<void(TCGOperatorContext& builder)> TCodegenSource;
 
-typedef std::function<Value*(TCGIRBuilderPtr& builder)> TCodegenBlock;
-typedef std::function<Value*(TCGBaseContext& builder)> TCodegenValue;
-typedef std::function<TCGValue(TCGExprContext& builder, Value* row)> TCodegenExpression;
+typedef std::function<Value*(TCGExprContext& builder)> TCodegenSimpleValue;
+typedef std::function<TCGValue(TCGBaseContext& builder)> TCodegenValue;
 
-typedef std::function<TCGValue(TCGExprContext& builder, Value* aggState)> TCodegenAggregateInit;
-typedef std::function<TCGValue(TCGExprContext& builder, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
-typedef std::function<TCGValue(TCGExprContext& builder, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
-typedef std::function<TCGValue(TCGExprContext& builder, Value* aggState)> TCodegenAggregateFinalize;
+typedef std::function<TCGValue(TCGExprContext& builder)> TCodegenExpression;
+
+struct TCodegenFragmentInfo
+{
+    TCodegenFragmentInfo(TCodegenExpression generator, EValueType type, bool forceInline = false)
+        : Generator(std::move(generator))
+        , Type(type)
+        , ForceInline(forceInline)
+    { }
+
+    TCodegenExpression Generator;
+    EValueType Type;
+    bool ForceInline;
+    size_t UseCount = 0;
+    size_t Index = std::numeric_limits<size_t>::max();
+
+    bool IsOutOfLine() const {
+        return UseCount > 1 && !ForceInline;
+    }
+
+};
+
+DECLARE_REFCOUNTED_STRUCT(TCodegenFragmentInfos)
+
+struct TCodegenFragmentInfos
+    : public TIntrinsicRefCounted
+{
+    std::vector<TCodegenFragmentInfo> Items;
+    size_t FunctionCount = 0;
+    std::vector<Function*> Functions;
+    TString NamePrefix;
+};
+
+DEFINE_REFCOUNTED_TYPE(TCodegenFragmentInfos)
+
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* aggState)> TCodegenAggregateInit;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* aggState)> TCodegenAggregateFinalize;
 
 struct TCodegenAggregate {
     TCodegenAggregateInit Initialize;
@@ -52,31 +86,32 @@ TCodegenExpression MakeCodegenReferenceExpr(
     EValueType type,
     TString name);
 
-TCodegenValue MakeCodegenFunctionContext(
-    int index);
+TCGValue CodegenFragment(
+    TCGExprContext& builder,
+    size_t id);
 
-TCodegenExpression MakeCodegenFunctionExpr(
-    TString functionName,
-    std::vector<TCodegenExpression> codegenArgs,
-    EValueType type,
-    TString name,
-    const IFunctionRegistryPtr functionRegistry);
+void MakeCodegenFragmentBodies(
+    TCodegenSource* codegenSource,
+    TCodegenFragmentInfosPtr fragmentInfos);
+
+TCodegenSimpleValue MakeCodegenFunctionContext(
+    int index);
 
 TCodegenExpression MakeCodegenUnaryOpExpr(
     EUnaryOp opcode,
-    TCodegenExpression codegenOperand,
+    size_t operandId,
     EValueType type,
     TString name);
 
 TCodegenExpression MakeCodegenBinaryOpExpr(
     EBinaryOp opcode,
-    TCodegenExpression codegenLhs,
-    TCodegenExpression codegenRhs,
+    size_t lhsId,
+    size_t rhsId,
     EValueType type,
     TString name);
 
 TCodegenExpression MakeCodegenInOpExpr(
-    std::vector<TCodegenExpression> codegenArgs,
+    std::vector<size_t> argIds,
     int arrayIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,34 +143,38 @@ size_t MakeCodegenFilterOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
-    TCodegenExpression codegenPredicate);
+    TCodegenFragmentInfosPtr fragmentInfos,
+    size_t predicateId);
 
 size_t MakeCodegenJoinOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
     int index,
-    std::vector<std::pair<TCodegenExpression, bool>> equations,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<std::pair<size_t, bool>> equations,
     size_t commonKeyPrefix);
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
-    std::vector<TCodegenExpression> codegenGroupExprs,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> groupExprsIds,
     std::vector<EValueType> nullTypes = std::vector<EValueType>());
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
     size_t keySize,
-    std::vector<TCodegenExpression> codegenAggregateExprs);
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> aggregateExprIds);
 
-std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitialize(
+std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregateInitialize(
     std::vector<TCodegenAggregate> codegenAggregates,
     int keySize);
 
-std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpdate(
+std::function<void(TCGBaseContext& builder, Value*, Value*, Value*)> MakeCodegenAggregateUpdate(
     std::vector<TCodegenAggregate> codegenAggregates,
     int keySize,
     bool isMerge);
 
-std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinalize(
+std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregateFinalize(
     std::vector<TCodegenAggregate> codegenAggregates,
     int keySize);
 
@@ -143,10 +182,10 @@ size_t MakeCodegenGroupOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
-    std::function<void(TCGContext&, Value*)> codegenInitialize,
+    std::function<void(TCGBaseContext&, Value*, Value*)> codegenInitialize,
     std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateGroups,
     std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateAggregateArgs,
-    std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
+    std::function<void(TCGBaseContext&, Value*, Value*, Value*)> codegenUpdate,
     std::vector<EValueType> keyTypes,
     bool isMerge,
     int groupRowSize,
@@ -156,7 +195,7 @@ size_t MakeCodegenFinalizeOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
-    std::function<void(TCGContext&, Value*)> codegenFinalize);
+    std::function<void(TCGBaseContext&, Value*, Value*)> codegenFinalize);
 
 size_t MakeCodegenAddStreamOp(
     TCodegenSource* codegenSource,
@@ -169,7 +208,8 @@ size_t MakeCodegenOrderOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
-    std::vector<TCodegenExpression> codegenExprs,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> exprIds,
     std::vector<EValueType> orderColumnTypes,
     std::vector<EValueType> sourceSchema,
     const std::vector<bool>& isDesc);
@@ -178,7 +218,8 @@ size_t MakeCodegenProjectOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
-    std::vector<TCodegenExpression> codegenArgs);
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> argIds);
 
 void MakeCodegenWriteOp(
     TCodegenSource* codegenSource,
@@ -188,10 +229,11 @@ void MakeCodegenWriteOp(
 
 TCGQueryCallback CodegenEvaluate(
     const TCodegenSource* codegenSource,
-    size_t slotIndex,
-    size_t opaqueValuesCount);
+    size_t slotIndex);
 
-TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, size_t opaqueValuesCount);
+TCGExpressionCallback CodegenStandaloneExpression(
+    const TCodegenFragmentInfosPtr& fragmentInfos,
+    size_t exprId);
 
 TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate);
 
