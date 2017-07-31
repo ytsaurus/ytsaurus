@@ -78,7 +78,7 @@ private:
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
         auto rowCount = request->row_count();
-        auto byteSize = request->byte_size();
+        auto dataWeight = request->data_weight();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto versioned = request->versioned();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
@@ -91,7 +91,7 @@ private:
         const auto& user = context->GetUser();
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %llx, "
-            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, "
+            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, DataWeight: %v, "
             "RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, UpstreamReplicaId: %v",
             tabletId,
             transactionId,
@@ -101,6 +101,7 @@ private:
             durability,
             signature,
             rowCount,
+            dataWeight,
             requestCodecId,
             versioned,
             syncReplicaIds,
@@ -162,7 +163,7 @@ private:
                 transactionTimeout,
                 signature,
                 rowCount,
-                byteSize,
+                dataWeight,
                 user,
                 versioned,
                 syncReplicaIds,

@@ -105,12 +105,12 @@ using namespace NProfiling;
 struct TWriteCounters
 {
     TWriteCounters(const TTagIdList& list)
-        : Rows("/write/rows", list)
-        , Bytes("/write/bytes", list)
+        : RowCount("/write/row_count", list)
+        , DataWeight("/write/data_weight", list)
     { }
 
-    TSimpleCounter Rows;
-    TSimpleCounter Bytes;
+    TSimpleCounter RowCount;
+    TSimpleCounter DataWeight;
 };
 
 using TWriteProfilerTrait = TTabletProfilerTrait<TWriteCounters>;
@@ -118,12 +118,12 @@ using TWriteProfilerTrait = TTabletProfilerTrait<TWriteCounters>;
 struct TCommitCounters
 {
     TCommitCounters(const TTagIdList& list)
-        : Rows("/commit/rows", list)
-        , Bytes("/commit/bytes", list)
+        : RowCount("/commit/row_count", list)
+        , DataWeight("/commit/data_weight", list)
     { }
 
-    TSimpleCounter Rows;
-    TSimpleCounter Bytes;
+    TSimpleCounter RowCount;
+    TSimpleCounter DataWeight;
 };
 
 using TCommitProfilerTrait = TTabletProfilerTrait<TCommitCounters>;
@@ -280,7 +280,7 @@ public:
         TDuration transactionTimeout,
         TTransactionSignature signature,
         int rowCount,
-        size_t byteSize,
+        size_t dataWeight,
         const TString& user,
         bool versioned,
         const TSyncReplicaIdList& syncReplicaIds,
@@ -337,7 +337,7 @@ public:
                 // Skip the whole message.
                 reader->SetCurrent(reader->GetEnd());
                 context.RowCount = rowCount;
-                context.ByteSize = byteSize;
+                context.DataWeight = dataWeight;
             } else {
                 storeManager->ExecuteWrites(reader, &context);
                 if (!reader->IsFinished()) {
@@ -358,7 +358,7 @@ public:
             if (readerBefore != readerAfter) {
                 auto recordData = reader->Slice(readerBefore, readerAfter);
                 auto compressedRecordData = ChangelogCodec_->Compress(recordData);
-                TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount, context.ByteSize, syncReplicaIds);
+                TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount, context.DataWeight, syncReplicaIds);
 
                 PrelockedTablets_.push(tablet);
                 LockTablet(tablet);
@@ -374,7 +374,7 @@ public:
                 hydraRequest.set_signature(adjustedSignature);
                 hydraRequest.set_lockless(lockless);
                 hydraRequest.set_row_count(writeRecord.RowCount);
-                hydraRequest.set_byte_size(writeRecord.ByteSize);
+                hydraRequest.set_data_weight(writeRecord.DataWeight);
                 ToProto(hydraRequest.mutable_sync_replica_ids(), syncReplicaIds);
                 *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
                     ->SetHandler(BIND(
@@ -1260,8 +1260,8 @@ private:
         if (tablet->IsProfilingEnabled() && user) {
             auto& counters = GetLocallyGloballyCachedValue<TWriteProfilerTrait>(
                 GetUserProfilerTags(user, tablet->GetProfilerTags()));
-            TabletNodeProfiler.Increment(counters.Rows, writeRecord.RowCount);
-            TabletNodeProfiler.Increment(counters.Bytes, writeRecord.ByteSize);
+            TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
+            TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
         }
     }
 
@@ -1274,7 +1274,7 @@ private:
         auto signature = request->signature();
         auto lockless = request->lockless();
         auto rowCount = request->row_count();
-        auto byteSize = request->byte_size();
+        auto dataWeight = request->data_weight();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
         const auto& user = request->user();
 
@@ -1295,7 +1295,7 @@ private:
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
-        TTransactionWriteRecord writeRecord(tabletId, recordData, rowCount, byteSize, syncReplicaIds);
+        TTransactionWriteRecord writeRecord(tabletId, recordData, rowCount, dataWeight, syncReplicaIds);
         TWireProtocolReader reader(recordData);
 
         const auto& storeManager = tablet->GetStoreManager();
@@ -2137,8 +2137,8 @@ private:
 
                     auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
                         GetUserProfilerTags(transaction->GetUser(), tablet->GetProfilerTags()));
-                    TabletNodeProfiler.Increment(counters.Rows, record.RowCount);
-                    TabletNodeProfiler.Increment(counters.Bytes, record.ByteSize);
+                    TabletNodeProfiler.Increment(counters.RowCount, record.RowCount);
+                    TabletNodeProfiler.Increment(counters.DataWeight, record.DataWeight);
                 }
             };
 
@@ -3262,7 +3262,7 @@ void TTabletManager::Write(
     TDuration transactionTimeout,
     TTransactionSignature signature,
     int rowCount,
-    size_t byteSize,
+    size_t dataWeight,
     const TString& user,
     bool versioned,
     const TSyncReplicaIdList& syncReplicaIds,
@@ -3276,7 +3276,7 @@ void TTabletManager::Write(
         transactionTimeout,
         signature,
         rowCount,
-        byteSize,
+        dataWeight,
         user,
         versioned,
         syncReplicaIds,

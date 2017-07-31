@@ -882,7 +882,7 @@ private:
             TWireProtocolWriter Writer;
             TSharedRef RequestData;
             int RowCount = 0;
-            size_t ByteSize = 0;
+            size_t DataWeight = 0;
         };
 
         std::vector<std::unique_ptr<TBatch>> Batches_;
@@ -1005,7 +1005,7 @@ private:
             writer.WriteCommand(submittedRow.Command);
             WriteRowToWriter(writer, submittedRow.Row);
             ++batch->RowCount;
-            batch->ByteSize += GetDataWeight(submittedRow.Row);
+            batch->DataWeight += GetDataWeight(submittedRow.Row);
         }
 
         static void WriteRowToWriter(TWireProtocolWriter& writer, TVersionedRow row)
@@ -1051,7 +1051,7 @@ private:
             req->set_signature(cellSession->AllocateRequestSignature());
             req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
             req->set_row_count(batch->RowCount);
-            req->set_byte_size(batch->ByteSize);
+            req->set_data_weight(batch->DataWeight);
             req->set_versioned(!VersionedSubmittedRows_.empty());
             for (const auto& replicaInfo : TableInfo_->Replicas) {
                 if (replicaInfo->Mode == ETableReplicaMode::Sync) {

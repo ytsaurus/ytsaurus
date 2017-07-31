@@ -229,7 +229,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
 
     ++PerformanceCounters_->DynamicRowWriteCount;
     ++context->RowCount;
-    context->ByteSize += GetDataWeight(row);
+    context->DataWeight += GetDataWeight(row);
 
     return dynamicRow;
 }

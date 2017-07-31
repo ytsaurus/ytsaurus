@@ -50,13 +50,13 @@ static const size_t RowBufferCapacity = 1000;
 struct TLookupCounters
 {
     TLookupCounters(const TTagIdList& list)
-        : Rows("/lookup/rows", list)
-        , Bytes("/lookup/bytes", list)
+        : RowCount("/lookup/row_count", list)
+        , DataWeight("/lookup/data_weight", list)
         , CpuTime("/lookup/cpu_time", list)
     { }
 
-    TSimpleCounter Rows;
-    TSimpleCounter Bytes;
+    TSimpleCounter RowCount;
+    TSimpleCounter DataWeight;
     TSimpleCounter CpuTime;
 };
 
@@ -130,16 +130,16 @@ public:
 
         if (IsProfilingEnabled()) {
             auto& counters = GetLocallyGloballyCachedValue<TLookupProfilerTrait>(Tags_);
-            TabletNodeProfiler.Increment(counters.Rows, FoundRowCount_);
-            TabletNodeProfiler.Increment(counters.Bytes, Bytes_);
+            TabletNodeProfiler.Increment(counters.RowCount, FoundRowCount_);
+            TabletNodeProfiler.Increment(counters.DataWeight, FoundDataWeight_);
             TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
         }
 
-        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, Bytes: %v, CpuTime: %v)",
+        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             FoundRowCount_,
-            Bytes_,
+            FoundDataWeight_,
             ValueToDuration(cpuTime));
     }
 
@@ -192,7 +192,7 @@ private:
     TReadSessionList PartitionSessions_;
 
     int FoundRowCount_ = 0;
-    size_t Bytes_ = 0;
+    size_t FoundDataWeight_ = 0;
 
     TTagIdList Tags_;
 
@@ -256,8 +256,7 @@ private:
             processSessions(PartitionSessions_);
             processSessions(EdenSessions_);
 
-            Bytes_ += onRow();
-
+            FoundDataWeight_ += onRow();
             ++FoundRowCount_;
         }
     }
