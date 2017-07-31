@@ -1,3 +1,5 @@
+#pragma once
+
 #include "client.h"
 #include "native_client.h"
 

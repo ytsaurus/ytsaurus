@@ -408,8 +408,8 @@ int TChunk::GetMaxReplicasPerRack(int mediumIndex, TNullable<int> replicationFac
     switch (GetType()) {
         case EObjectType::Chunk: {
             int replicationFactor = replicationFactorOverride
-            	? *replicationFactorOverride
-            	: ComputeReplicationFactor(mediumIndex);
+                ? *replicationFactorOverride
+                : ComputeReplicationFactor(mediumIndex);
             return std::max(replicationFactor - 1, 1);
         }
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_client/public.h>

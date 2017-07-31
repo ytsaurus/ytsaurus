@@ -120,7 +120,7 @@ public:
 
     virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options) override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (State_ != ETransactionState::Active) {
             return MakeFuture<TTransactionCommitResult>(TError("Cannot commit since transaction %v is already in %Qlv state",
@@ -136,7 +136,7 @@ public:
 
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (State_ == ETransactionState::Abort) {
             return AbortResult_;
@@ -155,14 +155,14 @@ public:
 
     virtual void Detach() override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         State_ = ETransactionState::Detach;
         Transaction_->Detach();
     }
 
     virtual TFuture<TTransactionFlushResult> Flush() override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (State_ != ETransactionState::Active) {
             return MakeFuture<TTransactionFlushResult>(TError("Cannot flush since transaction %v is already in %Qlv state",
@@ -342,7 +342,7 @@ public:
         TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options) override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         ValidateTabletTransaction();
 
@@ -681,7 +681,7 @@ private:
     protected:
         TNativeTransaction* const Transaction_;
         const INativeConnectionPtr Connection_;
-		const TYPath Path_;
+        const TYPath Path_;
         const TNameTablePtr NameTable_;
         const TNullable<int> TabletIndexColumnId_;
         const TSharedRange<TRowModification> Modifications_;

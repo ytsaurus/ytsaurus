@@ -202,7 +202,7 @@ private:
             }
 
             return result.Apply(BIND([] (const TEntryPtr& entry) -> TSharedRefArray {
-	            return entry->GetResponseMessage();
+                return entry->GetResponseMessage();
             }));
         }
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "public.h"
 
 #include <yt/core/misc/phoenix.h>
