@@ -176,6 +176,41 @@ public:
     }
 };
 
+class TIfNullCodegen
+    : public IFunctionCodegen
+{
+public:
+    virtual TCodegenExpression Profile(
+        TCodegenValue codegenFunctionContext,
+        std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
+        EValueType type,
+        const TString& name,
+        llvm::FoldingSetNodeID* id) const override
+    {
+        YCHECK(codegenArgs.size() == 2);
+
+        return [
+            MOVE(codegenArgs),
+            type,
+            name
+        ] (TCGExprContext& builder, Value* row) {
+            auto argValue = codegenArgs[0](builder, row);
+            auto constant = codegenArgs[1](builder, row);
+
+            return TCGValue::CreateFromValue(
+                builder,
+                builder->CreateOr(argValue.IsNull(), constant.IsNull()),
+                nullptr,
+                builder->CreateSelect(
+                    argValue.IsNull(),
+                    constant.GetData(),
+                    argValue.GetData()),
+                type);
+        };
+    }
+};
+
 class TUserCastCodegen
     : public IFunctionCodegen
 {
@@ -317,6 +352,18 @@ void RegisterBuiltinFunctions(
     if (functionProfilers) {
         functionProfilers->emplace("double", New<NBuiltins::TUserCastCodegen>());
     }
+
+    if (typeInferrers) {
+        typeInferrers->emplace("if_null", New<TFunctionTypeInferrer>(
+            std::unordered_map<TTypeArgument, TUnionType>(),
+            std::vector<TType>{0, 0},
+            0));
+    }
+
+    if (functionProfilers) {
+        functionProfilers->emplace("if_null", New<NBuiltins::TIfNullCodegen>());
+    }
+
 
     builder.RegisterFunction(
         "regex_full_match",
