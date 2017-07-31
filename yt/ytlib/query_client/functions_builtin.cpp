@@ -166,7 +166,7 @@ public:
             auto argValue = CodegenFragment(builder, argIds[0]);
             return TCGValue::CreateFromValue(
                 builder,
-                builder->getInt1(false),
+                builder->getFalse(),
                 nullptr,
                 builder->CreateZExtOrBitCast(
                     argValue.IsNull(builder),
