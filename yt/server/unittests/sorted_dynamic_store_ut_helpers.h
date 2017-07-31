@@ -1,3 +1,5 @@
+#pragma once
+
 #include "dynamic_store_ut_helpers.h"
 
 namespace NYT {

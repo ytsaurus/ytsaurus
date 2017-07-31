@@ -14,7 +14,7 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateJobProberService(
-	TJobProxyPtr jobProxy);
+    TJobProxyPtr jobProxy);
 
 NRpc::IServicePtr CreateJobProberService(
     NJobProberClient::IJobProbePtr jobProbe,

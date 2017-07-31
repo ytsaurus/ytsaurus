@@ -25,7 +25,7 @@ using namespace NProfiling;
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static TAggregateCounter PreemptableListUpdateTimeCounter("/preemptable_list_update_time");
 static TAggregateCounter PreemptableListUpdateMoveCountCounter("/preemptable_list_update_move_count");
@@ -2210,7 +2210,7 @@ void TOperationElement::UpdatePreemptableJobsList()
     }
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,

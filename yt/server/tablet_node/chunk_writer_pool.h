@@ -1,3 +1,5 @@
+#pragma once
+
 #include "config.h"
 #include "in_memory_manager.h"
 #include "tablet.h"

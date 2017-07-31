@@ -1,3 +1,5 @@
+#pragma once
+
 #include "public.h"
 #include "scheduler.h"
 #include "scheduling_tag.h"

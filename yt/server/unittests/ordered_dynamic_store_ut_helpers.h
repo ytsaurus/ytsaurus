@@ -1,3 +1,5 @@
+#pragma once
+
 #include "dynamic_store_ut_helpers.h"
 
 #include <yt/ytlib/table_client/schemaful_reader.h>
