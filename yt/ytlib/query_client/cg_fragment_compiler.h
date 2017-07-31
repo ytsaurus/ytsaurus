@@ -70,6 +70,10 @@ DEFINE_ENUM(EStreamTag,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TComparerManager);
+
+TComparerManagerPtr MakeComparerManager();
+
 Value* CodegenLexicographicalCompare(
     TCGContext& builder,
     Value* lhsData,
@@ -112,7 +116,8 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
 TCodegenExpression MakeCodegenInOpExpr(
     std::vector<size_t> argIds,
-    int arrayIndex);
+    int arrayIndex,
+    TComparerManagerPtr comparerManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,7 +158,8 @@ size_t MakeCodegenJoinOp(
     int index,
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<std::pair<size_t, bool>> equations,
-    size_t commonKeyPrefix);
+    size_t commonKeyPrefix,
+    TComparerManagerPtr comparerManager);
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
     TCodegenFragmentInfosPtr fragmentInfos,
@@ -189,7 +195,8 @@ size_t MakeCodegenGroupOp(
     std::vector<EValueType> keyTypes,
     bool isMerge,
     int groupRowSize,
-    bool checkNulls);
+    bool checkNulls,
+    TComparerManagerPtr comparerManager);
 
 size_t MakeCodegenFinalizeOp(
     TCodegenSource* codegenSource,

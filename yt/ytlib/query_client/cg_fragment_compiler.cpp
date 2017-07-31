@@ -30,6 +30,10 @@ using namespace NConcurrency;
 
 using NCodegen::TCGModule;
 
+llvm::StringRef ToStringRef(const TString& stroka)
+{
+    return llvm::StringRef(stroka.c_str(), stroka.length());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Operator helpers
@@ -124,125 +128,30 @@ void CodegenForEachRow(
 // Expressions
 //
 
-void CheckNaN(const TCGModulePtr& module, TCGIRBuilderPtr& builder, Value* lhsValue, Value* rhsValue)
+void CheckNaN(TCGBaseContext& builder, Value* lhsValue, Value* rhsValue)
 {
-    CodegenIf<TCGIRBuilderPtr&>(
+    CodegenIf<TCGBaseContext>(
         builder,
         builder->CreateFCmpUNO(lhsValue, rhsValue),
-        [&] (TCGIRBuilderPtr& builder) {
+        [&] (TCGBaseContext& builder) {
             builder->CreateCall(
-                module->GetRoutine("ThrowQueryException"),
+                builder.Module->GetRoutine("ThrowQueryException"),
                 {
                     builder->CreateGlobalStringPtr("Comparison with NaN")
                 });
         });
 }
 
-Function* CodegenGroupComparerFunction(
-    const std::vector<EValueType>& types,
-    const TCGModulePtr& module,
-    size_t start,
-    size_t finish)
+struct TValueTypeLabels
 {
-    YCHECK(finish <= types.size());
+    Constant* OnBoolean;
+    Constant* OnInt;
+    Constant* OnUint;
+    Constant* OnDouble;
+    Constant* OnString;
+};
 
-    return MakeFunction<TComparerFunction>(module, "GroupComparer", [&] (
-        TCGBaseContext& builder,
-        Value* lhsRow,
-        Value* rhsRow
-    ) {
-        Value* lhsValues = CodegenValuesPtrFromRow(builder, lhsRow);
-        Value* rhsValues = CodegenValuesPtrFromRow(builder, rhsRow);
-
-        auto returnIf = [&] (Value* condition) {
-            auto* thenBB = builder->CreateBBHere("then");
-            auto* elseBB = builder->CreateBBHere("else");
-            builder->CreateCondBr(condition, thenBB, elseBB);
-            builder->SetInsertPoint(thenBB);
-            builder->CreateRet(builder->getInt8(0));
-            builder->SetInsertPoint(elseBB);
-        };
-
-        auto codegenEqualOp = [&] (size_t index) {
-            auto lhsValue = TCGValue::CreateFromRowValues(
-                builder,
-                lhsValues,
-                index,
-                types[index]);
-
-            auto rhsValue = TCGValue::CreateFromRowValues(
-                builder,
-                rhsValues,
-                index,
-                types[index]);
-
-            CodegenIf<TCGIRBuilderPtr>(
-                builder,
-                builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
-                [&] (TCGIRBuilderPtr& builder) {
-                    returnIf(builder->CreateICmpNE(lhsValue.IsNull(builder), rhsValue.IsNull(builder)));
-                },
-                [&] (TCGIRBuilderPtr& builder) {
-                    auto* lhsData = lhsValue.GetData(builder);
-                    auto* rhsData = rhsValue.GetData(builder);
-
-                    switch (types[index]) {
-                        case EValueType::Boolean:
-                        case EValueType::Int64:
-                        case EValueType::Uint64:
-                            returnIf(builder->CreateICmpNE(lhsData, rhsData));
-                            break;
-
-                        case EValueType::Double:
-                            CheckNaN(module, builder, lhsData, rhsData);
-                            returnIf(builder->CreateFCmpUNE(lhsData, rhsData));
-                            break;
-
-                        case EValueType::String: {
-                            Value* lhsLength = lhsValue.GetLength(builder);
-                            Value* rhsLength = rhsValue.GetLength(builder);
-
-                            Value* minLength = builder->CreateSelect(
-                                builder->CreateICmpULT(lhsLength, rhsLength),
-                                lhsLength,
-                                rhsLength);
-
-                            Value* cmpResult = builder->CreateCall(
-                                module->GetRoutine("memcmp"),
-                                {
-                                    lhsData,
-                                    rhsData,
-                                    builder->CreateZExt(minLength, builder->getSizeType())
-                                });
-
-                            returnIf(builder->CreateOr(
-                                builder->CreateICmpNE(cmpResult, builder->getInt32(0)),
-                                builder->CreateICmpNE(lhsLength, rhsLength)));
-                            break;
-                        }
-
-                        default:
-                            Y_UNREACHABLE();
-                    }
-                });
-        };
-
-        YCHECK(!types.empty());
-
-        for (size_t index = start; index < finish; ++index) {
-            codegenEqualOp(index);
-        }
-
-        builder->CreateRet(builder->getInt8(1));
-    });
-}
-
-Function* CodegenGroupComparerFunction(
-    const std::vector<EValueType>& types,
-    const TCGModulePtr& module)
-{
-    return CodegenGroupComparerFunction(types, module, 0, types.size());
-}
+////////////////////////////////////////////////////////////////////////////////
 
 Value* CodegenFingerprint64(TCGIRBuilderPtr& builder, Value* x)
 {
@@ -268,7 +177,752 @@ Value* CodegenFingerprint128(TCGIRBuilderPtr& builder, Value* x, Value* y)
     return b;
 };
 
-Function* CodegenGroupHasherFunction(
+TValueTypeLabels CodegenHasherBody(
+    TCGBaseContext& builder,
+    Value* labelsArray,
+    Value* values,
+    Value* startIndex,
+    Value* finishIndex)
+{
+    auto codegenHashCombine = [&] (TCGIRBuilderPtr& builder, Value* first, Value* second) -> Value* {
+        //first ^ (second + 0x9e3779b9 + (second << 6) + (second >> 2));
+        return builder->CreateXor(
+            first,
+            builder->CreateAdd(
+                builder->CreateAdd(
+                    builder->CreateAdd(second, builder->getInt64(0x9e3779b9)),
+                    builder->CreateLShr(second, builder->getInt64(2))),
+                builder->CreateShl(second, builder->getInt64(6))));
+    };
+
+
+    auto* entryBB = builder->GetInsertBlock();
+    auto* gotoHashBB = builder->CreateBBHere("gotoHash");
+    builder->CreateBr(gotoHashBB);
+
+    builder->SetInsertPoint(gotoHashBB);
+    PHINode* indexPhi = builder->CreatePHI(builder->getInt64Ty(), 2, "phiIndex");
+    indexPhi->addIncoming(startIndex, entryBB);
+    PHINode* result1Phi = builder->CreatePHI(builder->getInt64Ty(), 2, "result1Phi");
+    result1Phi->addIncoming(builder->getInt64(0), entryBB);
+
+    BasicBlock* gotoNextBB = builder->CreateBBHere("gotoNext");
+    builder->SetInsertPoint(gotoNextBB);
+    PHINode* result2Phi = builder->CreatePHI(builder->getInt64Ty(), 2, "result2Phi");
+
+    Value* combinedResult = codegenHashCombine(builder, result1Phi, result2Phi);
+    result1Phi->addIncoming(combinedResult, gotoNextBB);
+
+    Value* nextIndex = builder->CreateAdd(indexPhi, builder->getInt64(1));
+    indexPhi->addIncoming(nextIndex, gotoNextBB);
+
+    BasicBlock* returnBB = builder->CreateBBHere("return");
+    builder->CreateCondBr(builder->CreateICmpSLT(nextIndex, finishIndex), gotoHashBB, returnBB);
+
+    builder->SetInsertPoint(returnBB);
+    builder->CreateRet(combinedResult);
+
+    // indexPhi, cmpResultPhi, returnBB, gotoNextBB
+
+    BasicBlock* hashScalarBB = nullptr;
+    {
+        hashScalarBB = builder->CreateBBHere("hashNull");
+        builder->SetInsertPoint(hashScalarBB);
+
+        auto value = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                values,
+                indexPhi),
+            EValueType::Int64);
+
+        result2Phi->addIncoming(builder->getInt64(0), builder->GetInsertBlock());
+        BasicBlock* hashDataBB = builder->CreateBBHere("hashData");
+        builder->CreateCondBr(value.IsNull(builder), gotoNextBB, hashDataBB);
+
+        builder->SetInsertPoint(hashDataBB);
+        Value* hashResult = CodegenFingerprint64(
+            builder,
+            value.GetData(builder));
+
+        result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
+        builder->CreateBr(gotoNextBB);
+    };
+
+    BasicBlock* cmpStringBB = nullptr;
+    {
+        cmpStringBB = builder->CreateBBHere("hashNull");
+        builder->SetInsertPoint(cmpStringBB);
+
+        auto value = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                values,
+                indexPhi),
+            EValueType::String);
+
+        result2Phi->addIncoming(builder->getInt64(0), builder->GetInsertBlock());
+        BasicBlock* hashDataBB = builder->CreateBBHere("hashData");
+        builder->CreateCondBr(value.IsNull(builder), gotoNextBB, hashDataBB);
+
+        builder->SetInsertPoint(hashDataBB);
+        Value* hashResult = builder->CreateCall(
+            builder.Module->GetRoutine("StringHash"),
+            {
+                value.GetData(builder),
+                value.GetLength(builder)
+            });
+
+        result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
+        builder->CreateBr(gotoNextBB);
+    };
+
+    builder->SetInsertPoint(gotoHashBB);
+
+    Value* offset = builder->CreateLoad(builder->CreateGEP(labelsArray, indexPhi));
+    auto* indirectBranch = builder->CreateIndirectBr(offset);
+    indirectBranch->addDestination(hashScalarBB);
+    indirectBranch->addDestination(cmpStringBB);
+
+    return TValueTypeLabels{
+        llvm::BlockAddress::get(hashScalarBB),
+        llvm::BlockAddress::get(hashScalarBB),
+        llvm::BlockAddress::get(hashScalarBB),
+        llvm::BlockAddress::get(hashScalarBB),
+        llvm::BlockAddress::get(cmpStringBB)
+    };
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TValueTypeLabels CodegenEqComparerBody(
+    TCGBaseContext& builder,
+    Value* labelsArray,
+    Value* lhsValues,
+    Value* rhsValues,
+    Value* startIndex,
+    Value* finishIndex)
+{
+    auto* entryBB = builder->GetInsertBlock();
+    auto* gotoCmpBB = builder->CreateBBHere("gotoCmp");
+    builder->CreateBr(gotoCmpBB);
+
+    builder->SetInsertPoint(gotoCmpBB);
+    PHINode* indexPhi = builder->CreatePHI(builder->getInt64Ty(), 2, "phiIndex");
+    indexPhi->addIncoming(startIndex, entryBB);
+
+    BasicBlock* gotoNextBB = builder->CreateBBHere("gotoNext");
+    builder->SetInsertPoint(gotoNextBB);
+    Value* nextIndex = builder->CreateAdd(indexPhi, builder->getInt64(1));
+    indexPhi->addIncoming(nextIndex, gotoNextBB);
+
+    BasicBlock* returnEqBB = builder->CreateBBHere("returnEq");
+    builder->CreateCondBr(builder->CreateICmpSLT(nextIndex, finishIndex), gotoCmpBB, returnEqBB);
+
+    builder->SetInsertPoint(returnEqBB);
+    builder->CreateRet(builder->getInt8(true));
+
+    BasicBlock* returnNotEqBB = builder->CreateBBHere("returnNotEq");
+    builder->SetInsertPoint(returnNotEqBB);
+    builder->CreateRet(builder->getInt8(false));
+
+    // indexPhi, resultPhi, returnBB, gotoNextBB
+
+    auto cmpScalar = [&] (auto cmpEqual, EValueType type, const char* name) {
+        BasicBlock* cmpBB = builder->CreateBBHere(Twine("cmp.").concat(name));
+        builder->SetInsertPoint(cmpBB);
+
+        auto lhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                lhsValues,
+                indexPhi),
+            type);
+
+        auto rhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                rhsValues,
+                indexPhi),
+            type);
+
+        Value* lhsIsNull = lhsValue.IsNull(builder);
+        Value* rhsIsNull = rhsValue.IsNull(builder);
+        Value* lhsData = lhsValue.GetData(builder);
+        Value* rhsData = rhsValue.GetData(builder);
+
+        Value* nullEqual = builder->CreateICmpEQ(lhsIsNull, rhsIsNull);
+        Value* isEqual = builder->CreateAnd(
+            nullEqual,
+            builder->CreateOr(
+                lhsIsNull,
+                cmpEqual(builder, lhsData, rhsData)));
+
+        builder->CreateCondBr(isEqual, gotoNextBB, returnNotEqBB);
+
+        return cmpBB;
+    };
+
+    auto cmpScalarWithCheck = [&] (auto cmpEqual, EValueType type, const char* name) {
+        BasicBlock* cmpBB = builder->CreateBBHere(Twine("cmp.").concat(name));
+        builder->SetInsertPoint(cmpBB);
+
+        auto lhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                lhsValues,
+                indexPhi),
+            type);
+
+        auto rhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                rhsValues,
+                indexPhi),
+            type);
+
+        Value* lhsIsNull = lhsValue.IsNull(builder);
+        Value* rhsIsNull = rhsValue.IsNull(builder);
+
+        BasicBlock* cmpNullBB = builder->CreateBBHere(Twine("cmpNull.").concat(name));
+        BasicBlock* cmpDataBB = builder->CreateBBHere(Twine("cmpData.").concat(name));
+        builder->CreateCondBr(builder->CreateOr(lhsIsNull, rhsIsNull), cmpNullBB, cmpDataBB);
+
+        builder->SetInsertPoint(cmpNullBB);
+        builder->CreateCondBr(builder->CreateAnd(lhsIsNull, rhsIsNull), gotoNextBB, returnNotEqBB);
+
+        builder->SetInsertPoint(cmpDataBB);
+        Value* lhsData = lhsValue.GetData(builder);
+        Value* rhsData = rhsValue.GetData(builder);
+
+        if (type == EValueType::Double) {
+            CheckNaN(builder, lhsData, rhsData);
+        }
+
+        builder->CreateCondBr(cmpEqual(builder, lhsData, rhsData), gotoNextBB, returnNotEqBB);
+
+        return cmpBB;
+    };
+
+    BasicBlock* cmpIntBB = cmpScalar(
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateICmpEQ(lhsData, rhsData);
+        },
+        EValueType::Int64,
+        "int64");
+
+    BasicBlock* cmpUintBB = cmpScalar(
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateICmpEQ(lhsData, rhsData);
+        },
+        EValueType::Uint64,
+        "uint64");
+
+    BasicBlock* cmpDoubleBB = cmpScalarWithCheck(
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateFCmpUEQ(lhsData, rhsData);
+        },
+        EValueType::Double,
+        "double");
+
+    BasicBlock* cmpStringBB = nullptr;
+    {
+        cmpStringBB = builder->CreateBBHere("cmp.string");
+        builder->SetInsertPoint(cmpStringBB);
+
+        auto lhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                lhsValues,
+                indexPhi),
+            EValueType::String);
+
+        auto rhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                rhsValues,
+                indexPhi),
+            EValueType::String);
+
+        Value* lhsIsNull = lhsValue.IsNull(builder);
+        Value* rhsIsNull = rhsValue.IsNull(builder);
+
+        Value* anyNull = builder->CreateOr(lhsIsNull, rhsIsNull);
+
+        BasicBlock* cmpNullBB = builder->CreateBBHere("cmpNull.string");
+        BasicBlock* cmpDataBB = builder->CreateBBHere("cmpData.string");
+        builder->CreateCondBr(anyNull, cmpNullBB, cmpDataBB);
+
+        builder->SetInsertPoint(cmpNullBB);
+        builder->CreateCondBr(builder->CreateICmpEQ(lhsIsNull, rhsIsNull), gotoNextBB, returnNotEqBB);
+
+        builder->SetInsertPoint(cmpDataBB);
+
+        Value* lhsLength = lhsValue.GetLength(builder);
+        Value* rhsLength = rhsValue.GetLength(builder);
+
+        Value* cmpLength = builder->CreateICmpULT(lhsLength, rhsLength);
+
+        Value* minLength = builder->CreateSelect(
+            cmpLength,
+            lhsLength,
+            rhsLength);
+
+        Value* lhsData = lhsValue.GetData(builder);
+        Value* rhsData = rhsValue.GetData(builder);
+
+        Value* cmpResult = builder->CreateCall(
+            builder.Module->GetRoutine("memcmp"),
+            {
+                lhsData,
+                rhsData,
+                builder->CreateZExt(minLength, builder->getSizeType())
+            });
+
+        builder->CreateCondBr(
+            builder->CreateAnd(
+                builder->CreateICmpEQ(cmpResult, builder->getInt32(0)),
+                builder->CreateICmpEQ(lhsLength, rhsLength)),
+            gotoNextBB,
+            returnNotEqBB);
+    }
+
+    builder->SetInsertPoint(gotoCmpBB);
+
+    Value* offset = builder->CreateLoad(builder->CreateGEP(labelsArray, indexPhi));
+    auto* indirectBranch = builder->CreateIndirectBr(offset);
+    indirectBranch->addDestination(cmpIntBB);
+    indirectBranch->addDestination(cmpUintBB);
+    indirectBranch->addDestination(cmpDoubleBB);
+    indirectBranch->addDestination(cmpStringBB);
+
+    return TValueTypeLabels{
+        llvm::BlockAddress::get(cmpIntBB),
+        llvm::BlockAddress::get(cmpIntBB),
+        llvm::BlockAddress::get(cmpUintBB),
+        llvm::BlockAddress::get(cmpDoubleBB),
+        llvm::BlockAddress::get(cmpStringBB)
+    };
+};
+
+TValueTypeLabels CodegenLessComparerBody(
+    TCGBaseContext& builder,
+    Value* labelsArray,
+    Value* isDesc,
+    Value* lhsValues,
+    Value* rhsValues,
+    Value* startIndex,
+    Value* finishIndex)
+{
+    auto* entryBB = builder->GetInsertBlock();
+    auto* gotoCmpBB = builder->CreateBBHere("gotoCmp");
+    builder->CreateBr(gotoCmpBB);
+
+    builder->SetInsertPoint(gotoCmpBB);
+    PHINode* indexPhi = builder->CreatePHI(builder->getInt64Ty(), 2, "phiIndex");
+    indexPhi->addIncoming(startIndex, entryBB);
+
+    BasicBlock* gotoNextBB = builder->CreateBBHere("gotoNext");
+    builder->SetInsertPoint(gotoNextBB);
+    Value* nextIndex = builder->CreateAdd(indexPhi, builder->getInt64(1));
+    indexPhi->addIncoming(nextIndex, gotoNextBB);
+
+    BasicBlock* returnEqualBB = builder->CreateBBHere("returnEqual");
+    builder->CreateCondBr(builder->CreateICmpSLT(nextIndex, finishIndex), gotoCmpBB, returnEqualBB);
+    builder->SetInsertPoint(returnEqualBB);
+    builder->CreateRet(builder->getInt8(false));
+
+    BasicBlock* returnBB = builder->CreateBBHere("return");
+    builder->SetInsertPoint(returnBB);
+    PHINode* resultPhi = builder->CreatePHI(builder->getInt1Ty(), 2, "resultPhi");
+
+    Value* notEqualResult = builder->CreateZExt(resultPhi, builder->getInt8Ty());
+    if (isDesc) {
+        notEqualResult = builder->CreateXor(
+            notEqualResult,
+            builder->CreateLoad(builder->CreateGEP(isDesc, indexPhi)));
+    }
+
+    builder->CreateRet(notEqualResult);
+
+    // indexPhi, resultPhi, returnBB, gotoNextBB
+
+    auto cmpScalar = [&] (auto cmpEqual, auto cmpLess, EValueType type, const char* name) {
+        BasicBlock* cmpBB = builder->CreateBBHere(Twine("cmp.").concat(name));
+        builder->SetInsertPoint(cmpBB);
+
+        auto lhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                lhsValues,
+                indexPhi),
+            type);
+
+        auto rhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                rhsValues,
+                indexPhi),
+            type);
+
+        Value* lhsIsNull = lhsValue.IsNull(builder);
+        Value* rhsIsNull = rhsValue.IsNull(builder);
+        Value* lhsData = lhsValue.GetData(builder);
+        Value* rhsData = rhsValue.GetData(builder);
+
+        Value* nullEqual = builder->CreateICmpEQ(lhsIsNull, rhsIsNull);
+        Value* isEqual = builder->CreateAnd(
+            nullEqual,
+            builder->CreateOr(
+                lhsIsNull,
+                cmpEqual(builder, lhsData, rhsData)));
+
+        BasicBlock* cmpFurtherBB = builder->CreateBBHere(Twine("cmpFurther.").concat(name));
+        builder->CreateCondBr(isEqual, gotoNextBB, cmpFurtherBB);
+
+        builder->SetInsertPoint(cmpFurtherBB);
+
+        Value* cmpResult = builder->CreateSelect(
+            nullEqual,
+            cmpLess(builder, lhsData, rhsData),
+            builder->CreateICmpUGT(lhsIsNull, rhsIsNull));
+
+        resultPhi->addIncoming(cmpResult, builder->GetInsertBlock());
+        builder->CreateBr(returnBB);
+
+        return cmpBB;
+    };
+
+    auto cmpScalarWithCheck = [&] (auto cmpEqual, auto cmpLess, EValueType type, const char* name) {
+        BasicBlock* cmpBB = builder->CreateBBHere(Twine("cmp.").concat(name));
+        builder->SetInsertPoint(cmpBB);
+
+        auto lhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                lhsValues,
+                indexPhi),
+            type);
+
+        auto rhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                rhsValues,
+                indexPhi),
+            type);
+
+        Value* lhsIsNull = lhsValue.IsNull(builder);
+        Value* rhsIsNull = rhsValue.IsNull(builder);
+
+        BasicBlock* cmpNullBB = builder->CreateBBHere(Twine("cmpNull.").concat(name));
+        BasicBlock* cmpDataBB = builder->CreateBBHere(Twine("cmpData.").concat(name));
+        builder->CreateCondBr(builder->CreateOr(lhsIsNull, rhsIsNull), cmpNullBB, cmpDataBB);
+
+        builder->SetInsertPoint(cmpNullBB);
+        resultPhi->addIncoming(builder->CreateICmpUGT(lhsIsNull, rhsIsNull), builder->GetInsertBlock());
+        builder->CreateCondBr(builder->CreateAnd(lhsIsNull, rhsIsNull), gotoNextBB, returnBB);
+
+        builder->SetInsertPoint(cmpDataBB);
+        Value* lhsData = lhsValue.GetData(builder);
+        Value* rhsData = rhsValue.GetData(builder);
+
+        if (type == EValueType::Double) {
+            CheckNaN(builder, lhsData, rhsData);
+        }
+
+        resultPhi->addIncoming(cmpLess(builder, lhsData, rhsData), builder->GetInsertBlock());
+        builder->CreateCondBr(cmpEqual(builder, lhsData, rhsData), gotoNextBB, returnBB);
+
+        return cmpBB;
+    };
+
+    BasicBlock* cmpIntBB = cmpScalar(
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateICmpEQ(lhsData, rhsData);
+        },
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateICmpSLT(lhsData, rhsData);
+        },
+        EValueType::Int64,
+        "int64");
+
+    BasicBlock* cmpUintBB = cmpScalar(
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateICmpEQ(lhsData, rhsData);
+        },
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateICmpULT(lhsData, rhsData);
+        },
+        EValueType::Uint64,
+        "uint64");
+
+    BasicBlock* cmpDoubleBB = cmpScalarWithCheck(
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateFCmpUEQ(lhsData, rhsData);
+        },
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateFCmpULT(lhsData, rhsData);
+        },
+        EValueType::Double,
+        "double");
+
+    BasicBlock* cmpStringBB = nullptr;
+    {
+        cmpStringBB = builder->CreateBBHere("cmp.string");
+        builder->SetInsertPoint(cmpStringBB);
+
+        auto lhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                lhsValues,
+                indexPhi),
+            EValueType::String);
+
+        auto rhsValue = TCGValue::CreateFromLlvmValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                rhsValues,
+                indexPhi),
+            EValueType::String);
+
+        Value* lhsIsNull = lhsValue.IsNull(builder);
+        Value* rhsIsNull = rhsValue.IsNull(builder);
+
+        Value* anyNull = builder->CreateOr(lhsIsNull, rhsIsNull);
+
+        BasicBlock* cmpNullBB = builder->CreateBBHere("cmpNull.string");
+        BasicBlock* cmpDataBB = builder->CreateBBHere("cmpData.string");
+        builder->CreateCondBr(anyNull, cmpNullBB, cmpDataBB);
+
+        builder->SetInsertPoint(cmpNullBB);
+        resultPhi->addIncoming(
+            builder->CreateICmpUGT(lhsIsNull, rhsIsNull),
+            builder->GetInsertBlock());
+        builder->CreateBr(returnBB);
+
+        builder->SetInsertPoint(cmpDataBB);
+
+        Value* lhsLength = lhsValue.GetLength(builder);
+        Value* rhsLength = rhsValue.GetLength(builder);
+
+        Value* cmpLength = builder->CreateICmpULT(lhsLength, rhsLength);
+
+        Value* minLength = builder->CreateSelect(
+            cmpLength,
+            lhsLength,
+            rhsLength);
+
+        Value* lhsData = lhsValue.GetData(builder);
+        Value* rhsData = rhsValue.GetData(builder);
+
+        Value* cmpResult = builder->CreateCall(
+            builder.Module->GetRoutine("memcmp"),
+            {
+                lhsData,
+                rhsData,
+                builder->CreateZExt(minLength, builder->getSizeType())
+            });
+
+        BasicBlock* cmpLengthBB = builder->CreateBBHere("cmpLength.string");
+        BasicBlock* retrunContentCmpBB = builder->CreateBBHere("retrunContentCmp.string");
+        builder->CreateCondBr(
+            builder->CreateICmpEQ(cmpResult, builder->getInt32(0)),
+            cmpLengthBB,
+            retrunContentCmpBB);
+
+        builder->SetInsertPoint(retrunContentCmpBB);
+        resultPhi->addIncoming(
+            builder->CreateICmpSLT(cmpResult, builder->getInt32(0)),
+            builder->GetInsertBlock());
+        builder->CreateBr(returnBB);
+
+        builder->SetInsertPoint(cmpLengthBB);
+
+        resultPhi->addIncoming(cmpLength, builder->GetInsertBlock());
+        builder->CreateCondBr(
+            builder->CreateICmpEQ(lhsLength, rhsLength),
+            gotoNextBB,
+            returnBB);
+    }
+
+    builder->SetInsertPoint(gotoCmpBB);
+
+    Value* offset = builder->CreateLoad(builder->CreateGEP(labelsArray, indexPhi));
+    auto* indirectBranch = builder->CreateIndirectBr(offset);
+    indirectBranch->addDestination(cmpIntBB);
+    indirectBranch->addDestination(cmpUintBB);
+    indirectBranch->addDestination(cmpDoubleBB);
+    indirectBranch->addDestination(cmpStringBB);
+
+    return TValueTypeLabels{
+        llvm::BlockAddress::get(cmpIntBB),
+        llvm::BlockAddress::get(cmpIntBB),
+        llvm::BlockAddress::get(cmpUintBB),
+        llvm::BlockAddress::get(cmpDoubleBB),
+        llvm::BlockAddress::get(cmpStringBB)
+    };
+};
+
+struct TComparerManager
+    : public TRefCounted
+{
+    Function* Hasher;
+    TValueTypeLabels HashLables;
+
+    Function* EqComparer;
+    TValueTypeLabels EqLables;
+
+    Function* LessComparer;
+    TValueTypeLabels LessLables;
+
+    Function* GetHasher(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module,
+        size_t start,
+        size_t finish);
+
+    Function* GetHasher(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module);
+
+    Function* GetEqComparer(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module,
+        size_t start,
+        size_t finish);
+
+    Function* GetEqComparer(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module);
+
+    Function* GetLessComparer(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module,
+        size_t start,
+        size_t finish);
+
+    Function* GetLessComparer(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module);
+};
+
+DEFINE_REFCOUNTED_TYPE(TComparerManager);
+
+TComparerManagerPtr MakeComparerManager()
+{
+    return New<TComparerManager>();
+}
+
+llvm::GlobalVariable* GetLabelsArray(
+    TCGBaseContext& builder,
+    const std::vector<EValueType>& types,
+    const TValueTypeLabels& valueTypeLabels)
+{
+    std::vector<Constant*> labels;
+    for (auto type : types) {
+        switch (type) {
+            case EValueType::Boolean:
+                labels.push_back(valueTypeLabels.OnBoolean);
+                break;
+
+            case EValueType::Int64:
+                labels.push_back(valueTypeLabels.OnInt);
+                break;
+
+            case EValueType::Uint64:
+                labels.push_back(valueTypeLabels.OnUint);
+                break;
+
+            case EValueType::Double:
+                labels.push_back(valueTypeLabels.OnDouble);
+                break;
+
+            case EValueType::String: {
+                labels.push_back(valueTypeLabels.OnString);
+                break;
+            }
+
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    llvm::ArrayType* labelArrayType = llvm::ArrayType::get(
+        TypeBuilder<char*, false>::get(builder->getContext()),
+        types.size());
+
+    return new llvm::GlobalVariable(
+        *builder.Module->GetModule(),
+        labelArrayType,
+        true,
+        llvm::GlobalVariable::ExternalLinkage,
+        llvm::ConstantArray::get(
+            labelArrayType,
+            labels));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Function* TComparerManager::GetHasher(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module,
+        size_t start,
+        size_t finish)
+{
+    if (!Hasher) {
+        Hasher = MakeFunction<ui64(char**, TRow, size_t, size_t)>(module, "HasherImpl", [&] (
+            TCGBaseContext& builder,
+            Value* labelsArray,
+            Value* row,
+            Value* startIndex,
+            Value* finishIndex
+        ) {
+            Value* values = CodegenValuesPtrFromRow(builder, row);
+
+            HashLables = CodegenHasherBody(
+                builder,
+                labelsArray,
+                values,
+                startIndex,
+                finishIndex);
+        });
+    }
+
+    return MakeFunction<THasherFunction>(module, "Hasher", [&] (
+        TCGBaseContext& builder,
+        Value* row
+    ) {
+        Value* result;
+        if (start == finish) {
+            result = builder->getInt64(0);
+        } else {
+            result = builder->CreateCall(
+                Hasher,
+                {
+                    builder->CreatePointerCast(
+                        GetLabelsArray(builder, types, HashLables),
+                        TypeBuilder<char**, false>::get(builder->getContext())),
+                    row,
+                    builder->getInt64(start),
+                    builder->getInt64(finish)
+                });
+        }
+
+        builder->CreateRet(result);
+    });
+}
+
+Function* TComparerManager::GetHasher(
+    const std::vector<EValueType>& types,
+    const TCGModulePtr& module)
+{
+    return GetHasher(types, module, 0, types.size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Function* TComparerManager::GetEqComparer(
     const std::vector<EValueType>& types,
     const TCGModulePtr& module,
     size_t start,
@@ -276,251 +930,198 @@ Function* CodegenGroupHasherFunction(
 {
     YCHECK(finish <= types.size());
 
-    return MakeFunction<THasherFunction>(module, "GroupHasher", [&] (
-        TCGBaseContext& builder,
-        Value* row
-    ) {
-        Value* values = CodegenValuesPtrFromRow(builder, row);
-        auto codegenHashOp = [&] (size_t index, TCGIRBuilderPtr& builder) -> Value* {
-            auto value = TCGValue::CreateFromRowValues(
+    if (!EqComparer) {
+        EqComparer = MakeFunction<char(char**, TRow, TRow, size_t, size_t)>(module, "EqComparerImpl", [&] (
+            TCGBaseContext& builder,
+            Value* labelsArray,
+            Value* lhsRow,
+            Value* rhsRow,
+            Value* startIndex,
+            Value* finishIndex
+        ) {
+            Value* lhsValues = CodegenValuesPtrFromRow(builder, lhsRow);
+            Value* rhsValues = CodegenValuesPtrFromRow(builder, rhsRow);
+
+            EqLables = CodegenEqComparerBody(
                 builder,
-                values,
-                index,
-                types[index]);
+                labelsArray,
+                lhsValues,
+                rhsValues,
+                startIndex,
+                finishIndex);
+        });
+    }
 
-            auto* conditionBB = builder->CreateBBHere("condition");
-            auto* thenBB = builder->CreateBBHere("then");
-            auto* elseBB = builder->CreateBBHere("else");
-            auto* endBB = builder->CreateBBHere("end");
-
-            builder->CreateBr(conditionBB);
-
-            builder->SetInsertPoint(conditionBB);
-            builder->CreateCondBr(value.IsNull(builder), elseBB, thenBB);
-            conditionBB = builder->GetInsertBlock();
-
-            builder->SetInsertPoint(thenBB);
-
-            Value* thenResult;
-
-            auto intType = TDataTypeBuilder::TInt64::get(builder->getContext());
-
-            switch (value.GetStaticType()) {
-                case EValueType::Boolean:
-                case EValueType::Int64:
-                case EValueType::Uint64:
-                case EValueType::Double:
-                    thenResult = CodegenFingerprint64(
-                        builder,
-                        builder->CreateZExtOrBitCast(value.GetData(builder), intType));
-                    break;
-
-                case EValueType::String:
-                    thenResult = builder->CreateCall(
-                        module->GetRoutine("StringHash"),
-                        {
-                            value.GetData(builder),
-                            value.GetLength(builder)
-                        });
-                    break;
-
-                default:
-                    Y_UNIMPLEMENTED();
-            }
-
-            builder->CreateBr(endBB);
-            thenBB = builder->GetInsertBlock();
-
-            builder->SetInsertPoint(elseBB);
-            auto* elseResult = builder->getInt64(0);
-            builder->CreateBr(endBB);
-            elseBB = builder->GetInsertBlock();
-
-            builder->SetInsertPoint(endBB);
-
-            PHINode* result = builder->CreatePHI(thenResult->getType(), 2);
-            result->addIncoming(thenResult, thenBB);
-            result->addIncoming(elseResult, elseBB);
-
-            return result;
-        };
-
-        auto codegenHashCombine = [&] (TCGIRBuilderPtr& builder, Value* first, Value* second) -> Value* {
-            //first ^ (second + 0x9e3779b9 + (second << 6) + (second >> 2));
-            return builder->CreateXor(
-                first,
-                builder->CreateAdd(
-                    builder->CreateAdd(
-                        builder->CreateAdd(second, builder->getInt64(0x9e3779b9)),
-                        builder->CreateLShr(second, builder->getInt64(2))),
-                    builder->CreateShl(second, builder->getInt64(6))));
-        };
-
-        YCHECK(!types.empty());
-        Value* result = builder->getInt64(0);
-        for (size_t index = start; index < finish; ++index) {
-            result = codegenHashCombine(builder, result, codegenHashOp(index, builder));
+    return MakeFunction<char(TRow, TRow)>(module, "EqComparer", [&] (
+        TCGBaseContext& builder,
+        Value* lhsRow,
+        Value* rhsRow
+    ) {
+        Value* result;
+        if (start == finish) {
+            result = builder->getInt8(1);
+        } else {
+            result = builder->CreateCall(
+                EqComparer,
+                {
+                    builder->CreatePointerCast(
+                        GetLabelsArray(builder, types, EqLables),
+                        TypeBuilder<char**, false>::get(builder->getContext())),
+                    lhsRow,
+                    rhsRow,
+                    builder->getInt64(start),
+                    builder->getInt64(finish)
+                });
         }
+
         builder->CreateRet(result);
     });
 }
 
-Function* CodegenGroupHasherFunction(
+Function* TComparerManager::GetEqComparer(
     const std::vector<EValueType>& types,
     const TCGModulePtr& module)
 {
-    return CodegenGroupHasherFunction(types, module, 0, types.size());
+    return GetEqComparer(types, module, 0, types.size());
 }
 
-Function* CodegenTupleComparerFunction(
-    const std::vector<std::function<TCGValue(TCGIRBuilderPtr& builder, Value* values)>>& codegenArgs,
+////////////////////////////////////////////////////////////////////////////////
+
+Function* TComparerManager::GetLessComparer(
+    const std::vector<EValueType>& types,
     const TCGModulePtr& module,
-    const std::vector<bool>& isDesc = std::vector<bool>())
+    size_t start,
+    size_t finish)
 {
-    return MakeFunction<TComparerFunction>(module, "RowComparer", [&] (
+    YCHECK(finish <= types.size());
+
+    if (!LessComparer) {
+        LessComparer = MakeFunction<char(char**, TRow, TRow, size_t, size_t)>(module, "LessComparerImpl", [&] (
+            TCGBaseContext& builder,
+            Value* labelsArray,
+            Value* lhsRow,
+            Value* rhsRow,
+            Value* startIndex,
+            Value* finishIndex
+        ) {
+            Value* lhsValues = CodegenValuesPtrFromRow(builder, lhsRow);
+            Value* rhsValues = CodegenValuesPtrFromRow(builder, rhsRow);
+
+            LessLables = CodegenLessComparerBody(
+                builder,
+                labelsArray,
+                nullptr,
+                lhsValues,
+                rhsValues,
+                startIndex,
+                finishIndex);
+        });
+    }
+
+    return MakeFunction<char(TRow, TRow)>(module, "LessComparer", [&] (
         TCGBaseContext& builder,
+        Value* lhsRow,
+        Value* rhsRow
+    ) {
+        Value* result;
+        if (start == finish) {
+            result = builder->getInt8(0);
+        } else {
+            result = builder->CreateCall(
+                LessComparer,
+                {
+                    builder->CreatePointerCast(
+                        GetLabelsArray(builder, types, LessLables),
+                        TypeBuilder<char**, false>::get(builder->getContext())),
+                    lhsRow,
+                    rhsRow,
+                    builder->getInt64(start),
+                    builder->getInt64(finish)
+                });
+        }
+
+        builder->CreateRet(result);
+    });
+}
+
+Function* TComparerManager::GetLessComparer(
+    const std::vector<EValueType>& types,
+    const TCGModulePtr& module)
+{
+    return GetLessComparer(types, module, 0, types.size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Function* CodegenOrderByComparerFunction(
+    const std::vector<EValueType>& types,
+    const TCGModulePtr& module,
+    size_t offset,
+    const std::vector<bool>& isDesc)
+{
+    TValueTypeLabels lables;
+
+    Function* comparer = MakeFunction<char(char**, char*, TRow, TRow)>(module, "OrderByComparerImpl", [&] (
+        TCGBaseContext& builder,
+        Value* labelsArray,
+        Value* isDesc,
         Value* lhsRow,
         Value* rhsRow
     ) {
         Value* lhsValues = CodegenValuesPtrFromRow(builder, lhsRow);
         Value* rhsValues = CodegenValuesPtrFromRow(builder, rhsRow);
 
-        auto returnIf = [&] (Value* condition, auto codegenInner) {
-            auto* thenBB = builder->CreateBBHere("then");
-            auto* elseBB = builder->CreateBBHere("else");
-            builder->CreateCondBr(condition, thenBB, elseBB);
-            builder->SetInsertPoint(thenBB);
-            builder->CreateRet(builder->CreateSelect(codegenInner(builder), builder->getInt8(1), builder->getInt8(0)));
-            builder->SetInsertPoint(elseBB);
-        };
+        lhsValues = builder->CreateGEP(lhsValues, builder->getInt64(offset));
+        rhsValues = builder->CreateGEP(rhsValues, builder->getInt64(offset));
 
-        auto codegenEqualOrLessOp = [&] (int index) {
-            const auto& codegenArg = codegenArgs[index];
-            auto lhsValue = codegenArg(builder, lhsValues);
-            auto rhsValue = codegenArg(builder, rhsValues);
+        lables = CodegenLessComparerBody(
+            builder,
+            labelsArray,
+            isDesc,
+            lhsValues,
+            rhsValues,
+            builder->getInt64(0),
+            builder->getInt64(types.size()));
+    });
 
-            if (index < isDesc.size() && isDesc[index]) {
-                std::swap(lhsValue, rhsValue);
-            }
-
-            auto type = lhsValue.GetStaticType();
-
-            YCHECK(type == rhsValue.GetStaticType());
-
-            CodegenIf<TCGIRBuilderPtr>(
-                builder,
-                builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
-                [&] (TCGIRBuilderPtr& builder) {
-                    returnIf(
-                        builder->CreateICmpNE(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
-                        [&] (TCGIRBuilderPtr& builder) {
-                            return builder->CreateICmpUGT(lhsValue.IsNull(builder), rhsValue.IsNull(builder));
-                        });
-                },
-                [&] (TCGIRBuilderPtr& builder) {
-                    auto* lhsData = lhsValue.GetData(builder);
-                    auto* rhsData = rhsValue.GetData(builder);
-
-                    switch (type) {
-                        case EValueType::Boolean:
-                        case EValueType::Int64:
-                            returnIf(
-                                builder->CreateICmpNE(lhsData, rhsData),
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return builder->CreateICmpSLT(lhsData, rhsData);
-                                });
-                            break;
-
-                        case EValueType::Uint64:
-                            returnIf(
-                                builder->CreateICmpNE(lhsData, rhsData),
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return builder->CreateICmpULT(lhsData, rhsData);
-                                });
-                            break;
-
-                        case EValueType::Double:
-                            CheckNaN(module, builder, lhsData, rhsData);
-
-                            returnIf(
-                                builder->CreateFCmpUNE(lhsData, rhsData),
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return builder->CreateFCmpULT(lhsData, rhsData);
-                                });
-                            break;
-
-                        case EValueType::String: {
-                            Value* lhsLength = lhsValue.GetLength(builder);
-                            Value* rhsLength = rhsValue.GetLength(builder);
-
-                            Value* minLength = builder->CreateSelect(
-                                builder->CreateICmpULT(lhsLength, rhsLength),
-                                lhsLength,
-                                rhsLength);
-
-                            Value* cmpResult = builder->CreateCall(
-                                module->GetRoutine("memcmp"),
-                                {
-                                    lhsData,
-                                    rhsData,
-                                    builder->CreateZExt(minLength, builder->getSizeType())
-                                });
-
-                            returnIf(
-                                builder->CreateICmpNE(cmpResult, builder->getInt32(0)),
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return builder->CreateICmpSLT(cmpResult, builder->getInt32(0));
-                                });
-
-                            returnIf(
-                                builder->CreateICmpNE(lhsLength, rhsLength),
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return builder->CreateICmpULT(lhsLength, rhsLength);
-                                });
-
-                            break;
-                        }
-
-                        case EValueType::Null:
-                            break;
-
-                        default:
-                            Y_UNREACHABLE();
-                    }
-                });
-        };
-
-        for (int index = 0; index < codegenArgs.size(); ++index) {
-            codegenEqualOrLessOp(index);
+    return MakeFunction<char(TRow, TRow)>(module, "OrderByComparer", [&] (
+        TCGBaseContext& builder,
+        Value* lhsRow,
+        Value* rhsRow
+    ) {
+        std::vector<Constant*> isDescFlags;
+        for (size_t index = 0; index < types.size(); ++index) {
+            isDescFlags.push_back(builder->getInt8(index < isDesc.size() && isDesc[index]));
         }
 
-        builder->CreateRet(builder->getInt8(0));
+        llvm::ArrayType* isDescArrayType = llvm::ArrayType::get(
+            TypeBuilder<char, false>::get(builder->getContext()),
+            types.size());
+
+        llvm::GlobalVariable* isDescArray =
+            new llvm::GlobalVariable(
+                *builder.Module->GetModule(),
+                isDescArrayType,
+                true,
+                llvm::GlobalVariable::ExternalLinkage,
+                llvm::ConstantArray::get(
+                    isDescArrayType,
+                    isDescFlags));
+
+        builder->CreateRet(
+            builder->CreateCall(
+                comparer,
+                {
+                    builder->CreatePointerCast(
+                        GetLabelsArray(builder, types, lables),
+                        TypeBuilder<char**, false>::get(builder->getContext())),
+                    builder->CreatePointerCast(
+                        isDescArray,
+                        TypeBuilder<char*, false>::get(builder->getContext())),
+                    lhsRow,
+                    rhsRow
+                }));
     });
-}
-
-Function* CodegenRowComparerFunction(
-    const std::vector<EValueType>& types,
-    const TCGModulePtr& module,
-    size_t start,
-    size_t finish)
-{
-    YCHECK(finish <= types.size());
-
-    std::vector<std::function<TCGValue(TCGIRBuilderPtr& builder, Value* row)>> compareArgs;
-    for (int index = start; index < finish; ++index) {
-        compareArgs.push_back([index, type = types[index]] (TCGIRBuilderPtr& builder, Value* values) {
-            return TCGValue::CreateFromRowValues(builder, values, index, type);
-        });
-    }
-
-    return CodegenTupleComparerFunction(compareArgs, module);
-}
-
-Function* CodegenRowComparerFunction(
-    const std::vector<EValueType>& types,
-    const TCGModulePtr& module)
-{
-    return CodegenRowComparerFunction(types, module, 0, types.size());
 }
 
 Value* CodegenLexicographicalCompare(
@@ -592,11 +1193,6 @@ TCodegenExpression MakeCodegenReferenceExpr(
                 type,
                 "reference." + Twine(name.c_str()));
         };
-}
-
-llvm::StringRef ToStringRef(const TString& stroka)
-{
-    return llvm::StringRef(stroka.c_str(), stroka.length());
 }
 
 TCGValue CodegenFragment(
@@ -1209,11 +1805,13 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
 TCodegenExpression MakeCodegenInOpExpr(
     std::vector<size_t> argIds,
-    int arrayIndex)
+    int arrayIndex,
+    TComparerManagerPtr comparerManager)
 {
     return [
         MOVE(argIds),
-        MOVE(arrayIndex)
+        MOVE(arrayIndex),
+        MOVE(comparerManager)
     ] (TCGExprContext& builder) {
         size_t keySize = argIds.size();
 
@@ -1230,7 +1828,7 @@ TCodegenExpression MakeCodegenInOpExpr(
         Value* result = builder->CreateCall(
             builder.Module->GetRoutine("IsRowInArray"),
             {
-                CodegenRowComparerFunction(keyTypes, builder.Module),
+                comparerManager->GetLessComparer(keyTypes, builder.Module),
                 newRow,
                 builder.GetOpaqueValue(arrayIndex)
             });
@@ -1364,7 +1962,8 @@ size_t MakeCodegenJoinOp(
     int index,
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<std::pair<size_t, bool>> equations,
-    size_t commonKeyPrefix)
+    size_t commonKeyPrefix,
+    TComparerManagerPtr comparerManager)
 {
     size_t consumerSlot = (*slotCount)++;
     *codegenSource = [
@@ -1374,6 +1973,7 @@ size_t MakeCodegenJoinOp(
         MOVE(fragmentInfos),
         MOVE(equations),
         commonKeyPrefix,
+        MOVE(comparerManager),
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         int lookupKeySize = equations.size();
@@ -1474,13 +2074,13 @@ size_t MakeCodegenJoinOp(
                 builder.GetExecutionContext(),
                 builder.GetOpaqueValue(index),
 
-                CodegenGroupHasherFunction(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
-                CodegenGroupComparerFunction(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
-                CodegenRowComparerFunction(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+                comparerManager->GetHasher(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+                comparerManager->GetEqComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+                comparerManager->GetLessComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
 
-                CodegenGroupComparerFunction(lookupKeyTypes, module, 0, commonKeyPrefix),
-                CodegenGroupComparerFunction(lookupKeyTypes, module),
-                CodegenRowComparerFunction(lookupKeyTypes, module),
+                comparerManager->GetEqComparer(lookupKeyTypes, module, 0, commonKeyPrefix),
+                comparerManager->GetEqComparer(lookupKeyTypes, module),
+                comparerManager->GetLessComparer(lookupKeyTypes, module),
 
                 builder->getInt32(lookupKeySize),
 
@@ -1571,7 +2171,7 @@ size_t MakeCodegenAddStreamOp(
 
             TCGValue::CreateFromValue(
                 builder,
-                builder->getInt1(false),
+                builder->getFalse(),
                 nullptr,
                 builder->getInt64(static_cast<ui64>(value)),
                 EValueType::Uint64,
@@ -1814,7 +2414,8 @@ size_t MakeCodegenGroupOp(
     std::vector<EValueType> keyTypes,
     bool isMerge,
     int groupRowSize,
-    bool checkNulls)
+    bool checkNulls,
+    TComparerManagerPtr comparerManager)
 {
     // codegenInitialize calls the aggregates' initialisation functions
     // codegenEvaluateGroups evaluates the group expressions
@@ -1834,7 +2435,8 @@ size_t MakeCodegenGroupOp(
         MOVE(keyTypes),
         isMerge,
         groupRowSize,
-        checkNulls
+        checkNulls,
+        MOVE(comparerManager)
     ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TGroupByClosure*, TRowBuffer*)>(builder, "CollectGroups", [&] (
             TCGOperatorContext& builder,
@@ -1933,8 +2535,8 @@ size_t MakeCodegenGroupOp(
             builder.Module->GetRoutine("GroupOpHelper"),
             {
                 builder.GetExecutionContext(),
-                CodegenGroupHasherFunction(keyTypes, builder.Module),
-                CodegenGroupComparerFunction(keyTypes, builder.Module),
+                comparerManager->GetHasher(keyTypes, builder.Module),
+                comparerManager->GetEqComparer(keyTypes, builder.Module),
                 builder->getInt32(keyTypes.size()),
                 builder->getInt8(checkNulls),
 
@@ -2060,25 +2662,17 @@ size_t MakeCodegenOrderOp(
             builder->CreateRetVoid();
         });
 
-        std::vector<std::function<TCGValue(TCGIRBuilderPtr& builder, Value* row)>> compareArgs;
-        for (int index = 0; index < exprIds.size(); ++index) {
-            auto columnIndex = schemaSize + index;
-            auto type = orderColumnTypes[index];
-
-            compareArgs.push_back([columnIndex, type] (TCGIRBuilderPtr& builder, Value* values) {
-                return TCGValue::CreateFromRowValues(
-                    builder,
-                    values,
-                    columnIndex,
-                    type);
-            });
-        }
+        auto comparator = CodegenOrderByComparerFunction(
+            orderColumnTypes,
+            builder.Module,
+            schemaSize,
+            isDesc);
 
         builder->CreateCall(
             builder.Module->GetRoutine("OrderOpHelper"),
             {
                 builder.GetExecutionContext(),
-                CodegenTupleComparerFunction(compareArgs, builder.Module, isDesc),
+                comparator,
 
                 collectRows.ClosurePtr,
                 collectRows.Function,

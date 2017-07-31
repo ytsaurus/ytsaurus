@@ -306,6 +306,7 @@ public:
         : TSchemaProfiler(id)
         , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
+        , ComparerManager_(MakeComparerManager())
     {
         YCHECK(variables);
     }
@@ -314,8 +315,8 @@ public:
 
 protected:
     TCGVariables* Variables_;
-
     TConstFunctionProfilerMapPtr FunctionProfilers_;
+    TComparerManagerPtr ComparerManager_;
 };
 
 size_t TExpressionProfiler::Profile(
@@ -469,7 +470,7 @@ size_t TExpressionProfiler::Profile(
             int index = Variables_->AddOpaque<TSharedRange<TRow>>(inOp->Values);
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
-                MakeCodegenInOpExpr(argIds, index),
+                MakeCodegenInOpExpr(argIds, index, ComparerManager_),
                 expr->Type);
         }
         return emplaced.first->second;
@@ -609,7 +610,8 @@ void TQueryProfiler::Profile(
             keyTypes,
             isMerge,
             keySize + codegenAggregates.size(),
-            groupClause->TotalsMode != ETotalsMode::None);
+            groupClause->TotalsMode != ETotalsMode::None,
+            ComparerManager_);
 
         Fold(static_cast<int>(EFoldingObjectType::TotalsMode));
         Fold(static_cast<int>(groupClause->TotalsMode));
@@ -695,7 +697,8 @@ void TQueryProfiler::Profile(
                 keyTypes,
                 true,
                 keySize + codegenAggregates.size(),
-                false);
+                false,
+                ComparerManager_);
 
             if (isFinal) {
                 totalsSlot = MakeCodegenFinalizeOp(
@@ -905,7 +908,9 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
             index,
             fragmentInfos,
             selfKeys,
-            joinClause->CommonKeyPrefix);
+            joinClause->CommonKeyPrefix,
+            ComparerManager_);
+
         MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
 
         schema = joinClause->GetTableSchema(schema);

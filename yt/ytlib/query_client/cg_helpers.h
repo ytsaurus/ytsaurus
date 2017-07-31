@@ -210,7 +210,7 @@ public:
     {
         return CreateFromValue(
             builder,
-            builder->getInt1(true),
+            builder->getTrue(),
             llvm::UndefValue::get(TTypeBuilder::TLength::get(builder->getContext())),
             llvm::UndefValue::get(TDataTypeBuilder::get(builder->getContext(), staticType)),
             staticType,
@@ -772,8 +772,14 @@ struct TFunctionDefiner<TResult(TArgs...)>
     template <class TBody>
     static Function* Do(const TCGModulePtr& module, TBody&& body, llvm::Twine name)
     {
+        auto& llvmContext = module->GetModule()->getContext();
         Function* function =  Function::Create(
-            TypeBuilder<TResult(TArgs...), false>::get(module->GetModule()->getContext()),
+            FunctionType::get(
+                TypeBuilder<TResult, false>::get(llvmContext),
+                {
+                    TypeBuilder<TArgs, false>::get(llvmContext)...
+                },
+                false),
             Function::ExternalLinkage,
             name,
             module->GetModule());
