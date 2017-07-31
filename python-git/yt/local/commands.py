@@ -184,7 +184,7 @@ def _initialize_world(client, environment, wait_tablet_cell_initialization,
             client.set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
         tablet_cell_attributes.clear()
 
-    tablet_cells = yt.get("//sys/tablet_cells")
+    tablet_cells = client.get("//sys/tablet_cells")
     if not tablet_cells:
         tablet_cell_id = client.create("tablet_cell", attributes=tablet_cell_attributes)
     else:
