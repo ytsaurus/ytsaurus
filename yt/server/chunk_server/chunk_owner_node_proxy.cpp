@@ -243,20 +243,6 @@ private:
             return false;
         }
 
-        i64 lowerRowLimit = 0;
-        if (lowerLimit.HasRowIndex()) {
-            lowerRowLimit = lowerLimit.GetRowIndex();
-        }
-        i64 upperRowLimit = chunk->MiscExt().row_count();
-        if (upperLimit.HasRowIndex()) {
-            upperRowLimit = upperLimit.GetRowIndex();
-        }
-
-        if (lowerRowLimit >= upperRowLimit) {
-            // We avoid returning empty range.
-            return true;
-        }
-
         auto* chunkSpec = Context_->Response().add_chunks();
 
         chunkSpec->set_table_row_index(rowIndex);
@@ -339,6 +325,15 @@ private:
         }
 
         chunkSpec->set_range_index(CurrentRangeIndex_);
+
+        i64 lowerRowLimit = 0;
+        if (lowerLimit.HasRowIndex()) {
+            lowerRowLimit = lowerLimit.GetRowIndex();
+        }
+        i64 upperRowLimit = chunk->MiscExt().row_count();
+        if (upperLimit.HasRowIndex()) {
+            upperRowLimit = upperLimit.GetRowIndex();
+        }
 
         // If one of row indexes is present, then fields row_count_override and
         // uncompressed_data_size_override estimate the chunk range
