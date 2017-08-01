@@ -19,7 +19,7 @@ def create(type_, name, client):
             raise
 
 def is_member_of(subject, group, client):
-    members = client.get("//sys/groups/{}/@members".format(group))
+    members = client.get("//sys/groups/{0}/@members".format(group))
     return subject in members
 
 def add_member(subject, group, client):
@@ -27,7 +27,7 @@ def add_member(subject, group, client):
         client.add_member(subject, group)
     except:
         if is_member_of(subject, group, client):
-            logger.warning("'{}' is already present in group '{}'".format(subject, group))
+            logger.warning("'{0}' is already present in group '{1}'".format(subject, group))
             return True
         else:
             raise

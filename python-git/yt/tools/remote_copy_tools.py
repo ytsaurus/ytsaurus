@@ -77,9 +77,9 @@ def _force_parent_dir(path, client):
     client.create("map_node", path, recursive=True, ignore_existing=True)
 
 def _check_output(command, silent=False, **kwargs):
-    logger.info("Executing command '{}'".format(command))
+    logger.info("Executing command '{0}'".format(command))
     result = subprocess.check_output(command, preexec_fn=set_pdeathsig, **kwargs)
-    logger.info("Command '{}' successfully executed".format(command))
+    logger.info("Command '{0}' successfully executed".format(command))
     return result
 
 def _which(file):

@@ -17,7 +17,7 @@ import time
 import logging
 from itertools import takewhile, chain
 from random import shuffle
-from collections import Counter
+from collections import defaultdict
 
 from functools import partial
 
@@ -139,7 +139,10 @@ def _wait_for_predicate(predicate, message, timeout, pause):
 def _make_tablets_state_checker(client, table, possible_states):
     def state_checker():
         states = [tablet["state"] for tablet in client.get_attribute(table, "tablets", default=[])]
-        logging.info("Table %s tablets: %s", table, dict(Counter(states)))
+        tablets = defaultdict(int)
+        for state in states:
+            tablets[state] += 1
+        logging.info("Table %s tablets: %s", table, tablets)
         return all(state in possible_states for state in states)
     return state_checker
 
@@ -190,8 +193,8 @@ def get_pivot_keys_new(client, tablet):
     pivot_keys = [tablet["pivot_key"]]
     tablet_id = tablet["tablet_id"]
     cell_id = tablet["cell_id"]
-    node = client.get("#{}/@peers/0/address".format(cell_id))
-    partitions_path = "//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}/partitions".format(
+    node = client.get("#{0}/@peers/0/address".format(cell_id))
+    partitions_path = "//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/partitions".format(
         node, cell_id, tablet_id)
     partitions = client.get(partitions_path)
     for partition in partitions:
@@ -302,7 +305,7 @@ class DynamicTablesClient(object):
             tablet_idx = 0
             for tablet in tablets:
                 tablet_idx += 1
-                logging.info("Tablet {} of {}".format(tablet_idx, len(tablets)))
+                logging.info("Tablet {0} of {1}".format(tablet_idx, len(tablets)))
                 partition_keys.extend(get_pivot_keys_new(self.yt, tablet))
         else:
             logging.info("Via map")
@@ -312,24 +315,25 @@ class DynamicTablesClient(object):
                 # XXXX: pool?
                 "resource_limits": {"user_slots": 50},
                 "mapper": {"environment": self.environment}}
-            with self.yt.TempTable() as tablets_table, self.yt.TempTable() as partitions_table:
-                self.yt.write_table(tablets_table, tablets, self.yson_format, raw=False)
+            with self.yt.TempTable() as tablets_table:
+                with self.yt.TempTable() as partitions_table:
+                    self.yt.write_table(tablets_table, tablets, self.yson_format, raw=False)
 
-                client_config = self.default_client_config
-                def collect_pivot_keys_mapper(tablet):
-                    for pivot_key in get_pivot_keys_new(yt_module.YtClient(config=client_config), tablet):
-                        yield {"pivot_key": pivot_key}
+                    client_config = self.default_client_config
+                    def collect_pivot_keys_mapper(tablet):
+                        for pivot_key in get_pivot_keys_new(yt_module.YtClient(config=client_config), tablet):
+                            yield {"pivot_key": pivot_key}
 
-                self.yt.run_map(
-                    collect_pivot_keys_mapper,
-                    tablets_table,
-                    partitions_table,
-                    spec=job_spec,
-                    format=self.yson_format)
-                self.yt.run_merge(partitions_table, partitions_table)
-                partition_keys = self.yt.read_table(
-                    partitions_table, format=self.yson_format, raw=False)
-                partition_keys = [part["pivot_key"] for part in partition_keys]
+                    self.yt.run_map(
+                        collect_pivot_keys_mapper,
+                        tablets_table,
+                        partitions_table,
+                        spec=job_spec,
+                        format=self.yson_format)
+                    self.yt.run_merge(partitions_table, partitions_table)
+                    partition_keys = self.yt.read_table(
+                        partitions_table, format=self.yson_format, raw=False)
+                    partition_keys = [part["pivot_key"] for part in partition_keys]
 
         partition_keys = [
             # NOTE: using `!= None` because there's some YsonEntity
