@@ -89,16 +89,16 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 get_counter("write/" + count_name),
                 get_counter("commit/" + count_name))
 
-        assert get_all_counters("rows") == (0, 10, 10)
-        assert get_all_counters("bytes") == (0, 246, 246)
+        assert get_all_counters("row_count") == (0, 10, 10)
+        assert get_all_counters("data_weight") == (0, 246, 246)
         assert get_counter("select/cpu_time") == 0
 
         select_rows("* from [//tmp/t]")
 
         sleep(1)
 
-        assert get_all_counters("rows") == (20, 10, 10)
-        assert get_all_counters("bytes") == (892, 246, 246)
+        assert get_all_counters("row_count") == (20, 10, 10)
+        assert get_all_counters("data_weight") == (892, 246, 246)
         assert get_counter("select/cpu_time") > 0
 
     def test_insert(self):
