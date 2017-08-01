@@ -38,7 +38,7 @@ public:
     virtual bool IsReplied() const override;
 
     virtual void Reply(const TError& error) override;
-    virtual void Reply(TSharedRefArray responseMessage) override;
+    virtual void Reply(const TSharedRefArray& responseMessage) override;
     using IServiceContext::Reply;
 
     virtual void SetComplete() override;
@@ -160,7 +160,7 @@ public:
 
     virtual bool IsReplied() const override;
     virtual void Reply(const TError& error) override;
-    virtual void Reply(TSharedRefArray responseMessage) override;
+    virtual void Reply(const TSharedRefArray& responseMessage) override;
 
     virtual void SetComplete() override;
 

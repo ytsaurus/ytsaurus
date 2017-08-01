@@ -170,8 +170,8 @@ private:
 
         if (BackingOff_) {
             LOG_INFO("Spare timestamps are available again");
-        	BackingOff_ = false;
-		}
+            BackingOff_ = false;
+        }
         
         // Make sure there's no overflow in the counter part.
         YCHECK(((CurrentTimestamp_ + count) >> TimestampCounterWidth) == (CurrentTimestamp_ >> TimestampCounterWidth));

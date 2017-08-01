@@ -185,7 +185,9 @@ TString ToString(TVersionedRow row)
             builder.AppendString(STRINGBUF(","));
         }
         const auto& value = row.BeginKeys()[index];
-        builder.AppendString(ToString(value));
+        builder.AppendFormat("%v#%v",
+            value.Id,
+            value);
     }
     builder.AppendChar('|');
     for (int index = 0; index < row.GetValueCount(); ++index) {

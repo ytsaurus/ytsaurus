@@ -50,12 +50,11 @@ void TEncodingWriter::WriteBlock(TSharedRef block)
 
     UncompressedSize_ += block.Size();
     Semaphore_->Acquire(block.Size());
-    BIND(
+
+    CompressionInvoker_->Invoke(BIND(
         &TEncodingWriter::DoCompressBlock,
         MakeWeak(this),
-        std::move(block))
-    .Via(CompressionInvoker_)
-    .Run();
+        std::move(block)));
 }
 
 void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
@@ -66,12 +65,11 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
         Semaphore_->Acquire(part.Size());
         UncompressedSize_ += part.Size();
     }
-    BIND(
+
+    CompressionInvoker_->Invoke(BIND(
         &TEncodingWriter::DoCompressVector,
         MakeWeak(this),
-        std::move(vectorizedBlock))
-    .Via(CompressionInvoker_)
-    .Run();
+        std::move(vectorizedBlock)));
 }
 
 void TEncodingWriter::EnsureOpen()
@@ -256,12 +254,12 @@ TFuture<void> TEncodingWriter::GetReadyEvent()
 
 TFuture<void> TEncodingWriter::Flush()
 {
+    LOG_DEBUG("Flushing encoding writer");
+
     // This must be the last enqueued element.
-    BIND([this, this_ = MakeStrong(this)] () {
+    CompressionInvoker_->Invoke(BIND([this, this_ = MakeStrong(this)] () {
         PendingBlocks_.Enqueue(TError("Sentinel value"));
-    })
-    .Via(CompressionInvoker_)
-    .Run();
+    }));
     return CompletionError_.ToFuture();
 }
 

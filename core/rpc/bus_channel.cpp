@@ -517,12 +517,20 @@ private:
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
         yhash<std::pair<TString, TString>, std::unique_ptr<TMethodMetadata>> CachedMethodMetadata_;
 
+
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
             const TSendOptions& options,
-            const TErrorOr<TSharedRefArray>& requestMessageOrError)
+            TErrorOr<TSharedRefArray> requestMessageOrError)
         {
             VERIFY_THREAD_AFFINITY_ANY();
+
+            if (requestMessageOrError.IsOK()) {
+                auto requestMessageError = CheckBusMessageLimits(requestMessageOrError.Value());
+                if (!requestMessageError.IsOK()){
+                    requestMessageOrError = requestMessageError;
+                }
+            }
 
             const auto& requestId = requestControl->GetRequestId();
 

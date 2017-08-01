@@ -24,16 +24,17 @@ using namespace NTableClient;
 using namespace NHiveServer;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 TTransactionWriteRecord::TTransactionWriteRecord(
     const TTabletId& tabletId,
     TSharedRef data,
     int rowCount,
-    size_t byteSize,
+    size_t dataWeight,
     const TSyncReplicaIdList& syncReplicaIds)
     : TabletId(tabletId)
     , Data(std::move(data))
     , RowCount(rowCount)
-    , ByteSize(byteSize)
+    , DataWeight(dataWeight)
     , SyncReplicaIds(syncReplicaIds)
 { }
 
@@ -43,7 +44,7 @@ void TTransactionWriteRecord::Save(TSaveContext& context) const
     Save(context, TabletId);
     Save(context, Data);
     Save(context, RowCount);
-    Save(context, ByteSize);
+    Save(context, DataWeight);
     Save(context, SyncReplicaIds);
 }
 
@@ -54,7 +55,7 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
     Load(context, Data);
     Load(context, RowCount);
     if (context.GetVersion() >= 100006) {
-        Load(context, ByteSize);
+        Load(context, DataWeight);
     }
     Load(context, SyncReplicaIds);
 }
@@ -104,6 +105,7 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, PersistentSignature_);
     TransientSignature_ = PersistentSignature_;
     Load(context, ReplicatedRowsPrepared_);
+    // COMPAT(gridem)
     if (context.GetVersion() >= 100006) {
         Load(context, User_);
     }

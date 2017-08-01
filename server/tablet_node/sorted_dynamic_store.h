@@ -149,7 +149,7 @@ private:
 
     const TSortedDynamicRowKeyComparer RowKeyComparer_;
     const std::unique_ptr<TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>> Rows_;
-	std::unique_ptr<TLookupHashTable> LookupHashTable_;
+    std::unique_ptr<TLookupHashTable> LookupHashTable_;
 
     ui32 FlushRevision_ = InvalidRevision;
 

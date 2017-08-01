@@ -68,7 +68,7 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/string.h>
 
-#include <util/random/random.h>
+#include <yt/core/ypath/token.h>
 
 #include <algorithm>
 
@@ -82,6 +82,7 @@ using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NYTree;
+using namespace NYPath;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTabletClient;
@@ -4070,27 +4071,36 @@ private:
     {
         try {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto resolver = cypressManager->CreateResolver();
-            for (const auto& pair : TabletCellMap_) {
-                const auto& cellId = pair.first;
-                const auto* cell = pair.second;
+            auto cellIds = GetKeys(TabletCellMap_);
+            for (const auto& cellId : cellIds) {
+                auto* cell = tabletManager->FindTabletCell(cellId);
                 if (!IsObjectAlive(cell)) {
                     continue;
                 }
 
-                auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", cellId);
+                auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", ToYPathLiteral(ToString(cellId)));
                 IMapNodePtr snapshotsMap;
                 try {
                     snapshotsMap = resolver->ResolvePath(snapshotsPath)->AsMap();
-                } catch (const std::exception&) {
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Tablet cell has no valid snapshot store (CellId: %v)",
+                        cellId);
                     continue;
                 }
 
-                auto request = TYPathProxy::List("");
+                auto request = TYPathProxy::List(TYPath());
+                std::vector<TString> attributeKeys{
+                    "compressed_data_size"
+                };
+                ToProto(request->mutable_attributes()->mutable_keys(), attributeKeys);
+
                 auto response = WaitFor(ExecuteVerb(snapshotsMap, request))
                     .ValueOrThrow();
                 auto list = ConvertTo<IListNodePtr>(TYsonString(response->value()));
                 auto children = list->GetChildren();
+
                 std::vector<TSnapshotInfo> snapshots;
                 std::vector<TString> snapshotKeys;
                 snapshots.reserve(children.size());
@@ -4099,96 +4109,104 @@ private:
                     const auto key = ConvertTo<TString>(child);
                     snapshotKeys.push_back(key);
                     int snapshotId;
-                    try {
-                        snapshotId = FromString<int>(key);
-                    } catch (const std::exception& ex) {
-                        LOG_WARNING("Unrecognized item %Qv in tablet snapshot store (CellId: %v)",
-                            key,
-                            cellId);
+                    if (!TryFromString<int>(key, snapshotId)) {
+                        LOG_WARNING("Unrecognized item in tablet snapshot store (CellId: %v, Name: %v)",
+                            cellId,
+                            key);
                         continue;
                     }
                     const auto& attributes = child->Attributes();
                     snapshots.push_back({snapshotId, attributes.Get<i64>("compressed_data_size")});
                 }
 
-                std::sort(snapshots.begin(), snapshots.end(), [] (const TSnapshotInfo& lhs, const TSnapshotInfo& rhs) {
-                    return lhs.Id < rhs.Id;
-                });
-
-                auto thresholdId = NYT::NHydra::GetSnapshotThresholdId(
+                auto thresholdId = NHydra::GetSnapshotThresholdId(
                     snapshots,
                     Config_->MaxSnapshotCountToKeep,
                     Config_->MaxSnapshotSizeToKeep);
-                if (!thresholdId) {
-                    continue;
-                }
 
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
 
+                int snapshotsRemoved = 0;
                 for (const auto& key : snapshotKeys) {
-                    try {
-                        int snapshotId = FromString<int>(key);
-                        if (snapshotId <= *thresholdId) {
-                            LOG_INFO("Removing tablet cell snapshot %v (CellId: %v)",
-                                snapshotId,
-                                cellId);
-                            auto req = TYPathProxy::Remove(snapshotsPath + "/" + key);
-                            ExecuteVerb(rootService, req).Subscribe(BIND([=] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
+                    if (snapshotsRemoved >= Config_->MaxSnapshotCountToRemovePerCheck) {
+                        break;
+                    }
+
+                    int snapshotId;
+                    if (!TryFromString<int>(key, snapshotId)) {
+                        // Ignore, cf. logging above.
+                        continue;
+                    }
+
+                    if (snapshotId <= thresholdId) {
+                        LOG_INFO("Removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
+                            cellId,
+                            snapshotId);
+                        auto req = TYPathProxy::Remove(snapshotsPath + "/" + ToYPathLiteral(key));
+                        ExecuteVerb(rootService, req)
+                            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
                                 if (rspOrError.IsOK()) {
-                                    LOG_INFO("Tablet cell snapshot %v removed successfully (CellId: %v)",
-                                        snapshotId,
-                                        cellId);
+                                    LOG_INFO("Tablet cell snapshot removed successfully (CellId: %v, SnapshotId: %v)",
+                                        cellId,
+                                        snapshotId);
                                 } else {
-                                    LOG_INFO(rspOrError, "Error removing tablet cell snapshot %v (CellId: %v)",
-                                        snapshotId,
-                                        cellId);
+                                    LOG_INFO(rspOrError, "Error removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
+                                        cellId,
+                                        snapshotId);
                                 }
                             }));
-                        }
-                    } catch (const std::exception& ex) {
-                        // Ignore, cf. logging above.
+                        ++snapshotsRemoved;
                     }
                 }
 
-                auto changelogsPath = Format("//sys/tablet_cells/%v/changelogs", cellId);
+                auto changelogsPath = Format("//sys/tablet_cells/%v/changelogs", ToYPathLiteral(ToString(cellId)));
                 IMapNodePtr changelogsMap;
                 try {
                     changelogsMap = resolver->ResolvePath(changelogsPath)->AsMap();
-                } catch (const std::exception&) {
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Tablet cell has no valid changelog store (CellId: %v)",
+                        cellId);
                     continue;
                 }
 
-                auto changelogKeys = SyncYPathList(changelogsMap, "");
+                int changelogsRemoved = 0;
+                auto changelogKeys = SyncYPathList(changelogsMap, TYPath());
                 for (const auto& key : changelogKeys) {
+                    if (changelogsRemoved >= Config_->MaxChangelogCountToRemovePerCheck) {
+                        break;
+                    }
+
                     int changelogId;
-                    try {
-                        changelogId = FromString<int>(key);
-                    } catch (const std::exception& ex) {
-                        LOG_WARNING("Unrecognized item %Qv in tablet changelog store (CellId: %v)",
-                            key,
-                            cellId);
+                    if (!TryFromString<int>(key, changelogId)) {
+                        LOG_WARNING("Unrecognized item in tablet changelog store (CellId: %v, Name: %v)",
+                            cellId,
+                            key);
                         continue;
                     }
-                    if (changelogId <= *thresholdId) {
-                        LOG_INFO("Removing tablet cell changelog %v (CellId: %v)",
-                            changelogId,
-                            cellId);
-                        auto req = TYPathProxy::Remove(changelogsPath + "/" + key);
-                        ExecuteVerb(rootService, req).Subscribe(BIND([=] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
-                            if (rspOrError.IsOK()) {
-                                LOG_INFO("Tablet cell changelog %v removed successfully (CellId: %v)",
-                                    changelogId,
-                                    cellId);
-                            } else {
-                                LOG_INFO(rspOrError, "Error removing tablet cell changelog %v (CellId: %v)",
-                                    changelogId,
-                                    cellId);
-                            }
-                        }));;
+
+                    if (changelogId <= thresholdId) {
+                        LOG_INFO("Removing tablet cell changelog (CellId: %v, ChangelogId: %v)",
+                            cellId,
+                            changelogId);
+                        auto req = TYPathProxy::Remove(changelogsPath + "/" + ToYPathLiteral(key));
+                        ExecuteVerb(rootService, req)
+                            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
+                                if (rspOrError.IsOK()) {
+                                    LOG_INFO("Tablet cell changelog removed successfully (CellId: %v, ChangelodId: %v)",
+                                        cellId,
+                                        changelogId);
+                                } else {
+                                    LOG_WARNING(rspOrError, "Error removing tablet cell changelog (CellId: %v, ChangelodId: %v)",
+                                        cellId,
+                                        changelogId);
+                                }
+                            }));;
+                        ++changelogsRemoved;
                     }
                 }
             }
+
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error performing tablets cleanup");
         }

@@ -425,12 +425,12 @@ void TCompositeAutomaton::DoLoadSnapshot(
 
 void TCompositeAutomaton::WritePartHeader(TSaveContext& context, const TSaverDescriptorBase& descriptor)
 {
-    context.GetCheckpointableOutput()->MakeCheckpoint();
-
     auto version = descriptor.SnapshotVersion;
     LOG_INFO("Saving automaton part (Name: %v, Version: %v)",
         descriptor.Name,
         version);
+
+    context.GetCheckpointableOutput()->MakeCheckpoint();
 
     Save(context, descriptor.Name);
     Save<i32>(context, version);

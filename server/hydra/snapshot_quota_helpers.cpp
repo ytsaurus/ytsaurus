@@ -5,7 +5,9 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<int> ChooseThreshold(TNullable<int> firstThreshold, TNullable<int> secondThreshold)
+namespace {
+
+TNullable<int> ChooseMaxThreshold(TNullable<int> firstThreshold, TNullable<int> secondThreshold)
 {
     if (!secondThreshold) {
         return firstThreshold;
@@ -13,27 +15,39 @@ TNullable<int> ChooseThreshold(TNullable<int> firstThreshold, TNullable<int> sec
     if (!firstThreshold) {
         return secondThreshold;
     }
-    return TNullable<int>(std::max(*firstThreshold, *secondThreshold));
+    return MakeNullable(std::max(*firstThreshold, *secondThreshold));
 }
 
-TNullable<int> GetSnapshotThresholdId(
-    const std::vector<TSnapshotInfo>& snapshots,
+} // namespace
+
+int GetSnapshotThresholdId(
+    std::vector<TSnapshotInfo> snapshots,
     TNullable<int> maxSnapshotCountToKeep,
     TNullable<i64> maxSnapshotSizeToKeep)
 {
+    if (snapshots.size() <= 1) {
+        return -1;
+    }
+
+    std::sort(snapshots.begin(), snapshots.end(), [] (const TSnapshotInfo& lhs, const TSnapshotInfo& rhs) {
+        return lhs.Id < rhs.Id;
+    });
+
+    int thresholdByCountId = -1;
+    if (maxSnapshotCountToKeep && snapshots.size() > *maxSnapshotCountToKeep) {
+        auto index = snapshots.size() - std::max(1, *maxSnapshotCountToKeep) - 1;
+        thresholdByCountId = snapshots[index].Id;
+    }
+
     i64 totalSize = 0;
     for (const auto& snapshot : snapshots) {
         totalSize += snapshot.Size;
     }
 
-    TNullable<int> thresholdByCountId;
-    if (maxSnapshotCountToKeep && snapshots.size() > *maxSnapshotCountToKeep) {
-        auto index = snapshots.size() - *maxSnapshotCountToKeep - 1;
-        thresholdByCountId = snapshots[index].Id;
-    }
-    TNullable<int> thresholdBySizeId;
+    int thresholdBySizeId = -1;
     if (maxSnapshotSizeToKeep && totalSize > *maxSnapshotSizeToKeep) {
-        for (const auto &snapshot : snapshots) {
+        for (auto it = snapshots.begin(); it != snapshots.end() - 1; ++it) {
+            const auto& snapshot = *it;
             totalSize -= snapshot.Size;
             thresholdBySizeId = snapshot.Id;
             if (totalSize <= *maxSnapshotSizeToKeep) {
@@ -42,7 +56,11 @@ TNullable<int> GetSnapshotThresholdId(
         }
     }
 
-    return ChooseThreshold(thresholdByCountId, thresholdBySizeId);
+    int thresholdId = std::max(thresholdByCountId, thresholdBySizeId);
+
+    // Make sure we never delete the latest snapshot.
+    YCHECK(snapshots.back().Id > thresholdId);
+    return thresholdId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

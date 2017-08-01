@@ -1,3 +1,5 @@
+#pragma once
+
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/unversioned_row.h>

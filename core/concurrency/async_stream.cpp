@@ -124,7 +124,11 @@ private:
 
     virtual void DoWrite(const void* buffer, size_t length) override
     {
-        auto future = UnderlyingStream_->Write(TSharedRef(buffer, length, nullptr));
+        struct TBufferTag
+        { };
+
+        auto sharedBuffer = TSharedRef::MakeCopy<TBufferTag>(TRef(buffer, length));
+        auto future = UnderlyingStream_->Write(std::move(sharedBuffer));
         WaitForWithStrategy(std::move(future), Strategy_)
             .ThrowOnError();
     }
