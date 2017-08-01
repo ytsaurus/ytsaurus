@@ -3348,7 +3348,7 @@ void TOperationControllerBase::FetchInputTables()
         }
 
         LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v)",
-            table.Path,
+            table.Path.GetPath(),
             originalRangeCount,
             ranges.size());
 
@@ -3387,7 +3387,7 @@ void TOperationControllerBase::FetchInputTables()
         }
 
         LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
-            table.Path,
+            table.Path.GetPath(),
             table.Chunks.size());
     }
 
