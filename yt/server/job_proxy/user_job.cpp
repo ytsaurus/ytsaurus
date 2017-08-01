@@ -179,7 +179,7 @@ public:
         , JobSatelliteConnection_(
             jobId,
             host->GetConfig()->BusServer,
-            JobEnvironmentType_ == EJobEnvironmentType::Porto)
+            JobEnvironmentType_)
         , Logger(Host_->GetLogger())
     {
         Synchronizer_ = New<TUserJobSynchronizer>();

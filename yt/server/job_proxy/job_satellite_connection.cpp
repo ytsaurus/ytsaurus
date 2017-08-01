@@ -12,6 +12,8 @@ namespace NJobProxy {
 
 using NJobTrackerClient::TJobId;
 using NYson::EYsonFormat;
+using NExecAgent::EJobEnvironmentType;
+
 using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,14 +21,14 @@ using namespace NBus;
 TJobSatelliteConnection::TJobSatelliteConnection(
     const TJobId& jobId,
     TTcpBusServerConfigPtr jobProxyRpcServerConfig,
-    bool useContainer)
+    EJobEnvironmentType environmentType)
     : JobId_(jobId)
 {
     ConnectionConfig_ = New<TJobSatelliteConnectionConfig>();
     auto unixDomainName = Format("%v-job-satellite", JobId_);
     ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName = unixDomainName;
     ConnectionConfig_->JobProxyRpcClientConfig->UnixDomainName = jobProxyRpcServerConfig->UnixDomainName;
-    ConnectionConfig_->UseContainer = useContainer;
+    ConnectionConfig_->EnvironmentType = environmentType;
 }
 
 TString TJobSatelliteConnection::GetConfigPath() const
