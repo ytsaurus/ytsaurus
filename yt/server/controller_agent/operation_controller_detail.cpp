@@ -3379,11 +3379,16 @@ void TOperationControllerBase::FetchInputTables()
             auto inputChunk = New<TInputChunk>(chunkSpec);
             inputChunk->SetTableIndex(tableIndex);
             inputChunk->SetChunkIndex(totalChunkCount++);
-            table.Chunks.emplace_back(std::move(inputChunk));
-            for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
-                totalExtensionSize += extension.data().size();
+
+            if (inputChunk->GetRowCount() > 0) {
+                // Input chunks may have zero row count in case of unsensible read range with coinciding
+                // lower and upper row index. We skip such chunks.
+                table.Chunks.emplace_back(std::move(inputChunk));
+                for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
+                    totalExtensionSize += extension.data().size();
+                }
+                RegisterInputChunk(table.Chunks.back());
             }
-            RegisterInputChunk(table.Chunks.back());
         }
 
         LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
