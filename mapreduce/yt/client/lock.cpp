@@ -1,7 +1,49 @@
 #include "lock.h"
 
+#include "yt_poller.h"
+
 namespace NYT {
 namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLockPollerItem
+    : public IYtPollerItem
+{
+public:
+    TLockPollerItem(const TLockId& lockId, NThreading::TPromise<void> acquired)
+        : LockStateYPath_("//sys/locks/" + GetGuidAsString(lockId) + "/@state")
+        , Acquired_(acquired)
+    { }
+
+    virtual void PrepareRequest(IBatchRequest* batchRequest) override
+    {
+        LockState_ = batchRequest->Get(LockStateYPath_);
+    }
+
+    virtual EStatus OnRequestExecuted() override
+    {
+        try {
+            const auto& state = LockState_.GetValue().AsString();
+            if (state == "acquired") {
+                Acquired_.SetValue();
+                return PollBreak;
+            }
+        } catch (const TErrorResponse& e) {
+            if (!e.IsRetriable()) {
+                Acquired_.SetException(std::current_exception());
+                return PollBreak;
+            }
+        }
+        return PollContinue;
+    }
+
+private:
+    const TString LockStateYPath_;
+    NThreading::TPromise<void> Acquired_;
+
+    NThreading::TFuture<TNode> LockState_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +67,7 @@ const NThreading::TFuture<void>& TLock::GetAcquiredFuture() const
 {
     if (!Acquired_) {
         auto promise = NThreading::NewPromise<void>();
-        Client_->GetLockWaiter().Watch(LockId_, promise);
+        Client_->GetYtPoller().Watch(::MakeIntrusive<TLockPollerItem>(LockId_, promise));
         Acquired_ = promise.GetFuture();
     }
     return *Acquired_;

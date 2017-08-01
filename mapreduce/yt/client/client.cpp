@@ -2,10 +2,10 @@
 
 #include "batch_request_impl.h"
 #include "lock.h"
-#include "lock_waiter.h"
 #include "mock_client.h"
 #include "operation.h"
 #include "rpc_parameters_serialization.h"
+#include "yt_poller.h"
 
 #include <mapreduce/yt/interface/client.h>
 
@@ -785,16 +785,16 @@ void TClient::ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOpti
     }
 }
 
-TLockWaiter& TClient::GetLockWaiter()
+TYtPoller& TClient::GetYtPoller()
 {
-
-    if (!LockWaiter_) {
-        // We don't use current clinet and create new client because LockWaiter might use
+    auto g = Guard(YtPollerLock_);
+    if (!YtPoller_) {
+        // We don't use current client and create new client because YtPoller_ might use
         // this client during current client shutdown.
         // That might lead to incrementing of current client refcount and double delete of current client object.
-        LockWaiter_ = MakeHolder<TLockWaiter>(Clone());
+        YtPoller_ = MakeHolder<TYtPoller>(Clone());
     }
-    return *LockWaiter_;
+    return *YtPoller_;
 }
 
 IClientPtr TClient::Clone()
