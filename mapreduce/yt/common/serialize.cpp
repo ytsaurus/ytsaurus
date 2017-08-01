@@ -1,9 +1,10 @@
 #include "serialize.h"
 
-#include "node_visitor.h"
-
 #include "helpers.h"
 #include "fluent.h"
+
+#include <mapreduce/yt/node/node_visitor.h>
+
 #include <library/yson/consumer.h>
 
 namespace NYT {
