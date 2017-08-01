@@ -114,7 +114,9 @@ private:
                 data.Nodes.erase(it2);
                 --spare;
                 if (spare > 0) {
-                    data.NodeToIterator[node] = data.Nodes.insert(std::make_pair(-spare, node));
+                    it1->second = data.Nodes.insert(std::make_pair(-spare, node));
+                } else {
+                    data.NodeToIterator.erase(it1);
                 }
             }
         }
