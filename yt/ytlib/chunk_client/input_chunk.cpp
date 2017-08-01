@@ -186,7 +186,7 @@ i64 TInputChunk::GetRowCount() const
         : TotalRowCount_;
 
     auto rowCount = upperRowIndex - lowerRowIndex;
-    YCHECK(rowCount > 0 && rowCount <= TotalRowCount_);
+    YCHECK(rowCount >= 0 && rowCount <= TotalRowCount_);
     return rowCount;
 }
 
