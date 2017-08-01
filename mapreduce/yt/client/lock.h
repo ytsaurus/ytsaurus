@@ -1,7 +1,6 @@
 #pragma once
 
 #include "client.h"
-#include "lock_waiter.h"
 
 #include <mapreduce/yt/interface/client.h>
 

@@ -10,7 +10,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLockWaiter;
+class TYtPoller;
 
 class TClient;
 using TClientPtr = ::TIntrusivePtr<TClient>;
@@ -297,7 +297,7 @@ public:
     void ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOptions& options) override;
 
     // Helper methods
-    TLockWaiter& GetLockWaiter();
+    TYtPoller& GetYtPoller();
 
 protected:
     TClientPtr GetParentClient() override;
@@ -312,7 +312,8 @@ private:
         const TYPath& path,
         const TOptions& options);
 
-    THolder<TLockWaiter> LockWaiter_;
+    TMutex YtPollerLock_;
+    THolder<TYtPoller> YtPoller_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
