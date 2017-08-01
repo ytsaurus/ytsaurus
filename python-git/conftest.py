@@ -16,10 +16,10 @@ def pytest_configure(config):
             "TestYtBinary": 1
         }
 
-        NO_API_SPLIT_TESTS = {
+        NO_API_SPLIT_TESTS = set([
             "TestTransferManager",
             "TestYtBinary"
-        }
+        ])
 
         suites = defaultdict(list)
         for index, test in enumerate(test_items):

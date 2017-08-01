@@ -303,6 +303,27 @@ class UserJobSpecBuilder(object):
         self._spec["file_paths"].append(path)
         return self
 
+    def _deepcopy_spec(self):
+        result = {}
+        for key in self._spec:
+            if key != "command":
+                result[key] = deepcopy(self._spec[key])
+            else:
+                result[key] = self._spec[key]
+        return result
+
+    def __deepcopy__(self, memodict=None):
+        # Fix python2.6 bug http://bugs.python.org/issue1515
+        result = type(self)()
+
+        for attr_name, attr_value in iteritems(self.__dict__):
+            if attr_name == "_spec":
+                continue
+            setattr(result, attr_name, deepcopy(attr_value, memo=memodict))
+
+        result._spec = self._deepcopy_spec()
+        return result
+
     def _end_script(self):
         assert self._spec_builder is not None
         spec_builder = self._spec_builder
@@ -415,7 +436,7 @@ class UserJobSpecBuilder(object):
     def build(self, local_files_to_remove=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
-        spec = update(self._spec_override, deepcopy(self._spec))
+        spec = update(self._spec_override, self._deepcopy_spec())
         self._spec_override = {}
 
         format_ = spec.pop("format", None)

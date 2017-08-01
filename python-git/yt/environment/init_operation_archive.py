@@ -94,7 +94,7 @@ class TableInfo(object):
         column_names = self.user_columns
 
         def default_mapper(row):
-            yield {key: row.get(key) for key in column_names}
+            yield dict([(key, row.get(key)) for key in column_names])
 
         return default_mapper
 
@@ -384,7 +384,7 @@ TRANSFORMS[7] = [
 ]
 
 def set_table_ttl(client, path, ttl, auto_compaction_period):
-    table = "{}/{}".format(BASE_PATH, path)
+    table = "{0}/{1}".format(BASE_PATH, path)
     client.set(table + "/@max_data_ttl", ttl)
     client.set(table + "/@auto_compaction_period", auto_compaction_period)
     client.set(table + "/@min_data_versions", 0)
@@ -407,14 +407,14 @@ def set_table_ttl_2years(path):
     return action
 
 def create_operations_archive_account(client):
-    if not client.exists("//sys/accounts/{}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME)):
+    if not client.exists("//sys/accounts/{0}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME)):
         logging.info("Creating account: %s", OPERATIONS_ARCHIVE_ACCOUNT_NAME)
         client.create("account", attributes={"name": OPERATIONS_ARCHIVE_ACCOUNT_NAME})
 
-    limits = client.get("//sys/accounts/{}/@{}".format(SYS_ACCOUNT_NAME, RESOURCE_LIMITS_ATTRIBUTE))
+    limits = client.get("//sys/accounts/{0}/@{1}".format(SYS_ACCOUNT_NAME, RESOURCE_LIMITS_ATTRIBUTE))
     limits[NODES_LIMIT_ATTRIBUTE] = 100
     logging.info("Setting account limits %s", limits)
-    client.set("//sys/accounts/{}/@{}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME, RESOURCE_LIMITS_ATTRIBUTE), limits)
+    client.set("//sys/accounts/{0}/@{1}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME, RESOURCE_LIMITS_ATTRIBUTE), limits)
 
 ACTIONS[8] = [
     create_operations_archive_account,
@@ -471,12 +471,12 @@ ACTIONS[11] = [
 ]
 
 def add_attributes(path, attributes):
-    table = "{}/{}".format(BASE_PATH, path)
+    table = "{0}/{1}".format(BASE_PATH, path)
 
     def action(client):
         logging.info("Adding attributes %s to table %s", attributes, table)
         for attribute, value in attributes.items():
-            client.set("{}/@{}".format(table, attribute), value)
+            client.set("{0}/@{1}".format(table, attribute), value)
         client.remount_table(table)
 
     return action
@@ -544,7 +544,7 @@ ACTIONS[14] = [
 ]
 
 def swap_table(client, target, source, version):
-    backup_path = target + ".bak.{}".format(version)
+    backup_path = target + ".bak.{0}".format(version)
     has_target = False
     if client.exists(target):
         has_target = True
@@ -577,7 +577,7 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
             for convertion in TRANSFORMS[version]:
                 had_work = True
                 table = convertion.table
-                tmp_path = "{}/{}.tmp.{}".format(archive_path, table, version)
+                tmp_path = "{0}/{1}.tmp.{2}".format(archive_path, table, version)
                 if force and client.exists(tmp_path):
                     client.remove(tmp_path)
                 in_place = convertion(client, schemas.get(table), tmp_path, table if table in schemas else None, archive_path, **kwargs)
@@ -595,7 +595,7 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
                 action(client)
 
         if not had_work:
-            raise ValueError("Version {} must have actions or transformations".format(version))
+            raise ValueError("Version {0} must have actions or transformations".format(version))
         client.set_attribute(archive_path, "version", version)
 
 def create_tables_latest_version(client, shards=1, base_path=BASE_PATH):
@@ -629,7 +629,7 @@ def main():
     client = YtClient(proxy=config["proxy"]["url"], token=config["token"])
 
     if client.exists(archive_path):
-        current_version = client.get("{}/@".format(archive_path)).get("version", -1)
+        current_version = client.get("{0}/@".format(archive_path)).get("version", -1)
     else:
         current_version = -1
 
