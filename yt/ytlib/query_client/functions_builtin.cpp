@@ -56,7 +56,7 @@ public:
 
         return CodegenIf<TCGExprContext, TCGValue>(
             builder,
-            condition.IsNull(),
+            condition.IsNull(builder),
             [&] (TCGExprContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
@@ -64,7 +64,7 @@ public:
                 return CodegenIf<TCGExprContext, TCGValue>(
                     builder,
                     builder->CreateICmpNE(
-                        builder->CreateZExtOrBitCast(condition.GetData(), builder->getInt64Ty()),
+                        builder->CreateZExtOrBitCast(condition.GetData(builder), builder->getInt64Ty()),
                         builder->getInt64(0)),
                     [&] (TCGExprContext& builder) {
                         return CodegenFragment(builder, argIds[1]).Cast(builder, type);
@@ -169,7 +169,7 @@ public:
                 builder->getInt1(false),
                 nullptr,
                 builder->CreateZExtOrBitCast(
-                    argValue.IsNull(),
+                    argValue.IsNull(builder),
                     TDataTypeBuilder::TBoolean::get(builder->getContext())),
                 type);
         };
@@ -201,12 +201,10 @@ public:
 
             return TCGValue::CreateFromValue(
                 builder,
-                builder->CreateOr(argValue.IsNull(), constant.IsNull()),
-                nullptr,
                 builder->CreateSelect(
-                    argValue.IsNull(),
-                    constant.GetData(),
-                    argValue.GetData()),
+                    argValue.IsNull(builder),
+                    constant.GetValue(builder, true),
+                    argValue.GetValue(builder, true)),
                 type);
         };
     }

@@ -136,12 +136,13 @@ void CheckCallee(
 ////////////////////////////////////////////////////////////////////////////////
 
 void PushArgument(
+    TCGIRBuilderPtr& builder,
     std::vector<Value*>& argumentValues,
     TCGValue argumentValue)
 {
-    argumentValues.push_back(argumentValue.GetData());
+    argumentValues.push_back(argumentValue.GetData(builder));
     if (IsStringLikeType(argumentValue.GetStaticType())) {
-        argumentValues.push_back(argumentValue.GetLength());
+        argumentValues.push_back(argumentValue.GetLength(builder));
     }
 }
 
@@ -159,11 +160,11 @@ TCGValue PropagateNullArguments(
         auto currentArgValue = codegenArguments.back()(builder);
         codegenArguments.pop_back();
 
-        PushArgument(argumentValues, currentArgValue);
+        PushArgument(builder, argumentValues, currentArgValue);
 
         return CodegenIf<TCGBaseContext, TCGValue>(
             builder,
-            currentArgValue.IsNull(),
+            currentArgValue.IsNull(builder),
             [&] (TCGBaseContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
