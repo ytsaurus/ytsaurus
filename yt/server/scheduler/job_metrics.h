@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/core/profiling/public.h>
 #include <util/system/defaults.h>
@@ -18,7 +19,9 @@ class TJobMetrics
     friend TJobMetrics operator-(const TJobMetrics& lhs, const TJobMetrics& rhs);
 
 public:
-    static TJobMetrics FromJobTrackerStatistics(const NJobTrackerClient::TStatistics& statistics);
+    static TJobMetrics FromJobTrackerStatistics(
+        const NJobTrackerClient::TStatistics& statistics,
+        NJobTrackerClient::EJobState jobState);
 
     void SendToProfiler(
         const NProfiling::TProfiler& profiler,
@@ -28,6 +31,8 @@ public:
 private:
     i64 DiskReads_ = 0;
     i64 DiskWrites_ = 0;
+    i64 TimeCompleted_ = 0;
+    i64 TimeAborted_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

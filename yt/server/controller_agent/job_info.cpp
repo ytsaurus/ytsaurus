@@ -39,12 +39,15 @@ TJoblet::TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTaskPtr
     , JobMetricsUpdater_(std::move(jobMetricsUpdater))
 { }
 
-void TJoblet::SendJobMetrics(const TStatistics& jobStatistics, bool flush)
+void TJoblet::SendJobMetrics(const NScheduler::TJobSummary& jobSummary, bool flush)
 {
     // NOTE: after snapshot is loaded JobMetricsUpdater_ can be missing.
     if (JobMetricsUpdater_) {
-        const auto timestamp = jobStatistics.GetTimestamp().Get(CpuInstantToInstant(GetCpuInstant()));
-        const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(jobStatistics);
+        const auto timestamp = jobSummary.Statistics->GetTimestamp().Get(CpuInstantToInstant(GetCpuInstant()));
+        const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(
+            *jobSummary.Statistics,
+            jobSummary.State);
+
         JobMetricsUpdater_->Update(timestamp, jobMetrics);
         if (flush) {
             JobMetricsUpdater_->Flush();

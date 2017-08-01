@@ -3381,6 +3381,53 @@ class TestNewPoolMetrics(YTEnvSetup):
         jobs_11 = ls("//sys/operations/{0}/jobs".format(op11.id))
         assert len(jobs_11) >= 2
 
+    def test_time_metrics(self):
+        create("map_node", "//sys/pools/parent")
+        create("map_node", "//sys/pools/parent/child")
+
+        # Give scheduler some time to apply new pools.
+        time.sleep(1)
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        op = map(
+            command='cat; if [ "$YT_JOB_INDEX" = "0" ]; then sleep 1; else sleep 100500; fi',
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            dont_track=True,
+            spec={"data_size_per_job": 1, "pool": "child"}
+        )
+
+        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+
+        def running_jobs_exists():
+            return exists(orchid_path) and len(ls(orchid_path)) == 2
+
+        wait(running_jobs_exists)
+
+        # Give jobs some time to run.
+        time.sleep(3.0)
+
+        running_jobs = ls(orchid_path)
+        assert len(running_jobs) == 1
+        abort_job(running_jobs[0])
+
+        # Give scheduler some time to update metrics in the orchid.
+        time.sleep(1)
+
+        completed_metrics = get_pool_metrics("time_completed")
+        aborted_metrics = get_pool_metrics("time_aborted")
+
+        for p in ("parent", "child"):
+            assert completed_metrics[p] > 0
+            assert aborted_metrics[p] > 0
+
+        assert completed_metrics["parent"] == completed_metrics["child"]
+        assert aborted_metrics["parent"] == aborted_metrics["child"]
+
 class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
