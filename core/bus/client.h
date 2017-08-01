@@ -21,7 +21,7 @@ struct IBusClient
     virtual const TString& GetEndpointDescription() const = 0;
 
     //! Returns the bus' endpoint attributes.
-	//! Typically used for constructing errors.
+    //! Typically used for constructing errors.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
     //! Creates a new bus.

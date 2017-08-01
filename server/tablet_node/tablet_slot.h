@@ -50,6 +50,7 @@ public:
     TTabletSlot(
         int slotIndex,
         TTabletNodeConfigPtr config,
+        const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo,
         NCellNode::TBootstrap* bootstrap);
     
     ~TTabletSlot();
@@ -81,7 +82,7 @@ public:
 
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
 
-    void Initialize(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo);
+    void Initialize();
     bool CanConfigure() const;
     void Configure(const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     TFuture<void> Finalize();

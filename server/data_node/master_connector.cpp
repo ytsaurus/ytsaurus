@@ -741,6 +741,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_preload_failed_store_count(tabletSnapshot->PreloadFailedStoreCount);
             protoTabletStatistics->set_overlapping_store_count(tabletSnapshot->OverlappingStoreCount);
             protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->RuntimeData->LastCommitTimestamp);
+            protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->RuntimeData->LastWriteTimestamp);
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
 
             for (const auto& pair : tabletSnapshot->Replicas) {
@@ -912,6 +913,7 @@ void TMasterConnector::ReportJobHeartbeat()
         TJobTrackerServiceProxy proxy(channel);
 
         auto req = proxy.Heartbeat();
+        req->SetTimeout(Config_->JobHeartbeatTimeout);
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->PrepareHeartbeatRequest(

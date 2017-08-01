@@ -69,7 +69,7 @@ public:
     bool IsFinished() const;
 
 protected:
-	const NLogging::TLogger& Logger;
+    const NLogging::TLogger& Logger;
 
     EPacketPhase Phase_ = EPacketPhase::Finished;
     char* FragmentPtr_ = nullptr;

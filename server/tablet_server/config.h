@@ -106,6 +106,12 @@ public:
     //! Maximum total size of snapshots to keep for a tablet cell.
     TNullable<i64> MaxSnapshotSizeToKeep;
 
+    //! Maximum number of snapshots to remove per a single check.
+    int MaxSnapshotCountToRemovePerCheck;
+
+    //! Maximum number of snapshots to remove per a single check.
+    int MaxChangelogCountToRemovePerCheck;
+
     //! When the number of online nodes drops below this margin,
     //! tablet cell peers are no longer assigned and revoked.
     int SafeOnlineNodeCount;
@@ -135,10 +141,16 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
             .GreaterThanOrEqual(0)
-            .Default();
+            .Default(10);
         RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
             .GreaterThanOrEqual(0)
             .Default();
+        RegisterParameter("max_snapshot_count_to_remove_per_check", MaxSnapshotCountToRemovePerCheck)
+            .GreaterThan(0)
+            .Default(100);
+        RegisterParameter("max_changelog_count_to_remove_per_check", MaxChangelogCountToRemovePerCheck)
+            .GreaterThan(0)
+            .Default(100);
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
             .Default(0);

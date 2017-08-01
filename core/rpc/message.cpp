@@ -6,6 +6,8 @@
 
 #include <yt/core/rpc/rpc.pb.h>
 
+#include <yt/core/bus/packet.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -241,6 +243,42 @@ i64 GetTotalMesageAttachmentSize(const TSharedRefArray& message)
         result += message[index].Size();
     }
     return result;
+}
+
+TError CheckBusMessageLimits(const TSharedRefArray& message)
+{
+    if (message.Size() > NBus::MaxPacketPartCount) {
+        return TError(
+            NRpc::EErrorCode::TransportError,
+            "RPC message contains too many attachments: %v > %v",
+            message.Size() - 2,
+            NBus::MaxPacketPartCount - 2);
+    }
+
+    if (message.Size() < 2) {
+        return TError();
+    }
+
+    if (message[1].Size() > NBus::MaxPacketPartSize) {
+        return TError(
+            NRpc::EErrorCode::TransportError,
+            "RPC message body is too large: %v > %v",
+            message[1].Size(),
+            NBus::MaxPacketPartSize);
+    }
+
+    for (size_t index = 2; index < message.Size(); ++index) {
+        if (message[index].Size() > NBus::MaxPacketPartSize) {
+            return TError(
+                NRpc::EErrorCode::TransportError,
+                "RPC message attachment %v is too large: %v > %v",
+                index - 2,
+                message[index].Size(),
+                NBus::MaxPacketPartSize);
+        }
+    }
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

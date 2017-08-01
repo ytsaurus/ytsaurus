@@ -1,3 +1,5 @@
+#pragma once
+
 #include <yt/core/profiling/profiler.h>
 
 #include <yt/ytlib/scheduler/public.h>

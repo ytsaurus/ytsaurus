@@ -41,7 +41,7 @@ private:
     virtual TFuture<void> DoStop(bool graceful) override
     {
         return TServerBase::DoStop(graceful).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-        	// NB: Stop the bus server anyway.
+            // NB: Stop the bus server anyway.
             auto asyncResult = BusServer_->Stop();
             BusServer_.Reset();
             error.ThrowOnError();

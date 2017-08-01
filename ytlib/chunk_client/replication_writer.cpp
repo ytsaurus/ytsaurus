@@ -932,7 +932,7 @@ void TReplicationWriter::CancelNode(TNodePtr node, bool abort)
 
 bool TReplicationWriter::WriteBlock(const TBlock& block)
 {
-    return WriteBlocks(std::vector<TBlock>(1, block));
+    return WriteBlocks({block});
 }
 
 bool TReplicationWriter::WriteBlocks(const std::vector<TBlock>& blocks)

@@ -119,7 +119,6 @@ protected:
     bool IsRecovery() const;
 
     TTimestamp GenerateMonotonicCommitTimestamp(TTimestamp timestampHint);
-    void UpdateLastCommitTimestamp(TTransaction* transaction, TTimestamp timestamp);
 
 };
 

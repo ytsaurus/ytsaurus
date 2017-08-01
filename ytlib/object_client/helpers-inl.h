@@ -82,6 +82,7 @@ inline bool IsUserType(EObjectType type)
         type == EObjectType::File ||
         type == EObjectType::Table ||
         type == EObjectType::ReplicatedTable ||
+        type == EObjectType::TableReplica ||
         type == EObjectType::Journal ||
         type == EObjectType::Link ||
         type == EObjectType::Document;

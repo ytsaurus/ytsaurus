@@ -1009,7 +1009,7 @@ private:
     }
 
 
-    void OnCheckpointNeeded(const TWeakPtr<TEpochContext>& epochContext_)
+    void OnCheckpointNeeded(const TWeakPtr<TEpochContext>& epochContext_, bool snapshotIsMandatory)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1018,10 +1018,10 @@ private:
             return;
         }
 
-        auto checkpointer = epochContext->Checkpointer;
+        const auto& checkpointer = epochContext->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
             BuildSnapshotAndWatch(epochContext, false);
-        } else if (checkpointer->CanRotateChangelogs()) {
+        } else if (checkpointer->CanRotateChangelogs() && !snapshotIsMandatory) {
             LOG_WARNING("Cannot build a snapshot, just rotating changlogs");
             RotateChangelogAndWatch(epochContext);
         }

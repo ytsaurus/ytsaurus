@@ -35,7 +35,7 @@ struct TTransactionWriteRecord
     TTabletId TabletId;
     TSharedRef Data;
     int RowCount = 0;
-    size_t ByteSize = 0;
+    size_t DataWeight = 0;
     TSyncReplicaIdList SyncReplicaIds;
 
     void Save(TSaveContext& context) const;

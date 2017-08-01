@@ -17,12 +17,14 @@ struct TSnapshotInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<int> GetSnapshotThresholdId(
-    const std::vector<TSnapshotInfo>& snapshots,
+//! All snapshots and changelogs with id less than or equal to this threshold
+//! could be safely deleted.
+int GetSnapshotThresholdId(
+    std::vector<TSnapshotInfo> snapshots,
     TNullable<int> maxSnapshotCountToKeep,
     TNullable<i64> maxSnapshotSizeToKeep);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NHydra
+} // namespace NYT

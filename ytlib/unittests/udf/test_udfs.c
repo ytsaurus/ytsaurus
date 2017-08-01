@@ -1,4 +1,4 @@
-#include "../../ytlib/query_client/udf/yt_udf.h"
+#include <yt_udf.h>
 
 uint64_t seventyfive(TExpressionContext* context)
 {

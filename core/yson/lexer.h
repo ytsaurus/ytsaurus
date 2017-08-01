@@ -8,6 +8,8 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStatelessYsonLexerImplBase;
+
 class TStatelessLexer
 {
 public:
@@ -18,8 +20,7 @@ public:
     size_t GetToken(const TStringBuf& data, TToken* token);
 
 private:
-    class TImpl;
-    std::unique_ptr<TImpl> Impl;
+    std::unique_ptr<TStatelessYsonLexerImplBase> Impl;
 
 };
 

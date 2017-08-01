@@ -1,3 +1,5 @@
+#pragma once
+
 // Check platform bitness.
 #if !defined(__x86_64__) && !defined(_M_X64)
     #error YT requires 64-bit platform

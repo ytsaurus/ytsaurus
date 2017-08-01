@@ -547,7 +547,7 @@ struct TWriteContext
     TTimestamp CommitTimestamp = NullTimestamp;
 
     int RowCount = 0;
-    size_t ByteSize = 0;
+    size_t DataWeight = 0;
 
     TSortedDynamicStorePtr BlockedStore;
     TSortedDynamicRow BlockedRow;

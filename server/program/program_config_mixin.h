@@ -1,3 +1,5 @@
+#pragma once
+
 #include "program.h"
 
 #include <yt/core/ytree/public.h>
