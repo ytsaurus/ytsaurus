@@ -258,7 +258,7 @@ void TTask::ScheduleJob(
         if (TaskHost_->Spec()->JobProxyMemoryOvercommitLimit) {
             schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->Spec()->JobProxyMemoryOvercommitLimit);
         }
-        schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto(TaskHost_->Spec()->JobProxyRefCountedTrackerLogPeriod));
+        schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->Spec()->JobProxyRefCountedTrackerLogPeriod));
         schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->Spec()->SuspendOperationIfAccountLimitExceeded);
 
         // Adjust sizes if approximation flag is set.
