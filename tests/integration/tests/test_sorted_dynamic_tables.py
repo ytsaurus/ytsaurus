@@ -196,8 +196,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 get_counter("write/" + count_name),
                 get_counter("commit/" + count_name))
 
-        assert get_all_counters("rows") == (0, 0, 1, 1)
-        assert get_all_counters("bytes") == (0, 0, 10, 10)
+        assert get_all_counters("row_count") == (0, 0, 1, 1)
+        assert get_all_counters("data_weight") == (0, 0, 10, 10)
         assert get_counter("lookup/cpu_time") == 0
         assert get_counter("select/cpu_time") == 0
 
@@ -206,8 +206,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sleep(1)
 
-        assert get_all_counters("rows") == (1, 0, 1, 1)
-        assert get_all_counters("bytes") == (10, 0, 10, 10)
+        assert get_all_counters("row_count") == (1, 0, 1, 1)
+        assert get_all_counters("data_weight") == (10, 0, 10, 10)
         assert get_counter("lookup/cpu_time") > 0
         assert get_counter("select/cpu_time") == 0
 
@@ -216,8 +216,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sleep(1)
 
-        assert get_all_counters("rows") == (1, 2, 1, 1)
-        assert get_all_counters("bytes") == (10, 10*2+8, 10, 10)
+        assert get_all_counters("row_count") == (1, 2, 1, 1)
+        assert get_all_counters("data_weight") == (10, 10*2+8, 10, 10)
         assert get_counter("lookup/cpu_time") > 0
         assert get_counter("select/cpu_time") > 0
 

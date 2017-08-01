@@ -120,8 +120,8 @@ class TestReplicatedDynamicTables(YTEnvSetup):
                 get_counter("write/" + count_name),
                 get_counter("commit/" + count_name))
 
-        assert get_all_counters("rows") == (1, 1)
-        assert get_all_counters("bytes") == (13, 13)
+        assert get_all_counters("row_count") == (1, 1)
+        assert get_all_counters("data_weight") == (13, 13)
 
     def test_replica_tablet_node_profiling(self):
         self._create_cells()
