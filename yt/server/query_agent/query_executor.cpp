@@ -122,13 +122,13 @@ struct TDataKeys
 struct TSelectCounters
 {
     TSelectCounters(const TTagIdList& list)
-        : Rows("/select/rows", list)
-        , Bytes("/select/bytes", list)
+        : RowCount("/select/row_count", list)
+        , DataWeight("/select/data_weight", list)
         , CpuTime("/select/cpu_time", list)
     { }
 
-    TSimpleCounter Rows;
-    TSimpleCounter Bytes;
+    TSimpleCounter RowCount;
+    TSimpleCounter DataWeight;
     TSimpleCounter CpuTime;
 };
 
@@ -397,8 +397,8 @@ private:
 
         if (maybeUser) {
             auto& counters = GetProfilerCounters(*maybeUser);
-            TabletNodeProfiler.Increment(counters.Rows, statistics.RowsRead);
-            TabletNodeProfiler.Increment(counters.Bytes, statistics.BytesRead);
+            TabletNodeProfiler.Increment(counters.RowCount, statistics.RowsRead);
+            TabletNodeProfiler.Increment(counters.DataWeight, statistics.BytesRead);
             TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
         }
 
