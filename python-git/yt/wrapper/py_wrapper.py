@@ -234,7 +234,7 @@ class Zip(object):
         self.update_hash(relpath, filepath)
 
     def update_hash(self, relpath, filepath):
-        hash_pair = (calc_md5_from_string(relpath), calc_md5_from_file(filepath))
+        hash_pair = [calc_md5_from_string(relpath), calc_md5_from_file(filepath)]
         self.hash = merge_md5(self.hash, calc_md5_from_string(hex_md5(hash_pair)))
 
     def __exit__(self, type, value, traceback):
