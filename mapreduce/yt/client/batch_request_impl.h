@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/interface/node.h>
 
 #include <library/threading/future/future.h>

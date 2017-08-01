@@ -1,11 +1,14 @@
 #pragma once
 
-#include <library/yson/consumer.h>
-#include <library/yson/writer.h>
-#include <library/yson/json_writer.h>
-#include <mapreduce/yt/interface/common.h>
-#include "node_builder.h"
 #include "serialize.h"
+
+#include <mapreduce/yt/interface/common.h>
+#include <mapreduce/yt/node/node_builder.h>
+
+#include <library/yson/consumer.h>
+#include <library/yson/json_writer.h>
+#include <library/yson/writer.h>
+
 #include <util/generic/noncopyable.h>
 #include <util/generic/ptr.h>
 #include <util/stream/str.h>
