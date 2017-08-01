@@ -1480,10 +1480,6 @@ struct TTypedExpressionBuilder
             for (const auto& argument : inExpr->Expr) {
                 auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
 
-                if (untypedArgument.FeasibleTypes.GetSize() != 1) {
-                    THROW_ERROR_EXCEPTION("Cannot infer argument type for IN operator")
-                        << TErrorAttribute("source", argument->GetSource(Source));
-                }
                 EValueType argType = untypedArgument.FeasibleTypes.GetFront();
                 auto typedArgument = untypedArgument.Generator(argType);
 

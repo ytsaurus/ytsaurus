@@ -821,6 +821,12 @@ INSTANTIATE_TEST_CASE_P(
         std::tuple<TConstExpressionPtr, const char*>(
             New<TInOpExpression>(
                 std::initializer_list<TConstExpressionPtr>({
+                    Make<TLiteralExpression>(MakeInt64(4))}),
+                MakeRows("1; 2; 3")),
+            "4 in (1, 2u, 3.0)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInOpExpression>(
+                std::initializer_list<TConstExpressionPtr>({
                     Make<TReferenceExpression>("ki")}),
                 MakeRows("1; 2; 3")),
             "ki in (1, 2u, 3.0)"),
