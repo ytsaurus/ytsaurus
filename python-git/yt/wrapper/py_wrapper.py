@@ -221,8 +221,7 @@ class Zip(object):
             self.zip.write(library, relpath)
             self.dynamic_libraries.add(library)
             self.size += get_disk_size(library)
-            self.hash = merge_md5(self.hash, calc_md5_from_string(relpath))
-            self.hash = merge_md5(self.hash, calc_md5_from_file(library))
+            self.update_hash(relpath, library)
 
     def append(self, filepath, relpath):
         if relpath.endswith(".egg"):
@@ -232,8 +231,11 @@ class Zip(object):
 
         self.zip.write(filepath, relpath)
         self.size += get_disk_size(filepath)
-        self.hash = merge_md5(self.hash, calc_md5_from_string(relpath))
-        self.hash = merge_md5(self.hash, calc_md5_from_file(filepath))
+        self.update_hash(relpath, filepath)
+
+    def update_hash(self, relpath, filepath):
+        hash_pair = (calc_md5_from_string(relpath), calc_md5_from_file(filepath))
+        self.hash = merge_md5(self.hash, calc_md5_from_string(hex_md5(hash_pair)))
 
     def __exit__(self, type, value, traceback):
         self.zip.__exit__(type, value, traceback)
