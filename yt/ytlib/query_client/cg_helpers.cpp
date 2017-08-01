@@ -158,24 +158,44 @@ TCGValue MakePhi(
     TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
+    BasicBlock* endBB,
     TCGValue thenValue,
     TCGValue elseValue,
     Twine name)
 {
-    Value* thenNull = thenValue.IsNull();
-    Value* thenLength = thenValue.GetLength();
-    Value* thenData = thenValue.GetData();
+    YCHECK(thenValue.GetStaticType() == elseValue.GetStaticType());
+    EValueType type = thenValue.GetStaticType();
 
-    Value* elseNull = elseValue.IsNull();
-    Value* elseLength = elseValue.GetLength();
-    Value* elseData = elseValue.GetData();
+    if (thenValue.GetValue(builder, false) || elseValue.GetValue(builder, false)) {
+        builder->SetInsertPoint(thenBB);
+        Value* thenLllvmValue = thenValue.GetValue(builder, true);
+
+        builder->SetInsertPoint(elseBB);
+        Value* elseLllvmValue = elseValue.GetValue(builder, true);
+
+        builder->SetInsertPoint(endBB);
+
+        PHINode* phiValue = builder->CreatePHI(thenLllvmValue->getType(), 2, name + ".phiValue");
+        phiValue->addIncoming(thenLllvmValue, thenBB);
+        phiValue->addIncoming(elseLllvmValue, elseBB);
+
+        return TCGValue::CreateFromValue(builder, phiValue, type, name);
+    }
+
+    builder->SetInsertPoint(thenBB);
+    Value* thenNull = thenValue.IsNull(builder);
+    Value* thenData = thenValue.GetData(builder);
+
+    builder->SetInsertPoint(elseBB);
+    Value* elseNull = elseValue.IsNull(builder);
+    Value* elseData = elseValue.GetData(builder);
+
+    builder->SetInsertPoint(endBB);
 
     PHINode* phiNull = builder->CreatePHI(builder->getInt1Ty(), 2, name + ".phiNull");
     phiNull->addIncoming(thenNull, thenBB);
     phiNull->addIncoming(elseNull, elseBB);
 
-    YCHECK(thenValue.GetStaticType() == elseValue.GetStaticType());
-    EValueType type = thenValue.GetStaticType();
     YCHECK(thenData->getType() == elseData->getType());
 
     PHINode* phiData = builder->CreatePHI(thenData->getType(), 2, name + ".phiData");
@@ -184,6 +204,13 @@ TCGValue MakePhi(
 
     PHINode* phiLength = nullptr;
     if (IsStringLikeType(type)) {
+        builder->SetInsertPoint(thenBB);
+        Value* thenLength = thenValue.GetLength(builder);
+        builder->SetInsertPoint(elseBB);
+        Value* elseLength = elseValue.GetLength(builder);
+
+        builder->SetInsertPoint(endBB);
+
         YCHECK(thenLength->getType() == elseLength->getType());
 
         phiLength = builder->CreatePHI(thenLength->getType(), 2, name + ".phiLength");
@@ -198,10 +225,12 @@ Value* MakePhi(
     TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
+    BasicBlock* endBB,
     Value* thenValue,
     Value* elseValue,
     Twine name)
 {
+    builder->SetInsertPoint(endBB);
     PHINode* phiValue = builder->CreatePHI(thenValue->getType(), 2, name + ".phiValue");
     phiValue->addIncoming(thenValue, thenBB);
     phiValue->addIncoming(elseValue, elseBB);

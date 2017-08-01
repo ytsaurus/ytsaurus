@@ -179,13 +179,13 @@ Function* CodegenGroupComparerFunction(
 
             CodegenIf<TCGIRBuilderPtr>(
                 builder,
-                builder->CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
+                builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
                 [&] (TCGIRBuilderPtr& builder) {
-                    returnIf(builder->CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()));
+                    returnIf(builder->CreateICmpNE(lhsValue.IsNull(builder), rhsValue.IsNull(builder)));
                 },
                 [&] (TCGIRBuilderPtr& builder) {
-                    auto* lhsData = lhsValue.GetData();
-                    auto* rhsData = rhsValue.GetData();
+                    auto* lhsData = lhsValue.GetData(builder);
+                    auto* rhsData = rhsValue.GetData(builder);
 
                     switch (types[index]) {
                         case EValueType::Boolean:
@@ -200,8 +200,8 @@ Function* CodegenGroupComparerFunction(
                             break;
 
                         case EValueType::String: {
-                            Value* lhsLength = lhsValue.GetLength();
-                            Value* rhsLength = rhsValue.GetLength();
+                            Value* lhsLength = lhsValue.GetLength(builder);
+                            Value* rhsLength = rhsValue.GetLength(builder);
 
                             Value* minLength = builder->CreateSelect(
                                 builder->CreateICmpULT(lhsLength, rhsLength),
@@ -297,31 +297,31 @@ Function* CodegenGroupHasherFunction(
             builder->CreateBr(conditionBB);
 
             builder->SetInsertPoint(conditionBB);
-            builder->CreateCondBr(value.IsNull(), elseBB, thenBB);
+            builder->CreateCondBr(value.IsNull(builder), elseBB, thenBB);
             conditionBB = builder->GetInsertBlock();
 
             builder->SetInsertPoint(thenBB);
 
             Value* thenResult;
 
+            auto intType = TDataTypeBuilder::TInt64::get(builder->getContext());
+
             switch (value.GetStaticType()) {
                 case EValueType::Boolean:
                 case EValueType::Int64:
                 case EValueType::Uint64:
-                    thenResult = CodegenFingerprint64(builder, value.Cast(builder, EValueType::Uint64).GetData());
-                    break;
-
                 case EValueType::Double:
-                    thenResult = CodegenFingerprint64(builder, value.Cast(builder, EValueType::Uint64, true)
-                        .GetData());
+                    thenResult = CodegenFingerprint64(
+                        builder,
+                        builder->CreateZExtOrBitCast(value.GetData(builder), intType));
                     break;
 
                 case EValueType::String:
                     thenResult = builder->CreateCall(
                         module->GetRoutine("StringHash"),
                         {
-                            value.GetData(),
-                            value.GetLength()
+                            value.GetData(builder),
+                            value.GetLength(builder)
                         });
                     break;
 
@@ -410,17 +410,17 @@ Function* CodegenTupleComparerFunction(
 
             CodegenIf<TCGIRBuilderPtr>(
                 builder,
-                builder->CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
+                builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
                 [&] (TCGIRBuilderPtr& builder) {
                     returnIf(
-                        builder->CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()),
+                        builder->CreateICmpNE(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
                         [&] (TCGIRBuilderPtr& builder) {
-                            return builder->CreateICmpUGT(lhsValue.IsNull(), rhsValue.IsNull());
+                            return builder->CreateICmpUGT(lhsValue.IsNull(builder), rhsValue.IsNull(builder));
                         });
                 },
                 [&] (TCGIRBuilderPtr& builder) {
-                    auto* lhsData = lhsValue.GetData();
-                    auto* rhsData = rhsValue.GetData();
+                    auto* lhsData = lhsValue.GetData(builder);
+                    auto* rhsData = rhsValue.GetData(builder);
 
                     switch (type) {
                         case EValueType::Boolean:
@@ -451,8 +451,8 @@ Function* CodegenTupleComparerFunction(
                             break;
 
                         case EValueType::String: {
-                            Value* lhsLength = lhsValue.GetLength();
-                            Value* rhsLength = rhsValue.GetLength();
+                            Value* lhsLength = lhsValue.GetLength(builder);
+                            Value* rhsLength = rhsValue.GetLength(builder);
 
                             Value* minLength = builder->CreateSelect(
                                 builder->CreateICmpULT(lhsLength, rhsLength),
@@ -721,13 +721,13 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
         return CodegenIf<TCGIRBuilderPtr, TCGValue>(
             builder,
-            operandValue.IsNull(),
+            operandValue.IsNull(builder),
             [&] (TCGIRBuilderPtr& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
             [&] (TCGIRBuilderPtr& builder) {
                 auto operandType = operandValue.GetStaticType();
-                Value* operandData = operandValue.GetData();
+                Value* operandData = operandValue.GetData(builder);
                 Value* evalData = nullptr;
 
                 switch(opcode) {
@@ -795,25 +795,21 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
             auto lhsValue = CodegenFragment(builder, lhsId);
             auto rhsValue = CodegenFragment(builder, rhsId);
 
-            if (lhsValue.GetStaticType() == EValueType::Null) {
-                lhsValue = TCGValue::CreateNull(builder, type);
-            }
-            if (rhsValue.GetStaticType() == EValueType::Null) {
-                rhsValue = TCGValue::CreateNull(builder, type);
-            }
+            Value* lhsIsNull = lhsValue.IsNull(builder);
+            Value* rhsIsNull = rhsValue.IsNull(builder);
 
             return CodegenIf<TCGExprContext, TCGValue>(
                 builder,
-                lhsValue.IsNull(),
+                lhsIsNull,
                 [&] (TCGExprContext& builder) {
                     return CodegenIf<TCGIRBuilderPtr, TCGValue>(
                         builder,
-                        rhsValue.IsNull(),
+                        rhsIsNull,
                         [&] (TCGIRBuilderPtr& builder) {
                             return TCGValue::CreateNull(builder, type);
                         },
                         [&] (TCGIRBuilderPtr& builder) {
-                            Value* rhsData = rhsValue.GetData();
+                            Value* rhsData = rhsValue.GetData(builder);
                             return CodegenIf<TCGIRBuilderPtr, TCGValue>(
                                 builder,
                                 builder->CreateICmpEQ(rhsData, builder->getInt8(parameter)),
@@ -826,7 +822,7 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
                         });
                 },
                 [&] (TCGExprContext& builder) {
-                    Value* lhsData = lhsValue.GetData();
+                    Value* lhsData = lhsValue.GetData(builder);
                     return CodegenIf<TCGIRBuilderPtr, TCGValue>(
                         builder,
                         builder->CreateICmpEQ(lhsData, builder->getInt8(parameter)),
@@ -836,7 +832,7 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
                         [&] (TCGIRBuilderPtr& builder) {
                             return CodegenIf<TCGIRBuilderPtr, TCGValue>(
                                 builder,
-                                rhsValue.IsNull(),
+                                rhsIsNull,
                                 [&] (TCGIRBuilderPtr& builder) {
                                     return TCGValue::CreateNull(builder, type);
                                 },
@@ -884,8 +880,8 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 break;
 
         auto compareNulls = [&] () {
-            Value* lhsData = lhsValue.IsNull();
-            Value* rhsData = rhsValue.IsNull();
+            Value* lhsData = lhsValue.IsNull(builder);
+            Value* rhsData = rhsValue.IsNull(builder);
             Value* evalData = nullptr;
 
             switch (opcode) {
@@ -909,7 +905,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
 
         return CodegenIf<TCGBaseContext, TCGValue>(
             builder,
-            builder->CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
+            builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
             [&] (TCGBaseContext& builder) {
                 return compareNulls();
             },
@@ -917,8 +913,8 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
                 auto operandType = lhsValue.GetStaticType();
 
-                Value* lhsData = lhsValue.GetData();
-                Value* rhsData = rhsValue.GetData();
+                Value* lhsData = lhsValue.GetData(builder);
+                Value* rhsData = rhsValue.GetData(builder);
                 Value* evalData = nullptr;
 
                 switch (operandType) {
@@ -961,8 +957,8 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                         }
                         break;
                     case EValueType::String: {
-                        Value* lhsLength = lhsValue.GetLength();
-                        Value* rhsLength = rhsValue.GetLength();
+                        Value* lhsLength = lhsValue.GetLength(builder);
+                        Value* rhsLength = rhsValue.GetLength(builder);
 
                         auto codegenEqual = [&] () {
                             return CodegenIf<TCGBaseContext, Value*>(
@@ -1057,7 +1053,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
 
         return CodegenIf<TCGExprContext, TCGValue>(
             builder,
-            builder->CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
+            builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
             [&] (TCGExprContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
@@ -1065,8 +1061,8 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                 YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
                 auto operandType = lhsValue.GetStaticType();
 
-                Value* lhsData = lhsValue.GetData();
-                Value* rhsData = rhsValue.GetData();
+                Value* lhsData = lhsValue.GetData(builder);
+                Value* rhsData = rhsValue.GetData(builder);
                 Value* evalData = nullptr;
 
                 #define OP(opcode, optype) \
@@ -1308,7 +1304,7 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
 
             builder->CreateStore(builder->getInt32(streamIndex), countPtr);
 
-            auto switcher = builder->CreateSwitch(streamIndexValue.GetData(), endIfBB);
+            auto switcher = builder->CreateSwitch(streamIndexValue.GetData(builder), endIfBB);
 
             switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Final)), ifFinalBB);
             switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Intermediate)), ifIntermediateBB);
@@ -1498,8 +1494,8 @@ size_t MakeCodegenFilterOp(
             auto* ifBB = builder->CreateBBHere("if");
             auto* endIfBB = builder->CreateBBHere("endIf");
 
-            auto* notIsNull = builder->CreateNot(predicateResult.IsNull());
-            auto* isTrue = builder->CreateICmpEQ(predicateResult.GetData(), builder->getInt8(true));
+            auto* notIsNull = builder->CreateNot(predicateResult.IsNull(builder));
+            auto* isTrue = builder->CreateICmpEQ(predicateResult.GetData(builder), builder->getInt8(true));
 
             builder->CreateCondBr(
                 builder->CreateAnd(notIsNull, isTrue),
