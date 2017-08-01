@@ -617,6 +617,18 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == []
 
+    def test_empty_range(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        original_data = [{"index": i} for i in xrange(10)]
+        write_table("//tmp/t1", original_data)
+
+        command = "cat"
+        map(in_="<ranges=[{lower_limit={row_index=1}; upper_limit={row_index=1}}]>//tmp/t1", out="//tmp/t2", command=command)
+
+        assert [] == read_table("//tmp/t2", verbose=False)
+
     @unix_only
     def test_one_chunk(self):
         create("table", "//tmp/t1")
