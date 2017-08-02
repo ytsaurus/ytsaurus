@@ -336,6 +336,11 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio() const
         return std::numeric_limits<double>::max();
     }
 
+    // Starvation is disabled for operations in FIFO pool.
+    if (Attributes_.FifoIndex >= 0) {
+        return std::numeric_limits<double>::max();
+    }
+
     if (minShareRatio > RatioComputationPrecision && usageRatio < minShareRatio) {
         // Needy element, negative satisfaction.
         return usageRatio / minShareRatio - 1.0;
@@ -824,13 +829,22 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttri
     auto children = EnabledChildren_;
     std::sort(children.begin(), children.end(), BIND(&TCompositeSchedulerElement::HasHigherPriorityInFifoMode, MakeStrong(this)));
 
+    double remainingFairShareRatio = Attributes_.FairShareRatio;
+
     int index = 0;
     for (const auto& child : children) {
         auto& childAttributes = child->Attributes();
+
         childAttributes.AdjustedMinShareRatio = 0.0;
+
         childAttributes.FifoIndex = index;
-        child->SetFairShareRatio(0.0);
         ++index;
+
+        double childFairShareRatio = remainingFairShareRatio;
+        childFairShareRatio = std::min(childFairShareRatio, childAttributes.MaxPossibleUsageRatio);
+        childFairShareRatio = std::min(childFairShareRatio, childAttributes.BestAllocationRatio);
+        child->SetFairShareRatio(childFairShareRatio);
+        remainingFairShareRatio -= childFairShareRatio;
     }
 }
 

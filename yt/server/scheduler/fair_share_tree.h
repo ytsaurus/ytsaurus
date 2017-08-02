@@ -40,7 +40,7 @@ struct TSchedulableAttributes
     double BestAllocationRatio = 1.0;
     double GuaranteedResourcesRatio = 0.0;
     double DominantLimit = 0;
-    int FifoIndex = 0;
+    int FifoIndex = -1;
 
     double AdjustedFairShareStarvationTolerance = 1.0;
     TDuration AdjustedMinSharePreemptionTimeout;
