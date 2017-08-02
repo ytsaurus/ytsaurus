@@ -332,7 +332,7 @@ struct TGroupClause
         }
 
         for (const auto& item : AggregateItems) {
-            result.emplace_back(item.Name, isFinal ? item.Expression->Type : item.StateType);
+            result.emplace_back(item.Name, isFinal ? item.ResultType : item.StateType);
         }
 
         return TTableSchema(result);

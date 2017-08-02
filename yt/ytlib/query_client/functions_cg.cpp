@@ -798,8 +798,8 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     codegenAggregate.Finalize = [
         this_ = MakeStrong(this),
         finalizeName,
-        argumentType,
         stateType,
+        resultType,
         name,
         makeCodegenBody
     ] (TCGBaseContext& builder, Value* buffer, Value* aggState) {
@@ -815,7 +815,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             builder,
             codegenArgs,
             makeCodegenBody(finalizeName, buffer),
-            argumentType,
+            resultType,
             name + "_finalize");
     };
 
