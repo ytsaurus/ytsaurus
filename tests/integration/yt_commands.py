@@ -209,6 +209,9 @@ def get_job_stderr(operation_id, job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_stderr", kwargs)
 
+def list_operations(**kwargs):
+    return yson.loads(execute_command("list_operations", kwargs));
+
 def list_jobs(operation_id, **kwargs):
     kwargs["operation_id"] = operation_id
     return yson.loads(execute_command("list_jobs", kwargs))
