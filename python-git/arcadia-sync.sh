@@ -25,6 +25,7 @@ fi
 
 if [ -n "$ARCADIA_DIR" ]; then
     SPECIFIED_ARCADIA_DIR="1"
+    ARCADIA_DIR="$ARCADIA_DIR/$ARCADIA_PATH"
 else
     SPECIFIED_ARCADIA_DIR="0"
     ARCADIA_DIR="arcadia_dir"
