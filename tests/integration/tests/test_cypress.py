@@ -1331,6 +1331,12 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node/inner_node",
                prerequisite_revisions=[{"path": "//tmp/test_node", "transaction_id": "0-0-0-0", "revision": revision}])
 
+    def test_move_preserves_creation_time(self):
+        create("table", "//tmp/t1")
+        creation_time = get("//tmp/t1/@creation_time")
+        move("//tmp/t1", "//tmp/t2")
+        assert creation_time == get("//tmp/t2/@creation_time")
+        
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
