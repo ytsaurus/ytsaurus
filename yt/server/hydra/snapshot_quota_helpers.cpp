@@ -5,21 +5,6 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TNullable<int> ChooseMaxThreshold(TNullable<int> firstThreshold, TNullable<int> secondThreshold)
-{
-    if (!secondThreshold) {
-        return firstThreshold;
-    }
-    if (!firstThreshold) {
-        return secondThreshold;
-    }
-    return MakeNullable(std::max(*firstThreshold, *secondThreshold));
-}
-
-} // namespace
-
 int GetSnapshotThresholdId(
     std::vector<TSnapshotInfo> snapshots,
     TNullable<int> maxSnapshotCountToKeep,
