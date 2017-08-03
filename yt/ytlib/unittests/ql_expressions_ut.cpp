@@ -1354,28 +1354,25 @@ TEST_P(TEvaluateAggregationTest, Basic)
 
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue tmp;
     TUnversionedValue state1;
     callbacks.Init(buffer.Get(), &state1);
     EXPECT_EQ(EValueType::Null, state1.Type);
 
-    callbacks.Update(buffer.Get(), &tmp, &state1, &value1);
-    state1 = tmp;
+    callbacks.Update(buffer.Get(), &state1, &value1);
     EXPECT_EQ(value1, state1);
 
     TUnversionedValue state2;
     callbacks.Init(buffer.Get(), &state2);
     EXPECT_EQ(EValueType::Null, state2.Type);
 
-    callbacks.Update(buffer.Get(), &tmp, &state2, &value2);
-    state2 = tmp;
+    callbacks.Update(buffer.Get(), &state2, &value2);
     EXPECT_EQ(value2, state2);
 
-    callbacks.Merge(buffer.Get(), &tmp, &state1, &state2);
-    EXPECT_EQ(expected, tmp);
+    callbacks.Merge(buffer.Get(), &state1, &state2);
+    EXPECT_EQ(expected, state1);
 
     TUnversionedValue result;
-    callbacks.Finalize(buffer.Get(), &result, &tmp);
+    callbacks.Finalize(buffer.Get(), &result, &state1);
     EXPECT_EQ(expected, result);
 }
 

@@ -2328,7 +2328,7 @@ std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregat
         Value* values = CodegenValuesPtrFromRow(builder, row);
 
         for (int index = 0; index < codegenAggregates.size(); index++) {
-            codegenAggregates[index].Initialize(builder, buffer, row)
+            codegenAggregates[index].Initialize(builder, buffer)
                 .StoreToValues(builder, values, keySize + index);
         }
     };
@@ -2363,8 +2363,7 @@ std::function<void(TCGBaseContext& builder, Value*, Value*, Value*)> MakeCodegen
             } else {
                 updateFunction = codegenAggregates[index].Update;
             }
-            updateFunction(builder, buffer, aggState, newValue)
-                .StoreToValues(builder, groupValues, keySize + index);
+            updateFunction(builder, buffer, aggState, newValue);
         }
     };
 }
@@ -2831,7 +2830,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Value* buffer,
             Value* resultPtr
         ) {
-            codegenAggregate.Initialize(builder, buffer, nullptr)
+            codegenAggregate.Initialize(builder, buffer)
                 .StoreToValue(builder, resultPtr, 0, "writeResult");
             builder->CreateRetVoid();
         });
@@ -2844,12 +2843,10 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         MakeFunction<TCGAggregateUpdateSignature>(module, updateName.c_str(), [&] (
             TCGBaseContext& builder,
             Value* buffer,
-            Value* resultPtr,
             Value* statePtr,
             Value* newValuePtr
         ) {
-            auto result = codegenAggregate.Update(builder, buffer, statePtr, newValuePtr);
-            result.StoreToValue(builder, resultPtr, 0, "writeResult");
+            codegenAggregate.Update(builder, buffer, statePtr, newValuePtr);
             builder->CreateRetVoid();
         });
 
@@ -2861,12 +2858,10 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         MakeFunction<TCGAggregateMergeSignature>(module, mergeName.c_str(), [&] (
             TCGBaseContext& builder,
             Value* buffer,
-            Value* resultPtr,
             Value* dstStatePtr,
             Value* statePtr
         ) {
-            auto result = codegenAggregate.Merge(builder, buffer, dstStatePtr, statePtr);
-            result.StoreToValue(builder, resultPtr, 0, "writeResult");
+            codegenAggregate.Merge(builder, buffer, dstStatePtr, statePtr);
             builder->CreateRetVoid();
         });
 

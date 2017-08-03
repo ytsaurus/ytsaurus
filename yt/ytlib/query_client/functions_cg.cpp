@@ -723,11 +723,10 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     codegenAggregate.Initialize = [
         this_ = MakeStrong(this),
         initName,
-        argumentType,
         stateType,
         name,
         makeCodegenBody
-    ] (TCGBaseContext& builder, Value* buffer, Value* row) {
+    ] (TCGBaseContext& builder, Value* buffer) {
         return this_->CallingConvention_->MakeCodegenFunctionCall(
             builder,
             std::vector<TCodegenValue>(),
@@ -758,12 +757,13 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 argumentType);
         });
 
-        return this_->CallingConvention_->MakeCodegenFunctionCall(
+        this_->CallingConvention_->MakeCodegenFunctionCall(
             builder,
             codegenArgs,
             makeCodegenBody(updateName, buffer),
             stateType,
-            name + "_update");
+            name + "_update")
+            .StoreToValue(builder, aggState);
     };
 
     codegenAggregate.Merge = [
@@ -788,12 +788,13 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 stateType);
         });
 
-        return this_->CallingConvention_->MakeCodegenFunctionCall(
+        this_->CallingConvention_->MakeCodegenFunctionCall(
             builder,
             codegenArgs,
             makeCodegenBody(mergeName, buffer),
             stateType,
-            name + "_merge");
+            name + "_merge")
+            .StoreToValue(builder, dstAggState);
     };
 
     codegenAggregate.Finalize = [
