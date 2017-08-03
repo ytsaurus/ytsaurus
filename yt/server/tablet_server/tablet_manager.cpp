@@ -3234,6 +3234,18 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
+        auto copyTabletChunkList = [&] (const TChunkList* oldTabletChunkList) {
+            auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
+            newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
+            chunkManager->AttachToChunkList(
+                newTabletChunkList,
+                oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
+                oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
+            newTabletChunkList->Statistics().LogicalRowCount = oldTabletChunkList->Statistics().LogicalRowCount;
+            newTabletChunkList->Statistics().LogicalChunkCount = oldTabletChunkList->Statistics().LogicalChunkCount;
+            return newTabletChunkList;
+        };
+
         if (objectManager->GetObjectRefCounter(oldRootChunkList) > 1) {
             auto statistics = oldRootChunkList->Statistics();
             auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
@@ -3243,13 +3255,7 @@ private:
                 chunkLists.data() + firstTabletIndex);
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
-                auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
-                newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
-                chunkManager->AttachToChunkList(
-                    newTabletChunkList,
-                    oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
-                    oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
+                auto* newTabletChunkList = copyTabletChunkList(chunkLists[index]->AsChunkList());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
             }
 
@@ -3271,12 +3277,7 @@ private:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
                 if (objectManager->GetObjectRefCounter(oldTabletChunkList) > 1) {
-                    auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
-                    newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
-                    chunkManager->AttachToChunkList(
-                        newTabletChunkList,
-                        oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
-                        oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
+                    auto* newTabletChunkList = copyTabletChunkList(oldTabletChunkList);
                     chunkLists[index] = newTabletChunkList;
 
                     // TODO(savrus): make a helper to replace a tablet chunk list.
