@@ -2523,11 +2523,18 @@ private:
                         for (int index = 0; index < table->Tablets().size(); ++index) {
                             auto* child = rootChunkList->Children()[index];
                             auto* tabletChunkList = child->AsChunkList();
-                            YCHECK(tabletChunkList->GetKind() == EChunkListKind::Static);
-                            tabletChunkList->SetKind(table->IsPhysicallySorted()
+
+                            auto newKind = table->IsPhysicallySorted()
                                 ? EChunkListKind::SortedDynamicTablet
-                                : EChunkListKind::OrderedDynamicTablet);
-                            tabletChunkList->SetPivotKey(table->Tablets()[index]->GetPivotKey());
+                                : EChunkListKind::OrderedDynamicTablet;
+                            auto newPivotKey = table->Tablets()[index]->GetPivotKey();
+                            if (tabletChunkList->GetKind() == EChunkListKind::Static) {
+                                tabletChunkList->SetKind(newKind);
+                                tabletChunkList->SetPivotKey(newPivotKey);
+                            } else {
+                                YCHECK(tabletChunkList->GetKind() == newKind);
+                                YCHECK(tabletChunkList->GetPivotKey() == newPivotKey);
+                            }
                         }
                     }
                 }
