@@ -221,6 +221,21 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
     {
         DynamicTableAttributes_ = std::move(dynamic);
     }
+
+    //COMPAT(savrus)
+    if (context.GetVersion() < 611) {
+        if (Attributes_) {
+            auto& attributes = Attributes_->Attributes();
+            static const TString nodeTagFilterAttributeName("node_tag_filter");
+            auto it = attributes.find(nodeTagFilterAttributeName);
+            if (it != attributes.end()) {
+                attributes.erase(it);
+            }
+            if (attributes.empty()) {
+                Attributes_.reset();
+            }
+        }
+    }
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
