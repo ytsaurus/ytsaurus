@@ -1,8 +1,17 @@
 #include "node.h"
+#include "node_io.h"
 
 #include <library/unittest/registar.h>
 
+#include <util/ysaveload.h>
+
 using namespace NYT;
+
+template<>
+void Out<NYT::TNode>(TOutputStream& s, const NYT::TNode& node)
+{
+    s << "TNode:" << NodeToYsonString(node);
+}
 
 SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
     SIMPLE_UNIT_TEST(TestConstsructors) {
@@ -139,5 +148,24 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         TNode copyNode = node;
         UNIT_ASSERT(copyNode == node);
         UNIT_ASSERT(node == copyNode);
+    }
+
+    SIMPLE_UNIT_TEST(TestSaveLoad) {
+        TNode node = TNode()("foo", "bar")("baz", 42);
+        node.Attributes()["attr_name"] = "attr_value";
+
+        TString bytes;
+        {
+            TStringOutput s(bytes);
+            ::Save(&s, node);
+        }
+
+        TNode nodeCopy;
+        {
+            TStringInput s(bytes);
+            ::Load(&s, nodeCopy);
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(node, nodeCopy);
     }
 }

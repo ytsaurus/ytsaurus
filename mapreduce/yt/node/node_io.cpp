@@ -83,22 +83,31 @@ static TNode CreateEmptyNodeByType(EYsonType type)
 TNode NodeFromYsonString(const TString& input, EYsonType type)
 {
     TStringInput stream(input);
-
-    TNode result = CreateEmptyNodeByType(type);
-
-    TNodeBuilder builder(&result);
-    TYsonParser parser(&builder, &stream, type);
-    parser.Parse();
-    return result;
+    return NodeFromYsonStream(&stream, type);
 }
 
 TString NodeToYsonString(const TNode& node, EYsonFormat format)
 {
     TStringStream stream;
-    TYsonWriter writer(&stream, format);
+    NodeToYsonStream(node, &stream, format);
+    return stream.Str();
+}
+
+TNode NodeFromYsonStream(TInputStream* input, EYsonType type)
+{
+    TNode result = CreateEmptyNodeByType(type);
+
+    TNodeBuilder builder(&result);
+    TYsonParser parser(&builder, input, type);
+    parser.Parse();
+    return result;
+}
+
+void NodeToYsonStream(const TNode& node, TOutputStream* output, EYsonFormat format)
+{
+    TYsonWriter writer(output, format);
     TNodeVisitor visitor(&writer);
     visitor.Visit(node);
-    return stream.Str();
 }
 
 TNode NodeFromJsonString(const TString& input, EYsonType type)

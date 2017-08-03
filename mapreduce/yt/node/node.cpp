@@ -1,5 +1,9 @@
 #include "node.h"
 
+#include "node_io.h"
+
+#include <library/yson/writer.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -491,6 +495,17 @@ void TNode::CreateAttributes()
 {
     Attributes_ = new TNode;
     Attributes_->Value_ = TMap();
+}
+
+void TNode::Save(TOutputStream* out) const
+{
+    NodeToYsonStream(*this, out, YF_BINARY);
+}
+
+void TNode::Load(TInputStream* in)
+{
+    Clear();
+    *this = NodeFromYsonStream(in, YT_NODE);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
