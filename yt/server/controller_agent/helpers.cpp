@@ -60,7 +60,7 @@ public:
         }
 
         YCHECK(JobCount_ >= 0);
-        YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
+        YCHECK(JobCount_ != 0 || PrimaryInputDataWeight_ == 0);
     }
 
     virtual bool CanAdjustDataWeightPerJob() const override
