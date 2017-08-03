@@ -281,6 +281,7 @@ public:
 
     void ProcessRegisterNode(TCtxRegisterNodePtr context)
     {
+        auto
         if (PendingRegisterNodeMutationCount_ + LocalRegisteredNodeCount_ >= Config_->MaxConcurrentNodeRegistrations) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -863,9 +864,7 @@ private:
         // Kick-out any previous incarnation.
         auto* node = FindNodeByAddress(address);
         if (IsObjectAlive(node)) {
-            if (node->GetBanned()) {
-                THROW_ERROR_EXCEPTION("Node %v is banned", address);
-            }
+            node->ValidateNotBanned();
 
             if (Bootstrap_->IsPrimaryMaster()) {
                 auto localState = node->GetLocalState();

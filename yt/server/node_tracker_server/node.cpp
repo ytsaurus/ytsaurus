@@ -582,6 +582,13 @@ void TNode::SetVisitMark(int mediumIndex, ui64 mark)
     VisitMarks_[mediumIndex] = mark;
 }
 
+void TNode::ValidateNotBanned()
+{
+    if (Banned_) {
+        THROW_ERROR_EXCEPTION("Node %v is banned", GetDefaultAddress());
+    }
+}
+
 int TNode::GetTotalTabletSlots() const
 {
     return
