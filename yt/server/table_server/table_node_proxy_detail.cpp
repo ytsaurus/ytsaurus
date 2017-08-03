@@ -118,7 +118,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
         .SetWritable(true)
         .SetPresent(table->GetTrunkNode()->GetTabletCellBundle()));
-    descriptors->push_back("atomicity");
+    descriptors->push_back(TAttributeDescriptor("atomicity")
+        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor("commit_ordering")
         .SetWritable(true)
         .SetPresent(!isSorted));
