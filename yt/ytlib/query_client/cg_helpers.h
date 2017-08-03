@@ -23,8 +23,14 @@ using llvm::Twine;
 using llvm::Type;
 using llvm::TypeBuilder;
 using llvm::Value;
+using llvm::StringRef;
 
 using NCodegen::TCGModulePtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+StringRef ToStringRef(const TString& stroka);
+StringRef ToStringRef(const TSharedRef& sharedRef);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -72,7 +72,7 @@ DECLARE_REFCOUNTED_STRUCT(TComparerManager);
 TComparerManagerPtr MakeComparerManager();
 
 Value* CodegenLexicographicalCompare(
-    TCGContext& builder,
+    TCGBaseContext& builder,
     Value* lhsData,
     Value* lhsLength,
     Value* rhsData,
