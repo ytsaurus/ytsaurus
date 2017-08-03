@@ -65,7 +65,7 @@ def make_request(command_name,
     backend = get_backend_type(client)
 
     command_params = deepcopy(get_option("COMMAND_PARAMS", client))
-    if command_params["transaction_id"] == YT_NULL_TRANSACTION_ID and not command_name == "lock":
+    if command_params["transaction_id"] == YT_NULL_TRANSACTION_ID:
         del command_params["transaction_id"]
     if not command_params["ping_ancestor_transactions"]:
         del command_params["ping_ancestor_transactions"]
