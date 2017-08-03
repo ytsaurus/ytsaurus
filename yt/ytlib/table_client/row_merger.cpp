@@ -376,6 +376,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     }
 
     Keys_.resize(mergedKeyColumnCount);
+    std::sort(ColumnIds_.begin(), ColumnIds_.end());
 
     Cleanup();
 }
@@ -448,7 +449,6 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         PartialValues_.end());
 
     // Scan through input values.
-    std::sort(ColumnIds_.begin(), ColumnIds_.end());
     auto columnIdsBeginIt = ColumnIds_.begin();
     auto columnIdsEndIt = ColumnIds_.end();
     auto partialValueIt = PartialValues_.begin();
