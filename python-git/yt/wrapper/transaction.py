@@ -4,7 +4,7 @@ from .common import get_value
 from .errors import YtResponseError, YtError, YtTransactionPingError
 from .transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
-from yt.common import YT_NULL_TRANSACTION_ID
+from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id
 
 import yt.logger as logger
 
@@ -15,8 +15,6 @@ from threading import Thread
 from datetime import datetime, timedelta
 import signal
 import os
-
-null_transaction_id = YT_NULL_TRANSACTION_ID
 
 _sigusr_received = False
 
