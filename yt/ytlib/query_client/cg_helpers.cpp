@@ -6,6 +6,18 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+StringRef ToStringRef(const TString& stroka)
+{
+    return StringRef(stroka.c_str(), stroka.length());
+}
+
+StringRef ToStringRef(const TSharedRef& sharedRef)
+{
+    return StringRef(sharedRef.Begin(), sharedRef.Size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Value* TCGExprContext::GetFragmentResult(size_t index) const
 {
     return Builder_->CreateInBoundsGEP(

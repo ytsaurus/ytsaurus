@@ -31,11 +31,6 @@ using namespace NConcurrency;
 
 using NCodegen::TCGModule;
 
-llvm::StringRef ToStringRef(const TString& stroka)
-{
-    return llvm::StringRef(stroka.c_str(), stroka.length());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Operator helpers
 //
@@ -726,13 +721,13 @@ TValueTypeLabels CodegenLessComparerBody(
             });
 
         BasicBlock* cmpLengthBB = builder->CreateBBHere("cmpLength.string");
-        BasicBlock* retrunContentCmpBB = builder->CreateBBHere("retrunContentCmp.string");
+        BasicBlock* returnContentCmpBB = builder->CreateBBHere("returnContentCmp.string");
         builder->CreateCondBr(
             builder->CreateICmpEQ(cmpResult, builder->getInt32(0)),
             cmpLengthBB,
-            retrunContentCmpBB);
+            returnContentCmpBB);
 
-        builder->SetInsertPoint(retrunContentCmpBB);
+        builder->SetInsertPoint(returnContentCmpBB);
         resultPhi->addIncoming(
             builder->CreateICmpSLT(cmpResult, builder->getInt32(0)),
             builder->GetInsertBlock());

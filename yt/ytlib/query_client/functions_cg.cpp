@@ -30,16 +30,6 @@ static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunct
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
 namespace {
-StringRef ToStringRef(const TString& stroka)
-{
-    return StringRef(stroka.c_str(), stroka.length());
-}
-
-StringRef ToStringRef(const TSharedRef& sharedRef)
-{
-    return StringRef(sharedRef.Begin(), sharedRef.Size());
-}
-
 TString ToString(llvm::Type* tp)
 {
     std::string str;
