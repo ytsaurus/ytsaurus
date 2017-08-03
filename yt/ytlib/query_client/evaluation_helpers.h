@@ -304,8 +304,8 @@ private:
 typedef void (TCGQuerySignature)(void* const*, TExecutionContext*);
 typedef void (TCGExpressionSignature)(void* const*, TValue*, TRow, TExpressionContext*);
 typedef void (TCGAggregateInitSignature)(TExpressionContext*, TValue*);
-typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const TValue*, const TValue*);
-typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*, const TValue*);
+typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const TValue*);
+typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*);
 typedef void (TCGAggregateFinalizeSignature)(TExpressionContext*, TValue*, const TValue*);
 
 using TCGQueryCallback = NCodegen::TCGFunction<TCGQuerySignature>;

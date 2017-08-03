@@ -50,9 +50,9 @@ struct TCodegenFragmentInfos
 
 DEFINE_REFCOUNTED_TYPE(TCodegenFragmentInfos)
 
-typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* aggState)> TCodegenAggregateInit;
-typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
-typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer)> TCodegenAggregateInit;
+typedef std::function<void(TCGBaseContext& builder, Value* buffer, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
+typedef std::function<void(TCGBaseContext& builder, Value* buffer, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
 typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* aggState)> TCodegenAggregateFinalize;
 
 struct TCodegenAggregate {

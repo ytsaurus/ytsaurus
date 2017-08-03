@@ -164,9 +164,7 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
             }
 
             for (int valueIndex = begin; valueIndex <= index; ++valueIndex) {
-                TUnversionedValue tmpValue;
-                ColumnEvaluator_->MergeAggregate(id, &tmpValue, state, AggregateValues_[valueIndex], RowBuffer_);
-                state = tmpValue;
+                ColumnEvaluator_->MergeAggregate(id, &state, AggregateValues_[valueIndex], RowBuffer_);
             }
 
             state.Aggregate = false;
@@ -258,10 +256,10 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
         if (partialValue.Aggregate) {
             YCHECK(ColumnEvaluator_->IsAggregate(id));
-            TUnversionedValue tmpValue;
-            ColumnEvaluator_->MergeAggregate(id, &tmpValue, MergedRow_[id], partialValue, RowBuffer_);
-            tmpValue.Aggregate = MergedRow_[id].Aggregate;
-            MergedRow_[id] = tmpValue;
+
+            bool isAggregate = MergedRow_[id].Aggregate;
+            ColumnEvaluator_->MergeAggregate(id, &MergedRow_[id], partialValue, RowBuffer_);
+            MergedRow_[id].Aggregate = isAggregate;
         } else {
             MergedRow_[id] = partialValue;
         }
@@ -556,9 +554,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                     auto state = MakeUnversionedSentinelValue(EValueType::Null, id);
 
                     for (auto valueIt = aggregateBeginIt; valueIt <= retentionBeginIt; ++valueIt) {
-                        TUnversionedValue tmpValue;
-                        ColumnEvaluator_->MergeAggregate(id, &tmpValue, state, *valueIt, RowBuffer_);
-                        state = tmpValue;
+                        ColumnEvaluator_->MergeAggregate(id, &state, *valueIt, RowBuffer_);
                     }
 
                     TUnversionedValue& value = *retentionBeginIt;
