@@ -1,12 +1,13 @@
 #pragma once
 
+#include <util/generic/bt_exception.h>
 #include <util/generic/hash.h>
+#include <util/generic/variant.h>
 #include <util/generic/vector.h>
 #include <util/generic/yexception.h>
-#include <util/generic/bt_exception.h>
 
-#include <util/generic/variant.h>
-
+class TInputStream;
+class TOutputStream;
 
 namespace NYT {
 
@@ -160,6 +161,11 @@ public:
     TNode& Attributes();
 
     void MoveWithoutAttributes(TNode&& rhs);
+
+    // Serialize TNode using binary yson format.
+    // Methods for ysaveload.
+    void Save(TOutputStream* output) const;
+    void Load(TInputStream* input);
 
     static const TString& TypeToString(EType type);
 
