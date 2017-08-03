@@ -90,6 +90,8 @@ public:
 
     // Chunk Manager stuff.
     DEFINE_BYVAL_RO_PROPERTY(bool, Banned);
+    void ValidateNotBanned();
+
     DEFINE_BYVAL_RO_PROPERTY(bool, Decommissioned);
 
     using TFillFactorIterator = TNullable<NChunkServer::TFillFactorToNodeIterator>;
