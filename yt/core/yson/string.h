@@ -25,7 +25,7 @@ public:
 
     TYsonString(
         const char* data,
-        const size_t length, 
+        size_t length,
         EYsonType type = EYsonType::Node);
 
     //! Returns |true| if the instance is not null.
