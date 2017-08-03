@@ -12,8 +12,7 @@ class ClientState(object):
     def _init_state(self):
         self.COMMAND_PARAMS = {
             "transaction_id": "0-0-0-0",
-            "ping_ancestor_transactions": False,
-            "retry": False
+            "ping_ancestor_transactions": False
         }
         self._ENABLE_READ_TABLE_CHAOS_MONKEY = False
         self._ENABLE_HTTP_CHAOS_MONKEY = False

@@ -6,6 +6,8 @@ from .config import get_option, get_config, get_backend_type
 from .format import create_format
 from .http_helpers import get_api_commands
 
+from yt.common import YT_NULL_TRANSACTION_ID
+
 import yt.logger as logger
 import yt.yson as yson
 import yt.json as json
@@ -63,6 +65,11 @@ def make_request(command_name,
     backend = get_backend_type(client)
 
     command_params = deepcopy(get_option("COMMAND_PARAMS", client))
+    if command_params["transaction_id"] == YT_NULL_TRANSACTION_ID and not command_name == "lock":
+        del command_params["transaction_id"]
+    if not command_params["ping_ancestor_transactions"]:
+        del command_params["ping_ancestor_transactions"]
+
     params = update(command_params, params)
 
     params = process_params(params)

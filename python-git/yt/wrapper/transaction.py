@@ -1,9 +1,12 @@
 from .config import (get_option, set_option, get_config, get_total_request_timeout,
                      get_request_retry_count, get_command_param, set_command_param)
-import yt.logger as logger
 from .common import get_value
 from .errors import YtResponseError, YtError, YtTransactionPingError
 from .transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
+
+from yt.common import YT_NULL_TRANSACTION_ID
+
+import yt.logger as logger
 
 from yt.packages.six.moves._thread import interrupt_main
 
@@ -13,7 +16,7 @@ from datetime import datetime, timedelta
 import signal
 import os
 
-null_transaction_id = "0-0-0-0"
+null_transaction_id = YT_NULL_TRANSACTION_ID
 
 _sigusr_received = False
 
