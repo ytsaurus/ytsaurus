@@ -2156,7 +2156,6 @@ size_t MakeCodegenFilterOp(
             auto rowBuilder = TCGExprContext::Make(builder, *fragmentInfos, row, builder.Buffer);
             auto predicateResult = CodegenFragment(rowBuilder, predicateId);
 
-
             auto* ifBB = builder->CreateBBHere("if");
             auto* endIfBB = builder->CreateBBHere("endIf");
 
@@ -2329,9 +2328,8 @@ std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregat
         Value* values = CodegenValuesPtrFromRow(builder, row);
 
         for (int index = 0; index < codegenAggregates.size(); index++) {
-            auto id = keySize + index;
             codegenAggregates[index].Initialize(builder, buffer, row)
-                .StoreToValues(builder, values, keySize + index, id);
+                .StoreToValues(builder, values, keySize + index);
         }
     };
 }
@@ -2359,7 +2357,6 @@ std::function<void(TCGBaseContext& builder, Value*, Value*, Value*)> MakeCodegen
                 newValues,
                 keySize + index);
 
-            auto id = keySize + index;
             TCodegenAggregateUpdate updateFunction;
             if (isMerge) {
                 updateFunction = codegenAggregates[index].Merge;
@@ -2367,7 +2364,7 @@ std::function<void(TCGBaseContext& builder, Value*, Value*, Value*)> MakeCodegen
                 updateFunction = codegenAggregates[index].Update;
             }
             updateFunction(builder, buffer, aggState, newValue)
-                .StoreToValues(builder, groupValues, keySize + index, id);
+                .StoreToValues(builder, groupValues, keySize + index);
         }
     };
 }
