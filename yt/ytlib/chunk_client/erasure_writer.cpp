@@ -322,7 +322,13 @@ void TErasureWriter::WriteDataPart(int partIndex, IChunkWriterPtr writer, const 
         }
     }
 
-    PlacementExt_.mutable_part_checksums()->Set(partIndex, CombineChecksums(blockChecksums));
+    auto checksum = CombineChecksums(blockChecksums);
+    YCHECK(checksum != NullChecksum || blockChecksums.empty() ||
+        std::all_of(blockChecksums.begin(), blockChecksums.end(), [] (TChecksum value) {
+            return value == NullChecksum;
+        }));
+
+    PlacementExt_.mutable_part_checksums()->Set(partIndex, checksum);
 }
 
 void TErasureWriter::EncodeAndWriteParityBlocks()

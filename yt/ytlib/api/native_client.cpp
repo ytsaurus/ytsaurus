@@ -1527,57 +1527,6 @@ private:
         return replicaConnection->CreateClient(Options_);
     }
 
-    void RemapValueIds(TSharedRange<TVersionedRow> rows, const std::vector<int>& mapping)
-    {
-        auto mutableRows = ReinterpretCastRange<TMutableVersionedRow>(rows);
-
-        for (auto row : mutableRows) {
-            if (!row) {
-                continue;
-            }
-            for (int index = 0; index < row.GetKeyCount(); ++index) {
-                auto id = row.BeginKeys()[index].Id;
-                YCHECK(id < mapping.size() && mapping[id] != -1);
-                row.BeginKeys()[index].Id = mapping[id];
-            }
-            for (int index = 0; index < row.GetValueCount(); ++index) {
-                auto id = row.BeginValues()[index].Id;
-                YCHECK(id < mapping.size() && mapping[id] != -1);
-                row.BeginValues()[index].Id = mapping[id];
-            }
-        }
-
-    }
-
-    void RemapValueIds(TSharedRange<TUnversionedRow> rows, const std::vector<int>& mapping)
-    {
-        auto mutableRows = ReinterpretCastRange<TMutableUnversionedRow>(rows);
-
-        for (auto row : mutableRows) {
-            if (!row) {
-                continue;
-            }
-            for (int index = 0; index < row.GetCount(); ++index) {
-                auto id = row[index].Id;
-                YCHECK(id < mapping.size() && mapping[id] != -1);
-                row[index].Id = mapping[id];
-            }
-        }
-    }
-
-    std::vector<int> BuildResponseIdMaping(const NTableClient::TColumnFilter& remappedColumnFilter)
-    {
-        std::vector<int> mapping;
-        for (int index = 0; index < remappedColumnFilter.Indexes.size(); ++index) {
-            int id = remappedColumnFilter.Indexes[index];
-            if (id >= mapping.size()) {
-                mapping.resize(id + 1, -1);
-            }
-            mapping[id] = index;
-        }
-
-        return mapping;
-    }
 
     template <class TRowset, class TRow>
     TRowset DoLookupRowsOnce(
@@ -1713,11 +1662,6 @@ private:
         }
 
         auto rowRange = ReinterpretCastRange<TRow>(MakeSharedRange(std::move(resultRows), outputRowBuffer));
-        if (!remappedColumnFilter.All) {
-            auto mapping = BuildResponseIdMaping(remappedColumnFilter);
-            RemapValueIds(rowRange, mapping);
-        }
-
         return CreateRowset(resultSchema, std::move(rowRange));
     }
 

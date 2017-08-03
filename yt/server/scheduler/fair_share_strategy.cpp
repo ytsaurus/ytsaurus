@@ -867,7 +867,11 @@ private:
 
         LOG_INFO("Starting min needed job resources update");
         for (const auto& pair : OperationIdToElement) {
-            pair.second->UpdateMinNeededJobResources();
+            const auto& operationElement = pair.second;
+            if (!operationElement->IsSchedulable()) {
+                continue;
+            }
+            operationElement->UpdateMinNeededJobResources();
         }
         LOG_INFO("Min needed job resources successfully updated");
     }

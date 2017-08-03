@@ -673,6 +673,8 @@ public:
 
     virtual TString GetId() const override;
 
+    bool IsSchedulable() const;
+
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
     virtual double GetWeight() const override;
