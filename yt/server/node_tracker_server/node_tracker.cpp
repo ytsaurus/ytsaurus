@@ -281,7 +281,6 @@ public:
 
     void ProcessRegisterNode(TCtxRegisterNodePtr context)
     {
-        auto
         if (PendingRegisterNodeMutationCount_ + LocalRegisteredNodeCount_ >= Config_->MaxConcurrentNodeRegistrations) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
