@@ -228,7 +228,7 @@ private:
                 TChecksum repairedPartChecksum = writerConsumers[index]->GetPartChecksum();
                 TChecksum expectedPartChecksum = placementExt.part_checksums(ErasedIndices_[index]);
 
-                YCHECK(repairedPartChecksum == expectedPartChecksum);
+                YCHECK(expectedPartChecksum == NullChecksum || repairedPartChecksum == expectedPartChecksum);
             }
         }
 
