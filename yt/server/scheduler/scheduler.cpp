@@ -411,6 +411,7 @@ public:
             if (it != CachedExecNodeDescriptorsByTags_.end()) {
                 auto& entry = it->second;
                 if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
+                    entry.LastAccessTime = now;
                     return entry.ExecNodeDescriptors;
                 }
             }
@@ -430,7 +431,13 @@ public:
 
         {
             TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
-            CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, now, result}));
+
+            auto it = CachedExecNodeDescriptorsByTags_.find(filter);
+            if (it != CachedExecNodeDescriptorsByTags_.end()) {
+                it->second = TExecNodeDescriptorsEntry({now, now, result});
+            } else {
+                CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, now, result}));
+            }
         }
 
         return result;
@@ -439,6 +446,12 @@ public:
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        if (filter.IsEmpty()) {
+            TReaderGuard guard(ExecNodeMemoryDistributionByTagLock_);
+
+            return CachedExecNodeMemoryDistribution_;
+        }
 
         auto now = NProfiling::GetCpuInstant();
 
@@ -449,6 +462,7 @@ public:
             if (it != CachedExecNodeMemoryDistributionByTags_.end()) {
                 auto& entry = it->second;
                 if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
+                    entry.LastAccessTime = now;
                     return entry.ExecNodeMemoryDistribution;
                 }
             }
@@ -459,18 +473,18 @@ public:
         {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
-            for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
-                if (filter.CanSchedule(descriptor.Tags)) {
-                    ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), GB)];
-                }
-            }
+            result = CalculateMemoryDistribution(CachedExecNodeDescriptors_, filter);
         }
-
-        result = FilterLargestValues(result, Config_->MemoryDistributionDifferentNodeTypesThreshold);
 
         {
             TWriterGuard guard(ExecNodeMemoryDistributionByTagLock_);
-            CachedExecNodeMemoryDistributionByTags_.emplace(filter, TMemoryDistributionEntry({now, now, result}));
+
+            auto it = CachedExecNodeMemoryDistributionByTags_.find(filter);
+            if (it != CachedExecNodeMemoryDistributionByTags_.end()) {
+                it->second = TMemoryDistributionEntry({now, now, result});
+            } else {
+                CachedExecNodeMemoryDistributionByTags_.emplace(filter, TMemoryDistributionEntry({now, now, result}));
+            }
         }
 
         return result;
@@ -1127,6 +1141,8 @@ private:
         TMemoryDistribution ExecNodeMemoryDistribution;
     };
 
+    TMemoryDistribution CachedExecNodeMemoryDistribution_;
+
     mutable yhash<TSchedulingTagFilter, TMemoryDistributionEntry> CachedExecNodeMemoryDistributionByTags_;
 
 
@@ -1686,6 +1702,12 @@ private:
             std::swap(CachedExecNodeDescriptors_, result);
         }
 
+        {
+            TWriterGuard guard(ExecNodeDescriptorsLock_);
+
+            CachedExecNodeMemoryDistribution_ = CalculateMemoryDistribution(result, EmptySchedulingTagFilter);
+        }
+
         // Remove outdated cached exec node descriptor lists.
         {
             auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout);
@@ -1719,6 +1741,44 @@ private:
                 }
             }
         }
+
+        // TODO(ignat): refactor to avoid copy/paste of caching code for CachedExecNodeDescriptorsByTags_ and CachedExecNodeMemoryDistributionByTags_
+        // Remove outdated memory distribution entries.
+        {
+            auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout);
+            std::vector<TSchedulingTagFilter> toRemove;
+            {
+                TReaderGuard guard(ExecNodeMemoryDistributionByTagLock_);
+                for (const auto& pair : CachedExecNodeMemoryDistributionByTags_) {
+                    if (pair.second.LastAccessTime < deadline) {
+                        toRemove.push_back(pair.first);
+                    }
+                }
+            }
+            if (!toRemove.empty()) {
+                {
+                    TWriterGuard guard(ExecNodeMemoryDistributionByTagLock_);
+                    for (const auto& filter : toRemove) {
+                        auto it = CachedExecNodeMemoryDistributionByTags_.find(filter);
+                        if (it->second.LastAccessTime < deadline) {
+                            CachedExecNodeMemoryDistributionByTags_.erase(it);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    TMemoryDistribution CalculateMemoryDistribution(const TExecNodeDescriptorListPtr& execNodesList, const TSchedulingTagFilter& filter) const
+    {
+        TMemoryDistribution result;
+        for (const auto& descriptor : execNodesList->Descriptors) {
+            if (filter.CanSchedule(descriptor.Tags)) {
+                ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), GB)];
+            }
+        }
+        result = FilterLargestValues(result, Config_->MemoryDistributionDifferentNodeTypesThreshold);
+        return result;
     }
 
     void DoStartOperation(TOperationPtr operation)
