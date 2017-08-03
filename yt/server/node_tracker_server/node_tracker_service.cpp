@@ -85,6 +85,9 @@ private:
             statistics);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->GetNodeByAddressOrThrow(address);
+        node->ValidateNotBanned();
+
         nodeTracker->ProcessRegisterNode(context);
     }
 
