@@ -18,6 +18,11 @@ from yt.packages.six.moves import map as imap
 
 from copy import copy, deepcopy
 
+_DEFAULT_COMMAND_PARAMS = {
+    "transaction_id": YT_NULL_TRANSACTION_ID,
+    "ping_ancestor_transactions": False
+}
+
 def process_params(obj):
     attributes = None
     is_yson_type = isinstance(obj, yson.YsonType)
@@ -65,10 +70,10 @@ def make_request(command_name,
     backend = get_backend_type(client)
 
     command_params = deepcopy(get_option("COMMAND_PARAMS", client))
-    if command_params["transaction_id"] == YT_NULL_TRANSACTION_ID:
-        del command_params["transaction_id"]
-    if not command_params["ping_ancestor_transactions"]:
-        del command_params["ping_ancestor_transactions"]
+
+    for key in _DEFAULT_COMMAND_PARAMS:
+        if key in command_params and command_params[key] == _DEFAULT_COMMAND_PARAMS[key]:
+            del command_params[key]
 
     params = update(command_params, params)
 
