@@ -228,10 +228,9 @@ def _prepare_table_path_for_read_blob_table(table, part_index_column_name, clien
     range["lower_limit"]["key"].append(0)
     return table
 
-def read_blob_table(table, part_index_column_name="part_index", data_column_name="data",
+def read_blob_table(table, part_index_column_name=None, data_column_name=None,
                     part_size=None, table_reader=None, client=None):
-    """
-    Reads file from blob table.
+    """Reads file from blob table.
 
     :param table: table to read.
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
@@ -243,6 +242,9 @@ def read_blob_table(table, part_index_column_name="part_index", data_column_name
 
     """
     table = TablePath(table, client=client)
+
+    part_index_column_name = get_value(part_index_column_name, "part_index")
+    data_column_name = get_value(data_column_name, "data")
 
     if part_size is None:
         try:

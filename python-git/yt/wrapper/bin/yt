@@ -368,6 +368,20 @@ def add_read_file_parser(add_parser):
         parser.add_argument("--offset", type=int, help="offset in input file in bytes, 0 by default")
         parser.add_argument("--length", type=int, help="length in bytes of desired part of input file, all file without offset by default")
 
+@copy_docstring_from(yt.read_blob_table)
+def read_blob_table(**args):
+    stream = yt.read_blob_table(**args)
+    iterator = chunk_iter_stream(stream, 16 * MB)
+    write_silently(iterator)
+
+def add_read_blob_table_parser(add_parser):
+    parser = add_parser("read-blob-table", read_blob_table)
+    add_ypath_argument(parser, "table", hybrid=True)
+    parser.add_argument("--part_index_column_name", help="name of column with part indexes")
+    parser.add_argument("--data_column_name", help="name of column with data")
+    parser.add_argument("--part_size", type=int, help="size of each blob")
+    add_structured_argument(parser, "--table-reader")
+
 @copy_docstring_from(yt.write_file)
 def write_file(**args):
     func_args = dict(args)
@@ -1020,6 +1034,8 @@ def main():
     add_read_table_parser(add_parser)
     add_write_table_parser(add_parser)
     add_create_temp_table_parser(add_parser)
+
+    add_read_blob_table_parser(add_parser)
 
     add_read_file_parser(add_parser)
     add_write_file_parser(add_parser)
