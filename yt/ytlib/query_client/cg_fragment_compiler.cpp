@@ -1331,16 +1331,6 @@ void MakeCodegenFragmentBodies(
     };
 }
 
-TCodegenSimpleValue MakeCodegenFunctionContext(
-    int index)
-{
-    return [
-            index
-        ] (TCGExprContext& builder) {
-            return builder.GetOpaqueValue(index);
-        };
-}
-
 TCodegenExpression MakeCodegenUnaryOpExpr(
     EUnaryOp opcode,
     size_t operandId,

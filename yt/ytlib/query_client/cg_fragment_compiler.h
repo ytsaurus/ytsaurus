@@ -11,10 +11,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<void(TCGOperatorContext& builder)> TCodegenSource;
-
-typedef std::function<Value*(TCGExprContext& builder)> TCodegenSimpleValue;
 typedef std::function<TCGValue(TCGBaseContext& builder)> TCodegenValue;
-
 typedef std::function<TCGValue(TCGExprContext& builder)> TCodegenExpression;
 
 struct TCodegenFragmentInfo
@@ -97,9 +94,6 @@ TCGValue CodegenFragment(
 void MakeCodegenFragmentBodies(
     TCodegenSource* codegenSource,
     TCodegenFragmentInfosPtr fragmentInfos);
-
-TCodegenSimpleValue MakeCodegenFunctionContext(
-    int index);
 
 TCodegenExpression MakeCodegenUnaryOpExpr(
     EUnaryOp opcode,
