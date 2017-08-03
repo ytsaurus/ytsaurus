@@ -298,7 +298,7 @@ protected:
                         Options_,
                         OutputTables_.size(),
                         PrimaryInputDataWeight,
-                        std::numeric_limits<i32>::max() /* InputRowCount */, // It is not important in sorted operations.
+                        std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
                         ForeignInputDataWeight);
             }
         };

@@ -2061,6 +2061,13 @@ TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* cloned
     return New<TOperationElement>(*this, clonedParent);
 }
 
+bool TOperationElement::IsSchedulable() const
+{
+    YCHECK(!Cloned_);
+
+    return Schedulable_;
+}
+
 bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
 {
     return
