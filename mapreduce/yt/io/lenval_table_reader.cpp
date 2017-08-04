@@ -98,6 +98,8 @@ void TLenvalTableReader::Next()
                         if (!AtStart_) {
                             Valid_ = false;
                             return;
+                        } else {
+                            ReadInteger(&value);
                         }
                         break;
 
