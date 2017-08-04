@@ -57,7 +57,9 @@ void TYsonSerializableLite::Load(
         for (const auto& alias : parameter->GetAliases()) {
             auto otherChild = mapNode->FindChild(alias);
             if (child && otherChild && !AreNodesEqual(child, otherChild)) {
-                THROW_ERROR_EXCEPTION("Different values for aliased parameters %Qv and %Qv", key, alias);
+                THROW_ERROR_EXCEPTION("Different values for aliased parameters %Qv and %Qv", key, alias)
+                    << TErrorAttribute("main_value", child)
+                    << TErrorAttribute("aliased_value", otherChild);
             }
             if (!child && otherChild) {
                 child = otherChild;
