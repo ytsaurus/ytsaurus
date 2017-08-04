@@ -16,6 +16,7 @@
 #include <util/string/printf.h>
 #include <util/string/cast.h>
 #include <util/string/builder.h>
+#include <util/system/getpid.h>
 
 namespace NYT {
 
@@ -78,7 +79,17 @@ void THttpHeader::AddOperationId(const TOperationId& operationId)
 
 void THttpHeader::AddMutationId()
 {
-    AddParam("mutation_id", CreateGuidAsString());
+    TGUID guid;
+
+    // Some users use `fork()' with yt wrapper
+    // (actually they use python + multiprocessing)
+    // and CreateGuid is not resistant to `fork()', so spice it a little bit.
+    //
+    // Check IGNIETFERRO-610
+    CreateGuid(&guid);
+    guid.dw[2] = GetPID() ^ MicroSeconds();
+
+    AddParam("mutation_id", GetGuidAsString(guid));
 }
 
 bool THttpHeader::HasMutationId() const
