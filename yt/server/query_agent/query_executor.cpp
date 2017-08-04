@@ -786,28 +786,28 @@ private:
                 auto currentBound = lowerBound;
 
                 size_t sampleCount = std::distance(startSampleIt, endSampleIt);
-                size_t savedSampleCount = currentSampleCount;
-                currentSampleCount += sampleCount;
+                size_t nextGroupSampleCount = currentSampleCount + sampleCount;
 
-                YCHECK(nextSampleCount >= savedSampleCount);
+                YCHECK(nextSampleCount >= currentSampleCount);
 
                 auto it = startSampleIt;
-                while (nextSampleCount < currentSampleCount) {
-                    size_t step = nextSampleCount - savedSampleCount;
+                while (nextSampleCount < nextGroupSampleCount) {
+                    size_t step = nextSampleCount - currentSampleCount;
                     it += step;
-                    savedSampleCount += step;
 
                     auto nextBound = rowBuffer->Capture(*it);
                     group.emplace_back(currentBound, nextBound);
                     currentBound = nextBound;
 
                     addGroup();
+                    currentSampleCount += step;
                     incrementSampleIndex();
                 }
 
                 group.emplace_back(currentBound, upperBound);
 
                 addGroup();
+                currentSampleCount = nextGroupSampleCount;
             });
 
         return groupedSplits;
