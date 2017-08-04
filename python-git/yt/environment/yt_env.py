@@ -402,6 +402,7 @@ class YTInstance(object):
             if name not in killed_services:
                 self.kill_service(name)
 
+        self.pids_file.close()
         remove_file(self.pids_filename, force=True)
 
         if self._open_port_iterator is not None:
