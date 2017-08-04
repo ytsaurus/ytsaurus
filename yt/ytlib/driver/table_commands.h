@@ -25,6 +25,7 @@ private:
     NYTree::INodePtr TableReader;
     NFormats::TControlAttributesConfigPtr ControlAttributes;
     bool Unordered;
+    bool StartRowIndexOnly;
 
     virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
