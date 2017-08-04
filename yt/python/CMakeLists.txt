@@ -29,6 +29,7 @@ endif()
 
 set(PYCXX_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx)
 set(PYCXX_SRCS
+  ${PYCXX_BASE}/cxx_exceptions.cxx
   ${PYCXX_BASE}/cxx_extensions.cxx
   ${PYCXX_BASE}/cxxextensions.c
   ${PYCXX_BASE}/cxxsupport.cxx
