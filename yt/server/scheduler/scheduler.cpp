@@ -1494,11 +1494,11 @@ private:
 
     void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        LOG_INFO("Updating pools");
+        static const auto poolConfigTemplate = New<TPoolConfig>();
+        static const auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
 
+        LOG_INFO("Updating pools");
         auto req = TYPathProxy::Get(GetPoolsPath());
-        static auto poolConfigTemplate = New<TPoolConfig>();
-        static auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
         ToProto(req->mutable_attributes()->mutable_keys(), poolConfigKeys);
         batchReq->AddRequest(req, "get_pools");
     }
