@@ -28,7 +28,7 @@ using NPython::GetYsonTypeClass;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYsonError(const std::string& message, TContext* context)
+Py::BaseException CreateYsonError(const std::string& message, TContext* context)
 {
     static Py::Callable ysonErrorClass;
     if (ysonErrorClass.isNone()) {
@@ -72,7 +72,7 @@ Py::Exception CreateYsonError(const std::string& message, TContext* context)
     options.setItem("attributes", attributes);
 
     auto ysonError = ysonErrorClass.apply(Py::Tuple(), options);
-    return Py::Exception(*ysonError.type(), ysonError);
+    return Py::BaseException(*ysonError.type(), ysonError);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -57,7 +57,7 @@ static yhash<TGuid, TWeakPtr<IDriver>> ActiveDrivers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYtError(const std::string& message, const NYT::TError& error = TError())
+Py::BaseException CreateYtError(const std::string& message, const NYT::TError& error = TError())
 {
     auto ytModule = Py::Module(PyImport_ImportModule("yt.common"), true);
     auto ytErrorClass = Py::Callable(GetAttr(ytModule, "YtError"));
@@ -69,7 +69,7 @@ Py::Exception CreateYtError(const std::string& message, const NYT::TError& error
     options.setItem("code", ConvertTo<Py::Object>(1));
     options.setItem("inner_errors", ConvertTo<Py::Object>(innerErrors));
     auto ytError = ytErrorClass.apply(Py::Tuple(), options);
-    return Py::Exception(*ytError.type(), ytError);
+    return Py::BaseException(*ytError.type(), ytError);
 }
 
 #define CATCH(message) \
