@@ -178,8 +178,8 @@ void SerializeMapFragment(
     while (auto* item = PyIter_Next(*iterator)) {
         auto itemGuard = Finally([item] () { Py::_XDECREF(item); });
 
-        auto key = Py::Object(PyTuple_GET_ITEM(item, 0), false);
-        auto value = Py::Object(PyTuple_GET_ITEM(item, 1), false);
+        auto key = Py::Object(PyTuple_GetItem(item, 0), false);
+        auto value = Py::Object(PyTuple_GetItem(item, 1), false);
 
         if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
             throw CreateYsonError(Format("Map key should be string, found '%s'", Py::Repr(key)), context);

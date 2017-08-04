@@ -31,7 +31,7 @@ Py_ssize_t LazyYsonMapBaseLength(PyObject* object);
 
 void LazyYsonMapBaseDealloc(TLazyYsonMapBase* self);
 
-extern PyTypeObject TLazyYsonMapBaseType;
+extern PyTypeObject* TLazyYsonMapBaseType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +47,7 @@ PyObject* LazyYsonMapNew(PyTypeObject* type, PyObject* args, PyObject* kwargs);
 
 void LazyYsonMapDealloc(TLazyYsonMap* self);
 
-extern PyTypeObject TLazyYsonMapType;
+extern PyTypeObject* TLazyYsonMapType;
 
 ////////////////////////////////////////////////////////////////////////////////
 

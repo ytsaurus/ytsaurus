@@ -270,11 +270,11 @@ public:
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();
         TLazyYsonIterator::InitType();
-        PyType_Ready(&TLazyYsonMapBaseType);
-        PyType_Ready(&TLazyYsonMapType);
+        PyType_Ready(TLazyYsonMapBaseType);
+        PyType_Ready(TLazyYsonMapType);
 
-        YsonLazyMapBaseClass = TPythonClassObject(&TLazyYsonMapBaseType);
-        YsonLazyMapClass = TPythonClassObject(&TLazyYsonMapType);
+        YsonLazyMapBaseClass = TPythonClassObject(TLazyYsonMapBaseType);
+        YsonLazyMapClass = TPythonClassObject(TLazyYsonMapType);
 
         add_keyword_method("load", &TYsonModule::Load, "Loads YSON from stream");
         add_keyword_method("loads", &TYsonModule::Loads, "Loads YSON from string");
