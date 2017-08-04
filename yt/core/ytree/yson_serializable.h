@@ -35,8 +35,7 @@ public:
         : public TIntrinsicRefCounted
     {
         virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) = 0;
-        virtual void Validate(const NYPath::TYPath& path) const = 0;
-        virtual void SetDefaults() = 0;
+        virtual void Validate(const NYPath::TYPath& path) const = 0;virtual void SetDefaults() = 0;
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
         virtual bool HasValue() const = 0;
         virtual const std::vector<TString>& GetAliases() const = 0;
@@ -104,7 +103,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
     NYTree::IMapNodePtr GetOptions() const;
 
-    std::vector<TString> GetRegisteredKeys() const;
+    yhash_set<TString> GetRegisteredKeys() const;
 
 protected:
     virtual void OnLoaded();
@@ -121,7 +120,8 @@ private:
     template <class T>
     friend class TParameter;
 
-    std::unordered_map<TString, IParameterPtr> Parameters;
+    yhash<TString, IParameterPtr> Parameters;
+
     NYTree::IMapNodePtr Options;
 
     std::vector<TInitializer> Initializers;

@@ -174,6 +174,14 @@ void ToProto(
     NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
+template <class TSerialized, class TOriginal>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const yhash_set<TOriginal>& originalArray)
+{
+    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+}
+
 template <class TOriginalArray, class TSerialized>
 void FromProto(
     TOriginalArray* originalArray,
