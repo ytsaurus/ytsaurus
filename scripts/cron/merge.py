@@ -51,10 +51,14 @@ def merge(table):
 
         temp_table = yt.create_temp_table(prefix="merge")
         try:
+            # Saving expiration time of temp table since it will be removed
+            expiration_time = yt.get(temp_table + "/@expiration_time")
             # To copy all attributes of node
             yt.remove(temp_table)
             yt.copy(table, temp_table, preserve_account=preserve_account)
+            yt.set(temp_table + "/@expiration_time", expiration_time)
             yt.run_erase(temp_table)
+
             #for attr in ["account", "compression_codec", "erasure_codec", "replication_factor"]:
             #    yt.set("{}/@{}".format(temp_table, attr), yt.get("{}/@{}".format(table, attr)))
 
