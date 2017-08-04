@@ -12,9 +12,21 @@ import os.path
 import uuid
 import subprocess
 import getpass
+import sys
 
 SCRIPT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 PREPARE_SCRIPT = os.path.join(SCRIPT_DIR, "prepare_quota.sh")
+
+def debug_log(message):
+    print >>sys.stderr, "[DEBUG QUOTA LOG] {0}".format(message)
+
+def check_fs(path):
+    result = os.statvfs(path)
+    debug_log("fs free blocks {0}, free nodes {1}, total blocks {2}".format(
+        result.f_bfree,
+        result.f_ffree,
+        result.f_blocks))
+    subprocess.check_call("ls -l {0} && df -h".format(path), shell=True)
 
 class TestDiskQuota(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -40,27 +52,41 @@ class TestDiskQuota(YTEnvSetup):
         mount_path = cls.path_to_run
         os.makedirs(cls.path_to_run)
         username = getpass.getuser()
+        debug_log("Ready to setup: path to run {0}, image path {1}, user {2}".format(
+            cls.path_to_run,
+            fs_path,
+            username))
         try:
             subprocess.check_call(["sudo", PREPARE_SCRIPT, fs_path, cls.VIRTUAL_FS_TYPE,
                                    str(cls.BLOCKS), mount_path, username])
         except subprocess.CalledProcessError:
             cls.clear(True)
             raise
+        debug_log("Finished quota setup, run default")
+        check_fs(cls.path_to_run)
         super(TestDiskQuota, cls).setup_class(run_id=run_id)
+        debug_log("Finished setup")
+        check_fs(cls.path_to_run)
 
     @classmethod
     def clear(cls, ignore_errors):
         fs_path = cls._fs_path()
+        debug_log("Clear")
+        check_fs(cls.path_to_run)
         try:
+            subprocess.check_call(["sudo", "repquota", "-vs", cls.path_to_run])
             subprocess.check_call(["sudo", "umount", "-l", cls.path_to_run])
             subprocess.check_call(["sudo", "rm", fs_path])
         except subprocess.CalledProcessError:
+            debug_log("Fail on clear")
             if not ignore_errors:
                 raise
 
     @classmethod
     def teardown_class(cls):
+        debug_log("Teardown")
         cls.clear(False)
+        debug_log("Default teardown")
         super(TestDiskQuota, cls).teardown_class()
 
     def _init_tables(self):
