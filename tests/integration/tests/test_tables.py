@@ -1107,6 +1107,18 @@ class TestTables(YTEnvSetup):
         chunk = get("//tmp/t/@chunk_ids")[0]
         assert get("#{0}/@table_chunk_format".format(chunk)) == chunk_format
 
+    def test_get_start_row_index(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+            })
+        write_table("//tmp/t", [{"key": 1, "value": "a"}, {"key": 1, "value": "b"}])
+        write_table("<append=%true>//tmp/t", [{"key": 1, "value": "c"}, {"key": 2, "value": "a"}])
+        response_parameters={}
+        read_table("//tmp/t[(2)]", start_row_index_only=True, response_parameters=response_parameters)
+        assert response_parameters["start_row_index"] == 3
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):

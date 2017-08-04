@@ -121,6 +121,8 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     if "path" in parameters and command_name != "parse_ypath":
         parameters["path"] = prepare_path(parameters["path"])
 
+    response_parameters = parameters.pop("response_parameters", None)
+
     yson_format = yson.to_yson_type("yson", attributes={"format": "text"})
     description = driver.get_command_descriptor(command_name)
     if description.input_type() != "null" and parameters.get("input_format") is None:
@@ -157,6 +159,12 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         return
 
     response.wait()
+
+    if response_parameters is not None:
+        response_params = response.response_parameters()
+        print >>sys.stderr, response_params
+        response_parameters.update(response_params)
+
     if not response.is_ok():
         error = YtResponseError(response.error())
         if verbose_error:
