@@ -44,7 +44,7 @@ public:
             i64 dataWeightPerJob = Spec_->DataWeightPerJob.Get(Options_->DataWeightPerJob);
             JobCount_ = std::max(
                 DivCeil(PrimaryInputDataWeight_, dataWeightPerJob),
-                DivCeil(InputDataWeight_, Spec_->MaxDataWeightPerJob / 2));
+                DivCeil(InputDataWeight_, DivCeil<i64>(Spec_->MaxDataWeightPerJob, 2)));
         } else {
             JobCount_ = 0;
         }
