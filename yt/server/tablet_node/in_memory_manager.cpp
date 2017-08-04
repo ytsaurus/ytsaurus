@@ -255,6 +255,10 @@ private:
 
             auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
 
+            if (!tabletSnapshot) {
+                THROW_ERROR_EXCEPTION("Tablet snapshot is missing");
+            }
+
             if (tabletSnapshot->Config->InMemoryMode != mode) {
                 THROW_ERROR_EXCEPTION("In-memory mode does not match the snapshot")
                     << TErrorAttribute("expected", mode)
