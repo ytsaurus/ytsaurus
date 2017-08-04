@@ -14,96 +14,125 @@ class Operation(object):
         self.errors = []
         self._attrs = None
         self._snapshot_size = None
+        self._orchid = None
         self._output_resource_usage = None
+        self._output_chunks = None
         self._input_locked_nodes = None
         self._input_disk_usage = None
 
     def fetch_attrs(self):
-        self._attrs = self._batch_client.get("//sys/operations/{}/@".format(self.operation_id))
+        attrs = self._batch_client.get("//sys/operations/{}/@".format(self.operation_id))
+        yield
+
+        if attrs.is_ok():
+            self._attrs = attrs.get_result()
+        else:
+            self.errors.append(attrs.get_error())
 
     def fetch_snapshot_size(self):
-        self._snapshot_size = self._batch_client.get("//sys/operations/{}/snapshot/@uncompressed_data_size".format(self.operation_id))
-    
-    def fetch_output_resource_usage(self):
-        if not self._attrs.is_ok():
-            self.errors.append(self._attrs.get_error())
-            self._output_resource_usage = self.attrs
-            return
+        snapshot_size = self._batch_client.get("//sys/operations/{}/snapshot/@uncompressed_data_size".format(self.operation_id))
+        yield
 
-        output_tx = self._attrs.get_result()["output_transaction_id"]
-        self._output_resource_usage = self._batch_client.get("#{}/@resource_usage".format(output_tx))
-
-    def fetch_input_locked_nodes(self):
-        if not self._attrs.is_ok():
-            self.errors.append(self._attrs.get_error())
-            self._input_locked_nodes = self.attrs
-            return
-
-        input_tx = self._attrs.get_result()["input_transaction_id"]
-        self._input_locked_nodes = self._batch_client.get("#{}/@locked_node_ids".format(input_tx))
-
-    def fetch_input_disk_usage(self):
-        if not self._input_locked_nodes.is_ok():
-            self.errors.append(self._attrs.get_error())
-            self._input_object_attrs = []
-            return
-
-        self._input_object_attrs = []
-        for object_id in self._input_locked_nodes.get_result():
-            self._input_object_attrs.append(self._batch_client.get("#{}/@".format(object_id)))
-
-    def get_default_attrs(self):
-        if not self._attrs.is_ok():
-            self.errors.append(self._attrs.get_error())
-            return None
-        return {
-            "operation_type": self._attrs.get_result()["operation_type"],
-            "authenticated_user": self._attrs.get_result()["authenticated_user"],
-            "pool": self._attrs.get_result()["pool"],
-            "title": self._attrs.get_result()["spec"].get("title", "")
-        }
-            
-    def get_job_count(self):
-        if not self._attrs.is_ok():
-            self.errors.append(self._attrs.get_error())
-            return None
-        
-        progress = self._attrs.get_result().get("progress")
-        if progress is not None and "jobs" in progress:
-            return progress["jobs"]["total"]
+        if snapshot_size.is_ok():
+            self._snapshot_size = snapshot_size.get_result()
         else:
-            return None
+            self.errors.append(snapshot_size.get_error())
+    
+    def fetch_output_resource_usage(self, in_account=None):
+        if self._attrs is None:
+            yield
+            return
 
-    def get_snapshot_size(self):
-        if not self._snapshot_size.is_ok():
-            self.errors.append(self._snapshot_size.get_error())
-            return None
+        output_tx = self._attrs["output_transaction_id"]
+        output_resource_usage = self._batch_client.get("#{}/@resource_usage".format(output_tx))
+        yield
 
-        return self._snapshot_size.get_result()
-            
-    def get_output_chunks(self, in_account=None):
-        if not self._output_resource_usage.is_ok():
-            self.errors.append(self._output_resource_usage.get_error())
-            return None
-        
+        if output_resource_usage.is_ok():
+            self._output_resource_usage = output_resource_usage.get_result()
+        else:
+            self.errors.append(output_resource_usage.get_error())
+            return
+
         chunks = 0
-        for account, usage in self._output_resource_usage.get_result().items():
+        for account, usage in self._output_resource_usage.items():
             if in_account is None or in_account == account:
                 chunks += usage["chunk_count"]
-        return chunks
+        self._output_chunks = chunks
+            
+    def fetch_input_locked_nodes(self):
+        if self._attrs is None:
+            yield
+            return
+        
+        input_tx = self._attrs["input_transaction_id"]
+        input_locked_nodes = self._batch_client.get("#{}/@locked_node_ids".format(input_tx))
+        yield
 
-    def get_input_disk_usage(self, in_account=None):
+        if input_locked_nodes.is_ok():
+            self._input_locked_nodes = input_locked_nodes.get_result()
+        else:
+            self.errors.append(input_locked_nodes.get_error())
+
+    def fetch_input_disk_usage(self, in_account=None):
+        if self._input_locked_nodes is None:
+            yield
+            return
+            
+        input_object_attrs = []
+        for object_id in self._input_locked_nodes:
+            input_object_attrs.append(self._batch_client.get("#{}/@".format(object_id)))
+
+        yield
+
         disk_space = 0
-        for input_object in self._input_object_attrs:
+        for input_object in input_object_attrs:
             if not input_object.is_ok():
-                self.errors.append(self._input_object.get_error())
+                self.errors.append(input_object.get_error())
                 continue
 
             if in_account is not None and input_object.get_result()["account"] != in_account:
                 continue
 
             disk_space += input_object.get_result()["resource_usage"]["disk_space"]
-        return disk_space
+        self._input_disk_usage = disk_space
+
+    def fetch_orchid(self):
+        orchid = self._batch_client.get("//sys/scheduler/orchid/scheduler/operations/{}".format(self.operation_id))
+        yield
+        if orchid.is_ok():
+            self._orchid = orchid.get_result()
+        else:
+            self.errors.append(orchid.get_error())        
+
+    def get_default_attrs(self):
+        if self._attrs is None:
+            return None
+
+        return {
+            "operation_type": self._attrs["operation_type"],
+            "authenticated_user": self._attrs["authenticated_user"],
+            "pool": self._attrs["pool"],
+            "title": self._attrs["spec"].get("title", "")
+        }
+            
+    def get_job_count(self):
+        if self._attrs is None:
+            return None
+        
+        progress = self._attrs.get("progress")
+        if progress is not None and "jobs" in progress:
+            return progress["jobs"]["total"]
+        else:
+            return None
+
+    def get_snapshot_size(self):
+        return self._snapshot_size
+            
+    def get_output_chunks(self):
+        return self._output_chunks
+
+    def get_input_disk_usage(self):
+        return self._input_disk_usage
 
     def get_url(self):
         return "https://yt.yandex-team.ru/{}/#page=operation&mode=detail&id={}".format(self._cluster, self.operation_id)
@@ -135,6 +164,18 @@ def report_operations(operations, top_k, key_field, key_name):
         print fmt.format(**op)
         
 
+def fetch_batch(batch_client, operations, fetch):
+    generators = []
+    for op in operations:
+        generators.append(fetch(op))
+        next(generators[-1])
+    batch_client.commit_batch()
+    for gen in generators:
+        try:
+            next(gen)
+        except StopIteration:
+            pass
+        
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze running scheduler state.")
     parser.add_argument("-k", type=int, default=10, help="Number of operation to show (default: 10)")
@@ -149,34 +190,23 @@ if __name__ == "__main__":
     batch_client = client.create_batch_client()
     operations = [Operation(operation_id, args.proxy, batch_client) for operation_id in client.list("//sys/operations")]
 
-    for op in operations:
-        op.fetch_attrs()
-    batch_client.commit_batch()
+    fetch_batch(batch_client, operations, lambda op: op.fetch_attrs())
 
     if args.top_by == "job-count":
         report_operations(operations, args.k, lambda op: op.get_job_count(), args.top_by)
     elif args.top_by == "snapshot-size":
-        for op in operations:
-            op.fetch_snapshot_size()
-        batch_client.commit_batch()
+        fetch_batch(batch_client, operations, lambda op: op.fetch_snapshot_size())
 
         report_operations(operations, args.k, lambda op: op.get_snapshot_size(), args.top_by)
     elif args.top_by == "input-disk-usage":
-        for op in operations:
-            op.fetch_input_locked_nodes()
-        batch_client.commit_batch()
+        fetch_batch(batch_client, operations, lambda op: op.fetch_input_locked_nodes())
+        fetch_batch(batch_client, operations, lambda op: op.fetch_input_disk_usage(args.in_account))
 
-        for op in operations:
-            op.fetch_input_disk_usage()
-        batch_client.commit_batch()
-
-        report_operations(operations, args.k, lambda op: op.get_input_disk_usage(args.in_account), args.top_by)
+        report_operations(operations, args.k, lambda op: op.get_input_disk_usage(), args.top_by)
     elif args.top_by == "output-chunks":
-        for op in operations:
-            op.fetch_output_resource_usage()
-        batch_client.commit_batch()
+        fetch_batch(batch_client, operations, lambda op: op.fetch_output_resource_usage(args.in_account))
 
-        report_operations(operations, args.k, lambda op: op.get_output_chunks(args.in_account), args.top_by)
+        report_operations(operations, args.k, lambda op: op.get_output_chunks(), args.top_by)
 
     if args.show_errors:
         for op in operations:
