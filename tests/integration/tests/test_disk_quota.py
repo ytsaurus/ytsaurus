@@ -75,7 +75,7 @@ class TestDiskQuota(YTEnvSetup):
         check_fs(cls.path_to_run)
         try:
             subprocess.check_call(["sudo", "repquota", "-vs", cls.path_to_run])
-            subprocess.check_call(["sudo", "umount", cls.path_to_run])
+            subprocess.check_call(["sudo", "umount", "-l", cls.path_to_run])
             subprocess.check_call(["sudo", "rm", fs_path])
         except subprocess.CalledProcessError:
             debug_log("Fail on clear")
