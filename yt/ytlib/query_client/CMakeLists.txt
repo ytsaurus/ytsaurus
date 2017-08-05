@@ -55,6 +55,8 @@ udf_bc(
     get_boolean
     try_get_string
     get_string
+    try_get_any
+    get_any
 )
 
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/lower.cpp YT_SOURCE_FILES )

@@ -796,7 +796,9 @@ void RegisterBuiltinFunctions(
         {"try_get_boolean", EValueType::Boolean},
         {"get_boolean", EValueType::Boolean},
         {"try_get_string", EValueType::String},
-        {"get_string", EValueType::String}};
+        {"get_string", EValueType::String},
+        {"try_get_any", EValueType::Any},
+        {"get_any", EValueType::Any}};
 
     for (const auto& fns : ypathGetFunctions) {
         auto&& name = fns.first;

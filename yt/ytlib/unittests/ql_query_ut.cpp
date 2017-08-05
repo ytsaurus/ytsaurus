@@ -3610,6 +3610,156 @@ TEST_F(TQueryEvaluateTest, YPathGetStringFail)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, YPathGetAny)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath0", EValueType::String},
+        {"ypath1", EValueType::String},
+        {"value", EValueType::String},
+    });
+
+    std::vector<TString> source = {
+        "yson={b={c=\"here\"};d=[1;2]};ypath0=\"/b\";ypath1=\"/c\";value=\"here\"",
+        "yson={b={c=4};d=[1;\"there\"]};ypath0=\"/d\";ypath1=\"/1\";value=\"there\"",
+        "",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath0=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Boolean}
+    });
+
+    auto result = YsonToRows({
+        "result=%true",
+        "result=%true",
+        "result=%true",
+        "result=%true",
+        "result=%true",
+    }, resultSplit);
+
+    Evaluate("get_any(get_any(yson, ypath0), ypath1) = value as result FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, CompareAny)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Any},
+        {"b", EValueType::Any}
+    });
+
+    std::vector<TString> source = {
+        "a=%false;b=%true;",
+        "a=%false;b=%false;",
+        "a=1;b=2;",
+        "a=1;b=1;",
+        "a=1u;b=2u;",
+        "a=1u;b=1u;",
+        "a=1.0;b=2.0;",
+        "a=1.0;b=1.0;",
+        "a=x;b=y;",
+        "a=x;b=x;",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"r1", EValueType::Boolean},
+        {"r2", EValueType::Boolean},
+        {"r3", EValueType::Boolean},
+        {"r4", EValueType::Boolean},
+        {"r5", EValueType::Boolean},
+        {"r6", EValueType::Boolean}
+    });
+
+    auto result = YsonToRows({
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
+    }, resultSplit);
+
+    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6 FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, CompareAnyMixed)
+{
+    auto resultSplit = MakeSplit({
+        {"r1", EValueType::Boolean},
+        {"r2", EValueType::Boolean},
+        {"r3", EValueType::Boolean},
+        {"r4", EValueType::Boolean},
+        {"r5", EValueType::Boolean},
+        {"r6", EValueType::Boolean},
+        {"r7", EValueType::Boolean}
+    });
+
+    auto result = YsonToRows({
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true;r7=%true",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false;r7=%true",
+    }, resultSplit);
+
+    TString query = "a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6, a < b = b "
+        "> a and a > b = b < a as r7 FROM [//t]";
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::Any},
+            {"b", EValueType::Boolean},
+        }), {
+            "a=%false;b=%true;",
+            "a=%false;b=%false;"},
+        ResultMatcher(result));
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::Any},
+            {"b", EValueType::Int64},
+        }), {
+            "a=1;b=2;",
+            "a=1;b=1;"},
+        ResultMatcher(result));
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::Any},
+            {"b", EValueType::Uint64},
+        }), {
+            "a=1u;b=2u;",
+            "a=1u;b=1u;"},
+        ResultMatcher(result));
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::Any},
+            {"b", EValueType::Double},
+        }), {
+            "a=1.0;b=2.0;",
+            "a=1.0;b=1.0;"},
+        ResultMatcher(result));
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::Any},
+            {"b", EValueType::String},
+        }), {
+            "a=x;b=y;",
+            "a=x;b=x;"},
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestVarargUdf)
 {
     auto split = MakeSplit({

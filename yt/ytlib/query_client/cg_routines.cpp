@@ -14,9 +14,12 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/pipe.h>
 
-#include <yt/core/ytree/ypath_resolver.h>
-
+#include <yt/core/yson/lexer.h>
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/token.h>
+
+#include <yt/core/ytree/ypath_resolver.h>
+#include <yt/core/ytree/convert.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -31,6 +34,7 @@
 #include <mutex>
 
 #include <string.h>
+
 
 namespace llvm {
 
@@ -898,6 +902,16 @@ void CopyString(TExpressionContext* context, TUnversionedValue* result, const St
     result->Data.String = data;
 }
 
+template <typename StringType>
+void CopyAny(TExpressionContext* context, TUnversionedValue* result, const StringType& str)
+{
+    char* data = AllocateBytes(context, str.size());
+    memcpy(data, str.c_str(), str.size());
+    result->Type = EValueType::Any;
+    result->Length = str.size();
+    result->Data.String = data;
+}
+
 void RegexReplaceFirst(
     TExpressionContext* context,
     re2::RE2* re2,
@@ -1001,11 +1015,154 @@ void RegexEscape(
     DEFINE_YPATH_GET_IMPL(String, \
         CopyString(context, result, *value);)
 
+#define DEFINE_YPATH_GET_ANY \
+    DEFINE_YPATH_GET_IMPL(Any, \
+        CopyAny(context, result, *value);)
+
 DEFINE_YPATH_GET(Int64)
 DEFINE_YPATH_GET(Uint64)
 DEFINE_YPATH_GET(Double)
 DEFINE_YPATH_GET(Boolean)
 DEFINE_YPATH_GET_STRING
+DEFINE_YPATH_GET_ANY
+
+////////////////////////////////////////////////////////////////////////////////
+
+int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
+{
+    TStringBuf lhsInput(lhsData, lhsLength);
+    TStringBuf rhsInput(rhsData, rhsLength);
+
+    NYson::TStatelessLexer lexer;
+
+    NYson::TToken lhsToken;
+    NYson::TToken rhsToken;
+    lexer.GetToken(lhsInput, &lhsToken);
+    lexer.GetToken(rhsInput, &rhsToken);
+
+    if (lhsToken.GetType() != rhsToken.GetType()) {
+        THROW_ERROR_EXCEPTION("Any type mismatch")
+            << TErrorAttribute("lhs_type", lhsToken.GetType())
+            << TErrorAttribute("rhs_type", rhsToken.GetType());
+    }
+
+    auto tokenType = lhsToken.GetType();
+
+    switch (tokenType) {
+        case NYson::ETokenType::Boolean: {
+            auto lhsValue = lhsToken.GetBooleanValue();
+            auto rhsValue = rhsToken.GetBooleanValue();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        case NYson::ETokenType::Int64: {
+            auto lhsValue = lhsToken.GetInt64Value();
+            auto rhsValue = rhsToken.GetInt64Value();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        case NYson::ETokenType::Uint64: {
+            auto lhsValue = lhsToken.GetUint64Value();
+            auto rhsValue = rhsToken.GetUint64Value();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        case NYson::ETokenType::Double: {
+            auto lhsValue = lhsToken.GetDoubleValue();
+            auto rhsValue = rhsToken.GetDoubleValue();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        case NYson::ETokenType::String: {
+            auto lhsValue = lhsToken.GetStringValue();
+            auto rhsValue = rhsToken.GetStringValue();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        default:
+            THROW_ERROR_EXCEPTION("Unexpected value")
+                << TErrorAttribute("value", tokenType);
+    }
+}
+
+#define DEFINE_COMPARE_ANY(TYPE, TOKEN_TYPE) \
+int CompareAny##TOKEN_TYPE(char* lhsData, i32 lhsLength, TYPE rhsValue) \
+{ \
+    TStringBuf lhsInput(lhsData, lhsLength); \
+    NYson::TStatelessLexer lexer; \
+    NYson::TToken lhsToken; \
+    lexer.GetToken(lhsInput, &lhsToken); \
+    if (lhsToken.GetType() != NYson::ETokenType::TOKEN_TYPE) { \
+        THROW_ERROR_EXCEPTION("Any type mismatch") \
+            << TErrorAttribute("lhs_type", lhsToken.GetType()) \
+            << TErrorAttribute("rhs_type", NYson::ETokenType::TOKEN_TYPE); \
+    } \
+    auto lhsValue = lhsToken.Get##TOKEN_TYPE##Value(); \
+    if (lhsValue < rhsValue) { \
+        return -1; \
+    } else if (lhsValue > rhsValue) { \
+        return +1; \
+    } else { \
+        return 0; \
+    } \
+}
+
+DEFINE_COMPARE_ANY(bool, Boolean)
+DEFINE_COMPARE_ANY(i64, Int64)
+DEFINE_COMPARE_ANY(ui64, Uint64)
+DEFINE_COMPARE_ANY(double, Double)
+
+int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
+{
+    TStringBuf lhsInput(lhsData, lhsLength);
+    NYson::TStatelessLexer lexer;
+    NYson::TToken lhsToken;
+    lexer.GetToken(lhsInput, &lhsToken);
+    if (lhsToken.GetType() != NYson::ETokenType::String) {
+        THROW_ERROR_EXCEPTION("Any type mismatch")
+            << TErrorAttribute("lhs_type", lhsToken.GetType())
+            << TErrorAttribute("rhs_type", NYson::ETokenType::String);
+    }
+    auto lhsValue = lhsToken.GetStringValue();
+    TStringBuf rhsValue(rhsData, rhsLength);
+    if (lhsValue < rhsValue) {
+        return -1;
+    } else if (lhsValue > rhsValue) {
+        return +1;
+    } else {
+        return 0;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1067,11 +1224,18 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(RegexEscape);
     REGISTER_ROUTINE(ToLowerUTF8);
     REGISTER_ROUTINE(GetFarmFingerprint);
+    REGISTER_ROUTINE(CompareAny);
+    REGISTER_ROUTINE(CompareAnyBoolean);
+    REGISTER_ROUTINE(CompareAnyInt64);
+    REGISTER_ROUTINE(CompareAnyUint64);
+    REGISTER_ROUTINE(CompareAnyDouble);
+    REGISTER_ROUTINE(CompareAnyString);
     REGISTER_YPATH_GET_ROUTINE(Int64);
     REGISTER_YPATH_GET_ROUTINE(Uint64);
     REGISTER_YPATH_GET_ROUTINE(Double);
     REGISTER_YPATH_GET_ROUTINE(Boolean);
     REGISTER_YPATH_GET_ROUTINE(String);
+    REGISTER_YPATH_GET_ROUTINE(Any);
 #undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 
