@@ -1,7 +1,6 @@
 #pragma once
 
 #include <memory>
-#include <vector>
 
 namespace NYT {
 namespace NQueryClient {
@@ -10,7 +9,7 @@ namespace NQueryClient {
 
 struct TFunctionContext
 {
-    explicit TFunctionContext(std::vector<bool> literalArgs);
+    explicit TFunctionContext(std::unique_ptr<bool[]> literalArgs);
     ~TFunctionContext();
 
     //! Creates typed function-local object.
