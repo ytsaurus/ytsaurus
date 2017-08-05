@@ -54,10 +54,13 @@ public:
     //! Usually called from the callback to schedule the next invocation.
     void ScheduleNext();
 
+    //! Usually called from the callback to schedule the next invocation.
+    void SetPeriod(TDuration period);
+
 private:
     const IInvokerPtr Invoker_;
     const TClosure Callback_;
-    const TDuration Period_;
+    TDuration Period_;
     const EPeriodicExecutorMode Mode_;
     const TDuration Splay_;
 

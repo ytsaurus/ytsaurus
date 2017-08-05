@@ -529,6 +529,10 @@ public:
 
         Config = config;
         RootElement->UpdateStrategyConfig(Config);
+
+        FairShareUpdateExecutor_->SetPeriod(Config->FairShareUpdatePeriod);
+        FairShareLoggingExecutor_->SetPeriod(Config->FairShareLogPeriod);
+        MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
     }
 
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
