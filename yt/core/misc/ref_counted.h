@@ -150,7 +150,7 @@ class TRefCountedBase
 {
 public:
     TRefCountedBase() = default;
-    virtual ~TRefCountedBase() noexcept;
+    virtual ~TRefCountedBase() noexcept = default;
 
     void operator delete(void* ptr) noexcept;
 
@@ -165,18 +165,22 @@ private:
     TRefCountedBase& operator=(TRefCountedBase&&) = delete;
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
+protected:
+    TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
+
+    void FinalizeTracking();
+
+private:
     friend void NDetail::InitializeRefCountedTracking(
         TRefCountedBase* object,
         TRefCountedTypeCookie typeCookie,
         size_t instanceSize);
 
-    TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
-    size_t InstanceSize_ = 0;
-
     void InitializeTracking(
         TRefCountedTypeCookie typeCookie,
         size_t instanceSize);
-    void FinalizeTracking();
+
+    size_t InstanceSize_ = 0;
 #endif
 };
 

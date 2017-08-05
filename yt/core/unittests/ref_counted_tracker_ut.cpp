@@ -154,5 +154,35 @@ TEST(TRefCountedTrackerTest, TBlobAllocatedMemoryTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TThrowingConstructorObject);
+TThrowingConstructorObjectPtr GlobalObject;
+
+class TThrowingConstructorObject
+    : public TRefCounted
+{
+public:
+    explicit TThrowingConstructorObject(bool passThisToSomebodyElse)
+    {
+        if (passThisToSomebodyElse) {
+            GlobalObject = this;
+        }
+        THROW_ERROR_EXCEPTION("Some error");
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TThrowingConstructorObject);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TRefCountedTrackerTest, ThrowingExceptionsInConstructor)
+{
+    TThrowingConstructorObjectPtr object;
+    EXPECT_THROW(object = New<TThrowingConstructorObject>(false), std::exception);
+    // TODO(max42): enable this when death tests are allowed in unittests.
+    // ASSERT_DEATH(object = New<TThrowingConstructorObject>(true), "YCHECK\\(GetRefCount\\(\\) == 1\\).*");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT
