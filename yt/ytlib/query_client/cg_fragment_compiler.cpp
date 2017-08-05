@@ -2321,13 +2321,12 @@ size_t MakeCodegenAddStreamOp(
         builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
             Value* newRowRef = builder->ViaClosure(newRow);
             Value* newValues = CodegenValuesPtrFromRow(builder, newRowRef);
+            Value* values = CodegenValuesPtrFromRow(builder, row);
 
-            for (int index = 0; index < sourceSchema.size(); ++index) {
-                auto id = index;
-
-                TCGValue::CreateFromRow(builder, row, index, sourceSchema[index])
-                    .StoreToValues(builder, newValues, index, id);
-            }
+            builder->CreateMemCpy(
+                builder->CreatePointerCast(newValues, builder->getInt8PtrTy()),
+                builder->CreatePointerCast(values, builder->getInt8PtrTy()),
+                sourceSchema.size() * sizeof(TValue), 8);
 
             TCGValue::CreateFromValue(
                 builder,
@@ -2772,15 +2771,10 @@ size_t MakeCodegenOrderOp(
                 Value* values = CodegenValuesPtrFromRow(builder, row);
                 Value* newValues = CodegenValuesPtrFromRow(builder, newRowRef);
 
-                for (size_t index = 0; index < schemaSize; ++index) {
-                    auto type = sourceSchema[index];
-                    TCGValue::CreateFromRowValues(
-                        builder,
-                        values,
-                        index,
-                        type)
-                        .StoreToValues(builder, newValues, index, index);
-                }
+                builder->CreateMemCpy(
+                    builder->CreatePointerCast(newValues, builder->getInt8PtrTy()),
+                    builder->CreatePointerCast(values, builder->getInt8PtrTy()),
+                    schemaSize * sizeof(TValue), 8);
 
                 auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, row, builder.Buffer);
                 for (size_t index = 0; index < exprIds.size(); ++index) {
