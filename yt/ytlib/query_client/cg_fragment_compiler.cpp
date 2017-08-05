@@ -2798,7 +2798,7 @@ size_t MakeCodegenOrderOp(
                     auto columnIndex = schemaSize + index;
 
                     CodegenFragment(innerBuilder, exprIds[index])
-                        .StoreToValues(builder, newValues, columnIndex, columnIndex);
+                        .StoreToValues(builder, newValues, columnIndex);
                 }
 
                 builder->CreateCall(
