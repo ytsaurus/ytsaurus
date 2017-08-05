@@ -1806,7 +1806,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     }
 
     if (!HasJobsSatisfyingResourceLimits(context)) {
-        LOG_DEBUG(
+        LOG_TRACE(
             "No pending jobs can satisfy available resources on node "
             "(OperationId: %v, FreeResources: %v, DiscountResources: %v)",
             OperationId_,
