@@ -236,11 +236,14 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
                 EValueType::Uint64,
                 EValueType::Double});
         case NAst::TLiteralValue::TagOf<double>():
-            return TTypeSet({EValueType::Double});
+            return TTypeSet({
+                EValueType::Double});
         case NAst::TLiteralValue::TagOf<bool>():
-            return TTypeSet({EValueType::Boolean});
+            return TTypeSet({
+                EValueType::Boolean});
         case NAst::TLiteralValue::TagOf<TString>():
-            return TTypeSet({EValueType::String});
+            return TTypeSet({
+                EValueType::String});
         default:
             Y_UNREACHABLE();
     }
@@ -1009,7 +1012,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
         EBinaryOp::Divide})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double}),
+            TTypeSet({EValueType::Int64, EValueType::Uint64, EValueType::Double}),
             Null
         };
     }
@@ -1022,7 +1025,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
         EBinaryOp::BitAnd})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64}),
+            TTypeSet({EValueType::Int64, EValueType::Uint64}),
             Null
         };
     }
@@ -1032,7 +1035,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
         EBinaryOp::Or})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Boolean}),
+            TTypeSet({EValueType::Boolean}),
             EValueType::Boolean
         };
     }
@@ -1047,12 +1050,12 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
     {
         result[op] = {
             TTypeSet({
-                EValueType::Null,
                 EValueType::Int64,
                 EValueType::Uint64,
                 EValueType::Double,
                 EValueType::Boolean,
-                EValueType::String}),
+                EValueType::String,
+                EValueType::Any}),
             EValueType::Boolean
         };
     }
@@ -1075,18 +1078,18 @@ TEnumIndexedVector<TOperatorTyper, EUnaryOp> BuildUnaryOperatorTypers()
         EUnaryOp::Minus})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double}),
+            TTypeSet({EValueType::Int64, EValueType::Uint64, EValueType::Double}),
             Null
         };
     }
 
     result[EUnaryOp::BitNot] = {
-        TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64}),
+        TTypeSet({EValueType::Int64, EValueType::Uint64}),
         Null
     };
 
     result[EUnaryOp::Not] = {
-        TTypeSet({EValueType::Null, EValueType::Boolean}),
+        TTypeSet({EValueType::Boolean}),
         Null
     };
 
@@ -1107,6 +1110,10 @@ TTypeSet InferBinaryExprTypes(
     const TStringBuf& lhsSource,
     const TStringBuf& rhsSource)
 {
+    if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
+        return TTypeSet{EValueType::Boolean};
+    }
+
     const auto& binaryOperators = GetBinaryOperatorTypers();
 
     *genericAssignments = binaryOperators[opCode].Constraint;
@@ -1142,8 +1149,27 @@ TTypeSet InferBinaryExprTypes(
 std::pair<EValueType, EValueType> RefineBinaryExprTypes(
     EBinaryOp opCode,
     EValueType resultType,
-    TTypeSet* genericAssignments)
+    const TTypeSet& lhsTypes,
+    const TTypeSet& rhsTypes,
+    TTypeSet* genericAssignments,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource)
 {
+    if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
+        // empty intersersection (Any, alpha) || (alpha, Any), where alpha = {bool, int, uint, double, string}
+        if (lhsTypes.Get(EValueType::Any)) {
+            return std::make_pair(EValueType::Any, rhsTypes.GetFront());
+        }
+
+        if (rhsTypes.Get(EValueType::Any)) {
+            return std::make_pair(lhsTypes.GetFront(), EValueType::Any);
+        }
+
+        THROW_ERROR_EXCEPTION("Type mismatch in expression")
+            << TErrorAttribute("lhs_source", lhsSource)
+            << TErrorAttribute("rhs_source", rhsSource);
+    }
+
     const auto& binaryOperators = GetBinaryOperatorTypers();
 
     EValueType argType;
@@ -1390,13 +1416,17 @@ struct TTypedExpressionBuilder
                 TNullable<size_t> offset) -> TUntypedExpression
             {
                 TTypeSet genericAssignments;
+
+                auto lhsSource = offset ? binaryExpr->Lhs[*offset]->GetSource(Source) : "";
+                auto rhsSource = offset ? binaryExpr->Rhs[*offset]->GetSource(Source) : "";
+
                 auto resultTypes = InferBinaryExprTypes(
                     op,
                     lhs.FeasibleTypes,
                     rhs.FeasibleTypes,
                     &genericAssignments,
-                    offset ? binaryExpr->Lhs[*offset]->GetSource(Source) : "",
-                    offset ? binaryExpr->Rhs[*offset]->GetSource(Source) : "");
+                    lhsSource,
+                    rhsSource);
 
                 if (lhs.IsConstant && rhs.IsConstant) {
                     auto lhsValue = lhs.Generator(lhs.FeasibleTypes.GetFront());
@@ -1411,11 +1441,22 @@ struct TTypedExpressionBuilder
                     }
                 }
 
-                TExpressionGenerator generator = [op, lhs, rhs, genericAssignments] (EValueType type) mutable {
+                TExpressionGenerator generator = [
+                    op,
+                    lhs,
+                    rhs,
+                    genericAssignments,
+                    lhsSource,
+                    rhsSource
+                ] (EValueType type) mutable {
                     auto argTypes = RefineBinaryExprTypes(
                         op,
                         type,
-                        &genericAssignments);
+                        lhs.FeasibleTypes,
+                        rhs.FeasibleTypes,
+                        &genericAssignments,
+                        lhsSource,
+                        rhsSource);
 
                     return New<TBinaryOpExpression>(
                         type,
@@ -1443,11 +1484,7 @@ struct TTypedExpressionBuilder
                     auto next = gen(offset + 1, keySize, op);
                     auto eq = makeBinaryExpr(
                         EBinaryOp::And,
-                        makeBinaryExpr(
-                            EBinaryOp::Equal,
-                            untypedLhs,
-                            untypedRhs,
-                            offset),
+                        makeBinaryExpr(EBinaryOp::Equal, untypedLhs, untypedRhs, offset),
                         std::move(next),
                         Null);
                     if (op == EBinaryOp::Less || op == EBinaryOp::LessOrEqual) {
@@ -1470,12 +1507,7 @@ struct TTypedExpressionBuilder
                 }
             };
 
-            if (binaryExpr->Opcode == EBinaryOp::Less
-                || binaryExpr->Opcode == EBinaryOp::LessOrEqual
-                || binaryExpr->Opcode == EBinaryOp::Greater
-                || binaryExpr->Opcode == EBinaryOp::GreaterOrEqual
-                || binaryExpr->Opcode == EBinaryOp::Equal) {
-
+            if (IsRelationalBinaryOp(binaryExpr->Opcode)) {
                 if (binaryExpr->Lhs.size() != binaryExpr->Rhs.size()) {
                     THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
                         binaryExpr->Lhs.size(),

@@ -1495,9 +1495,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
 
         #define CMP_OP(opcode, optype) \
             case EBinaryOp::opcode: \
-                evalData = builder->CreateZExtOrBitCast( \
-                    builder->Create##optype(lhsData, rhsData), \
-                    TDataTypeBuilder::TBoolean::get(builder->getContext())); \
+                evalData = builder->Create##optype(lhsData, rhsData); \
                 break;
 
         auto compareNulls = [&] () {
@@ -1516,12 +1514,43 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                     Y_UNREACHABLE();
             }
 
+            evalData = builder->CreateZExtOrBitCast(
+                evalData,
+                TDataTypeBuilder::TBoolean::get(builder->getContext()));
+
             return TCGValue::CreateFromValue(
                 builder,
                 builder->getFalse(),
                 nullptr,
                 evalData,
                 type);
+        };
+
+        auto cmpResultToResult = [] (TCGBaseContext& builder, Value* cmpResult, EBinaryOp opcode) {
+            Value* evalData;
+            switch (opcode) {
+                case EBinaryOp::Equal:
+                    evalData = builder->CreateIsNull(cmpResult);
+                    break;
+                case EBinaryOp::NotEqual:
+                    evalData = builder->CreateIsNotNull(cmpResult);
+                    break;
+                case EBinaryOp::Less:
+                    evalData = builder->CreateICmpSLT(cmpResult, builder->getInt32(0));
+                    break;
+                case EBinaryOp::Greater:
+                    evalData = builder->CreateICmpSGT(cmpResult, builder->getInt32(0));
+                    break;
+                case EBinaryOp::LessOrEqual:
+                    evalData =  builder->CreateICmpSLE(cmpResult, builder->getInt32(0));
+                    break;
+                case EBinaryOp::GreaterOrEqual:
+                    evalData = builder->CreateICmpSGE(cmpResult, builder->getInt32(0));
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
+            return evalData;
         };
 
         return CodegenIf<TCGBaseContext, TCGValue>(
@@ -1531,7 +1560,95 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 return compareNulls();
             },
             [&] (TCGBaseContext& builder) {
+                if (lhsValue.GetStaticType() != rhsValue.GetStaticType()) {
+                    auto resultOpcode = opcode;
+
+                    if (rhsValue.GetStaticType() == EValueType::Any) {
+                        resultOpcode = GetReversedBinaryOpcode(resultOpcode);
+                        std::swap(lhsValue, rhsValue);
+                    }
+
+                    if (lhsValue.GetStaticType() == EValueType::Any) {
+                        Value* lhsData = lhsValue.GetData(builder);
+                        Value* lhsLength = lhsValue.GetLength(builder);
+
+                        Value* cmpResult = nullptr;
+
+                        switch (rhsValue.GetStaticType()) {
+                            case EValueType::Boolean: {
+                                cmpResult = builder->CreateCall(
+                                    builder.Module->GetRoutine("CompareAnyBoolean"),
+                                    {
+                                        lhsData,
+                                        lhsLength,
+                                        rhsValue.GetData(builder)
+                                    });
+                                break;
+                            }
+                            case EValueType::Int64: {
+                                cmpResult = builder->CreateCall(
+                                    builder.Module->GetRoutine("CompareAnyInt64"),
+                                    {
+                                        lhsData,
+                                        lhsLength,
+                                        rhsValue.GetData(builder)
+                                    });
+                                break;
+                            }
+                            case EValueType::Uint64: {
+                                cmpResult = builder->CreateCall(
+                                    builder.Module->GetRoutine("CompareAnyUint64"),
+                                    {
+                                        lhsData,
+                                        lhsLength,
+                                        rhsValue.GetData(builder)
+                                    });
+                                break;
+                            }
+                            case EValueType::Double: {
+                                cmpResult = builder->CreateCall(
+                                    builder.Module->GetRoutine("CompareAnyDouble"),
+                                    {
+                                        lhsData,
+                                        lhsLength,
+                                        rhsValue.GetData(builder)
+                                    });
+                                break;
+                            }
+                            case EValueType::String: {
+                                cmpResult = builder->CreateCall(
+                                    builder.Module->GetRoutine("CompareAnyString"),
+                                    {
+                                        lhsData,
+                                        lhsLength,
+                                        rhsValue.GetData(builder),
+                                        rhsValue.GetLength(builder)
+                                    });
+                                break;
+                            }
+                            default:
+                                Y_UNREACHABLE();
+                        }
+
+                        Value* evalData = cmpResultToResult(builder, cmpResult, resultOpcode);
+
+                        evalData = builder->CreateZExtOrBitCast(
+                            evalData,
+                            TDataTypeBuilder::TBoolean::get(builder->getContext()));
+
+                        return TCGValue::CreateFromValue(
+                            builder,
+                            builder->getFalse(),
+                            nullptr,
+                            evalData,
+                            type);
+                    } else {
+                        Y_UNREACHABLE();
+                    }
+                }
+
                 YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+
                 auto operandType = lhsValue.GetStaticType();
 
                 Value* lhsData = lhsValue.GetData(builder);
@@ -1631,14 +1748,32 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                 Y_UNREACHABLE();
                         }
 
-                        evalData = builder->CreateZExtOrBitCast(
-                            evalData,
-                            TDataTypeBuilder::TBoolean::get(builder->getContext()));
+                        break;
+                    }
+
+                    case EValueType::Any: {
+                        Value* lhsLength = lhsValue.GetLength(builder);
+                        Value* rhsLength = rhsValue.GetLength(builder);
+
+                        Value* cmpResult = builder->CreateCall(
+                            builder.Module->GetRoutine("CompareAny"),
+                            {
+                                lhsData,
+                                lhsLength,
+                                rhsData,
+                                rhsLength
+                            });
+
+                        evalData = cmpResultToResult(builder, cmpResult, opcode);
                         break;
                     }
                     default:
                         Y_UNREACHABLE();
                 }
+
+                evalData = builder->CreateZExtOrBitCast(
+                    evalData,
+                    TDataTypeBuilder::TBoolean::get(builder->getContext()));
 
                 return TCGValue::CreateFromValue(
                     builder,
