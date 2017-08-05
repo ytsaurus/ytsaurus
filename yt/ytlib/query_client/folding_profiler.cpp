@@ -264,7 +264,11 @@ struct TExpressionFragments
                 result->Items[id].Index = functionCount++;
 
                 if (IsDumpExprsEnabled()) {
-                    Cerr << Format("$%v := %v\n", id, InferName(id, DebugInfos, Items));
+                    Cerr << Format(
+                        "$%v %v:= %v\n",
+                        id,
+                        result->Items[id].Nullable ? "nullable " : "",
+                        InferName(id, DebugInfos, Items));
                 }
             }
         }
@@ -345,6 +349,7 @@ size_t TExpressionProfiler::Profile(
             fragments->Items.emplace_back(
                 MakeCodegenLiteralExpr(index, literalExpr->Type),
                 expr->Type,
+                TValue(literalExpr->Value).Type == EValueType::Null,
                 true);
         }
         return emplaced.first->second;
@@ -363,6 +368,7 @@ size_t TExpressionProfiler::Profile(
                     referenceExpr->Type,
                     referenceExpr->ColumnName),
                 expr->Type,
+                true,
                 true);
         }
         return emplaced.first->second;
@@ -386,9 +392,12 @@ size_t TExpressionProfiler::Profile(
             Fold(id);
             const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
 
+            std::vector<bool> nullableArgs;
             for (size_t argId : argIds) {
                 ++fragments->Items[argId].UseCount;
+                nullableArgs.push_back(fragments->Items[argId].Nullable);
             }
+
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
                 function->Profile(
@@ -399,8 +408,8 @@ size_t TExpressionProfiler::Profile(
                     functionExpr->Type,
                     "{" + InferName(functionExpr, true) + "}",
                     Id_),
-                expr->Type);
-
+                expr->Type,
+                function->IsNullable(nullableArgs));
         }
         return emplaced.first->second;
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
@@ -420,8 +429,8 @@ size_t TExpressionProfiler::Profile(
                 operand,
                 unaryOp->Type,
                 "{" + InferName(unaryOp, true) + "}"),
-                expr->Type);
-
+                expr->Type,
+                fragments->Items[operand].Nullable);
         }
         return emplaced.first->second;
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
@@ -439,13 +448,17 @@ size_t TExpressionProfiler::Profile(
             ++fragments->Items[lhsOperand].UseCount;
             ++fragments->Items[rhsOperand].UseCount;
             fragments->DebugInfos.emplace_back(expr, std::vector<size_t>{lhsOperand, rhsOperand});
+            bool nullable = IsRelationalBinaryOp(binaryOp->Opcode)
+                ? false
+                : fragments->Items[lhsOperand].Nullable || fragments->Items[rhsOperand].Nullable;
             fragments->Items.emplace_back(MakeCodegenBinaryOpExpr(
                 binaryOp->Opcode,
                 lhsOperand,
                 rhsOperand,
                 binaryOp->Type,
                 "{" + InferName(binaryOp, true) + "}"),
-                expr->Type);
+                expr->Type,
+                nullable);
         }
         return emplaced.first->second;
     } else if (auto inOp = expr->As<TInOpExpression>()) {
@@ -472,7 +485,8 @@ size_t TExpressionProfiler::Profile(
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
                 MakeCodegenInOpExpr(argIds, index, ComparerManager_),
-                expr->Type);
+                expr->Type,
+                false);
         }
         return emplaced.first->second;
     }

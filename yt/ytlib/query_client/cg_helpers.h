@@ -683,12 +683,17 @@ void CodegenIf(
     Value* condition,
     const std::function<void(TBuilder& builder)>& thenCodegen)
 {
-    CodegenIf<TBuilder>(
-        builder,
-        condition,
-        thenCodegen,
-        [&] (TBuilder& builder) {
-        });
+    auto* thenBB = builder->CreateBBHere("then");
+    auto* endBB = builder->CreateBBHere("end");
+
+    builder->CreateCondBr(condition, thenBB, endBB);
+
+    builder->SetInsertPoint(thenBB);
+    thenCodegen(builder);
+    builder->CreateBr(endBB);
+    thenBB = builder->GetInsertBlock();
+
+    builder->SetInsertPoint(endBB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

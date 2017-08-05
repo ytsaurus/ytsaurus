@@ -22,6 +22,10 @@ struct IFunctionCodegen
         const TString& name,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const {
+        return true;
+    }
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionCodegen)
