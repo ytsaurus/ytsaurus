@@ -1858,14 +1858,11 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
 
 TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
 {
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
+    auto split = MakeSplit({});
 
     std::vector<TString> source;
     for (size_t i = 0; i < 10000; ++i) {
-        source.push_back(TString() + "a=" + ToString(i) + ";b=" + ToString(i * 10));
+        source.push_back(TString());
     }
 
     auto resultSplit = MakeSplit({
@@ -2966,7 +2963,7 @@ TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
     };
 
     auto resultSplit = MakeSplit({
-        {"a", EValueType::Int64}
+        {"a", EValueType::Uint64}
     });
 
     auto result = YsonToRows({
@@ -3125,7 +3122,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
     };
 
     auto resultSplit = MakeSplit({
-        {"x", EValueType::Uint64}
+        {"x", EValueType::String}
     });
 
     auto result = YsonToRows({
@@ -3625,7 +3622,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
     };
 
     auto resultSplit = MakeSplit({
-        {"x", EValueType::Boolean}
+        {"x", EValueType::Int64}
     });
 
     auto result = YsonToRows({

@@ -434,6 +434,30 @@ TTableUploadOptions GetTableUploadOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void YTreeNodeToUnversionedValue(TUnversionedOwningRowBuilder* builder, const INodePtr& value, int id, bool aggregate)
+{
+    switch (value->GetType()) {
+        case ENodeType::Entity:
+            builder->AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, aggregate));
+            break;
+        case ENodeType::Int64:
+            builder->AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id, aggregate));
+            break;
+        case ENodeType::Uint64:
+            builder->AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id, aggregate));
+            break;
+        case ENodeType::Double:
+            builder->AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, aggregate));
+            break;
+        case ENodeType::String:
+            builder->AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, aggregate));
+            break;
+        default:
+            builder->AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id, aggregate));
+            break;
+    }
+}
+
 TUnversionedOwningRow YsonToSchemafulRow(
     const TString& yson,
     const TTableSchema& tableSchema,
@@ -446,29 +470,33 @@ TUnversionedOwningRow YsonToSchemafulRow(
 
     TUnversionedOwningRowBuilder rowBuilder;
     auto addValue = [&] (int id, INodePtr value) {
-        switch (value->GetType()) {
-            case ENodeType::Int64:
-                rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
-                break;
-            case ENodeType::Uint64:
-                rowBuilder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id));
-                break;
-            case ENodeType::Double:
-                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
-                break;
-            case ENodeType::Boolean:
+        if (value->GetType() == ENodeType::Entity) {
+            rowBuilder.AddValue(MakeUnversionedSentinelValue(
+                value->Attributes().Get<EValueType>("type", EValueType::Null), id));
+            return;
+        }
+
+        switch (tableSchema.Columns()[id].Type) {
+            case EValueType::Boolean:
                 rowBuilder.AddValue(MakeUnversionedBooleanValue(value->GetValue<bool>(), id));
                 break;
-            case ENodeType::String:
+            case EValueType::Int64:
+                rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
+                break;
+            case EValueType::Uint64:
+                rowBuilder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id));
+                break;
+            case EValueType::Double:
+                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
+                break;
+            case EValueType::String:
                 rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id));
                 break;
-            case ENodeType::Entity:
-                rowBuilder.AddValue(MakeUnversionedSentinelValue(
-                    value->Attributes().Get<EValueType>("type", EValueType::Null), id));
-                break;
-            default:
+            case EValueType::Any:
                 rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
                 break;
+            default:
+                Y_UNREACHABLE();
         }
     };
 
@@ -498,7 +526,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
     for (const auto& pair : rowParts) {
         int id = nameTable->GetIdOrRegisterName(pair.first);
         if (id >= tableSchema.Columns().size()) {
-            addValue(id, pair.second);
+            YTreeNodeToUnversionedValue(&rowBuilder, pair.second, id, false);
         }
     }
 
@@ -513,26 +541,7 @@ TUnversionedOwningRow YsonToSchemalessRow(const TString& valueYson)
     for (const auto& value : values) {
         int id = value->Attributes().Get<int>("id");
         bool aggregate = value->Attributes().Find<bool>("aggregate").Get(false);
-        switch (value->GetType()) {
-            case ENodeType::Entity:
-                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, aggregate));
-                break;
-            case ENodeType::Int64:
-                builder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id, aggregate));
-                break;
-            case ENodeType::Uint64:
-                builder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id, aggregate));
-                break;
-            case ENodeType::Double:
-                builder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, aggregate));
-                break;
-            case ENodeType::String:
-                builder.AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, aggregate));
-                break;
-            default:
-                builder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id, aggregate));
-                break;
-        }
+        YTreeNodeToUnversionedValue(&builder, value, id, aggregate);
     }
 
     return builder.FinishRow();
