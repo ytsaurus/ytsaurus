@@ -1,13 +1,5 @@
 #include "lexer.h"
 #include "lexer_detail.h"
-#include "token.h"
-
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/varint.h>
-#include <yt/core/misc/zigzag.h>
-
-#include <util/string/escape.h>
 
 namespace NYT {
 namespace NYson {
