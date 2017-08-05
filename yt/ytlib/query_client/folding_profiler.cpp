@@ -370,12 +370,13 @@ size_t TExpressionProfiler::Profile(
 
         std::vector<size_t> argIds;
         std::vector<EValueType> argumentTypes;
-        std::vector<bool> literalArgs;
+        auto literalArgs = std::make_unique<bool[]>(functionExpr->Arguments.size());
+        size_t index = 0;
         for (const auto& argument : functionExpr->Arguments) {
             argIds.push_back(Profile(argument, schema, fragments));
             id.AddInteger(argIds.back());
             argumentTypes.push_back(argument->Type);
-            literalArgs.push_back(argument->As<TLiteralExpression>() != nullptr);
+            literalArgs[index++] = argument->As<TLiteralExpression>() != nullptr;
         }
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());

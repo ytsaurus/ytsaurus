@@ -28,8 +28,6 @@ udf_bc(
 udf_bc(
   ${CMAKE_CURRENT_LIST_DIR}/udf/regex.cpp
   YT_SOURCE_FILES
-  FILES
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/function_context.cpp
   SYMBOLS
     regex_full_match
     regex_partial_match

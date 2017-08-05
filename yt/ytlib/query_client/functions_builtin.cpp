@@ -79,7 +79,7 @@ public:
     virtual TCodegenExpression Profile(
         TCGVariables* variables,
         std::vector<size_t> argIds,
-        std::vector<bool> literalArgs,
+        std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
@@ -150,7 +150,7 @@ public:
     virtual TCodegenExpression Profile(
         TCGVariables* variables,
         std::vector<size_t> argIds,
-        std::vector<bool> literalArgs,
+        std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
@@ -183,7 +183,7 @@ public:
     virtual TCodegenExpression Profile(
         TCGVariables* variables,
         std::vector<size_t> argIds,
-        std::vector<bool> literalArgs,
+        std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
@@ -221,7 +221,7 @@ public:
     virtual TCodegenExpression Profile(
         TCGVariables* variables,
         std::vector<size_t> argIds,
-        std::vector<bool> literalArgs,
+        std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
