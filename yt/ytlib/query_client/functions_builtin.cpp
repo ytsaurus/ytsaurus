@@ -48,32 +48,38 @@ public:
         YCHECK(argIds.size() == 3);
         auto condition = CodegenFragment(builder, argIds[0]);
 
+        // TODO(lukyan): Remove this
         if (condition.GetStaticType() == EValueType::Null) {
             return TCGValue::CreateNull(builder, type);
         }
 
         YCHECK(condition.GetStaticType() == EValueType::Boolean);
 
-        return CodegenIf<TCGExprContext, TCGValue>(
-            builder,
-            condition.IsNull(builder),
-            [&] (TCGExprContext& builder) {
-                return TCGValue::CreateNull(builder, type);
-            },
-            [&] (TCGExprContext& builder) {
-                return CodegenIf<TCGExprContext, TCGValue>(
-                    builder,
-                    builder->CreateICmpNE(
-                        builder->CreateZExtOrBitCast(condition.GetData(builder), builder->getInt64Ty()),
-                        builder->getInt64(0)),
-                    [&] (TCGExprContext& builder) {
-                        return CodegenFragment(builder, argIds[1]).Cast(builder, type);
-                    },
-                    [&] (TCGExprContext& builder) {
-                        return CodegenFragment(builder, argIds[2]).Cast(builder, type);
-                    });
-            },
-            nameTwine);
+        auto codegenIf = [&] (TCGExprContext& builder) {
+            return CodegenIf<TCGExprContext, TCGValue>(
+                builder,
+                builder->CreateIsNotNull(condition.GetData(builder)),
+                [&] (TCGExprContext& builder) {
+                    return CodegenFragment(builder, argIds[1]).Cast(builder, type);
+                },
+                [&] (TCGExprContext& builder) {
+                    return CodegenFragment(builder, argIds[2]).Cast(builder, type);
+                },
+                nameTwine);
+        };
+
+        if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
+            return CodegenIf<TCGExprContext, TCGValue>(
+                builder,
+                condition.IsNull(builder),
+                [&] (TCGExprContext& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                codegenIf,
+                nameTwine);
+        } else {
+            return codegenIf(builder);
+        }
     }
 
     virtual TCodegenExpression Profile(
@@ -97,6 +103,13 @@ public:
                 name);
         };
     }
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    {
+        YCHECK(nullableArgs.size() == 3);
+        return nullableArgs[0] || nullableArgs[1] || nullableArgs[2];
+    }
+
 };
 
 TKeyTriePtr IsPrefixRangeExtractor(
@@ -163,17 +176,34 @@ public:
             type,
             name
         ] (TCGExprContext& builder) {
-            auto argValue = CodegenFragment(builder, argIds[0]);
-            return TCGValue::CreateFromValue(
-                builder,
-                builder->getFalse(),
-                nullptr,
-                builder->CreateZExtOrBitCast(
-                    argValue.IsNull(builder),
-                    TDataTypeBuilder::TBoolean::get(builder->getContext())),
-                type);
+            if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
+                auto argValue = CodegenFragment(builder, argIds[0]);
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder->getFalse(),
+                    nullptr,
+                    builder->CreateZExtOrBitCast(
+                        argValue.IsNull(builder),
+                        TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                    type);
+            } else {
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder->getFalse(),
+                    nullptr,
+                    builder->CreateZExtOrBitCast(
+                        builder->getFalse(),
+                        TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                    type);
+            }
         };
     }
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    {
+        return false;
+    }
+
 };
 
 class TIfNullCodegen
@@ -196,18 +226,29 @@ public:
             type,
             name
         ] (TCGExprContext& builder) {
-            auto argValue = CodegenFragment(builder, argIds[0]);
-            auto constant = CodegenFragment(builder, argIds[1]);
+            if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
+                auto argValue = CodegenFragment(builder, argIds[0]);
+                auto constant = CodegenFragment(builder, argIds[1]);
 
-            return TCGValue::CreateFromValue(
-                builder,
-                builder->CreateSelect(
-                    argValue.IsNull(builder),
-                    constant.GetValue(builder, true),
-                    argValue.GetValue(builder, true)),
-                type);
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder->CreateSelect(
+                        argValue.IsNull(builder),
+                        constant.GetValue(builder, true),
+                        argValue.GetValue(builder, true)),
+                    type);
+            } else {
+                return CodegenFragment(builder, argIds[0]);
+            }
         };
     }
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    {
+        YCHECK(nullableArgs.size() == 2);
+        return nullableArgs[1];
+    }
+
 };
 
 class TUserCastCodegen
@@ -237,6 +278,13 @@ public:
             return CodegenFragment(builder, argIds[0]).Cast(builder, type);
         };
     }
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    {
+        YCHECK(nullableArgs.size() == 1);
+        return nullableArgs[0];
+    }
+
 };
 
 

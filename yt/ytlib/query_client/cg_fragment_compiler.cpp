@@ -1289,8 +1289,10 @@ void CodegenFragmentBodies(
                     fragmentInfos,
                     expressionClosure);
 
+                Value* fragmentFlag = innerBuilder.GetFragmentFlag(id);
+
                 auto* evaluationNeeded = innerBuilder->CreateICmpEQ(
-                    innerBuilder->CreateLoad(innerBuilder.GetFragmentFlag(id)),
+                    innerBuilder->CreateLoad(fragmentFlag),
                     innerBuilder->getInt8(false));
 
                 CodegenIf<TCGExprContext>(
@@ -1300,7 +1302,7 @@ void CodegenFragmentBodies(
                         builder.ExpressionFragments.Items[id].Generator(builder)
                             .StoreToValue(builder, builder.GetFragmentResult(id));
 
-                        builder->CreateStore(builder->getInt8(true), builder.GetFragmentFlag(id));
+                        builder->CreateStore(builder->getInt8(true), fragmentFlag);
                     });
 
                 innerBuilder->CreateRetVoid();
@@ -1340,61 +1342,67 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
     ] (TCGExprContext& builder) {
         auto operandValue = CodegenFragment(builder, operandId);
 
-        return CodegenIf<TCGIRBuilderPtr, TCGValue>(
-            builder,
-            operandValue.IsNull(builder),
-            [&] (TCGIRBuilderPtr& builder) {
-                return TCGValue::CreateNull(builder, type);
-            },
-            [&] (TCGIRBuilderPtr& builder) {
-                auto operandType = operandValue.GetStaticType();
-                Value* operandData = operandValue.GetData(builder);
-                Value* evalData = nullptr;
+        auto evaluate = [&] (TCGIRBuilderPtr& builder) {
+            auto operandType = operandValue.GetStaticType();
+            Value* operandData = operandValue.GetData(builder);
+            Value* evalData = nullptr;
 
-                switch(opcode) {
-                    case EUnaryOp::Plus:
-                        evalData = operandData;
-                        break;
+            switch(opcode) {
+                case EUnaryOp::Plus:
+                    evalData = operandData;
+                    break;
 
-                    case EUnaryOp::Minus:
-                        switch (operandType) {
-                            case EValueType::Int64:
-                            case EValueType::Uint64:
-                                evalData = builder->CreateSub(builder->getInt64(0), operandData);
-                                break;
-                            case EValueType::Double:
-                                evalData = builder->CreateFSub(ConstantFP::get(builder->getDoubleTy(), 0.0), operandData);
-                                break;
-                            default:
-                                Y_UNREACHABLE();
-                        }
-                        break;
+                case EUnaryOp::Minus:
+                    switch (operandType) {
+                        case EValueType::Int64:
+                        case EValueType::Uint64:
+                            evalData = builder->CreateSub(builder->getInt64(0), operandData);
+                            break;
+                        case EValueType::Double:
+                            evalData = builder->CreateFSub(ConstantFP::get(builder->getDoubleTy(), 0.0), operandData);
+                            break;
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                    break;
 
 
-                    case EUnaryOp::BitNot:
-                        evalData = builder->CreateNot(operandData);
-                        break;
+                case EUnaryOp::BitNot:
+                    evalData = builder->CreateNot(operandData);
+                    break;
 
-                    case EUnaryOp::Not:
-                        evalData = builder->CreateXor(
-                            builder->CreateZExtOrBitCast(
-                                builder->getTrue(),
-                                TDataTypeBuilder::TBoolean::get(builder->getContext())),
-                            operandData);
-                        break;
+                case EUnaryOp::Not:
+                    evalData = builder->CreateXor(
+                        builder->CreateZExtOrBitCast(
+                            builder->getTrue(),
+                            TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                        operandData);
+                    break;
 
-                    default:
-                        Y_UNREACHABLE();
-                }
+                default:
+                    Y_UNREACHABLE();
+            }
 
-                return TCGValue::CreateFromValue(
-                    builder,
-                    builder->getFalse(),
-                    nullptr,
-                    evalData,
-                    type);
-            },
-            Twine(name.c_str()));
+            return TCGValue::CreateFromValue(
+                builder,
+                builder->getFalse(),
+                nullptr,
+                evalData,
+                type);
+        };
+
+        if (builder.ExpressionFragments.Items[operandId].Nullable) {
+            return CodegenIf<TCGIRBuilderPtr, TCGValue>(
+                builder,
+                operandValue.IsNull(builder),
+                [&] (TCGIRBuilderPtr& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                evaluate,
+                Twine(name.c_str()));
+        } else {
+            return evaluate(builder);
+        }
     };
 }
 
@@ -1416,20 +1424,42 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
             auto lhsValue = CodegenFragment(builder, lhsId);
             auto rhsValue = CodegenFragment(builder, rhsId);
 
-            Value* lhsIsNull = lhsValue.IsNull(builder);
-            Value* rhsIsNull = rhsValue.IsNull(builder);
+            const auto& items = builder.ExpressionFragments.Items;
 
-            return CodegenIf<TCGExprContext, TCGValue>(
-                builder,
-                lhsIsNull,
-                [&] (TCGExprContext& builder) {
-                    return CodegenIf<TCGIRBuilderPtr, TCGValue>(
-                        builder,
-                        rhsIsNull,
-                        [&] (TCGIRBuilderPtr& builder) {
-                            return TCGValue::CreateNull(builder, type);
-                        },
-                        [&] (TCGIRBuilderPtr& builder) {
+            Value* lhsIsNull = items[lhsId].Nullable ? lhsValue.IsNull(builder) : nullptr;
+            Value* rhsIsNull = items[rhsId].Nullable ? rhsValue.IsNull(builder) : nullptr;
+
+            auto next = [&] (TCGExprContext& builder) {
+                Value* lhsData = lhsValue.GetData(builder);
+                return CodegenIf<TCGIRBuilderPtr, TCGValue>(
+                    builder,
+                    builder->CreateICmpEQ(lhsData, builder->getInt8(parameter)),
+                    [&] (TCGIRBuilderPtr& builder) {
+                        return lhsValue;
+                    },
+                    [&] (TCGIRBuilderPtr& builder) {
+                        if (items[rhsId].Nullable) {
+                            return CodegenIf<TCGIRBuilderPtr, TCGValue>(
+                                builder,
+                                rhsIsNull,
+                                [&] (TCGIRBuilderPtr& builder) {
+                                    return TCGValue::CreateNull(builder, type);
+                                },
+                                [&] (TCGIRBuilderPtr& builder) {
+                                    return rhsValue;
+                                });
+                        } else {
+                            return rhsValue;
+                        }
+                    });
+            };
+
+            if (items[lhsId].Nullable) {
+                return CodegenIf<TCGExprContext, TCGValue>(
+                    builder,
+                    lhsIsNull,
+                    [&] (TCGExprContext& builder) {
+                        auto right = [&] (TCGIRBuilderPtr& builder) {
                             Value* rhsData = rhsValue.GetData(builder);
                             return CodegenIf<TCGIRBuilderPtr, TCGValue>(
                                 builder,
@@ -1440,28 +1470,24 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
                                 [&] (TCGIRBuilderPtr& builder) {
                                     return TCGValue::CreateNull(builder, type);
                                 });
-                        });
-                },
-                [&] (TCGExprContext& builder) {
-                    Value* lhsData = lhsValue.GetData(builder);
-                    return CodegenIf<TCGIRBuilderPtr, TCGValue>(
-                        builder,
-                        builder->CreateICmpEQ(lhsData, builder->getInt8(parameter)),
-                        [&] (TCGIRBuilderPtr& builder) {
-                            return lhsValue;
-                        },
-                        [&] (TCGIRBuilderPtr& builder) {
+                        };
+
+                        if (items[rhsId].Nullable) {
                             return CodegenIf<TCGIRBuilderPtr, TCGValue>(
                                 builder,
                                 rhsIsNull,
                                 [&] (TCGIRBuilderPtr& builder) {
                                     return TCGValue::CreateNull(builder, type);
                                 },
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return rhsValue;
-                                });
-                        });
-                });
+                                right);
+                        } else {
+                            return right(builder);
+                        }
+                    },
+                    next);
+            } else {
+                return next(builder);
+            }
         };
 
         switch (opcode) {
@@ -1514,16 +1540,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                     Y_UNREACHABLE();
             }
 
-            evalData = builder->CreateZExtOrBitCast(
-                evalData,
-                TDataTypeBuilder::TBoolean::get(builder->getContext()));
-
-            return TCGValue::CreateFromValue(
-                builder,
-                builder->getFalse(),
-                nullptr,
-                evalData,
-                type);
+            return evalData;
         };
 
         auto cmpResultToResult = [] (TCGBaseContext& builder, Value* cmpResult, EBinaryOp opcode) {
@@ -1553,13 +1570,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
             return evalData;
         };
 
-        return CodegenIf<TCGBaseContext, TCGValue>(
-            builder,
-            builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
-            [&] (TCGBaseContext& builder) {
-                return compareNulls();
-            },
-            [&] (TCGBaseContext& builder) {
+        auto compare = [&] (TCGBaseContext& builder) {
                 if (lhsValue.GetStaticType() != rhsValue.GetStaticType()) {
                     auto resultOpcode = opcode;
 
@@ -1630,18 +1641,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                 Y_UNREACHABLE();
                         }
 
-                        Value* evalData = cmpResultToResult(builder, cmpResult, resultOpcode);
-
-                        evalData = builder->CreateZExtOrBitCast(
-                            evalData,
-                            TDataTypeBuilder::TBoolean::get(builder->getContext()));
-
-                        return TCGValue::CreateFromValue(
-                            builder,
-                            builder->getFalse(),
-                            nullptr,
-                            evalData,
-                            type);
+                        return cmpResultToResult(builder, cmpResult, resultOpcode);
                     } else {
                         Y_UNREACHABLE();
                     }
@@ -1656,7 +1656,6 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 Value* evalData = nullptr;
 
                 switch (operandType) {
-
                     case EValueType::Boolean:
                     case EValueType::Int64:
                         switch (opcode) {
@@ -1771,20 +1770,32 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                         Y_UNREACHABLE();
                 }
 
-                evalData = builder->CreateZExtOrBitCast(
-                    evalData,
-                    TDataTypeBuilder::TBoolean::get(builder->getContext()));
-
-                return TCGValue::CreateFromValue(
-                    builder,
-                    builder->getFalse(),
-                    nullptr,
-                    evalData,
-                    type);
-            },
-            nameTwine);
+                return evalData;
+            };
 
             #undef CMP_OP
+
+        auto result =
+            builder.ExpressionFragments.Items[lhsId].Nullable ||
+            builder.ExpressionFragments.Items[rhsId].Nullable
+            ? CodegenIf<TCGBaseContext, Value*>(
+                builder,
+                builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
+                [&] (TCGBaseContext& builder) {
+                    return compareNulls();
+                },
+                compare,
+                nameTwine)
+            : compare(builder);
+
+        return TCGValue::CreateFromValue(
+            builder,
+            builder->getFalse(),
+            nullptr,
+            builder->CreateZExtOrBitCast(
+                result,
+                TDataTypeBuilder::TBoolean::get(builder->getContext())),
+            type);
     };
 }
 
@@ -1815,12 +1826,18 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                 evalData = builder->Create##optype(lhsData, rhsData); \
                 break;
 
+        Value* anyNull =
+            builder.ExpressionFragments.Items[lhsId].Nullable ||
+            builder.ExpressionFragments.Items[rhsId].Nullable
+            ? builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder))
+            : builder->getFalse();
+
         if ((opcode == EBinaryOp::Divide || opcode == EBinaryOp::Modulo) &&
             (operandType == EValueType::Uint64 || operandType == EValueType::Int64))
         {
             return CodegenIf<TCGExprContext, TCGValue>(
                 builder,
-                builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
+                anyNull,
                 [&] (TCGExprContext& builder) {
                     return TCGValue::CreateNull(builder, type);
                 },
@@ -1923,7 +1940,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
 
             return TCGValue::CreateFromValue(
                 builder,
-                builder->CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
+                anyNull,
                 nullptr,
                 evalData,
                 type);

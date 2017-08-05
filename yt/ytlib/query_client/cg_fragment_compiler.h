@@ -16,17 +16,20 @@ typedef std::function<TCGValue(TCGExprContext& builder)> TCodegenExpression;
 
 struct TCodegenFragmentInfo
 {
-    TCodegenFragmentInfo(TCodegenExpression generator, EValueType type, bool forceInline = false)
+    TCodegenFragmentInfo(TCodegenExpression generator, EValueType type, bool nullable, bool forceInline = false)
         : Generator(std::move(generator))
         , Type(type)
+        , Nullable(nullable)
         , ForceInline(forceInline)
     { }
 
     TCodegenExpression Generator;
     EValueType Type;
+    bool Nullable;
     bool ForceInline;
     size_t UseCount = 0;
     size_t Index = std::numeric_limits<size_t>::max();
+
 
     bool IsOutOfLine() const {
         return UseCount > 1 && !ForceInline;
