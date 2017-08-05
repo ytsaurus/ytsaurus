@@ -1505,7 +1505,7 @@ INSTANTIATE_TEST_CASE_P(
             "uint64(i1)",
             MakeUint64(0)),
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "u1=0",
+            "u1=0u",
             "int64(u1)",
             MakeInt64(0)),
         std::tuple<const char*, const char*, TUnversionedValue>(
