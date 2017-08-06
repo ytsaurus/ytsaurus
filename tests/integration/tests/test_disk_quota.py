@@ -1,5 +1,3 @@
-import pytest
-
 from yt_env_setup import (
     YTEnvSetup,
     SANDBOX_ROOTDIR,
@@ -13,6 +11,8 @@ import uuid
 import subprocess
 import getpass
 import sys
+import errno
+import pytest
 
 SCRIPT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 PREPARE_SCRIPT = os.path.join(SCRIPT_DIR, "prepare_quota.sh")
@@ -31,63 +31,56 @@ def check_fs(path):
 class TestDiskQuota(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
-    VIRTUAL_FS_PATH = SCRIPT_DIR
+    NUM_NODES = 3
+
     VIRTUAL_FS_FILE = "disk-quota"
     VIRTUAL_FS_TYPE = "ext4"
-    BLOCKS = 20960 * 5
-
-    @classmethod
-    def _fs_path(cls):
-        return os.path.join(
-            cls.VIRTUAL_FS_PATH,
-            "{0}.{1}".format(cls.VIRTUAL_FS_FILE, cls.VIRTUAL_FS_TYPE)
-        )
+    VIRTUAL_FS_SIZE = 256 * 1024 * 1024
+    VIRTUAL_FS_BLOCK_SIZE = 4096
 
     @classmethod
     def setup_class(cls):
         path_to_test = os.path.join(SANDBOX_ROOTDIR, cls.__name__)
         run_id = "run_" + uuid.uuid4().hex[:8]
         cls.path_to_run = os.path.join(path_to_test, run_id)
-        fs_path = cls._fs_path()
-        mount_path = cls.path_to_run
-        os.makedirs(cls.path_to_run)
-        username = getpass.getuser()
-        debug_log("Ready to setup: path to run {0}, image path {1}, user {2}".format(
-            cls.path_to_run,
-            fs_path,
-            username))
+        cls.fs_path = os.path.join(SANDBOX_ROOTDIR, "{0}.{1}".format(cls.VIRTUAL_FS_FILE, cls.VIRTUAL_FS_TYPE))
+        # Node slots should be placed to new mounted filesystem.
+        cls.mount_path = os.path.join(cls.path_to_run, "runtime_data", "node")
+
         try:
-            subprocess.check_call(["sudo", PREPARE_SCRIPT, fs_path, cls.VIRTUAL_FS_TYPE,
-                                   str(cls.BLOCKS), mount_path, username])
+            os.makedirs(cls.mount_path)
+        except OSError as err:
+            if err.errno != errno.EEXIST:
+                raise
+
+        username = getpass.getuser()
+        debug_log("Ready to setup: mount path {0}, image path {1}, user {2}".format(
+            cls.mount_path,
+            cls.fs_path,
+            username))
+
+        try:
+            subprocess.check_call(["sudo", PREPARE_SCRIPT, cls.fs_path, cls.VIRTUAL_FS_TYPE,
+                                   str(cls.VIRTUAL_FS_SIZE // cls.VIRTUAL_FS_BLOCK_SIZE),
+                                   str(cls.VIRTUAL_FS_BLOCK_SIZE), cls.mount_path, username])
         except subprocess.CalledProcessError:
             cls.clear(True)
             raise
+
         debug_log("Finished quota setup, run default")
-        check_fs(cls.path_to_run)
         super(TestDiskQuota, cls).setup_class(run_id=run_id)
         debug_log("Finished setup")
-        check_fs(cls.path_to_run)
 
     @classmethod
     def clear(cls, ignore_errors):
-        fs_path = cls._fs_path()
         debug_log("Clear")
-        check_fs(cls.path_to_run)
         try:
-            subprocess.check_call(["sudo", "repquota", "-vs", cls.path_to_run])
-            subprocess.check_call(["sudo", "umount", "-l", cls.path_to_run])
-            subprocess.check_call(["sudo", "rm", fs_path])
+            subprocess.check_call(["sudo", "umount", "-ld", cls.mount_path])
+            subprocess.check_call(["sudo", "rm", "-f", cls.fs_path])
         except subprocess.CalledProcessError:
             debug_log("Fail on clear")
             if not ignore_errors:
                 raise
-
-    @classmethod
-    def teardown_class(cls):
-        debug_log("Teardown")
-        cls.clear(False)
-        debug_log("Default teardown")
-        super(TestDiskQuota, cls).teardown_class()
 
     def _init_tables(self):
         tables = ["//tmp/t1", "//tmp/t2"]
