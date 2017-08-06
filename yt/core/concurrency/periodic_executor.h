@@ -54,7 +54,7 @@ public:
     //! Usually called from the callback to schedule the next invocation.
     void ScheduleNext();
 
-    //! Usually called from the callback to schedule the next invocation.
+    //! Changes execution period.
     void SetPeriod(TDuration period);
 
 private:
