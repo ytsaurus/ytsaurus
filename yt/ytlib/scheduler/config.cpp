@@ -118,9 +118,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("title", Title)
         .Default();
 
-    RegisterParameter("check_multichunk_files", CheckMultichunkFiles)
-        .Default(true);
-
     RegisterParameter("time_limit", TimeLimit)
         .Default();
 

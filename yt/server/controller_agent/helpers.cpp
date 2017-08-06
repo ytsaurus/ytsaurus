@@ -40,9 +40,13 @@ public:
     {
         if (Spec_->JobCount) {
             JobCount_ = *Spec_->JobCount;
-        } else {
+        } else if (PrimaryInputDataWeight_ > 0) {
             i64 dataWeightPerJob = Spec_->DataWeightPerJob.Get(Options_->DataWeightPerJob);
-            JobCount_ = DivCeil(PrimaryInputDataWeight_, dataWeightPerJob);
+            JobCount_ = std::max(
+                DivCeil(PrimaryInputDataWeight_, dataWeightPerJob),
+                DivCeil(InputDataWeight_, DivCeil<i64>(Spec_->MaxDataWeightPerJob, 2)));
+        } else {
+            JobCount_ = 0;
         }
 
         i64 maxJobCount = Options_->MaxJobCount;
@@ -60,7 +64,6 @@ public:
         }
 
         YCHECK(JobCount_ >= 0);
-        YCHECK(JobCount_ != 0 || PrimaryInputDataWeight_ == 0);
     }
 
     virtual bool CanAdjustDataWeightPerJob() const override
@@ -84,10 +87,14 @@ public:
     {
         if (Spec_->ConsiderOnlyPrimarySize) {
             return std::numeric_limits<i64>::max();
+        } else if (JobCount_ == 0 ){
+            return 1;
         } else {
-            return JobCount_ > 0
-                ? DivCeil(InputDataWeight_, JobCount_)
-                : 1;
+            return std::min(
+                DivCeil(InputDataWeight_, JobCount_),
+                // We don't want to have much more that primary data weight per job, since that is
+                // what we calculated given data_weight_per_job.
+                2 * GetPrimaryDataWeightPerJob());
         }
     }
 

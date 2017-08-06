@@ -24,13 +24,13 @@ IMapNodePtr TYsonSerializableLite::GetOptions() const
     return Options;
 }
 
-std::vector<TString> TYsonSerializableLite::GetRegisteredKeys() const
+yhash_set<TString> TYsonSerializableLite::GetRegisteredKeys() const
 {
-    std::vector<TString> result;
+    yhash_set<TString> result;
     for (const auto& pair : Parameters) {
-        result.push_back(pair.first);
+        result.insert(pair.first);
         for (const auto& key : pair.second->GetAliases()) {
-            result.push_back(key);
+            result.insert(key);
         }
     }
     return result;
@@ -57,7 +57,9 @@ void TYsonSerializableLite::Load(
         for (const auto& alias : parameter->GetAliases()) {
             auto otherChild = mapNode->FindChild(alias);
             if (child && otherChild && !AreNodesEqual(child, otherChild)) {
-                THROW_ERROR_EXCEPTION("Different values for aliased parameters %Qv and %Qv", key, alias);
+                THROW_ERROR_EXCEPTION("Different values for aliased parameters %Qv and %Qv", key, alias)
+                    << TErrorAttribute("main_value", child)
+                    << TErrorAttribute("aliased_value", otherChild);
             }
             if (!child && otherChild) {
                 child = otherChild;
@@ -69,11 +71,12 @@ void TYsonSerializableLite::Load(
     }
 
     if (KeepOptions_) {
+        auto registeredKeys = GetRegisteredKeys();
         Options = GetEphemeralNodeFactory()->CreateMap();
         for (const auto& pair : mapNode->GetChildren()) {
             const auto& key = pair.first;
             auto child = pair.second;
-            if (Parameters.find(key) == Parameters.end()) {
+            if (registeredKeys.find(key) == registeredKeys.end()) {
                 YCHECK(Options->AddChild(ConvertToNode(child), key));
             }
         }
