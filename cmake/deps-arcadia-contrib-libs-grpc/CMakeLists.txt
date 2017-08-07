@@ -314,6 +314,7 @@ if (${YT_BUILD_ENABLE_PYTHON_2_7} AND ${YT_BUILD_HAVE_CYTHON})
   cython(${BASE}/src/python/grpcio/grpc/_cython/cygrpc)
   target_link_libraries(cygrpc
     ${NAME}-core
+    -lrt
   )
 
   exec_program(
