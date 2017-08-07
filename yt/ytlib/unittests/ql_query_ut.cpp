@@ -3760,6 +3760,51 @@ TEST_F(TQueryEvaluateTest, CompareAnyMixed)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, ToAnyAndCompare)
+{
+    auto resultSplit = MakeSplit({
+        {"r", EValueType::Boolean}
+    });
+
+    auto result = YsonToRows({
+        "r=%true",
+    }, resultSplit);
+
+    TString query = "to_any(a) = a FROM [//t]";
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::Boolean}
+        }), {
+            "a=%false;"},
+        ResultMatcher(result));
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::Int64}
+        }), {
+            "a=1;"},
+        ResultMatcher(result));
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::Uint64}
+        }), {
+            "a=1u;"},
+        ResultMatcher(result));
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::Double}
+        }), {
+            "a=1.0;"},
+        ResultMatcher(result));
+
+    Evaluate(query, MakeSplit({
+            {"a", EValueType::String}
+        }), {
+            "a=x;"},
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestVarargUdf)
 {
     auto split = MakeSplit({

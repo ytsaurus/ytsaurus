@@ -23,6 +23,7 @@
 #include "udf/sum.h" // Y_IGNORE
 #include "udf/dates.h" // Y_IGNORE
 #include "udf/ypath_get.h" // Y_IGNORE
+#include "udf/to_any.h" // Y_IGNORE
 #endif
 
 namespace NYT {
@@ -858,6 +859,21 @@ void RegisterBuiltinFunctions(
             UDF_BC(ypath_get),
             ECallingConvention::UnversionedValue);
     }
+
+    builder.RegisterFunction(
+        "to_any",
+        std::vector<TType>{
+            TUnionType{
+                EValueType::String,
+                EValueType::Uint64,
+                EValueType::Int64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::Any}},
+        EValueType::Any,
+        UDF_BC(to_any),
+        ECallingConvention::UnversionedValue);
+
 }
 
 } // namespace
