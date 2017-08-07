@@ -1164,6 +1164,51 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
     }
 }
 
+void ToAny(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value)
+{
+    TStringStream stream;
+    NYson::TYsonWriter writer(&stream);
+
+    switch (value->Type) {
+        case EValueType::Null: {
+            result->Type = EValueType::Null;
+            return;
+        }
+        case EValueType::Any: {
+            *result = *value;
+            return;
+        }
+        case EValueType::String: {
+            writer.OnStringScalar(TStringBuf(value->Data.String, value->Length));
+            break;
+        }
+        case EValueType::Int64: {
+            writer.OnInt64Scalar(value->Data.Int64);
+            break;
+        }
+        case EValueType::Uint64: {
+            writer.OnUint64Scalar(value->Data.Uint64);
+            break;
+        }
+        case EValueType::Double: {
+            writer.OnDoubleScalar(value->Data.Double);
+            break;
+        }
+        case EValueType::Boolean: {
+            writer.OnBooleanScalar(value->Data.Boolean);
+            break;
+        }
+        default:
+            Y_UNREACHABLE();
+    }
+
+    writer.Flush();
+    result->Type = EValueType::Any;
+    result->Length = stream.Size();
+    result->Data.String = stream.Data();
+    *result = context->Capture(*result);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, char* source, int sourceLength)
@@ -1230,6 +1275,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(CompareAnyUint64);
     REGISTER_ROUTINE(CompareAnyDouble);
     REGISTER_ROUTINE(CompareAnyString);
+    REGISTER_ROUTINE(ToAny);
     REGISTER_YPATH_GET_ROUTINE(Int64);
     REGISTER_YPATH_GET_ROUTINE(Uint64);
     REGISTER_YPATH_GET_ROUTINE(Double);
