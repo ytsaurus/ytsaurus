@@ -160,6 +160,12 @@ def get_version():
     """ Returns python wrapper version """
     try:
         from .version import VERSION
+        # Add svn revision to version if it presented.
+	try:
+	    import library.python.svn_version
+	    VERSION = '{0} (r{1})'.format(VERSION, library.python.svn_version.svn_revision())
+	except ImportError:
+	    pass
         return VERSION
     except:
         return "unknown"
