@@ -42,9 +42,15 @@ public:
             JobCount_ = *Spec_->JobCount;
         } else if (PrimaryInputDataWeight_ > 0) {
             i64 dataWeightPerJob = Spec_->DataWeightPerJob.Get(Options_->DataWeightPerJob);
-            JobCount_ = std::max(
-                DivCeil(PrimaryInputDataWeight_, dataWeightPerJob),
-                DivCeil(InputDataWeight_, DivCeil<i64>(Spec_->MaxDataWeightPerJob, 2)));
+
+            if (IsSmallForeignRatio() || Spec_->ConsiderOnlyPrimarySize) {
+                // Since foreign tables are quite small, we use primary table to estimate job count.
+                JobCount_ = std::max(
+                    DivCeil(PrimaryInputDataWeight_, dataWeightPerJob),
+                    DivCeil(InputDataWeight_, DivCeil<i64>(Spec_->MaxDataWeightPerJob, 2)));
+            } else {
+                JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
+            }
         } else {
             JobCount_ = 0;
         }
@@ -89,12 +95,14 @@ public:
             return std::numeric_limits<i64>::max();
         } else if (JobCount_ == 0 ){
             return 1;
-        } else {
+        } else if (IsSmallForeignRatio()) {
             return std::min(
                 DivCeil(InputDataWeight_, JobCount_),
                 // We don't want to have much more that primary data weight per job, since that is
                 // what we calculated given data_weight_per_job.
                 2 * GetPrimaryDataWeightPerJob());
+        } else {
+            return DivCeil(InputDataWeight_, JobCount_);
         }
     }
 
@@ -122,7 +130,7 @@ public:
         }
 
         i64 sliceDataWeight = Clamp<i64>(
-            Options_->SliceDataWeightMultiplier * InputDataWeight_ / JobCount_,
+            Options_->SliceDataWeightMultiplier * PrimaryInputDataWeight_ / JobCount_,
             1,
             Options_->MaxSliceDataWeight);
 
@@ -165,6 +173,23 @@ private:
     i64 InputRowCount_;
 
     i64 JobCount_;
+
+    double GetForeignDataRatio() const
+    {
+        if (PrimaryInputDataWeight_ > 0) {
+            return (InputDataWeight_ - PrimaryInputDataWeight_) / static_cast<double>(PrimaryInputDataWeight_);
+        } else {
+            return 0;
+        }
+    }
+
+    bool IsSmallForeignRatio() const
+    {
+        // ToDo(psushin): make configurable.
+        constexpr double SmallForeignRatio = 0.2;
+
+        return GetForeignDataRatio() < SmallForeignRatio;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleJobSizeConstraints);
