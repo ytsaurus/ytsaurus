@@ -281,9 +281,7 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
         default:
             Y_UNREACHABLE();
     }
-
     return output.Buf() - buffer;
-
 }
 
 TString ToString(const TUnversionedValue& value)
