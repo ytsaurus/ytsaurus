@@ -1030,7 +1030,7 @@ DEFINE_YPATH_GET_ANY
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowCannotCompareTypes(ETokenType lhsType, ETokenType rhsType)
+void ThrowCannotCompareTypes(NYson::ETokenType lhsType, NYson::ETokenType rhsType)
 {
     THROW_ERROR_EXCEPTION("Cannot compare values of types %Qlv and %Qlv",
         lhsType,
@@ -1155,7 +1155,7 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
     NYson::TToken lhsToken;
     lexer.GetToken(lhsInput, &lhsToken);
     if (lhsToken.GetType() != NYson::ETokenType::String) {
-        ThrowCannotCompareTypes(lhsToken.GetType()NYson::ETokenType::String);
+        ThrowCannotCompareTypes(lhsToken.GetType(), NYson::ETokenType::String);
     }
     auto lhsValue = lhsToken.GetStringValue();
     TStringBuf rhsValue(rhsData, rhsLength);
