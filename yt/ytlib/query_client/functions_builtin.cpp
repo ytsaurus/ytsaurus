@@ -851,11 +851,9 @@ void RegisterBuiltinFunctions(
     for (const auto& fns : ypathGetFunctions) {
         auto&& name = fns.first;
         auto&& type = fns.second;
-
-        TUnionType constraint{EValueType::Any, EValueType::String};
         builder.RegisterFunction(
             name,
-            std::vector<TType>{constraint, EValueType::String},
+            std::vector<TType>{EValueType::Any, EValueType::String},
             type,
             UDF_BC(ypath_get),
             ECallingConvention::UnversionedValue);
