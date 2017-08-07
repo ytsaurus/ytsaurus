@@ -54,6 +54,8 @@ public:
         SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
     }
 
+    ~TBlockWriter();
+
     void NotifyRowEnd() override;
 
 protected:
@@ -65,7 +67,7 @@ private:
     TString Command_;
     EDataStreamFormat Format_;
     TString FormatConfig_;
-    size_t BufferSize_;
+    const size_t BufferSize_;
 
     TString Parameters_;
     TString SecondaryParameters_;
@@ -79,15 +81,21 @@ private:
     TThread Thread_;
     std::atomic<bool> Started_{false};
     std::atomic<bool> Stopped_{false};
-    bool Finished_ = false;
-    TMaybe<yexception> Exception_;
+    std::exception_ptr Exception_ = nullptr;
 
     TAutoEvent HasData_;
     TAutoEvent CanWrite_;
 
+    enum EWriterState {
+        Ok,
+        Completed,
+        Error,
+    } WriterState_ = Ok;
+
 private:
     void FlushBuffer(bool lastBlock);
     void Send(const TBuffer& buffer);
+    void CheckWriterState();
 
     void SendThread();
     static void* SendThread(void* opaque);

@@ -2,6 +2,9 @@
 
 #include <mapreduce/yt/tests/native_new/row.pb.h>
 
+#include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/http/error.h>
+
 #include <library/unittest/registar.h>
 
 using namespace NYT;
@@ -115,5 +118,59 @@ SIMPLE_UNIT_TEST_SUITE(TableReader) {
 
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
+    }
+
+    SIMPLE_UNIT_TEST(ErrorInTableWriter)
+    {
+        const TNode DATA = TString(1024, 'a');
+        auto client = CreateTestClient();
+        client->Create("//testing/table", NT_TABLE, TCreateOptions().Force(true).Attributes(
+                TNode()("schema",
+                    TNode()
+                    .Add(TNode()("name", "value")("type", "string")))
+                ));
+
+        auto writer = client->CreateTableWriter<TNode>("//testing/table");
+        auto writeTable = [&] {
+            for (int i = 0; i != 100000; ++i) {
+                writer->AddRow(TNode()("foo", 0)("value", DATA));
+            }
+            writer->AddRow(TNode()("bar", "qux"));
+            for (int i = 0; i != 100000; ++i) {
+                writer->AddRow(TNode()("foo", 0)("value", DATA));
+            }
+            writer->Finish();
+        };
+        UNIT_ASSERT_EXCEPTION(writeTable(), TErrorResponse);
+    }
+
+    SIMPLE_UNIT_TEST(ErrorInFinish)
+    {
+        auto client = CreateTestClient();
+        client->Create("//testing/table", NT_TABLE, TCreateOptions().Force(true).Attributes(
+                TNode()("schema",
+                    TNode()
+                    .Add(TNode()("name", "value")("type", "string")))
+                ));
+
+        auto writer = client->CreateTableWriter<TNode>("//testing/table");
+        writer->AddRow(TNode()("bar", "qux"));
+        UNIT_ASSERT_EXCEPTION(writer->Finish(), TErrorResponse);
+
+        auto writeMore = [&] {
+            writer->AddRow(TNode()("value", "a"));
+            writer->Finish();
+        };
+
+        UNIT_ASSERT_EXCEPTION(writeMore(), TApiUsageError);
+    }
+
+    SIMPLE_UNIT_TEST(CantWriteAfterFinish)
+    {
+        auto client = CreateTestClient();
+        auto writer = client->CreateTableWriter<TNode>("//testing/table");
+        writer->AddRow(TNode()("value", "foo"));
+        writer->Finish();
+        UNIT_ASSERT_EXCEPTION(writer->AddRow(TNode()("value", "a")), TApiUsageError);
     }
 }
