@@ -1,6 +1,7 @@
 #include "requests.h"
 
 #include "error.h"
+#include "retry_request.h"
 #include "transaction.h"
 
 #include <mapreduce/yt/interface/errors.h>
@@ -371,7 +372,7 @@ TString RetryRequest(
                 ~requestId,
                 attempt);
 
-            if (!e.IsRetriable() || attempt + 1 == retryCount) {
+            if (!NDetail::IsRetriable(e) || attempt + 1 == retryCount) {
                 throw;
             }
             if (e.IsConcurrentOperationsLimitReached()) {
@@ -379,7 +380,7 @@ TString RetryRequest(
             }
 
             hasError = true;
-            retryInterval = e.GetRetryInterval();
+            retryInterval = NDetail::GetRetryInterval(e);
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
                 ~requestId,
@@ -441,10 +442,10 @@ void RetryHeavyWriteRequest(
                 ~requestId,
                 attempt);
 
-            if (!e.IsRetriable() || attempt + 1 == retryCount) {
+            if (!NDetail::IsRetriable(e) || attempt + 1 == retryCount) {
                 throw;
             }
-            Sleep(e.GetRetryInterval());
+            Sleep(NDetail::GetRetryInterval(e));
             continue;
 
         } catch (yexception& e) {

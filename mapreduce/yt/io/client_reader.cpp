@@ -9,6 +9,7 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/error.h>
+#include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/http/transaction.h>
 #include <library/yson/json_writer.h>
 
@@ -147,10 +148,10 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             LOG_ERROR("RSP %s - attempt %d failed",
                 ~requestId, attempt);
 
-            if (!e.IsRetriable() || attempt == lastAttempt) {
+            if (!NDetail::IsRetriable(e) || attempt == lastAttempt) {
                 throw;
             }
-            Sleep(e.GetRetryInterval());
+            Sleep(NDetail::GetRetryInterval(e));
             continue;
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",

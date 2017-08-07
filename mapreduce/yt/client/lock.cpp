@@ -2,6 +2,8 @@
 
 #include "yt_poller.h"
 
+#include <mapreduce/yt/http/retry_request.h>
+
 namespace NYT {
 namespace NDetail {
 
@@ -30,7 +32,7 @@ public:
                 return PollBreak;
             }
         } catch (const TErrorResponse& e) {
-            if (!e.IsRetriable()) {
+            if (!IsRetriable(e)) {
                 Acquired_.SetException(std::current_exception());
                 return PollBreak;
             }

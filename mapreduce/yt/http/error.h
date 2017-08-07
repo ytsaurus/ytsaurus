@@ -2,8 +2,6 @@
 
 #include <mapreduce/yt/interface/node.h>
 
-#include <util/datetime/base.h>
-
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
 #include <util/generic/yexception.h>
@@ -67,9 +65,6 @@ public:
     int GetHttpCode() const;
     TString GetRequestId() const;
 
-    bool IsRetriable() const;
-    TDuration GetRetryInterval() const;
-
     const TError& GetError() const;
 
     // Path is cypress can't be resolved.
@@ -100,14 +95,12 @@ public:
     bool IsConcurrentOperationsLimitReached() const;
 
 private:
+    void Setup();
+
+private:
     int HttpCode_;
     TString RequestId_;
     TError Error_;
-
-    bool Retriable_ = false;
-    TDuration RetryInterval_;
-
-    void Setup();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

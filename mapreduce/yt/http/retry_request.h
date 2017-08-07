@@ -70,6 +70,9 @@ TResponseInfo RetryRequest(
     IRetryPolicy& retryPolicy,
     const TRequestConfig& config = TRequestConfig());
 
+bool IsRetriable(const TErrorResponse& errorResponse);
+TDuration GetRetryInterval(const TErrorResponse& errorResponse);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail

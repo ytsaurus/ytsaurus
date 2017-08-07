@@ -34,10 +34,10 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const TErrorRespo
     if (Attempt_ > AttemptLimit_) {
         return Nothing();
     }
-    if (!e.IsRetriable()) {
+    if (!IsRetriable(e)) {
         return Nothing();
     }
-    return e.GetRetryInterval();
+    return NYT::NDetail::GetRetryInterval(e);
 }
 
 TString TAttemptLimitedRetryPolicy::GetAttemptDescription() const
@@ -120,6 +120,40 @@ TResponseInfo RetryRequest(
     }
 
     Y_UNREACHABLE();
+}
+
+static std::pair<bool,TDuration> GetRetryInfo(const TErrorResponse& errorResponse)
+{
+    bool retriable = true;
+    TDuration retryInterval = TConfig::Get()->RetryInterval;
+
+    int code = errorResponse.GetError().GetInnerCode();
+    int httpCode = errorResponse.GetHttpCode();
+    if (httpCode / 100 == 4) {
+        if (httpCode == 429 || code == 904 || code == 108) {
+            // request rate limit exceeded
+            retryInterval = TConfig::Get()->RateLimitExceededRetryInterval;
+        } else if (errorResponse.IsConcurrentOperationsLimitReached()) {
+            // limit for the number of concurrent operations exceeded
+            retryInterval = TConfig::Get()->StartOperationRetryInterval;
+        } else if (code / 100 == 7) {
+            // chunk client errors
+            retryInterval = TConfig::Get()->ChunkErrorsRetryInterval;
+        } else {
+            retriable = false;
+        }
+    }
+    return std::make_pair(retriable, retryInterval);
+}
+
+TDuration GetRetryInterval(const TErrorResponse& errorResponse)
+{
+    return GetRetryInfo(errorResponse).second;
+}
+
+bool IsRetriable(const TErrorResponse& errorResponse)
+{
+    return GetRetryInfo(errorResponse).first;
 }
 
 ////////////////////////////////////////////////////////////////////
