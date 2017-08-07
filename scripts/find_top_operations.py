@@ -16,6 +16,7 @@ class Operation(object):
         self._snapshot_size = None
         self._orchid = None
         self._output_resource_usage = None
+        self._debug_output_resource_usage = None
         self._output_chunks = None
         self._output_disk_space = None
         self._input_locked_nodes = None
@@ -39,29 +40,36 @@ class Operation(object):
         else:
             self.errors.append(snapshot_size.get_error())
     
-    def fetch_output_resource_usage(self, in_account=None, debug_output=False):
+    def fetch_output_resource_usage(self, in_account=None):
         if self._attrs is None:
             yield
             return
 
-        output_tx = self._attrs["output_transaction_id" if not debug_output else "async_scheduler_transaction_id"]
+        output_tx = self._attrs["output_transaction_id"]
+        debug_output_tx = self._attrs["async_scheduler_transaction_id"]
         output_resource_usage = self._batch_client.get("#{}/@resource_usage".format(output_tx))
+        debug_output_resource_usage = self._batch_client.get("#{}/@resource_usage".format(debug_output_tx))
         yield
 
-        if output_resource_usage.is_ok():
-            self._output_resource_usage = output_resource_usage.get_result()
-        else:
-            self.errors.append(output_resource_usage.get_error())
-            return
+        def process_resource_usage(usage):
+            if not usage.is_ok():
+                self.errors.append(usage.get_error())
+                return None, None, None
 
-        chunks = 0
-        disk_space = 0
-        for account, usage in self._output_resource_usage.items():
-            if in_account is None or in_account == account:
-                chunks += usage["chunk_count"]
-                disk_space += usage["disk_space"]
-        self._output_chunks = chunks
-        self._output_disk_space = disk_space
+            usage = usage.get_result()
+            chunks = 0
+            disk_space = 0
+            for account, usage in self._output_resource_usage.items():
+                if in_account is None or in_account == account:
+                    chunks += usage["chunk_count"]
+                    disk_space += usage["disk_space"]
+
+            self._output_chunks = (self._output_chunks or 0) + chunks
+            self._output_disk_space = (self._output_disk_space or 0) + disk_space
+            return usage
+
+        self._output_resource_usage = process_resource_usage(output_resource_usage)
+        self._debug_output_resource_usage = process_resource_usage(debug_output_resource_usage)
             
     def fetch_input_locked_nodes(self):
         if self._attrs is None:
@@ -187,7 +195,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze running scheduler state.")
     parser.add_argument("-k", type=int, default=10, help="Number of operation to show (default: 10)")
     parser.add_argument("--proxy", help='Proxy alias')
-    choices = ["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "debug-output-chunks", "debug-output-disk-space"]
+    choices = ["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "output-disk-space"]
     parser.add_argument("--top-by", choices=choices, default="job-count")
     parser.add_argument("--in-account", help="Count resource usage only in this account")
     parser.add_argument("--show-errors", default=False, action="store_true")
@@ -211,15 +219,10 @@ if __name__ == "__main__":
         fetch_batch(batch_client, operations, lambda op: op.fetch_input_disk_usage(args.in_account))
 
         report_operations(operations, args.k, lambda op: op.get_input_disk_usage(), args.top_by)
-    elif args.top_by == "output-chunks":
+    elif args.top_by in ("output-chunks", "output-disk-space"):
         fetch_batch(batch_client, operations, lambda op: op.fetch_output_resource_usage(args.in_account))
 
-        report_operations(operations, args.k, lambda op: op.get_output_chunks(), args.top_by)
-
-    elif args.top_by in ("debug-output-chunks", "debug-output-disk-space"):
-        fetch_batch(batch_client, operations, lambda op: op.fetch_output_resource_usage(args.in_account, True))
-
-        if args.top_by == "debug-output-chunks":
+        if args.top_by == "output-chunks":
             report_operations(operations, args.k, lambda op: op.get_output_chunks(), args.top_by)
         else:
             report_operations(operations, args.k, lambda op: op.get_output_disk_space(), args.top_by)
