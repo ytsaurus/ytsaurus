@@ -20,7 +20,7 @@ public:
 
     //! Constructs an non-null instance with given type and content.
     explicit TYsonString(
-        const TString& data,
+        TString data,
         EYsonType type = EYsonType::Node);
 
     TYsonString(
