@@ -3647,6 +3647,43 @@ TEST_F(TQueryEvaluateTest, YPathGetAny)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, YPathGetAnyFromString)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::String},
+        {"ypath0", EValueType::String},
+        {"ypath1", EValueType::String},
+        {"value", EValueType::String},
+    });
+
+    std::vector<TString> source = {
+        R""(yson="{b={c=\"here\"};d=[1;2]}";ypath0="/b";ypath1="/c";value="here")"",
+        R""(yson="{b={c=4};d=[1;\"there\"]}";ypath0="/d";ypath1="/1";value="there")"",
+        "",
+        R""(yson="{b={c=4};d=[1;2]}")"",
+        R""(ypath0="/d/1")"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Boolean}
+    });
+
+    auto result = YsonToRows({
+        "result=%true",
+        "result=%true",
+        "result=%true",
+        "result=%true",
+        "result=%true",
+    }, resultSplit);
+
+    Evaluate("get_any(get_any(yson, ypath0), ypath1) = value as result FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, CompareAny)
 {
     auto split = MakeSplit({
