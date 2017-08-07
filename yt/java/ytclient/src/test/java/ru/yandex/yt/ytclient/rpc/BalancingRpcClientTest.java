@@ -68,7 +68,7 @@ public class BalancingRpcClientTest {
         // filter dead proxies
         k = testData.get(dcs[0].getName());
         for (int i = 0; i < k; ++i) {
-            dcs[0].setDead(0);
+            dcs[0].setDead(0, new Exception());
         }
         assertThat(dcs[0].isAlive(), is(false));
         res = BalancingRpcClient.selectDestinations(dcs, 6, true, rnd);
