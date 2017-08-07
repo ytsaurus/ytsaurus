@@ -847,12 +847,14 @@ ui64 FarmHashUint64(ui64 value)
 
 void ThrowException(const char* error)
 {
-    THROW_ERROR_EXCEPTION("Error while executing UDF: %s", error);
+    THROW_ERROR_EXCEPTION("Error while executing UDF")
+        << TError(error);
 }
 
 void ThrowQueryException(const char* error)
 {
-    THROW_ERROR_EXCEPTION("Error while executing query: %s", error);
+    THROW_ERROR_EXCEPTION("Error while executing query")
+        << TError(error);
 }
 
 re2::RE2* RegexCreate(TUnversionedValue* regexp)
@@ -1028,6 +1030,13 @@ DEFINE_YPATH_GET_ANY
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ThrowCannotCompareTypes(ETokenType lhsType, ETokenType rhsType)
+{
+    THROW_ERROR_EXCEPTION("Cannot compare values of types %Qlv and %Qlv",
+        lhsType,
+        rhsType);
+}
+
 int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 {
     TStringBuf lhsInput(lhsData, lhsLength);
@@ -1041,9 +1050,7 @@ int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
     lexer.GetToken(rhsInput, &rhsToken);
 
     if (lhsToken.GetType() != rhsToken.GetType()) {
-        THROW_ERROR_EXCEPTION("Any type mismatch")
-            << TErrorAttribute("lhs_type", lhsToken.GetType())
-            << TErrorAttribute("rhs_type", rhsToken.GetType());
+        ThrowCannotCompareTypes(lhsToken.GetType(), rhsToken.GetType());
     }
 
     auto tokenType = lhsToken.GetType();
@@ -1110,10 +1117,11 @@ int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
             break;
         }
         default:
-            THROW_ERROR_EXCEPTION("Unexpected value")
-                << TErrorAttribute("value", tokenType);
+            THROW_ERROR_EXCEPTION("Values of type %Qlv are not comparable",
+                tokenType);
     }
 }
+
 
 #define DEFINE_COMPARE_ANY(TYPE, TOKEN_TYPE) \
 int CompareAny##TOKEN_TYPE(char* lhsData, i32 lhsLength, TYPE rhsValue) \
@@ -1123,9 +1131,7 @@ int CompareAny##TOKEN_TYPE(char* lhsData, i32 lhsLength, TYPE rhsValue) \
     NYson::TToken lhsToken; \
     lexer.GetToken(lhsInput, &lhsToken); \
     if (lhsToken.GetType() != NYson::ETokenType::TOKEN_TYPE) { \
-        THROW_ERROR_EXCEPTION("Any type mismatch") \
-            << TErrorAttribute("lhs_type", lhsToken.GetType()) \
-            << TErrorAttribute("rhs_type", NYson::ETokenType::TOKEN_TYPE); \
+        ThrowCannotCompareTypes(lhsToken.GetType(), NYson::ETokenType::TOKEN_TYPE); \
     } \
     auto lhsValue = lhsToken.Get##TOKEN_TYPE##Value(); \
     if (lhsValue < rhsValue) { \
@@ -1149,9 +1155,7 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
     NYson::TToken lhsToken;
     lexer.GetToken(lhsInput, &lhsToken);
     if (lhsToken.GetType() != NYson::ETokenType::String) {
-        THROW_ERROR_EXCEPTION("Any type mismatch")
-            << TErrorAttribute("lhs_type", lhsToken.GetType())
-            << TErrorAttribute("rhs_type", NYson::ETokenType::String);
+        ThrowCannotCompareTypes(lhsToken.GetType()NYson::ETokenType::String);
     }
     auto lhsValue = lhsToken.GetStringValue();
     TStringBuf rhsValue(rhsData, rhsLength);
