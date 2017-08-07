@@ -20,7 +20,12 @@ void Out<TGUID>(TOutputStream& s, const TGUID& guid)
     s << GetGuidAsString(guid);
 }
 
-////////////////////////////////////////////////////////////////////
+template <>
+void Out<NYT::NTesting::TOwningYaMRRow>(TOutputStream& out, const NYT::NTesting::TOwningYaMRRow& row) {
+    out << "Row{" << row.Key << ", " << row.SubKey << ", " << row.Value << "}";
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NTesting {
@@ -50,6 +55,26 @@ TZeroWaitLockPollIntervalGuard::TZeroWaitLockPollIntervalGuard()
 TZeroWaitLockPollIntervalGuard::~TZeroWaitLockPollIntervalGuard()
 {
     TConfig::Get()->WaitLockPollInterval = OldWaitLockPollInterval_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOwningYaMRRow::TOwningYaMRRow(const TYaMRRow& row)
+    : Key(row.Key.ToString())
+    , SubKey(row.SubKey.ToString())
+    , Value(row.Value.ToString())
+{}
+
+TOwningYaMRRow::TOwningYaMRRow(TString key, TString subKey, TString value)
+    : Key(std::move(key))
+    , SubKey(std::move(subKey))
+    , Value(std::move(value))
+{ }
+
+bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2) {
+    return row1.Key == row2.Key
+        && row1.SubKey == row2.SubKey
+        && row1.Value == row2.Value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
