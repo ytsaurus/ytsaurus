@@ -33,7 +33,7 @@ public final class DataCenter {
         return dc;
     }
 
-    void setAlive(BalancingDestination dst) {
+    private void setAlive(BalancingDestination dst) {
         synchronized (backends) {
             if (dst.getIndex() >= aliveCount) {
                 swap(aliveCount, dst.getIndex());
@@ -43,12 +43,12 @@ public final class DataCenter {
         }
     }
 
-    void setDead(BalancingDestination dst) {
+    private void setDead(BalancingDestination dst, Throwable reason) {
         synchronized (backends) {
             if (dst.getIndex() < aliveCount) {
                 aliveCount--;
                 swap(aliveCount, dst.getIndex());
-                logger.info("backend `{}` is dead", dst);
+                logger.info("backend `{}` is dead, reason `{}`", dst, reason);
                 dst.resetTransaction();
             }
         }
@@ -58,8 +58,8 @@ public final class DataCenter {
         return aliveCount > 0;
     }
 
-    public void setDead(int index) {
-        setDead(backends[index]);
+    public void setDead(int index, Throwable reason) {
+        setDead(backends[index], reason);
     }
 
     public void setAlive(int index) {
@@ -104,8 +104,8 @@ public final class DataCenter {
     private CompletableFuture<Void> ping(BalancingDestination client, ScheduledExecutorService executorService, Duration pingTimeout) {
         CompletableFuture<Void> f = client.createTransaction().thenCompose(id -> client.pingTransaction(id))
             .thenAccept(unused -> setAlive(client))
-            .exceptionally(unused -> {
-                setDead(client);
+            .exceptionally(ex -> {
+                setDead(client, ex);
                 return null;
             });
 
