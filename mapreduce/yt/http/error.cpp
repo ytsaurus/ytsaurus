@@ -1,9 +1,8 @@
 #include "error.h"
 #include "error_codes.h"
 
-#include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/node_visitor.h>
+#include <mapreduce/yt/node/node_io.h>
+#include <mapreduce/yt/node/node_visitor.h>
 
 #include <library/json/json_reader.h>
 #include <library/yson/writer.h>
@@ -274,16 +273,6 @@ TString TErrorResponse::GetRequestId() const
     return RequestId_;
 }
 
-bool TErrorResponse::IsRetriable() const
-{
-    return Retriable_;
-}
-
-TDuration TErrorResponse::GetRetryInterval() const
-{
-    return RetryInterval_;
-}
-
 const TError& TErrorResponse::GetError() const
 {
     return Error_;
@@ -339,29 +328,6 @@ void TErrorResponse::Setup()
     TStringStream s;
     WriteErrorDescription(Error_, &s);
     *this << s.Str() << "; full error: " << Error_.GetYsonText();
-
-    Retriable_ = true;
-    RetryInterval_ = TConfig::Get()->RetryInterval;
-
-    int code = Error_.GetInnerCode();
-    if (HttpCode_ / 100 == 4) {
-        if (HttpCode_ == 429 || code == 904 || code == 108) {
-            // request rate limit exceeded
-            RetryInterval_ = TConfig::Get()->RateLimitExceededRetryInterval;
-            return;
-        }
-        if (IsConcurrentOperationsLimitReached()) {
-            // limit for the number of concurrent operations exceeded
-            RetryInterval_ = TConfig::Get()->StartOperationRetryInterval;
-            return;
-        }
-        if (code / 100 == 7) {
-            // chunk client errors
-            RetryInterval_ = TConfig::Get()->ChunkErrorsRetryInterval;
-            return;
-        }
-        Retriable_ = false;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////

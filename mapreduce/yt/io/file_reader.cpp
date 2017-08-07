@@ -9,6 +9,7 @@
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/requests.h>
+#include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/http/transaction.h>
 
 namespace NYT {
@@ -99,10 +100,10 @@ size_t TFileReader::DoRead(void* buf, size_t len)
             return read;
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", ~GetActiveRequestId(), e.what(), attempt, retryCount);
-            if (!e.IsRetriable() || attempt == retryCount) {
+            if (!NDetail::IsRetriable(e) || attempt == retryCount) {
                 throw;
             }
-            Sleep(e.GetRetryInterval());
+            Sleep(NDetail::GetRetryInterval(e));
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", ~GetActiveRequestId(), e.what(), attempt, retryCount);
             if (Request_) {
