@@ -38,12 +38,12 @@ class Operation(object):
         else:
             self.errors.append(snapshot_size.get_error())
     
-    def fetch_output_resource_usage(self, in_account=None):
+    def fetch_output_resource_usage(self, in_account=None, debug_output=False):
         if self._attrs is None:
             yield
             return
 
-        output_tx = self._attrs["output_transaction_id"]
+        output_tx = self._attrs["output_transaction_id" if not debug_output else "async_scheduler_transaction_id"]
         output_resource_usage = self._batch_client.get("#{}/@resource_usage".format(output_tx))
         yield
 
@@ -180,7 +180,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze running scheduler state.")
     parser.add_argument("-k", type=int, default=10, help="Number of operation to show (default: 10)")
     parser.add_argument("--proxy", help='Proxy alias')
-    parser.add_argument("--top-by", choices=["job-count", "snapshot-size", "input-disk-usage", "output-chunks"], default="job-count")
+    parser.add_argument("--top-by", choices=["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "debug-output-chunks"], default="job-count")
     parser.add_argument("--in-account", help="Count resource usage only in this account")
     parser.add_argument("--show-errors", default=False, action="store_true")
 
@@ -205,6 +205,11 @@ if __name__ == "__main__":
         report_operations(operations, args.k, lambda op: op.get_input_disk_usage(), args.top_by)
     elif args.top_by == "output-chunks":
         fetch_batch(batch_client, operations, lambda op: op.fetch_output_resource_usage(args.in_account))
+
+        report_operations(operations, args.k, lambda op: op.get_output_chunks(), args.top_by)
+
+    elif args.top_by == "debug-output-chunks":
+        fetch_batch(batch_client, operations, lambda op: op.fetch_output_resource_usage(args.in_account, True))
 
         report_operations(operations, args.k, lambda op: op.get_output_chunks(), args.top_by)
 
