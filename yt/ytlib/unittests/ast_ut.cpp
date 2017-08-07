@@ -49,6 +49,8 @@ TEST_F(TAstFormatTest, Reference)
 {
     EXPECT_EQ("column", FormatReference(TReference(TString("column"))));
     EXPECT_EQ("table.column", FormatReference(TReference(TString("column"), TString("table"))));
+    EXPECT_EQ("[my.column]", FormatReference(TReference(TString("my.column"))));
+    EXPECT_EQ("table.[my.column]", FormatReference(TReference(TString("my.column"), TString("table"))));
 }
 
 TEST_F(TAstFormatTest, LiteralValue)
