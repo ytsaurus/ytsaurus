@@ -282,7 +282,7 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
 
     // Minimum is 1 for tests.
     RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
-        .Default(MB)
+        .Default(100 * KB)
         .GreaterThanOrEqual(1);
 
     RegisterParameter("partition_job_size_adjuster", PartitionJobSizeAdjuster)
