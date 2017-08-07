@@ -267,7 +267,7 @@ void FormatReference(TStringBuilder* builder, const TReference& ref)
         builder->AppendString(*ref.TableName);
         builder->AppendChar('.');
     }
-    builder->AppendString(ref.ColumnName);
+    FormatId(builder, ref.ColumnName);
 }
 
 void FormatTableDescriptor(TStringBuilder* builder, const TTableDescriptor& descriptor)
