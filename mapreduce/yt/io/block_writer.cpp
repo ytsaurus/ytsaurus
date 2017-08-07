@@ -1,6 +1,7 @@
 #include "block_writer.h"
 
 #include <mapreduce/yt/http/requests.h>
+#include <mapreduce/yt/interface/errors.h>
 
 #include <mapreduce/yt/common/helpers.h>
 
@@ -8,8 +9,29 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBlockWriter::~TBlockWriter()
+{
+    try {
+        DoFinish();
+    } catch (...) {
+    }
+}
+
+void TBlockWriter::CheckWriterState()
+{
+    switch (WriterState_) {
+        case Ok:
+            break;
+        case Completed:
+            ythrow TApiUsageError() << "Cannot use table writer that is finished";
+        case Error:
+            ythrow TApiUsageError() << "Cannot use table writer that finished with error";
+    }
+}
+
 void TBlockWriter::NotifyRowEnd()
 {
+    CheckWriterState();
     if (Buffer_.Size() >= BufferSize_) {
         FlushBuffer(false);
     }
@@ -17,6 +39,7 @@ void TBlockWriter::NotifyRowEnd()
 
 void TBlockWriter::DoWrite(const void* buf, size_t len)
 {
+    CheckWriterState();
     while (Buffer_.Size() + len > Buffer_.Capacity()) {
         Buffer_.Reserve(Buffer_.Capacity() * 2);
     }
@@ -25,22 +48,33 @@ void TBlockWriter::DoWrite(const void* buf, size_t len)
 
 void TBlockWriter::DoFinish()
 {
-    if (Finished_) {
+    if (WriterState_ != Ok) {
         return;
     }
-    Finished_ = true;
     FlushBuffer(true);
     if (Started_) {
         Thread_.Join();
     }
     WriteTransaction_.Commit();
+
+    if (Exception_) {
+        WriterState_ = Error;
+        std::rethrow_exception(Exception_);
+    } else if (WriterState_ == Ok) {
+        WriterState_ = Completed;
+    }
 }
 
 void TBlockWriter::FlushBuffer(bool lastBlock)
 {
     if (!Started_) {
         if (lastBlock) {
-            Send(Buffer_);
+            try {
+                Send(Buffer_);
+            } catch (...) {
+                WriterState_ = Error;
+                throw;
+            }
             return;
         } else {
             Started_ = true;
@@ -51,7 +85,8 @@ void TBlockWriter::FlushBuffer(bool lastBlock)
 
     CanWrite_.Wait();
     if (Exception_) {
-        throw *Exception_;
+        WriterState_ = Error;
+        std::rethrow_exception(Exception_);
     }
 
     SecondaryBuffer_.Swap(Buffer_);
@@ -85,8 +120,8 @@ void TBlockWriter::SendThread()
             HasData_.Wait();
             Send(SecondaryBuffer_);
             SecondaryBuffer_.Clear();
-        } catch (yexception& e) {
-            Exception_ = e;
+        } catch (const yexception&) {
+            Exception_ = std::current_exception();
             CanWrite_.Signal();
             break;
         }
