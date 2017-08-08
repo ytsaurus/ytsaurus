@@ -26,7 +26,7 @@ static const int BufferSize = 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::BaseException CreateYsonError(const TString& message, const NYT::TError& error = TError())
+Py::Exception CreateYsonError(const TString& message, const NYT::TError& error = TError())
 {
     auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
     auto ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
@@ -37,7 +37,7 @@ Py::BaseException CreateYsonError(const TString& message, const NYT::TError& err
     options.setItem("code", ConvertTo<Py::Object>(1));
     options.setItem("inner_errors", ConvertTo<Py::Object>(innerErrors));
     auto ysonError = ysonErrorClass.apply(Py::Tuple(), options);
-    return Py::BaseException(*ysonError.type(), ysonError);
+    return Py::Exception(*ysonError.type(), ysonError);
 }
 
 #define CATCH(message) \
