@@ -131,6 +131,8 @@ struct TUserObject
 
     virtual TString GetPath() const;
 
+    bool IsPrepared() const;
+
     void Persist(const TStreamPersistenceContext& context);
 };
 

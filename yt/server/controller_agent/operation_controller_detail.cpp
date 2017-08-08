@@ -2012,14 +2012,14 @@ void TOperationControllerBase::SafeAbort()
     // Skip committing anything if operation controller already tried to commit results.
     if (!CommitFinished) {
         try {
-            if (StderrTable_) {
+            if (StderrTable_ && StderrTable_->IsPrepared()) {
                 BeginUploadOutputTables({StderrTable_.GetPtr()});
                 AttachOutputChunks({StderrTable_.GetPtr()});
                 EndUploadOutputTables({StderrTable_.GetPtr()});
                 SetPartSize(StderrTable_, GetStderrTableWriterConfig()->MaxPartSize);
             }
 
-            if (CoreTable_) {
+            if (CoreTable_ && CoreTable_->IsPrepared()) {
                 BeginUploadOutputTables({CoreTable_.GetPtr()});
                 AttachOutputChunks({CoreTable_.GetPtr()});
                 EndUploadOutputTables({CoreTable_.GetPtr()});
