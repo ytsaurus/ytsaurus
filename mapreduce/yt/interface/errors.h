@@ -22,18 +22,18 @@ class TApiUsageError
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServerError
+class TYtError
 {
 public:
-    TServerError();
-    TServerError(const TString& message);
-    TServerError(int code, const TString& message);
-    TServerError(const NJson::TJsonValue& value);
-    TServerError(const TNode& value);
+    TYtError();
+    TYtError(const TString& message);
+    TYtError(int code, const TString& message);
+    TYtError(const NJson::TJsonValue& value);
+    TYtError(const TNode& value);
 
     int GetCode() const;
     const TString& GetMessage() const;
-    const yvector<TServerError>& InnerErrors() const;
+    const yvector<TYtError>& InnerErrors() const;
 
     void ParseFrom(const TString& jsonError);
 
@@ -50,7 +50,7 @@ public:
 private:
     int Code_;
     TString Message_;
-    yvector<TServerError> InnerErrors_;
+    yvector<TYtError> InnerErrors_;
     TNode::TMap Attributes_;
 };
 
@@ -61,19 +61,19 @@ class TErrorResponse
 {
 public:
     TErrorResponse(int httpCode, const TString& requestId);
-    TErrorResponse(int httpCode, TServerError error);
+    TErrorResponse(int httpCode, TYtError error);
 
     // Check if response is actually not a error.
     bool IsOk() const;
 
     void SetRawError(const TString& message);
-    void SetError(TServerError error);
+    void SetError(TYtError error);
     void ParseFromJsonError(const TString& jsonError);
 
     int GetHttpCode() const;
     TString GetRequestId() const;
 
-    const TServerError& GetError() const;
+    const TYtError& GetError() const;
 
     // Path is cypress can't be resolved.
     bool IsResolveError() const;
@@ -108,7 +108,7 @@ private:
 private:
     int HttpCode_;
     TString RequestId_;
-    TServerError Error_;
+    TYtError Error_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
