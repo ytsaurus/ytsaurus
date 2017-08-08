@@ -265,10 +265,9 @@ public:
             }
         }
 
-        auto this_ = MakeStrong(this);
         if (!indicesToRequest.empty()) {
             auto blocksFuture = BIND(
-                [=] () {
+                [=, this_ = MakeStrong(this)] () {
                     return Reader_->ReadBlocks(indicesToRequest);
                 })
                 // Or simple Via?
@@ -276,7 +275,7 @@ public:
                 .Run();
 
             return blocksFuture.Apply(BIND(
-                [=] (const TErrorOr<std::vector<TBlock>>& errorOrBlocks) -> TSharedRef {
+                [=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& errorOrBlocks) -> TSharedRef {
                     if (!errorOrBlocks.IsOK()) {
                         THROW_ERROR TError(errorOrBlocks);
                     }
