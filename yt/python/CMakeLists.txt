@@ -59,7 +59,7 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
 
   add_library(${TARGET_NAME_PREFIX}pycxx STATIC ${PYCXX_SRCS})
   target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
-  target_compile_definitions(${TARGET_NAME_PREFIX}pycxx PUBLIC -DPYCXX_PYTHON_2TO3)
+  target_compile_definitions(${TARGET_NAME_PREFIX}pycxx PUBLIC -DPYCXX_PYTHON_2TO3 -DPYCXX_6_2_COMPATIBILITY)
 
   add_library(${TARGET_NAME_PREFIX}common STATIC ${YT_SRCS})
   target_link_libraries(${TARGET_NAME_PREFIX}common yt-library-client ${TARGET_NAME_PREFIX}pycxx)
