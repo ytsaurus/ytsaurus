@@ -104,6 +104,29 @@ REGISTER_MAPPER(TMapperThatChecksFile);
 
 ////////////////////////////////////////////////////////////////////
 
+class TSleepingMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    TSleepingMapper() = default;
+
+    TSleepingMapper(TDuration sleepDuration)
+        : SleepDuration_(sleepDuration)
+    { }
+
+    virtual void Do(TReader*, TWriter* ) override
+    {
+        Sleep(SleepDuration_);
+    }
+
+    Y_SAVELOAD_JOB(SleepDuration_);
+
+private:
+    TDuration SleepDuration_;
+};
+REGISTER_MAPPER(TSleepingMapper);
+
+////////////////////////////////////////////////////////////////////
+
 SIMPLE_UNIT_TEST_SUITE(Operations)
 {
     SIMPLE_UNIT_TEST(IncorrectTableId)
@@ -341,6 +364,86 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             .AddOutput<TNode>("//testing/output")
             .MapperSpec(TUserJobSpec().AddFile(TRichYPath("//testing/input[#0]").Format("yson"))),
             new TMapperThatChecksFile("input"));
+    }
+}
+
+TString GetOperationState(const IClientPtr& client, const TOperationId& operationId)
+{
+    return client->Get("//sys/operations/" + GetGuidAsString(operationId) + "/@state").AsString();
+}
+
+SIMPLE_UNIT_TEST_SUITE(OperationWatch)
+{
+    SIMPLE_UNIT_TEST(SimpleOperationWatch)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        auto operation = client->Sort(
+            TSortOperationSpec().SortBy({"foo"})
+            .AddInput("//testing/input")
+            .Output("//testing/output"),
+            TOperationOptions().Wait(false));
+
+        auto fut = operation->Watch();
+        fut.Wait();
+        fut.GetValue(); // no exception
+        UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "completed");
+    }
+
+    SIMPLE_UNIT_TEST(FailedOperationWatch)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        auto operation = client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .MaxFailedJobCount(1),
+            new TAlwaysFailingMapper,
+            TOperationOptions().Wait(false));
+
+        auto fut = operation->Watch();
+        fut.Wait();
+        UNIT_ASSERT_EXCEPTION(fut.GetValue(), TOperationFailedError);
+        UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "failed");
+    }
+
+    SIMPLE_UNIT_TEST(AbortedOperationWatch)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        auto operation = client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .MaxFailedJobCount(1),
+            new TSleepingMapper(TDuration::Seconds(10)),
+            TOperationOptions().Wait(false));
+
+        client->AbortOperation(operation->GetId());
+        auto fut = operation->Watch();
+        fut.Wait();
+        UNIT_ASSERT_EXCEPTION(fut.GetValue(), TOperationFailedError);
+        UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "aborted");
     }
 }
 

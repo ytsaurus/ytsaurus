@@ -2,6 +2,7 @@
 
 #include "io.h"
 
+#include <library/threading/future/future.h>
 #include <util/generic/vector.h>
 
 #ifdef __clang__
@@ -379,17 +380,35 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IOperation
-    : public TThrRefBase
-{
-    virtual ~IOperation() = default;
-    virtual const TOperationId& GetId() const = 0;
-};
-
 enum EOperationStatus : int
 {
     OS_RUNNING,
     OS_COMPLETED
+};
+
+////////////////////////////////////////////////////////////////////
+
+struct IOperation
+    : public TThrRefBase
+{
+    virtual ~IOperation() = default;
+
+    //
+    // Get operation id.
+    virtual const TOperationId& GetId() const = 0;
+
+    //
+    // Start watching operation. Return future that is set when operation is complete.
+    //
+    // NOTE: user should check value of returned future to ensure that operation completed successfuly e.g.
+    //     auto operationComplete = operation->Watch();
+    //     operationComplete.Wait();
+    //     operationComplete.GetValue(); // will throw if operation completed with errors
+    //
+    // If operation is completed successfuly future contains void value.
+    // If operation is completed with error future contains TOperationFailedException exeption.
+    // In rare cases when error occurred while waiting (e.g. YT become unavailable) future might contain other exception.
+    virtual NThreading::TFuture<void> Watch() = 0;
 };
 
 struct TOperationOptions

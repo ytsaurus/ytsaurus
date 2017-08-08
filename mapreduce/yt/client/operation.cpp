@@ -1,5 +1,8 @@
 #include "operation.h"
+
+#include "client.h"
 #include "operation_tracker.h"
+#include "yt_poller.h"
 
 #include <mapreduce/yt/interface/errors.h>
 
@@ -13,6 +16,7 @@
 #include <library/yson/json_writer.h>
 
 #include <mapreduce/yt/http/requests.h>
+#include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/http/error.h>
 
 #include <mapreduce/yt/io/job_reader.h>
@@ -39,6 +43,7 @@
 #include <library/digest/md5/md5.h>
 
 namespace NYT {
+namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1459,6 +1464,99 @@ TOperationId ExecuteErase(
     }
     return operationId;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperation::TOperationPollerItem
+    : public IYtPollerItem
+{
+public:
+    TOperationPollerItem(const TOperationId& operationId, const NThreading::TPromise<void>& operationCompletePromise)
+        : OperationId_(operationId)
+        , OperationStateYPath_("//sys/operations/" + GetGuidAsString(operationId) + "/@")
+        , OperationCompletePromise_(operationCompletePromise)
+    { }
+
+    virtual void PrepareRequest(IBatchRequest* batchRequest) override
+    {
+        OperationState_ = batchRequest->Get(OperationStateYPath_,
+            TGetOptions().AttributeFilter(
+                TAttributeFilter()
+                .AddAttribute("state")
+                .AddAttribute("result")));
+    }
+
+    virtual EStatus OnRequestExecuted() override
+    {
+        try {
+            const auto& info = OperationState_.GetValue();
+
+            const auto& state = info["state"].AsString();
+            if (state == "completed") {
+                OperationCompletePromise_.SetValue();
+                return PollBreak;
+            } else if (state == "aborted" || state == "failed") {
+                auto errorStr = NodeToYsonString(info["result"]["error"], YF_TEXT);
+                OperationCompletePromise_.SetException(
+                    std::make_exception_ptr(
+                        TOperationFailedError(
+                            state == "failed" ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
+                            OperationId_,
+                            errorStr)));
+
+                return PollBreak;
+            }
+        } catch (const TErrorResponse& e) {
+            if (!NDetail::IsRetriable(e)) {
+                OperationCompletePromise_.SetException(std::current_exception());
+                return PollBreak;
+            }
+        }
+        return PollContinue;
+    }
+
+private:
+    TOperationId OperationId_;
+    const TString OperationStateYPath_;
+    NThreading::TPromise<void> OperationCompletePromise_;
+    NThreading::TFuture<TNode> OperationState_;
+};
+
+////////////////////////////////////////////////////////////////////
+
+TOperation::TOperation(TOperationId id, TClientPtr client)
+    : Id_(id)
+    , Client_(std::move(client))
+{
+}
+
+const TOperationId& TOperation::GetId() const
+{
+    return Id_;
+}
+
+NThreading::TFuture<void> TOperation::Watch()
+{
+    auto guard = Guard(Lock_);
+    if (!CompletePromise_) {
+        CompletePromise_ = NThreading::NewPromise<void>();
+        Client_->GetYtPoller().Watch(::MakeIntrusive<TOperation::TOperationPollerItem>(GetId(), *CompletePromise_));
+    }
+    return *CompletePromise_;
+}
+
+void TOperation::SetOperationFinished(const TMaybe<TOperationFailedError>& maybeError)
+{
+    if (maybeError) {
+        CompletePromise_->SetException(std::make_exception_ptr(maybeError));
+    } else {
+        CompletePromise_->SetValue();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
