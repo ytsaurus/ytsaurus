@@ -15,14 +15,14 @@ class ExecutableItem(pytest.Item):
         self.sandbox_path, self.environment_path = resolve_test_paths(name)
         self.pids_file = os.path.join(self.environment_path, 'pids.txt')
 
-    @staticmethod
-    def extract_attrs(path):
+    def extract_attrs(self, path):
         with open(path, 'rt') as handle:
             for line in handle:
-                if not line.startswith('#'):
+                if not line.startswith(self.comment_line_begin):
                     break
-                if line.startswith('#%'):
-                    line = line.lstrip('#%').rstrip('\r\n').replace(' ', '')
+                config_mark = self.comment_line_begin + '%'
+                if line.startswith(config_mark):
+                    line = line.lstrip(config_mark).rstrip('\r\n').replace(' ', '')
                     try:
                         key, value = line.split('=', 2)
                         yield key, eval(value)
@@ -54,12 +54,43 @@ class ExecutableItem(pytest.Item):
         finally:
             env.stop()
 
+    def repr_failure(self, excinfo):
+        exc = excinfo.value
+        if isinstance(exc, YtShellTestException):
+            return exc.repr_failure()
+        return super(ExecutableItem, self).repr_failure(excinfo)
+
     def reportinfo(self):
         return self.fspath, 0, '%s: %s (%s)' % \
             (self.__class__.__name__, self.name, self.fspath)
 
 
+class YtShellTestException(Exception):
+    def __init__(self, lang, name, exit_code, stdout=None, stderr=None):
+        Exception.__init__(
+            self,
+            "%s test '%s' has failed (exit code %s)" % (lang, name, exit_code))
+        self.name = name
+        self.exit_code = exit_code
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def repr_failure(self):
+        out = [str(self)]
+        if self.stdout is not None:
+            out += ["-- STDOUT " + "-" * 70, self.stdout]
+        if self.stderr is not None:
+            out += ["-- STDERR " + "-" * 70, self.stdout]
+        if len(out) > 1:
+            out += ["-" * 80]
+        return "\n".join(out)
+
+
 class PerlItem(ExecutableItem):
+    def __init__(self, parent):
+        super(PerlItem, self).__init__(parent)
+        self.comment_line_begin = "#"
+
     def on_runtest(self, env):
         # XXX(sandello): This is a hacky way to set proper include path.
         inc = os.path.abspath(
@@ -80,27 +111,42 @@ class PerlItem(ExecutableItem):
         child.wait()
 
         if child.returncode != 0:
-            raise PerlException(
+            raise YtShellTestException(
+                "Perl",
                 self.name,
                 child.returncode,
                 stdout,
                 stderr)
 
-    def repr_failure(self, excinfo):
-        exc = excinfo.value
-        if isinstance(exc, PerlException):
-            return "\n".join([
-                str(exc),
-                "-- STDOUT " + "-" * 70,
-                exc.stdout,
-                "-- STDERR " + "-" * 70,
-                exc.stderr,
-                "-" * 80
-            ])
-        return super(PerlItem, self).repr_failure(excinfo)
-
     def reportinfo(self):
         return self.fspath, 0, "perl:%s" % self.name
+
+
+class CppItem(ExecutableItem):
+    def __init__(self, parent):
+        super(CppItem, self).__init__(parent)
+        self.comment_line_begin = "#"
+
+    def on_runtest(self, env):
+        environment = {}
+        environment["PATH"] = os.environ["PATH"]
+        if env.master_count > 0:
+            environment["YT_DRIVER_CONFIG_PATH"] = env.config_paths["driver"]
+
+        child = subprocess.Popen(
+            self.name,
+            cwd=self.sandbox_path,
+            env=environment)
+        child.wait()
+
+        if child.returncode != 0:
+            raise YtShellTestException(
+                "C++",
+                self.name,
+                child.returncode)
+
+    def reportinfo(self):
+        return self.fspath, 0, "c++:%s" % self.name
 
 
 class PerlFile(pytest.File):
@@ -108,12 +154,7 @@ class PerlFile(pytest.File):
         yield PerlItem(self)
 
 
-class PerlException(Exception):
-    def __init__(self, name, exit_code, stdout, stderr):
-        Exception.__init__(
-            self,
-            "Perl test '%s' has failed (exit code %s)" % (name, exit_code))
-        self.name = name
-        self.exit_code = exit_code
-        self.stdout = stdout
-        self.stderr = stderr
+class CppFile(pytest.File):
+    def collect(self):
+        yield CppItem(self)
+
