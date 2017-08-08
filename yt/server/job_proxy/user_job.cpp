@@ -278,6 +278,7 @@ public:
             if (!JobErrorPromise_.IsSet()) {
                 FinalizeJobIO();
             }
+            UploadStderrFile();
 
             CleanupUserProcesses();
 
@@ -543,10 +544,6 @@ private:
     TOutputStream* CreateErrorOutput()
     {
         ErrorOutput_.reset(new TStderrWriter(
-            JobIOConfig_->ErrorFileWriter,
-            CreateFileOptions(),
-            Host_->GetClient(),
-            FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
 
         auto* stderrTableWriter = JobIO_->GetStderrTableWriter();
@@ -684,6 +681,17 @@ private:
             valueConsumers.push_back(WritingValueConsumers_.back().get());
         }
         return valueConsumers;
+    }
+
+    void UploadStderrFile()
+    {
+        if (JobErrorPromise_.IsSet() || UserJobSpec_.upload_stderr_if_completed()) {
+            ErrorOutput_->Upload(
+                JobIOConfig_->ErrorFileWriter,
+                CreateFileOptions(),
+                Host_->GetClient(),
+                FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()));
+        }
     }
 
     void PrepareOutputTablePipes()

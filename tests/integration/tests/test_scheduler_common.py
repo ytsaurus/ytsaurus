@@ -303,6 +303,40 @@ class TestJobStderr(YTEnvSetup):
         assert stderr[-1004:] == "1" * 1000 + "tail"
         assert "skipped" in stderr
 
+    def test_stderr_chunks_not_created_for_completed_jobs(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(100)])
+
+        # One job hangs, so that we can poke into transaction.
+        command = """
+                if [ "$YT_JOB_INDEX" -eq 1 ]; then
+                    sleep 1000
+                else
+                    cat > /dev/null; echo message > /dev/stderr
+                fi;"""
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=command,
+            spec={"job_count": 10, "max_stderr_count": 0})
+
+        def enough_jobs_completed():
+            progress = get("//sys/operations/{0}/@brief_progress".format(op.id))
+            if "jobs" in progress and "completed" in progress["jobs"]:
+                return progress["jobs"]["completed"]["total"] > 8
+            return False
+
+        wait(enough_jobs_completed)
+
+        stderr_tx = get("//sys/operations/{}/@async_scheduler_transaction_id".format(op.id))
+        staged_objects = get("//sys/transactions/{}/@staged_object_ids".format(stderr_tx))
+        assert sum(len(ids) for ids in staged_objects.values()) == 0, str(staged_objects)
+
+        op.abort()
+
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

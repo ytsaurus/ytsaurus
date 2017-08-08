@@ -5618,6 +5618,10 @@ void TOperationControllerBase::InitUserJobSpec(
         }
     }
 
+    if (StderrCount_ >= Spec_->MaxStderrCount) {
+        jobSpec->set_upload_stderr_if_completed(false);
+    }
+    
     if (joblet->StderrTableChunkListId) {
         AddStderrOutputSpecs(jobSpec, joblet);
     }

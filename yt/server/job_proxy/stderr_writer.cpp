@@ -5,6 +5,8 @@
 namespace NYT {
 namespace NJobProxy {
 
+using namespace NFileClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobProxyLogger;
@@ -78,24 +80,15 @@ void TTailBuffer::DoWrite(const void* buf_, size_t len)
 
 
 TStderrWriter::TStderrWriter(
-    NApi::TFileWriterConfigPtr config,
-    NChunkClient::TMultiChunkWriterOptionsPtr options,
-    NApi::INativeClientPtr client,
-    const NObjectClient::TTransactionId& transactionId,
     size_t sizeLimit)
-    : FileChunkOutput_(
-        config,
-        options,
-        client,
-        transactionId)
     // Limit for tail and head are the half of total limit.
-    , PartLimit_(sizeLimit / 2)
+    : PartLimit_(sizeLimit / 2)
     , Head_(sizeLimit / 2)
 { }
 
 NChunkClient::TChunkId TStderrWriter::GetChunkId() const
 {
-    return FileChunkOutput_.GetChunkId();
+    return ChunkId_;
 }
 
 void TStderrWriter::DoWrite(const void* buf_, size_t len)
@@ -150,11 +143,21 @@ void TStderrWriter::SaveCurrentDataTo(TOutputStream* output) const
     }
 }
 
-void TStderrWriter::DoFinish()
+void TStderrWriter::Upload(
+    NApi::TFileWriterConfigPtr config,
+    NChunkClient::TMultiChunkWriterOptionsPtr options,
+    NApi::INativeClientPtr client,
+    const NObjectClient::TTransactionId& transactionId)
 {
     try {
-        SaveCurrentDataTo(&FileChunkOutput_);
-        FileChunkOutput_.Finish();
+        TFileChunkOutput fileChunkOutput(
+            config,
+            options,
+            client,
+            transactionId);
+        SaveCurrentDataTo(&fileChunkOutput);
+        fileChunkOutput.Finish();
+        ChunkId_ = fileChunkOutput.GetChunkId();
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Writing stderr data to chunk failed");
     }
