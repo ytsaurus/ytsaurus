@@ -11,5 +11,5 @@
 #include <util/generic/yexception.h>
 
 namespace NYT {
-    using TError = TServerError;
+    using TError = TYtError;
 } // namespace NYT
