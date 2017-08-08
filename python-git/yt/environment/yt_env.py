@@ -379,9 +379,6 @@ class YTInstance(object):
             raise YtError("Failed to start environment", inner_errors=[err])
 
     def stop(self):
-        if not self._started:
-            return
-
         with self._lock:
             self.stop_impl()
 
