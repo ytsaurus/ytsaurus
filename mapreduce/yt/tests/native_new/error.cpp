@@ -3,7 +3,7 @@
 #include <library/unittest/registar.h>
 
 #include <mapreduce/yt/http/error.h>
-#include <mapreduce/yt/http/error_codes.h>
+#include <mapreduce/yt/interface/error_codes.h>
 
 
 using namespace NYT;
