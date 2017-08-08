@@ -9,9 +9,7 @@
 #include <mapreduce/yt/node/node.h>
 
 namespace NJson {
-
-class TJsonValue;
-
+    class TJsonValue;
 } // namespace NJson
 
 namespace NYT {
@@ -146,6 +144,5 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NYT
