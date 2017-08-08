@@ -813,7 +813,20 @@ struct TCastEliminator
             if (functionExpr->Type == functionExpr->Arguments[0]->Type) {
                 return Visit(functionExpr->Arguments[0]);
             }
-        } else if (functionExpr->FunctionName == "if") {
+        }
+
+        return TBase::OnFunction(functionExpr);
+    }
+};
+
+struct TExpressionSimplifier
+    : TCastEliminator
+{
+    using TBase = TCastEliminator;
+
+    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
+    {
+        if (functionExpr->FunctionName == "if") {
             if (auto functionCondition = functionExpr->Arguments[0]->As<TFunctionExpression>()) {
                 auto reference1 = functionExpr->Arguments[2]->As<TReferenceExpression>();
                 if (functionCondition->FunctionName == "is_null" && reference1) {
