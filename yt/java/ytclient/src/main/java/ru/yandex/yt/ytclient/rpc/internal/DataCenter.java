@@ -48,7 +48,7 @@ public final class DataCenter {
             if (dst.getIndex() < aliveCount) {
                 aliveCount--;
                 swap(aliveCount, dst.getIndex());
-                logger.info("backend `{}` is dead, reason `{}`", dst, reason);
+                logger.info("backend `{}` is dead, reason `{}`", dst, reason.toString());
                 dst.resetTransaction();
             }
         }
@@ -112,6 +112,7 @@ public final class DataCenter {
         executorService.schedule(
             () -> {
                 if (!f.isDone()) {
+                    setDead(client, new Exception("ping timeout"));
                     f.cancel(true);
                 }
             },
