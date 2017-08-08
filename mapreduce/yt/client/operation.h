@@ -1,10 +1,43 @@
 #pragma once
 
+#include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/operation.h>
+
+#include <util/generic/ptr.h>
 
 namespace NYT {
 
 struct TAuth;
+
+namespace NDetail {
+
+class TClient;
+using TClientPtr = ::TIntrusivePtr<TClient>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperation
+    : public IOperation
+{
+public:
+    TOperation(TOperationId id, TClientPtr client);
+    virtual const TOperationId& GetId() const override;
+    virtual NThreading::TFuture<void> Watch() override;
+
+private:
+    void SetOperationFinished(const TMaybe<TOperationFailedError>& maybeError);
+
+private:
+    class TOperationPollerItem;
+
+private:
+    TOperationId Id_;
+    TClientPtr Client_;
+    TMaybe<NThreading::TPromise<void>> CompletePromise_;
+    TMutex Lock_;
+};
+
+using TOperationPtr = ::TIntrusivePtr<TOperation>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,4 +110,7 @@ void AbortOperation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 } // namespace NYT

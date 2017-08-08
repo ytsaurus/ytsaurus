@@ -44,25 +44,6 @@ const size_t TClientBase::BUFFER_SIZE = 64 << 20;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperation
-    : public IOperation
-{
-public:
-    explicit TOperation(TOperationId id)
-        : Id_(std::move(id))
-    { }
-
-    virtual const TOperationId& GetId() const override
-    {
-        return Id_;
-    }
-
-private:
-    TOperationId Id_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TClientBase::TClientBase(
     const TAuth& auth,
     const TTransactionId& transactionId)
@@ -259,7 +240,7 @@ IOperationPtr TClientBase::DoMap(
         spec,
         mapper,
         options);
-    return ::MakeIntrusive<TOperation>(operationId);
+    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
 }
 
 IOperationPtr TClientBase::DoReduce(
@@ -273,7 +254,7 @@ IOperationPtr TClientBase::DoReduce(
         spec,
         reducer,
         options);
-    return ::MakeIntrusive<TOperation>(operationId);
+    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
 }
 
 IOperationPtr TClientBase::DoJoinReduce(
@@ -287,7 +268,7 @@ IOperationPtr TClientBase::DoJoinReduce(
         spec,
         reducer,
         options);
-    return ::MakeIntrusive<TOperation>(operationId);
+    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
 }
 
 IOperationPtr TClientBase::DoMapReduce(
@@ -313,7 +294,7 @@ IOperationPtr TClientBase::DoMapReduce(
         outputReduceCombinerDesc,
         inputReducerDesc,
         options);
-    return ::MakeIntrusive<TOperation>(operationId);
+    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
 }
 
 IOperationPtr TClientBase::Sort(
@@ -325,7 +306,7 @@ IOperationPtr TClientBase::Sort(
         TransactionId_,
         spec,
         options);
-    return ::MakeIntrusive<TOperation>(operationId);
+    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
 }
 
 IOperationPtr TClientBase::Merge(
@@ -337,7 +318,7 @@ IOperationPtr TClientBase::Merge(
         TransactionId_,
         spec,
         options);
-    return ::MakeIntrusive<TOperation>(operationId);
+    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
 }
 
 IOperationPtr TClientBase::Erase(
@@ -349,22 +330,22 @@ IOperationPtr TClientBase::Erase(
         TransactionId_,
         spec,
         options);
-    return ::MakeIntrusive<TOperation>(operationId);
+    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
 }
 
 EOperationStatus TClientBase::CheckOperation(const TOperationId& operationId)
 {
-    return NYT::CheckOperation(Auth_, TransactionId_, operationId);
+    return NYT::NDetail::CheckOperation(Auth_, TransactionId_, operationId);
 }
 
 void TClientBase::AbortOperation(const TOperationId& operationId)
 {
-    NYT::AbortOperation(Auth_, TransactionId_, operationId);
+    NYT::NDetail::AbortOperation(Auth_, TransactionId_, operationId);
 }
 
 void TClientBase::WaitForOperation(const TOperationId& operationId)
 {
-    NYT::WaitForOperation(Auth_, TransactionId_, operationId);
+    NYT::NDetail::WaitForOperation(Auth_, TransactionId_, operationId);
 }
 
 void TClientBase::AlterTable(
