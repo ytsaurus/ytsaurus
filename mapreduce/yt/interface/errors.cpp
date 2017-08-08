@@ -1,8 +1,9 @@
-#include "error.h"
-#include "error_codes.h"
+#include "errors.h"
 
 #include <mapreduce/yt/node/node_io.h>
 #include <mapreduce/yt/node/node_visitor.h>
+
+#include <mapreduce/yt/interface/error_codes.h>
 
 #include <library/json/json_reader.h>
 #include <library/yson/writer.h>
@@ -16,7 +17,7 @@ using namespace NJson;
 
 ////////////////////////////////////////////////////////////////////
 
-static void WriteErrorDescription(const TError& error, TOutputStream* out)
+static void WriteErrorDescription(const TServerError& error, TOutputStream* out)
 {
     (*out) << '`' << error.GetMessage() << '\'';
     const auto& innerErrorList = error.InnerErrors();
@@ -35,7 +36,7 @@ static void WriteErrorDescription(const TError& error, TOutputStream* out)
     }
 }
 
-static void SerializeError(const TError& error, IYsonConsumer* consumer)
+static void SerializeError(const TServerError& error, IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
     {
@@ -73,21 +74,21 @@ static void SerializeError(const TError& error, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////
 
-TError::TError()
+TServerError::TServerError()
     : Code_(0)
 { }
 
-TError::TError(const TString& message)
+TServerError::TServerError(const TString& message)
     : Code_(NYT::NClusterErrorCodes::Generic)
     , Message_(message)
 { }
 
-TError::TError(int code, const TString& message)
+TServerError::TServerError(int code, const TString& message)
     : Code_(code)
     , Message_(message)
 { }
 
-TError::TError(const TJsonValue& value)
+TServerError::TServerError(const TJsonValue& value)
 {
     const TJsonValue::TMap& map = value.GetMap();
     TJsonValue::TMap::const_iterator it = map.find("message");
@@ -106,7 +107,7 @@ TError::TError(const TJsonValue& value)
     if (it != map.end()) {
         const TJsonValue::TArray& innerErrors = it->second.GetArray();
         for (const auto& innerError : innerErrors) {
-            InnerErrors_.push_back(TError(innerError));
+            InnerErrors_.push_back(TServerError(innerError));
         }
     }
 
@@ -119,7 +120,7 @@ TError::TError(const TJsonValue& value)
     }
 }
 
-TError::TError(const TNode& node)
+TServerError::TServerError(const TNode& node)
 {
     const auto& map = node.AsMap();
     auto it = map.find("message");
@@ -138,7 +139,7 @@ TError::TError(const TNode& node)
     if (it != map.end()) {
         const auto& innerErrors = it->second.AsList();
         for (const auto& innerError : innerErrors) {
-            InnerErrors_.push_back(TError(innerError));
+            InnerErrors_.push_back(TServerError(innerError));
         }
     }
 
@@ -151,30 +152,30 @@ TError::TError(const TNode& node)
     }
 }
 
-int TError::GetCode() const
+int TServerError::GetCode() const
 {
     return Code_;
 }
 
-const TString& TError::GetMessage() const
+const TString& TServerError::GetMessage() const
 {
     return Message_;
 }
 
-const yvector<TError>& TError::InnerErrors() const
+const yvector<TServerError>& TServerError::InnerErrors() const
 {
     return InnerErrors_;
 }
 
-void TError::ParseFrom(const TString& jsonError)
+void TServerError::ParseFrom(const TString& jsonError)
 {
     TJsonValue value;
     TStringInput input(jsonError);
     ReadJsonTree(&input, &value);
-    *this = TError(value);
+    *this = TServerError(value);
 }
 
-int TError::GetInnerCode() const
+int TServerError::GetInnerCode() const
 {
     if (Code_ >= 100) {
         return Code_;
@@ -188,7 +189,7 @@ int TError::GetInnerCode() const
     return 0;
 }
 
-bool TError::ContainsErrorCode(int code) const
+bool TServerError::ContainsErrorCode(int code) const
 {
     if (Code_ == code) {
         return true;
@@ -202,7 +203,7 @@ bool TError::ContainsErrorCode(int code) const
 }
 
 
-bool TError::ContainsText(const TStringBuf& text) const
+bool TServerError::ContainsText(const TStringBuf& text) const
 {
     if (Message_.Contains(text)) {
         return true;
@@ -215,17 +216,17 @@ bool TError::ContainsText(const TStringBuf& text) const
     return false;
 }
 
-bool TError::HasAttributes() const
+bool TServerError::HasAttributes() const
 {
     return !Attributes_.empty();
 }
 
-const TNode::TMap& TError::GetAttributes() const
+const TNode::TMap& TServerError::GetAttributes() const
 {
     return Attributes_;
 }
 
-TString TError::GetYsonText() const
+TString TServerError::GetYsonText() const
 {
     TStringStream out;
     TYsonWriter writer(&out, YF_TEXT);
@@ -247,11 +248,11 @@ bool TErrorResponse::IsOk() const
 
 void TErrorResponse::SetRawError(const TString& message)
 {
-    Error_ = TError(message);
+    Error_ = TServerError(message);
     Setup();
 }
 
-void TErrorResponse::SetError(TError error)
+void TErrorResponse::SetError(TServerError error)
 {
     Error_ = std::move(error);
     Setup();
@@ -273,7 +274,7 @@ TString TErrorResponse::GetRequestId() const
     return RequestId_;
 }
 
-const TError& TErrorResponse::GetError() const
+const TServerError& TErrorResponse::GetError() const
 {
     return Error_;
 }
