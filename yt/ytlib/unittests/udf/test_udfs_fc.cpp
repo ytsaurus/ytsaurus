@@ -1,4 +1,4 @@
-#include <yt_udf_cpp.h>
+#include <yt/ytlib/query_client/udf/yt_udf_cpp.h>
 
 extern "C" void udf_with_function_context(
     TExpressionContext* expressionContext,
