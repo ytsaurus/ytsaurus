@@ -138,6 +138,7 @@ TEST_F(TAstFormatTest, Query)
     TestQuery("* from t1 left join t2 on t1.a = t2.b");
     TestQuery("* from t1 left join t2 on a = b and c > d");
     TestQuery("* from t1 left join t2 on a = b join t3 using x");
+    TestQuery("* from t1 left join t2 on (a1, a2) = (b1, b2) join t3 using x");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

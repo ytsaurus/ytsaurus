@@ -388,10 +388,11 @@ void FormatQuery(TStringBuilder* builder, const NAst::TQuery& query)
         builder->AppendString(" JOIN ");
         FormatTableDescriptor(builder, join.Table);
         if (join.Fields.empty()) {
-            builder->AppendString(" ON ");
-            FormatExpression(builder, join.Lhs, true);
-            builder->AppendString(" = ");
-            FormatExpression(builder, join.Rhs, true);
+            builder->AppendString(" ON (");
+            FormatExpressions(builder, join.Lhs, true);
+            builder->AppendString(") = (");
+            FormatExpressions(builder, join.Rhs, true);
+            builder->AppendChar(')');
         } else {
             builder->AppendString(" USING ");
             JoinToString(
