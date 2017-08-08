@@ -163,7 +163,7 @@ public class BalancingRpcClient implements RpcClient {
     private void schedulePing() {
         executorService.schedule(
             () -> pingDataCenters(),
-            2*pingTimeout.toMillis(),
+            pingTimeout.toMillis(),
             TimeUnit.MILLISECONDS);
     }
 
