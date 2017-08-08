@@ -102,7 +102,7 @@ public final class DataCenter {
     }
 
     private CompletableFuture<Void> ping(BalancingDestination client, ScheduledExecutorService executorService, Duration pingTimeout) {
-        CompletableFuture<Void> f = client.createTransaction().thenCompose(id -> client.pingTransaction(id))
+        CompletableFuture<Void> f = client.createTransaction(pingTimeout).thenCompose(id -> client.pingTransaction(id))
             .thenAccept(unused -> setAlive(client))
             .exceptionally(ex -> {
                 setDead(client, ex);

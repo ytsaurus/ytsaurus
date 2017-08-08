@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.rpc.internal;
 
+import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
@@ -10,6 +11,7 @@ import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.proxy.ApiService;
+import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
@@ -63,10 +65,11 @@ public class BalancingDestination {
         client.close();
     }
 
-    public CompletableFuture<YtGuid> createTransaction() {
+    public CompletableFuture<YtGuid> createTransaction(Duration timeout) {
         if (transaction == null) {
             RpcClientRequestBuilder<TReqStartTransaction.Builder, RpcClientResponse<TRspStartTransaction>> builder =
                 service.startTransaction();
+            builder.body().setTimeout(ApiServiceUtil.durationToYtMicros(timeout.multipliedBy(2)));
             builder.body().setType(ETransactionType.TABLET);
             builder.body().setSticky(true);
             return RpcUtil.apply(builder.invoke(), response -> {
