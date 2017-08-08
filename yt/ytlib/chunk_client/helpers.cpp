@@ -492,6 +492,11 @@ TString TUserObject::GetPath() const
     return Path.GetPath();
 }
 
+bool TUserObject::IsPrepared() const
+{
+    return static_cast<bool>(ObjectId) && static_cast<bool>(CellTag);
+}
+
 void TUserObject::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
