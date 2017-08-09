@@ -1331,11 +1331,19 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node/inner_node",
                prerequisite_revisions=[{"path": "//tmp/test_node", "transaction_id": "0-0-0-0", "revision": revision}])
 
-    def test_move_preserves_creation_time(self):
+    def test_move_preserves_creation_time1(self):
         create("table", "//tmp/t1")
         creation_time = get("//tmp/t1/@creation_time")
         move("//tmp/t1", "//tmp/t2")
         assert creation_time == get("//tmp/t2/@creation_time")
+        
+    def test_move_preserves_creation_time2(self):
+        set("//tmp/t1", {"x": "y"})
+        creation_time1 = get("//tmp/t1/@creation_time")
+        creation_time2 = get("//tmp/t1/x/@creation_time")
+        move("//tmp/t1", "//tmp/t2")
+        assert creation_time1 == get("//tmp/t2/@creation_time")
+        assert creation_time2 == get("//tmp/t2/x/@creation_time")
         
 ##################################################################
 
