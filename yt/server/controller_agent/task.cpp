@@ -249,7 +249,9 @@ void TTask::ScheduleJob(
     }
 
     // Async part.
-    auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this)] (TJobSpec* jobSpec) {
+    // NB: it is important to capture task host (Controller), by strong reference,
+    // since it can be dead otherwise.
+    auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this), taskHost = MakeStrong(TaskHost_)] (TJobSpec* jobSpec) {
         BuildJobSpec(joblet, jobSpec);
         jobSpec->set_version(GetJobSpecVersion());
         TaskHost_->CustomizeJobSpec(joblet, jobSpec);
