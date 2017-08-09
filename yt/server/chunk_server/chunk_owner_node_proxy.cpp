@@ -855,8 +855,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     DeclareMutating();
 
     auto updateMode = EUpdateMode(request->update_mode());
-    YCHECK(updateMode == EUpdateMode::Append ||
-           updateMode == EUpdateMode::Overwrite);
+    if (updateMode != EUpdateMode::Append && updateMode != EUpdateMode::Overwrite) {
+        THROW_ERROR_EXCEPTION("Invalid update mode for a chunk owner node")
+            << TErrorAttribute("update_mode", updateMode);
+    }
 
     auto lockMode = ELockMode(request->lock_mode());
     YCHECK(lockMode == ELockMode::Shared ||
