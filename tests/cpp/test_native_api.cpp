@@ -30,10 +30,15 @@ protected:
 
     static void SetUpTestCase()
     {
-        const auto* driverConfigPath = std::getenv("YT_DRIVER_CONFIG_PATH");
-        TIFStream configStream(driverConfigPath);
-        auto config = ConvertTo<TNativeConnectionConfigPtr>(&configStream);
-        Connection_ = CreateNativeConnection(config);
+        const auto* configPath = std::getenv("YT_CONSOLE_DRIVER_CONFIG_PATH");
+        TIFStream configStream(configPath);
+        auto config = ConvertToNode(&configStream)->AsMap();
+
+        if (auto logging = config->FindChild("logging")) {
+            NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogConfigPtr>(logging));
+        }
+
+        Connection_ = CreateNativeConnection(ConvertTo<TNativeConnectionConfigPtr>(config->GetChild("driver")));
 
         TClientOptions clientOptions;
         clientOptions.User = "root";

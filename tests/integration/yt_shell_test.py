@@ -125,16 +125,22 @@ class PerlItem(ExecutableItem):
 class CppItem(ExecutableItem):
     def __init__(self, parent):
         super(CppItem, self).__init__(parent)
-        self.comment_line_begin = "#"
+        self.comment_line_begin = "//"
 
     def on_runtest(self, env):
         environment = {}
         environment["PATH"] = os.environ["PATH"]
         if env.master_count > 0:
-            environment["YT_DRIVER_CONFIG_PATH"] = env.config_paths["driver"]
+            environment["YT_CONSOLE_DRIVER_CONFIG_PATH"] = env.config_paths["console_driver"][0]
+
+        execs = [self.name]
+
+        gt_filter = pytest.config.getoption("--gtest_filter")
+        if gt_filter:
+            execs += ["--gtest_filter=%s" % (gt_filter)]
 
         child = subprocess.Popen(
-            self.name,
+            execs,
             cwd=self.sandbox_path,
             env=environment)
         child.wait()
