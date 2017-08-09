@@ -106,6 +106,7 @@ namespace NYT {
     using TOperationId = TGUID;
     using TTabletCellId = TGUID;
     using TReplicaId = TGUID;
+    using TJobId = TGUID;
 
     using TYPath = TString;
     using TLocalFilePath = TString;

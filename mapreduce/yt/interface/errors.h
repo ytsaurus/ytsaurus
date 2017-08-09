@@ -26,7 +26,7 @@ class TYtError
 {
 public:
     TYtError();
-    TYtError(const TString& message);
+    explicit TYtError(const TString& message);
     TYtError(int code, const TString& message);
     TYtError(const NJson::TJsonValue& value);
     TYtError(const TNode& value);
@@ -46,6 +46,8 @@ public:
     const TNode::TMap& GetAttributes() const;
 
     TString GetYsonText() const;
+
+    TString ShortDescription() const;
 
 private:
     int Code_;
@@ -113,6 +115,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFailedJobInfo
+{
+    TJobId JobId;
+    TYtError Error;
+    TString Stderr;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationFailedError
     : public yexception
 {
@@ -123,24 +134,18 @@ public:
     };
 
 public:
-    TOperationFailedError(
-        EState state,
-        TOperationId id,
-        TString error = TString())
-        : State(state)
-        , Id(id)
-        , Error(error)
-    { }
+    TOperationFailedError(EState state, TOperationId id, TYtError ytError, yvector<TFailedJobInfo> failedJobInfo);
 
-    const char* what() const throw() override
-    {
-        return ~Error;
-    }
+    EState GetState() const;
+    TOperationId GetOperationId() const;
+    const TYtError& GetError() const;
+    const yvector<TFailedJobInfo>& GetFailedJobInfo() const;
 
-public:
-    EState State;
-    TOperationId Id;
-    TString Error;
+private:
+    EState State_;
+    TOperationId OperationId_;
+    TYtError Error_;
+    yvector<TFailedJobInfo> FailedJobInfo_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

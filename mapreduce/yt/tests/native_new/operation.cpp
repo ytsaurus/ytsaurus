@@ -168,7 +168,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
                     new TAlwaysFailingMapper);
                 UNIT_FAIL("operation expected to fail");
             } catch (const TOperationFailedError& e) {
-                operationId = e.Id;
+                operationId = e.GetOperationId();
             }
 
             {

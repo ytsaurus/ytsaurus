@@ -60,22 +60,21 @@ EOperationStatus CheckOperationStatus(
             ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
 
         auto errorPath = opPath + "/@result/error";
-        TString error;
+        TYtError error(TString("Unknown operation error"));
         if (client->Exists(errorPath)) {
-            error = client->Get(errorPath).AsString();
+            error = TYtError(client->Get(errorPath).AsString());
         }
 
         TStringStream jobErrors;
         DumpOperationStderrs(client, jobErrors, opPath);
-        error += jobErrors.Str();
-        Cerr << error << Endl;
 
         ythrow TOperationFailedError(
             state == "aborted" ?
                 TOperationFailedError::Aborted :
                 TOperationFailedError::Failed,
             operationId,
-            error);
+            error,
+            {}) << jobErrors.Str();
     }
 
     return OS_RUNNING;

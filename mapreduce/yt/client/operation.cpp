@@ -389,20 +389,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DumpOperationStderrs(
-    TOutputStream& stream,
+yvector<TFailedJobInfo> GetFailedJobInfo(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TString& operationPath)
 {
-    const size_t RESULT_LIMIT = 1 << 20;
-    const size_t BLOCK_SIZE = 16 << 10;
-    const i64 STDERR_LIMIT = 64 << 10;
-    const size_t STDERR_COUNT_LIMIT = 20;
+    constexpr size_t JOB_COUNT_LIMIT = 10;
+    constexpr i64 STDERR_LIMIT = 64 * 1024;
 
     auto jobsPath = operationPath + "/jobs";
     if (!Exists(auth, transactionId, jobsPath)) {
-        return;
+        return {};
     }
 
     THttpHeader header("GET", "list");
@@ -410,38 +407,35 @@ void DumpOperationStderrs(
     header.SetParameters(AttributeFilterToYsonString(
         TAttributeFilter()
             .AddAttribute("state")
-            .AddAttribute("error")
-            .AddAttribute("address")));
+            .AddAttribute("error")));
     auto jobList = NodeFromYsonString(RetryRequest(auth, header)).AsList();
 
-    TBuffer buffer;
-    TBufferOutput output(buffer);
-    buffer.Reserve(RESULT_LIMIT);
+    yvector<TFailedJobInfo> result;
+    for (const auto& job : jobList) {
+        if (result.size() >= JOB_COUNT_LIMIT) {
+            break;
+        }
 
-    size_t count = 0;
-    for (auto& job : jobList) {
-        auto jobPath = jobsPath + "/" + job.AsString();
-        auto& attributes = job.Attributes();
-        output << Endl;
+        const auto& jobId = job.AsString();
+        auto jobPath = jobsPath + "/" + jobId;
+        auto& attributes = job.GetAttributes().AsMap();
 
-        if (!attributes.HasKey("state") || attributes["state"].AsString() != "failed") {
+        const auto stateIt = attributes.find("state");
+        if (stateIt == attributes.end() || stateIt->second.AsString() != "failed") {
             continue;
         }
-        if (attributes.HasKey("address")) {
-            output << "Host: " << attributes["address"].AsString() << Endl;
-        }
-        if (attributes.HasKey("error")) {
-            output << "Error: " << NodeToYsonString(attributes["error"]) << Endl;
+        result.push_back(TFailedJobInfo());
+        auto& cur = result.back();
+        cur.JobId = GetGuid(job.AsString());
+
+        auto errorIt = attributes.find("error");
+        if (errorIt != attributes.end()) {
+            cur.Error = TYtError(errorIt->second);
         }
 
         auto stderrPath = jobPath + "/stderr";
         if (!Exists(auth, transactionId, stderrPath)) {
             continue;
-        }
-
-        output << "Stderr: " << Endl;
-        if (buffer.Size() >= RESULT_LIMIT) {
-            break;
         }
 
         TRichYPath path(stderrPath);
@@ -453,28 +447,24 @@ void DumpOperationStderrs(
                     TReadLimit().Offset(stderrSize - STDERR_LIMIT)));
         }
         IFileReaderPtr reader = new TFileReader(path, auth, transactionId);
+        cur.Stderr = reader->ReadAll();
+    }
+    return result;
+}
 
-        auto pos = buffer.Size();
-        auto left = RESULT_LIMIT - pos;
-        while (left) {
-            auto blockSize = Min(left, BLOCK_SIZE);
-            buffer.Resize(pos + blockSize);
-            auto bytes = reader->Load(buffer.Data() + pos, blockSize);
-            left -= bytes;
-            if (bytes != blockSize) {
-                buffer.Resize(pos + bytes);
-                break;
-            }
-            pos += bytes;
-        }
-
-        if (left == 0 || ++count == STDERR_COUNT_LIMIT) {
-            break;
+void DumpOperationStderrs(
+    TOutputStream& output,
+    const yvector<TFailedJobInfo>& failedJobInfoList)
+{
+    for (const auto& failedJobInfo : failedJobInfoList) {
+        output << '\n';
+        output << "Error: " << failedJobInfo.Error.ShortDescription() << '\n';
+        if (!failedJobInfo.Stderr.empty()) {
+            output << "Stderr: " << Endl;
+            output << failedJobInfo.Stderr << '\n';
         }
     }
-
-    stream.Write(buffer.Data(), buffer.Size());
-    stream << Endl;
+    output.Flush();
 }
 
 using TDescriptorList = yvector<const ::google::protobuf::Descriptor*>;
@@ -574,22 +564,23 @@ EOperationStatus CheckOperation(
             ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
 
         auto errorPath = opPath + "/@result/error";
-        TString error;
+        TYtError ytError(TString("unknown operation error"));
         if (Exists(auth, transactionId, errorPath)) {
-            error = Get(auth, transactionId, errorPath);
+            ytError = TYtError(NodeFromYsonString(Get(auth, transactionId, errorPath)));
         }
 
         TStringStream jobErrors;
-        DumpOperationStderrs(jobErrors, auth, transactionId, opPath);
-        error += jobErrors.Str();
-        Cerr << error << Endl;
+
+        auto failedJobInfoList = GetFailedJobInfo(auth, transactionId, opPath);
+        DumpOperationStderrs(jobErrors, failedJobInfoList);
 
         ythrow TOperationFailedError(
             state == "aborted" ?
                 TOperationFailedError::Aborted :
                 TOperationFailedError::Failed,
             operationId,
-            error);
+            ytError,
+            failedJobInfoList) << jobErrors.Str();
     }
 
     return OS_RUNNING;
@@ -1496,13 +1487,14 @@ public:
                 OperationCompletePromise_.SetValue();
                 return PollBreak;
             } else if (state == "aborted" || state == "failed") {
-                auto errorStr = NodeToYsonString(info["result"]["error"], YF_TEXT);
+                auto error = TYtError(info["result"]["error"]);
                 OperationCompletePromise_.SetException(
                     std::make_exception_ptr(
                         TOperationFailedError(
                             state == "failed" ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
                             OperationId_,
-                            errorStr)));
+                            error,
+                            {})));
 
                 return PollBreak;
             }
