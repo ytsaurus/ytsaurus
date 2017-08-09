@@ -123,6 +123,7 @@ private:
     bool Started_ = false;
 
     SmallVector<int, TypicalColumnCount> ColumnIds_;
+    SmallVector<int, TypicalColumnCount> ColumnIdToIndex_;
     SmallVector<TUnversionedValue, TypicalColumnCount> Keys_;
 
     std::vector<TVersionedValue> PartialValues_;
