@@ -450,7 +450,7 @@ def queue_iterator(queue):
             return
         yield chunk
 
-@flaky(max_runs=5)
+#@flaky(max_runs=5)
 class TestCoreTable(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -682,8 +682,8 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict1["core_info"], ret_dict2["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict1["core_data"], ret_dict2["core_data"]]}
 
-    @require_ytserver_root_privileges
-    @unix_only
+    #@require_ytserver_root_privileges
+    #@unix_only
     def test_operation_fails(self):
         op, correspondence_file_path = self._start_operation(1, max_failed_job_count=1)
         job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
