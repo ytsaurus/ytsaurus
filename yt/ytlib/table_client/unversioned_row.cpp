@@ -292,6 +292,7 @@ TString ToString(const TUnversionedValue& value)
     if (value.Aggregate) {
         builder.AppendChar('%');
     }
+    builder.AppendFormat("%v#", value.Id);
     switch (value.Type) {
         case EValueType::Null:
         case EValueType::Min:
