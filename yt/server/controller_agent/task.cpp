@@ -386,6 +386,11 @@ i64 TTask::GetPendingDataWeight() const
     return GetChunkPoolOutput()->GetPendingDataWeight();
 }
 
+i64 TTask::GetInputDataSliceCount() const
+{
+    return GetChunkPoolOutput()->GetDataSliceCount();
+}
+
 void TTask::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

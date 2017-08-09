@@ -256,6 +256,11 @@ public:
         return OutputOrder_;
     }
 
+    virtual i64 GetDataSliceCount() const override
+    {
+        return TotalSliceCount_;
+    }
+
     virtual void Persist(const TPersistenceContext& context) final override
     {
         TChunkPoolInputBase::Persist(context);

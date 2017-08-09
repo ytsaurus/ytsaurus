@@ -690,6 +690,8 @@ protected:
     //! Used for diagnostics only (exported into orchid).
     virtual i64 GetUnavailableInputChunkCount() const;
 
+    i64 GetDataSliceCount() const;
+
     typedef std::function<bool(const TInputTable& table)> TInputTableFilter;
 
     NTableClient::TKeyColumns CheckInputTablesSorted(

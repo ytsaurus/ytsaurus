@@ -95,6 +95,8 @@ public:
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
         MaxBlockSize = std::max(MaxBlockSize, suspendableStripe.GetStatistics().MaxBlockSize);
 
+        TotalDataSliceCount += stripe->DataSlices.size();
+
         if (stripe->Solid) {
             AddSolid(cookie);
         } else {
@@ -175,6 +177,11 @@ public:
     virtual int GetTotalJobCount() const override
     {
         return JobCounter.GetTotal();
+    }
+
+    virtual i64 GetDataSliceCount() const override
+    {
+        return TotalDataSliceCount;
     }
 
     virtual int GetPendingJobCount() const override
@@ -400,6 +407,11 @@ public:
         Persist(context, ExtractedLists);
         Persist(context, LostCookies);
         Persist(context, ReplayCookies);
+
+        // COMPAT(psushin).
+        if (context.GetVersion() >= 200512) {
+            Persist(context, TotalDataSliceCount);
+        }
     }
 
 private:
@@ -419,6 +431,8 @@ private:
     i64 PendingStripeCount = 0;
 
     i64 MaxBlockSize = 0;
+
+    i64 TotalDataSliceCount  = 0;
 
     struct TLocalityEntry
     {
