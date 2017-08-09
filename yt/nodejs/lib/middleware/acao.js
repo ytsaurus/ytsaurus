@@ -18,7 +18,7 @@ exports.that = function Middleware__YtAcao()
             rsp.setHeader("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
             var cors_headers = [
                 "authorization",
-                "origin"
+                "origin",
                 "content-type",
                 "accept",
                 "x-yt-parameters",
