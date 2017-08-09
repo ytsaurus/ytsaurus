@@ -350,10 +350,11 @@ void VersionedLookupRows(
         tabletSnapshot->PhysicalSchema.GetColumnCount(),
         tabletSnapshot->PhysicalSchema.GetKeyColumnCount(),
         columnFilter,
-        tabletSnapshot->Config,
+        nullptr,
         timestamp,
         MinTimestamp,
-        tabletSnapshot->ColumnEvaluator);
+        tabletSnapshot->ColumnEvaluator,
+        true);
 
     session.Run(
         [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },

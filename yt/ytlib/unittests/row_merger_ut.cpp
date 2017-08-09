@@ -146,9 +146,9 @@ TEST_F(TSchemafulRowMergerTest, Simple1)
 {
     auto merger = GetTypicalMerger();
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=2;ts=200> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> 3.14; <id=3> \"test\""),
@@ -159,9 +159,9 @@ TEST_F(TSchemafulRowMergerTest, Simple2)
 {
     auto merger = GetTypicalMerger();
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300> 3"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 3; <id=2> #; <id=3> #"),
@@ -172,7 +172,7 @@ TEST_F(TSchemafulRowMergerTest, Delete1)
 {
     auto merger = GetTypicalMerger();
 
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100 }));
 
     EXPECT_EQ(
         TUnversionedRow(),
@@ -183,8 +183,8 @@ TEST_F(TSchemafulRowMergerTest, Delete2)
 {
     auto merger = GetTypicalMerger();
 
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""),
@@ -195,9 +195,9 @@ TEST_F(TSchemafulRowMergerTest, Delete3)
 {
     auto merger = GetTypicalMerger();
 
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 300 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 300 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
 
     EXPECT_EQ(
         TUnversionedRow(),
@@ -208,10 +208,10 @@ TEST_F(TSchemafulRowMergerTest, Delete4)
 {
     auto merger = GetTypicalMerger();
 
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 300 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=400> 3.15"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 300 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=2;ts=400> 3.15"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> 3.15; <id=3> #"),
@@ -223,9 +223,9 @@ TEST_F(TSchemafulRowMergerTest, Filter1)
     TColumnFilter filter { 0 };
     auto merger = GetTypicalMerger(filter);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=2;ts=200> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0"),
@@ -237,9 +237,9 @@ TEST_F(TSchemafulRowMergerTest, Filter2)
     TColumnFilter filter { 1, 2 };
     auto merger = GetTypicalMerger(filter);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=2;ts=200> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=1> 2; <id=2> 3.14"),
@@ -250,7 +250,7 @@ TEST_F(TSchemafulRowMergerTest, Aggregate1)
 {
     auto merger = GetTypicalMerger(TColumnFilter(), GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1; ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1; ts=100> 1"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> #; <id=3;aggregate=false> #;"),
@@ -261,10 +261,10 @@ TEST_F(TSchemafulRowMergerTest, Aggregate2)
 {
     auto merger = GetTypicalMerger(TColumnFilter(), GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200;aggregate=true> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300;aggregate=true> 3"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=400;aggregate=true> #"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300;aggregate=true> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=400;aggregate=true> #"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> #; <id=3;aggregate=false> 6;"),
@@ -275,8 +275,8 @@ TEST_F(TSchemafulRowMergerTest, DeletedAggregate1)
 {
     auto merger = GetTypicalMerger(TColumnFilter(), GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200 }));
 
     EXPECT_EQ(
         TUnversionedRow(),
@@ -287,8 +287,8 @@ TEST_F(TSchemafulRowMergerTest, DeletedAggregate2)
 {
     auto merger = GetTypicalMerger(TColumnFilter(), GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100 }));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> #; <id=3;aggregate=false> 1;"),
@@ -299,9 +299,9 @@ TEST_F(TSchemafulRowMergerTest, DeletedAggregate3)
 {
     auto merger = GetTypicalMerger(TColumnFilter(), GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300;aggregate=true> 1"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> #; <id=3;aggregate=false> 1;"),
@@ -312,10 +312,10 @@ TEST_F(TSchemafulRowMergerTest, DeletedAggregate4)
 {
     auto merger = GetTypicalMerger(TColumnFilter(), GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=400;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=400;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200 }));
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> #; <id=3;aggregate=false> 2;"),
         merger->BuildMergedRow());
@@ -325,9 +325,9 @@ TEST_F(TSchemafulRowMergerTest, ResetAggregate1)
 {
     auto merger = GetTypicalMerger(TColumnFilter(), GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300;aggregate=true> 3"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200;aggregate=false> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300;aggregate=true> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200;aggregate=false> 2"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> #; <id=3;aggregate=false> 5;"),
@@ -338,9 +338,9 @@ TEST_F(TSchemafulRowMergerTest, ResetAggregate2)
 {
     auto merger = GetTypicalMerger(TColumnFilter(), GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200;aggregate=false> #"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200;aggregate=false> #"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300;aggregate=true> 2"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> #; <id=3;aggregate=false> 2;"),
@@ -512,7 +512,8 @@ public:
             config,
             currentTimestamp,
             majorTimestamp,
-            evaluator);
+            evaluator,
+            false);
     }
 
     TRetentionConfigPtr GetRetentionConfig()
@@ -534,10 +535,10 @@ TEST_F(TVersionedRowMergerTest, KeepAll1)
 
     auto merger = GetTypicalMerger(config, 1000000, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1"));
 
     EXPECT_EQ(
-        BuildVersionedRow("0", "<id=1;ts=100> 1"),
+        BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1"),
         merger->BuildMergedRow());
 }
 
@@ -548,9 +549,9 @@ TEST_F(TVersionedRowMergerTest, KeepAll2)
 
     auto merger = GetTypicalMerger(config, 1000000, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300> 3"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -566,9 +567,9 @@ TEST_F(TVersionedRowMergerTest, KeepAll3)
 
     auto merger = GetTypicalMerger(config, 1000000, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2", {  50 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1", { 150 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3", { 250 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 2", {  50 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1", { 150 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300> 3", { 250 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -585,9 +586,9 @@ TEST_F(TVersionedRowMergerTest, KeepAll4)
 
     auto merger = GetTypicalMerger(config, 1000000, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2; <id=2;ts=200> 3.14"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3; <id=3;ts=500> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 2; <id=2;ts=200> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300> 3; <id=3;ts=500> \"test\""));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -605,8 +606,8 @@ TEST_F(TVersionedRowMergerTest, KeepAll5)
 
     auto merger = GetTypicalMerger(config, 1000000, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1; <id=1;ts=200> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=100> 3; <id=2;ts=200> 4"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1; <id=1;ts=200> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=2;ts=100> 3; <id=2;ts=200> 4"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -624,9 +625,9 @@ TEST_F(TVersionedRowMergerTest, KeepLatest1)
 
     auto merger = GetTypicalMerger(config, 1000000000000000ULL, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200000000000> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100000000000> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300000000000> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300000000000> 3"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -643,9 +644,9 @@ TEST_F(TVersionedRowMergerTest, KeepLatest2)
 
     auto merger = GetTypicalMerger(config, 1000000000000000ULL, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200000000000> 2; <id=1;ts=199000000000> 20"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=100000000000> 3.14; <id=2;ts=99000000000> 3.15"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300000000000> \"test\"; <id=3;ts=299000000000> \"tset\""));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000> 2; <id=1;ts=199000000000> 20"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=2;ts=100000000000> 3.14; <id=2;ts=99000000000> 3.15"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000> \"test\"; <id=3;ts=299000000000> \"tset\""));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -664,8 +665,8 @@ TEST_F(TVersionedRowMergerTest, KeepLatest3)
 
     auto merger = GetTypicalMerger(config, 1000000000000000ULL, 200000000000ULL);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100000000000> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200000000000ULL }));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -683,8 +684,8 @@ TEST_F(TVersionedRowMergerTest, KeepLatest4)
 
     auto merger = GetTypicalMerger(config, 1000000000000000ULL, 201000000000ULL);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100000000000> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200000000000ULL }));
 
     EXPECT_FALSE(merger->BuildMergedRow());
 }
@@ -697,10 +698,10 @@ TEST_F(TVersionedRowMergerTest, KeepLatest5)
 
     auto merger = GetTypicalMerger(config, 1000000000000000ULL, 400000000000ULL);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100000000000> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200000000000> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300000000000> 3"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 150000000000ULL, 250000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300000000000> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 150000000000ULL, 250000000000ULL }));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -718,7 +719,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest6)
 
     auto merger = GetTypicalMerger(config, 1000000000000000ULL, 150000000000ULL);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100000000000ULL, 200000000000ULL, 300000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100000000000ULL, 200000000000ULL, 300000000000ULL }));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -736,10 +737,10 @@ TEST_F(TVersionedRowMergerTest, Expire1)
 
     auto merger = GetTypicalMerger(config, 1101000000000ULL, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100000000000> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
 
     EXPECT_EQ(
-        BuildVersionedRow("0", "<id=1;ts=100000000000> 1"),
+        BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"),
         merger->BuildMergedRow());
 }
 
@@ -751,7 +752,7 @@ TEST_F(TVersionedRowMergerTest, Expire2)
 
     auto merger = GetTypicalMerger(config, 1102000000000ULL, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100000000000> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
 
     EXPECT_FALSE(merger->BuildMergedRow());
 }
@@ -766,13 +767,13 @@ TEST_F(TVersionedRowMergerTest, Expire3)
 
     auto merger = GetTypicalMerger(config, 1100000000000ULL, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100000000000> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200000000000> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300000000000> 3"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=400000000000> 4"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200000000000> 3.14"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300000000000> \"test\""));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 350000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300000000000> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=400000000000> 4"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=2;ts=200000000000> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 350000000000ULL }));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -791,7 +792,7 @@ TEST_F(TVersionedRowMergerTest, DeleteOnly)
 
     auto merger = GetTypicalMerger(config, 1100, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -808,9 +809,9 @@ TEST_F(TVersionedRowMergerTest, ManyDeletes)
 
     auto merger = GetTypicalMerger(config, 1100, 0);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 300 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 300 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -831,7 +832,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate1)
         300,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1; ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1; ts=100> 1"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -851,9 +852,9 @@ TEST_F(TVersionedRowMergerTest, Aggregate2)
         100,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200;aggregate=true> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300;aggregate=true> 10"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300;aggregate=true> 10"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -873,9 +874,9 @@ TEST_F(TVersionedRowMergerTest, Aggregate3)
         200,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200;aggregate=true> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300;aggregate=true> 10"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300;aggregate=true> 10"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -895,9 +896,9 @@ TEST_F(TVersionedRowMergerTest, Aggregate4)
         300000000000ULL,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100000000000;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200000000000;aggregate=true> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300000000000;aggregate=true> 10"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200000000000;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 10"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -917,9 +918,9 @@ TEST_F(TVersionedRowMergerTest, Aggregate5)
         400000000000ULL,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100000000000;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200000000000;aggregate=true> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300000000000;aggregate=true> 10"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200000000000;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 10"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -939,8 +940,8 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate1)
         200000000000ULL,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100000000000;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 300000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 300000000000ULL }));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -961,8 +962,8 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate2)
         300000000000ULL,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100000000000;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200000000000ULL }));
 
     EXPECT_EQ(
         TVersionedRow(),
@@ -980,10 +981,10 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate3)
         500000000000,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100000000000;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200000000000, 400000000000 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300000000000;aggregate=true> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=500000000000;aggregate=true> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200000000000, 400000000000 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=500000000000;aggregate=true> 3"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -1003,10 +1004,10 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate4)
         500000000000ULL,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200000000000;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100000000000ULL, 300000000000ULL }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=400000000000;aggregate=true> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=500000000000;aggregate=true> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100000000000ULL, 300000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=400000000000;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=500000000000;aggregate=true> 3"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -1026,10 +1027,10 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate5)
         500000000000ULL,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100000000000;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200000000000ULL, 600000000000ULL }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300000000000;aggregate=true> 2; <id=3;ts=400000000000;aggregate=true> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=500000000000;aggregate=true> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200000000000ULL, 600000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 2; <id=3;ts=400000000000;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=500000000000;aggregate=true> 3"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -1050,9 +1051,9 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate6)
         200,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 100, 600 }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=500;aggregate=true> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 100, 600 }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=500;aggregate=true> 3"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -1073,9 +1074,9 @@ TEST_F(TVersionedRowMergerTest, ResetAggregate1)
         300000000000ULL,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100000000000;aggregate=false> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200000000000;aggregate=false> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300000000000;aggregate=false> 10"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=false> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200000000000;aggregate=false> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=false> 10"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -1095,10 +1096,10 @@ TEST_F(TVersionedRowMergerTest, ResetAggregate2)
         500000000000ULL,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100000000000;aggregate=true> 1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "", { 200000000000ULL, 600000000000ULL }));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300000000000;aggregate=true> 2; <id=3;ts=400000000000;aggregate=false> 2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=500000000000;aggregate=false> 3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", { 200000000000ULL, 600000000000ULL }));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 2; <id=3;ts=400000000000;aggregate=false> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=500000000000;aggregate=false> 3"));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -1121,7 +1122,7 @@ TEST_F(TVersionedRowMergerTest, ExpiredAggregate)
         0,
         GetAggregateSumSchema());
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
 
     EXPECT_EQ(
         TVersionedRow(),
@@ -1138,10 +1139,10 @@ TEST_F(TVersionedRowMergerTest, NoKeyColumnFilter)
         GetTypicalSchema(),
         TColumnFilter({1, 2, 3}));
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
 
     EXPECT_EQ(
-        BuildVersionedRow("", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"),
+        BuildVersionedRow("<id=0> ", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"),
         merger->BuildMergedRow());
 }
 
@@ -1155,7 +1156,7 @@ TEST_F(TVersionedRowMergerTest, NoValueColumnFilter)
         GetTypicalSchema(),
         TColumnFilter({0}));
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
 
     // XXX(sandello): Row without deletes with empty column filter will be merged into a null row,
     // because write timestamps set will be empty and hence we deduce that we have pruned all values.
@@ -1175,10 +1176,10 @@ TEST_F(TVersionedRowMergerTest, OneValueColumnFilter)
         GetTypicalSchema(),
         TColumnFilter({1}));
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
 
     EXPECT_EQ(
-        BuildVersionedRow("", "<id=1;ts=100>1"),
+        BuildVersionedRow("<id=0> ", "<id=1;ts=100>1"),
         merger->BuildMergedRow());
 }
 
@@ -1192,12 +1193,12 @@ TEST_F(TVersionedRowMergerTest, YT_6800)
 
     auto merger = GetTypicalMerger(config, SyncLastCommittedTimestamp, MaxTimestamp);
 
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100000000000>1"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200000000000>2"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300000000000>3"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000>1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000>2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300000000000>3"));
 
     EXPECT_EQ(
-        BuildVersionedRow("0", "<id=1;ts=100000000000>1;<id=1;ts=200000000000>2;<id=1;ts=300000000000>3"),
+        BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000>1;<id=1;ts=200000000000>2;<id=1;ts=300000000000>3"),
         merger->BuildMergedRow());
 }
 
@@ -1284,9 +1285,9 @@ public:
 TEST_F(TSchemafulMergingReaderTest, Merge1)
 {
     auto readers = std::vector<IVersionedReaderPtr>{
-        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=200> 1")}),
-        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=900> 2")}),
-        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=600> 7")})
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 1")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("<id=0> 0", "<id=1;ts=900> 2")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("<id=0> 0", "<id=1;ts=600> 7")})
     };
 
     auto boundaries = std::vector<TUnversionedOwningRow>{
@@ -1324,14 +1325,14 @@ TEST_F(TSchemafulMergingReaderTest, Merge2)
 {
     auto readers = std::vector<IVersionedReaderPtr>{
         New<TMockVersionedReader>(std::vector<TVersionedRow>{
-            BuildVersionedRow("0", "<id=1;ts=200> 0"),
-            BuildVersionedRow("1", "<id=1;ts=200> 1")}),
+            BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 0"),
+            BuildVersionedRow("<id=0> 1", "<id=1;ts=200> 1")}),
         New<TMockVersionedReader>(std::vector<TVersionedRow>{
-            BuildVersionedRow("2", "<id=1;ts=100> 2"),
-            BuildVersionedRow("3", "<id=1;ts=300> 3")}),
+            BuildVersionedRow("<id=0> 2", "<id=1;ts=100> 2"),
+            BuildVersionedRow("<id=0> 3", "<id=1;ts=300> 3")}),
         New<TMockVersionedReader>(std::vector<TVersionedRow>{
-            BuildVersionedRow("1", "<id=1;ts=300> 4"),
-            BuildVersionedRow("2", "<id=1;ts=600> 5")})
+            BuildVersionedRow("<id=0> 1", "<id=1;ts=300> 4"),
+            BuildVersionedRow("<id=0> 2", "<id=1;ts=600> 5")})
     };
 
     auto boundaries = std::vector<TUnversionedOwningRow>{
@@ -1372,16 +1373,16 @@ TEST_F(TSchemafulMergingReaderTest, Lookup)
 {
     auto readers = std::vector<IVersionedReaderPtr>{
         New<TMockVersionedReader>(std::vector<TVersionedRow>{
-            BuildVersionedRow("0", "<id=1;ts=200> 0"),
-            BuildVersionedRow("1", "<id=1;ts=400> 1")
+            BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 0"),
+            BuildVersionedRow("<id=0> 1", "<id=1;ts=400> 1")
         }),
         New<TMockVersionedReader>(std::vector<TVersionedRow>{
-            BuildVersionedRow("0", "<id=1;ts=300> 2"),
-            BuildVersionedRow("1", "<id=1;ts=300> 3")
+            BuildVersionedRow("<id=0> 0", "<id=1;ts=300> 2"),
+            BuildVersionedRow("<id=0> 1", "<id=1;ts=300> 3")
         }),
         New<TMockVersionedReader>(std::vector<TVersionedRow>{
-            BuildVersionedRow("0", "<id=1;ts=100> 4"),
-            BuildVersionedRow("1", "<id=1;ts=600> 5")
+            BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 4"),
+            BuildVersionedRow("<id=0> 1", "<id=1;ts=600> 5")
         })
     };
 
@@ -1438,9 +1439,9 @@ private:
 TEST_F(TVersionedMergingReaderTest, Merge1)
 {
     auto readers = std::vector<IVersionedReaderPtr>{
-        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=200000000000> 1")}),
-        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=900000000000> 2")}),
-        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=600000000000> 3")})
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000> 1")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("<id=0> 0", "<id=1;ts=900000000000> 2")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("<id=0> 0", "<id=1;ts=600000000000> 3")})
     };
 
     auto boundaries = std::vector<TUnversionedOwningRow>{
@@ -1476,7 +1477,7 @@ TEST_F(TVersionedMergingReaderTest, Merge1)
     ReadAll(reader, &result);
 
     EXPECT_EQ(1, result.size());
-    EXPECT_EQ(BuildVersionedRow("0", "<id=1;ts=600000000000> 3; <id=1;ts=900000000000> 2"), result[0]);
+    EXPECT_EQ(BuildVersionedRow("<id=0> 0", "<id=1;ts=600000000000> 3; <id=1;ts=900000000000> 2"), result[0]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -347,13 +347,15 @@ TVersionedRowMerger::TVersionedRowMerger(
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
-    TColumnEvaluatorPtr columnEvaluator)
+    TColumnEvaluatorPtr columnEvaluator,
+    bool lookup)
     : RowBuffer_(std::move(rowBuffer))
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
     , MajorTimestamp_(majorTimestamp)
     , ColumnEvaluator_(std::move(columnEvaluator))
+    , Lookup_(lookup)
 {
     size_t mergedKeyColumnCount = 0;
     if (columnFilter.All) {
@@ -495,40 +497,43 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         }
 #endif
 
-        // Compute safety limit by MinDataVersions.
-        auto safetyEndIt = ColumnValues_.begin();
-        if (ColumnValues_.size() > Config_->MinDataVersions) {
-            safetyEndIt = ColumnValues_.end() - Config_->MinDataVersions;
-        }
+        auto retentionBeginIt = ColumnValues_.begin();
 
-        // Adjust safety limit by MinDataTtl.
-        while (safetyEndIt != ColumnValues_.begin()) {
-            auto timestamp = (safetyEndIt - 1)->Timestamp;
-            if (CurrentTimestamp_ < MaxTimestamp &&
-                timestamp < CurrentTimestamp_ &&
-                TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MinDataTtl)
-            {
-                break;
-            }
-            --safetyEndIt;
-        }
-
-        // Compute retention limit by MaxDataVersions and MaxDataTtl.
-        auto retentionBeginIt = safetyEndIt;
-        while (retentionBeginIt != ColumnValues_.begin()) {
-            if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions) {
-                break;
+        // Apply retention config if present.
+        if (Config_) {
+            // Compute safety limit by MinDataVersions.
+            if (ColumnValues_.size() > Config_->MinDataVersions) {
+                retentionBeginIt = ColumnValues_.end() - Config_->MinDataVersions;
             }
 
-            auto timestamp = (retentionBeginIt - 1)->Timestamp;
-            if (CurrentTimestamp_ < MaxTimestamp &&
-                timestamp < CurrentTimestamp_ &&
-                TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MaxDataTtl)
-            {
-                break;
+            // Adjust safety limit by MinDataTtl.
+            while (retentionBeginIt != ColumnValues_.begin()) {
+                auto timestamp = (retentionBeginIt - 1)->Timestamp;
+                if (CurrentTimestamp_ < MaxTimestamp &&
+                    timestamp < CurrentTimestamp_ &&
+                    TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MinDataTtl)
+                {
+                    break;
+                }
+                --retentionBeginIt;
             }
 
-            --retentionBeginIt;
+            // Compute retention limit by MaxDataVersions and MaxDataTtl.
+            while (retentionBeginIt != ColumnValues_.begin()) {
+                if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions) {
+                    break;
+                }
+
+                auto timestamp = (retentionBeginIt - 1)->Timestamp;
+                if (CurrentTimestamp_ < MaxTimestamp &&
+                    timestamp < CurrentTimestamp_ &&
+                    TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MaxDataTtl)
+                {
+                    break;
+                }
+
+                --retentionBeginIt;
+            }
         }
 
         // For aggregate columns merge values before MajorTimestamp_ and leave other values.
@@ -601,7 +606,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         DeleteTimestamps_.erase(it, DeleteTimestamps_.end());
     }
 
-    if (MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
+    if (!Lookup_ && MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
         Cleanup();
         return TVersionedRow();
     }
