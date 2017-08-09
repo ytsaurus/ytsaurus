@@ -31,7 +31,7 @@ TJoblet::TJoblet()
     , OutputCookie(-1)
 { }
 
-TJoblet::TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTaskPtr task, int jobIndex)
+TJoblet::TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTask* task, int jobIndex)
     : Task(std::move(task))
     , JobIndex(jobIndex)
     , StartRowIndex(-1)
