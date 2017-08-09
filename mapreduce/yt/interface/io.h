@@ -100,6 +100,8 @@ class TTableReader
 {
 public:
     const T& GetRow() const; // may be a template function
+    T MoveRow();             // may be a template function
+    void MoveRow(T* result); // may be a template function
     bool IsValid() const;
     ui32 GetTableIndex() const;
     ui64 GetRowIndex() const;

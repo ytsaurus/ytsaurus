@@ -108,6 +108,9 @@ namespace {
         const TNode& GetRow() const override {
             return Default;
         }
+        void MoveRow(TNode* result) override {
+            *result = Default;
+        }
         bool IsValid() const override {
             return false;
         }
@@ -182,6 +185,9 @@ namespace {
 
         const TYaMRRow& GetRow() const override {
             return Default;
+        }
+        void MoveRow(TYaMRRow* row) {
+            *row = Default;
         }
         bool IsValid() const override {
             return false;

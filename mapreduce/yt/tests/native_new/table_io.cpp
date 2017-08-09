@@ -60,6 +60,37 @@ SIMPLE_UNIT_TEST_SUITE(TableReader) {
         UNIT_ASSERT(!reader->IsValid());
     }
 
+    SIMPLE_UNIT_TEST(Move)
+    {
+        auto client = CreateTestClient();
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
+            writer->AddRow(TNode()("key1", "value4")("key2", "value5")("key3", "value6"));
+            writer->Finish();
+        }
+        auto reader = client->CreateTableReader<TNode>(TRichYPath("//testing/table"));
+        UNIT_ASSERT(reader->IsValid());
+
+        UNIT_ASSERT_VALUES_EQUAL(reader->MoveRow(), TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
+        UNIT_ASSERT_EXCEPTION(reader->MoveRow(), yexception);
+        UNIT_ASSERT_EXCEPTION(reader->GetRow(), yexception);
+
+        reader->Next();
+
+        {
+            TNode row;
+            reader->MoveRow(&row);
+            UNIT_ASSERT_VALUES_EQUAL(row, TNode()("key1", "value4")("key2", "value5")("key3", "value6"));
+            UNIT_ASSERT_EXCEPTION(reader->MoveRow(), yexception);
+            UNIT_ASSERT_EXCEPTION(reader->MoveRow(&row), yexception);
+            UNIT_ASSERT_EXCEPTION(reader->GetRow(), yexception);
+        }
+
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
+    }
+
     SIMPLE_UNIT_TEST(Protobuf)
     {
         auto client = CreateTestClient();

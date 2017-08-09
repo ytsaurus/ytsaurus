@@ -259,7 +259,20 @@ TNodeTableReader::~TNodeTableReader()
 const TNode& TNodeTableReader::GetRow() const
 {
     CheckValidity();
-    return Row_.Node;
+    if (!Row_) {
+        ythrow yexception() << "Row is moved";
+    }
+    return Row_->Node;
+}
+
+void TNodeTableReader::MoveRow(TNode* result)
+{
+    CheckValidity();
+    if (!Row_) {
+        ythrow yexception() << "Row is moved";
+    }
+    *result = std::move(Row_->Node);
+    Row_.Clear();
 }
 
 bool TNodeTableReader::IsValid() const
@@ -281,13 +294,13 @@ void TNodeTableReader::Next()
     while (true) {
         Row_ = RowQueue_.Dequeue();
 
-        if (Row_.Type == TRowElement::Row) {
-            if (!Row_.Node.IsEntity()) {
+        if (Row_->Type == TRowElement::Row) {
+            if (!Row_->Node.IsEntity()) {
                 AtStart_ = false;
                 break;
             }
 
-            for (auto& entry : Row_.Node.GetAttributes().AsMap()) {
+            for (auto& entry : Row_->Node.GetAttributes().AsMap()) {
                 if (entry.first == "key_switch") {
                     if (!AtStart_) {
                         Valid_ = false;
@@ -316,14 +329,14 @@ void TNodeTableReader::Next()
                 break;
             }
 
-        } else if (Row_.Type == TRowElement::Finish) {
+        } else if (Row_->Type == TRowElement::Finish) {
             Finished_ = true;
             Valid_ = false;
             Running_ = false;
             Thread_->Join();
             break;
 
-        } else if (Row_.Type == TRowElement::Error) {
+        } else if (Row_->Type == TRowElement::Error) {
             OnStreamError();
         }
     }

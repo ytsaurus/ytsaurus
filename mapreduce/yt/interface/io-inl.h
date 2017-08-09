@@ -65,12 +65,17 @@ struct INodeReaderImpl
     : public IReaderImplBase
 {
     virtual const TNode& GetRow() const = 0;
+    virtual void MoveRow(TNode* row) = 0;
 };
 
 struct IYaMRReaderImpl
     : public IReaderImplBase
 {
     virtual const TYaMRRow& GetRow() const = 0;
+    virtual void MoveRow(TYaMRRow* row)
+    {
+        *row = GetRow();
+    }
 };
 
 struct IProtoReaderImpl
@@ -99,6 +104,19 @@ public:
     const T& GetRow() const
     {
         return Reader_->GetRow();
+    }
+
+    void MoveRow(T* row)
+    {
+        Y_VERIFY(row);
+        return Reader_->MoveRow(row);
+    }
+
+    T MoveRow()
+    {
+        T result;
+        Reader_->MoveRow(&result);
+        return result;
     }
 
     bool IsValid() const
@@ -172,7 +190,7 @@ public:
     }
 
     template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
-    void MoveRow(U* result) const
+    void MoveRow(U* result)
     {
         Y_VERIFY(result != nullptr);
         U row;
@@ -183,6 +201,14 @@ public:
             ReadRow(&row);
         }
         result->Swap(&row);
+    }
+
+    template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
+    U MoveRow()
+    {
+        U result;
+        MoveRow(&result);
+        return result;
     }
 
     bool IsValid() const
@@ -239,9 +265,16 @@ public:
         return TBase::GetRow<T>();
     }
 
-    void MoveRow(T* result) const
+    void MoveRow(T* result)
     {
         TBase::MoveRow(result);
+    }
+
+    T MoveRow()
+    {
+        T result;
+        TBase::MoveRow(&result);
+        return result;
     }
 };
 
