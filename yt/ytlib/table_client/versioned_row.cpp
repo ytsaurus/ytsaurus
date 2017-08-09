@@ -185,9 +185,7 @@ TString ToString(TVersionedRow row)
             builder.AppendString(STRINGBUF(","));
         }
         const auto& value = row.BeginKeys()[index];
-        builder.AppendFormat("%v#%v",
-            value.Id,
-            value);
+        builder.AppendFormat("%v", value);
     }
     builder.AppendChar('|');
     for (int index = 0; index < row.GetValueCount(); ++index) {
@@ -195,9 +193,7 @@ TString ToString(TVersionedRow row)
             builder.AppendString(STRINGBUF(","));
         }
         const auto& value = row.BeginValues()[index];
-        builder.AppendFormat("%v#%v",
-            value.Id,
-            value);
+        builder.AppendFormat("%v", value);
     }
     builder.AppendChar('|');
     for (int index = 0; index < row.GetWriteTimestampCount(); ++index) {

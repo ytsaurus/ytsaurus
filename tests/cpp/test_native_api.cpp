@@ -48,6 +48,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -206,6 +207,7 @@ using TLookupFilterTestParam = std::tuple<
     TString,
     SmallVector<int, TypicalColumnCount>,
     TString,
+    TString,
     TString>;
 
 class TLookupFilterTest
@@ -249,6 +251,8 @@ public:
 
 protected:
     static TYPath Table_;
+    static TTimestamp CommitTimestamp_;
+    TRowBufferPtr Buffer_ = New<TRowBuffer>();
 
     static void WriteRows()
     {
@@ -264,8 +268,12 @@ protected:
             std::get<1>(preparedRow),
             std::get<0>(preparedRow));
 
-        WaitFor(transaction->Commit())
-            .ThrowOnError();
+        auto commitResult = WaitFor(transaction->Commit())
+            .ValueOrThrow();
+
+        const auto& timestamps = commitResult.CommitTimestamps.Timestamps;
+        ASSERT_EQ(timestamps.size(), 1);
+        CommitTimestamp_ = timestamps[0].second;
     }
 
     static std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> PrepareUnversionedRow(
@@ -282,11 +290,41 @@ protected:
         std::vector<TUnversionedRow> rows{rowBuffer->Capture(owningRow.Get())};
         return std::make_tuple(MakeSharedRange(rows, std::move(rowBuffer)), std::move(nameTable));
     }
+
+    TVersionedRow BuildVersionedRow(
+        const TString& keyYson,
+        const TString& valueYson)
+    {
+        auto immutableRow = YsonToVersionedRow(Buffer_, keyYson, valueYson);
+        auto row = TMutableVersionedRow(const_cast<TVersionedRowHeader*>(immutableRow.GetHeader()));
+
+        for (auto* value = row.BeginValues(); value < row.EndValues(); ++value) {
+            value->Timestamp = CommitTimestamp_;
+        }
+        for (auto* timestamp = row.BeginWriteTimestamps(); timestamp < row.EndWriteTimestamps(); ++timestamp) {
+            *timestamp = CommitTimestamp_;
+        }
+
+        return row;
+    }
 };
 
 TYPath TLookupFilterTest::Table_;
+TTimestamp TLookupFilterTest::CommitTimestamp_;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+auto s = TString("<unique_keys=%true;strict=%true>");
+auto su = TString("<unique_keys=%false;strict=%true>");
+auto k0 = "{name=k0;type=int64;sort_order=ascending};";
+auto k1 = "{name=k1;type=int64;sort_order=ascending};";
+auto k2 = "{name=k2;type=int64;sort_order=ascending};";
+auto ku0 = "{name=k0;type=int64};";
+auto ku1 = "{name=k1;type=int64};";
+auto ku2 = "{name=k2;type=int64};";
+auto v3 = "{name=v3;type=int64};";
+auto v4 = "{name=v4;type=int64};";
+auto v5 = "{name=v5;type=int64};";
 
 TEST_F(TLookupFilterTest, TestLookupAll)
 {
@@ -305,13 +343,34 @@ TEST_F(TLookupFilterTest, TestLookupAll)
     EXPECT_EQ(actual, expected);
 
     auto schema = ConvertTo<TTableSchema>(TYsonString(
-        "<unique_keys=%true;strict=%true>"
-        "[{name=k0;type=int64;sort_order=ascending};"
-        "{name=k1;type=int64;sort_order=ascending};"
-        "{name=k2;type=int64;sort_order=ascending};"
-        "{name=v3;type=int64};"
-        "{name=v4;type=int64};"
-        "{name=v5;type=int64}]"));
+        s + "[" + k0 + k1 + k2 + v3 + v4 + v5 + "]"));
+
+    auto actualSchema = ConvertToYsonString(res->Schema(), EYsonFormat::Text).GetData();
+    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
+    EXPECT_EQ(actualSchema, expectedSchema);
+}
+
+TEST_F(TLookupFilterTest, TestVersionedLookupAll)
+{
+    auto preparedKey = PrepareUnversionedRow(
+        {"k0", "k1", "k2"},
+        "<id=0> 10; <id=1> 11; <id=2> 12");
+
+    auto res = WaitFor(Client_->VersionedLookupRows(
+        Table_,
+        std::get<1>(preparedKey),
+        std::get<0>(preparedKey)))
+        .ValueOrThrow();
+
+    auto actual = ToString(res->GetRows()[0]);
+    auto expected = ToString(BuildVersionedRow(
+        "<id=0> 10; <id=1> 11; <id=2> 12",
+        "<id=3;ts=0> 13; <id=4;ts=0> 14; <id=5;ts=0> 15"));
+    EXPECT_EQ(actual, expected);
+
+    auto schema = ConvertTo<TTableSchema>(TYsonString(
+        s + "[" + k0 + k1 + k2 + v3 + v4 + v5 + "]"));
+
     auto actualSchema = ConvertToYsonString(res->Schema(), EYsonFormat::Text).GetData();
     auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
     EXPECT_EQ(actualSchema, expectedSchema);
@@ -320,14 +379,16 @@ TEST_F(TLookupFilterTest, TestLookupAll)
 TEST_P(TLookupFilterTest, TestLookupFilter)
 {
     const auto& param = GetParam();
-    const auto& keyColumns = std::get<0>(param);
+    const auto& namedColumns = std::get<0>(param);
     const auto& keyString = std::get<1>(param);
     const auto& columnFilter = std::get<2>(param);
-    const auto& rowString = std::get<3>(param);
-    const auto& schemaString = std::get<4>(param);
+    const auto& resultKeyString = std::get<3>(param);
+    const auto& resultValueString = std::get<4>(param);
+    const auto& schemaString = std::get<5>(param);
+    auto rowString = resultKeyString + resultValueString;
 
     auto preparedKey = PrepareUnversionedRow(
-        keyColumns,
+        namedColumns,
         keyString);
 
     TLookupRowsOptions options;
@@ -345,7 +406,7 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
     auto expected = ToString(YsonToSchemalessRow(rowString));
     EXPECT_EQ(actual, expected)
         << "key: " << keyString << std::endl
-        << "keyColumns: " << ::testing::PrintToString(keyColumns) << std::endl
+        << "namedColumns: " << ::testing::PrintToString(namedColumns) << std::endl
         << "columnFilter: " << ::testing::PrintToString(columnFilter) << std::endl
         << "expectedRow: " << rowString << std::endl
         << "expectedSchema: " << schemaString << std::endl;
@@ -355,23 +416,58 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
     auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
     EXPECT_EQ(actualSchema, expectedSchema)
         << "key: " << keyString << std::endl
-        << "keyColumns: " << ::testing::PrintToString(keyColumns) << std::endl
+        << "namedColumns: " << ::testing::PrintToString(namedColumns) << std::endl
         << "columnFilter: " << ::testing::PrintToString(columnFilter) << std::endl
         << "expectedRow: " << rowString << std::endl
         << "expectedSchema: " << schemaString << std::endl;
 }
 
-auto s = TString("<unique_keys=%true;strict=%true>");
-auto su = TString("<unique_keys=%false;strict=%true>");
-auto k0 = "{name=k0;type=int64;sort_order=ascending};";
-auto k1 = "{name=k1;type=int64;sort_order=ascending};";
-auto k2 = "{name=k2;type=int64;sort_order=ascending};";
-auto ku0 = "{name=k0;type=int64};";
-auto ku1 = "{name=k1;type=int64};";
-auto ku2 = "{name=k2;type=int64};";
-auto v3 = "{name=v3;type=int64};";
-auto v4 = "{name=v4;type=int64};";
-auto v5 = "{name=v5;type=int64};";
+TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
+{
+    const auto& param = GetParam();
+    const auto& namedColumns = std::get<0>(param);
+    const auto& keyString = std::get<1>(param);
+    const auto& columnFilter = std::get<2>(param);
+    const auto& resultKeyString = std::get<3>(param);
+    const auto& resultValueString = std::get<4>(param);
+    const auto& schemaString = std::get<5>(param);
+
+    auto preparedKey = PrepareUnversionedRow(
+        namedColumns,
+        keyString);
+
+    TVersionedLookupRowsOptions options;
+    options.ColumnFilter.All = false;
+    options.ColumnFilter.Indexes = columnFilter;
+
+    auto res = WaitFor(Client_->VersionedLookupRows(
+        Table_,
+        std::get<1>(preparedKey),
+        std::get<0>(preparedKey),
+        options))
+        .ValueOrThrow();
+
+    auto actual = ToString(res->GetRows()[0]);
+    auto expected = ToString(BuildVersionedRow(resultKeyString, resultValueString));
+    EXPECT_EQ(actual, expected)
+        << "key: " << keyString << std::endl
+        << "namedColumns: " << ::testing::PrintToString(namedColumns) << std::endl
+        << "columnFilter: " << ::testing::PrintToString(columnFilter) << std::endl
+        << "expectedRowKeys: " << resultKeyString << std::endl
+        << "expectedRowValues: " << resultValueString << std::endl
+        << "expectedSchema: " << schemaString << std::endl;
+
+    auto schema = ConvertTo<TTableSchema>(TYsonString(schemaString));
+    auto actualSchema = ConvertToYsonString(res->Schema(), EYsonFormat::Text).GetData();
+    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
+    EXPECT_EQ(actualSchema, expectedSchema)
+        << "key: " << keyString << std::endl
+        << "namedColumns: " << ::testing::PrintToString(namedColumns) << std::endl
+        << "columnFilter: " << ::testing::PrintToString(columnFilter) << std::endl
+        << "expectedRowKeys: " << resultKeyString << std::endl
+        << "expectedRowValues: " << resultValueString << std::endl
+        << "expectedSchema: " << schemaString << std::endl;
+}
 
 INSTANTIATE_TEST_CASE_P(
     TLookupFilterTest,
@@ -379,45 +475,57 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::Values(
         TLookupFilterTestParam(
             {"k0", "k1", "k2"},
-            "<id=0> 10; <id=1> 11; <id=2> 12",
-            {0,1,2},
             "<id=0> 10; <id=1> 11; <id=2> 12;",
+            {0,1,2},
+            "<id=0> 10; <id=1> 11; <id=2> 12;", "",
             s + "[" + k0 + k1 + k2 + "]"),
         TLookupFilterTestParam(
             {"k0", "k1", "k2"},
-            "<id=0> 10; <id=1> 11; <id=2> 12",
+            "<id=0> 10; <id=1> 11; <id=2> 12;",
             {0,2,1},
-            "<id=0> 10; <id=2> 12; <id=1> 11;",
+            "<id=0> 10; <id=2> 12; <id=1> 11;", "",
             su + "[" + k0 + ku2 + ku1 + "]"),
         TLookupFilterTestParam(
+            {"k1", "k0", "k2"},
+            "<id=2> 12; <id=0> 11; <id=1> 10;",
+            {1,0,2},
+            "<id=0> 10; <id=1> 11; <id=2> 12;", "",
+            s + "[" + k0 + k1 + k2 + "]"),
+        TLookupFilterTestParam(
             {"k0", "k1", "k2", "v3", "v4", "v5"},
-            "<id=0> 10; <id=1> 11; <id=2> 12",
+            "<id=0> 10; <id=1> 11; <id=2> 12;",
             {3,4,5},
-            "<id=3> 13; <id=4> 14; <id=5> 15;",
+            "", "<id=3;ts=0> 13; <id=4;ts=0> 14; <id=5;ts=0> 15;",
             su + "[" + v3 + v4 + v5 + "]"),
         TLookupFilterTestParam(
             {"k0", "k1", "k2", "v3", "v4", "v5"},
-            "<id=0> 10; <id=1> 11; <id=2> 12",
+            "<id=0> 10; <id=1> 11; <id=2> 12;",
             {1,5,3},
-            "<id=1> 11; <id=5> 15; <id=3> 13;",
+            "<id=1> 11;", "<id=5;ts=0> 15; <id=3;ts=0> 13;",
             su + "[" + ku1 + v5 + v3 + "]"),
         TLookupFilterTestParam(
-            {"k1", "k0", "k2"},
-            "<id=2> 12; <id=0> 11; <id=1> 10",
-            {1,0,2},
+            {"k0", "k1", "k2", "v3", "v4", "v5"},
             "<id=0> 10; <id=1> 11; <id=2> 12;",
-            s + "[" + k0 + k1 + k2 + "]"),
+            {3,4,5},
+            "", "<id=3;ts=0> 13; <id=4;ts=0> 14; <id=5;ts=0> 15;",
+            su + "[" + v3 + v4 + v5 + "]"),
+        TLookupFilterTestParam(
+            {"k0", "k1", "k2", "v3", "v4", "v5"},
+            "<id=0> 10; <id=1> 11; <id=2> 12;",
+            {5,3,4},
+            "", "<id=5;ts=0> 15; <id=3;ts=0> 13; <id=4;ts=0> 14;",
+            su + "[" + v5 + v3 + v4 + "]"),
         TLookupFilterTestParam(
             {"k1", "k0", "k2", "v5", "v3", "v4"},
-            "<id=2> 12; <id=0> 11; <id=1> 10",
+            "<id=2> 12; <id=0> 11; <id=1> 10;",
             {1,0,2,4,5,3},
-            "<id=0> 10; <id=1> 11; <id=2> 12; <id=3> 13; <id=4> 14; <id=5> 15;",
+            "<id=0> 10; <id=1> 11; <id=2> 12;", "<id=3;ts=0> 13; <id=4;ts=0> 14; <id=5;ts=0> 15;",
             s + "[" + k0 + k1 + k2 + v3 + v4 + v5 + "]"),
         TLookupFilterTestParam(
             {"k1", "k0", "k2", "v5", "v3", "v4"},
-            "<id=2> 12; <id=0> 11; <id=1> 10",
+            "<id=2> 12; <id=0> 11; <id=1> 10;",
             {2,1,5,4},
-            "<id=2> 12; <id=0> 10; <id=4> 14; <id=3> 13;",
+            "<id=2> 12; <id=0> 10;", "<id=4;ts=0> 14; <id=3;ts=0> 13;",
             su + "[" + ku2 + ku0 + v4 + v3 + "]")
 ));
 

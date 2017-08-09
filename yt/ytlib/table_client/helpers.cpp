@@ -557,26 +557,25 @@ TVersionedRow YsonToVersionedRow(
 
     auto keys = ConvertTo<std::vector<INodePtr>>(TYsonString(keyYson, EYsonType::ListFragment));
 
-    int keyId = 0;
     for (auto key : keys) {
+        int id = key->Attributes().Get<int>("id");
         switch (key->GetType()) {
             case ENodeType::Int64:
-                builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), keyId));
+                builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), id));
                 break;
             case ENodeType::Uint64:
-                builder.AddKey(MakeUnversionedUint64Value(key->GetValue<ui64>(), keyId));
+                builder.AddKey(MakeUnversionedUint64Value(key->GetValue<ui64>(), id));
                 break;
             case ENodeType::Double:
-                builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), keyId));
+                builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), id));
                 break;
             case ENodeType::String:
-                builder.AddKey(MakeUnversionedStringValue(key->GetValue<TString>(), keyId));
+                builder.AddKey(MakeUnversionedStringValue(key->GetValue<TString>(), id));
                 break;
             default:
                 Y_UNREACHABLE();
                 break;
         }
-        ++keyId;
     }
 
     auto values = ConvertTo<std::vector<INodePtr>>(TYsonString(valueYson, EYsonType::ListFragment));
