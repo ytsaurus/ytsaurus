@@ -71,6 +71,7 @@ public:
     ~TNodeTableReader() override;
 
     const TNode& GetRow() const override;
+    void MoveRow(TNode* result) override;
 
     bool IsValid() const override;
     void Next() override;
@@ -96,7 +97,7 @@ private:
     TMaybe<ui32> RangeIndex_;
     bool AtStart_ = true;
 
-    TRowElement Row_;
+    TMaybe<TRowElement> Row_;
     TRowQueue RowQueue_;
 
     THolder<TRowBuilder> Builder_;
