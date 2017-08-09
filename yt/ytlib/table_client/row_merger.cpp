@@ -375,6 +375,17 @@ TVersionedRowMerger::TVersionedRowMerger(
         }
     }
 
+    ColumnIdToIndex_.resize(columnCount);
+    for (int id = 0; id < columnCount; ++id) {
+        ColumnIdToIndex_[id] = -1;
+    }
+    for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+        int id = ColumnIds_[index];
+        if (id >= KeyColumnCount_) {
+            ColumnIdToIndex_[id] = index;
+        }
+    }
+
     Keys_.resize(mergedKeyColumnCount);
 
     Cleanup();
@@ -408,10 +419,11 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
         }
     }
 
-    PartialValues_.insert(
-        PartialValues_.end(),
-        row.BeginValues(),
-        row.EndValues());
+    for (auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
+        if (ColumnIdToIndex_[value->Id] != -1) {
+            PartialValues_.push_back(*value);
+        }
+    }
 
     DeleteTimestamps_.insert(
         DeleteTimestamps_.end(),
@@ -435,8 +447,10 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     std::sort(
         PartialValues_.begin(),
         PartialValues_.end(),
-        [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
-            return std::tie(lhs.Id, lhs.Timestamp) < std::tie(rhs.Id, rhs.Timestamp);
+        [&] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+            auto lhsIndex = ColumnIdToIndex_[lhs.Id];
+            auto rhsIndex = ColumnIdToIndex_[rhs.Id];
+            return std::tie(lhsIndex, lhs.Timestamp) < std::tie(rhsIndex, rhs.Timestamp);
         });
     PartialValues_.erase(
         std::unique(
@@ -448,7 +462,6 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         PartialValues_.end());
 
     // Scan through input values.
-    std::sort(ColumnIds_.begin(), ColumnIds_.end());
     auto columnIdsBeginIt = ColumnIds_.begin();
     auto columnIdsEndIt = ColumnIds_.end();
     auto partialValueIt = PartialValues_.begin();
@@ -461,10 +474,10 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         }
 
         // Skip values if the current column is filtered out.
-        while (columnIdsBeginIt != columnIdsEndIt && *columnIdsBeginIt < partialValueIt->Id) {
+        while (columnIdsBeginIt != columnIdsEndIt && *columnIdsBeginIt != partialValueIt->Id) {
             ++columnIdsBeginIt;
         }
-        if (columnIdsBeginIt == columnIdsEndIt || *columnIdsBeginIt > partialValueIt->Id) {
+        if (columnIdsBeginIt == columnIdsEndIt) {
             partialValueIt = columnEndIt;
             continue;
         }
