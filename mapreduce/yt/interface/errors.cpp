@@ -234,6 +234,13 @@ TString TYtError::GetYsonText() const
     return std::move(out.Str());
 }
 
+TString TYtError::ShortDescription() const
+{
+    TStringStream out;
+    WriteErrorDescription(*this, &out);
+    return std::move(out.Str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TErrorResponse::TErrorResponse(int httpCode, const TString& requestId)
@@ -332,5 +339,33 @@ void TErrorResponse::Setup()
 }
 
 ////////////////////////////////////////////////////////////////////
+
+TOperationFailedError::TOperationFailedError(
+    EState state,
+    TOperationId id,
+    TYtError ytError,
+    yvector<TFailedJobInfo> failedJobInfo)
+    : State_(state)
+    , OperationId_(id)
+    , Error_(std::move(ytError))
+    , FailedJobInfo_(std::move(failedJobInfo))
+{
+    *this << ytError.ShortDescription();
+}
+
+TOperationFailedError::EState TOperationFailedError::GetState() const
+{
+    return State_;
+}
+
+TOperationId TOperationFailedError::GetOperationId() const
+{
+    return OperationId_;
+}
+
+const TYtError& TOperationFailedError::GetError() const
+{
+    return Error_;
+}
 
 } // namespace NYT
