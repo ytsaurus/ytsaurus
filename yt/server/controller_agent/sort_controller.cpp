@@ -1766,6 +1766,12 @@ protected:
 
             i64 maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
             result = std::min(static_cast<i64>(dataWeightAfterPartition / partitionDataWeight), maxPartitionCount);
+
+            if (result == 1 && TotalEstimatedInputUncompressedDataSize > Spec->DataWeightPerShuffleJob) {
+                // Sometimes data size can be much larger than data weight.
+                // Let's protect from such outliers and prevent simple sort in such case.
+                result = DivCeil(TotalEstimatedInputUncompressedDataSize, Spec->DataWeightPerShuffleJob);
+            }
         }
         // Cast to int32 is safe since MaxPartitionCount is int32.
         return static_cast<int>(Clamp<i64>(result, 1, Options->MaxPartitionCount));
@@ -2195,6 +2201,7 @@ private:
             auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
                 Spec,
                 Options,
+                TotalEstimatedInputUncompressedDataSize,
                 TotalEstimatedInputDataWeight,
                 TotalEstimatedInputRowCount,
                 InputCompressionRatio);
@@ -2887,6 +2894,7 @@ private:
         auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
             Spec,
             Options,
+            TotalEstimatedInputUncompressedDataSize,
             TotalEstimatedInputDataWeight,
             TotalEstimatedInputRowCount,
             InputCompressionRatio);

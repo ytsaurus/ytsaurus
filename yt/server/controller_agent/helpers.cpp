@@ -441,9 +441,9 @@ public:
     TPartitionJobSizeConstraints(
         const TSortOperationSpecBasePtr& spec,
         const TSortOperationOptionsBasePtr& options,
+        i64 inputDataSize,
         i64 inputDataWeight,
         i64 inputRowCount,
-        // TODO(psushin): this compression ratio must be calculated from data weight.
         double compressionRatio)
         : Spec_(spec)
         , Options_(options)
@@ -473,6 +473,13 @@ public:
 
         YCHECK(JobCount_ >= 0);
         YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
+
+        if (JobCount_ > 0 && inputDataSize / JobCount_ > Spec_->MaxDataWeightPerJob) {
+            // Sometimes (but rarely) data weight can be smaller than data size. Let's protect from
+            // unreasonable huge jobs.
+            JobCount_ = DivCeil(inputDataSize, 2 * Spec_->MaxDataWeightPerJob);
+        }
+
 
         JobCount_ = std::min(JobCount_, static_cast<i64>(Options_->MaxPartitionJobCount));
         JobCount_ = std::min(JobCount_, InputRowCount_);
@@ -704,19 +711,20 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,
-    i64 inputDataSize)
+    i64 inputDataWeight)
 {
-    return New<TSimpleSortJobSizeConstraints>(spec, options, inputDataSize);
+    return New<TSimpleSortJobSizeConstraints>(spec, options, inputDataWeight);
 }
 
 IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,
     i64 inputDataSize,
+    i64 inputDataWeight,
     i64 inputRowCount,
     double compressionRatio)
 {
-    return New<TPartitionJobSizeConstraints>(spec, options, inputDataSize, inputRowCount, compressionRatio);
+    return New<TPartitionJobSizeConstraints>(spec, options, inputDataSize, inputDataWeight, inputRowCount, compressionRatio);
 }
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
@@ -724,7 +732,6 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const TSortOperationOptionsBasePtr& options,
     int outputTableCount)
 {
-
     // NB(psushin): I don't know real partition size at this point,
     // but I assume at least 2 sort jobs per partition.
     // Also I don't know exact partition count, so I take the worst case scenario.
