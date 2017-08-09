@@ -123,16 +123,7 @@ protected:
 
         WaitFor(Client_->SetNode(TYPath("//sys/accounts/tmp/@resource_limits/tablet_count"), ConvertToYsonString(0)))
             .ThrowOnError();
-#if 0
-        {
-            auto res = WaitFor(Client_->GetNode(TYPath("//sys/tablet_cells"))).ValueOrThrow();
-            std::cout << ConvertToYsonString(res, EYsonFormat::Pretty).GetData() << std::endl;
-        }
-        {
-            auto res = WaitFor(Client_->GetNode(TYPath("//sys/tablet_cell_bundles"))).ValueOrThrow();
-            std::cout << ConvertToYsonString(res, EYsonFormat::Pretty).GetData() << std::endl;
-        }
-#endif
+
         TApiTestBase::TearDownTestCase();
     }
 
@@ -169,7 +160,7 @@ protected:
         }
 
         if (!reached) {
-            THROW_ERROR_EXCEPTION("Node %Qv is not %Qv after %v seconds",
+            THROW_ERROR_EXCEPTION("%Qv is not %Qv after %v seconds",
                 path,
                 expected,
                 (Now() - start).Seconds());
