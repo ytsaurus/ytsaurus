@@ -23,7 +23,7 @@ class Operation(object):
 
     def fetch_snapshot_size(self):
         self._snapshot_size = self._batch_client.get("//sys/operations/{}/snapshot/@uncompressed_data_size".format(self.operation_id))
-    
+
     def fetch_output_resource_usage(self):
         if not self._attrs.is_ok():
             self.errors.append(self._attrs.get_error())
@@ -62,15 +62,27 @@ class Operation(object):
             "pool": self._attrs.get_result()["pool"],
             "title": self._attrs.get_result()["spec"].get("title", "")
         }
-            
+
     def get_job_count(self):
         if not self._attrs.is_ok():
             self.errors.append(self._attrs.get_error())
             return None
-        
+
         progress = self._attrs.get_result().get("progress")
         if progress is not None and "jobs" in progress:
             return progress["jobs"]["total"]
+        else:
+            return None
+
+    def get_slice_count(self):
+        if not self._attrs.is_ok():
+            self.errors.append(self._attrs.get_error())
+            return None
+
+        progress = self._attrs.get_result().get("progress")
+        if progress is not None and "estimated_input_statistics" in progress and \
+            "data_slice_count" in progress["estimated_input_statistics"]:
+                return progress["estimated_input_statistics"]["data_slice_count"]
         else:
             return None
 
@@ -80,12 +92,12 @@ class Operation(object):
             return None
 
         return self._snapshot_size.get_result()
-            
+
     def get_output_chunks(self, in_account=None):
         if not self._output_resource_usage.is_ok():
             self.errors.append(self._output_resource_usage.get_error())
             return None
-        
+
         chunks = 0
         for account, usage in self._output_resource_usage.get_result().items():
             if in_account is None or in_account == account:
@@ -133,13 +145,13 @@ def report_operations(operations, top_k, key_field, key_name):
 
     for op in displayed:
         print fmt.format(**op)
-        
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze running scheduler state.")
     parser.add_argument("-k", type=int, default=10, help="Number of operation to show (default: 10)")
     parser.add_argument("--proxy", help='Proxy alias')
-    parser.add_argument("--top-by", choices=["job-count", "snapshot-size", "input-disk-usage", "output-chunks"], default="job-count")
+    parser.add_argument("--top-by", choices=["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "slice-count"], default="job-count")
     parser.add_argument("--in-account", help="Count resource usage only in this account")
     parser.add_argument("--show-errors", default=False, action="store_true")
 
@@ -155,6 +167,8 @@ if __name__ == "__main__":
 
     if args.top_by == "job-count":
         report_operations(operations, args.k, lambda op: op.get_job_count(), args.top_by)
+    elif args.top_by == "slice-count":
+        report_operations(operations, args.k, lambda op: op.get_slice_count(), args.top_by)
     elif args.top_by == "snapshot-size":
         for op in operations:
             op.fetch_snapshot_size()
