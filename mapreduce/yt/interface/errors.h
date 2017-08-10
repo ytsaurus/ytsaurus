@@ -134,18 +134,16 @@ public:
     };
 
 public:
-    TOperationFailedError(EState state, TOperationId id, TYtError ytError, yvector<TFailedJobInfo> failedJobInfo);
+    TOperationFailedError(EState state, TOperationId id, TYtError ytError);
 
     EState GetState() const;
     TOperationId GetOperationId() const;
     const TYtError& GetError() const;
-    const yvector<TFailedJobInfo>& GetFailedJobInfo() const;
 
 private:
     EState State_;
     TOperationId OperationId_;
     TYtError Error_;
-    yvector<TFailedJobInfo> FailedJobInfo_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

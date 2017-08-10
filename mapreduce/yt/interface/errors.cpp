@@ -343,12 +343,10 @@ void TErrorResponse::Setup()
 TOperationFailedError::TOperationFailedError(
     EState state,
     TOperationId id,
-    TYtError ytError,
-    yvector<TFailedJobInfo> failedJobInfo)
+    TYtError ytError)
     : State_(state)
     , OperationId_(id)
     , Error_(std::move(ytError))
-    , FailedJobInfo_(std::move(failedJobInfo))
 {
     *this << ytError.ShortDescription();
 }

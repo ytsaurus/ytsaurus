@@ -579,8 +579,7 @@ EOperationStatus CheckOperation(
                 TOperationFailedError::Aborted :
                 TOperationFailedError::Failed,
             operationId,
-            ytError,
-            failedJobInfoList) << jobErrors.Str();
+            ytError) << jobErrors.Str();
     }
 
     return OS_RUNNING;
@@ -1493,8 +1492,7 @@ public:
                         TOperationFailedError(
                             state == "failed" ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
                             OperationId_,
-                            error,
-                            {})));
+                            error)));
 
                 return PollBreak;
             }
