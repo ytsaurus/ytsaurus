@@ -46,6 +46,7 @@ class TAlwaysFailingMapper : public IMapper<TTableReader<TNode>, TTableWriter<TN
 public:
     void Do(TReader*, TWriter*)
     {
+        Cerr << "This mapper always fails" << Endl;
         ::exit(1);
     }
 };
@@ -444,6 +445,42 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         fut.Wait();
         UNIT_ASSERT_EXCEPTION(fut.GetValue(), TOperationFailedError);
         UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "aborted");
+    }
+
+    void TestGetFailedJobInfoImpl(IClientBasePtr client)
+    {
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        auto operation = client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .MaxFailedJobCount(3),
+            new TAlwaysFailingMapper(),
+            TOperationOptions().Wait(false));
+        operation->Watch().Wait();
+        UNIT_ASSERT_EXCEPTION(operation->Watch().GetValue(), TOperationFailedError);
+
+        auto failedJobInfoList = operation->GetFailedJobInfo(TGetFailedJobInfoOptions().MaxJobCount(10).StderrTailSize(1000));
+        UNIT_ASSERT_VALUES_EQUAL(failedJobInfoList.size(), 3);
+        for (const auto& jobInfo : failedJobInfoList) {
+            UNIT_ASSERT(jobInfo.Error.ContainsText("User job failed"));
+            UNIT_ASSERT_VALUES_EQUAL(jobInfo.Stderr, "This mapper always fails\n");
+        }
+    }
+
+    SIMPLE_UNIT_TEST(GetFailedJobInfo_GlobalClient)
+    {
+        TestGetFailedJobInfoImpl(CreateTestClient());
+    }
+
+    SIMPLE_UNIT_TEST(GetFailedJobInfo_Transaction)
+    {
+        TestGetFailedJobInfoImpl(CreateTestClient()->StartTransaction());
     }
 }
 

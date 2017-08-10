@@ -23,6 +23,7 @@ public:
     TOperation(TOperationId id, TClientPtr client);
     virtual const TOperationId& GetId() const override;
     virtual NThreading::TFuture<void> Watch() override;
+    virtual yvector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) override;
 
 private:
     void SetOperationFinished(const TMaybe<TOperationFailedError>& maybeError);
