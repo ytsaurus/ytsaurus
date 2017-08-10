@@ -235,6 +235,9 @@ TNode SerializeParametersForDeleteRows(
     if (options.Durability_) {
         result["durability"] = ::ToString(*options.Durability_);
     }
+    if (options.RequireSyncReplica_) {
+        result["require_sync_replica"] = *options.RequireSyncReplica_;
+    }
     return result;
 }
 
