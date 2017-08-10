@@ -16,7 +16,7 @@ from .errors import (YtError, YtOperationFailedError, YtResponseError, YtHttpRes
 from .yamr_record import Record
 from .format import (DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFormat,
                      YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError, create_table_switch)
-from .ypath import YPath, TablePath, FilePath, ypath_join
+from .ypath import YPath, TablePath, FilePath, ypath_join, ypath_dirname
 from .cypress_commands import escape_ypath_literal
 from .operation_commands import format_operation_stderrs, Operation, OperationsTracker
 from .py_wrapper import (aggregator, raw, raw_io, reduce_aggregator,
