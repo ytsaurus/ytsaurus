@@ -2281,7 +2281,6 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         std::vector<std::pair<TConstExpressionPtr, bool>> keySelfEquations(foreignKeyColumnsCount);
         std::vector<TConstExpressionPtr> keyForeignEquations(foreignKeyColumnsCount);
 
-        bool canUseSourceRanges = true;
         for (size_t equationIndex = 0; equationIndex < foreignEquations.size(); ++equationIndex) {
             const auto& expr = foreignEquations[equationIndex];
 
@@ -2294,8 +2293,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                     continue;
                 }
             }
-            canUseSourceRanges = false;
-            break;
+
+            keySelfEquations.push_back(selfEquations[equationIndex]);
+            keyForeignEquations.push_back(foreignEquations[equationIndex]);
         }
 
         size_t keyPrefix = 0;
@@ -2380,28 +2380,39 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             }
         }
 
-        // Check that there are no join equations from keyPrefix to foreignKeyColumnsCount
-        for (size_t index = keyPrefix; index < keyForeignEquations.size() && canUseSourceRanges; ++index) {
+        YCHECK(keyForeignEquations.size() == keySelfEquations.size());
+
+        size_t lastEmptyIndex = keyPrefix;
+        for (size_t index = keyPrefix; index < keyForeignEquations.size(); ++index) {
             if (keyForeignEquations[index]) {
                 YCHECK(keySelfEquations[index].first);
-                canUseSourceRanges = false;
+                keyForeignEquations[lastEmptyIndex] = std::move(keyForeignEquations[index]);
+                keySelfEquations[lastEmptyIndex] = std::move(keySelfEquations[index]);
+                ++lastEmptyIndex;
             }
         }
 
+        // Check that there are no join equations from keyPrefix to foreignKeyColumnsCount
+        bool canUseSourceRanges = lastEmptyIndex == keyPrefix;
+
+        keyForeignEquations.resize(lastEmptyIndex);
+        keySelfEquations.resize(lastEmptyIndex);
+
         joinClause->CanUseSourceRanges = canUseSourceRanges;
-        if (canUseSourceRanges) {
-            keyForeignEquations.resize(keyPrefix);
-            keySelfEquations.resize(keyPrefix);
-            joinClause->SelfEquations = std::move(keySelfEquations);
-            joinClause->ForeignEquations = std::move(keyForeignEquations);
-            joinClause->CommonKeyPrefix = commonKeyPrefix;
-            LOG_DEBUG("Creating join via source ranges (CommonKeyPrefix: %v)", commonKeyPrefix);
-        } else {
-            joinClause->SelfEquations = std::move(selfEquations);
-            joinClause->ForeignEquations = std::move(foreignEquations);
-            LOG_DEBUG("Creating join via IN clause");
+        joinClause->SelfEquations = std::move(keySelfEquations);
+        joinClause->ForeignEquations = std::move(keyForeignEquations);
+        joinClause->ForeignKeyPrefix = keyPrefix;
+
+        if (!canUseSourceRanges) {
             commonKeyPrefix = 0;
         }
+
+        joinClause->CommonKeyPrefix = commonKeyPrefix;
+
+        LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v, CanUseSourceRanges: %v)",
+                commonKeyPrefix,
+                keyPrefix,
+                canUseSourceRanges);
 
         if (join.Predicate) {
             joinClause->Predicate = BuildPredicate(

@@ -518,6 +518,7 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     proto->set_is_left(original->IsLeft);
     proto->set_can_use_source_ranges(original->CanUseSourceRanges);
     proto->set_common_key_prefix(original->CommonKeyPrefix);
+    proto->set_foreign_key_prefix(original->ForeignKeyPrefix);
 
     if (original->Predicate) {
         ToProto(proto->mutable_predicate(), original->Predicate);
@@ -537,6 +538,7 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->IsLeft, serialized.is_left());
     FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
     FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix());
+    FromProto(&result->ForeignKeyPrefix, serialized.foreign_key_prefix());
 
     if (serialized.has_predicate()) {
         FromProto(&result->Predicate, serialized.predicate());
