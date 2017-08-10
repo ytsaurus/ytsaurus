@@ -290,6 +290,11 @@ struct TInsertRowsOptions
     // By default value in aggregating column will be overwritten.
     // If `Aggregate' is set to true row will be considered as delta and it will be aggregated with currently stored value.
     FLUENT_FIELD_OPTION(bool, Aggregate);
+
+    //Used for insert operation for tables without sync replica
+    //https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/#zapis
+    //Default value is 'false'. So insertion into table without sync replias fails
+    FLUENT_FIELD_OPTION(bool, RequireSyncReplica);
 };
 
 struct TDeleteRowsOptions
