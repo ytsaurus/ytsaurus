@@ -73,8 +73,7 @@ EOperationStatus CheckOperationStatus(
                 TOperationFailedError::Aborted :
                 TOperationFailedError::Failed,
             operationId,
-            error,
-            {}) << jobErrors.Str();
+            error) << jobErrors.Str();
     }
 
     return OS_RUNNING;
