@@ -299,6 +299,11 @@ struct TInsertRowsOptions
 
 struct TDeleteRowsOptions
     : public TTabletTransactionOptions<TDeleteRowsOptions>
-{ };
+{
+    //Used for delete operation for tables without sync replica
+    //https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/#zapis
+    //Default value is 'false'. So deletion into table without sync replias fails
+    FLUENT_FIELD_OPTION(bool, RequireSyncReplica);
+};
 
 } // namespace NYT
