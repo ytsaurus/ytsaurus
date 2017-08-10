@@ -1,6 +1,7 @@
 #pragma once
 
 #include "io.h"
+#include "errors.h"
 
 #include <library/threading/future/future.h>
 #include <util/generic/vector.h>
