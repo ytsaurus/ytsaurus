@@ -2,6 +2,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 namespace NYT {
 namespace NChunkPools {
 
@@ -433,7 +435,9 @@ private:
 
         virtual i64 GetDataSliceCount() const
         {
-            return Owner->ElementaryStripes.size();
+            // Pretend that each output pool has it's own fraction
+            // of stripes to get proper estimated statistics.
+            return DivCeil<i64>(Owner->ElementaryStripes.size(), Owner->Outputs.size());
         }
 
     private:
