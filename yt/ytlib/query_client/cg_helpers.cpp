@@ -84,7 +84,7 @@ TCGExprContext TCGExprContext::Make(
         type,
         {
             llvm::UndefValue::get(TypeBuilder<TValue*, false>::get(builder->getContext())),
-            llvm::UndefValue::get(TypeBuilder<void*, false>::get(builder->getContext())),
+            llvm::UndefValue::get(TypeBuilder<void* const*, false>::get(builder->getContext())),
             llvm::UndefValue::get(TypeBuilder<TRowBuffer*, false>::get(builder->getContext())),
             llvm::ConstantAggregateZero::get(
                 llvm::ArrayType::get(TypeBuilder<char, false>::get(
