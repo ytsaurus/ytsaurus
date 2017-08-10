@@ -126,6 +126,7 @@ message TJoinClause
     optional uint64 common_key_prefix = 11 [default = 0];
 
     optional TExpression predicate = 12;
+    optional uint64 foreign_key_prefix = 13 [default = 0];
 }
 
 message TGroupClause

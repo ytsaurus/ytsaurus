@@ -244,6 +244,7 @@ struct TJoinClause
     std::vector<std::pair<TConstExpressionPtr, bool>> SelfEquations;
 
     size_t CommonKeyPrefix = 0;
+    size_t ForeignKeyPrefix = 0;
 
     bool IsLeft = false;
 

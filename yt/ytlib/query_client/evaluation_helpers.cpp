@@ -197,6 +197,7 @@ TJoinParameters GetJoinEvaluator(
     auto isLeft = joinClause.IsLeft;
     auto canUseSourceRanges = joinClause.CanUseSourceRanges;
     auto commonKeyPrefix = joinClause.CommonKeyPrefix;
+    auto foreignKeyPrefix = joinClause.ForeignKeyPrefix;
     auto& foreignDataId = joinClause.ForeignDataId;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
@@ -254,7 +255,8 @@ TJoinParameters GetJoinEvaluator(
         }
     };
 
-    auto getForeignQuery = [subquery, canUseSourceRanges, commonKeyPrefix, joinKeyExprs, foreignDataId, foreignPredicate] (
+    auto getForeignQuery = [subquery, canUseSourceRanges, commonKeyPrefix, foreignKeyPrefix, joinKeyExprs, foreignDataId,
+    foreignPredicate] (
         std::vector<TRow> keys,
         TRowBufferPtr permanentBuffer)
     {
@@ -278,6 +280,21 @@ TJoinParameters GetJoinEvaluator(
                 // Use ordered read without modification of protocol
                 subquery->Limit = std::numeric_limits<i64>::max() - 1;
             }
+        } else if (foreignKeyPrefix > 0) {
+            LOG_DEBUG("Using join via prefix ranges");
+
+            std::vector<TRow> prefixKeys;
+
+            for (auto key : keys) {
+                prefixKeys.push_back(permanentBuffer->Capture(key.Begin(), foreignKeyPrefix, false));
+            }
+
+            dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(permanentBuffer));
+            for (size_t index = 0; index < foreignKeyPrefix; ++index) {
+                dataSource.Schema.push_back(joinKeyExprs[index]->Type);
+            }
+            subquery->WhereClause = foreignPredicate;
+            subquery->InferRanges = false;
         } else {
             TRowRanges ranges;
 
