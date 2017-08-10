@@ -40,6 +40,8 @@ namespace NYT {
 
     struct TCreateClientOptions;
 
+    struct TAlterTableReplicaOptions;
+
     class ILock;
     using ILockPtr = ::TIntrusivePtr<ILock>;
 

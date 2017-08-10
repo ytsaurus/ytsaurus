@@ -398,6 +398,13 @@ ui64 TMockClient::GenerateTimestamp() {
     return 0;
 }
 
+void TMockClient::AlterTableReplica(
+    const TReplicaId& /*replicaId*/,
+    const TAlterTableReplicaOptions& /*alterTableReplicaOptions*/)
+{
+    ythrow yexception() << "not implemented";
+}
+
 void TMockClient::ExecuteBatch(const TBatchRequest& /*batchRequest*/, const TExecuteBatchOptions& /*options*/) {
     ythrow yexception() << "not implemented";
 }

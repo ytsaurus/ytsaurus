@@ -248,5 +248,18 @@ TNode SerializeParamsForParseYPath(const TRichYPath& path)
     return result;
 }
 
+TNode SerializeParamsForAlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options)
+{
+    TNode result;
+    result["replica_id"] = GetGuidAsString(replicaId);
+    if (options.Enabled_) {
+        result["enabled"] = *options.Enabled_;
+    }
+    if (options.Mode_) {
+        result["mode"] = ::ToString(*options.Mode_);
+    }
+    return result;
+}
+
 } // namespace NDetail
 } // namespace NYT

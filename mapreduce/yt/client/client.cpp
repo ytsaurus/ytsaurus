@@ -716,6 +716,13 @@ void TClient::DisableTableReplica(const TReplicaId& replicaid)
     RetryRequest(Auth_, header);
 }
 
+void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options)
+{
+    THttpHeader header("POST", "alter_table_replica");
+    header.AddMutationId();
+    header.SetParameters(NDetail::SerializeParamsForAlterTableReplica(replicaId, options));
+}
+
 ui64 TClient::GenerateTimestamp()
 {
     THttpHeader header("GET", "generate_timestamp");

@@ -70,6 +70,8 @@ TNode SerializeParametersForDeleteRows(
 
 TNode SerializeParamsForParseYPath(const TRichYPath& path);
 
+TNode SerializeParamsForAlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail

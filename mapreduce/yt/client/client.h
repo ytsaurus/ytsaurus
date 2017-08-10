@@ -292,6 +292,10 @@ public:
 
     void DisableTableReplica(const TReplicaId& replicaid) override;
 
+    void AlterTableReplica(
+        const TReplicaId& replicaId,
+        const TAlterTableReplicaOptions& alterTableReplicaOptions) override;
+
     ui64 GenerateTimestamp() override;
 
     void ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOptions& options) override;
