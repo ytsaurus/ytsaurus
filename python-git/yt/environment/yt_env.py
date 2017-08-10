@@ -375,10 +375,13 @@ class YTInstance(object):
 
             self._write_environment_info_to_file()
         except (YtError, KeyboardInterrupt) as err:
-            self.stop()
+            self.stop(force=True)
             raise YtError("Failed to start environment", inner_errors=[err])
 
-    def stop(self):
+    def stop(self, force=False):
+        if not self._started and not force:
+            return
+
         with self._lock:
             self.stop_impl()
 
