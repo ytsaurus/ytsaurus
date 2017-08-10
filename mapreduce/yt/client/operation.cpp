@@ -1537,6 +1537,66 @@ NThreading::TFuture<void> TOperation::Watch()
     return *CompletePromise_;
 }
 
+yvector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOptions& options)
+{
+    const size_t maxJobCount = options.MaxJobCount_;
+    const i64 stderrTailSize = options.StderrTailSize_;
+
+    const auto operationPath = "//sys/operations/" + GetGuidAsString(GetId());
+    auto jobsPath = operationPath + "/jobs";
+
+    Client_->Get(operationPath, TGetOptions());
+
+    if (!Client_->Exists(jobsPath)) {
+        return {};
+    }
+
+    auto jobList = Client_->List(jobsPath,
+        TListOptions().AttributeFilter(
+            TAttributeFilter()
+                .AddAttribute("state")
+                .AddAttribute("error")));
+
+    yvector<TFailedJobInfo> result;
+    for (const auto& job : jobList) {
+        if (result.size() >= maxJobCount) {
+            break;
+        }
+
+        const auto& jobId = job.AsString();
+        auto jobPath = jobsPath + "/" + jobId;
+        auto& attributes = job.GetAttributes().AsMap();
+
+        const auto stateIt = attributes.find("state");
+        if (stateIt == attributes.end() || stateIt->second.AsString() != "failed") {
+            continue;
+        }
+        result.push_back(TFailedJobInfo());
+        auto& cur = result.back();
+        cur.JobId = GetGuid(job.AsString());
+
+        auto errorIt = attributes.find("error");
+        if (errorIt != attributes.end()) {
+            cur.Error = TYtError(errorIt->second);
+        }
+
+        auto stderrPath = jobPath + "/stderr";
+        if (!Client_->Exists(stderrPath)) {
+            continue;
+        }
+
+        const i64 stderrSize = Client_->Get(stderrPath + "/@uncompressed_data_size", TGetOptions()).AsInt64();
+
+        TFileReaderOptions options;
+        if (stderrSize > stderrTailSize) {
+            options.Offset(stderrSize - stderrTailSize);
+        }
+        IFileReaderPtr reader = Client_->CreateFileReader(stderrPath, options);
+        cur.Stderr = reader->ReadAll();
+    }
+    return result;
+}
+
 void TOperation::SetOperationFinished(const TMaybe<TOperationFailedError>& maybeError)
 {
     if (maybeError) {

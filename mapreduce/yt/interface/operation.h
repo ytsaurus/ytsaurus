@@ -1,7 +1,6 @@
 #pragma once
 
 #include "io.h"
-#include "errors.h"
 
 #include <library/threading/future/future.h>
 #include <util/generic/vector.h>
@@ -389,6 +388,19 @@ enum EOperationStatus : int
 
 ////////////////////////////////////////////////////////////////////
 
+struct TGetFailedJobInfoOptions
+{
+    using TSelf = TGetFailedJobInfoOptions;
+
+    // How many jobs to download. Which jobs will be chosen is undefined.
+    FLUENT_FIELD_DEFAULT(ui64, MaxJobCount, 10);
+
+    // How much of stderr should be downloaded.
+    FLUENT_FIELD_DEFAULT(ui64, StderrTailSize, 64 * 1024);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperation
     : public TThrRefBase
 {
@@ -410,6 +422,14 @@ struct IOperation
     // If operation is completed with error future contains TOperationFailedException exeption.
     // In rare cases when error occurred while waiting (e.g. YT become unavailable) future might contain other exception.
     virtual NThreading::TFuture<void> Watch() = 0;
+
+    //
+    // Retrieves information about failed jobs.
+    // Can be called for operation in any stage.
+    // Though user should keep in mind that this method always fetches info from cypress
+    // and doesn't work when operation is archived. Succesfully completed operations can be archived
+    // quite quickly (in about ~30 seconds).
+    virtual yvector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) = 0;
 };
 
 struct TOperationOptions
