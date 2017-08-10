@@ -45,20 +45,12 @@ void Initialize(int argc, const char* argv[])
 {
     auto logLevelStr = to_lower(TConfig::Get()->LogLevel);
     ILogger::ELevel logLevel;
-    if (logLevelStr == "fatal") {
-        logLevel = ILogger::FATAL;
-    } else if (logLevelStr == "error" || logLevelStr == "warning") {
-        // We don't have such level as warning, but we support it for
-        // compatibility with other APIs.
-        logLevel = ILogger::ERROR;
-    } else if (logLevelStr == "info") {
-        logLevel = ILogger::INFO;
-    } else if (logLevelStr == "debug") {
-        logLevel = ILogger::DEBUG;
-    } else {
+
+    if (!TryFromString(logLevelStr, logLevel)) {
         Cerr << "Invalid log level: " << TConfig::Get()->LogLevel << Endl;
         exit(1);
     }
+
     SetLogger(CreateStdErrLogger(logLevel));
 
     TProcessState::Get()->SetCommandLine(argc, argv);
