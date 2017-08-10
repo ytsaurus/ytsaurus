@@ -339,3 +339,58 @@ class FilePath(YPathSupportingAppend):
             self.attributes["executable"] = executable
         if file_name is not None:
             self.attributes["file_name"] = file_name
+
+def ypath_dirname(path):
+    """Returns path one level above specified `path`.
+       Equivalent of os.path.dirname for YPath.
+    """
+
+    # Dropping ranges and attributes.
+    # Also checking that path is not empty.
+    path = str(YPath(path))
+
+    if path == "/":
+        return "/"
+
+    path_type = {"/": "root", "#": "hash"}.get(path[:1])
+    if path_type is None:
+        raise YtError('Correct YPath should start with "/" or "#"')
+
+    if path_type == "root" and not path.startswith("//"):
+        raise YtError('Root YPath should start with "//"')
+
+    slash_pos = None
+    slash_escaped = False
+
+    index = len(path) - 1
+    index_lower_bound = int(path_type == "root")
+
+    while index >= index_lower_bound:
+        if path[index] == "/":
+            if slash_pos is not None and not slash_escaped:
+                raise YtError('Unexpected "/" at position ' + str(index))
+            slash_pos = index
+            slash_escaped = False
+        elif path[index] == "\\":
+            if slash_pos is not None:
+                slash_escaped = not slash_escaped
+        else:
+            if slash_pos is None:
+                index -= 1
+                continue
+
+            if not slash_escaped:
+                break
+
+            slash_pos = None
+            slash_escaped = False
+
+        index -= 1
+
+    if slash_pos is None:
+        return path
+
+    if slash_pos == len(path) - 1 and not slash_escaped:
+        raise YtError('Unexpected "/" at the end of YPath')
+
+    return path[:slash_pos]
