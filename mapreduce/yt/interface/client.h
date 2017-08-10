@@ -124,13 +124,11 @@ public:
         i32 tabletCount,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
-    // TODO: move to transaction
     virtual void InsertRows(
         const TYPath& path,
         const TNode::TList& rows,
         const TInsertRowsOptions& options = TInsertRowsOptions()) = 0;
 
-    // TODO: move to transaction
     virtual void DeleteRows(
         const TYPath& path,
         const TNode::TList& keys,
@@ -145,9 +143,17 @@ public:
         const TString& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
+    // Is not supported since YT 19.2 version
     virtual void EnableTableReplica(const TReplicaId& replicaid) = 0;
 
+    // Is not supported since YT 19.2 version
     virtual void DisableTableReplica(const TReplicaId& replicaid) = 0;
+
+    // Change properties of table replica.
+    // Allows to enable/disable replica and/or change its mode.
+    virtual void AlterTableReplica(
+        const TReplicaId& replicaId,
+        const TAlterTableReplicaOptions& alterTableReplicaOptions) = 0;
 
     virtual ui64 GenerateTimestamp() = 0;
 

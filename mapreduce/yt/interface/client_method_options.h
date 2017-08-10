@@ -268,6 +268,12 @@ enum class EAtomicity
     Full    /* "full" */,
 };
 
+enum class ETableReplicaMode
+{
+    Sync    /* "sync" */,
+    Async   /* "async" */,
+};
+
 template <typename TDerived>
 struct TTabletTransactionOptions
 {
@@ -304,6 +310,22 @@ struct TDeleteRowsOptions
     //https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/#zapis
     //Default value is 'false'. So deletion into table without sync replias fails
     FLUENT_FIELD_OPTION(bool, RequireSyncReplica);
+};
+
+// https://wiki.yandex-team.ru/yt/userdoc/api/#altertablereplica
+// https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/
+struct TAlterTableReplicaOptions
+{
+    using TSelf = TAlterTableReplicaOptions;
+
+    // Enable replica if `Enabled' is set to true.
+    // Disable replica if `Enabled' is set to false.
+    // Doesn't change state of replica if `Enabled' is not set.
+    FLUENT_FIELD_OPTION(bool, Enabled);
+
+    // If `Mode' is set replica mode is changed to specified value.
+    // If `Mode' is not set replica mode is untouched.
+    FLUENT_FIELD_OPTION(ETableReplicaMode, Mode);
 };
 
 } // namespace NYT
