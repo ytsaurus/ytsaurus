@@ -353,6 +353,10 @@ protected:
     // Only used during materialization, not persisted.
     double InputCompressionRatio = 0.0;
 
+    // Ratio DataWeight/UncomprssedDataSize for input data.
+    // Only used during materialization, not persisted.
+    double DataWeightRatio = 0.0;
+
     // Total uncompressed data size for input tables.
     // Used only during preparation, not persisted.
     i64 PrimaryInputDataWeight = 0;

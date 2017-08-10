@@ -290,13 +290,15 @@ protected:
                         Spec_,
                         Options_,
                         PrimaryInputDataWeight,
-                        static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+                        DataWeightRatio,
+                        InputCompressionRatio);
 
                 default:
-                    return CreateSimpleJobSizeConstraints(
+                    return CreateUserJobSizeConstraints(
                         Spec_,
                         Options_,
                         OutputTables_.size(),
+                        DataWeightRatio,
                         PrimaryInputDataWeight,
                         std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
                         ForeignInputDataWeight);

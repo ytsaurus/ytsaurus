@@ -50,18 +50,22 @@ DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
+//! Fits for operations with user code.
+IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
     const NScheduler::TSimpleOperationOptionsPtr& options,
     int outputTableCount,
+    double dataWeightRatio,
     i64 primaryInputDataWeight,
     i64 inputRowCount = std::numeric_limits<i64>::max(),
     i64 foreignInputDataWeight = 0);
 
+//! Fits for system operations like merge or erase.
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
     const NScheduler::TSimpleOperationOptionsPtr& options,
     i64 inputDataWeight,
+    double dataWeightRatio,
     double compressionRatio);
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
