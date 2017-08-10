@@ -249,7 +249,9 @@ void TTask::ScheduleJob(
     }
 
     // Async part.
-    auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this)] (TJobSpec* jobSpec) {
+    // NB: it is important to capture task host (Controller), by strong reference,
+    // since it can be dead otherwise.
+    auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this), taskHost = MakeStrong(TaskHost_)] (TJobSpec* jobSpec) {
         BuildJobSpec(joblet, jobSpec);
         jobSpec->set_version(GetJobSpecVersion());
         TaskHost_->CustomizeJobSpec(joblet, jobSpec);
@@ -382,6 +384,11 @@ i64 TTask::GetCompletedDataWeight() const
 i64 TTask::GetPendingDataWeight() const
 {
     return GetChunkPoolOutput()->GetPendingDataWeight();
+}
+
+i64 TTask::GetInputDataSliceCount() const
+{
+    return GetChunkPoolOutput()->GetDataSliceCount();
 }
 
 void TTask::Persist(const TPersistenceContext& context)

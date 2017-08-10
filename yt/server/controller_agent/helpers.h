@@ -72,6 +72,7 @@ IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
 IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
     const NScheduler::TSortOperationOptionsBasePtr& options,
+    i64 inputDataSize,
     i64 inputDataWeight,
     i64 inputRowCount,
     double compressionRatio);

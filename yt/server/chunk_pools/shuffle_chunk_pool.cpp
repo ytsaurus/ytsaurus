@@ -431,6 +431,11 @@ private:
             Persist(context, PendingRuns);
         }
 
+        virtual i64 GetDataSliceCount() const
+        {
+            return Owner->ElementaryStripes.size();
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool::TOutput, 0xba17acf7);
 

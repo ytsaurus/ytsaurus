@@ -5106,6 +5106,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("data_weight").Value(TotalEstimatedInputDataWeight)
             .Item("row_count").Value(TotalEstimatedInputRowCount)
             .Item("unavailable_chunk_count").Value(GetUnavailableInputChunkCount())
+            .Item("data_slice_count").Value(GetDataSliceCount())
         .EndMap()
         .Item("live_preview").BeginMap()
             .Item("output_supported").Value(IsOutputLivePreviewSupported())
@@ -5457,6 +5458,16 @@ i64 TOperationControllerBase::GetUnavailableInputChunkCount() const
         return DataSliceFetcherChunkScraper->GetUnavailableChunkCount();
     }
     return UnavailableInputChunkCount;
+}
+
+i64 TOperationControllerBase::GetDataSliceCount() const
+{
+    i64 result = 0;
+    for (const auto& task : Tasks) {
+        result += task->GetInputDataSliceCount();
+    }
+
+    return result;
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(
