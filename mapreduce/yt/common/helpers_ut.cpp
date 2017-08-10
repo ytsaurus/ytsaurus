@@ -36,14 +36,6 @@ SIMPLE_UNIT_TEST_SUITE(NodeFromJson)
         UNIT_ASSERT_VALUES_EQUAL(resultNode, TNode()("foo", "bar"));
     }
 
-    SIMPLE_UNIT_TEST(MakeSureThatSecondParamDoesntAffectAnything) {
-        const char * input = "145";
-        const TNode result1 = NodeFromJsonString(input, YT_LIST_FRAGMENT);
-        UNIT_ASSERT_VALUES_EQUAL(result1, TNode(145));
-        const TNode result2 = NodeFromJsonString(input, YT_MAP_FRAGMENT);
-        UNIT_ASSERT_VALUES_EQUAL(result2, TNode(145));
-    }
-
     SIMPLE_UNIT_TEST(TestSimpleArray) {
         const char* input =
             R"""( [ )"""

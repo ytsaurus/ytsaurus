@@ -110,11 +110,11 @@ void NodeToYsonStream(const TNode& node, TOutputStream* output, EYsonFormat form
     visitor.Visit(node);
 }
 
-TNode NodeFromJsonString(const TString& input, EYsonType type)
+TNode NodeFromJsonString(const TString& input)
 {
     TStringInput stream(input);
 
-    TNode result = CreateEmptyNodeByType(type);
+    TNode result;
 
     TNodeBuilder builder(&result);
     TYson2JsonCallbacksAdapter callbacks(&builder, /*throwException*/ true);
