@@ -2,18 +2,20 @@
 
 #include "public.h"
 
-#include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/boolean_formula.h>
-
 #include <yt/server/object_server/object.h>
 
 #include <yt/server/security_server/acl.h>
 
 #include <yt/server/cell_master/public.h>
 
+#include <yt/server/cell_master/serialize.h>
+
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/server/cell_master/serialize.h>
+#include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/boolean_formula.h>
+
+#include <yt/core/profiling/public.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -34,8 +36,12 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTabletCell*>, TabletCells);
 
+    DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagId, ProfilingTag);
+
 public:
     explicit TTabletCellBundle(const TTabletCellBundleId& id);
+
+    void FillProfilingTag();
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
