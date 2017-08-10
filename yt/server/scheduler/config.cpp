@@ -178,12 +178,14 @@ TOperationOptions::TOperationOptions()
         .GreaterThan(0.0);
 
     RegisterParameter("max_data_slices_per_job", MaxDataSlicesPerJob)
-        .Default(100000)
+        // This is a reasonable default for jobs with user code.
+        // Defaults for system jobs are in Initializer.
+        .Default(1000)
         .GreaterThan(0);
 
     RegisterParameter("max_slice_data_weight", MaxSliceDataWeight)
         .Alias("max_slice_data_size")
-        .Default((i64)256 * MB)
+        .Default(GB)
         .GreaterThan(0);
 
     RegisterParameter("min_slice_data_weight", MinSliceDataWeight)
@@ -667,6 +669,16 @@ TSchedulerConfig::TSchedulerConfig()
         ChunkLocationThrottler->Limit = 10000;
 
         EventLog->MaxRowWeight = 128 * MB;
+
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        OrderedMergeOperationOptions->DataWeightPerJob = (i64)20 * 1024 * 1024 * 1024;
+        OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+
+        SortedMergeOperationOptions->DataWeightPerJob = (i64)20 * 1024 * 1024 * 1024;
+        SortedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+
+        UnorderedMergeOperationOptions->DataWeightPerJob = (i64)20 * 1024 * 1024 * 1024;
+        UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
     });
 
     RegisterValidator([&] () {

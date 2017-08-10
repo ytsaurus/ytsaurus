@@ -4259,13 +4259,15 @@ void TOperationControllerBase::CollectTotals()
     }
 
     InputCompressionRatio = static_cast<double>(TotalEstimatedInputCompressedDataSize) / totalInputDataWeight;
+    DataWeightRatio = static_cast<double>(totalInputDataWeight) / TotalEstimatedInputUncompressedDataSize;
 
-    LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v)",
+    LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v, TotalDataWeight: %v)",
         TotalEstimatedInputChunkCount,
         TotalEstimatedInputRowCount,
         TotalEstimatedInputUncompressedDataSize,
         TotalEstimatedInputCompressedDataSize,
-        TotalEstimatedInputDataWeight);
+        TotalEstimatedInputDataWeight,
+        totalInputDataWeight);
 }
 
 void TOperationControllerBase::CustomPrepare()

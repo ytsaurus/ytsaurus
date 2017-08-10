@@ -327,13 +327,15 @@ protected:
                                 Spec,
                                 Options,
                                 totalDataWeight,
-                                static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+                                DataWeightRatio,
+                                InputCompressionRatio);
 
                         default:
-                            return CreateSimpleJobSizeConstraints(
+                            return CreateUserJobSizeConstraints(
                                 Spec,
                                 Options,
                                 GetOutputTablePaths().size(),
+                                DataWeightRatio,
                                 totalDataWeight,
                                 totalRowCount);
                     }

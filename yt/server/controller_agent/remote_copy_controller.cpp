@@ -363,7 +363,8 @@ private:
             Spec_,
             Options_,
             TotalEstimatedInputDataWeight,
-            static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+            DataWeightRatio,
+            InputCompressionRatio);
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobSizeConstraints->GetJobCount()) {
             THROW_ERROR_EXCEPTION("Too many chunks per job: actual %v, limit %v; "

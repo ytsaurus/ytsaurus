@@ -16,19 +16,20 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleJobSizeConstraints
+class TUserJobSizeConstraints
     : public IJobSizeConstraints
 {
 public:
-    TSimpleJobSizeConstraints()
+    TUserJobSizeConstraints()
         : InputDataWeight_(-1)
         , InputRowCount_(-1)
     { }
 
-    TSimpleJobSizeConstraints(
+    TUserJobSizeConstraints(
         const TSimpleOperationSpecBasePtr& spec,
         const TSimpleOperationOptionsPtr& options,
         int outputTableCount,
+        double dataWeightRatio,
         i64 primaryInputDataWeight,
         i64 inputRowCount,
         i64 foreignInputDataWeight)
@@ -42,6 +43,12 @@ public:
             JobCount_ = *Spec_->JobCount;
         } else if (PrimaryInputDataWeight_ > 0) {
             i64 dataWeightPerJob = Spec_->DataWeightPerJob.Get(Options_->DataWeightPerJob);
+
+            if (dataWeightRatio < 1) {
+                // This means that uncompressed data size is larger than data weight,
+                // which may happen for very sparse data.
+                dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio), (i64)1);
+            }
 
             if (IsSmallForeignRatio() || Spec_->ConsiderOnlyPrimarySize) {
                 // Since foreign tables are quite small, we use primary table to estimate job count.
@@ -163,7 +170,7 @@ public:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleJobSizeConstraints, 0xb45cfe0d);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUserJobSizeConstraints, 0xb45cfe0d);
 
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
@@ -192,8 +199,8 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleJobSizeConstraints);
-DEFINE_REFCOUNTED_TYPE(TSimpleJobSizeConstraints)
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUserJobSizeConstraints);
+DEFINE_REFCOUNTED_TYPE(TUserJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +216,7 @@ public:
         const TSimpleOperationSpecBasePtr& spec,
         const TSimpleOperationOptionsPtr& options,
         i64 inputDataWeight,
+        double dataWeightRatio,
         double compressionRatio)
         : Spec_(spec)
         , Options_(options)
@@ -217,9 +225,21 @@ public:
         if (Spec_->JobCount) {
             JobCount_ = *Spec_->JobCount;
         } else if (Spec_->DataWeightPerJob) {
-            JobCount_ = DivCeil(InputDataWeight_, *Spec_->DataWeightPerJob);
+            i64 dataWeightPerJob = *Spec_->DataWeightPerJob;
+            if (dataWeightRatio < 1.0 / 2) {
+                // This means that uncompressed data size is larger than 2x data weight,
+                // which may happen for very sparse data. Than, adjust data weight accordingly.
+                dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio * 2), (i64)1);
+            }
+            JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
         } else {
             i64 dataWeightPerJob = Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio;
+
+            if (dataWeightPerJob / dataWeightRatio > Options_->DataWeightPerJob) {
+                // This means that compression ration w.r.t data weight is very small,
+                // so we would like to limit uncompressed data size per job.
+                dataWeightPerJob = Options_->DataWeightPerJob * dataWeightRatio;
+            }
             JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
         }
 
@@ -684,27 +704,37 @@ DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
+IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
     int outputTableCount,
+    double dataWeightRatio,
     i64 primaryInputDataSize,
     i64 inputRowCount,
     i64 foreignInputDataSize)
 {
-    return New<TSimpleJobSizeConstraints>(spec, options, outputTableCount, primaryInputDataSize, inputRowCount, foreignInputDataSize);
+    return New<TUserJobSizeConstraints>(
+        spec,
+        options,
+        outputTableCount,
+        dataWeightRatio,
+        primaryInputDataSize,
+        inputRowCount,
+        foreignInputDataSize);
 }
 
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
     const NScheduler::TSimpleOperationOptionsPtr& options,
     i64 inputDataWeight,
+    double dataWeightRatio,
     double compressionRatio)
 {
     return New<TMergeJobSizeConstraints>(
         spec,
         options,
         inputDataWeight,
+        dataWeightRatio,
         compressionRatio);
 }
 
