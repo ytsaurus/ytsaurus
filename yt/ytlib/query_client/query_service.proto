@@ -33,6 +33,7 @@ message TReqRead
     required int64 timestamp = 3;
     required int32 request_codec = 4; // ECodec
     required int32 response_codec = 5; // ECodec
+    optional string retention_config = 6;
     // Attachement contains wire-encoded data.
 }
 
