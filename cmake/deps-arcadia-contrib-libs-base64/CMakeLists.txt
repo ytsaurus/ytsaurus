@@ -15,10 +15,6 @@ set(SRCS
   ${BASE}/plain64/lib.c
 )
 
+set_source_files_properties(${SRCS} PROPERTIES COMPILE_FLAGS "-mavx2 -mssse3")
+
 add_library(${NAME} STATIC ${SRCS})
-
-if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  set_target_properties(deps-arcadia-contrib-libs-base64 PROPERTIES COMPILE_FLAGS -mavx2)
-  set_target_properties(deps-arcadia-contrib-libs-base64 PROPERTIES COMPILE_FLAGS -mssse3)
-endif()
-
