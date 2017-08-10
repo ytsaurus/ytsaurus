@@ -196,7 +196,7 @@ private:
         // TODO(savrus) balance other tablets.
     }
 
-    void ReassignInMemoryTablets(const TTabletCellBundle* bundle, int* actionCount)
+    void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         std::vector<const TTabletCell*> cells;
@@ -232,6 +232,7 @@ private:
             queue.push(pair);
         }
 
+        int actionCount = 0;
         for (int index = memoryUsage.size() - 1; index >= 0; --index) {
             auto cellSize = memoryUsage[index].first;
             auto* cell = memoryUsage[index].second;
@@ -259,10 +260,14 @@ private:
                 }
 
                 if (tabletSize < cellSize - top.first) {
-                    LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v)",
+                    LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v, TabletSize: %v, SrcCellSize: %v, DstCellSize: %v, CellBundle: %Qv)",
                         tablet->GetId(),
                         cell->GetId(),
-                        top.second->GetId());
+                        top.second->GetId(),
+                        tabletSize,
+                        cellSize,
+                        top.first,
+                        bundle->GetName());
 
                     queue.pop();
                     top.first += tabletSize;
@@ -280,10 +285,16 @@ private:
                     CreateMutation(hydraManager, request)
                         ->CommitAndLog(Logger);
 
-                    ++(*actionCount);
+                    ++actionCount;
                 }
             }
         }
+
+        Profiler.Enqueue(
+            "/in_memory_moves",
+            actionCount,
+            NProfiling::EMetricType::Gauge,
+            {bundle->GetProfilingTag()});
     }
 
     void ReassignInMemoryTablets()
@@ -292,13 +303,10 @@ private:
             return;
         }
 
-        int actionCount = 0;
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletCellBundles()) {
-            ReassignInMemoryTablets(pair.second, &actionCount);
+            ReassignInMemoryTablets(pair.second);
         }
-
-        Profiler.Update(MemoryMoveCounter_, actionCount);
     }
 
     void BalanceTablets()

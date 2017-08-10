@@ -3,6 +3,8 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -56,6 +58,11 @@ void TTabletCellBundle::Load(TLoadContext& context)
     if (context.GetVersion() >= 400) {
         Load(context, TabletCells_);
     }
+}
+
+void TTabletCellBundle::FillProfilingTag()
+{
+    ProfilingTag_ = NProfiling::TProfileManager::Get()->RegisterTag("tablet_cell_bundle", Name_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
