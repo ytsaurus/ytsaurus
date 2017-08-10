@@ -296,7 +296,7 @@ def add_list_parser(add_parser):
     parser.add_argument("--read-from",
                         help='You can specify read-from equaled to "cache"'
                              'for enabling using system cache')
-    parser.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
+    group.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
 
 def find(**args):
     path_filter = None
