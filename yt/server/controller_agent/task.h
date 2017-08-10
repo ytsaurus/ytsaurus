@@ -98,6 +98,8 @@ public:
     i64 GetCompletedDataWeight() const;
     i64 GetPendingDataWeight() const;
 
+    i64 GetInputDataSliceCount() const;
+
     TNullable<i64> GetMaximumUsedTmpfsSize() const;
 
     virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;

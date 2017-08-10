@@ -155,6 +155,8 @@ struct IChunkPoolOutput
     virtual int GetPendingJobCount() const = 0;
     virtual const NControllerAgent::TProgressCounter& GetJobCounter() const = 0;
 
+    virtual i64 GetDataSliceCount() const = 0;
+
     //! Approximate average stripe list statistics to estimate memory usage.
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
 

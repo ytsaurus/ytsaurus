@@ -217,6 +217,11 @@ public:
         return std::move(Jobs_);
     }
 
+    i64 GetTotalDataSliceCount() const
+    {
+        return TotalSliceCount_;
+    }
+
 private:
     void AddPivotKeysEndpoints()
     {
@@ -739,6 +744,11 @@ public:
         return JobManager_->RowCounter().GetTotal();
     }
 
+    virtual i64 GetDataSliceCount() const override
+    {
+        return TotalDataSliceCount_;
+    }
+
     const TProgressCounter& GetJobCounter() const
     {
         return JobManager_->JobCounter();
@@ -771,6 +781,10 @@ public:
         Persist(context, ChunkPoolId_);
         Persist(context, SortedJobOptions_);
         Persist(context, ForeignStripeCookiesByStreamIndex_);
+
+        if (context.GetVersion() >= 200512) {
+            Persist(context, TotalDataSliceCount_);
+        }
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
@@ -837,6 +851,8 @@ private:
     TGuid ChunkPoolId_ = TGuid::Create();
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+
+    i64 TotalDataSliceCount_ = 0;
 
     void InitInputChunkMapping()
     {
@@ -1161,6 +1177,8 @@ private:
         PrepareForeignDataSlices(builder);
         auto jobStubs = builder->Build();
         JobManager_->AddJobs(std::move(jobStubs));
+
+        TotalDataSliceCount_ += builder->GetTotalDataSliceCount();
     }
 
     void SplitJob(
