@@ -601,10 +601,10 @@ class TestTableCommands(object):
     def test_trim_rows(self):
         def remove_control_attributes(rows):
             for row in rows:
-                if "$tablet_index" in row:
-                    del row["$tablet_index"]
-                if "$row_index" in row:
-                    del row["$row_index"]
+                # TODO(babenko): modern backend versions use escaping
+                for x in ["$tablet_index", "$row_index", "[$tablet_index]", "[$row_index]"]:
+                    if x in row:
+                        del row[x]
 
         with set_config_option("tabular_data_format", None):
             table = TEST_DIR + "/test_trimmed_table"
