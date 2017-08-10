@@ -375,22 +375,20 @@ private:
             {
                 auto guard = Guard(SpinLock_);
 
-                auto it = ActiveRequestMap_.find(requestId);
-                if (it == ActiveRequestMap_.end()) {
-                    LOG_DEBUG("Timeout occurred for an unknown request, ignored (RequestId: %v)",
-                        requestId);
+                if (!requestControl->IsActive(guard)) {
                     return;
                 }
 
-                if (requestControl != it->second) {
-                    LOG_DEBUG("Timeout occurred for a resent request, ignored (RequestId: %v)",
+                auto it = ActiveRequestMap_.find(requestId);
+                if (it != ActiveRequestMap_.end() && requestControl == it->second) {
+                    ActiveRequestMap_.erase(it);
+                } else {
+                    LOG_DEBUG("Timeout occurred for an unknown or resent request (RequestId: %v)",
                         requestId);
-                    return;
                 }
 
                 requestControl->ProfileTimeout();
                 requestControl->Finalize(guard, &responseHandler);
-                ActiveRequestMap_.erase(it);
             }
 
             NotifyError(
