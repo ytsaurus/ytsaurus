@@ -257,16 +257,6 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
         .Default(10000)
         .GreaterThan(0);
 
-    RegisterParameter("partition_job_max_slice_data_weight", PartitionJobMaxSliceDataWeight)
-        .Alias("partition_job_max_slice_data_size")
-        .Default((i64)256 * MB)
-        .GreaterThan(0);
-
-    RegisterParameter("sort_job_max_slice_data_weight", SortJobMaxSliceDataWeight)
-        .Alias("sort_job_max_slice_data_size")
-        .Default((i64)256 * MB)
-        .GreaterThan(0);
-
     RegisterParameter("max_sample_size", MaxSampleSize)
         .Default(10 * KB)
         .GreaterThanOrEqual(KB)
