@@ -19,6 +19,8 @@ import yt.logger as logger
 from copy import deepcopy
 import time
 
+ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
+
 def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
     tablet_count = get(path + "/@tablet_count", client=client)
     first_tablet_index = get_value(first_tablet_index, 0)
