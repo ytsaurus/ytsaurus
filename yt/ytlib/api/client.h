@@ -323,7 +323,9 @@ struct TLookupRowsOptions
 
 struct TVersionedLookupRowsOptions
     : public TLookupRowsOptionsBase
-{ };
+{
+    NTableClient::TRetentionConfigPtr RetentionConfig;
+};
 
 struct TSelectRowsOptions
     : public TTabletReadOptions

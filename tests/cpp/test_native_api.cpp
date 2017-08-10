@@ -2,34 +2,34 @@
 //%NUM_NODES=3
 //%NUM_SCHEDULERS=0
 
-#include <yt/core/test_framework/framework.h>
-
+#include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
-#include <yt/ytlib/api/transaction.h>
-#include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/rowset.h>
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/yson/string.h>
-
 #include <yt/core/logging/config.h>
 #include <yt/core/logging/log_manager.h>
+
+#include <yt/core/test_framework/framework.h>
+
+#include <yt/core/yson/string.h>
 
 #include <util/datetime/base.h>
 
 #include <cstdlib>
 #include <functional>
-#include <iostream>
 #include <tuple>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,8 +46,8 @@ namespace {
 
 using namespace NApi;
 using namespace NConcurrency;
-using namespace NTableClient;
 using namespace NObjectClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
@@ -118,7 +118,7 @@ protected:
     {
         RemoveSystemObjects("//sys/tablet_cells");
         RemoveSystemObjects("//sys/tablet_cell_bundles", [] (const TString& name) {
-            return name == "default";
+            return name != "default";
         });
 
         WaitFor(Client_->SetNode(TYPath("//sys/accounts/tmp/@resource_limits/tablet_count"), ConvertToYsonString(0)))
@@ -143,8 +143,6 @@ protected:
 
     static void WaitUntil(const TYPath& path, const TString& expected)
     {
-        //std::cout << Format("Waiting for %Qv to become %Qv", path, expected) << std::endl;
-
         auto start = Now();
         bool reached = false;
         for (int attempt = 0; attempt < 2*30; ++attempt) {
@@ -155,7 +153,6 @@ protected:
                 reached = true;
                 break;
             }
-            //std::cout << Format("Not yet: %Qv is %Qv", path, value) << std::endl;
             Sleep(TDuration::MilliSeconds(500));
         }
 
@@ -165,14 +162,12 @@ protected:
                 expected,
                 (Now() - start).Seconds());
         }
-
-        //std::cout << Format("Done waiting: %Qv is %Qv", path, expected) << std::endl;
     }
 
 private:
     static void RemoveSystemObjects(
         const TYPath& path,
-        std::function<bool(const TString&)> filter = [] (const TString&) { return false; })
+        std::function<bool(const TString&)> filter = [] (const TString&) { return true; })
     {
         auto items = WaitFor(Client_->ListNode(path))
             .ValueOrThrow();
@@ -181,7 +176,7 @@ private:
         std::vector<TFuture<void>> asyncWait;
         for (const auto& item : itemsList->GetChildren()) {
             const auto& name = item->AsString()->GetValue();
-            if (!filter(name)) {
+            if (filter(name)) {
                 asyncWait.push_back(Client_->RemoveNode(path + "/" + name));
             }
         }
@@ -227,7 +222,8 @@ public:
             .ThrowOnError();
 
         SyncMountTable(Table_);
-        WriteRows();
+
+        InitializeRows();
     }
 
     static void TearDownTestCase()
@@ -242,33 +238,52 @@ public:
 
 protected:
     static TYPath Table_;
-    static TTimestamp CommitTimestamp_;
+    static yhash<int, TTimestamp> CommitTimestamps_;
     TRowBufferPtr Buffer_ = New<TRowBuffer>();
 
-    static void WriteRows()
+    static void InitializeRows()
+    {
+        WriteUnversionedRow(
+            {"k0", "k1", "k2", "v3", "v4", "v5"},
+            "<id=0> 10; <id=1> 11; <id=2> 12; <id=3> 13; <id=4> 14; <id=5> 15",
+            0);
+    }
+
+    static void WriteUnversionedRow(
+        std::vector<TString> names,
+        const TString& rowString,
+        int transactionTag)
+    {
+        auto preparedRow = PrepareUnversionedRow(names, rowString);
+        WriteRows(
+            std::get<1>(preparedRow),
+            std::get<0>(preparedRow),
+            transactionTag);
+    }
+
+    static void WriteRows(
+        TNameTablePtr nameTable,
+        TSharedRange<TUnversionedRow> rows,
+        int timestampTag)
     {
         auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
             .ValueOrThrow();
 
-        auto preparedRow = PrepareUnversionedRow(
-            {"k0", "k1", "k2", "v3", "v4", "v5"},
-            "<id=0> 10; <id=1> 11; <id=2> 12; <id=3> 13; <id=4> 14; <id=5> 15");
-
         transaction->WriteRows(
             Table_,
-            std::get<1>(preparedRow),
-            std::get<0>(preparedRow));
+            nameTable,
+            rows);
 
         auto commitResult = WaitFor(transaction->Commit())
             .ValueOrThrow();
 
         const auto& timestamps = commitResult.CommitTimestamps.Timestamps;
         ASSERT_EQ(timestamps.size(), 1);
-        CommitTimestamp_ = timestamps[0].second;
+        CommitTimestamps_[timestampTag] = timestamps[0].second;
     }
 
     static std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> PrepareUnversionedRow(
-        std::vector<TString> names,
+        const std::vector<TString>& names,
         const TString& rowString)
     {
         auto nameTable = New<TNameTable>();
@@ -290,10 +305,10 @@ protected:
         auto row = TMutableVersionedRow(const_cast<TVersionedRowHeader*>(immutableRow.GetHeader()));
 
         for (auto* value = row.BeginValues(); value < row.EndValues(); ++value) {
-            value->Timestamp = CommitTimestamp_;
+            value->Timestamp = CommitTimestamps_[value->Timestamp];
         }
         for (auto* timestamp = row.BeginWriteTimestamps(); timestamp < row.EndWriteTimestamps(); ++timestamp) {
-            *timestamp = CommitTimestamp_;
+            *timestamp = CommitTimestamps_[*timestamp];
         }
 
         return row;
@@ -301,21 +316,21 @@ protected:
 };
 
 TYPath TLookupFilterTest::Table_;
-TTimestamp TLookupFilterTest::CommitTimestamp_;
+yhash<int, TTimestamp> TLookupFilterTest::CommitTimestamps_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-auto s = TString("<unique_keys=%true;strict=%true>");
-auto su = TString("<unique_keys=%false;strict=%true>");
-auto k0 = "{name=k0;type=int64;sort_order=ascending};";
-auto k1 = "{name=k1;type=int64;sort_order=ascending};";
-auto k2 = "{name=k2;type=int64;sort_order=ascending};";
-auto ku0 = "{name=k0;type=int64};";
-auto ku1 = "{name=k1;type=int64};";
-auto ku2 = "{name=k2;type=int64};";
-auto v3 = "{name=v3;type=int64};";
-auto v4 = "{name=v4;type=int64};";
-auto v5 = "{name=v5;type=int64};";
+static auto s = TString("<unique_keys=%true;strict=%true>");
+static auto su = TString("<unique_keys=%false;strict=%true>");
+static auto k0 = "{name=k0;type=int64;sort_order=ascending};";
+static auto k1 = "{name=k1;type=int64;sort_order=ascending};";
+static auto k2 = "{name=k2;type=int64;sort_order=ascending};";
+static auto ku0 = "{name=k0;type=int64};";
+static auto ku1 = "{name=k1;type=int64};";
+static auto ku2 = "{name=k2;type=int64};";
+static auto v3 = "{name=v3;type=int64};";
+static auto v4 = "{name=v4;type=int64};";
+static auto v5 = "{name=v5;type=int64};";
 
 TEST_F(TLookupFilterTest, TestLookupAll)
 {
@@ -393,6 +408,8 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
         options))
         .ValueOrThrow();
 
+    ASSERT_EQ(res->GetRows().Size(), 1);
+
     auto actual = ToString(res->GetRows()[0]);
     auto expected = ToString(YsonToSchemalessRow(rowString));
     EXPECT_EQ(actual, expected)
@@ -437,6 +454,8 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
         std::get<0>(preparedKey),
         options))
         .ValueOrThrow();
+
+    ASSERT_EQ(res->GetRows().Size(), 1);
 
     auto actual = ToString(res->GetRows()[0]);
     auto expected = ToString(BuildVersionedRow(resultKeyString, resultValueString));
@@ -519,6 +538,79 @@ INSTANTIATE_TEST_CASE_P(
             "<id=0> 12; <id=1> 10;", "<id=2;ts=0> 14; <id=3;ts=0> 13;",
             su + "[" + ku2 + ku0 + v4 + v3 + "]")
 ));
+
+TEST_F(TLookupFilterTest, TestRetentionConfig)
+{
+    WriteUnversionedRow(
+        {"k0", "k1", "k2", "v3", "v4", "v5"},
+        "<id=0> 20; <id=1> 20; <id=2> 20; <id=3> 20;",
+        1);
+
+    // Make first row old enough for TTL expiring.
+    Sleep(TDuration::Seconds(2));
+
+    WriteUnversionedRow(
+        {"k0", "k1", "k2", "v3", "v4", "v5"},
+        "<id=0> 20; <id=1> 20; <id=2> 20; <id=3> 21;",
+        2);
+
+    auto preparedKey = PrepareUnversionedRow(
+        {"k0", "k1", "k2", "v4"},
+        "<id=0> 20; <id=1> 20; <id=2> 20");
+
+    auto res = WaitFor(Client_->VersionedLookupRows(
+        Table_,
+        std::get<1>(preparedKey),
+        std::get<0>(preparedKey)))
+        .ValueOrThrow();
+
+    ASSERT_EQ(res->GetRows().Size(), 1);
+
+    auto actual = ToString(res->GetRows()[0]);
+    auto expected = ToString(BuildVersionedRow(
+        "<id=0> 20; <id=1> 20; <id=2> 20",
+        "<id=3;ts=2> 21; <id=3;ts=1> 20;"));
+    EXPECT_EQ(actual, expected);
+
+    TVersionedLookupRowsOptions options;
+    options.RetentionConfig = New<TRetentionConfig>();
+    options.RetentionConfig->MinDataTtl = TDuration::MilliSeconds(0);
+    options.RetentionConfig->MaxDataTtl = TDuration::MilliSeconds(0);
+    options.Timestamp = CommitTimestamps_[2];
+
+    res = WaitFor(Client_->VersionedLookupRows(
+        Table_,
+        std::get<1>(preparedKey),
+        std::get<0>(preparedKey),
+        options))
+        .ValueOrThrow();
+
+    ASSERT_EQ(res->GetRows().Size(), 1);
+
+    actual = ToString(res->GetRows()[0]);
+    expected = ToString(BuildVersionedRow(
+        "<id=0> 20; <id=1> 20; <id=2> 20",
+        "<id=3;ts=2> 21;"));
+    EXPECT_EQ(actual, expected);
+
+    options.ColumnFilter.All = false;
+    options.ColumnFilter.Indexes = SmallVector<int, TypicalColumnCount>{0,1,2,3};
+
+    res = WaitFor(Client_->VersionedLookupRows(
+        Table_,
+        std::get<1>(preparedKey),
+        std::get<0>(preparedKey),
+        options))
+        .ValueOrThrow();
+
+    ASSERT_EQ(res->GetRows().Size(), 1);
+
+    actual = ToString(res->GetRows()[0]);
+    expected = ToString(BuildVersionedRow(
+        "<id=0> 20; <id=1> 20; <id=2> 20",
+        ""));
+    EXPECT_EQ(actual, expected);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

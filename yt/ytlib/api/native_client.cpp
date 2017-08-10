@@ -57,6 +57,7 @@
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
 #include <yt/ytlib/security_client/helpers.h>
 
+#include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
@@ -1060,6 +1061,7 @@ private:
             const TCellId& cellId,
             const TLookupRowsOptionsBase& options,
             TTableMountInfoPtr tableInfo,
+            const TNullable<TString>& retentionConfig,
             TEncoder encoder,
             TDecoder decoder)
             : Config_(std::move(config))
@@ -1067,6 +1069,7 @@ private:
             , CellId_(cellId)
             , Options_(options)
             , TableInfo_(std::move(tableInfo))
+            , RetentionConfig_(retentionConfig)
             , Encoder_(std::move(encoder))
             , Decoder_(std::move(decoder))
         { }
@@ -1130,6 +1133,7 @@ private:
         const TCellId CellId_;
         const TLookupRowsOptionsBase Options_;
         const TTableMountInfoPtr TableInfo_;
+        const TNullable<TString> RetentionConfig_;
         const TEncoder Encoder_;
         const TDecoder Decoder_;
 
@@ -1169,6 +1173,9 @@ private:
             req->set_request_codec(static_cast<int>(Config_->LookupRequestCodec));
             req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
             req->Attachments().push_back(batch->RequestData);
+            if (RetentionConfig_) {
+                req->set_retention_config(*RetentionConfig_);
+            }
 
             req->Invoke().Subscribe(
                 BIND(&TTabletCellLookupSession::OnResponse, MakeStrong(this)));
@@ -1264,6 +1271,7 @@ private:
                 nameTable,
                 keys,
                 options,
+                Null,
                 encoder,
                 decoder,
                 fallbackHandler);
@@ -1307,12 +1315,18 @@ private:
             return replicaClient->VersionedLookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
         };
 
+        TNullable<TString> retentionConfig;
+        if (options.RetentionConfig) {
+            retentionConfig = ConvertToYsonString(options.RetentionConfig).GetData();
+        }
+
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
             return DoLookupRowsOnce<IVersionedRowsetPtr, TVersionedRow>(
                 path,
                 nameTable,
                 keys,
                 options,
+                retentionConfig,
                 encoder,
                 decoder,
                 fallbackHandler);
@@ -1585,6 +1599,7 @@ private:
         const TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
         const TLookupRowsOptionsBase& options,
+        const TNullable<TString> retentionConfig,
         TEncoderWithMapping encoderWithMapping,
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TRowset> replicaFallbackHandler)
@@ -1661,6 +1676,7 @@ private:
                         cellId,
                         options,
                         tableInfo,
+                        retentionConfig,
                         boundEncoder,
                         boundDecoder);
                     it = cellIdToSession.insert(std::make_pair(cellId, std::move(session))).first;
