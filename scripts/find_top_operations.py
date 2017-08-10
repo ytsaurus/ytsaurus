@@ -54,12 +54,12 @@ class Operation(object):
         def process_resource_usage(usage):
             if not usage.is_ok():
                 self.errors.append(usage.get_error())
-                return None, None, None
+                return None
 
             usage = usage.get_result()
             chunks = 0
             disk_space = 0
-            for account, usage in self._output_resource_usage.items():
+            for account, usage in usage.items():
                 if in_account is None or in_account == account:
                     chunks += usage["chunk_count"]
                     disk_space += usage["disk_space"]
