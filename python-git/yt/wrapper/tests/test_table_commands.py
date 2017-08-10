@@ -622,7 +622,7 @@ class TestTableCommands(object):
             yt.mount_table(table, sync=True)
             yt.insert_rows(table, [{"x": "a", "y": "b"}, {"x": "c", "y": "d"}, {"x": "e", "y": "f"}], raw=False)
             rows = list(yt.select_rows("* from [{0}]".format(table), raw=False))
-            tablet_index = rows[0].get("$tablet_index")
+            tablet_index = rows[0].get("[$tablet_index]")
             remove_control_attributes(rows)
             assert [{"x": "a", "y": "b"}, {"x": "c", "y": "d"}, {"x": "e", "y": "f"}] == rows
 
