@@ -48,13 +48,13 @@ void TYtPoller::WatchLoop()
             Y_VERIFY(!InProgress_.empty());
         }
 
-        TBatchRequest batchRequest;
+        auto batchRequest = Client_->CreateBatchRequest();
 
         for (auto& item : InProgress_) {
-            item->PrepareRequest(&batchRequest);
+            item->PrepareRequest(batchRequest.Get());
         }
 
-        Client_->ExecuteBatch(batchRequest);
+        batchRequest->ExecuteBatch();
 
         for (auto it = InProgress_.begin(); it != InProgress_.end();) {
             auto& item = *it;

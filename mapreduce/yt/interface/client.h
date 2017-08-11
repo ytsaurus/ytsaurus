@@ -61,6 +61,11 @@ public:
     virtual void AlterTable(
         const TYPath& path,
         const TAlterTableOptions& options = TAlterTableOptions()) = 0;
+
+    //
+    // Create batch request object that allows to execute several light requests in parallel.
+    // https://wiki.yandex-team.ru/yt/userdoc/api/#executebatch18.4
+    virtual TBatchRequestPtr CreateBatchRequest() = 0;
 };
 
 class ITransaction
@@ -156,19 +161,6 @@ public:
         const TAlterTableReplicaOptions& alterTableReplicaOptions) = 0;
 
     virtual ui64 GenerateTimestamp() = 0;
-
-    // Execute several light requests in parallel.
-    // It is undefined in which order these requests are executed.
-    //
-    // Single TBatchRequest instance may be executed only once
-    // and cannot be modified (filled with additional requests) after execution.
-    // Exception is thrown on attempt to modify executed batch request
-    // or execute it again.
-    //
-    // https://wiki.yandex-team.ru/yt/userdoc/api/#executebatch18.4
-    virtual void ExecuteBatch(
-        const TBatchRequest& batchRequest,
-        const TExecuteBatchOptions& executeBatch = TExecuteBatchOptions()) = 0;
 };
 
 IClientPtr CreateClient(

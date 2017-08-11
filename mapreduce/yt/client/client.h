@@ -145,6 +145,10 @@ public:
         const TYPath& path,
         const TAlterTableOptions& options) override;
 
+    TBatchRequestPtr CreateBatchRequest() override;
+
+    const TAuth& GetAuth() const;
+
 protected:
     virtual TClientPtr GetParentClient() = 0;
 
@@ -297,8 +301,6 @@ public:
         const TAlterTableReplicaOptions& alterTableReplicaOptions) override;
 
     ui64 GenerateTimestamp() override;
-
-    void ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOptions& options) override;
 
     // Helper methods
     TYtPoller& GetYtPoller();

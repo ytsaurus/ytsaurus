@@ -9,15 +9,13 @@
 
 namespace NYT {
 
-namespace NDetail {
-    class TBatchRequestImpl;
-    class TClient;
-} // namespace NDetail
-
 ////////////////////////////////////////////////////////////////////
 
-struct IBatchRequest {
-    virtual ~IBatchRequest() = default;
+class IBatchRequestBase
+    : public TThrRefBase
+{
+public:
+    virtual ~IBatchRequestBase() = default;
 
     virtual NThreading::TFuture<TLockId> Create(
         const TYPath& path,
@@ -65,82 +63,28 @@ struct IBatchRequest {
     virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) = 0;
 };
 
-////////////////////////////////////////////////////////////////////
-
-class TBatchRequest
-    : public IBatchRequest
+class IBatchRequest
+    : public IBatchRequestBase
 {
 public:
-    TBatchRequest();
-    TBatchRequest(const TTransactionId& defaultTransaction);
-    TBatchRequest(const ITransactionPtr& defaultTransaction);
-
-    ~TBatchRequest();
-
+    //
     // Using WithTransaction user can temporary override default transaction.
     // Example of usage:
     //   TBatchRequest batchRequest;
     //   auto noTxResult = batchRequest.Get("//some/path");
     //   auto txResult = batchRequest.WithTransaction(tx).Get("//some/path");
-    IBatchRequest& WithTransaction(const TTransactionId& transactionId);
-    IBatchRequest& WithTransaction(const ITransactionPtr& transaction);
+    virtual IBatchRequestBase& WithTransaction(const TTransactionId& transactionId) = 0;
+    IBatchRequestBase& WithTransaction(const ITransactionPtr& transaction);
 
-    virtual NThreading::TFuture<TLockId> Create(
-        const TYPath& path,
-        ENodeType type,
-        const TCreateOptions& options = TCreateOptions()) override;
-
-    virtual NThreading::TFuture<void> Remove(
-        const TYPath& path,
-        const TRemoveOptions& options = TRemoveOptions()) override;
-
-    virtual NThreading::TFuture<bool> Exists(const TYPath& path) override;
-
-    virtual NThreading::TFuture<TNode> Get(
-        const TYPath& path,
-        const TGetOptions& options = TGetOptions()) override;
-
-    virtual NThreading::TFuture<void> Set(
-        const TYPath& path,
-        const TNode& node) override;
-
-    virtual NThreading::TFuture<TNode::TList> List(
-        const TYPath& path,
-        const TListOptions& options = TListOptions()) override;
-
-
-    virtual NThreading::TFuture<TNodeId> Copy(
-        const TYPath& sourcePath,
-        const TYPath& destinationPath,
-        const TCopyOptions& options = TCopyOptions()) override;
-
-    virtual NThreading::TFuture<TNodeId> Move(
-        const TYPath& sourcePath,
-        const TYPath& destinationPath,
-        const TMoveOptions& options = TMoveOptions()) override;
-
-    virtual NThreading::TFuture<TNodeId> Link(
-        const TYPath& targetPath,
-        const TYPath& linkPath,
-        const TLinkOptions& options = TLinkOptions()) override;
-
-    virtual NThreading::TFuture<ILockPtr> Lock(
-        const TYPath& path,
-        ELockMode mode,
-        const TLockOptions& options = TLockOptions()) override;
-
-    virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) override;
-
-private:
-    TBatchRequest(NDetail::TBatchRequestImpl* impl);
-
-private:
-    TTransactionId DefaultTransaction_;
-    ::TIntrusivePtr<NDetail::TBatchRequestImpl> Impl_;
-    THolder<TBatchRequest> TmpWithTransaction_;
-
-private:
-    friend class NYT::NDetail::TClient;
+    //
+    // Executes all subrequests of batch request.
+    // It is undefined in which order these requests are executed.
+    //
+    // Single TBatchRequest instance may be executed only once
+    // and cannot be modified (filled with additional requests) after execution.
+    // Exception is thrown on attempt to modify executed batch request
+    // or execute it again.
+    virtual void ExecuteBatch(const TExecuteBatchOptions& options = TExecuteBatchOptions()) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
