@@ -36,6 +36,7 @@
 #include <util/system/execpath.h>
 #include <util/system/rwlock.h>
 #include <util/system/mutex.h>
+#include <util/system/thread.h>
 #include <util/folder/path.h>
 #include <util/stream/file.h>
 #include <util/stream/buffer.h>
@@ -391,14 +392,13 @@ private:
 
 yvector<TFailedJobInfo> GetFailedJobInfo(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TString& operationPath)
 {
     constexpr size_t JOB_COUNT_LIMIT = 10;
     constexpr i64 STDERR_LIMIT = 64 * 1024;
 
     auto jobsPath = operationPath + "/jobs";
-    if (!Exists(auth, transactionId, jobsPath)) {
+    if (!Exists(auth, TTransactionId(), jobsPath)) {
         return {};
     }
 
@@ -434,19 +434,19 @@ yvector<TFailedJobInfo> GetFailedJobInfo(
         }
 
         auto stderrPath = jobPath + "/stderr";
-        if (!Exists(auth, transactionId, stderrPath)) {
+        if (!Exists(auth, TTransactionId(), stderrPath)) {
             continue;
         }
 
         TRichYPath path(stderrPath);
         i64 stderrSize = NodeFromYsonString(
-            Get(auth, transactionId, stderrPath + "/@uncompressed_data_size")).AsInt64();
+            Get(auth, TTransactionId(), stderrPath + "/@uncompressed_data_size")).AsInt64();
         if (stderrSize > STDERR_LIMIT) {
             path.AddRange(
                 TReadRange().LowerLimit(
                     TReadLimit().Offset(stderrSize - STDERR_LIMIT)));
         }
-        IFileReaderPtr reader = new TFileReader(path, auth, transactionId);
+        IFileReaderPtr reader = new TFileReader(path, auth, TTransactionId());
         cur.Stderr = reader->ReadAll();
     }
     return result;
@@ -571,7 +571,7 @@ EOperationStatus CheckOperation(
 
         TStringStream jobErrors;
 
-        auto failedJobInfoList = GetFailedJobInfo(auth, transactionId, opPath);
+        auto failedJobInfoList = GetFailedJobInfo(auth, opPath);
         DumpOperationStderrs(jobErrors, failedJobInfoList);
 
         ythrow TOperationFailedError(
@@ -1455,21 +1455,76 @@ TOperationId ExecuteErase(
     return operationId;
 }
 
+////////////////////////////////////////////////////////////////////
+
+struct TOperationWatchInfo
+{
+    TNode OperationNode;
+    TOperationId OperationId;
+    TAuth Auth;
+    NThreading::TPromise<void> OperationCompletePromise;
+    TYPath OperationPath;
+};
+
+void CompleteOperationWatch(TOperationWatchInfo& params)
+{
+    const auto& operationId = params.OperationId;
+    const auto& operationNode = params.OperationNode;
+    auto& operationCompletePromise = params.OperationCompletePromise;
+
+    const auto& state = operationNode["state"].AsString();
+
+    if (state == "completed") {
+        operationCompletePromise.SetValue();
+    } else if (state == "aborted" || state == "failed") {
+        auto error = TYtError(operationNode["result"]["error"]); // TODO: check if aborted operations have error
+        bool isFailed = (state == "failed");
+        TString additionalExceptionText;
+        if (isFailed) {
+            try {
+                auto failedJobStderrInfo = GetFailedJobInfo(params.Auth, params.OperationPath);
+                TStringStream out;
+                DumpOperationStderrs(out, failedJobStderrInfo);
+                additionalExceptionText = out.Str();
+            } catch (const NYT::TErrorResponse& e) {
+                additionalExceptionText = "Cannot get job stderrs: ";
+                additionalExceptionText += e.what();
+            }
+        }
+        operationCompletePromise.SetException(
+            std::make_exception_ptr(
+                TOperationFailedError(
+                    isFailed ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
+                    operationId,
+                    error) << additionalExceptionText));
+    }
+}
+
+void* CompleteOperationWatch(void* params_)
+{
+    THolder<TOperationWatchInfo> params(static_cast<TOperationWatchInfo*>(params_));
+    CompleteOperationWatch(*params);
+    return nullptr;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation::TOperationPollerItem
     : public IYtPollerItem
 {
 public:
-    TOperationPollerItem(const TOperationId& operationId, const NThreading::TPromise<void>& operationCompletePromise)
-        : OperationId_(operationId)
-        , OperationStateYPath_("//sys/operations/" + GetGuidAsString(operationId) + "/@")
-        , OperationCompletePromise_(operationCompletePromise)
-    { }
+    TOperationPollerItem(const TAuth& auth, const TOperationId& operationId, const NThreading::TPromise<void>& operationCompletePromise)
+        : OperationWatchInfo_(MakeHolder<TOperationWatchInfo>())
+    {
+        OperationWatchInfo_->OperationId = operationId;
+        OperationWatchInfo_->Auth = auth;
+        OperationWatchInfo_->OperationCompletePromise = operationCompletePromise;
+        OperationWatchInfo_->OperationPath = "//sys/operations/" + GetGuidAsString(operationId);
+    }
 
     virtual void PrepareRequest(IBatchRequest* batchRequest) override
     {
-        OperationState_ = batchRequest->Get(OperationStateYPath_,
+        OperationState_ = batchRequest->Get(OperationWatchInfo_->OperationPath + "/@",
             TGetOptions().AttributeFilter(
                 TAttributeFilter()
                 .AddAttribute("state")
@@ -1480,25 +1535,17 @@ public:
     {
         try {
             const auto& info = OperationState_.GetValue();
-
             const auto& state = info["state"].AsString();
-            if (state == "completed") {
-                OperationCompletePromise_.SetValue();
-                return PollBreak;
-            } else if (state == "aborted" || state == "failed") {
-                auto error = TYtError(info["result"]["error"]);
-                OperationCompletePromise_.SetException(
-                    std::make_exception_ptr(
-                        TOperationFailedError(
-                            state == "failed" ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
-                            OperationId_,
-                            error)));
-
+            if (state == "completed" || state == "aborted" || state == "failed") {
+                OperationWatchInfo_->OperationNode = info;
+                TThread thread(TThread::TParams(&CompleteOperationWatch, OperationWatchInfo_.Release()).SetName("complete operation"));
+                thread.Start();
+                thread.Detach();
                 return PollBreak;
             }
         } catch (const TErrorResponse& e) {
             if (!NDetail::IsRetriable(e)) {
-                OperationCompletePromise_.SetException(std::current_exception());
+                OperationWatchInfo_->OperationCompletePromise.SetException(std::current_exception());
                 return PollBreak;
             }
         }
@@ -1506,13 +1553,11 @@ public:
     }
 
 private:
-    TOperationId OperationId_;
-    const TString OperationStateYPath_;
-    NThreading::TPromise<void> OperationCompletePromise_;
+    THolder<TOperationWatchInfo> OperationWatchInfo_;
     NThreading::TFuture<TNode> OperationState_;
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TOperation::TOperation(TOperationId id, TClientPtr client)
     : Id_(id)
@@ -1530,7 +1575,7 @@ NThreading::TFuture<void> TOperation::Watch()
     auto guard = Guard(Lock_);
     if (!CompletePromise_) {
         CompletePromise_ = NThreading::NewPromise<void>();
-        Client_->GetYtPoller().Watch(::MakeIntrusive<TOperation::TOperationPollerItem>(GetId(), *CompletePromise_));
+        Client_->GetYtPoller().Watch(::MakeIntrusive<TOperation::TOperationPollerItem>(Client_->GetAuth(), GetId(), *CompletePromise_));
     }
     return *CompletePromise_;
 }
