@@ -328,7 +328,6 @@ void TSuspendableStripe::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TChunkPoolOutputBase::TChunkPoolOutputBase()
     : DataWeightCounter(0)
     , RowCounter(0)

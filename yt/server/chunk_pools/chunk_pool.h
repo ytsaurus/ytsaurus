@@ -123,11 +123,9 @@ class TChunkPoolInputBase
 {
 public:
     // IChunkPoolInput implementation.
-
     virtual void Finish() override;
 
     // IPersistent implementation.
-
     virtual void Persist(const TPersistenceContext& context) override;
 
 protected:
@@ -256,7 +254,7 @@ public:
 
 private:
     TChunkStripePtr Stripe_;
-    TChunkStripePtr OriginalStripe_ = nullptr;
+    TChunkStripePtr OriginalStripe_;
     bool Suspended_ = false;
     TChunkStripeStatistics Statistics_;
 };
