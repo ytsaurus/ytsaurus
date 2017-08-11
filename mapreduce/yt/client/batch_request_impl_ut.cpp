@@ -104,7 +104,6 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestImpl) {
                 "<no-request-id>",
                 testRetryPolicy,
                 &retryBatch,
-                nullptr,
                 now);
 
         UNIT_ASSERT_VALUES_EQUAL(batchRequest.BatchSize(), 0);
