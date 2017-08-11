@@ -180,9 +180,9 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Tokenize(const TString
     };
 
     auto addToken = [&] (EBooleanFormulaTokenType type) {
-        result.push_back(TBooleanFormulaToken{type, end});
+        result.push_back(TBooleanFormulaToken{.Type = type, .Position = end});
     };
-    
+
     for (end = 0; end < formula.Size(); ++end) {
         switch (formula[end]) {
             case '|':
