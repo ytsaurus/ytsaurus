@@ -25,6 +25,12 @@ public:
     virtual NThreading::TFuture<void> Watch() override;
     virtual yvector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) override;
 
+    void UpdateOperationStatus(const TNode& operationNode);
+
+    TMaybe<TYtError> GetError() const;
+    TString GetOperationState() const;
+    bool IsInProgress() const;
+
 private:
     void SetOperationFinished(const TMaybe<TOperationFailedError>& maybeError);
 
@@ -32,7 +38,8 @@ private:
     class TOperationPollerItem;
 
 private:
-    TOperationId Id_;
+    const TOperationId Id_;
+
     TClientPtr Client_;
     TMaybe<NThreading::TPromise<void>> CompletePromise_;
     TMutex Lock_;
