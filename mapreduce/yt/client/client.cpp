@@ -465,6 +465,16 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     }
 }
 
+TBatchRequestPtr TClientBase::CreateBatchRequest()
+{
+    return MakeIntrusive<TBatchRequest>(TransactionId_, GetParentClient());
+}
+
+const TAuth& TClientBase::GetAuth() const
+{
+    return Auth_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(
@@ -728,49 +738,6 @@ ui64 TClient::GenerateTimestamp()
     THttpHeader header("GET", "generate_timestamp");
     auto response = RetryRequest(Auth_, header, "", true);
     return NodeFromYsonString(response).AsUint64();
-}
-
-void TClient::ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOptions& options)
-{
-    if (request.Impl_->IsExecuted()) {
-        ythrow yexception() << "Cannot execute batch request since it is alredy executed";
-    }
-    NDetail::TFinallyGuard g([&] {
-        request.Impl_->MarkExecuted();
-    });
-
-    NDetail::TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
-
-    const auto concurrency = options.Concurrency_.GetOrElse(50);
-    const auto batchPartMaxSize = options.BatchPartMaxSize_.GetOrElse(concurrency * 5);
-
-    while (request.Impl_->BatchSize()) {
-        NDetail::TBatchRequestImpl retryBatch;
-
-        while (request.Impl_->BatchSize()) {
-            auto parameters = TNode::CreateMap();
-            TInstant nextTry;
-            request.Impl_->FillParameterList(batchPartMaxSize, &parameters["requests"], &nextTry);
-            if (nextTry) {
-                SleepUntil(nextTry);
-            }
-            parameters["concurrency"] = concurrency;
-            auto body = NodeToYsonString(parameters);
-            THttpHeader header("POST", "execute_batch");
-            header.AddMutationId();
-            NDetail::TResponseInfo result;
-            try {
-                result = RetryRequest(Auth_, header, body, retryPolicy);
-            } catch (const yexception& e) {
-                request.Impl_->SetErrorResult(std::current_exception());
-                retryBatch.SetErrorResult(std::current_exception());
-                throw;
-            }
-            request.Impl_->ParseResponse(std::move(result), retryPolicy, &retryBatch, this);
-        }
-
-        *request.Impl_ = std::move(retryBatch);
-    }
 }
 
 TYtPoller& TClient::GetYtPoller()

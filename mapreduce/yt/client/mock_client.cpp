@@ -405,8 +405,8 @@ void TMockClient::AlterTableReplica(
     ythrow yexception() << "not implemented";
 }
 
-void TMockClient::ExecuteBatch(const TBatchRequest& /*batchRequest*/, const TExecuteBatchOptions& /*options*/) {
-    ythrow yexception() << "not implemented";
+TBatchRequestPtr TMockClient::CreateBatchRequest() {
+    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
