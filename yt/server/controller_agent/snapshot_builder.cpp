@@ -126,7 +126,7 @@ TFuture<void> TSnapshotBuilder::Run()
 
     ControllersSuspended_ = true;
 
-    auto forkFuture = VoidFuture;
+    TFuture<void> forkFuture;
     PROFILE_TIMING ("/fork_time") {
         forkFuture = Fork();
     }
