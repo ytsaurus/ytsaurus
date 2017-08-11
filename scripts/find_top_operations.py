@@ -86,6 +86,26 @@ class Operation(object):
         else:
             return None
 
+    def get_input_table_count(self):
+        if not self._attrs.is_ok():
+            self.errors.append(self._attrs.get_error())
+            return None
+        spec = self._attrs.get_result()["spec"]
+        if "input_table_paths" in spec:
+            return len(spec["input_table_paths"])
+        else:
+            return 1
+
+    def get_output_table_count(self):
+        if not self._attrs.is_ok():
+            self.errors.append(self._attrs.get_error())
+            return None
+        spec = self._attrs.get_result()["spec"]
+        if "output_table_paths" in spec:
+            return len(spec["output_table_paths"])
+        else:
+            return 1
+
     def get_snapshot_size(self):
         if not self._snapshot_size.is_ok():
             self.errors.append(self._snapshot_size.get_error())
@@ -151,7 +171,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze running scheduler state.")
     parser.add_argument("-k", type=int, default=10, help="Number of operation to show (default: 10)")
     parser.add_argument("--proxy", help='Proxy alias')
-    parser.add_argument("--top-by", choices=["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "slice-count"], default="job-count")
+    parser.add_argument("--top-by", choices=["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "slice-count", "input-table-count", "output-table-count"], default="job-count")
     parser.add_argument("--in-account", help="Count resource usage only in this account")
     parser.add_argument("--show-errors", default=False, action="store_true")
 
@@ -169,6 +189,10 @@ if __name__ == "__main__":
         report_operations(operations, args.k, lambda op: op.get_job_count(), args.top_by)
     elif args.top_by == "slice-count":
         report_operations(operations, args.k, lambda op: op.get_slice_count(), args.top_by)
+    elif args.top_by == "input-table-count":
+        report_operations(operations, args.k, lambda op: op.get_input_table_count(), args.top_by)
+    elif args.top_by == "output-table-count":
+        report_operations(operations, args.k, lambda op: op.get_output_table_count(), args.top_by)
     elif args.top_by == "snapshot-size":
         for op in operations:
             op.fetch_snapshot_size()
