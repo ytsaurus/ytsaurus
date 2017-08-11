@@ -82,14 +82,15 @@ TFuture<void> TSnapshotBuilder::Run()
 
         auto job = New<TSnapshotJob>();
         job->Operation = operation;
+        job->Controller = operation->GetController();
         auto pipe = TPipeFactory().Create();
         job->Reader = pipe.CreateAsyncReader();
         job->OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
         job->Suspended = false;
         Jobs_.push_back(job);
 
-        operationSuspendFutures.push_back(operation
-            ->GetController()
+        operationSuspendFutures.push_back(job
+            ->Controller
             ->Suspend().Apply(
                 BIND([=, this_ = MakeStrong(this)] () {
                     if (!ControllersSuspended_) {
@@ -134,9 +135,7 @@ TFuture<void> TSnapshotBuilder::Run()
     LOG_INFO("Resuming controllers");
 
     for (const auto& job : Jobs_) {
-        if (job->Operation->GetController()) {
-            job->Operation->GetController()->Resume();
-        }
+        job->Controller->Resume();
     }
 
     LOG_INFO("Controllers resumed");
