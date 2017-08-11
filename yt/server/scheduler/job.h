@@ -109,6 +109,7 @@ struct TJobSummary
     TJobSummary() = default;
     TJobSummary(const TJobPtr& job, TJobStatus* status);
     TJobSummary(const TJobId& id, EJobState state);
+    virtual ~TJobSummary() = default;
 
     TJobResult Result;
     TJobId Id;
