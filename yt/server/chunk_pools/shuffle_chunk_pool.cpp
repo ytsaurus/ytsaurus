@@ -3,6 +3,7 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/ref_tracked.h>
 
 namespace NYT {
 namespace NChunkPools {
@@ -24,6 +25,7 @@ class TShuffleChunkPool
     : public TChunkPoolInputBase
     , public IShuffleChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    , public TRefTracked<TShuffleChunkPool>
 {
 public:
     //! For persistence only.
