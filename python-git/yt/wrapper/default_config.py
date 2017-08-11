@@ -4,6 +4,7 @@ from .mappings import VerifiedDict
 from yt.yson import YsonEntity
 
 from copy import deepcopy
+import tempfile
 
 # pydoc :: default_config :: begin
 
@@ -306,7 +307,7 @@ default_config = {
     # TODO(ignat): make sections about local temp and remote temp.
     # Remove temporary files after creation.
     "clear_local_temp_files": True,
-    "local_temp_directory": "/tmp",
+    "local_temp_directory": tempfile.gettempdir(),
 
     # Path to remote directories for temporary files and tables.
     "remote_temp_files_directory": "//tmp/yt_wrapper/file_storage",
