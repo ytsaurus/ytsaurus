@@ -228,3 +228,13 @@ class TestSpecBuilders(object):
                 failures += 1
 
         assert failures <= 1
+
+    def test_preserve_user_spec_between_invocations(self):
+        input_ = TEST_DIR + "/input"
+        output = TEST_DIR + "/output"
+        yt.write_table(input_, [{"x": 1}, {"y": 2}])
+        spec = {"weight": 100.0, "title": "Test operation"}
+
+        yt.run_sort(input_, input_, sort_by=["x"], spec=spec)
+        yt.run_map("cat", input_, output, format="json", spec=spec)
+        yt.run_map_reduce(None, "cat", input_, output, reduce_by=["x"], format="json", spec=spec)

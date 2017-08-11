@@ -527,7 +527,7 @@ class SpecBuilder(object):
         return _set_spec_value(self, "stderr_table_path", path)
 
     def spec(self, spec):
-        self._user_spec = spec
+        self._user_spec = deepcopy(spec)
         return self
 
     def job_io(self, job_io_spec):
