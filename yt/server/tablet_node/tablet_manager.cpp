@@ -1352,8 +1352,8 @@ private:
                 TWriteContext context;
                 context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
-                YCHECK(storeManager->ExecuteWrites(&reader, &context));
                 UpdateLastCommitTimestamp(tablet, nullptr, context.CommitTimestamp);
+                YCHECK(storeManager->ExecuteWrites(&reader, &context));
 
                 LOG_DEBUG_UNLESS(IsRecovery(), "Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
                     "RowCount: %v, WriteRecordSize: %v, Signature: %x)",
@@ -2051,8 +2051,8 @@ private:
             }
 
             ++lockedRowCount;
-            rowRef.StoreManager->CommitRow(transaction, rowRef);
             UpdateLastCommitTimestamp(rowRef.Store->GetTablet(), transaction, transaction->GetCommitTimestamp());
+            rowRef.StoreManager->CommitRow(transaction, rowRef);
         }
         lockedRows.clear();
 
@@ -2073,9 +2073,9 @@ private:
 
             TWireProtocolReader reader(record.Data);
 
+            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
-            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
 
             locklessRowCount += context.RowCount;
         }
@@ -2174,9 +2174,9 @@ private:
 
             TWireProtocolReader reader(record.Data);
 
+            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
-            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
 
             rowCount += context.RowCount;
         }
