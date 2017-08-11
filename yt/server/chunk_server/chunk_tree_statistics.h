@@ -28,7 +28,7 @@ struct TChunkTreeStatistics
     //! Sum of compressed data sizes of chunks in the tree.
     i64 CompressedDataSize = 0;
 
-    //! Sum of data weights of chunks in the tree.
+    //! Sum of data weights of chunks in the tree. Equals -1 if chunk tree contains old chunks.
     i64 DataWeight = 0;
 
     //! Disk space occupied on data nodes by regular chunks (without replication).
