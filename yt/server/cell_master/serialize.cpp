@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 611;
+    return 612;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -40,7 +40,8 @@ bool ValidateSnapshotVersion(int version)
         version == 608 ||
         version == 609 ||
         version == 610 ||
-        version == 611;
+        version == 611 ||
+        version == 612;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

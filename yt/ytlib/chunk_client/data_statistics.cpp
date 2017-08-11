@@ -18,6 +18,11 @@ using ::FromString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool HasInvalidDataWeight(const TDataStatistics& statistics)
+{
+    return statistics.has_data_weight() && statistics.data_weight() == -1;
+}
+
 TDataStatistics& operator += (TDataStatistics& lhs, const TDataStatistics& rhs)
 {
     lhs.set_uncompressed_data_size(lhs.uncompressed_data_size() + rhs.uncompressed_data_size());
@@ -26,7 +31,12 @@ TDataStatistics& operator += (TDataStatistics& lhs, const TDataStatistics& rhs)
     lhs.set_row_count(lhs.row_count() + rhs.row_count());
     lhs.set_regular_disk_space(lhs.regular_disk_space() + rhs.regular_disk_space());
     lhs.set_erasure_disk_space(lhs.erasure_disk_space() + rhs.erasure_disk_space());
-    lhs.set_data_weight(lhs.data_weight() + rhs.data_weight());
+
+    if (HasInvalidDataWeight(lhs) || HasInvalidDataWeight(rhs)) {
+        lhs.set_data_weight(-1);
+    } else {
+        lhs.set_data_weight(lhs.data_weight() + rhs.data_weight());
+    }
 
     return lhs;
 }
@@ -45,8 +55,12 @@ TDataStatistics& operator -= (TDataStatistics& lhs, const TDataStatistics& rhs)
     lhs.set_chunk_count(lhs.chunk_count() - rhs.chunk_count());
     lhs.set_row_count(lhs.row_count() - rhs.row_count());
     lhs.set_regular_disk_space(lhs.regular_disk_space() - rhs.regular_disk_space());
-    lhs.set_data_weight(lhs.data_weight() - rhs.data_weight());
 
+    if (HasInvalidDataWeight(lhs) || HasInvalidDataWeight(rhs)) {
+        lhs.set_data_weight(-1);
+    } else {
+        lhs.set_data_weight(lhs.data_weight() - rhs.data_weight());
+    }
 
     return lhs;
 }
@@ -67,7 +81,7 @@ bool operator == (const TDataStatistics& lhs, const TDataStatistics& rhs)
         lhs.chunk_count() == rhs.chunk_count() &&
         lhs.regular_disk_space() == rhs.regular_disk_space() &&
         lhs.erasure_disk_space() == rhs.erasure_disk_space() &&
-        lhs.data_weight() == rhs.data_weight();
+        (HasInvalidDataWeight(lhs) || HasInvalidDataWeight(rhs) || lhs.data_weight() == rhs.data_weight());
 }
 
 bool operator != (const TDataStatistics& lhs, const TDataStatistics& rhs)

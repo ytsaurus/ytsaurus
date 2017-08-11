@@ -24,16 +24,25 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table") == []
         assert get("//tmp/table/@row_count") == 0
         assert get("//tmp/table/@chunk_count") == 0
+        assert get("//tmp/table/@uncompressed_data_size") == 0
+        assert get("//tmp/table/@compressed_data_size") == 0
+        assert get("//tmp/table/@data_weight") == 0
 
         write_table("//tmp/table", {"b": "hello"})
         assert read_table("//tmp/table") == [{"b":"hello"}]
         assert get("//tmp/table/@row_count") == 1
         assert get("//tmp/table/@chunk_count") == 1
+        assert get("//tmp/table/@uncompressed_data_size") == 13
+        assert get("//tmp/table/@compressed_data_size") == 39
+        assert get("//tmp/table/@data_weight") == 6
 
         write_table("<append=true>//tmp/table", [{"b": "2", "a": "1"}, {"x": "10", "y": "20", "a": "30"}])
         assert read_table("//tmp/table") == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get("//tmp/table/@row_count") == 3
         assert get("//tmp/table/@chunk_count") == 2
+        assert get("//tmp/table/@uncompressed_data_size") == 46
+        assert get("//tmp/table/@compressed_data_size") == 99
+        assert get("//tmp/table/@data_weight") == 16
 
     def test_sorted_write_table(self):
         create("table", "//tmp/table")
