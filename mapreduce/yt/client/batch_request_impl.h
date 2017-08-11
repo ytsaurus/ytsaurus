@@ -29,13 +29,12 @@ class TBatchRequestImpl
     : public TThrRefBase
 {
 public:
-    struct TResponseContext;
     struct IResponseItemParser
         : public TThrRefBase
     {
         ~IResponseItemParser() = default;
 
-        virtual void SetResponse(TMaybe<TNode> node, const TResponseContext&) = 0;
+        virtual void SetResponse(TMaybe<TNode> node) = 0;
         virtual void SetException(std::exception_ptr e) = 0;
     };
 
@@ -54,14 +53,12 @@ public:
         const TResponseInfo& requestResult,
         const IRetryPolicy& retryPolicy,
         TBatchRequestImpl* retryBatch,
-        const TClientPtr& client,
         TInstant now = TInstant::Now());
     void ParseResponse(
         TNode response,
         const TString& requestId,
         const IRetryPolicy& retryPolicy,
         TBatchRequestImpl* retryBatch,
-        const TClientPtr& client,
         TInstant now = TInstant::Now());
     void SetErrorResult(std::exception_ptr e) const;
 
@@ -104,7 +101,7 @@ public:
         const TYPath& targetPath,
         const TYPath& linkPath,
         const TLinkOptions& options);
-    NThreading::TFuture<ILockPtr> Lock(
+    NThreading::TFuture<TLockId> Lock(
         const TTransactionId& transaction,
         const TYPath& path,
         ELockMode mode, const TLockOptions& options);
@@ -177,7 +174,6 @@ public:
         const TYPath& path,
         const TListOptions& options = TListOptions()) override;
 
-
     virtual NThreading::TFuture<TNodeId> Copy(
         const TYPath& sourcePath,
         const TYPath& destinationPath,
@@ -203,7 +199,7 @@ public:
     virtual void ExecuteBatch(const TExecuteBatchOptions& executeBatch) override;
 
 private:
-    TBatchRequest(NDetail::TBatchRequestImpl* impl);
+    TBatchRequest(NDetail::TBatchRequestImpl* impl, ::TIntrusivePtr<TClient> client);
 
 private:
     TTransactionId DefaultTransaction_;
