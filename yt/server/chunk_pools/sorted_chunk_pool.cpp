@@ -238,7 +238,7 @@ private:
 
     void SortEndpoints()
     {
-        LOG_DEBUG("Sorting %v endpoints", static_cast<int>(Endpoints_.size()));
+        LOG_DEBUG("Sorting endpoints (Count: %v)", Endpoints_.size());
         std::sort(
             Endpoints_.begin(),
             Endpoints_.end(),
@@ -283,7 +283,7 @@ private:
                     ? MakeNullable(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
                     : Null,
                     endpoint.Type,
-                    static_cast<void*>(endpoint.DataSlice.Get()));
+                    endpoint.DataSlice.Get());
             }
         }
     }
@@ -413,7 +413,7 @@ private:
         if (!Jobs_.empty() && Jobs_.back()->GetSliceCount() == 0) {
             Jobs_.pop_back();
         }
-        LOG_DEBUG("Created %v jobs", Jobs_.size());
+        LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
     }
 
     void AttachForeignSlices()
@@ -1083,7 +1083,9 @@ private:
             totalTeleportChunkSize += teleportChunk->GetUncompressedDataSize();
         }
 
-        LOG_DEBUG("Teleported %v chunks of total size %v", TeleportChunks_.size(), totalTeleportChunkSize);
+        LOG_DEBUG("Chunks teleported (ChunkCount: %v, TotalSize: %v)",
+            TeleportChunks_.size(),
+            totalTeleportChunkSize);
     }
 
     void PrepareForeignDataSlices(const TSortedJobBuilderPtr& builder)

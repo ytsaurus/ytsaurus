@@ -661,7 +661,7 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterValidator([&] () {
         auto throwError = [] (NTableClient::EControlAttribute attribute, const TString& jobType) {
             THROW_ERROR_EXCEPTION(
-                "%Qlv contol attribute is not supported by %v jobs in map-reduce operation",
+                "%Qlv control attribute is not supported by %Qlv jobs in map-reduce operation",
                 attribute,
                 jobType);
         };
