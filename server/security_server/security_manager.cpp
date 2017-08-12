@@ -120,7 +120,7 @@ public:
         return EObjectType::Account;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual IObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -164,7 +164,7 @@ public:
             ETypeFlags::Creatable;
     }
 
-    virtual TCellTagList GetReplicationCellTags(const TObjectBase* /*object*/) override
+    virtual TCellTagList GetReplicationCellTags(const IObjectBase* /*object*/) override
     {
         return AllSecondaryCellTags();
     }
@@ -174,7 +174,7 @@ public:
         return EObjectType::User;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual IObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -217,7 +217,7 @@ public:
         return EObjectType::Group;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual IObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -734,21 +734,21 @@ public:
     }
 
 
-    TAccessControlDescriptor* FindAcd(TObjectBase* object)
+    TAccessControlDescriptor* FindAcd(IObjectBase* object)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
         return handler->FindAcd(object);
     }
 
-    TAccessControlDescriptor* GetAcd(TObjectBase* object)
+    TAccessControlDescriptor* GetAcd(IObjectBase* object)
     {
         auto* acd = FindAcd(object);
         YCHECK(acd);
         return acd;
     }
 
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object)
+    TAccessControlList GetEffectiveAcl(NObjectServer::IObjectBase* object)
     {
         TAccessControlList result;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -805,7 +805,7 @@ public:
     }
 
     TPermissionCheckResult CheckPermission(
-        TObjectBase* object,
+        IObjectBase* object,
         TUser* user,
         EPermission permission)
     {
@@ -908,7 +908,7 @@ public:
     }
 
     void ValidatePermission(
-        TObjectBase* object,
+        IObjectBase* object,
         TUser* user,
         EPermission permission)
     {
@@ -949,7 +949,7 @@ public:
     }
 
     void ValidatePermission(
-        TObjectBase* object,
+        IObjectBase* object,
         EPermission permission)
     {
         ValidatePermission(
@@ -2125,7 +2125,7 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
+IObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
@@ -2154,7 +2154,7 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
+IObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
@@ -2183,7 +2183,7 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
+IObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
@@ -2358,17 +2358,17 @@ void TSecurityManager::RenameSubject(TSubject* subject, const TString& newName)
     Impl_->RenameSubject(subject, newName);
 }
 
-TAccessControlDescriptor* TSecurityManager::FindAcd(TObjectBase* object)
+TAccessControlDescriptor* TSecurityManager::FindAcd(IObjectBase* object)
 {
     return Impl_->FindAcd(object);
 }
 
-TAccessControlDescriptor* TSecurityManager::GetAcd(TObjectBase* object)
+TAccessControlDescriptor* TSecurityManager::GetAcd(IObjectBase* object)
 {
     return Impl_->GetAcd(object);
 }
 
-TAccessControlList TSecurityManager::GetEffectiveAcl(TObjectBase* object)
+TAccessControlList TSecurityManager::GetEffectiveAcl(IObjectBase* object)
 {
     return Impl_->GetEffectiveAcl(object);
 }
@@ -2389,7 +2389,7 @@ TUser* TSecurityManager::GetAuthenticatedUser()
 }
 
 TPermissionCheckResult TSecurityManager::CheckPermission(
-    TObjectBase* object,
+    IObjectBase* object,
     TUser* user,
     EPermission permission)
 {
@@ -2400,7 +2400,7 @@ TPermissionCheckResult TSecurityManager::CheckPermission(
 }
 
 void TSecurityManager::ValidatePermission(
-    TObjectBase* object,
+    IObjectBase* object,
     TUser* user,
     EPermission permission)
 {
@@ -2411,7 +2411,7 @@ void TSecurityManager::ValidatePermission(
 }
 
 void TSecurityManager::ValidatePermission(
-    TObjectBase* object,
+    IObjectBase* object,
     EPermission permission)
 {
     Impl_->ValidatePermission(

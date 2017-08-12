@@ -10,7 +10,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkedOutputStream
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
     TChunkedOutputStream(

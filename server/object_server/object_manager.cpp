@@ -437,7 +437,7 @@ IYPathServicePtr TObjectManager::GetRootService()
     return RootService_;
 }
 
-TObjectBase* TObjectManager::GetMasterObject()
+IObjectBase* TObjectManager::GetMasterObject()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -451,14 +451,14 @@ IObjectProxyPtr TObjectManager::GetMasterProxy()
     return MasterProxy_;
 }
 
-TObjectBase* TObjectManager::FindSchema(EObjectType type)
+IObjectBase* TObjectManager::FindSchema(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return TypeToEntry_[type].SchemaObject;
 }
 
-TObjectBase* TObjectManager::GetSchema(EObjectType type)
+IObjectBase* TObjectManager::GetSchema(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -521,7 +521,7 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
     return handler;
 }
 
-const IObjectTypeHandlerPtr& TObjectManager::GetHandler(const TObjectBase* object) const
+const IObjectTypeHandlerPtr& TObjectManager::GetHandler(const IObjectBase* object) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -555,7 +555,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
     return id;
 }
 
-int TObjectManager::RefObject(TObjectBase* object)
+int TObjectManager::RefObject(IObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(!object->IsDestroyed());
@@ -574,7 +574,7 @@ int TObjectManager::RefObject(TObjectBase* object)
     return refCounter;
 }
 
-int TObjectManager::UnrefObject(TObjectBase* object, int count)
+int TObjectManager::UnrefObject(IObjectBase* object, int count)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(object->IsAlive());
@@ -607,22 +607,22 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
     return refCounter;
 }
 
-int TObjectManager::GetObjectRefCounter(TObjectBase* object)
+int TObjectManager::GetObjectRefCounter(IObjectBase* object)
 {
     return object->GetObjectRefCounter();
 }
 
-int TObjectManager::WeakRefObject(TObjectBase* object)
+int TObjectManager::WeakRefObject(IObjectBase* object)
 {
     return GarbageCollector_->WeakRefObject(object, CurrentEpoch_);
 }
 
-int TObjectManager::WeakUnrefObject(TObjectBase* object)
+int TObjectManager::WeakUnrefObject(IObjectBase* object)
 {
     return GarbageCollector_->WeakUnrefObject(object, CurrentEpoch_);
 }
 
-int TObjectManager::GetObjectWeakRefCounter(TObjectBase* object)
+int TObjectManager::GetObjectWeakRefCounter(IObjectBase* object)
 {
     return object->GetObjectWeakRefCounter(CurrentEpoch_);
 }
@@ -738,7 +738,7 @@ void TObjectManager::OnStopLeading()
     GarbageCollector_->Stop();
 }
 
-TObjectBase* TObjectManager::FindObject(const TObjectId& id)
+IObjectBase* TObjectManager::FindObject(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -750,7 +750,7 @@ TObjectBase* TObjectManager::FindObject(const TObjectId& id)
     return handler->FindObject(id);
 }
 
-TObjectBase* TObjectManager::GetObject(const TObjectId& id)
+IObjectBase* TObjectManager::GetObject(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -759,7 +759,7 @@ TObjectBase* TObjectManager::GetObject(const TObjectId& id)
     return object;
 }
 
-TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
+IObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -780,7 +780,7 @@ IYPathServicePtr TObjectManager::CreateRemoteProxy(const TObjectId& id)
 }
 
 IObjectProxyPtr TObjectManager::GetProxy(
-    TObjectBase* object,
+    IObjectBase* object,
     TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -796,16 +796,16 @@ IObjectProxyPtr TObjectManager::GetProxy(
 }
 
 void TObjectManager::BranchAttributes(
-    const TObjectBase* /*originatingObject*/,
-    TObjectBase* /*branchedObject*/)
+    const IObjectBase* /*originatingObject*/,
+    IObjectBase* /*branchedObject*/)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     // We don't store empty deltas at the moment
 }
 
 void TObjectManager::MergeAttributes(
-    TObjectBase* originatingObject,
-    const TObjectBase* branchedObject)
+    IObjectBase* originatingObject,
+    const IObjectBase* branchedObject)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -828,7 +828,7 @@ void TObjectManager::MergeAttributes(
 }
 
 void TObjectManager::FillAttributes(
-    TObjectBase* object,
+    IObjectBase* object,
     const IAttributeDictionary& attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -887,7 +887,7 @@ TFuture<void> TObjectManager::GCCollect()
     return GarbageCollector_->Collect();
 }
 
-TObjectBase* TObjectManager::CreateObject(
+IObjectBase* TObjectManager::CreateObject(
     const TObjectId& hintId,
     EObjectType type,
     IAttributeDictionary* attributes)
@@ -1075,14 +1075,14 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
 }
 
 void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
-    TObjectBase* object,
+    IObjectBase* object,
     TCellTag cellTag)
 {
     ReplicateObjectCreationToSecondaryMasters(object, {cellTag});
 }
 
 void TObjectManager::ReplicateObjectCreationToSecondaryMasters(
-    TObjectBase* object,
+    IObjectBase* object,
     const TCellTagList& cellTags)
 {
     if (cellTags.empty()) {
@@ -1103,7 +1103,7 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMasters(
 }
 
 void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
-    TObjectBase* object,
+    IObjectBase* object,
     TCellTag cellTag)
 {
     auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");
@@ -1305,7 +1305,7 @@ void TObjectManager::OnProfiling()
 }
 
 std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttributes(
-    TObjectBase* object,
+    IObjectBase* object,
     bool mandatory)
 {
     YCHECK(!IsVersionedType(object->GetType()));

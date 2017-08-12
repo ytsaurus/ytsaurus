@@ -25,7 +25,7 @@ namespace NFileClient {
  *  Finally it must call #Finish.
  */
 class TFileChunkOutput
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
     //! Initializes an instance.

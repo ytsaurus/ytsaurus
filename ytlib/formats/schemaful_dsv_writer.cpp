@@ -244,7 +244,7 @@ public:
     }
 
 private:
-    std::unique_ptr<TOutputStream> Output_;
+    std::unique_ptr<IOutputStream> Output_;
 
     // TODO(max42): Eliminate copy-paste from schemaless_writer_adapter.cpp.
     void TryFlushBuffer(bool force)

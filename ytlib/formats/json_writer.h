@@ -44,7 +44,7 @@ namespace NFormats {
  */
 
 std::unique_ptr<NYson::IFlushableYsonConsumer> CreateJsonConsumer(
-    TOutputStream* output,
+    IOutputStream* output,
     NYson::EYsonType type = NYson::EYsonType::Node,
     TJsonFormatConfigPtr config = New<TJsonFormatConfig>());
 

@@ -8,7 +8,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlobOutput
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
     TBlobOutput();

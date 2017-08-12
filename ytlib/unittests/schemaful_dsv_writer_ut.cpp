@@ -58,7 +58,7 @@ protected:
         Writer_ = CreateSchemalessWriterForSchemafulDsv(
             Config_,
             NameTable_,
-            CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
+            CreateAsyncAdapter(static_cast<IOutputStream*>(&OutputStream_)),
             false, // enableContextSaving
             controlAttributesConfig,
             0 /* keyColumnCount */);

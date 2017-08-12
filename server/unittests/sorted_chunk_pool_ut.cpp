@@ -2782,7 +2782,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     // Set this to true when debugging locally. It helps a lot to understand what happens.
     constexpr bool EnableDebugOutput = false;
-    TOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
+    IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 
     while (completedChunks.size() < chunkCount) {
         EXPECT_FALSE(ChunkPool_->IsCompleted());

@@ -14,12 +14,12 @@ using namespace NTableServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableReplica::TTableReplica(const TTableReplicaId& id)
-    : TObjectBase(id)
+    : IObjectBase(id)
 { }
 
 void TTableReplica::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    IObjectBase::Save(context);
 
     using NYT::Save;
     Save(context, ClusterName_);
@@ -33,7 +33,7 @@ void TTableReplica::Save(NCellMaster::TSaveContext& context) const
 
 void TTableReplica::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    IObjectBase::Load(context);
 
     using NYT::Load;
     Load(context, ClusterName_);

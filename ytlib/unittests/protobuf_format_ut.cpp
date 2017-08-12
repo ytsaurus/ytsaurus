@@ -375,7 +375,7 @@ private:
 class TLenvalParser
 {
 public:
-    explicit TLenvalParser(TInputStream* input)
+    explicit TLenvalParser(IInputStream* input)
         : Input_(input)
     { }
 
@@ -412,7 +412,7 @@ public:
         }
     }
 private:
-    TInputStream* Input_;
+    IInputStream* Input_;
     ui32 CurrentTableIndex_ = 0;
 };
 

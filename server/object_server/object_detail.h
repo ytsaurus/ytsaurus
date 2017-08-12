@@ -34,7 +34,7 @@ public:
     TObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
-        TObjectBase* object);
+        IObjectBase* object);
 
     virtual bool ShouldHideAttributes() override;
 
@@ -52,7 +52,7 @@ public:
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     TObjectTypeMetadata* const Metadata_;
-    TObjectBase* const Object_;
+    IObjectBase* const Object_;
 
     NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
@@ -122,7 +122,7 @@ protected:
         NYTree::EPermission permission) override;
 
     void ValidatePermission(
-        TObjectBase* object,
+        IObjectBase* object,
         NYTree::EPermission permission);
 
     bool IsRecovery() const;
@@ -154,7 +154,7 @@ public:
     TNontemplateNonversionedObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
-        TObjectBase* object);
+        IObjectBase* object);
 
 protected:
     class TCustomAttributeDictionary

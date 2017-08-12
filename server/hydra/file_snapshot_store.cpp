@@ -92,9 +92,9 @@ private:
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TFileInput> FileInput_;
-    std::unique_ptr<TInputStream> CodecInput_;
-    std::unique_ptr<TInputStream> FakeCheckpointableInput_;
-    TInputStream* FacadeInput_;
+    std::unique_ptr<IInputStream> CodecInput_;
+    std::unique_ptr<IInputStream> FakeCheckpointableInput_;
+    IInputStream* FacadeInput_;
 
     TSnapshotHeader Header_;
     TSnapshotMeta Meta_;
@@ -279,11 +279,11 @@ private:
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TFileOutput> FileOutput_;
-    std::unique_ptr<TOutputStream> CodecOutput_;
+    std::unique_ptr<IOutputStream> CodecOutput_;
     std::unique_ptr<TChecksumOutput> ChecksumOutput_;
     std::unique_ptr<TLengthMeasureOutputStream> LengthMeasureOutput_;
-    std::unique_ptr<TOutputStream> CheckpointableOutput_;
-    TOutputStream* FacadeOutput_ = nullptr;
+    std::unique_ptr<IOutputStream> CheckpointableOutput_;
+    IOutputStream* FacadeOutput_ = nullptr;
 
     NLogging::TLogger Logger = HydraLogger;
 

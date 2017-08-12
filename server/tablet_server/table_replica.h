@@ -19,7 +19,7 @@ namespace NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableReplica
-    : public NObjectServer::TObjectBase
+    : public NObjectServer::IObjectBase
     , public TRefTracked<TTableReplica>
 {
 public:

@@ -24,7 +24,7 @@ public:
     virtual void Init() override;
 
     virtual std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const override;
-    virtual TOutputStream* GetStderrTableWriter() const override;
+    virtual IOutputStream* GetStderrTableWriter() const override;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
     virtual void PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;

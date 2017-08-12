@@ -34,7 +34,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableOutput
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
     TTableOutput(const NFormats::TFormat& format, NYson::IYsonConsumer* consumer);
@@ -62,13 +62,13 @@ void PipeReaderToWriter(
     NConcurrency::IThroughputThrottlerPtr throttler = nullptr);
 
 void PipeInputToOutput(
-    TInputStream* input,
-    TOutputStream* output,
+    IInputStream* input,
+    IOutputStream* output,
     i64 bufferBlockSize);
 
 void PipeInputToOutput(
     NConcurrency::IAsyncInputStreamPtr input,
-    TOutputStream* output,
+    IOutputStream* output,
     i64 bufferBlockSize);
 
 

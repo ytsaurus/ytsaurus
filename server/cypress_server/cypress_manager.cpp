@@ -385,20 +385,20 @@ public:
         return UnderlyingHandler_->GetObjectType();
     }
 
-    virtual TObjectBase* FindObject(const TObjectId& id) override
+    virtual IObjectBase* FindObject(const TObjectId& id) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual IObjectBase* CreateObject(
         const TObjectId& /*hintId*/,
         IAttributeDictionary* /*attributes*/) override
     {
         THROW_ERROR_EXCEPTION("Cypress nodes cannot be created via this call");
     }
 
-    virtual void DestroyObject(TObjectBase* object) throw();
+    virtual void DestroyObject(IObjectBase* object) throw();
 
 private:
     TImpl* const Owner_;
@@ -426,7 +426,7 @@ private:
         return &node->GetTrunkNode()->Acd();
     }
 
-    virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override
+    virtual IObjectBase* DoGetParent(TCypressNodeBase* node) override
     {
         return node->GetParent();
     }
@@ -2317,7 +2317,7 @@ TCypressManager::TNodeTypeHandler::TNodeTypeHandler(
     , UnderlyingHandler_(underlyingHandler)
 { }
 
-void TCypressManager::TNodeTypeHandler::DestroyObject(TObjectBase* object) throw()
+void TCypressManager::TNodeTypeHandler::DestroyObject(IObjectBase* object) throw()
 {
     Owner_->DestroyNode(object->As<TCypressNodeBase>());
 }

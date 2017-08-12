@@ -8,14 +8,14 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TMedium::TMedium(const TMediumId& id)
-    : TObjectBase(id)
+    : IObjectBase(id)
     , Index_(-1)
     , Acd_(this)
 { }
 
 void TMedium::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    IObjectBase::Save(context);
 
     using NYT::Save;
     Save(context, Name_);
@@ -28,7 +28,7 @@ void TMedium::Save(NCellMaster::TSaveContext& context) const
 
 void TMedium::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    IObjectBase::Load(context);
 
     using NYT::Load;
     Load(context, Name_);

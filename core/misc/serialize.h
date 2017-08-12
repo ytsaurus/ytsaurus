@@ -171,12 +171,12 @@ TString MergeRefsToString(const TParts& parts)
 class TStreamSaveContext
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TOutputStream*, Output);
+    DEFINE_BYVAL_RW_PROPERTY(IOutputStream*, Output);
     DEFINE_BYVAL_RW_PROPERTY(int, Version);
 
 public:
     TStreamSaveContext();
-    explicit TStreamSaveContext(TOutputStream* output);
+    explicit TStreamSaveContext(IOutputStream* output);
 
 };
 
@@ -185,13 +185,13 @@ public:
 class TStreamLoadContext
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TInputStream*, Input);
+    DEFINE_BYVAL_RW_PROPERTY(IInputStream*, Input);
     DEFINE_BYREF_RW_PROPERTY(TSerializationDumper, Dumper);
     DEFINE_BYVAL_RW_PROPERTY(int, Version);
 
 public:
     TStreamLoadContext();
-    explicit TStreamLoadContext(TInputStream* input);
+    explicit TStreamLoadContext(IInputStream* input);
 
 };
 

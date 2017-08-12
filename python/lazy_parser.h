@@ -21,7 +21,7 @@ namespace NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 PyObject* ParseLazyDict(
-    TInputStream* stream,
+    IInputStream* stream,
     NYson::EYsonType parsingMode,
     const TNullable<TString>& encoding,
     bool alwaysCreateAttributes,

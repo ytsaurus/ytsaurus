@@ -74,7 +74,7 @@ public:
     const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const;
 
     //! Returns the handler for a given object.
-    const IObjectTypeHandlerPtr& GetHandler(const TObjectBase* object) const;
+    const IObjectTypeHandlerPtr& GetHandler(const IObjectBase* object) const;
 
     //! Returns the set of registered object types, excluding schemas.
     const std::set<EObjectType>& GetRegisteredTypes() const;
@@ -85,63 +85,63 @@ public:
 
     //! Adds a reference.
     //! Returns the strong reference counter.
-    int RefObject(TObjectBase* object);
+    int RefObject(IObjectBase* object);
 
     //! Removes #count references.
     //! Returns the strong reference counter.
-    int UnrefObject(TObjectBase* object, int count = 1);
+    int UnrefObject(IObjectBase* object, int count = 1);
 
     //! Returns the current strong reference counter.
-    int GetObjectRefCounter(TObjectBase* object);
+    int GetObjectRefCounter(IObjectBase* object);
 
     //! Increments the object weak reference counter thus temporarily preventing it from being destructed.
     //! Returns the weak reference counter.
-    int WeakRefObject(TObjectBase* object);
+    int WeakRefObject(IObjectBase* object);
 
     //! Decrements the object weak reference counter thus making it eligible for destruction.
     //! Returns the weak reference counter.
-    int WeakUnrefObject(TObjectBase* object);
+    int WeakUnrefObject(IObjectBase* object);
 
     //! Returns the current weak reference counter.
-    int GetObjectWeakRefCounter(TObjectBase* object);
+    int GetObjectWeakRefCounter(IObjectBase* object);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
-    TObjectBase* FindObject(const TObjectId& id);
+    IObjectBase* FindObject(const TObjectId& id);
 
     //! Finds object by id, fails if nothing is found.
-    TObjectBase* GetObject(const TObjectId& id);
+    IObjectBase* GetObject(const TObjectId& id);
 
     //! Finds object by id, throws if nothing is found.
-    TObjectBase* GetObjectOrThrow(const TObjectId& id);
+    IObjectBase* GetObjectOrThrow(const TObjectId& id);
 
     //! Creates a cross-cell read-only proxy for the object with the given #id.
     NYTree::IYPathServicePtr CreateRemoteProxy(const TObjectId& id);
 
     //! Returns a proxy for the object with the given versioned id.
     IObjectProxyPtr GetProxy(
-        TObjectBase* object,
+        IObjectBase* object,
         NTransactionServer::TTransaction* transaction = nullptr);
 
     //! Called when a versioned object is branched.
     void BranchAttributes(
-        const TObjectBase* originatingObject,
-        TObjectBase* branchedObject);
+        const IObjectBase* originatingObject,
+        IObjectBase* branchedObject);
 
     //! Called when a versioned object is merged during transaction commit.
     void MergeAttributes(
-        TObjectBase* originatingObject,
-        const TObjectBase* branchedObject);
+        IObjectBase* originatingObject,
+        const IObjectBase* branchedObject);
 
     //! Fills the attributes of a given unversioned object.
     void FillAttributes(
-        TObjectBase* object,
+        IObjectBase* object,
         const NYTree::IAttributeDictionary& attributes);
 
     //! Returns a YPath service that routes all incoming requests.
     NYTree::IYPathServicePtr GetRootService();
 
     //! Returns "master" object for handling requests sent via TMasterYPathProxy.
-    TObjectBase* GetMasterObject();
+    IObjectBase* GetMasterObject();
 
     //! Returns a proxy for master object.
     /*!
@@ -150,10 +150,10 @@ public:
     IObjectProxyPtr GetMasterProxy();
 
     //! Finds a schema object for a given type, returns |nullptr| if nothing is found.
-    TObjectBase* FindSchema(EObjectType type);
+    IObjectBase* FindSchema(EObjectType type);
 
     //! Finds a schema object for a given type, fails if nothing is found.
-    TObjectBase* GetSchema(EObjectType type);
+    IObjectBase* GetSchema(EObjectType type);
 
     //! Returns a proxy for schema object.
     /*!
@@ -179,7 +179,7 @@ public:
     //! Returns a future that gets set when the GC queues becomes empty.
     TFuture<void> GCCollect();
 
-    TObjectBase* CreateObject(
+    IObjectBase* CreateObject(
         const TObjectId& hintId,
         EObjectType type,
         NYTree::IAttributeDictionary* attributes);
@@ -197,17 +197,17 @@ public:
 
     //! Posts a creation request to the secondary master.
     void ReplicateObjectCreationToSecondaryMaster(
-        TObjectBase* object,
+        IObjectBase* object,
         TCellTag cellTag);
 
     //! Posts a creation request to secondary masters.
     void ReplicateObjectCreationToSecondaryMasters(
-        TObjectBase* object,
+        IObjectBase* object,
         const TCellTagList& cellTags);
 
     //! Posts an attribute update request to the secondary master.
     void ReplicateObjectAttributesToSecondaryMaster(
-        TObjectBase* object,
+        IObjectBase* object,
         TCellTag cellTag);
 
     const NProfiling::TProfiler& GetProfiler();
@@ -293,7 +293,7 @@ private:
     void OnProfiling();
 
     std::unique_ptr<NYTree::IAttributeDictionary> GetReplicatedAttributes(
-        TObjectBase* object,
+        IObjectBase* object,
         bool mandatory);
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag);
 

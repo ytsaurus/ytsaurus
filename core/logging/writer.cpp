@@ -159,21 +159,21 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOutputStream* TStreamLogWriter::GetOutputStream() const noexcept
+IOutputStream* TStreamLogWriter::GetOutputStream() const noexcept
 {
     return Stream_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOutputStream* TStderrLogWriter::GetOutputStream() const noexcept
+IOutputStream* TStderrLogWriter::GetOutputStream() const noexcept
 {
     return &Cerr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOutputStream* TStdoutLogWriter::GetOutputStream() const noexcept
+IOutputStream* TStdoutLogWriter::GetOutputStream() const noexcept
 {
     return &Cout;
 }
@@ -188,7 +188,7 @@ TFileLogWriter::TFileLogWriter(const TString& fileName)
 
 TFileLogWriter::~TFileLogWriter() = default;
 
-TOutputStream* TFileLogWriter::GetOutputStream() const noexcept
+IOutputStream* TFileLogWriter::GetOutputStream() const noexcept
 {
     if (Y_LIKELY(!Disabled_.load(std::memory_order_acquire))) {
         return FileOutput_.get();

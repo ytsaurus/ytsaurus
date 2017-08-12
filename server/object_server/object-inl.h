@@ -10,53 +10,53 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TObjectBase::TObjectBase(const TObjectId& id)
+inline IObjectBase::IObjectBase(const TObjectId& id)
     : Id_(id)
 {
     // This is reset to false in TCypressNodeBase ctor for non-trunk nodes.
     Flags_.Trunk = true;
 }
 
-inline TObjectBase::~TObjectBase()
+inline IObjectBase::~IObjectBase()
 {
     // To make debugging easier.
     Flags_.Disposed = true;
 }
 
-inline TObjectDynamicData* TObjectBase::GetDynamicData() const
+inline TObjectDynamicData* IObjectBase::GetDynamicData() const
 {
     return GetTypedDynamicData<TObjectDynamicData>();
 }
 
-inline void TObjectBase::SetDestroyed()
+inline void IObjectBase::SetDestroyed()
 {
     Y_ASSERT(RefCounter_ == 0);
     Flags_.Destroyed = true;
 }
 
-inline void TObjectBase::SetForeign()
+inline void IObjectBase::SetForeign()
 {
     Flags_.Foreign = true;
 }
 
-inline const TObjectId& TObjectBase::GetId() const
+inline const TObjectId& IObjectBase::GetId() const
 {
     return Id_;
 }
 
-inline int TObjectBase::RefObject()
+inline int IObjectBase::RefObject()
 {
     Y_ASSERT(RefCounter_ >= 0);
     return ++RefCounter_;
 }
 
-inline int TObjectBase::UnrefObject(int count)
+inline int IObjectBase::UnrefObject(int count)
 {
     Y_ASSERT(RefCounter_ >= count);
     return RefCounter_ -= count;
 }
 
-inline int TObjectBase::WeakRefObject(TEpoch epoch)
+inline int IObjectBase::WeakRefObject(TEpoch epoch)
 {
     YCHECK(IsAlive());
     Y_ASSERT(WeakRefCounter_ >= 0);
@@ -68,72 +68,72 @@ inline int TObjectBase::WeakRefObject(TEpoch epoch)
     return ++WeakRefCounter_;
 }
 
-inline int TObjectBase::WeakUnrefObject(TEpoch epoch)
+inline int IObjectBase::WeakUnrefObject(TEpoch epoch)
 {
     Y_ASSERT(WeakRefCounter_ > 0);
     Y_ASSERT(WeakLockEpoch_ == epoch);
     return --WeakRefCounter_;
 }
 
-inline int TObjectBase::ImportRefObject()
+inline int IObjectBase::ImportRefObject()
 {
     return ++ImportRefCounter_;
 }
 
-inline int TObjectBase::ImportUnrefObject()
+inline int IObjectBase::ImportUnrefObject()
 {
     Y_ASSERT(ImportRefCounter_ > 0);
     return --ImportRefCounter_;
 }
 
-inline int TObjectBase::GetObjectRefCounter() const
+inline int IObjectBase::GetObjectRefCounter() const
 {
     return RefCounter_;
 }
 
-inline int TObjectBase::GetObjectWeakRefCounter(TEpoch epoch) const
+inline int IObjectBase::GetObjectWeakRefCounter(TEpoch epoch) const
 {
     return WeakLockEpoch_== epoch ? WeakRefCounter_ : 0;
 }
 
-inline int TObjectBase::GetImportRefCounter() const
+inline int IObjectBase::GetImportRefCounter() const
 {
     return ImportRefCounter_;
 }
 
-inline bool TObjectBase::IsAlive() const
+inline bool IObjectBase::IsAlive() const
 {
     return RefCounter_ > 0;
 }
 
-inline bool TObjectBase::IsDestroyed() const
+inline bool IObjectBase::IsDestroyed() const
 {
     return Flags_.Destroyed;
 }
 
-inline bool TObjectBase::IsLocked() const
+inline bool IObjectBase::IsLocked() const
 {
     return WeakRefCounter_ > 0;
 }
 
-inline bool TObjectBase::IsTrunk() const
+inline bool IObjectBase::IsTrunk() const
 {
     return Flags_.Trunk;
 }
 
-inline bool TObjectBase::IsForeign() const
+inline bool IObjectBase::IsForeign() const
 {
     return Flags_.Foreign;
 }
 
 template <class TDerived>
-TDerived* TObjectBase::As()
+TDerived* IObjectBase::As()
 {
     return static_cast<TDerived*>(this);
 }
 
 template <class TDerived>
-const TDerived* TObjectBase::As() const
+const TDerived* IObjectBase::As() const
 {
     return static_cast<const TDerived*>(this);
 }
@@ -141,22 +141,22 @@ const TDerived* TObjectBase::As() const
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TNonversionedObjectBase::TNonversionedObjectBase(const TObjectId& id)
-    : TObjectBase(id)
+    : IObjectBase(id)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool TObjectRefComparer::Compare(const TObjectBase* lhs, const TObjectBase* rhs)
+inline bool TObjectRefComparer::Compare(const IObjectBase* lhs, const IObjectBase* rhs)
 {
     return lhs->GetId() < rhs->GetId();
 }
 
-inline TObjectId GetObjectId(const TObjectBase* object)
+inline TObjectId GetObjectId(const IObjectBase* object)
 {
     return object ? object->GetId() : NullObjectId;
 }
 
-inline bool IsObjectAlive(const TObjectBase* object)
+inline bool IsObjectAlive(const IObjectBase* object)
 {
     return object && object->IsAlive();
 }

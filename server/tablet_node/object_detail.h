@@ -9,14 +9,14 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectBase
+class IObjectBase
     : public NHydra::TEntityBase
 {
 public:
     const NObjectClient::TObjectId& GetId() const;
 
 protected:
-    explicit TObjectBase(const NObjectClient::TObjectId& id);
+    explicit IObjectBase(const NObjectClient::TObjectId& id);
 
     const NObjectClient::TObjectId Id_;
 
