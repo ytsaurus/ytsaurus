@@ -107,7 +107,7 @@ size_t TProtoTableWriter::GetStreamCount() const
     return NodeWriter_->GetStreamCount();
 }
 
-TOutputStream* TProtoTableWriter::GetStream(size_t tableIndex) const
+IOutputStream* TProtoTableWriter::GetStream(size_t tableIndex) const
 {
     return NodeWriter_->GetStream(tableIndex);
 }
@@ -134,7 +134,7 @@ size_t TLenvalProtoTableWriter::GetStreamCount() const
     return Output_->GetStreamCount();
 }
 
-TOutputStream* TLenvalProtoTableWriter::GetStream(size_t tableIndex) const
+IOutputStream* TLenvalProtoTableWriter::GetStream(size_t tableIndex) const
 {
     return Output_->GetStream(tableIndex);
 }

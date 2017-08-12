@@ -1,6 +1,6 @@
 #pragma once
 
-class TOutputStream;
+class IOutputStream;
 
 namespace NMR {
 class TServer;
@@ -10,7 +10,7 @@ class TServer;
 namespace NYT {
 namespace NTestUtil {
 
-void PrintTable(NMR::TServer& server, const char* tableName, TOutputStream& out);
+void PrintTable(NMR::TServer& server, const char* tableName, IOutputStream& out);
 
 } // namespace NTestUtil
 } // namespace NYT

@@ -30,7 +30,7 @@ size_t TJobWriter::GetStreamCount() const
     return Streams_.size();
 }
 
-TOutputStream* TJobWriter::GetStream(size_t tableIndex) const
+IOutputStream* TJobWriter::GetStream(size_t tableIndex) const
 {
     if (tableIndex >= Streams_.size()) {
         ythrow TIOException() <<

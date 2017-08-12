@@ -7,7 +7,7 @@ using namespace NJson;
 using namespace NYT;
 
 template<>
-void Out<NYT::TNode>(TOutputStream& s, const NYT::TNode& node)
+void Out<NYT::TNode>(IOutputStream& s, const NYT::TNode& node)
 {
         s << "TNode:" << NodeToYsonString(node);
 }

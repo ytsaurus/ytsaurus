@@ -137,7 +137,7 @@ namespace {
         size_t GetStreamCount() const override {
             return 0;
         }
-        TOutputStream* GetStream(size_t) const override {
+        IOutputStream* GetStream(size_t) const override {
             return nullptr;
         }
     };
@@ -172,7 +172,7 @@ namespace {
         size_t GetStreamCount() const override {
             return 0;
         }
-        TOutputStream* GetStream(size_t) const override {
+        IOutputStream* GetStream(size_t) const override {
             return nullptr;
         }
     };
@@ -215,7 +215,7 @@ namespace {
         size_t GetStreamCount() const override {
             return 0;
         }
-        TOutputStream* GetStream(size_t) const override {
+        IOutputStream* GetStream(size_t) const override {
             return nullptr;
         }
     };

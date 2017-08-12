@@ -75,7 +75,7 @@ void Initialize(int argc, const char* argv[])
     size_t outputTableCount = FromString<size_t>(argv[3]);
     int hasState = FromString<int>(argv[4]);
 
-    THolder<TInputStream> jobStateStream;
+    THolder<IInputStream> jobStateStream;
     if (hasState) {
         jobStateStream = new TFileInput("jobstate");
     } else {

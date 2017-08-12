@@ -18,7 +18,7 @@ size_t TYaMRTableWriter::GetStreamCount() const
     return Output_->GetStreamCount();
 }
 
-TOutputStream* TYaMRTableWriter::GetStream(size_t tableIndex) const
+IOutputStream* TYaMRTableWriter::GetStream(size_t tableIndex) const
 {
     return Output_->GetStream(tableIndex);
 }

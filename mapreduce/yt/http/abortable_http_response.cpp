@@ -42,7 +42,7 @@ private:
 };
 
 TAbortableHttpResponse::TAbortableHttpResponse(
-    TInputStream* socketStream,
+    IInputStream* socketStream,
     const TString& requestId,
     const TString& hostName,
     const TString& url)

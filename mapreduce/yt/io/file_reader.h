@@ -3,7 +3,7 @@
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/http/requests.h>
 
-class TInputStream;
+class IInputStream;
 
 namespace NYT {
 
@@ -37,7 +37,7 @@ private:
     TFileReaderOptions FileReaderOptions_;
 
     THolder<THttpRequest> Request_;
-    TInputStream* Input_ = nullptr;
+    IInputStream* Input_ = nullptr;
 
     THolder<TPingableTransaction> ReadTransaction_;
 

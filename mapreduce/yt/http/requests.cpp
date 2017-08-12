@@ -360,7 +360,7 @@ TString RetryRequest(
 
             request.Connect(socketTimeout);
             try {
-                TOutputStream* output = request.StartRequest(header);
+                IOutputStream* output = request.StartRequest(header);
                 output->Write(body);
                 request.FinishRequest();
             } catch (yexception&) {
@@ -408,7 +408,7 @@ void RetryHeavyWriteRequest(
     const TAuth& auth,
     const TTransactionId& parentId,
     THttpHeader& header,
-    std::function<THolder<TInputStream>()> streamMaker)
+    std::function<THolder<IInputStream>()> streamMaker)
 {
     int retryCount = TConfig::Get()->RetryCount;
     header.SetToken(auth.Token);
@@ -429,7 +429,7 @@ void RetryHeavyWriteRequest(
 
             request.Connect();
             try {
-                TOutputStream* output = request.StartRequest(header);
+                IOutputStream* output = request.StartRequest(header);
                 TransferData(input.Get(), output);
                 request.FinishRequest();
             } catch (yexception&) {

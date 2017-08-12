@@ -27,7 +27,7 @@ size_t TNodeTableWriter::GetStreamCount() const
     return Output_->GetStreamCount();
 }
 
-TOutputStream* TNodeTableWriter::GetStream(size_t tableIndex) const
+IOutputStream* TNodeTableWriter::GetStream(size_t tableIndex) const
 {
     return Output_->GetStream(tableIndex);
 }

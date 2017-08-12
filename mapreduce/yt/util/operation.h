@@ -20,7 +20,7 @@ EOperationStatus CheckOperationStatus(
 
 void DumpOperationStderrs(
     NYT::IClientBasePtr client,
-    TOutputStream& stream,
+    IOutputStream& stream,
     const TString& operationPath);
 
 ////////////////////////////////////////////////////////////////////////////////

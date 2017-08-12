@@ -21,7 +21,7 @@ THolder<TSimpleServer> CreateSimpleHttpServer() {
     int port = pm.GetPort();
     return MakeHolder<TSimpleServer>(
         port,
-        [] (TInputStream* input, TOutputStream* output) {
+        [] (IInputStream* input, IOutputStream* output) {
             try {
                 while (true) {
                     THttpInput httpInput(input);
@@ -57,7 +57,7 @@ private:
     int OldValue;
 };
 
-class TFuncThread : public TSimpleThread {
+class TFuncThread : public ISimpleThread {
 public:
     using TFunc = std::function<void()>;
 

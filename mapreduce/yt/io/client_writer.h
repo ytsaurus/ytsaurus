@@ -25,7 +25,7 @@ public:
         const TTableWriterOptions& options);
 
     size_t GetStreamCount() const override;
-    TOutputStream* GetStream(size_t tableIndex) const override;
+    IOutputStream* GetStream(size_t tableIndex) const override;
     void OnRowFinished(size_t tableIndex) override;
 
 private:

@@ -85,7 +85,7 @@ static NFileYtTool::TDownloadConfig ParseOptions(const int argc, const char* arg
 }
 
 static void Download(
-    TOutputStream& out, const TString& name,
+    IOutputStream& out, const TString& name,
     const ::NYT::TYPath& table, NYT::IClientBasePtr client,
     const bool failProgramOnDownloadFailure) {
 

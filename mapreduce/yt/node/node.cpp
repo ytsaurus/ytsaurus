@@ -497,12 +497,12 @@ void TNode::CreateAttributes()
     Attributes_->Value_ = TMap();
 }
 
-void TNode::Save(TOutputStream* out) const
+void TNode::Save(IOutputStream* out) const
 {
     NodeToYsonStream(*this, out, YF_BINARY);
 }
 
-void TNode::Load(TInputStream* in)
+void TNode::Load(IInputStream* in)
 {
     Clear();
     *this = NodeFromYsonStream(in, YT_NODE);
