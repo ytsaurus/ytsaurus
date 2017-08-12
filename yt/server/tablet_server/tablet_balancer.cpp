@@ -260,7 +260,8 @@ private:
                 }
 
                 if (tabletSize < cellSize - top.first) {
-                    LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v, TabletSize: %v, SrcCellSize: %v, DstCellSize: %v, CellBundle: %Qv)",
+                    LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v, "
+                        "TabletSize: %v, SrcCellSize: %v, DstCellSize: %v, CellBundle: %v)",
                         tablet->GetId(),
                         cell->GetId(),
                         top.second->GetId(),
