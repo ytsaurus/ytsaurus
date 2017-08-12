@@ -29,6 +29,6 @@ bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2);
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-void Out<NYT::NTest::TOwningYaMRRow>(TOutputStream& out, const NYT::NTest::TOwningYaMRRow& row);
+void Out<NYT::NTest::TOwningYaMRRow>(IOutputStream& out, const NYT::NTest::TOwningYaMRRow& row);
 
 ////////////////////////////////////////////////////////////////////////////////

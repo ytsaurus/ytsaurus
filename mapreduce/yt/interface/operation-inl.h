@@ -323,7 +323,7 @@ void FeedJobInput(
 }
 
 template <class TJob>
-int RunJob(size_t outputTableCount, TInputStream& jobStateStream)
+int RunJob(size_t outputTableCount, IInputStream& jobStateStream)
 {
     using TInputRow = typename TJob::TReader::TRowType;
     using TOutputRow = typename TJob::TWriter::TRowType;
@@ -354,26 +354,26 @@ int RunJob(size_t outputTableCount, TInputStream& jobStateStream)
 // some user use them already. :(
 
 template <class TMapper>
-int RunMapJob(size_t outputTableCount, TInputStream& jobStateStream)
+int RunMapJob(size_t outputTableCount, IInputStream& jobStateStream)
 {
     return RunJob<TMapper>(outputTableCount, jobStateStream);
 }
 
 template <class TReducer>
-int RunReduceJob(size_t outputTableCount, TInputStream& jobStateStream)
+int RunReduceJob(size_t outputTableCount, IInputStream& jobStateStream)
 {
     return RunJob<TReducer>(outputTableCount, jobStateStream);
 }
 
 template <class TReducer>
-int RunAggregatorReducer(size_t outputTableCount, TInputStream& jobStateStream)
+int RunAggregatorReducer(size_t outputTableCount, IInputStream& jobStateStream)
 {
     return RunJob<TReducer>(outputTableCount, jobStateStream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TJobFunction = int (*)(size_t, TInputStream&);
+using TJobFunction = int (*)(size_t, IInputStream&);
 
 class TJobFactory
 {

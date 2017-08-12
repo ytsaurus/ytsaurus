@@ -138,7 +138,7 @@ void ValidateProtoDescriptor(
     }
 }
 
-void ParseFromStream(TInputStream* stream, Message& row, ui32 length)
+void ParseFromStream(IInputStream* stream, Message& row, ui32 length)
 {
     TLengthLimitedInput input(stream, length);
     TCopyingInputStreamAdaptor adaptor(&input);

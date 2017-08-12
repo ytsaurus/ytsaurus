@@ -4,8 +4,8 @@
 
 #include <util/generic/fwd.h>
 
-class TInputStream;
-class TOutputStream;
+class IInputStream;
+class IOutputStream;
 
 namespace NYtBlob {
     class TBlobInfo;
@@ -15,7 +15,7 @@ namespace NYtBlob {
         const ::NYT::TYPath& table, ::NYT::IClientBasePtr client);
 
     void Upload(
-        TInputStream& in, const TString& filename,
+        IInputStream& in, const TString& filename,
         const ::NYT::TYPath& table, ::NYT::IClientBasePtr client);
 
     void Download(
@@ -35,10 +35,10 @@ namespace NYtBlob {
         const ::NYT::TYPath& table, ::NYT::IClientBasePtr client);
 
     void Download(
-        TOutputStream& out, const TStringBuf filename,
+        IOutputStream& out, const TStringBuf filename,
         const ::NYT::TYPath& table, ::NYT::IClientBasePtr client);
     bool TryDownload(
-        TOutputStream& out, const TStringBuf filename,
+        IOutputStream& out, const TStringBuf filename,
         const ::NYT::TYPath& table, ::NYT::IClientBasePtr client);
 
     void CreateTable(const ::NYT::TYPath& table, ::NYT::IClientBasePtr client);

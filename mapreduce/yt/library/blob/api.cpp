@@ -31,7 +31,7 @@ void NYtBlob::Upload(
 }
 
 static void Upload(
-    TInputStream& in, const TString& filename,
+    IInputStream& in, const TString& filename,
     NYT::TTableWriterPtr<NYtBlob::TBlobChunk> w) {
 
     NYtBlob::TBlobChunk row;
@@ -72,7 +72,7 @@ static void Upload(
 }
 
 void NYtBlob::Upload(
-    TInputStream& in, const TString& filename,
+    IInputStream& in, const TString& filename,
     const ::NYT::TYPath& table, NYT::IClientBasePtr client) {
 
     auto writer = client->CreateTableWriter<TBlobChunk>(
@@ -112,7 +112,7 @@ void NYtBlob::Download(
 }
 
 void NYtBlob::Download(
-    TOutputStream& out, const TStringBuf filename,
+    IOutputStream& out, const TStringBuf filename,
     const ::NYT::TYPath& table, ::NYT::IClientBasePtr client) {
 
     auto reader = client->CreateTableReader<TBlobChunk>(
@@ -178,7 +178,7 @@ bool NYtBlob::TryDownload(
 }
 
 bool NYtBlob::TryDownload(
-    TOutputStream& out, const TStringBuf filename,
+    IOutputStream& out, const TStringBuf filename,
     const ::NYT::TYPath& table, ::NYT::IClientBasePtr client) {
 
     try {

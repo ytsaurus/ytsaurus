@@ -234,12 +234,12 @@ public:
         : StateValue_(stateValue)
     { }
 
-    virtual void Save(TOutputStream& stream) const override
+    virtual void Save(IOutputStream& stream) const override
     {
         stream << StateValue_;
     }
 
-    virtual void Load(TInputStream& stream) override
+    virtual void Load(IInputStream& stream) override
     {
         stream >> StateValue_;
     }

@@ -11,7 +11,7 @@ class Descriptor;
 }
 }
 
-class TInputStream;
+class IInputStream;
 
 namespace NYT {
 
@@ -32,7 +32,7 @@ void ValidateProtoDescriptor(
     bool isRead);
 
 void ParseFromStream(
-    TInputStream* stream,
+    IInputStream* stream,
     ::google::protobuf::Message& row,
     ui32 size);
 

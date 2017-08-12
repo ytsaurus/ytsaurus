@@ -283,12 +283,12 @@ public:
         ReducerAggregator,
     };
 
-    virtual void Save(TOutputStream& stream) const
+    virtual void Save(IOutputStream& stream) const
     {
         Y_UNUSED(stream);
     }
 
-    virtual void Load(TInputStream& stream)
+    virtual void Load(IInputStream& stream)
     {
         Y_UNUSED(stream);
     }
@@ -299,8 +299,8 @@ public:
 };
 
 #define Y_SAVELOAD_JOB(...) \
-    virtual void Save(TOutputStream& stream) const override { Save(&stream); } \
-    virtual void Load(TInputStream& stream) override { Load(&stream); } \
+    virtual void Save(IOutputStream& stream) const override { Save(&stream); } \
+    virtual void Load(IInputStream& stream) override { Load(&stream); } \
     Y_PASS_VA_ARGS(Y_SAVELOAD_DEFINE(__VA_ARGS__));
 
 template <class TR, class TW>

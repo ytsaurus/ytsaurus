@@ -10,7 +10,7 @@ namespace NTestUtil {
 
 using namespace NMR;
 
-void PrintTable(TServer& server, const char* tableName, TOutputStream& out) {
+void PrintTable(TServer& server, const char* tableName, IOutputStream& out) {
     TClient client(server);
     TTable table(client, tableName);
     if (table.IsEmpty()) {

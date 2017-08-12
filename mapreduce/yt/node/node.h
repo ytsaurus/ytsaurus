@@ -6,8 +6,8 @@
 #include <util/generic/vector.h>
 #include <util/generic/yexception.h>
 
-class TInputStream;
-class TOutputStream;
+class IInputStream;
+class IOutputStream;
 
 namespace NYT {
 
@@ -164,8 +164,8 @@ public:
 
     // Serialize TNode using binary yson format.
     // Methods for ysaveload.
-    void Save(TOutputStream* output) const;
-    void Load(TInputStream* input);
+    void Save(IOutputStream* output) const;
+    void Load(IInputStream* input);
 
     static const TString& TypeToString(EType type);
 

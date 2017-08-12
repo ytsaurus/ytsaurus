@@ -32,7 +32,7 @@ size_t TClientWriter::GetStreamCount() const
     return 1;
 }
 
-TOutputStream* TClientWriter::GetStream(size_t tableIndex) const
+IOutputStream* TClientWriter::GetStream(size_t tableIndex) const
 {
     Y_UNUSED(tableIndex);
     return BlockWriter_.Get();

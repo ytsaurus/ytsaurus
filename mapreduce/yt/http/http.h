@@ -134,13 +134,13 @@ private:
 // Input stream that handles YT-specific header/trailer errors
 // and throws TErrorResponse if it finds any.
 class THttpResponse
-    : public TInputStream
+    : public IInputStream
 {
 public:
     // 'requestId' and 'hostName' are provided for debug reasons
     // (they will appear in some error messages).
     THttpResponse(
-        TInputStream* socketStream,
+        IInputStream* socketStream,
         const TString& requestId,
         const TString& hostName);
 

@@ -18,7 +18,7 @@ public:
     void AddRow(const TYaMRRow& row, size_t tableIndex) override;
 
     size_t GetStreamCount() const override;
-    TOutputStream* GetStream(size_t tableIndex) const override;
+    IOutputStream* GetStream(size_t tableIndex) const override;
 
 private:
     THolder<TProxyOutput> Output_;

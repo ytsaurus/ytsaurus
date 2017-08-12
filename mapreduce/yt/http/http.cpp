@@ -472,7 +472,7 @@ SOCKET TConnectionPool::DoConnect(TAddressCache::TAddressPtr address)
 ////////////////////////////////////////////////////////////////////////////////
 
 THttpResponse::THttpResponse(
-    TInputStream* socketStream,
+    IInputStream* socketStream,
     const TString& requestId,
     const TString& hostName)
     : HttpInput_(socketStream)

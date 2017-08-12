@@ -13,7 +13,7 @@ class TInetStreamSocket;
 // requestHandler in the separate thread for each incoming connection.
 class TSimpleServer {
 public:
-    using TRequestHandler = std::function<void(TInputStream* input, TOutputStream* output)>;
+    using TRequestHandler = std::function<void(IInputStream* input, IOutputStream* output)>;
 
 public:
     TSimpleServer(int port, TRequestHandler requestHandler);

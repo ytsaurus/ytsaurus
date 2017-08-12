@@ -6,10 +6,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 template<>
-void Out<NYT::TNode>(TOutputStream& s, const NYT::TNode& node);
+void Out<NYT::TNode>(IOutputStream& s, const NYT::TNode& node);
 
 template<>
-void Out<TGUID>(TOutputStream& s, const TGUID& guid);
+void Out<TGUID>(IOutputStream& s, const TGUID& guid);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +54,7 @@ bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2);
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-void Out<NYT::NTesting::TOwningYaMRRow>(TOutputStream& out, const NYT::NTesting::TOwningYaMRRow& row);
+void Out<NYT::NTesting::TOwningYaMRRow>(IOutputStream& out, const NYT::NTesting::TOwningYaMRRow& row);
 
 ////////////////////////////////////////////////////////////////////////////////
 

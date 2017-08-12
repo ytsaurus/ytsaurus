@@ -93,7 +93,7 @@ TString NodeToYsonString(const TNode& node, EYsonFormat format)
     return stream.Str();
 }
 
-TNode NodeFromYsonStream(TInputStream* input, EYsonType type)
+TNode NodeFromYsonStream(IInputStream* input, EYsonType type)
 {
     TNode result = CreateEmptyNodeByType(type);
 
@@ -103,7 +103,7 @@ TNode NodeFromYsonStream(TInputStream* input, EYsonType type)
     return result;
 }
 
-void NodeToYsonStream(const TNode& node, TOutputStream* output, EYsonFormat format)
+void NodeToYsonStream(const TNode& node, IOutputStream* output, EYsonFormat format)
 {
     TYsonWriter writer(output, format);
     TNodeVisitor visitor(&writer);

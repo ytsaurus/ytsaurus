@@ -21,7 +21,7 @@ public:
     void AddRow(const Message& row, size_t tableIndex) override;
 
     size_t GetStreamCount() const override;
-    TOutputStream* GetStream(size_t tableIndex) const override;
+    IOutputStream* GetStream(size_t tableIndex) const override;
 
 private:
     THolder<TNodeTableWriter> NodeWriter_;
@@ -42,7 +42,7 @@ public:
     void AddRow(const Message& row, size_t tableIndex) override;
 
     size_t GetStreamCount() const override;
-    TOutputStream* GetStream(size_t tableIndex) const override;
+    IOutputStream* GetStream(size_t tableIndex) const override;
 
 private:
     THolder<TProxyOutput> Output_;

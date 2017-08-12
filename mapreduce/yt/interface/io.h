@@ -46,19 +46,19 @@ class TIOException
 
 class IFileReader
     : public TThrRefBase
-    , public TInputStream
+    , public IInputStream
 { };
 
 class IFileWriter
     : public TThrRefBase
-    , public TOutputStream
+    , public IOutputStream
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRawTableReader
     : public TThrRefBase
-    , public TInputStream
+    , public IInputStream
 {
 public:
     // Retries table read starting from the specified rangeIndex and rowIndex.
@@ -81,7 +81,7 @@ public:
 
 class TRawTableWriter
     : public TThrRefBase
-    , public TOutputStream
+    , public IOutputStream
 {
 public:
     // Should be called after complete record is written.

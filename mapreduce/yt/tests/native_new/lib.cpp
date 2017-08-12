@@ -9,19 +9,19 @@
 ////////////////////////////////////////////////////////////////////
 
 template<>
-void Out<NYT::TNode>(TOutputStream& s, const NYT::TNode& node)
+void Out<NYT::TNode>(IOutputStream& s, const NYT::TNode& node)
 {
     s << "TNode:" << NodeToYsonString(node);
 }
 
 template<>
-void Out<TGUID>(TOutputStream& s, const TGUID& guid)
+void Out<TGUID>(IOutputStream& s, const TGUID& guid)
 {
     s << GetGuidAsString(guid);
 }
 
 template <>
-void Out<NYT::NTesting::TOwningYaMRRow>(TOutputStream& out, const NYT::NTesting::TOwningYaMRRow& row) {
+void Out<NYT::NTesting::TOwningYaMRRow>(IOutputStream& out, const NYT::NTesting::TOwningYaMRRow& row) {
     out << "Row{" << row.Key << ", " << row.SubKey << ", " << row.Value << "}";
 }
 

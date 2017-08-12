@@ -81,7 +81,7 @@ EOperationStatus CheckOperationStatus(
 
 void DumpOperationStderrs(
     NYT::IClientBasePtr client,
-    TOutputStream& stream,
+    IOutputStream& stream,
     const TString& operationPath)
 {
     const size_t RESULT_LIMIT = 1 << 20;

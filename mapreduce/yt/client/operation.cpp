@@ -196,12 +196,12 @@ private:
         MD5::Data(reinterpret_cast<const unsigned char*>(buffer.Data()), buffer.Size(), buf);
     }
 
-    static THolder<TInputStream> CreateStream(const TString& localPath)
+    static THolder<IInputStream> CreateStream(const TString& localPath)
     {
         return new TMappedFileInput(localPath);
     }
 
-    static THolder<TInputStream> CreateStream(const TBuffer& buffer)
+    static THolder<IInputStream> CreateStream(const TBuffer& buffer)
     {
         return new TBufferInput(buffer);
     }
@@ -453,7 +453,7 @@ yvector<TFailedJobInfo> GetFailedJobInfo(
 }
 
 void DumpOperationStderrs(
-    TOutputStream& output,
+    IOutputStream& output,
     const yvector<TFailedJobInfo>& failedJobInfoList)
 {
     for (const auto& failedJobInfo : failedJobInfoList) {
