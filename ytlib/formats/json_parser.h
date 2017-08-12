@@ -27,7 +27,7 @@ public:
     virtual void Read(const TStringBuf& data);
     virtual void Finish();
 
-    void Parse(TInputStream* input);
+    void Parse(IInputStream* input);
 
 private:
     class TImpl;
@@ -37,7 +37,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseJson(
-    TInputStream* input,
+    IInputStream* input,
     NYson::IYsonConsumer* consumer,
     TJsonFormatConfigPtr config = nullptr,
     NYson::EYsonType type = NYson::EYsonType::Node);

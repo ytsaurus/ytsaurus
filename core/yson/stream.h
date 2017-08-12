@@ -12,10 +12,10 @@ class TYsonInput
 {
 public:
     explicit TYsonInput(
-        TInputStream* stream,
+        IInputStream* stream,
         EYsonType type = EYsonType::Node);
 
-    DEFINE_BYVAL_RO_PROPERTY(TInputStream*, Stream);
+    DEFINE_BYVAL_RO_PROPERTY(IInputStream*, Stream);
     DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
 
 };
@@ -26,10 +26,10 @@ class TYsonOutput
 {
 public:
     explicit TYsonOutput(
-        TOutputStream* stream,
+        IOutputStream* stream,
         EYsonType type = EYsonType::Node);
 
-    DEFINE_BYVAL_RO_PROPERTY(TOutputStream*, Stream);
+    DEFINE_BYVAL_RO_PROPERTY(IOutputStream*, Stream);
     DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
 
 };

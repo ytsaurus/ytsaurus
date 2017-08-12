@@ -15,7 +15,7 @@ namespace NChunkServer {
 
 /// Represents a storage type (e.g. HDD, SSD, RAM).
 class TMedium
-    : public NObjectServer::TObjectBase
+    : public NObjectServer::IObjectBase
     , public TRefTracked<TMedium>
 {
 public:

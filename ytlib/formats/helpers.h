@@ -33,7 +33,7 @@ bool IsSpecialJsonKey(const TStringBuf& str);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteUnversionedValue(const NTableClient::TUnversionedValue& value, TOutputStream* output, const TEscapeTable& escapeTable);
+void WriteUnversionedValue(const NTableClient::TUnversionedValue& value, IOutputStream* output, const TEscapeTable& escapeTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

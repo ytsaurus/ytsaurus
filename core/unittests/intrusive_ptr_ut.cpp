@@ -69,7 +69,7 @@ class TObjectWithSelfPointers
     : public TRefCounted
 {
 public:
-    explicit TObjectWithSelfPointers(TOutputStream* output)
+    explicit TObjectWithSelfPointers(IOutputStream* output)
         : Output_(output)
     {
         *Output_ << "Cb";
@@ -88,7 +88,7 @@ public:
     }
 
 private:
-    TOutputStream* const Output_;
+    IOutputStream* const Output_;
 
 };
 
@@ -97,7 +97,7 @@ class TObjectWithSimpleRC
     : public TIntrinsicRefCounted
 {
 public:
-    explicit TObjectWithSimpleRC(TOutputStream* output)
+    explicit TObjectWithSimpleRC(IOutputStream* output)
         : Output_(output)
     {
         *Output_ << 'C';
@@ -114,7 +114,7 @@ public:
     }
 
 private:
-    TOutputStream* const Output_;
+    IOutputStream* const Output_;
 
 };
 
@@ -123,7 +123,7 @@ class TObjectWithFullRC
     : public TRefCounted
 {
 public:
-    explicit TObjectWithFullRC(TOutputStream* output)
+    explicit TObjectWithFullRC(IOutputStream* output)
         : Output_(output)
     {
         *Output_ << 'C';
@@ -140,7 +140,7 @@ public:
     }
 
 private:
-    TOutputStream* const Output_;
+    IOutputStream* const Output_;
 
 };
 

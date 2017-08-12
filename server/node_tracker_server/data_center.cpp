@@ -8,12 +8,12 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TDataCenter::TDataCenter(const TDataCenterId& id)
-    : TObjectBase(id)
+    : IObjectBase(id)
 { }
 
 void TDataCenter::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    IObjectBase::Save(context);
 
     using NYT::Save;
     Save(context, Name_);
@@ -21,7 +21,7 @@ void TDataCenter::Save(NCellMaster::TSaveContext& context) const
 
 void TDataCenter::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    IObjectBase::Load(context);
 
     using NYT::Load;
     Load(context, Name_);

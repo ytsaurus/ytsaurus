@@ -53,7 +53,7 @@ protected:
         Writer_ = CreateSchemalessWriterForYamr(
             Config_,
             NameTable_,
-            CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
+            CreateAsyncAdapter(static_cast<IOutputStream*>(&OutputStream_)),
             false, /* enableContextSaving */
             controlAttributes,
             0 /* keyColumnCount */);
@@ -471,7 +471,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithKeySwitch)
     Writer_ = CreateSchemalessWriterForYamr(
         Config_,
         NameTable_,
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
+        CreateAsyncAdapter(static_cast<IOutputStream*>(&OutputStream_)),
         false, /* enableContextSaving */
         controlAttributes,
         1 /* keyColumnCount */);

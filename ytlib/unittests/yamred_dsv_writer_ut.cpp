@@ -63,7 +63,7 @@ protected:
         Writer_ = CreateSchemalessWriterForYamredDsv(
             Config_,
             NameTable_,
-            CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
+            CreateAsyncAdapter(static_cast<IOutputStream*>(&OutputStream_)),
             false, /* enableContextSaving */
             controlAttributes,
             0 /* keyColumnCount */);

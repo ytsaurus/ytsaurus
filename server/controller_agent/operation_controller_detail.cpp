@@ -644,7 +644,7 @@ void TOperationControllerBase::SafeMaterialize()
     LOG_INFO("Materialization finished");
 }
 
-void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
+void TOperationControllerBase::SaveSnapshot(IOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

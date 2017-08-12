@@ -45,7 +45,7 @@ public:
         return ETypeFlags::Creatable;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual IObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override
     {

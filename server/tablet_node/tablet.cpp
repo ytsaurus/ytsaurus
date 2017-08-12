@@ -276,7 +276,7 @@ void TTableReplicaInfo::MergeFromStatistics(const TTableReplicaStatistics& stati
 TTablet::TTablet(
     const TTabletId& tabletId,
     ITabletContext* context)
-    : TObjectBase(tabletId)
+    : IObjectBase(tabletId)
     , Config_(New<TTableMountConfig>())
     , ReaderConfig_(New<TTabletChunkReaderConfig>())
     , WriterConfig_(New<TTabletChunkWriterConfig>())
@@ -300,7 +300,7 @@ TTablet::TTablet(
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
     const TTableReplicaId& upstreamReplicaId)
-    : TObjectBase(tabletId)
+    : IObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
     , TablePath_(path)

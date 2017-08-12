@@ -74,7 +74,7 @@ static const auto& Logger = ObjectServerLogger;
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
-    TObjectBase* object)
+    IObjectBase* object)
     : Bootstrap_(bootstrap)
     , Metadata_(metadata)
     , Object_(object)
@@ -570,7 +570,7 @@ void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermissi
     ValidatePermission(Object_, permission);
 }
 
-void TObjectProxyBase::ValidatePermission(TObjectBase* object, EPermission permission)
+void TObjectProxyBase::ValidatePermission(IObjectBase* object, EPermission permission)
 {
     YCHECK(object);
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -712,7 +712,7 @@ bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove
 TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
-    TObjectBase* object)
+    IObjectBase* object)
     : TObjectProxyBase(bootstrap, metadata, object)
     , CustomAttributesImpl_(this)
 {

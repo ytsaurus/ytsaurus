@@ -141,7 +141,7 @@ public:
         return EObjectType::Rack;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual IObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -186,7 +186,7 @@ public:
         return EObjectType::DataCenter;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual IObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -1834,7 +1834,7 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
+IObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
@@ -1863,7 +1863,7 @@ TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
+IObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {

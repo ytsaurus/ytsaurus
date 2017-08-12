@@ -106,7 +106,7 @@ std::unique_ptr<IParser> CreateParserForYamredDsv(
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseYamredDsv(
-    TInputStream* input,
+    IInputStream* input,
     IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config)
 {
