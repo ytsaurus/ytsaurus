@@ -25,7 +25,7 @@ from .py_wrapper import (aggregator, raw, raw_io, reduce_aggregator,
 from .string_iter_io import StringIterIO
 from .user_statistics import write_statistics, get_blkio_cgroup_statistics, get_memory_cgroup_statistics
 from .yamr_mode import set_yamr_mode
-from .dynamic_table_commands import ASYNC_LAST_COMMITED_TIMESTAMP
+from .dynamic_table_commands import ASYNC_LAST_COMMITED_TIMESTAMP, SYNC_LAST_COMMITED_TIMESTAMP
 
 from .common import get_version, is_inside_job
 __version__ = VERSION = get_version()
