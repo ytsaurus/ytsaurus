@@ -19,6 +19,7 @@ import yt.logger as logger
 from copy import deepcopy
 import time
 
+SYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff01
 ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 
 def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
