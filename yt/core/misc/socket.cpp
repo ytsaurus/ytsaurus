@@ -49,8 +49,8 @@ SOCKET CreateTcpServerSocket()
     }
 
     {
-        int flags = fcntl(socket, F_GETFD);
-        int result = fcntl(socket, F_SETFD, flags | FD_CLOEXEC);
+        int flags = fcntl(serverSocket, F_GETFD);
+        int result = fcntl(serverSocket, F_SETFD, flags | FD_CLOEXEC);
         if (result != 0) {
             auto lastError = LastSystemError();
             SafeClose(serverSocket, false);
@@ -258,8 +258,8 @@ int AcceptSocket(SOCKET serverSocket, TNetworkAddress* clientAddress)
         SOCK_CLOEXEC | SOCK_NONBLOCK);
 #else
     clientSocket = accept(
-        serverSocket_,
-        clientAddress.GetSockAddr(),
+        serverSocket,
+        clientAddress->GetSockAddr(),
         &clientAddressLen);
 #endif
 
@@ -276,8 +276,8 @@ int AcceptSocket(SOCKET serverSocket, TNetworkAddress* clientAddress)
 
 #ifndef _linux_
     {
-        int flags = fcntl(socket, F_GETFL);
-        int result = fcntl(socket, F_SETFL, flags | O_NONBLOCK);
+        int flags = fcntl(clientSocket, F_GETFL);
+        int result = fcntl(clientSocket, F_SETFL, flags | O_NONBLOCK);
         if (result != 0) {
             auto lastError = LastSystemError();
             SafeClose(serverSocket, false);
@@ -289,8 +289,8 @@ int AcceptSocket(SOCKET serverSocket, TNetworkAddress* clientAddress)
     }
 
     {
-        int flags = fcntl(socket, F_GETFD);
-        int result = fcntl(socket, F_SETFD, flags | FD_CLOEXEC);
+        int flags = fcntl(clientSocket, F_GETFD);
+        int result = fcntl(clientSocket, F_SETFD, flags | FD_CLOEXEC);
         if (result != 0) {
             auto lastError = LastSystemError();
             SafeClose(serverSocket, false);
@@ -344,8 +344,10 @@ void SetSocketKeepAlive(SOCKET socket)
 
 void SetSocketEnableQuickAck(SOCKET socket)
 {
+#ifdef _linux_
     int value = 1;
     setsockopt(socket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value));
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
