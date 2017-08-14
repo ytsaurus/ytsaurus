@@ -220,6 +220,17 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
         ipAddress);
 }
 
+TNetworkAddress TNetworkAddress::CreateIPv6Any(int port)
+{
+    sockaddr_in6 serverAddress;
+    memset(&serverAddress, 0, sizeof(serverAddress));
+    serverAddress.sin6_family = AF_INET6;
+    serverAddress.sin6_addr = in6addr_any;
+    serverAddress.sin6_port = htons(port);
+
+    return TNetworkAddress(reinterpret_cast<const sockaddr&>(serverAddress), sizeof(serverAddress));
+}
+
 TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
 {
     return TryParse(address).ValueOrThrow();

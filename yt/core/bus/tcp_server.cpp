@@ -8,6 +8,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/address.h>
+#include <yt/core/misc/socket.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/convert.h>
@@ -17,14 +18,6 @@
 #include <yt/core/concurrency/rw_spinlock.h>
 
 #include <cerrno>
-
-#ifdef _unix_
-    #include <netinet/tcp.h>
-    #include <sys/socket.h>
-    #include <sys/un.h>
-    #include <sys/types.h>
-    #include <sys/stat.h>
-#endif
 
 namespace NYT {
 namespace NBus {
@@ -102,7 +95,10 @@ public:
 
     virtual void OnShutdown() override
     {
-        CloseServerSocket();
+        {
+            auto guard = Guard(ControlSpinLock_);
+            CloseServerSocket();
+        }
 
         decltype(Connections_) connections;
         {
@@ -139,13 +135,10 @@ protected:
     virtual void InitClientSocket(SOCKET clientSocket)
     {
         if (Config_->EnableNoDelay) {
-            int value = 1;
-            setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value));
+            SetSocketNoDelay(clientSocket);
         }
-        {
-            int value = 1;
-            setsockopt(clientSocket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value));
-        }
+
+        SetSocketKeepAlive(clientSocket);
     }
 
 
@@ -156,7 +149,6 @@ protected:
         Connections_.erase(connection);
     }
 
-
     void OpenServerSocket()
     {
         auto guard = Guard(ControlSpinLock_);
@@ -165,13 +157,11 @@ protected:
 
         CreateServerSocket();
 
-        InitSocket(ServerSocket_);
-
-        if (listen(ServerSocket_, Config_->MaxBacklogSize) == SOCKET_ERROR) {
-            int error = LastSystemError();
+        try {
+            ListenSocket(ServerSocket_, Config_->MaxBacklogSize);
+        } catch (const std::exception& ex) {
             CloseServerSocket();
-            THROW_ERROR_EXCEPTION("Failed to listen to server socket")
-                << TError::FromSystem(error);
+            throw;
         }
 
         LOG_DEBUG("Server socket opened");
@@ -179,7 +169,6 @@ protected:
 
     void CloseServerSocket()
     {
-        auto guard = Guard(ControlSpinLock_);
         if (ServerSocket_ != INVALID_SOCKET) {
             close(ServerSocket_);
             ServerSocket_ = INVALID_SOCKET;
@@ -187,56 +176,19 @@ protected:
         }
     }
 
-    void InitSocket(SOCKET socket)
-    {
-        {
-            int flags = fcntl(socket, F_GETFL);
-            int result = fcntl(socket, F_SETFL, flags | O_NONBLOCK);
-            if (result != 0) {
-                THROW_ERROR_EXCEPTION("Failed to enable nonblocking mode")
-                    << TError::FromSystem();
-            }
-        }
-        {
-            int flags = fcntl(socket, F_GETFD);
-            int result = fcntl(socket, F_SETFD, flags | FD_CLOEXEC);
-            if (result != 0) {
-                THROW_ERROR_EXCEPTION("Failed to enable close-on-exec mode")
-                    << TError::FromSystem();
-            }
-        }
-    }
-
     void OnAccept()
     {
         while (true) {
             TNetworkAddress clientAddress;
-            socklen_t clientAddressLen = clientAddress.GetLength();
             SOCKET clientSocket;
             PROFILE_AGGREGATED_TIMING (AcceptTime) {
-#ifdef _linux_
-                clientSocket = accept4(
-                    ServerSocket_,
-                    clientAddress.GetSockAddr(),
-                    &clientAddressLen,
-                    SOCK_CLOEXEC);
-#else
-                clientSocket = accept(
-                    ServerSocket_,
-                    clientAddress.GetSockAddr(),
-                    &clientAddressLen);
-#endif
-
-                if (clientSocket == INVALID_SOCKET) {
-                    auto error = LastSystemError();
-                    if (IsSocketError(error)) {
-                        auto wrappedError = TError(
-                            NRpc::EErrorCode::TransportError,
-                            "Error accepting connection")
-                            << TErrorAttribute("address", ToString(clientAddress))
-                            << TError::FromSystem(error);
-                        LOG_WARNING(wrappedError);
+                try {
+                    clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
+                    if (clientSocket == INVALID_SOCKET) {
+                        break;
                     }
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Error accepting client connection");
                     break;
                 }
             }
@@ -261,7 +213,6 @@ protected:
             }
 
             InitClientSocket(clientSocket);
-            InitSocket(clientSocket);
 
             auto address = ToString(clientAddress);
             auto endpointDescription = address;
@@ -298,29 +249,22 @@ protected:
         }
     }
 
-
-    bool IsSocketError(ssize_t result)
-    {
-        YCHECK(result != EINTR);
-        return result != EINPROGRESS && result != EWOULDBLOCK;
-    }
-
-    void BindSocket(sockaddr* address, int size, const TString& errorMessage)
+    void BindSocket(const TNetworkAddress& address, const TString& errorMessage)
     {
         for (int attempt = 1; attempt <= Config_->BindRetryCount; ++attempt) {
-            if (bind(ServerSocket_, address, size) == 0) {
-                // Success.
-                break;
-            }
+            try {
+                ::NYT::BindSocket(ServerSocket_, address);
+                return;
+            } catch (const TErrorException& ex) {
+                if (attempt == Config_->BindRetryCount) {
+                    CloseServerSocket();
 
-            if (attempt == Config_->BindRetryCount) {
-                int errorCode = LastSystemError();
-                CloseServerSocket();
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, errorMessage)
-                    << TError::FromSystem(errorCode);
-            } else {
-                LOG_WARNING(TError::FromSystem(), "%v, starting %v retry", errorMessage, attempt + 1);
-                Sleep(Config_->BindRetryBackoff);
+                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, errorMessage)
+                        << ex;
+                } else {
+                    LOG_WARNING(ex, "Error binding socket, starting %v retry", attempt + 1);
+                    Sleep(Config_->BindRetryBackoff);
+                }
             }
         }
     }
@@ -342,7 +286,6 @@ protected:
         }
         Poller_->Arm(ServerSocket_, this, EPollControl::Read);
     }
-
 
     void OnCheck()
     {
@@ -371,63 +314,17 @@ public:
 private:
     virtual void CreateServerSocket() override
     {
-        int type = SOCK_STREAM;
+        ServerSocket_ = CreateTcpServerSocket();
 
-#ifdef _linux_
-        type |= SOCK_CLOEXEC;
-#endif
-
-        ServerSocket_ = socket(AF_INET6, type, IPPROTO_TCP);
-        if (ServerSocket_ == INVALID_SOCKET) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::TransportError,
-                "Failed to create a server socket")
-                << TError::FromSystem();
-        }
-
-        {
-            int flag = 0;
-            if (setsockopt(ServerSocket_, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag)) != 0) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to configure IPv6 protocol")
-                    << TError::FromSystem();
-            }
-        }
-
-        {
-            int flag = 1;
-            if (setsockopt(ServerSocket_, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag)) != 0) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to configure socket address reuse")
-                    << TError::FromSystem();
-            }
-        }
-
-        {
-            sockaddr_in6 serverAddress;
-            memset(&serverAddress, 0, sizeof(serverAddress));
-            serverAddress.sin6_family = AF_INET6;
-            serverAddress.sin6_addr = in6addr_any;
-            serverAddress.sin6_port = htons(Config_->Port.Get());
-            BindSocket(
-                (sockaddr*)&serverAddress,
-                sizeof(serverAddress),
-                Format("Failed to bind a server socket to port %v", Config_->Port));
-        }
+        TNetworkAddress serverAddress = TNetworkAddress::CreateIPv6Any(Config_->Port.Get());
+        BindSocket(serverAddress, Format("Failed to bind a server socket to port %v", Config_->Port));
     }
 
     virtual void InitClientSocket(SOCKET clientSocket) override
     {
         TTcpBusServerBase::InitClientSocket(clientSocket);
 
-#ifdef _linux_
-        {
-            int priority = Config_->Priority;
-            setsockopt(clientSocket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));
-        }
-#endif
+        SetSocketPriority(clientSocket, Config_->Priority);
     }
 };
 
@@ -449,19 +346,7 @@ public:
 private:
     virtual void CreateServerSocket() override
     {
-        int type = SOCK_STREAM;
-
-#ifdef _linux_
-        type |= SOCK_CLOEXEC;
-#endif
-
-        ServerSocket_ = socket(AF_UNIX, type, 0);
-        if (ServerSocket_ == INVALID_SOCKET) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::TransportError,
-                "Failed to create a local server socket")
-                << TError::FromSystem();
-        }
+        ServerSocket_ = CreateUnixServerSocket();
 
         {
             TNetworkAddress netAddress;
@@ -470,10 +355,7 @@ private:
             } else {
                 netAddress = GetLocalBusAddress(Config_->Port.Get());
             }
-            BindSocket(
-                netAddress.GetSockAddr(),
-                netAddress.GetLength(),
-                "Failed to bind a local server socket");
+            BindSocket(netAddress, "Failed to bind a local server socket");
         }
     }
 };
