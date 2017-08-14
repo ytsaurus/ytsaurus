@@ -131,8 +131,7 @@ public:
     TExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
 
-    int LightPoolSize;
-    int HeavyPoolSize;
+    int ThreadPoolSize;
 
     int MaxConcurrentRequests;
 

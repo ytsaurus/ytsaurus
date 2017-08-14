@@ -167,7 +167,7 @@ public:
                 : &TQueryExecutor::DoExecute;
 
             return BIND(execute, MakeStrong(this))
-                .AsyncVia(Connection_->GetHeavyInvoker())
+                .AsyncVia(Connection_->GetInvoker())
                 .Run(
                     std::move(query),
                     std::move(externalCGInfo),
