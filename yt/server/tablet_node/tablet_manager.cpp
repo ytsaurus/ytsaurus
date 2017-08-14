@@ -1091,18 +1091,14 @@ private:
                         tabletId);
                     return;
                 }
-                // No break intentionaly
+                // No break intentionally.
             }
 
             case ETabletState::UnmountFlushing: {
                 tablet->SetState(requestedState);
 
                 const auto& storeManager = tablet->GetStoreManager();
-                if (requestedState == ETabletState::UnmountFlushing ||
-                    tablet->GetActiveStore()->GetRowCount() > 0)
-                {
-                    storeManager->Rotate(requestedState == ETabletState::FreezeFlushing);
-                }
+                storeManager->Rotate(requestedState == ETabletState::FreezeFlushing);
 
                 LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (TabletId: %v, NewState: %v)",
                     tabletId,
