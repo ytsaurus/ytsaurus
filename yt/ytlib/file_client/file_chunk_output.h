@@ -37,7 +37,6 @@ public:
         i64 sizeLimit = std::numeric_limits<i64>::max());
 
     NChunkClient::TChunkId GetChunkId() const;
-    i64 GetSize() const;
 
 protected:
     //! Adds another portion of data.
@@ -64,6 +63,7 @@ private:
     NChunkClient::IChunkWriterPtr ConfirmingChunkWriter_;
     IFileChunkWriterPtr FileChunkWriter_;
 
+    i64 GetSize() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
