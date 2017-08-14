@@ -210,7 +210,10 @@ void TEncodingWriter::ProcessCompressedBlock(const TBlock& block, i64 sizeToRele
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
 {
-    if (!blockOrError.IsOK()) {
+    YCHECK(blockOrError.IsOK());
+
+    const auto& block = blockOrError.Value();
+    if (!block) {
         // Sentinel element.
         CompletionError_.Set(TError());
         return;
@@ -218,7 +221,6 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
 
     LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
 
-    auto& block = blockOrError.Value();
     auto isReady = ChunkWriter_->WriteBlock(block);
     ++WrittenBlockIndex_;
 
@@ -258,7 +260,7 @@ TFuture<void> TEncodingWriter::Flush()
 
     // This must be the last enqueued element.
     CompressionInvoker_->Invoke(BIND([this, this_ = MakeStrong(this)] () {
-        PendingBlocks_.Enqueue(TError("Sentinel value"));
+        PendingBlocks_.Enqueue(TBlock());
     }));
     return CompletionError_.ToFuture();
 }
