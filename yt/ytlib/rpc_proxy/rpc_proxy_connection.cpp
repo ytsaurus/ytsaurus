@@ -50,12 +50,7 @@ const NTransactionClient::ITimestampProviderPtr& TRpcProxyConnection::GetTimesta
     Y_UNIMPLEMENTED();
 }
 
-const IInvokerPtr& TRpcProxyConnection::GetLightInvoker()
-{
-    return ActionQueue_->GetInvoker();
-}
-
-const IInvokerPtr& TRpcProxyConnection::GetHeavyInvoker()
+const IInvokerPtr& TRpcProxyConnection::GetInvoker()
 {
     return ActionQueue_->GetInvoker();
 }

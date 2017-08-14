@@ -65,7 +65,7 @@ public:
         NLogging::TLogger logger)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , CommitInvoker_(CreateSerializedInvoker(Client_->GetConnection()->GetHeavyInvoker()))
+        , CommitInvoker_(CreateSerializedInvoker(Client_->GetConnection()->GetInvoker()))
         , Logger(logger.AddTag("TransactionId: %v, ConnectionCellTag: %v",
             GetId(),
             Client_->GetConnection()->GetCellTag()))

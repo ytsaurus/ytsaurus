@@ -309,7 +309,7 @@ public:
         TTimestamp timestamp) override
     {
         return BIND(&TQueryPreparer::DoGetInitialSplit, MakeStrong(this))
-            .AsyncVia(Connection_->GetLightInvoker())
+            .AsyncVia(Connection_->GetInvoker())
             .Run(path, timestamp);
     }
 
@@ -421,7 +421,7 @@ public:
             Connection_->GetConfig()->UdfRegistryPath,
             Connection_->GetConfig()->FunctionRegistryCache,
             MakeWeak(this),
-            Connection_->GetLightInvoker());
+            Connection_->GetInvoker());
 
         Logger.AddTag("ClientId: %v", TGuid::Create());
     }
@@ -846,13 +846,6 @@ private:
             return MakeFuture<T>(TError(EErrorCode::TooManyConcurrentRequests, "Too many concurrent requests"));
         }
 
-        // XXX(sandello): Deprecate me in 19.x ; remove two separate thread pools, use just one.
-        auto invoker = Connection_->GetLightInvoker();
-        if (commandName == "SelectRows" || commandName == "LookupRows" || commandName == "VersionedLookupRows" ||
-            commandName == "GetJobStderr") {
-            invoker = Connection_->GetHeavyInvoker();
-        }
-
         return
             BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this), guard = std::move(guard)] () {
                 auto client = this_.Lock();
@@ -870,7 +863,7 @@ private:
                     throw;
                 }
             })
-            .AsyncVia(Connection_->GetLightInvoker())
+            .AsyncVia(Connection_->GetInvoker())
             .Run()
             .WithTimeout(options.Timeout);
     }
@@ -2567,7 +2560,7 @@ private:
                 auto teleporter = New<TChunkTeleporter>(
                     Connection_->GetConfig(),
                     this,
-                    Connection_->GetLightInvoker(),
+                    Connection_->GetInvoker(),
                     uploadTransactionId,
                     Logger);
 
@@ -3157,7 +3150,7 @@ private:
         });
 
         auto locateChunksResult = WaitFor(locateChunks
-            .AsyncVia(GetConnection()->GetHeavyInvoker())
+            .AsyncVia(GetConnection()->GetInvoker())
             .Run());
 
         if (!locateChunksResult.IsOK()) {
@@ -3170,12 +3163,12 @@ private:
         auto userJobReader = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
-            GetConnection()->GetHeavyInvoker(),
+            GetConnection()->GetInvoker(),
             NNodeTrackerClient::TNodeDescriptor(),
             BIND([] { }),
             Null);
 
-        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetHeavyInvoker());
+        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetInvoker());
         jobInputReader->Open();
         return jobInputReader;
     }
