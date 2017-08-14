@@ -138,9 +138,7 @@ private:
     const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
     const TNullable<TString> Address_;
     const TNullable<TString> UnixDomainName_;
-#ifdef _linux_
     const int Priority_;
-#endif
     const IMessageHandlerPtr Handler_;
     const NConcurrency::IPollerPtr Poller_;
 

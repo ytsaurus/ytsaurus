@@ -6,8 +6,11 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/socket.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -19,12 +22,6 @@
 #include <util/system/error.h>
 
 #include <cerrno>
-
-#ifdef _unix_
-    #include <netinet/tcp.h>
-#include <yt/core/profiling/scoped_timer.h>
-
-#endif
 
 namespace NYT {
 namespace NBus {
@@ -71,9 +68,7 @@ TTcpConnection::TTcpConnection(
     , EndpointAttributes_(endpointAttributes.Clone())
     , Address_(address)
     , UnixDomainName_(unixDomainName)
-#ifdef _linux_
     , Priority_(priority)
-#endif
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
     , Logger(NLogging::TLogger(BusLogger)
@@ -375,96 +370,24 @@ void TTcpConnection::CloseSocket()
 void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
 {
     int family = address.GetSockAddr()->sa_family;
-    int protocol = family == AF_UNIX ? 0 : IPPROTO_TCP;
-    int type = SOCK_STREAM;
-
-#ifdef _linux_
-    type |= SOCK_CLOEXEC;
-#endif
 
     YCHECK(Socket_ == INVALID_SOCKET);
-    Socket_ = socket(family, type, protocol);
-    if (Socket_ == INVALID_SOCKET) {
-        THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::TransportError,
-            "Failed to create client socket")
-            << TError::FromSystem();
-    }
-
-    if (family == AF_INET6) {
-        int value = 0;
-        if (setsockopt(Socket_, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &value, sizeof(value)) != 0) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::TransportError,
-                "Failed to configure IPv6 protocol")
-                << TError::FromSystem();
-        }
+    if (address.GetSockAddr()->sa_family == AF_UNIX) {
+        Socket_ = CreateUnixClientSocket();
+    } else {
+        Socket_ = CreateTcpClientSocket();
     }
 
     if (Config_->EnableNoDelay && family != AF_UNIX) {
         if (Config_->EnableNoDelay) {
-            int value = 1;
-            if (setsockopt(Socket_, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to enable socket NODELAY mode")
-                    << TError::FromSystem();
-            }
+            SetSocketNoDelay(Socket_);
         }
-#ifdef _linux_
-        {
-            if (setsockopt(Socket_, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority_, sizeof(Priority_)) != 0) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to set socket priority")
-                    << TError::FromSystem();
-            }
-        }
-#endif
-        {
-            int value = 1;
-            if (setsockopt(Socket_, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to enable keep alive")
-                    << TError::FromSystem();
-            }
-        }
+
+        SetSocketPriority(Socket_, Priority_);
+        SetSocketKeepAlive(Socket_);
     }
 
-    {
-        int flags = fcntl(Socket_, F_GETFL);
-        int result = fcntl(Socket_, F_SETFL, flags | O_NONBLOCK);
-        if (result != 0) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::TransportError,
-                "Failed to enable nonblocking mode")
-                << TError::FromSystem();
-        }
-    }
-
-#if defined _unix_ && !defined _linux_
-    {
-        int flags = fcntl(Socket_, F_GETFD);
-        int result = fcntl(Socket_, F_SETFD, flags | FD_CLOEXEC);
-        if (result != 0) {
-            THROW_ERROR_EXCEPTION("Failed to enable close-on-exec mode")
-                << TError::FromSystem();
-        }
-    }
-#endif
-
-    int result = HandleEintr(connect, Socket_, address.GetSockAddr(), address.GetLength());
-    if (result != 0) {
-        int error = LastSystemError();
-        if (IsSocketError(error)) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::TransportError,
-                "Error connecting to %v",
-                EndpointDescription_)
-                << TError::FromSystem(error);
-        }
-    }
+    ::NYT::ConnectSocket(Socket_, address);
 }
 
 const TString& TTcpConnection::GetEndpointDescription() const
@@ -703,12 +626,9 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 
     LOG_TRACE("Socket read (BytesRead: %v)", *bytesRead);
 
-#ifdef _linux_
     if (Config_->EnableQuickAck) {
-        int value = 1;
-        setsockopt(Socket_, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value));
+        SetSocketEnableQuickAck(Socket_);
     }
-#endif
 
     return true;
 }
@@ -1234,10 +1154,7 @@ void TTcpConnection::RearmPoller(bool hasUnsentData)
 
 int TTcpConnection::GetSocketError() const
 {
-    int error;
-    socklen_t errorLen = sizeof (error);
-    getsockopt(Socket_, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &errorLen);
-    return error;
+    return ::NYT::GetSocketError(Socket_);
 }
 
 bool TTcpConnection::IsSocketError(ssize_t result)

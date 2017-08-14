@@ -97,6 +97,8 @@ public:
     static TErrorOr<TNetworkAddress> TryParse(const TStringBuf& address);
     static TNetworkAddress Parse(const TStringBuf& address);
 
+    static TNetworkAddress CreateIPv6Any(int port);
+
 private:
     sockaddr_storage Storage;
     socklen_t Length;
