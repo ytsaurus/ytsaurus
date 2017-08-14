@@ -289,6 +289,8 @@ TJoinParameters GetJoinEvaluator(
                 prefixKeys.push_back(permanentBuffer->Capture(key.Begin(), foreignKeyPrefix, false));
             }
 
+            prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()));
+
             dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(permanentBuffer));
             for (size_t index = 0; index < foreignKeyPrefix; ++index) {
                 dataSource.Schema.push_back(joinKeyExprs[index]->Type);
