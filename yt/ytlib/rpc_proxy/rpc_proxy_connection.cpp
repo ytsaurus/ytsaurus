@@ -1,9 +1,12 @@
 #include "rpc_proxy_connection.h"
 #include "rpc_proxy_client.h"
 #include "rpc_proxy_transaction.h"
+#include "rpc_proxy_timestamp_provider.h"
 #include "config.h"
 #include "credentials_injecting_channel.h"
 #include "private.h"
+
+#include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 
 #include <yt/core/misc/address.h>
 
@@ -47,7 +50,16 @@ const NTabletClient::ITableMountCachePtr& TRpcProxyConnection::GetTableMountCach
 
 const NTransactionClient::ITimestampProviderPtr& TRpcProxyConnection::GetTimestampProvider()
 {
-    Y_UNIMPLEMENTED();
+    if (!TimestampProvider_) {
+        auto guard = Guard(SpinLock_);
+        if (!TimestampProvider_) {
+            TimestampProvider_ = NTransactionClient::CreateBatchingTimestampProvider(
+                New<TRpcProxyTimestampProvider>(MakeWeak(this), Config_->TimestampProviderRpcTimeout),
+                Config_->TimestampProviderUpdatePeriod
+            );
+        }
+    }
+    return TimestampProvider_;
 }
 
 const IInvokerPtr& TRpcProxyConnection::GetInvoker()
@@ -81,8 +93,7 @@ IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
 
     LOG_DEBUG("Originating address is %v", localAddressString);
 
-    const auto& address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
-    auto channel = GetBusChannelFactory()->CreateChannel(address);
+    auto channel = GetRandomPeerChannel();
 
     if (options.Token) {
         channel = CreateTokenInjectingChannel(
@@ -118,6 +129,12 @@ void TRpcProxyConnection::ClearMetadataCaches()
 void TRpcProxyConnection::Terminate()
 {
     Y_UNIMPLEMENTED();
+}
+
+NRpc::IChannelPtr TRpcProxyConnection::GetRandomPeerChannel()
+{
+    const auto& address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
+    return GetBusChannelFactory()->CreateChannel(address);
 }
 
 void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)

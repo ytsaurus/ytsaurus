@@ -49,14 +49,18 @@ private:
 
     TSpinLock SpinLock_;
     yhash_set<TWeakPtr<TRpcProxyTransaction>> Transactions_;
+    NTransactionClient::ITimestampProviderPtr TimestampProvider_;
 
     NConcurrency::TPeriodicExecutorPtr PingExecutor_;
 
 protected:
     friend class TRpcProxyClient;
     friend class TRpcProxyTransaction;
+    friend class TRpcProxyTimestampProvider;
 
     // Implementation-specific methods.
+
+    NRpc::IChannelPtr GetRandomPeerChannel();
 
     void RegisterTransaction(TRpcProxyTransaction* transaction);
     void UnregisterTransaction(TRpcProxyTransaction* transaction);

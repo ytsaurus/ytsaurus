@@ -22,6 +22,8 @@
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/serialize.h>
@@ -63,6 +65,8 @@ public:
             RpcProxyLogger)
         , Bootstrap_(bootstrap)
     {
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
@@ -195,6 +199,21 @@ private:
         }
 
         return transaction;
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GenerateTimestamps)
+    {
+        auto count = request->count();
+        auto timestampProvider = Bootstrap_->GetNativeConnection()->GetTimestampProvider();
+        timestampProvider->GenerateTimestamps(count).Subscribe(
+            BIND([=] (const TErrorOr<NTransactionClient::TTimestamp>& timestampOrError) {
+                if (timestampOrError.IsOK()) {
+                    response->set_timestamp(timestampOrError.Value());
+                    context->Reply();
+                } else {
+                    context->Reply(timestampOrError);
+                }
+            }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, StartTransaction)
@@ -1407,7 +1426,7 @@ private:
             options.RequireSyncReplica = request->require_sync_replica();
         }
         if (request->has_upstream_replica_id()) {
-            FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
+            NYT::FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
         }
         transaction->ModifyRows(
             request->path(),
