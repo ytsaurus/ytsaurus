@@ -141,7 +141,7 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
             .GreaterThanOrEqual(0)
-            .Default(10);
+            .Default(5);
         RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
             .GreaterThanOrEqual(0)
             .Default();
