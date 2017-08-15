@@ -1,5 +1,7 @@
 #include "lock.h"
 
+#include "batch_request_impl.h"
+
 #include "yt_poller.h"
 
 #include <mapreduce/yt/http/retry_request.h>
@@ -18,9 +20,9 @@ public:
         , Acquired_(acquired)
     { }
 
-    virtual void PrepareRequest(IBatchRequest* batchRequest) override
+    virtual void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
-        LockState_ = batchRequest->Get(LockStateYPath_);
+        LockState_ = batchRequest->Get(TTransactionId(), LockStateYPath_, TGetOptions());
     }
 
     virtual EStatus OnRequestExecuted() override

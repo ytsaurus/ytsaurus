@@ -1,6 +1,7 @@
 #include "batch_request_impl.h"
 
 #include "lock.h"
+#include "raw_requests.h"
 #include "rpc_parameters_serialization.h"
 
 #include <mapreduce/yt/common/config.h>
@@ -74,7 +75,7 @@ static void EnsureType(const TMaybe<TNode>& node, TNode::EType type)
 
 template <typename TReturnType>
 class TResponseParserBase
-    : public TBatchRequestImpl::IResponseItemParser
+    : public TRawBatchRequest::IResponseItemParser
 {
 public:
     using TFutureResult = TFuture<TReturnType>;
@@ -193,13 +194,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-TBatchRequestImpl::TBatchItem::TBatchItem(TNode parameters, ::TIntrusivePtr<IResponseItemParser> responseParser)
+TRawBatchRequest::TBatchItem::TBatchItem(TNode parameters, ::TIntrusivePtr<IResponseItemParser> responseParser)
     : Parameters(std::move(parameters))
     , ResponseParser(std::move(responseParser))
     , NextTry()
 { }
 
-TBatchRequestImpl::TBatchItem::TBatchItem(const TBatchItem& batchItem, TInstant nextTry)
+TRawBatchRequest::TBatchItem::TBatchItem(const TBatchItem& batchItem, TInstant nextTry)
     : Parameters(batchItem.Parameters)
     , ResponseParser(batchItem.ResponseParser)
     , NextTry(nextTry)
@@ -207,22 +208,22 @@ TBatchRequestImpl::TBatchItem::TBatchItem(const TBatchItem& batchItem, TInstant 
 
 ////////////////////////////////////////////////////////////////////
 
-TBatchRequestImpl::TBatchRequestImpl() = default;
+TRawBatchRequest::TRawBatchRequest() = default;
 
-TBatchRequestImpl::~TBatchRequestImpl() = default;
+TRawBatchRequest::~TRawBatchRequest() = default;
 
-bool TBatchRequestImpl::IsExecuted() const
+bool TRawBatchRequest::IsExecuted() const
 {
     return Executed_;
 }
 
-void TBatchRequestImpl::MarkExecuted()
+void TRawBatchRequest::MarkExecuted()
 {
     Executed_ = true;
 }
 
 template <typename TResponseParser>
-typename TResponseParser::TFutureResult TBatchRequestImpl::AddRequest(
+typename TResponseParser::TFutureResult TRawBatchRequest::AddRequest(
     const TString& command,
     TNode parameters,
     TMaybe<TNode> input)
@@ -231,7 +232,7 @@ typename TResponseParser::TFutureResult TBatchRequestImpl::AddRequest(
 }
 
 template <typename TResponseParser>
-typename TResponseParser::TFutureResult TBatchRequestImpl::AddRequest(
+typename TResponseParser::TFutureResult TRawBatchRequest::AddRequest(
     const TString& command,
     TNode parameters,
     TMaybe<TNode> input,
@@ -250,7 +251,7 @@ typename TResponseParser::TFutureResult TBatchRequestImpl::AddRequest(
     return parser->GetFuture();
 }
 
-void TBatchRequestImpl::AddRequest(TBatchItem batchItem)
+void TRawBatchRequest::AddRequest(TBatchItem batchItem)
 {
     if (Executed_) {
         ythrow yexception() << "Cannot add request: batch request is already executed";
@@ -258,7 +259,7 @@ void TBatchRequestImpl::AddRequest(TBatchItem batchItem)
     BatchItemList_.push_back(batchItem);
 }
 
-TFuture<TNodeId> TBatchRequestImpl::Create(
+TFuture<TNodeId> TRawBatchRequest::Create(
     const TTransactionId& transaction,
     const TYPath& path,
     ENodeType type,
@@ -270,7 +271,7 @@ TFuture<TNodeId> TBatchRequestImpl::Create(
         Nothing());
 }
 
-TFuture<void> TBatchRequestImpl::Remove(
+TFuture<void> TRawBatchRequest::Remove(
     const TTransactionId& transaction,
     const TYPath& path,
     const TRemoveOptions& options)
@@ -281,7 +282,7 @@ TFuture<void> TBatchRequestImpl::Remove(
         Nothing());
 }
 
-TFuture<bool> TBatchRequestImpl::Exists(const TTransactionId& transaction, const TYPath& path)
+TFuture<bool> TRawBatchRequest::Exists(const TTransactionId& transaction, const TYPath& path)
 {
     return AddRequest<TExistsResponseParser>(
         "exists",
@@ -289,7 +290,7 @@ TFuture<bool> TBatchRequestImpl::Exists(const TTransactionId& transaction, const
         Nothing());
 }
 
-TFuture<TNode> TBatchRequestImpl::Get(
+TFuture<TNode> TRawBatchRequest::Get(
     const TTransactionId& transaction,
     const TYPath& path,
     const TGetOptions& options)
@@ -300,7 +301,7 @@ TFuture<TNode> TBatchRequestImpl::Get(
         Nothing());
 }
 
-TFuture<void> TBatchRequestImpl::Set(
+TFuture<void> TRawBatchRequest::Set(
     const TTransactionId& transaction,
     const TYPath& path,
     const TNode& node)
@@ -311,7 +312,7 @@ TFuture<void> TBatchRequestImpl::Set(
         node);
 }
 
-TFuture<TNode::TList> TBatchRequestImpl::List(
+TFuture<TNode::TList> TRawBatchRequest::List(
     const TTransactionId& transaction,
     const TYPath& path,
     const TListOptions& options)
@@ -322,7 +323,7 @@ TFuture<TNode::TList> TBatchRequestImpl::List(
         Nothing());
 }
 
-TFuture<TNodeId> TBatchRequestImpl::Copy(
+TFuture<TNodeId> TRawBatchRequest::Copy(
     const TTransactionId& transaction,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
@@ -334,7 +335,7 @@ TFuture<TNodeId> TBatchRequestImpl::Copy(
         Nothing());
 }
 
-TFuture<TNodeId> TBatchRequestImpl::Move(
+TFuture<TNodeId> TRawBatchRequest::Move(
     const TTransactionId& transaction,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
@@ -346,7 +347,7 @@ TFuture<TNodeId> TBatchRequestImpl::Move(
         Nothing());
 }
 
-TFuture<TNodeId> TBatchRequestImpl::Link(
+TFuture<TNodeId> TRawBatchRequest::Link(
     const TTransactionId& transaction,
     const TYPath& targetPath,
     const TYPath& linkPath,
@@ -358,7 +359,7 @@ TFuture<TNodeId> TBatchRequestImpl::Link(
         Nothing());
 }
 
-TFuture<TLockId> TBatchRequestImpl::Lock(
+TFuture<TLockId> TRawBatchRequest::Lock(
     const TTransactionId& transaction,
     const TYPath& path,
     ELockMode mode,
@@ -370,7 +371,7 @@ TFuture<TLockId> TBatchRequestImpl::Lock(
         Nothing());
 }
 
-TFuture<TRichYPath> TBatchRequestImpl::CanonizeYPath(const TRichYPath& path)
+TFuture<TRichYPath> TRawBatchRequest::CanonizeYPath(const TRichYPath& path)
 {
     if (path.Path_.find_first_of("<>{}[]") != TString::npos) {
         return AddRequest<TCanonizeYPathResponseParser>(
@@ -385,7 +386,7 @@ TFuture<TRichYPath> TBatchRequestImpl::CanonizeYPath(const TRichYPath& path)
     }
 }
 
-void TBatchRequestImpl::FillParameterList(size_t maxSize, TNode* result, TInstant* nextTry) const
+void TRawBatchRequest::FillParameterList(size_t maxSize, TNode* result, TInstant* nextTry) const
 {
     Y_VERIFY(result);
     Y_VERIFY(nextTry);
@@ -402,21 +403,21 @@ void TBatchRequestImpl::FillParameterList(size_t maxSize, TNode* result, TInstan
     }
 }
 
-void TBatchRequestImpl::ParseResponse(
+void TRawBatchRequest::ParseResponse(
     const TResponseInfo& requestResult,
     const IRetryPolicy& retryPolicy,
-    TBatchRequestImpl* retryBatch,
+    TRawBatchRequest* retryBatch,
     TInstant now)
 {
     TNode node = NodeFromYsonString(requestResult.Response);
     return ParseResponse(node, requestResult.RequestId, retryPolicy, retryBatch, now);
 }
 
-void TBatchRequestImpl::ParseResponse(
+void TRawBatchRequest::ParseResponse(
     TNode node,
     const TString& requestId,
     const IRetryPolicy& retryPolicy,
-    TBatchRequestImpl* retryBatch,
+    TRawBatchRequest* retryBatch,
     TInstant now)
 {
     Y_VERIFY(retryBatch);
@@ -467,14 +468,14 @@ void TBatchRequestImpl::ParseResponse(
     BatchItemList_.erase(BatchItemList_.begin(), BatchItemList_.begin() + size);
 }
 
-void TBatchRequestImpl::SetErrorResult(std::exception_ptr e) const
+void TRawBatchRequest::SetErrorResult(std::exception_ptr e) const
 {
     for (const auto& batchItem : BatchItemList_) {
         batchItem.ResponseParser->SetException(e);
     }
 }
 
-size_t TBatchRequestImpl::BatchSize() const
+size_t TRawBatchRequest::BatchSize() const
 {
     return BatchItemList_.size();
 }
@@ -483,11 +484,11 @@ size_t TBatchRequestImpl::BatchSize() const
 
 TBatchRequest::TBatchRequest(const TTransactionId& defaultTransaction, ::TIntrusivePtr<TClient> client)
     : DefaultTransaction_(defaultTransaction)
-    , Impl_(MakeIntrusive<NDetail::TBatchRequestImpl>())
+    , Impl_(MakeIntrusive<TRawBatchRequest>())
     , Client_(client)
 { }
 
-TBatchRequest::TBatchRequest(NDetail::TBatchRequestImpl* impl, ::TIntrusivePtr<TClient> client)
+TBatchRequest::TBatchRequest(TRawBatchRequest* impl, ::TIntrusivePtr<TClient> client)
     : Impl_(impl)
     , Client_(std::move(client))
 { }
@@ -587,45 +588,8 @@ TFuture<TRichYPath> TBatchRequest::CanonizeYPath(const TRichYPath& path)
 
 void TBatchRequest::ExecuteBatch(const TExecuteBatchOptions& options)
 {
-    if (Impl_->IsExecuted()) {
-        ythrow yexception() << "Cannot execute batch request since it is alredy executed";
-    }
-    NDetail::TFinallyGuard g([&] {
-        Impl_->MarkExecuted();
-    });
-
-    NDetail::TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
-
-    const auto concurrency = options.Concurrency_.GetOrElse(50);
-    const auto batchPartMaxSize = options.BatchPartMaxSize_.GetOrElse(concurrency * 5);
-
-    while (Impl_->BatchSize()) {
-        NDetail::TBatchRequestImpl retryBatch;
-
-        while (Impl_->BatchSize()) {
-            auto parameters = TNode::CreateMap();
-            TInstant nextTry;
-            Impl_->FillParameterList(batchPartMaxSize, &parameters["requests"], &nextTry);
-            if (nextTry) {
-                SleepUntil(nextTry);
-            }
-            parameters["concurrency"] = concurrency;
-            auto body = NodeToYsonString(parameters);
-            THttpHeader header("POST", "execute_batch");
-            header.AddMutationId();
-            NDetail::TResponseInfo result;
-            try {
-                result = RetryRequest(Client_->GetAuth(), header, body, retryPolicy);
-            } catch (const yexception& e) {
-                Impl_->SetErrorResult(std::current_exception());
-                retryBatch.SetErrorResult(std::current_exception());
-                throw;
-            }
-            Impl_->ParseResponse(std::move(result), retryPolicy, &retryBatch);
-        }
-
-        *Impl_ = std::move(retryBatch);
-    }
+    TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
+    NYT::NDetail::ExecuteBatch(Client_->GetAuth(), *Impl_, options, retryPolicy);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

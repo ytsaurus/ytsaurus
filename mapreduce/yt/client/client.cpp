@@ -747,14 +747,9 @@ TYtPoller& TClient::GetYtPoller()
         // We don't use current client and create new client because YtPoller_ might use
         // this client during current client shutdown.
         // That might lead to incrementing of current client refcount and double delete of current client object.
-        YtPoller_ = MakeHolder<TYtPoller>(Clone());
+        YtPoller_ = MakeHolder<TYtPoller>(Auth_);
     }
     return *YtPoller_;
-}
-
-IClientPtr TClient::Clone()
-{
-    return MakeIntrusive<TClient>(Auth_, TransactionId_);
 }
 
 TClientPtr TClient::GetParentClient()

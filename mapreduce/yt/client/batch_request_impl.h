@@ -25,7 +25,7 @@ using TClientPtr = ::TIntrusivePtr<TClient>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBatchRequestImpl
+class TRawBatchRequest
     : public TThrRefBase
 {
 public:
@@ -39,8 +39,8 @@ public:
     };
 
 public:
-    TBatchRequestImpl();
-    ~TBatchRequestImpl();
+    TRawBatchRequest();
+    ~TRawBatchRequest();
 
     bool IsExecuted() const;
     void MarkExecuted();
@@ -52,13 +52,13 @@ public:
     void ParseResponse(
         const TResponseInfo& requestResult,
         const IRetryPolicy& retryPolicy,
-        TBatchRequestImpl* retryBatch,
+        TRawBatchRequest* retryBatch,
         TInstant now = TInstant::Now());
     void ParseResponse(
         TNode response,
         const TString& requestId,
         const IRetryPolicy& retryPolicy,
-        TBatchRequestImpl* retryBatch,
+        TRawBatchRequest* retryBatch,
         TInstant now = TInstant::Now());
     void SetErrorResult(std::exception_ptr e) const;
 
@@ -199,11 +199,11 @@ public:
     virtual void ExecuteBatch(const TExecuteBatchOptions& executeBatch) override;
 
 private:
-    TBatchRequest(NDetail::TBatchRequestImpl* impl, ::TIntrusivePtr<TClient> client);
+    TBatchRequest(NDetail::TRawBatchRequest* impl, ::TIntrusivePtr<TClient> client);
 
 private:
     TTransactionId DefaultTransaction_;
-    ::TIntrusivePtr<NDetail::TBatchRequestImpl> Impl_;
+    ::TIntrusivePtr<NDetail::TRawBatchRequest> Impl_;
     THolder<TBatchRequest> TmpWithTransaction_;
     ::TIntrusivePtr<TClient> Client_;
 
