@@ -1461,7 +1461,9 @@ void CompleteOperationWatch(TOperationWatchInfo& params)
     if (state == "completed") {
         operationCompletePromise.SetValue();
     } else if (state == "aborted" || state == "failed") {
-        auto error = TYtError(operationNode["result"]["error"]); // TODO: check if aborted operations have error
+        auto error = TYtError(operationNode["result"]["error"]);
+        LOG_ERROR("Operation %s is `%s' with error: %s",
+            ~GetGuidAsString(operationId), ~state, ~error.FullDescription());
         bool isFailed = (state == "failed");
         TString additionalExceptionText;
         if (isFailed) {

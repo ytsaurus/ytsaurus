@@ -241,6 +241,14 @@ TString TYtError::ShortDescription() const
     return std::move(out.Str());
 }
 
+TString TYtError::FullDescription() const
+{
+    TStringStream s;
+    WriteErrorDescription(*this, &s);
+    s << "; full error: " << GetYsonText();
+    return s.Str();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TErrorResponse::TErrorResponse(int httpCode, const TString& requestId)
@@ -334,8 +342,7 @@ bool TErrorResponse::IsConcurrentOperationsLimitReached() const
 void TErrorResponse::Setup()
 {
     TStringStream s;
-    WriteErrorDescription(Error_, &s);
-    *this << s.Str() << "; full error: " << Error_.GetYsonText();
+    *this << Error_.FullDescription();
 }
 
 ////////////////////////////////////////////////////////////////////
