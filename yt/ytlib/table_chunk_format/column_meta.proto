@@ -10,7 +10,7 @@ message TSegmentMeta
     required int32 block_index = 4;
     required int64 offset = 5;
     required int64 chunk_row_count = 6;
-    required int32 size = 7;
+    required int64 size = 7;
 
     extensions 100 to max;
 }
