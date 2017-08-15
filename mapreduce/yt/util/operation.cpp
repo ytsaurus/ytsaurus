@@ -76,7 +76,7 @@ EOperationStatus CheckOperationStatus(
             error) << jobErrors.Str();
     }
 
-    return OS_RUNNING;
+    return OS_IN_PROGRESS;
 }
 
 void DumpOperationStderrs(
