@@ -81,6 +81,11 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TRow row)
     Y_ASSERT(batch.size() < batch.capacity());
     batch.push_back(rowBuffer->Capture(row));
 
+    // NB: Aggregate flag is neighter set from TCG value nor cleared during row allocation.
+    for (auto* value = batch.back().Begin(); value < batch.back().End(); ++value) {
+        const_cast<TUnversionedValue*>(value)->Aggregate = false;
+    }
+
     if (batch.size() == batch.capacity()) {
         auto& writer = context->Writer;
         bool shouldNotWait;
