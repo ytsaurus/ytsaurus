@@ -39,6 +39,12 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, PivotKeys);
     Persist(context, UseNewEndpointKeys);
     Persist(context, LogEndpoints);
+
+    // COMPAT(max42): remove this when snapshots older than v200564 are
+    // not supported.
+    if (context.GetVersion() >= 200564) {
+        Persist(context, MaxDataWeightPerJob);
+    }
 }
 
 void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
@@ -213,6 +219,15 @@ public:
         AttachForeignSlices();
         for (auto& job : Jobs_) {
             job->Finalize(true /* sortByPosition */);
+
+            if (job->GetDataWeight() > Options_.MaxDataWeightPerJob) {
+                THROW_ERROR_EXCEPTION(
+                    "Maximum allowed data weight violated for a sorted job: %v > %v",
+                    job->GetDataWeight(),
+                    Options_.MaxDataWeightPerJob)
+                    << TErrorAttribute("lower_key", job->LowerPrimaryKey())
+                    << TErrorAttribute("upper_key", job->UpperPrimaryKey());
+            }
         }
         return std::move(Jobs_);
     }
