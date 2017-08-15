@@ -1067,7 +1067,7 @@ public:
         return GetUnreadDataSliceDescriptorsImpl(
             unreadRows,
             ChunkMeta_->Misc(),
-            ChunkMeta_->BlockMeta(),
+            *ChunkMeta_->BlockMeta(),
             ChunkSpec_,
             LowerLimit_,
             UpperLimit_,
@@ -1198,7 +1198,7 @@ private:
             auto columnIndex = schemaColumnIndexes[valueIndex];
             auto columnReader = CreateUnversionedColumnReader(
                 ChunkMeta_->ChunkSchema().Columns()[columnIndex],
-                ChunkMeta_->ColumnMeta().columns(columnIndex),
+                ChunkMeta_->ColumnMeta()->columns(columnIndex),
                 valueIndex,
                 NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
 
@@ -1208,7 +1208,7 @@ private:
 
         if (readSchemalessColumns) {
             auto columnReader = CreateSchemalessColumnReader(
-                ChunkMeta_->ColumnMeta().columns(ChunkMeta_->ChunkSchema().Columns().size()),
+                ChunkMeta_->ColumnMeta()->columns(ChunkMeta_->ChunkSchema().Columns().size()),
                 schemalessIdMapping);
             SchemalessReader_ = columnReader.get();
 
@@ -1220,7 +1220,7 @@ private:
         for (int keyIndex = 0; keyIndex < minKeyColumnCount; ++keyIndex) {
             auto columnReader = CreateUnversionedColumnReader(
                 ChunkMeta_->ChunkSchema().Columns()[keyIndex],
-                ChunkMeta_->ColumnMeta().columns(keyIndex),
+                ChunkMeta_->ColumnMeta()->columns(keyIndex),
                 keyIndex,
                 keyIndex); // Column id doesn't really matter.
             KeyColumnReaders_.emplace_back(columnReader.get());
@@ -1546,7 +1546,7 @@ private:
         for (int keyColumnIndex = 0; keyColumnIndex < ChunkMeta_->ChunkSchema().GetKeyColumnCount(); ++keyColumnIndex) {
             auto columnReader = CreateUnversionedColumnReader(
                 ChunkMeta_->ChunkSchema().Columns()[keyColumnIndex],
-                ChunkMeta_->ColumnMeta().columns(keyColumnIndex),
+                ChunkMeta_->ColumnMeta()->columns(keyColumnIndex),
                 keyColumnIndex,
                 keyColumnIndex);
 
@@ -1607,7 +1607,7 @@ private:
             } else {
                 auto columnReader = CreateUnversionedColumnReader(
                     ChunkMeta_->ChunkSchema().Columns()[columnIndex],
-                    ChunkMeta_->ColumnMeta().columns(columnIndex),
+                    ChunkMeta_->ColumnMeta()->columns(columnIndex),
                     valueIndex,
                     NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
 
@@ -1618,7 +1618,7 @@ private:
 
         if (readSchemalessColumns) {
             auto columnReader = CreateSchemalessColumnReader(
-                ChunkMeta_->ColumnMeta().columns(ChunkMeta_->ChunkSchema().Columns().size()),
+                ChunkMeta_->ColumnMeta()->columns(ChunkMeta_->ChunkSchema().Columns().size()),
                 schemalessIdMapping);
             SchemalessReader_ = columnReader.get();
 
