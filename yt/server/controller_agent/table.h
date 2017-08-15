@@ -3,7 +3,7 @@
 #include "helpers.h"
 #include "private.h"
 #include "serialize.h"
-#include "output_chunk_tree.h"
+#include "yt/server/chunk_pools/chunk_stripe_key.h"
 
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
@@ -72,11 +72,12 @@ struct TOutputTable
     // Statistics returned by EndUpload call.
     NChunkClient::NProto::TDataStatistics DataStatistics;
 
+    // TODO(max42): move this and other runtime-specific data to TOperationControllerBase::TSink.
     //! Chunk trees comprising the output (the order matters).
     //! Chunk trees are sorted according to either:
     //! * integer key (e.g. in remote copy);
     //! * boundary keys (when the output is sorted).
-    std::vector<std::pair<TOutputChunkTreeKey, NChunkClient::TChunkTreeId>> OutputChunkTreeIds;
+    std::vector<std::pair<NChunkPools::TChunkStripeKey, NChunkClient::TChunkTreeId>> OutputChunkTreeIds;
 
     NYson::TYsonString EffectiveAcl;
 

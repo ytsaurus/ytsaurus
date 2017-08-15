@@ -2,6 +2,8 @@
 
 #include "serialize.h"
 
+#include <yt/ytlib/chunk_client/input_chunk.h>
+
 namespace NYT {
 namespace NControllerAgent {
 

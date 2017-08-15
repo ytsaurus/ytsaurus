@@ -213,7 +213,7 @@ protected:
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(joblet, 0, jobSummary);
+            RegisterOutput(jobSummary.Result, joblet->ChunkListIds);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override

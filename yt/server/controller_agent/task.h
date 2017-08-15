@@ -4,14 +4,16 @@
 
 #include "progress_counter.h"
 #include "serialize.h"
-#include "output_chunk_tree.h"
 
 #include <yt/server/scheduler/job.h>
 
+#include <yt/server/chunk_pools/chunk_stripe_key.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/public.h>
+
+#include <yt/ytlib/table_client/helpers.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -28,6 +30,7 @@ public:
 public:
     //! For persistence only.
     TTask();
+    TTask(ITaskHostPtr taskHost, std::vector<NChunkPools::IChunkPoolInput*> destinationPoolInputs);
     explicit TTask(ITaskHostPtr taskHost);
 
     void Initialize();
@@ -111,8 +114,15 @@ public:
 
     virtual EJobType GetJobType() const = 0;
 
+    ITaskHost* GetTaskHost();
+    void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
+    void AddPendingHint();
+
 protected:
     NLogging::TLogger Logger;
+
+    //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
+    ITaskHost* TaskHost_;
 
     virtual bool CanScheduleJob(
         NScheduler::ISchedulingContext* context,
@@ -126,9 +136,6 @@ protected:
     virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
     virtual void OnJobStarted(TJobletPtr joblet);
-
-    void AddPendingHint();
-    void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
 
     void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
 
@@ -155,32 +162,32 @@ protected:
         NJobTrackerClient::NProto::TJobSpec* jobSpec,
         TJobletPtr joblet);
 
+    // Send stripe to the next chunk pool registering the recovery info.
     void RegisterIntermediate(
-        TJobletPtr joblet,
-        NChunkPools::TChunkStripePtr stripe,
-        TTaskPtr destinationTask,
-        bool attachToLivePreview);
-    void RegisterIntermediate(
-        TJobletPtr joblet,
-        NChunkPools::TChunkStripePtr stripe,
+        NChunkPools::TChunkStripePtr chunkStripe,
         NChunkPools::IChunkPoolInput* destinationPool,
-        bool attachToLivePreview);
+        TJobletPtr joblet);
 
     static NChunkPools::TChunkStripePtr BuildIntermediateChunkStripe(
         google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
-    void RegisterOutput(
-        TJobletPtr joblet,
-        TOutputChunkTreeKey key,
-        const NScheduler::TCompletedJobSummary& jobSummary);
+    std::vector<NChunkPools::TChunkStripePtr> BuildOutputChunkStripes(
+        const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
+        google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeys);
 
     void AddFootprintAndUserJobResources(NScheduler::TExtendedJobResources& jobResources) const;
 
+    void RegisterOutput(
+        const NJobTrackerClient::NProto::TJobResult& jobResult,
+        const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+        const NChunkPools::TChunkStripeKey& key = NChunkPools::TChunkStripeKey());
+
+protected:
+    //! Destination pools for each possible table index (usually).
+    std::vector<NChunkPools::IChunkPoolInput*> DestinationPoolInputs_;
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);
-
-    //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
-    ITaskHost* TaskHost_;
 
     int CachedPendingJobCount_;
     int CachedTotalJobCount_;

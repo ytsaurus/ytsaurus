@@ -85,18 +85,17 @@ struct ITaskHost
 
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const = 0;
 
-    virtual void RegisterIntermediate(
-        const TJobletPtr& joblet,
+    virtual void RegisterRecoveryInfo(
         const TCompletedJobPtr& completedJob,
-        const NChunkPools::TChunkStripePtr& stripe,
-        bool attachToLivePreview) = 0;
-
-    virtual void RegisterOutput(
-        const TJobletPtr& joblet,
-        const TOutputChunkTreeKey& key,
-        const NScheduler::TCompletedJobSummary& jobSummary) = 0;
+        const NChunkPools::TChunkStripePtr& stripe) = 0;
 
     virtual void Persist(const TPersistenceContext& context) = 0;
+
+    virtual std::vector<NChunkPools::IChunkPoolInput*> GetSinks() = 0;
+
+    virtual NTableClient::TRowBufferPtr GetRowBuffer() = 0;
+
+    virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost);

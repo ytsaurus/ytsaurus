@@ -196,11 +196,12 @@ protected:
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
+            TChunkStripeKey key = 0;
             if (Controller_->OrderedOutputRequired_) {
-                RegisterOutput(joblet, TOutputOrder::TEntry(joblet->OutputCookie), jobSummary);
-            } else {
-                RegisterOutput(joblet, 0 /* key */, jobSummary);
+                key = TOutputOrder::TEntry(joblet->OutputCookie);
             }
+
+            RegisterOutput(jobSummary.Result, joblet->ChunkListIds, key);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
