@@ -1097,7 +1097,7 @@ private:
 
                 const auto& storeManager = tablet->GetStoreManager();
                 if (requestedState == ETabletState::UnmountFlushing ||
-                    tablet->GetActiveStore()->GetRowCount() > 0)
+                    storeManager->IsFlushNeeded())
                 {
                     storeManager->Rotate(requestedState == ETabletState::FreezeFlushing);
                 }

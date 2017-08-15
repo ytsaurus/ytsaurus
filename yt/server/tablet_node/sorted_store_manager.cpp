@@ -454,6 +454,14 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     });
 }
 
+bool TSortedStoreManager::IsFlushNeeded() const
+{
+    // Unfortunately one cannot rely on IStore::GetRowCount call since
+    // the latter is not stable (i.e. may return different values during recovery).
+    // But it's always safe to say "yes".
+    return true;
+}
+
 bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
 {
     if (store->GetStoreState() != EStoreState::Persistent) {

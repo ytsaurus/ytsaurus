@@ -122,6 +122,11 @@ bool TReplicatedStoreManager::IsRotationScheduled() const
     return LogStoreManager_->IsRotationScheduled();
 }
 
+bool TReplicatedStoreManager::IsFlushNeeded() const
+{
+    LogStoreManager_->IsFlushNeeded();
+}
+
 void TReplicatedStoreManager::ScheduleRotation()
 {
     LogStoreManager_->ScheduleRotation();
