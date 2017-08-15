@@ -259,6 +259,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_connection.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_transaction.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_timestamp_provider.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
@@ -363,6 +364,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/remote_timestamp_provider.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/timestamp_provider_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/batching_timestamp_provider.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/timestamp_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_listener.cpp
