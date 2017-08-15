@@ -417,6 +417,7 @@ private:
                         const auto& tabletInfo = *it;
                         auto nextBound = rowBuffer->Capture(tabletInfo->PivotKey.Get());
 
+                        // Fix case when key is equal to pivot key of tablet.
                         if (currentBound < nextBound) {
                             addSubsource(targetTabletInfo)->Ranges = MakeSharedRange(
                                 SmallVector<TRowRange, 1>{TRowRange{currentBound, nextBound}},
