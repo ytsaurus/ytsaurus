@@ -7,7 +7,7 @@ import "yt/core/misc/protobuf_helpers.proto";
 message TBlockInfo
 {
     required int64 offset = 1;
-    required int32 size = 2;
+    required int64 size = 2;
     required uint64 checksum = 3;
 }
 
