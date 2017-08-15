@@ -62,6 +62,7 @@ public:
     virtual void AddStore(IStorePtr store, bool onMount) override;
     virtual void RemoveStore(IStorePtr store) override;
 
+    virtual bool IsFlushNeeded() const override;
     virtual bool IsStoreCompactable(IStorePtr store) const override;
 
     virtual ISortedStoreManagerPtr AsSorted() override;
