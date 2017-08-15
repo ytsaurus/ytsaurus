@@ -103,19 +103,23 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
         mkdir(path, recursive=True, client=client)
     else:
         path = str(TablePath(path, client=client))
+
     require(exists(path, client=client), lambda: YtError("You cannot create table in unexisting path"))
+
     if prefix is not None:
         path = ypath_join(path, prefix)
     else:
         if not path.endswith("/"):
             path = path + "/"
+
     name = find_free_subpath(path, client=client)
-    expiration_timeout = get_value(expiration_timeout,
-                                   get_config(client)["temp_expiration_timeout"])
-    timeout = timedelta(milliseconds=expiration_timeout)
-    attributes = update(
-        {"expiration_time": datetime_to_string(datetime.utcnow() + timeout)},
-        get_value(attributes, {}))
+    attributes = get_value(attributes, {})
+
+    expiration_timeout = get_value(expiration_timeout, get_config(client)["temp_expiration_timeout"])
+    if expiration_timeout is not None:
+        timeout = timedelta(milliseconds=expiration_timeout)
+        attributes["expiration_time"] = datetime_to_string(datetime.utcnow() + timeout)
+
     create_table(name, attributes=attributes, client=client)
     return name
 
