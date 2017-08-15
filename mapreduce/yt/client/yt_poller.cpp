@@ -1,5 +1,10 @@
 #include "yt_poller.h"
 
+#include "batch_request_impl.h"
+#include "raw_requests.h"
+
+#include <mapreduce/yt/http/retry_request.h>
+
 #include <mapreduce/yt/common/config.h>
 
 namespace NYT {
@@ -7,8 +12,8 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtPoller::TYtPoller(IClientPtr client)
-    : Client_(client)
+TYtPoller::TYtPoller(TAuth auth)
+    : Auth_(std::move(auth))
     , WaiterThread_(&TYtPoller::WatchLoopProc, this)
 {
     WaiterThread_.Start();
@@ -48,13 +53,18 @@ void TYtPoller::WatchLoop()
             Y_VERIFY(!InProgress_.empty());
         }
 
-        auto batchRequest = Client_->CreateBatchRequest();
+        TRawBatchRequest rawBatchRequest;
 
         for (auto& item : InProgress_) {
-            item->PrepareRequest(batchRequest.Get());
+            item->PrepareRequest(&rawBatchRequest);
         }
 
-        batchRequest->ExecuteBatch();
+        TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
+        ExecuteBatch(
+            Auth_,
+            rawBatchRequest,
+            TExecuteBatchOptions(),
+            retryPolicy);
 
         for (auto it = InProgress_.begin(); it != InProgress_.end();) {
             auto& item = *it;

@@ -1,5 +1,6 @@
 #include "operation.h"
 
+#include "batch_request_impl.h"
 #include "client.h"
 #include "operation_tracker.h"
 #include "yt_poller.h"
@@ -1522,9 +1523,11 @@ public:
         OperationWatchInfo_->OperationPath = "//sys/operations/" + GetGuidAsString(operationId);
     }
 
-    virtual void PrepareRequest(IBatchRequest* batchRequest) override
+    virtual void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
-        OperationState_ = batchRequest->Get(OperationWatchInfo_->OperationPath + "/@",
+        OperationState_ = batchRequest->Get(
+            TTransactionId(),
+            OperationWatchInfo_->OperationPath + "/@",
             TGetOptions().AttributeFilter(
                 TAttributeFilter()
                 .AddAttribute("state")

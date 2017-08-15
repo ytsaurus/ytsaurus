@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/http/requests.h>
 
 #include <util/generic/list.h>
 #include <util/system/mutex.h>
@@ -9,6 +10,8 @@
 
 namespace NYT {
 namespace NDetail {
+
+class TRawBatchRequest;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +27,7 @@ public:
 public:
     virtual ~IYtPollerItem() = default;
 
-    virtual void PrepareRequest(IBatchRequest* batchRequest) = 0;
+    virtual void PrepareRequest(TRawBatchRequest* batchRequest) = 0;
 
     // Should return PollContinue if poller should continue polling this item.
     // Should return PollBreak if poller should stop polling this item.
@@ -38,7 +41,7 @@ class TYtPoller
     : public TThrRefBase
 {
 public:
-    explicit TYtPoller(IClientPtr Client_);
+    explicit TYtPoller(TAuth auth);
     ~TYtPoller();
 
     void Watch(IYtPollerItemPtr item);
@@ -51,7 +54,7 @@ private:
 private:
     struct TItem;
 
-    IClientPtr const Client_;
+    TAuth Auth_;
 
     ylist<IYtPollerItemPtr> InProgress_;
     ylist<IYtPollerItemPtr> Pending_;

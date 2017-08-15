@@ -69,7 +69,7 @@ yvector<TString> GetAllPathsFromRequestList(const TNode& requestList)
 
 SIMPLE_UNIT_TEST_SUITE(BatchRequestImpl) {
     SIMPLE_UNIT_TEST(ParseResponse) {
-        TBatchRequestImpl batchRequest;
+        TRawBatchRequest batchRequest;
 
         UNIT_ASSERT_VALUES_EQUAL(batchRequest.BatchSize(), 0);
 
@@ -93,7 +93,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestImpl) {
         TTestRetryPolicy testRetryPolicy;
         const TInstant now = TInstant::Seconds(100500);
 
-        TBatchRequestImpl retryBatch;
+        TRawBatchRequest retryBatch;
         batchRequest.ParseResponse(
             TNode()
                 .Add(TNode()("output", 5))
