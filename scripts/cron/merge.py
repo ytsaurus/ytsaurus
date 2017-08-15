@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from yt.wrapper.operation_commands import format_operation_stderrs
+from yt.wrapper.common import parse_bool
 from yt.tools.atomic import process_tasks_from_list
 
 import yt.logger as logger
@@ -44,6 +45,28 @@ def merge(table):
 
         data_size_per_job = max(1,  int(desired_chunk_size / compression_ratio))
 
+        spec = {
+            "combine_chunks": True,
+            "data_size_per_job": data_size_per_job,
+            "unavailable_chunk_strategy": "fail",
+            "unavailable_chunk_tactics": "fail",
+            "job_io": {
+                "table_writer": {
+                    "desired_chunk_size": desired_chunk_size,
+                    "max_row_weight": 128 * 1024 * 1024
+                }
+            }
+        }
+
+        mode = "sorted" if yt.is_sorted(table) else "ordered"
+
+        allow_inplace_merge = parse_bool(yt.get_attribute(table, "allow_inplace_merge", False))
+        if allow_inplace_merge:
+            logger.info("Merging table %s inplace (erasure codec: %s, compression_ratio: %f)",
+                        table, erasure_codec, compression_ratio)
+            yt.run_merge(table, table, mode, spec=spec)
+            return
+
         preserve_account = is_enough_account_disk_space(table)
 
         logger.info("Merging table %s (erasure codec: %s, compression_ratio: %f, preserve_account: %s)",
@@ -62,18 +85,7 @@ def merge(table):
             #for attr in ["account", "compression_codec", "erasure_codec", "replication_factor"]:
             #    yt.set("{}/@{}".format(temp_table, attr), yt.get("{}/@{}".format(table, attr)))
 
-            mode = "sorted" if yt.is_sorted(table) else "ordered"
-            yt.run_merge(table, temp_table, mode,
-                         spec={"combine_chunks":"true",
-                               "data_size_per_job": data_size_per_job,
-                               "unavailable_chunk_strategy": "fail",
-                               "unavailable_chunk_tactics": "fail",
-                               "job_io": {
-                                   "table_writer": {
-                                       "desired_chunk_size": desired_chunk_size,
-                                       "max_row_weight": 128 * 1024 * 1024
-                                   }
-                               }})
+            yt.run_merge(table, temp_table, mode, spec=spec)
 
             if yt.exists(table):
                 client = yt.YtClient(config=yt.config.config)
