@@ -972,9 +972,6 @@ TOperationId ExecuteMap(
     LogYPaths(operationId, spec.Inputs_, "input");
     LogYPaths(operationId, spec.Outputs_, "output");
 
-    if (options.Wait_) {
-        WaitForOperation(auth, operationId);
-    }
     return operationId;
 }
 
