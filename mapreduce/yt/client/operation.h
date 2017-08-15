@@ -103,20 +103,19 @@ TOperationId ExecuteErase(
 
 EOperationStatus CheckOperation(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TOperationId& operationId);
 
 void WaitForOperation(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TOperationId& operationId);
 
 void AbortOperation(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TOperationId& operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, TClientPtr client, const TOperationOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

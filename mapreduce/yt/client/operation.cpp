@@ -49,6 +49,12 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Compile time option for easy rollback.
+// TODO: remove after 01.09.2017 if there are no complains
+static constexpr bool USE_NEW_OPERATION_TRACKER = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ui64 RoundUpFileSize(ui64 size)
@@ -393,12 +399,15 @@ private:
 
 yvector<TFailedJobInfo> GetFailedJobInfo(
     const TAuth& auth,
-    const TString& operationPath)
+    const TOperationId& operationId,
+    const TGetFailedJobInfoOptions& options)
 {
-    constexpr size_t JOB_COUNT_LIMIT = 10;
-    constexpr i64 STDERR_LIMIT = 64 * 1024;
+    const size_t maxJobCount = options.MaxJobCount_;
+    const i64 stderrTailSize = options.StderrTailSize_;
 
-    auto jobsPath = operationPath + "/jobs";
+    const auto operationPath = "//sys/operations/" + GetGuidAsString(operationId);
+    const auto jobsPath = operationPath + "/jobs";
+
     if (!Exists(auth, TTransactionId(), jobsPath)) {
         return {};
     }
@@ -413,7 +422,7 @@ yvector<TFailedJobInfo> GetFailedJobInfo(
 
     yvector<TFailedJobInfo> result;
     for (const auto& job : jobList) {
-        if (result.size() >= JOB_COUNT_LIMIT) {
+        if (result.size() >= maxJobCount) {
             break;
         }
 
@@ -442,10 +451,10 @@ yvector<TFailedJobInfo> GetFailedJobInfo(
         TRichYPath path(stderrPath);
         i64 stderrSize = NodeFromYsonString(
             Get(auth, TTransactionId(), stderrPath + "/@uncompressed_data_size")).AsInt64();
-        if (stderrSize > STDERR_LIMIT) {
+        if (stderrSize > stderrTailSize) {
             path.AddRange(
                 TReadRange().LowerLimit(
-                    TReadLimit().Offset(stderrSize - STDERR_LIMIT)));
+                    TReadLimit().Offset(stderrSize - stderrTailSize)));
         }
         IFileReaderPtr reader = new TFileReader(path, auth, TTransactionId());
         cur.Stderr = reader->ReadAll();
@@ -541,19 +550,18 @@ TOperationId StartOperation(
 
 EOperationStatus CheckOperation(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TOperationId& operationId)
 {
     auto opIdStr = GetGuidAsString(operationId);
     auto opPath = Sprintf("//sys/operations/%s", ~opIdStr);
     auto statePath = opPath + "/@state";
 
-    if (!Exists(auth, transactionId, opPath)) {
+    if (!Exists(auth, TTransactionId(), opPath)) {
         ythrow yexception() << "Operation " << opIdStr << " does not exist";
     }
 
     TString state = NodeFromYsonString(
-        Get(auth, transactionId, statePath)).AsString();
+        Get(auth, TTransactionId(), statePath)).AsString();
 
     if (state == "completed") {
         return OS_COMPLETED;
@@ -566,13 +574,13 @@ EOperationStatus CheckOperation(
 
         auto errorPath = opPath + "/@result/error";
         TYtError ytError(TString("unknown operation error"));
-        if (Exists(auth, transactionId, errorPath)) {
-            ytError = TYtError(NodeFromYsonString(Get(auth, transactionId, errorPath)));
+        if (Exists(auth, TTransactionId(), errorPath)) {
+            ytError = TYtError(NodeFromYsonString(Get(auth, TTransactionId(), errorPath)));
         }
 
         TStringStream jobErrors;
 
-        auto failedJobInfoList = GetFailedJobInfo(auth, opPath);
+        auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
         DumpOperationStderrs(jobErrors, failedJobInfoList);
 
         ythrow TOperationFailedError(
@@ -588,14 +596,13 @@ EOperationStatus CheckOperation(
 
 void WaitForOperation(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TOperationId& operationId)
 {
     const TDuration checkOperationStateInterval =
         IsLocalMode(auth) ? TDuration::MilliSeconds(100) : TDuration::Seconds(1);
 
     while (true) {
-        auto status = CheckOperation(auth, transactionId, operationId);
+        auto status = CheckOperation(auth, operationId);
         if (status == OS_COMPLETED) {
             LOG_INFO("Operation %s completed (%s)",
                 ~GetGuidAsString(operationId),
@@ -608,11 +615,9 @@ void WaitForOperation(
 
 void AbortOperation(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TOperationId& operationId)
 {
     THttpHeader header("POST", "abort_op");
-    header.AddTransactionId(transactionId);
     header.AddOperationId(operationId);
     header.AddMutationId();
     RetryRequest(auth, header);
@@ -968,7 +973,7 @@ TOperationId ExecuteMap(
     LogYPaths(operationId, spec.Outputs_, "output");
 
     if (options.Wait_) {
-        WaitForOperation(auth, transactionId, operationId);
+        WaitForOperation(auth, operationId);
     }
     return operationId;
 }
@@ -1052,9 +1057,6 @@ TOperationId ExecuteReduce(
     LogYPaths(operationId, spec.Inputs_, "input");
     LogYPaths(operationId, spec.Outputs_, "output");
 
-    if (options.Wait_) {
-        WaitForOperation(auth, transactionId, operationId);
-    }
     return operationId;
 }
 
@@ -1133,9 +1135,6 @@ TOperationId ExecuteJoinReduce(
     LogYPaths(operationId, spec.Inputs_, "input");
     LogYPaths(operationId, spec.Outputs_, "output");
 
-    if (options.Wait_) {
-        WaitForOperation(auth, transactionId, operationId);
-    }
     return operationId;
 }
 
@@ -1344,9 +1343,6 @@ TOperationId ExecuteMapReduce(
     LogYPaths(operationId, spec.Inputs_, "input");
     LogYPaths(operationId, spec.Outputs_, "output");
 
-    if (options.Wait_) {
-        WaitForOperation(auth, transactionId, operationId);
-    }
     return operationId;
 }
 
@@ -1382,9 +1378,6 @@ TOperationId ExecuteSort(
     LogYPaths(operationId, inputs, "input");
     LogYPath(operationId, output, "output");
 
-    if (options.Wait_) {
-        WaitForOperation(auth, transactionId, operationId);
-    }
     return operationId;
 }
 
@@ -1421,9 +1414,6 @@ TOperationId ExecuteMerge(
     LogYPaths(operationId, inputs, "input");
     LogYPath(operationId, output, "output");
 
-    if (options.Wait_) {
-        WaitForOperation(auth, transactionId, operationId);
-    }
     return operationId;
 }
 
@@ -1450,9 +1440,6 @@ TOperationId ExecuteErase(
 
     LogYPath(operationId, tablePath, "table_path");
 
-    if (options.Wait_) {
-        WaitForOperation(auth, transactionId, operationId);
-    }
     return operationId;
 }
 
@@ -1464,7 +1451,6 @@ struct TOperationWatchInfo
     TOperationId OperationId;
     TAuth Auth;
     NThreading::TPromise<void> OperationCompletePromise;
-    TYPath OperationPath;
 };
 
 void CompleteOperationWatch(TOperationWatchInfo& params)
@@ -1483,7 +1469,7 @@ void CompleteOperationWatch(TOperationWatchInfo& params)
         TString additionalExceptionText;
         if (isFailed) {
             try {
-                auto failedJobStderrInfo = GetFailedJobInfo(params.Auth, params.OperationPath);
+                auto failedJobStderrInfo = GetFailedJobInfo(params.Auth, operationId, TGetFailedJobInfoOptions());
                 TStringStream out;
                 DumpOperationStderrs(out, failedJobStderrInfo);
                 additionalExceptionText = out.Str();
@@ -1516,18 +1502,16 @@ class TOperation::TOperationPollerItem
 public:
     TOperationPollerItem(const TAuth& auth, const TOperationId& operationId, const NThreading::TPromise<void>& operationCompletePromise)
         : OperationWatchInfo_(MakeHolder<TOperationWatchInfo>())
+        , OperationAttrPath_("//sys/operations/" + GetGuidAsString(operationId) + "/@")
     {
         OperationWatchInfo_->OperationId = operationId;
         OperationWatchInfo_->Auth = auth;
         OperationWatchInfo_->OperationCompletePromise = operationCompletePromise;
-        OperationWatchInfo_->OperationPath = "//sys/operations/" + GetGuidAsString(operationId);
     }
 
     virtual void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
-        OperationState_ = batchRequest->Get(
-            TTransactionId(),
-            OperationWatchInfo_->OperationPath + "/@",
+        OperationState_ = batchRequest->Get(TTransactionId(), OperationAttrPath_,
             TGetOptions().AttributeFilter(
                 TAttributeFilter()
                 .AddAttribute("state")
@@ -1558,6 +1542,7 @@ public:
 private:
     THolder<TOperationWatchInfo> OperationWatchInfo_;
     NThreading::TFuture<TNode> OperationState_;
+    TYPath OperationAttrPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1585,62 +1570,7 @@ NThreading::TFuture<void> TOperation::Watch()
 
 yvector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOptions& options)
 {
-    const size_t maxJobCount = options.MaxJobCount_;
-    const i64 stderrTailSize = options.StderrTailSize_;
-
-    const auto operationPath = "//sys/operations/" + GetGuidAsString(GetId());
-    auto jobsPath = operationPath + "/jobs";
-
-    Client_->Get(operationPath, TGetOptions());
-
-    if (!Client_->Exists(jobsPath)) {
-        return {};
-    }
-
-    auto jobList = Client_->List(jobsPath,
-        TListOptions().AttributeFilter(
-            TAttributeFilter()
-                .AddAttribute("state")
-                .AddAttribute("error")));
-
-    yvector<TFailedJobInfo> result;
-    for (const auto& job : jobList) {
-        if (result.size() >= maxJobCount) {
-            break;
-        }
-
-        const auto& jobId = job.AsString();
-        auto jobPath = jobsPath + "/" + jobId;
-        auto& attributes = job.GetAttributes().AsMap();
-
-        const auto stateIt = attributes.find("state");
-        if (stateIt == attributes.end() || stateIt->second.AsString() != "failed") {
-            continue;
-        }
-        result.push_back(TFailedJobInfo());
-        auto& cur = result.back();
-        cur.JobId = GetGuid(job.AsString());
-
-        auto errorIt = attributes.find("error");
-        if (errorIt != attributes.end()) {
-            cur.Error = TYtError(errorIt->second);
-        }
-
-        auto stderrPath = jobPath + "/stderr";
-        if (!Client_->Exists(stderrPath)) {
-            continue;
-        }
-
-        const i64 stderrSize = Client_->Get(stderrPath + "/@uncompressed_data_size", TGetOptions()).AsInt64();
-
-        TFileReaderOptions options;
-        if (stderrSize > stderrTailSize) {
-            options.Offset(stderrSize - stderrTailSize);
-        }
-        IFileReaderPtr reader = Client_->CreateFileReader(stderrPath, options);
-        cur.Stderr = reader->ReadAll();
-    }
-    return result;
+    return NYT::NDetail::GetFailedJobInfo(Client_->GetAuth(), GetId(), options);
 }
 
 void TOperation::SetOperationFinished(const TMaybe<TOperationFailedError>& maybeError)
@@ -1650,6 +1580,21 @@ void TOperation::SetOperationFinished(const TMaybe<TOperationFailedError>& maybe
     } else {
         CompletePromise_->SetValue();
     }
+}
+
+TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, TClientPtr client, const TOperationOptions& options)
+{
+    if (!USE_NEW_OPERATION_TRACKER && options.Wait_) {
+        WaitForOperation(client->GetAuth(), operationId);
+    }
+
+    auto operation = ::MakeIntrusive<TOperation>(operationId, client);
+    if (USE_NEW_OPERATION_TRACKER && options.Wait_) {
+        auto finishedFuture = operation->Watch();
+        finishedFuture.Wait();
+        finishedFuture.GetValue();
+    }
+    return operation;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

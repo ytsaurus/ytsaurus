@@ -240,7 +240,7 @@ IOperationPtr TClientBase::DoMap(
         spec,
         mapper,
         options);
-    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
 IOperationPtr TClientBase::DoReduce(
@@ -254,7 +254,7 @@ IOperationPtr TClientBase::DoReduce(
         spec,
         reducer,
         options);
-    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
 IOperationPtr TClientBase::DoJoinReduce(
@@ -268,7 +268,7 @@ IOperationPtr TClientBase::DoJoinReduce(
         spec,
         reducer,
         options);
-    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
 IOperationPtr TClientBase::DoMapReduce(
@@ -294,7 +294,7 @@ IOperationPtr TClientBase::DoMapReduce(
         outputReduceCombinerDesc,
         inputReducerDesc,
         options);
-    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
 IOperationPtr TClientBase::Sort(
@@ -306,7 +306,7 @@ IOperationPtr TClientBase::Sort(
         TransactionId_,
         spec,
         options);
-    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
 IOperationPtr TClientBase::Merge(
@@ -318,7 +318,7 @@ IOperationPtr TClientBase::Merge(
         TransactionId_,
         spec,
         options);
-    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
 IOperationPtr TClientBase::Erase(
@@ -330,22 +330,22 @@ IOperationPtr TClientBase::Erase(
         TransactionId_,
         spec,
         options);
-    return ::MakeIntrusive<TOperation>(operationId, GetParentClient());
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
 EOperationStatus TClientBase::CheckOperation(const TOperationId& operationId)
 {
-    return NYT::NDetail::CheckOperation(Auth_, TransactionId_, operationId);
+    return NYT::NDetail::CheckOperation(Auth_, operationId);
 }
 
 void TClientBase::AbortOperation(const TOperationId& operationId)
 {
-    NYT::NDetail::AbortOperation(Auth_, TransactionId_, operationId);
+    NYT::NDetail::AbortOperation(Auth_, operationId);
 }
 
 void TClientBase::WaitForOperation(const TOperationId& operationId)
 {
-    NYT::NDetail::WaitForOperation(Auth_, TransactionId_, operationId);
+    NYT::NDetail::WaitForOperation(Auth_, operationId);
 }
 
 void TClientBase::AlterTable(
