@@ -146,6 +146,11 @@ void TOrderedStoreManager::ResetActiveStore()
 void TOrderedStoreManager::OnActiveStoreRotated()
 { }
 
+bool TOrderedStoreManager::IsFlushNeeded() const
+{
+    return ActiveStore_->GetRowCount() > 0;
+}
+
 bool TOrderedStoreManager::IsStoreCompactable(IStorePtr /*store*/) const
 {
     return false;

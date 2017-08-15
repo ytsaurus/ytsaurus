@@ -49,6 +49,7 @@ struct IStoreManager
     virtual bool IsRotationPossible() const = 0;
     virtual bool IsForcedRotationPossible() const = 0;
     virtual bool IsRotationScheduled() const = 0;
+    virtual bool IsFlushNeeded() const = 0;
     virtual void ScheduleRotation() = 0;
     virtual void Rotate(bool createNewStore) = 0;
 
