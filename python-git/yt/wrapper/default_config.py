@@ -314,8 +314,7 @@ default_config = {
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
     # Expiration timeout for temporary objects (in milliseconds).
-    # Can be None if timeout should not be set.
-    "temp_expiration_timeout": None,
+    "temp_expiration_timeout": 7 * 24 * 60 * 60 * 1000,
 
     "file_cache": {
         "replication_factor": 10,
