@@ -10,14 +10,20 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TRefCountedBlockMeta = TRefCountedProto<NProto::TBlockMetaExt>;
+using TRefCountedBlockMetaPtr = TIntrusivePtr<TRefCountedBlockMeta>;
+
+using TRefCountedColumnMeta = TRefCountedProto<NProto::TColumnMetaExt>;
+using TRefCountedColumnMetaPtr = TIntrusivePtr<TRefCountedColumnMeta>;
+
 class TColumnarChunkMeta
     : public TIntrinsicRefCounted
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkType, ChunkType);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, ChunkFormat);
-    DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
-    DEFINE_BYREF_RO_PROPERTY(NProto::TColumnMetaExt, ColumnMeta);
+    DEFINE_BYREF_RO_PROPERTY(TRefCountedBlockMetaPtr, BlockMeta);
+    DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnMetaPtr, ColumnMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(TSharedRange<TKey>, BlockLastKeys);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);

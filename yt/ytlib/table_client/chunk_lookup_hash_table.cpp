@@ -116,20 +116,20 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
         return nullptr;
     }
 
-    if (chunkMeta->BlockMeta().blocks_size() > MaxBlockIndex) {
+    if (chunkMeta->BlockMeta()->blocks_size() > MaxBlockIndex) {
         LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, BlockCount: %v)",
             chunkMeta->GetChunkId(),
-            chunkMeta->BlockMeta().blocks_size());
+            chunkMeta->BlockMeta()->blocks_size());
         return nullptr;
     }
 
     auto blockCache = New<TSimpleBlockCache>(blocks);
-    auto chunkSize = chunkMeta->BlockMeta().blocks(chunkMeta->BlockMeta().blocks_size() - 1).chunk_row_count();
+    auto chunkSize = chunkMeta->BlockMeta()->blocks(chunkMeta->BlockMeta()->blocks_size() - 1).chunk_row_count();
 
     auto hashTable = New<TChunkLookupHashTable>(chunkSize);
 
-    for (int blockIndex = 0; blockIndex < chunkMeta->BlockMeta().blocks_size(); ++blockIndex) {
-        const auto& blockMeta = chunkMeta->BlockMeta().blocks(blockIndex);
+    for (int blockIndex = 0; blockIndex < chunkMeta->BlockMeta()->blocks_size(); ++blockIndex) {
+        const auto& blockMeta = chunkMeta->BlockMeta()->blocks(blockIndex);
 
         auto blockId = TBlockId(chunkMeta->GetChunkId(), blockIndex);
         auto uncompressedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
