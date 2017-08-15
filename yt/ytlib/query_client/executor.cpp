@@ -411,17 +411,20 @@ private:
                 [&] (auto startShardIt, auto endShardIt, auto keysIt) {
                     TRow currentBound = *keysIt;
 
-                    auto* subsource = addSubsource(*startShardIt++);
+                    auto targetTabletInfo = *startShardIt++;
 
                     for (auto it = startShardIt; it != endShardIt; ++it) {
                         const auto& tabletInfo = *it;
                         auto nextBound = rowBuffer->Capture(tabletInfo->PivotKey.Get());
-                        subsource->Ranges = MakeSharedRange(
-                            SmallVector<TRowRange, 1>{TRowRange{currentBound, nextBound}},
-                            rowBuffer,
-                            keys.GetHolder());
 
-                        subsource = addSubsource(tabletInfo);
+                        if (currentBound < nextBound) {
+                            addSubsource(targetTabletInfo)->Ranges = MakeSharedRange(
+                                SmallVector<TRowRange, 1>{TRowRange{currentBound, nextBound}},
+                                rowBuffer,
+                                keys.GetHolder());
+                        }
+
+                        targetTabletInfo = tabletInfo;
                         currentBound = nextBound;
                     }
 
@@ -432,7 +435,7 @@ private:
                     }
                     upperBound[bound.GetCount()] = MakeUnversionedSentinelValue(EValueType::Max);
 
-                    subsource->Ranges = MakeSharedRange(
+                    addSubsource(targetTabletInfo)->Ranges = MakeSharedRange(
                         SmallVector<TRowRange, 1>{TRowRange{currentBound, upperBound}},
                         rowBuffer,
                         keys.GetHolder());
