@@ -1,10 +1,15 @@
 #include "helpers.h"
 
 #include "serialize.h"
+#include "table.h"
 
 #include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/table_client/row_buffer.h>
+
+#include <yt/ytlib/scheduler/output_result.pb.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 
@@ -12,7 +17,9 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NObjectClient;
+using namespace NChunkPools;
 using namespace NScheduler;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -824,6 +831,34 @@ TString TrimCommandForBriefSpec(const TString& command)
 TString TLockedUserObject::GetPath() const
 {
     return FromObjectId(ObjectId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBoundaryKeys BuildBoundaryKeysFromOutputResult(
+    const NScheduler::NProto::TOutputResult& boundaryKeys,
+    const TOutputTable& outputTable,
+    const TRowBufferPtr& rowBuffer)
+{
+    YCHECK(!boundaryKeys.empty());
+    YCHECK(boundaryKeys.sorted());
+    YCHECK(!outputTable.Options->ValidateUniqueKeys || boundaryKeys.unique_keys());
+
+    auto trimAndCaptureKey = [&] (const TOwningKey& key) {
+        int limit = outputTable.TableUploadOptions.TableSchema.GetKeyColumnCount();
+        if (key.GetCount() > limit) {
+            // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
+            YCHECK(!outputTable.Options->ValidateUniqueKeys);
+            return rowBuffer->Capture(key.Begin(), limit);
+        } else {
+            return rowBuffer->Capture(key.Begin(), key.GetCount());
+        }
+    };
+
+    return TBoundaryKeys {
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.min())),
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.max())),
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

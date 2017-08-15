@@ -283,7 +283,7 @@ protected:
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(joblet, PartitionIndex, jobSummary);
+            RegisterOutput(jobSummary.Result, joblet->ChunkListIds);
 
             if (jobSummary.InterruptReason != EInterruptReason::None) {
                 Controller->ReinstallUnreadInputDataSlices(jobSummary.UnreadInputDataSlices);

@@ -547,7 +547,7 @@ print row + table_index
 
         op.resume_jobs()
         op.track()
-        assert read_table("//tmp/t2") == data
+        assert sorted(read_table("//tmp/t2")) == sorted(data)
 
     def test_row_sampling(self):
         create("table", "//tmp/t1")

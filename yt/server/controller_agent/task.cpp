@@ -3,9 +3,10 @@
 #include "chunk_list_pool.h"
 #include "job_info.h"
 #include "job_splitter.h"
-#include "task_host.h"
 #include "job_memory.h"
 #include "job_metrics_updater.h"
+#include "helpers.h"
+#include "task_host.h"
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/scheduling_context.h>
@@ -49,13 +50,18 @@ TTask::TTask()
     , CompletedFired_(false)
 { }
 
-TTask::TTask(ITaskHostPtr taskHost)
+TTask::TTask(ITaskHostPtr taskHost, std::vector<IChunkPoolInput*> destinationPoolInputs)
     : Logger(OperationLogger)
     , TaskHost_(taskHost.Get())
+    , DestinationPoolInputs_(std::move(destinationPoolInputs))
     , CachedPendingJobCount_(0)
     , CachedTotalJobCount_(0)
     , DemandSanityCheckDeadline_(0)
     , CompletedFired_(false)
+{ }
+
+TTask::TTask(ITaskHostPtr taskHost)
+    : TTask(taskHost, taskHost->GetSinks())
 { }
 
 void TTask::Initialize()
@@ -185,6 +191,11 @@ void TTask::CheckCompleted()
 TUserJobSpecPtr TTask::GetUserJobSpec() const
 {
     return nullptr;
+}
+
+ITaskHost* TTask::GetTaskHost()
+{
+    return TaskHost_;
 }
 
 void TTask::ScheduleJob(
@@ -411,6 +422,8 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, CompletedFired_);
 
     Persist(context, LostJobCookieMap);
+
+    Persist(context, DestinationPoolInputs_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -739,6 +752,20 @@ void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources)
     }
 }
 
+void TTask::RegisterOutput(
+    const NJobTrackerClient::NProto::TJobResult& jobResult,
+    const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+    const NChunkPools::TChunkStripeKey& key)
+{
+    const auto& schedulerJobResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    auto outputStripes = BuildOutputChunkStripes(chunkListIds, schedulerJobResultExt.output_boundary_keys());
+    for (int tableIndex = 0; tableIndex < TaskHost_->OutputTables().size(); ++tableIndex) {
+        if (outputStripes[tableIndex]) {
+            DestinationPoolInputs_[tableIndex]->Add(std::move(outputStripes[tableIndex]), key);
+        }
+    }
+}
+
 TJobResources TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources_) {
@@ -753,29 +780,15 @@ TJobResources TTask::GetMinNeededResources() const
 }
 
 void TTask::RegisterIntermediate(
-    TJobletPtr joblet,
-    TChunkStripePtr stripe,
-    TTaskPtr destinationTask,
-    bool attachToLivePreview)
-{
-    RegisterIntermediate(
-        joblet,
-        stripe,
-        destinationTask->GetChunkPoolInput(),
-        attachToLivePreview);
-
-    if (destinationTask->HasInputLocality()) {
-        TaskHost_->AddTaskLocalityHint(stripe, destinationTask);
-    }
-    destinationTask->AddPendingHint();
-}
-
-void TTask::RegisterIntermediate(
-    TJobletPtr joblet,
     TChunkStripePtr stripe,
     IChunkPoolInput* destinationPool,
-    bool attachToLivePreview)
+    TJobletPtr joblet)
 {
+    YCHECK(!stripe->ChunkListId);
+    if (stripe->DataSlices.empty()) {
+        return;
+    }
+
     IChunkPoolInput::TCookie inputCookie;
 
     auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
@@ -797,11 +810,9 @@ void TTask::RegisterIntermediate(
         inputCookie,
         joblet->NodeDescriptor);
 
-    TaskHost_->RegisterIntermediate(
-        joblet,
+    TaskHost_->RegisterRecoveryInfo(
         completedJob,
-        stripe,
-        attachToLivePreview);
+        stripe);
 }
 
 TChunkStripePtr TTask::BuildIntermediateChunkStripe(
@@ -828,13 +839,31 @@ TChunkStripePtr TTask::BuildIntermediateChunkStripe(
     return stripe;
 }
 
-void TTask::RegisterOutput(
-    TJobletPtr joblet,
-    TOutputChunkTreeKey key,
-    const TCompletedJobSummary& jobSummary)
+std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
+    const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
+    google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeysPerTable)
 {
-    TaskHost_->RegisterOutput(joblet, key, jobSummary);
+    std::vector<TChunkStripePtr> stripes(chunkTreeIds.size());
+    for (int tableIndex = 0; tableIndex < chunkTreeIds.size(); ++tableIndex) {
+        if (!chunkTreeIds[tableIndex]) {
+            continue;
+        }
+
+        TBoundaryKeys boundaryKeys;
+        if (tableIndex < boundaryKeysPerTable.size() &&
+            !boundaryKeysPerTable.Get(tableIndex).empty() &&
+            boundaryKeysPerTable.Get(tableIndex).sorted())
+        {
+            boundaryKeys = BuildBoundaryKeysFromOutputResult(
+                boundaryKeysPerTable.Get(tableIndex),
+                TaskHost_->OutputTables()[tableIndex],
+                TaskHost_->GetRowBuffer());
+        }
+        stripes[tableIndex] = New<TChunkStripe>(chunkTreeIds[tableIndex], boundaryKeys);
+    }
+    return stripes;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

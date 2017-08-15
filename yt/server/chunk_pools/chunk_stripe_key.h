@@ -1,11 +1,12 @@
 #pragma once
 
 #include "private.h"
+#include "output_order.h"
 
-#include <yt/server/chunk_pools/output_order.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
-namespace NControllerAgent {
+namespace NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,21 +16,25 @@ struct TBoundaryKeys
     NTableClient::TKey MaxKey;
 
     void Persist(const TPersistenceContext& context);
+
+    operator bool() const;
 };
 
-//! A generic key that allows us to sort output chunk trees.
-class TOutputChunkTreeKey
+//! A generic key that allows us to sort chunk stripes.
+class TChunkStripeKey
 {
 public:
-    TOutputChunkTreeKey(int index);
-    TOutputChunkTreeKey(TBoundaryKeys boundaryKeys);
-    TOutputChunkTreeKey(NChunkPools::TOutputOrder::TEntry entry);
+    TChunkStripeKey(int index);
+    TChunkStripeKey(TBoundaryKeys boundaryKeys);
+    TChunkStripeKey(NChunkPools::TOutputOrder::TEntry entry);
     //! Used only for persistence.
-    TOutputChunkTreeKey();
+    TChunkStripeKey();
 
     bool IsIndex() const;
     bool IsBoundaryKeys() const;
     bool IsOutputOrderEntry() const;
+
+    operator bool() const;
 
     int& AsIndex();
     const int& AsIndex() const;
@@ -46,9 +51,9 @@ private:
     TVariant<int, TBoundaryKeys, NChunkPools::TOutputOrder::TEntry> Key_;
 };
 
-TString ToString(const TOutputChunkTreeKey& key);
+TString ToString(const TChunkStripeKey& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
+} // namespace NChunkPools
 } // namespace NYT

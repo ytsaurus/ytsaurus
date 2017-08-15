@@ -1,6 +1,5 @@
 #pragma once
 
-#include "chunk_pool.h"
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -14,29 +13,31 @@ class TOutputOrder
     : public TRefCounted
 {
 public:
+    using TCookie = TIntCookie;
+
     class TEntry
     {
     public:
         NChunkClient::TInputChunkPtr GetTeleportChunk() const;
-        IChunkPoolOutput::TCookie GetCookie() const;
+        TCookie GetCookie() const;
 
         bool IsTeleportChunk() const;
         bool IsCookie() const;
 
         TEntry(NChunkClient::TInputChunkPtr teleportChunk);
-        TEntry(IChunkPoolOutput::TCookie cookie);
+        TEntry(TCookie cookie);
         //! Used only for persistence.
         TEntry();
 
         void Persist(const TPersistenceContext& context);
     private:
-        using TContentType = TVariant<NChunkClient::TInputChunkPtr, IChunkPoolOutput::TCookie>;
+        using TContentType = TVariant<NChunkClient::TInputChunkPtr, int>;
         TContentType Content_;
     };
 
     TOutputOrder() = default;
 
-    void SeekCookie(const IChunkPoolOutput::TCookie cookie);
+    void SeekCookie(TCookie cookie);
     void Push(TEntry entry);
 
     int GetSize() const;
