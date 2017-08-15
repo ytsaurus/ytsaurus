@@ -48,6 +48,7 @@ public:
     TString GetYsonText() const;
 
     TString ShortDescription() const;
+    TString FullDescription() const;
 
 private:
     int Code_;
