@@ -382,8 +382,10 @@ public:
 
 enum EOperationStatus : int
 {
-    OS_RUNNING,
-    OS_COMPLETED
+    OS_IN_PROGRESS,
+    OS_COMPLETED,
+    OS_ABORTED,
+    OS_FAILED,
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -532,6 +534,10 @@ struct IOperationClient
     virtual void WaitForOperation(
         const TOperationId& operationId) = 0;
 
+    //
+    // Checks and returns operation status.
+    // NOTE: this function will never return OS_FAILED or OS_ABORTED status,
+    // it will throw TOperationFailedError instead.
     virtual EOperationStatus CheckOperation(
         const TOperationId& operationId) = 0;
 
