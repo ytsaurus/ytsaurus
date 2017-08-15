@@ -351,12 +351,12 @@ private:
                 asyncStatistics = asyncStatistics.Apply(BIND([
                     =,
                     this_ = MakeStrong(this)
-                ] (const TErrorOr<TQueryStatistics>& result) -> TErrorOr<TQueryStatistics>
+                ] (const TErrorOr<TQueryStatistics>& result) -> TFuture<TQueryStatistics>
                 {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                         LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
-                        return result;
+                        return MakeFuture(result);
                     } else {
                         TQueryStatistics statistics = result.Value();
 
@@ -368,7 +368,7 @@ private:
                             statistics += subqueryStatistics;
                         }
 
-                        return statistics;
+                        return MakeFuture(statistics);
                     }
                 }));
 
