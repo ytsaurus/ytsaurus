@@ -109,7 +109,7 @@ def copy(source_path, destination_path,
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
 def move(source_path, destination_path,
-         recursive=None, preserve_account=None, preserve_expiration_time=None, force=None, client=None):
+         recursive=None, preserve_account=None, preserve_expiration_time=False, force=None, client=None):
     """Moves (renames) Cypress node.
 
     :param source_path: source path.
