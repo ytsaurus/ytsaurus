@@ -508,6 +508,7 @@ protected:
         jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
         jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        jobOptions.MaxDataWeightPerJob = Spec_->MaxDataWeightPerJob;
         jobOptions.EnablePeriodicYielder = true;
 
         if (Spec_->NightlyOptions) {

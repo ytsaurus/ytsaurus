@@ -28,6 +28,10 @@ struct TSortedJobOptions
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;
 
+    //! An upper bound for a total data weight in a job. If this value
+    //! is exceeded, an exception is thrown.
+    i64 MaxDataWeightPerJob = std::numeric_limits<i64>::max();
+
     //! Experimental workaround for YTADMINREQ-5836.
     bool UseNewEndpointKeys = false;
 
