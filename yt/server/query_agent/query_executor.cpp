@@ -351,7 +351,7 @@ private:
                 asyncStatistics = asyncStatistics.Apply(BIND([
                     =,
                     this_ = MakeStrong(this)
-                ] (const TErrorOr<TQueryStatistics>& result) -> TErrorOr<TQueryStatistics
+                ] (const TErrorOr<TQueryStatistics>& result) -> TErrorOr<TQueryStatistics>
                 {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
