@@ -1403,6 +1403,12 @@ private:
         }
 
         TModifyRowsOptions options;
+        if (request->has_require_sync_replica()) {
+            options.RequireSyncReplica = request->require_sync_replica();
+        }
+        if (request->has_upstream_replica_id()) {
+            FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
+        }
         transaction->ModifyRows(
             request->path(),
             TNameTable::FromSchema(rowset->Schema()),

@@ -225,6 +225,9 @@ message TReqModifyRows
     required string path = 2;
     repeated ERowModificationType row_modification_types = 3;
 
+    optional bool require_sync_replica = 4;
+    optional NYT.NProto.TGuid upstream_replica_id = 5;
+
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
