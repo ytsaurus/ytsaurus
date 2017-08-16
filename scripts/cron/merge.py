@@ -60,8 +60,8 @@ def merge(table):
 
         mode = "sorted" if yt.is_sorted(table) else "ordered"
 
-        allow_inplace_merge = parse_bool(yt.get_attribute(table, "allow_inplace_merge", False))
-        if allow_inplace_merge:
+        enable_inplace_merge = parse_bool(yt.get_attribute(table, "enable_inplace_merge", False))
+        if enable_inplace_merge:
             logger.info("Merging table %s inplace (erasure codec: %s, compression_ratio: %f)",
                         table, erasure_codec, compression_ratio)
             yt.run_merge(table, table, mode, spec=spec)
