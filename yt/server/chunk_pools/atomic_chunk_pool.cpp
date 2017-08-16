@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/core/misc/ref_tracked.h>
+
 namespace NYT {
 namespace NChunkPools {
 
@@ -18,6 +20,7 @@ class TAtomicChunkPool
     , public TChunkPoolOutputBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    , public TRefTracked<TAtomicChunkPool>
 {
 public:
     TAtomicChunkPool()
