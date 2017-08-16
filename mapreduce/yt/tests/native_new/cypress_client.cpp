@@ -1,6 +1,5 @@
 #include "lib.h"
 
-#include <mapreduce/yt/client/rpc_parameters_serialization.h>
 #include <mapreduce/yt/http/error.h>
 
 #include <library/unittest/registar.h>

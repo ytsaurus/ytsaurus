@@ -2,9 +2,10 @@
 
 #include <mapreduce/yt/common/helpers.h>
 
-#include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/client_method_options.h>
-#include <mapreduce/yt/interface/node.h>
+
+#include <mapreduce/yt/node/node.h>
+#include <mapreduce/yt/node/node_io.h>
 
 #include <util/generic/guid.h>
 #include <util/string/cast.h>

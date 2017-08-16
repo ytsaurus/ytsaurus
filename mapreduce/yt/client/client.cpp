@@ -4,7 +4,6 @@
 #include "lock.h"
 #include "mock_client.h"
 #include "operation.h"
-#include "rpc_parameters_serialization.h"
 #include "yt_poller.h"
 
 #include <mapreduce/yt/interface/client.h>
@@ -31,6 +30,8 @@
 #include <mapreduce/yt/io/file_reader.h>
 #include <mapreduce/yt/io/file_writer.h>
 #include <mapreduce/yt/io/block_writer.h>
+
+#include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
 
 #include <exception>
 
