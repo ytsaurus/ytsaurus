@@ -20,29 +20,19 @@ class TOperation
     : public IOperation
 {
 public:
+    class TOperationImpl;
+
+public:
     TOperation(TOperationId id, TClientPtr client);
     virtual const TOperationId& GetId() const override;
     virtual NThreading::TFuture<void> Watch() override;
     virtual yvector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) override;
-
-    void UpdateOperationStatus(const TNode& operationNode);
-
-    TMaybe<TYtError> GetError() const;
-    TString GetOperationState() const;
-    bool IsInProgress() const;
+    virtual EOperationStatus GetStatus() override;
+    virtual TMaybe<TYtError> GetError() override;
 
 private:
-    void SetOperationFinished(const TMaybe<TOperationFailedError>& maybeError);
-
-private:
-    class TOperationPollerItem;
-
-private:
-    const TOperationId Id_;
-
     TClientPtr Client_;
-    TMaybe<NThreading::TPromise<void>> CompletePromise_;
-    TMutex Lock_;
+    ::TIntrusivePtr<TOperationImpl> Impl_;
 };
 
 using TOperationPtr = ::TIntrusivePtr<TOperation>;

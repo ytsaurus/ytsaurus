@@ -13,6 +13,18 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TString GetOperationState(const IClientPtr& client, const TOperationId& operationId)
+{
+    return client->Get("//sys/operations/" + GetGuidAsString(operationId) + "/@state").AsString();
+}
+
+static void EmulateOperationArchivation(IClientPtr& client, const TOperationId& operationId)
+{
+    client->Remove("//sys/operations/" + GetGuidAsString(operationId), TRemoveOptions().Recursive(true));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TIdMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
@@ -366,11 +378,63 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             .MapperSpec(TUserJobSpec().AddFile(TRichYPath("//testing/input[#0]").Format("yson"))),
             new TMapperThatChecksFile("input"));
     }
-}
 
-TString GetOperationState(const IClientPtr& client, const TOperationId& operationId)
-{
-    return client->Get("//sys/operations/" + GetGuidAsString(operationId) + "/@state").AsString();
+    SIMPLE_UNIT_TEST(TestGetOperationStatus_Completed)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        auto operation = client->Sort(
+            TSortOperationSpec().SortBy({"foo"})
+            .AddInput("//testing/input")
+            .Output("//testing/output"),
+            TOperationOptions().Wait(false));
+
+        while (operation->GetStatus() == OS_IN_PROGRESS) {
+            Sleep(TDuration::MilliSeconds(100));
+        }
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT(operation->GetError().Empty());
+
+        EmulateOperationArchivation(client, operation->GetId());
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT(operation->GetError().Empty());
+    }
+
+    SIMPLE_UNIT_TEST(TestGetOperationStatus_Failed)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        auto operation = client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .MaxFailedJobCount(1),
+            new TAlwaysFailingMapper,
+            TOperationOptions().Wait(false));
+
+        while (operation->GetStatus() == OS_IN_PROGRESS) {
+            Sleep(TDuration::MilliSeconds(100));
+        }
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_FAILED);
+        UNIT_ASSERT(operation->GetError().Defined());
+
+        EmulateOperationArchivation(client, operation->GetId());
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_FAILED);
+        UNIT_ASSERT(operation->GetError().Defined());
+    }
 }
 
 SIMPLE_UNIT_TEST_SUITE(OperationWatch)
@@ -396,6 +460,10 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         fut.Wait();
         fut.GetValue(); // no exception
         UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "completed");
+
+        EmulateOperationArchivation(client, operation->GetId());
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT(operation->GetError().Empty());
     }
 
     SIMPLE_UNIT_TEST(FailedOperationWatch)
@@ -420,6 +488,10 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         fut.Wait();
         UNIT_ASSERT_EXCEPTION(fut.GetValue(), TOperationFailedError);
         UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "failed");
+
+        EmulateOperationArchivation(client, operation->GetId());
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_FAILED);
+        UNIT_ASSERT(operation->GetError().Defined());
     }
 
     SIMPLE_UNIT_TEST(AbortedOperationWatch)
@@ -445,6 +517,10 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         fut.Wait();
         UNIT_ASSERT_EXCEPTION(fut.GetValue(), TOperationFailedError);
         UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "aborted");
+
+        EmulateOperationArchivation(client, operation->GetId());
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_ABORTED);
+        UNIT_ASSERT(operation->GetError().Defined());
     }
 
     void TestGetFailedJobInfoImpl(IClientBasePtr client)

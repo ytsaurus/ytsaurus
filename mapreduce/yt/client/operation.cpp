@@ -1442,71 +1442,76 @@ TOperationId ExecuteErase(
 
 ////////////////////////////////////////////////////////////////////
 
-struct TOperationWatchInfo
+struct TOperationAttributes
 {
-    TNode OperationNode;
-    TOperationId OperationId;
-    TAuth Auth;
-    NThreading::TPromise<void> OperationCompletePromise;
+    EOperationStatus Status = OS_IN_PROGRESS;
+    TMaybe<TYtError> Error;
 };
 
-void CompleteOperationWatch(TOperationWatchInfo& params)
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationAttributes ParseAttributes(const TNode& node)
 {
-    const auto& operationId = params.OperationId;
-    const auto& operationNode = params.OperationNode;
-    auto& operationCompletePromise = params.OperationCompletePromise;
+    TOperationAttributes result;
 
-    const auto& state = operationNode["state"].AsString();
-
+    const auto& state = node["state"].AsString();
     if (state == "completed") {
-        operationCompletePromise.SetValue();
-    } else if (state == "aborted" || state == "failed") {
-        auto error = TYtError(operationNode["result"]["error"]);
-        LOG_ERROR("Operation %s is `%s' with error: %s",
-            ~GetGuidAsString(operationId), ~state, ~error.FullDescription());
-        bool isFailed = (state == "failed");
-        TString additionalExceptionText;
-        if (isFailed) {
-            try {
-                auto failedJobStderrInfo = GetFailedJobInfo(params.Auth, operationId, TGetFailedJobInfoOptions());
-                TStringStream out;
-                DumpOperationStderrs(out, failedJobStderrInfo);
-                additionalExceptionText = out.Str();
-            } catch (const NYT::TErrorResponse& e) {
-                additionalExceptionText = "Cannot get job stderrs: ";
-                additionalExceptionText += e.what();
-            }
-        }
-        operationCompletePromise.SetException(
-            std::make_exception_ptr(
-                TOperationFailedError(
-                    isFailed ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
-                    operationId,
-                    error) << additionalExceptionText));
+        result.Status = OS_COMPLETED;
+    } else if (state == "aborted") {
+        result.Status = OS_ABORTED;
+        result.Error = TYtError(node["result"]["error"]);
+    } else if (state == "failed") {
+        result.Status = OS_FAILED;
+        result.Error = TYtError(node["result"]["error"]);
     }
-}
-
-void* CompleteOperationWatch(void* params_)
-{
-    THolder<TOperationWatchInfo> params(static_cast<TOperationWatchInfo*>(params_));
-    CompleteOperationWatch(*params);
-    return nullptr;
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperation::TOperationPollerItem
+class TOperation::TOperationImpl
+    : public TThrRefBase
+{
+public:
+    TOperationImpl(const TAuth& auth, const TOperationId& operationId)
+        : Auth_(auth)
+        , Id_(operationId)
+    { }
+
+    const TOperationId& GetId() const;
+    NThreading::TFuture<void> Watch(TYtPoller& ytPoller);
+
+    // TODO: rewrite these functions to use TAuth and raw requests
+    EOperationStatus GetStatus(const IClientPtr& client);
+    TMaybe<TYtError> GetError(const IClientPtr& client);
+
+    void AsyncFinishOperation(TOperationAttributes operationAttributes);
+    void FinishWithException(std::exception_ptr exception);
+
+private:
+    void UpdateAttributesAndCall(const IClientPtr& client, std::function<void(const TOperationAttributes&)> func);
+
+    void SyncFinishOperationImpl(const TOperationAttributes&);
+    static void* SyncFinishOperationProc(void* );
+
+private:
+    const TAuth Auth_;
+    const TOperationId Id_;
+    TMutex Lock_;
+    TMaybe<NThreading::TPromise<void>> CompletePromise_;
+    TOperationAttributes Attributes_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationPollerItem
     : public IYtPollerItem
 {
 public:
-    TOperationPollerItem(const TAuth& auth, const TOperationId& operationId, const NThreading::TPromise<void>& operationCompletePromise)
-        : OperationWatchInfo_(MakeHolder<TOperationWatchInfo>())
-        , OperationAttrPath_("//sys/operations/" + GetGuidAsString(operationId) + "/@")
-    {
-        OperationWatchInfo_->OperationId = operationId;
-        OperationWatchInfo_->Auth = auth;
-        OperationWatchInfo_->OperationCompletePromise = operationCompletePromise;
-    }
+    TOperationPollerItem(::TIntrusivePtr<TOperation::TOperationImpl> operationImpl)
+        : OperationAttrPath_("//sys/operations/" + GetGuidAsString(operationImpl->GetId()) + "/@")
+        , OperationImpl_(operationImpl)
+    { }
 
     virtual void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
@@ -1521,17 +1526,14 @@ public:
     {
         try {
             const auto& info = OperationState_.GetValue();
-            const auto& state = info["state"].AsString();
-            if (state == "completed" || state == "aborted" || state == "failed") {
-                OperationWatchInfo_->OperationNode = info;
-                TThread thread(TThread::TParams(&CompleteOperationWatch, OperationWatchInfo_.Release()).SetName("complete operation"));
-                thread.Start();
-                thread.Detach();
+            auto attributes = ParseAttributes(info);
+            if (attributes.Status != OS_IN_PROGRESS) {
+                OperationImpl_->AsyncFinishOperation(attributes);
                 return PollBreak;
             }
         } catch (const TErrorResponse& e) {
             if (!NDetail::IsRetriable(e)) {
-                OperationWatchInfo_->OperationCompletePromise.SetException(std::current_exception());
+                OperationImpl_->FinishWithException(std::current_exception());
                 return PollBreak;
             }
         }
@@ -1539,32 +1541,150 @@ public:
     }
 
 private:
-    THolder<TOperationWatchInfo> OperationWatchInfo_;
+    const TYPath OperationAttrPath_;
+    ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl_;
     NThreading::TFuture<TNode> OperationState_;
-    TYPath OperationAttrPath_;
 };
+////////////////////////////////////////////////////////////////////////////////
+
+const TOperationId& TOperation::TOperationImpl::GetId() const
+{
+    return Id_;
+}
+
+NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TYtPoller& ytPoller)
+{
+    auto guard = Guard(Lock_);
+    if (!CompletePromise_) {
+        CompletePromise_ = NThreading::NewPromise<void>();
+        ytPoller.Watch(::MakeIntrusive<TOperationPollerItem>(this));
+    }
+    return *CompletePromise_;
+}
+
+EOperationStatus TOperation::TOperationImpl::GetStatus(const IClientPtr& client)
+{
+    EOperationStatus result = OS_IN_PROGRESS;
+    UpdateAttributesAndCall(client, [&] (const TOperationAttributes& attributes) {
+        result = attributes.Status;
+    });
+    return result;
+}
+
+TMaybe<TYtError> TOperation::TOperationImpl::GetError(const IClientPtr& client)
+{
+    TMaybe<TYtError> result;
+    UpdateAttributesAndCall(client, [&] (const TOperationAttributes& attributes) {
+        result = attributes.Error;
+    });
+    return result;
+}
+
+void TOperation::TOperationImpl::UpdateAttributesAndCall(const IClientPtr& client, std::function<void(const TOperationAttributes&)> func)
+{
+    {
+        auto g = Guard(Lock_);
+        if (Attributes_.Status != OS_IN_PROGRESS) {
+            func(Attributes_);
+            return;
+        }
+    }
+
+    auto node = client->Get("//sys/operations/" + GetGuidAsString(Id_) + "/@",
+        TGetOptions().AttributeFilter(
+            TAttributeFilter()
+            .AddAttribute("state")
+            .AddAttribute("result")));
+    auto attributes = ParseAttributes(node);
+    func(attributes);
+
+    if (attributes.Status != OS_IN_PROGRESS) {
+        auto g = Guard(Lock_);
+        Attributes_ = std::move(attributes);
+    }
+}
+
+void TOperation::TOperationImpl::FinishWithException(std::exception_ptr e)
+{
+    CompletePromise_->SetException(e);
+}
+
+struct TAsyncFinishOperationsArgs
+{
+    ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl;
+    TOperationAttributes OperationAttributes;
+};
+
+void TOperation::TOperationImpl::AsyncFinishOperation(TOperationAttributes operationAttributes)
+{
+    auto args = new TAsyncFinishOperationsArgs;
+    args->OperationImpl = this;
+    args->OperationAttributes = std::move(operationAttributes);
+
+    TThread thread(TThread::TParams(&TOperation::TOperationImpl::SyncFinishOperationProc, args).SetName("finish operation"));
+    thread.Start();
+    thread.Detach();
+}
+
+void* TOperation::TOperationImpl::SyncFinishOperationProc(void* pArgs)
+{
+    THolder<TAsyncFinishOperationsArgs> args(static_cast<TAsyncFinishOperationsArgs*>(pArgs));
+    args->OperationImpl->SyncFinishOperationImpl(args->OperationAttributes);
+    return nullptr;
+}
+
+void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttributes& attributes)
+{
+    Y_VERIFY(attributes.Status != OS_IN_PROGRESS);
+
+    {
+        auto g = Guard(Lock_);
+        Attributes_ = attributes;
+    }
+
+    if (attributes.Status == OS_COMPLETED) {
+        CompletePromise_->SetValue();
+    } else if (attributes.Status == OS_ABORTED || attributes.Status == OS_FAILED) {
+        auto error = *attributes.Error;
+        LOG_ERROR("Operation %s is `%s' with error: %s",
+            ~GetGuidAsString(Id_), ~::ToString(attributes.Status), ~error.FullDescription());
+        TString additionalExceptionText;
+        if (attributes.Status == OS_FAILED) {
+            try {
+                auto failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(Auth_, Id_, TGetFailedJobInfoOptions());
+                TStringStream out;
+                DumpOperationStderrs(out, failedJobStderrInfo);
+                additionalExceptionText = out.Str();
+            } catch (const NYT::TErrorResponse& e) {
+                additionalExceptionText = "Cannot get job stderrs: ";
+                additionalExceptionText += e.what();
+            }
+        }
+        CompletePromise_->SetException(
+            std::make_exception_ptr(
+                TOperationFailedError(
+                    attributes.Status == OS_FAILED ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
+                    Id_,
+                    error) << additionalExceptionText));
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperation::TOperation(TOperationId id, TClientPtr client)
-    : Id_(id)
-    , Client_(std::move(client))
+    : Client_(std::move(client))
+    , Impl_(::MakeIntrusive<TOperationImpl>(Client_->GetAuth(), id))
 {
 }
 
 const TOperationId& TOperation::GetId() const
 {
-    return Id_;
+    return Impl_->GetId();
 }
 
 NThreading::TFuture<void> TOperation::Watch()
 {
-    auto guard = Guard(Lock_);
-    if (!CompletePromise_) {
-        CompletePromise_ = NThreading::NewPromise<void>();
-        Client_->GetYtPoller().Watch(::MakeIntrusive<TOperation::TOperationPollerItem>(Client_->GetAuth(), GetId(), *CompletePromise_));
-    }
-    return *CompletePromise_;
+    return Impl_->Watch(Client_->GetYtPoller());
 }
 
 yvector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOptions& options)
@@ -1572,14 +1692,17 @@ yvector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOpti
     return NYT::NDetail::GetFailedJobInfo(Client_->GetAuth(), GetId(), options);
 }
 
-void TOperation::SetOperationFinished(const TMaybe<TOperationFailedError>& maybeError)
+EOperationStatus TOperation::GetStatus()
 {
-    if (maybeError) {
-        CompletePromise_->SetException(std::make_exception_ptr(maybeError));
-    } else {
-        CompletePromise_->SetValue();
-    }
+    return Impl_->GetStatus(Client_);
 }
+
+TMaybe<TYtError> TOperation::GetError()
+{
+    return Impl_->GetError(Client_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, TClientPtr client, const TOperationOptions& options)
 {

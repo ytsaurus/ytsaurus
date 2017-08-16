@@ -432,6 +432,15 @@ struct IOperation
     // and doesn't work when operation is archived. Succesfully completed operations can be archived
     // quite quickly (in about ~30 seconds).
     virtual yvector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) = 0;
+
+    //
+    // Return current operation status.
+    virtual EOperationStatus GetStatus() = 0;
+
+    //
+    // Will return Nothing if operation is in OS_COMPLETED or OS_IN_PROGREES state.
+    // For failed / aborted operation will return nonempty error explaining operation fail / abort.
+    virtual TMaybe<TYtError> GetError() = 0;
 };
 
 struct TOperationOptions
