@@ -11,10 +11,14 @@ def execute_batch(reqs):
         rsps += yt.execute_batch(reqs[i:i+step])
     return rsps
 
-def get_mounted_tables():
+def get_mounted_tables(bundle=None):
+    if args.bundle is None:
+        tablet_cells_path = "//sys/tablet_cells"
+    else:
+        tablet_cells_path = "//sys/tablet_cell_bundles/{0}/@tablet_cell_ids".format(bundle)
     tables = set()
     reqs = []
-    for tablet_cell in yt.list("//sys/tablet_cells"):
+    for tablet_cell in yt.get(tablet_cells_path):
         reqs.append({"command": "get", "parameters": {"path": "#" + tablet_cell + "/@tablet_ids"}})
     rsps = execute_batch(reqs)
     tablets = []
@@ -33,9 +37,19 @@ def get_mounted_tables():
             logging.error("%r", rsp)
         else:
             tables.add(rsp["output"])
+    return list(tables)
+
+def get_table_paths(table_ids):
+    reqs = []
+    for table in table_ids:
+        reqs.append({"command": "get", "parameters": {"path": "#" + table + "/@path"}})
+    rsps = execute_batch(reqs)
     result = []
-    for table in tables:
-        result.append("#%s" % table)
+    for rsp in rsps:
+        if "error" in rsp:
+            logging.error("%r", rsp)
+        else:
+            result.append(rsp["output"])
     return result
 
 def action(tables, command):
@@ -60,18 +74,24 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Mount-unmount dynamic tables.")
     parser.add_argument("command", type=str, help="Action to perform (mount, unmount or remount)")
     parser.add_argument("--tables", type=str, help="File with tables")
+    parser.add_argument("--bundle", type=str, default=None, help="Unmount tables from specific bunle")
     args = parser.parse_args()
 
     if args.command == "remount":
-        tables = get_mounted_tables()
+        tables = get_mounted_tables(args.bundle)
         remount(tables)
+    elif args.command == "list":
+        tables = get_mounted_tables(args.bundle)
+        paths = get_table_paths(tables)
+        for path in paths:
+            print path
     elif args.command == "unmount":
         if args.tables is None:
             raise Exception("--tables argument is required")
         with open(args.tables, "a") as f:
-            tables = get_mounted_tables()
+            tables = get_mounted_tables(args.bundle)
             for table in tables:
-                f.write(table + "\n")
+                f.write("#" + table + "\n")
             f.close()
             unmount(tables)
     elif args.command == "mount":
