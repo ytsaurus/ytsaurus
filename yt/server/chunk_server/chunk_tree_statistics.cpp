@@ -123,14 +123,14 @@ bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
         LogicalRowCount == other.LogicalRowCount &&
         UncompressedDataSize == other.UncompressedDataSize &&
         CompressedDataSize == other.CompressedDataSize &&
-        DataWeight == other.DataWeight &&
         RegularDiskSpace == other.RegularDiskSpace &&
         ErasureDiskSpace == other.ErasureDiskSpace &&
         ChunkCount == other.ChunkCount &&
         LogicalChunkCount == other.LogicalChunkCount &&
         ChunkListCount == other.ChunkListCount &&
         Rank == other.Rank &&
-        Sealed == other.Sealed;
+        Sealed == other.Sealed &&
+        (DataWeight == -1 || other.DataWeight == -1 || DataWeight == other.DataWeight);
 }
 
 bool TChunkTreeStatistics::operator != (const TChunkTreeStatistics& other) const
