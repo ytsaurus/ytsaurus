@@ -1,6 +1,6 @@
 #include "raw_requests.h"
 
-#include "batch_request_impl.h"
+#include "raw_batch_request.h"
 
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/http/retry_request.h>

@@ -1,5 +1,4 @@
-#include <mapreduce/yt/client/batch_request_impl.h>
-#include <mapreduce/yt/client/client.h>
+#include <mapreduce/yt/raw_client/raw_batch_request.h>
 
 #include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/http/error.h>

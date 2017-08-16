@@ -1,7 +1,7 @@
 #include "yt_poller.h"
 
-#include "batch_request_impl.h"
-#include "raw_requests.h"
+#include <mapreduce/yt/raw_client/raw_batch_request.h>
+#include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <mapreduce/yt/http/retry_request.h>
 

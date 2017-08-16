@@ -1,10 +1,10 @@
 #include "lock.h"
 
-#include "batch_request_impl.h"
-
 #include "yt_poller.h"
 
 #include <mapreduce/yt/http/retry_request.h>
+
+#include <mapreduce/yt/raw_client/raw_batch_request.h>
 
 namespace NYT {
 namespace NDetail {
