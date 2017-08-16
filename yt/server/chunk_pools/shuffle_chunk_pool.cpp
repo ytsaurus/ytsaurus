@@ -2,6 +2,9 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/ref_tracked.h>
+
 namespace NYT {
 namespace NChunkPools {
 
@@ -22,6 +25,7 @@ class TShuffleChunkPool
     : public TChunkPoolInputBase
     , public IShuffleChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    , public TRefTracked<TShuffleChunkPool>
 {
 public:
     //! For persistence only.
@@ -433,7 +437,9 @@ private:
 
         virtual i64 GetDataSliceCount() const
         {
-            return Owner->ElementaryStripes.size();
+            // Pretend that each output pool has it's own fraction
+            // of stripes to get proper estimated statistics.
+            return DivCeil<i64>(Owner->ElementaryStripes.size(), Owner->Outputs.size());
         }
 
     private:

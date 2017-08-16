@@ -7,6 +7,7 @@
 #include <yt/server/controller_agent/job_size_adjuster.h>
 
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/ref_tracked.h>
 
 namespace NYT {
 namespace NChunkPools {
@@ -52,6 +53,7 @@ class TUnorderedChunkPool
     , public TChunkPoolOutputBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    , public TRefTracked<TUnorderedChunkPool>
 {
 public:
     //! For persistence only.

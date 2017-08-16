@@ -342,7 +342,7 @@ private:
             for (auto it = blocksIt; it < blockKeysEnd; ++it) {
                 auto blockIndex = std::distance(blockIndexKeys.begin(), it);
                 BlockIndexes_.push_back(blockIndex);
-                auto& blockMeta = blockMetaExt.blocks(blockIndex);
+                auto& blockMeta = blockMetaExt->blocks(blockIndex);
                 blocks.push_back(TBlockFetcher::TBlockInfo(blockIndex, blockMeta.uncompressed_size(), blocks.size()));
             }
 
@@ -356,14 +356,14 @@ private:
     {
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         CheckBlockUpperKeyLimit(
-            ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
+            ChunkMeta_->BlockMeta()->blocks(chunkBlockIndex),
             Ranges_[RangeIndex_].second,
             ChunkMeta_->GetKeyColumnCount());
 
         YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
         BlockReader_.reset(new TSimpleVersionedBlockReader(
             CurrentBlock_.Get().ValueOrThrow().Data,
-            ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
+            ChunkMeta_->BlockMeta()->blocks(chunkBlockIndex),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
             ChunkMeta_->GetKeyColumnCount(),
@@ -530,7 +530,7 @@ private:
         }
 
         for (int blockIndex : BlockIndexes_) {
-            auto& blockMeta = blockMetaExt.blocks(blockIndex);
+            auto& blockMeta = blockMetaExt->blocks(blockIndex);
             TBlockFetcher::TBlockInfo blockInfo;
             blockInfo.Index = blockIndex;
             blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
@@ -551,7 +551,7 @@ private:
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         BlockReader_.reset(new TSimpleVersionedBlockReader(
             CurrentBlock_.Get().ValueOrThrow().Data,
-            ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
+            ChunkMeta_->BlockMeta()->blocks(chunkBlockIndex),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
             ChunkMeta_->GetKeyColumnCount(),
@@ -601,7 +601,7 @@ public:
         {
             auto columnReader = CreateUnversionedColumnReader(
                 VersionedChunkMeta_->ChunkSchema().Columns()[keyColumnIndex],
-                VersionedChunkMeta_->ColumnMeta().columns(keyColumnIndex),
+                VersionedChunkMeta_->ColumnMeta()->columns(keyColumnIndex),
                 keyColumnIndex,
                 keyColumnIndex);
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();
@@ -623,7 +623,7 @@ public:
         for (const auto& idMapping : SchemaIdMapping_) {
             auto columnReader = CreateVersionedColumnReader(
                 VersionedChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex],
-                VersionedChunkMeta_->ColumnMeta().columns(idMapping.ChunkSchemaIndex),
+                VersionedChunkMeta_->ColumnMeta()->columns(idMapping.ChunkSchemaIndex),
                 idMapping.ReaderSchemaIndex);
 
             ValueColumnReaders_.push_back(columnReader.get());
@@ -682,9 +682,9 @@ public:
     {
         YCHECK(TimestampReader_ == nullptr);
 
-        int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
+        int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         TimestampReader_ = new TScanTransactionTimestampReader(
-            ChunkMeta_->ColumnMeta().columns(timestampReaderIndex),
+            ChunkMeta_->ColumnMeta()->columns(timestampReaderIndex),
             Timestamp_);
         return std::unique_ptr<IColumnReaderBase>(TimestampReader_);
     }
@@ -832,9 +832,9 @@ public:
     std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
     {
         YCHECK(TimestampReader_ == nullptr);
-        int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
+        int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         TimestampReader_ = new TCompactionTimestampReader(
-            ChunkMeta_->ColumnMeta().columns(timestampReaderIndex));
+            ChunkMeta_->ColumnMeta()->columns(timestampReaderIndex));
 
         return std::unique_ptr<IColumnReaderBase>(TimestampReader_);
     }
@@ -959,7 +959,7 @@ public:
         LowerLimit_.SetKey(TOwningKey(ranges[0].first));
         UpperLimit_.SetKey(TOwningKey(ranges[0].second));
 
-        int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta().columns().size() - 1;
+        int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta()->columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
 
         // Empirical formula to determine max rows per read for better cache friendliness.
@@ -1094,9 +1094,9 @@ public:
     {
         Keys_ = keys;
 
-        int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta().columns().size() - 1;
+        int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta()->columns().size() - 1;
         TimestampReader_ = new TLookupTransactionTimestampReader(
-            VersionedChunkMeta_->ColumnMeta().columns(timestampReaderIndex),
+            VersionedChunkMeta_->ColumnMeta()->columns(timestampReaderIndex),
             Timestamp_);
 
         Columns_.emplace_back(std::unique_ptr<IColumnReaderBase>(TimestampReader_), timestampReaderIndex);

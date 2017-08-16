@@ -33,7 +33,7 @@ TBlock TDataBlockWriter::DumpBlock(int blockIndex, i64 currentRowCount)
         columnWriter->FinishBlock(blockIndex);
     }
 
-    size_t size = 0;
+    i64 size = 0;
     for (const auto& part : Data_) {
         size += part.Size();
     }

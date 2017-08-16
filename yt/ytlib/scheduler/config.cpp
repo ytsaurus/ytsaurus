@@ -702,7 +702,8 @@ void TMapReduceOperationSpec::OnLoaded()
     if (Mapper) {
         Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
     }
-    Reducer->InitEnableInputTableIndex(1, MergeJobIO);
+    // NB(psushin): don't init input table index for reduce jobs,
+    // they cannot have table index.
 }
 
 TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()

@@ -9,6 +9,7 @@
 #include <yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/ref_tracked.h>
 
 namespace NYT {
 namespace NChunkPools {
@@ -45,6 +46,7 @@ class TOrderedChunkPool
     // interface methods to the progress counters stored as pool fields.
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    , public TRefTracked<TOrderedChunkPool>
 {
 public:
     DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)

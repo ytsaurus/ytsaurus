@@ -422,7 +422,7 @@ private:
         auto indices = this->ChunkState_->LookupHashTable->Find(key);
         for (auto index : indices) {
             const auto& uncompressedBlock = this->GetUncompressedBlock(index.first);
-            const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta().blocks(index.first);
+            const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta()->blocks(index.first);
 
             auto blockReader = this->CreateBlockReader(
                 uncompressedBlock,
@@ -450,7 +450,7 @@ private:
 
         int blockIndex = this->GetBlockIndex(key);
         const auto& uncompressedBlock = this->GetUncompressedBlock(blockIndex);
-        const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta().blocks(blockIndex);
+        const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta()->blocks(blockIndex);
 
         auto blockReader = this->CreateBlockReader(
             uncompressedBlock,
@@ -609,7 +609,7 @@ private:
 
             if (!BlockReader_->NextRow()) {
                 // End-of-block.
-                if (++BlockIndex_ >= this->ChunkState_->ChunkMeta->BlockMeta().blocks_size()) {
+                if (++BlockIndex_ >= this->ChunkState_->ChunkMeta->BlockMeta()->blocks_size()) {
                     // End-of-chunk.
                     NeedLimitUpdate_ = true;
                     break;
@@ -626,7 +626,7 @@ private:
     void UpdateBlockReader()
     {
         const auto& uncompressedBlock = this->GetUncompressedBlock(BlockIndex_);
-        const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta().blocks(BlockIndex_);
+        const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta()->blocks(BlockIndex_);
 
         BlockReader_.reset(this->CreateBlockReaderPtr(
             uncompressedBlock,

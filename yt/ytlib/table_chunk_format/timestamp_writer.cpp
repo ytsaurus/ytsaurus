@@ -186,7 +186,7 @@ private:
         ui32 maxDeleteIndex;
         PrepareDiffFromExpected(&DeleteTimestampCounts_, &expectedDeletesPerRow, &maxDeleteIndex);
 
-        size_t size = 0;
+        i64 size = 0;
 
         std::vector<TSharedRef> data;
         data.push_back(CompressUnsignedVector(MakeRange(Dictionary_), MaxSegmentTimestamp_ - MinSegmentTimestamp_));

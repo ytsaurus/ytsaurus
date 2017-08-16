@@ -260,6 +260,8 @@ protected:
                 lastRow.Begin() + Schema_.GetKeyColumnCount());
         }
 
+        YCHECK(block.Meta.uncompressed_size() > 0);
+
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
 
         BlockMetaExtSize_ += block.Meta.ByteSize();

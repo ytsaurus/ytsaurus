@@ -325,6 +325,8 @@ private:
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
         ToProto(block.Meta.mutable_last_key(), beginKey, endKey);
 
+        YCHECK(block.Meta.uncompressed_size() > 0);
+
         BlockMetaExtSize_ += block.Meta.ByteSize();
 
         BlockMetaExt_.add_blocks()->Swap(&block.Meta);
@@ -549,6 +551,7 @@ private:
     void FinishBlock(int blockWriterIndex, const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
     {
         auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.blocks_size(), RowCount_);
+        YCHECK(block.Meta.uncompressed_size() > 0);
 
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
         ToProto(block.Meta.mutable_last_key(), beginKey, endKey);

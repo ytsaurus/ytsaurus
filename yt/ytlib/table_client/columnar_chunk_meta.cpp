@@ -24,12 +24,12 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
     ChunkFormat_ = ETableChunkFormat(chunkMeta.version());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
+    BlockMeta_ = New<TRefCountedBlockMeta>(GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions()));
 
     // This is for old horizontal versioned chunks, since TCachedVersionedChunkMeta use this call.
     auto columnMeta = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions());
     if (columnMeta) {
-        ColumnMeta_.Swap(&*columnMeta);
+        ColumnMeta_ = New<TRefCountedColumnMeta>(std::move(*columnMeta));
     }
 
     auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
@@ -55,8 +55,8 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
     auto tempBuffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
 
     std::vector<TKey> blockLastKeys;
-    blockLastKeys.reserve(BlockMeta_.blocks_size());
-    for (const auto& block : BlockMeta_.blocks()) {
+    blockLastKeys.reserve(BlockMeta_->blocks_size());
+    for (const auto& block : BlockMeta_->blocks()) {
         TKey key;
         if (ChunkSchema_.GetKeyColumnCount() > 0) {
             YCHECK(block.has_last_key());
