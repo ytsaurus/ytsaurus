@@ -1,118 +1,120 @@
 #!/usr/bin/env python
 
 import yt.wrapper as yt
+import yt.yson as yson
 
 import argparse
-import logging
-import time
 import sys
-from threading import Thread
 
+def verify_ok(reqs, rsps):
+    assert len(reqs) == len(rsps)
+    errors = []
+    for i in xrange(len(rsps)):
+        if "error" in rsps[i]:
+            errors.append({"request": reqs[i], "response": rsps[i]})
+    if len(errors) > 0:
+        raise Exception(str(errors))
 
-def do_create(count, attributes):
-    for _ in xrange(count):
-        tablet_cell = yt.create("tablet_cell", attributes=attributes)
-        logging.info("Created tablet cell %s", tablet_cell)
-
-
-def do_remove(tablet_cells):
-    for tablet_cell in tablet_cells:
-        logging.info("Removing tablet cell %s", tablet_cell)
-        yt.remove("//sys/tablet_cells/%s" % tablet_cell)
-
-def execute_batch(reqs):
-    rsps = []
-    step = 100
-    for i in xrange(0, len(reqs), step):
-        rsps += yt.execute_batch(reqs[i:i+step])
+def execute_batch(reqs, **kwargs):
+    rsps = yt.execute_batch(reqs, **kwargs)
+    verify_ok(reqs, rsps)
     return rsps
 
-def main():
+def get_tablet_cell_count_per_bundle():
+    bundles = yt.list("//sys/tablet_cell_bundles")
+    reqs = []
+    for bundle in bundles:
+        reqs.append({"command": "get", "parameters": {
+            "path": "//sys/tablet_cell_bundles/{0}/@tablet_cell_count".format(bundle)}})
+    rsps = execute_batch(reqs, concurrency=100)
+    data = {}
+    for i in range(len(rsps)):
+        data[bundles[i]] = rsps[i]["output"]
+    return data
+
+def create_tablet_cells(data):
+    reqs = []
+    for bundle, count in data.iteritems():
+        for i in xrange(count):
+            reqs.append({"command": "create", "parameters": {
+                "type": "tablet_cell", "attributes": {"tablet_cell_bundle": bundle}}})
+    execute_batch(reqs, concurrency=100)
+
+def list_tablet_cells(data):
+    reqs = []
+    data = data.items()
+    for bundle, count in data:
+        reqs.append({"command": "get", "parameters": {
+            "max_size": count,
+            "path": "//sys/tablet_cell_bundles/{0}/@tablet_cell_ids".format(bundle)}})
+    rsps = execute_batch(reqs, concurrency=100)
+    cells = []
+    for i in xrange(len(rsps)):
+        cells += rsps[i]["output"][0:data[i][1]]
+    return cells
+
+def remove_tablet_cells(cells):
+    reqs = []
+    for cell in cells:
+        reqs.append({"command": "remove", "parameters": {
+            "path": "//sys/tablet_cells/{0}".format(cell)}})
+    execute_batch(reqs, concurrency=100)
+
+
+def show(args):
+    yson.dump(get_tablet_cell_count_per_bundle(), sys.stdout, yson_format="pretty")
+
+def save(args):
+    if args.file is None:
+        raise Exception("Need to specify file")
+    data = get_tablet_cell_count_per_bundle()
+    with open(args.file, "w") as f:
+        yson.dump(data, f, yson_format="pretty")
+
+def restore(args):
+    if args.file is None:
+        raise Exception("Need to specify file")
+    with open(args.file, "r") as f:
+        data = yson.load(f)
+    create_tablet_cells(data)
+
+def remove(args):
+    if args.bundle is not None and args.config is not None:
+        raise Exception("Cannot determine which tablet cells to remove: both bundle and config arguments are present")
+    elif args.bundle:
+        cells = yt.get("//sys/tablet_cell_bundles/{0}/@tablet_cell_ids".format(args.bundle))
+    elif args.config:
+        cells = list_tablet_cells(yson.loads(args.config))
+    else:
+        cells = yt.get("//sys/tablet_cells")
+    remove_tablet_cells(cells)
+
+def create(args):
+    if args.config is None:
+        raise Exception("Need to specify config")
+    create_tablet_cells(yson.loads(args.config))
+
+def main2():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("create", "remove"))
-    parser.add_argument("--count", type=int, default=None,
-                        help="How many tablet cells to create?")
-    parser.add_argument("--replication-factor", "--RF", type=int, default=5,
-                        help="Changelog replication factor for newly created tablet cells")
-    parser.add_argument("--read-quorum", "--RQ", type=int, default=3,
-                        help="Changelog read quorum for newly created tablet cells")
-    parser.add_argument("--write-quorum", "--WQ", type=int, default=3,
-                        help="Changelog write quorum for newly created tablet cells")
-    parser.add_argument("--bundle", "--B", type=str,
-                        help="Assigns to specified tablet cell bundle")
-    parser.add_argument("--thread-count", type=int, default=20,
-                        help="Number of worker threads")
-    parser.add_argument("--silent", action="store_true", default=False,
-                        help="Do not log anything")
+    parser.add_argument("action", choices=("show", "save", "restore", "remove", "create"))
+    parser.add_argument("--config", type=str, default=None,
+                        help="YSON-serialized map bundle -> tablet_cell_count")
+    parser.add_argument("--bundle", type=str, default=None,
+                        help="Tablet cell bundle name")
+    parser.add_argument("--file", "--f", type=str, default=None,
+                        help="File to save/restore config")
     args = parser.parse_args()
 
-    if args.silent:
-        logging.basicConfig(level=logging.ERROR)
-    else:
-        logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-
-    threads = []
-
-    if args.action == "create":
-        if args.count is None:
-            logging.error("You must specify `--count` when creating tablet cells")
-            sys.exit(1)
-
-        logging.info("Will create %s tablet cells; sleeping for 5 seconds...", args.count)
-        time.sleep(5)
-
-        attributes = {
-            "changelog_replication_factor": args.replication_factor,
-            "changelog_read_quorum": args.read_quorum,
-            "changelog_write_quorum": args.write_quorum,
-        }
-        if args.bundle:
-            attributes["tablet_cell_bundle"] = args.bundle
-
-        tablet_cells_per_thread = 1 + args.count / args.thread_count
-        for thread_index in xrange(args.thread_count):
-            start_index = thread_index * tablet_cells_per_thread
-            end_index = min(args.count, (thread_index + 1) * tablet_cells_per_thread)
-            if start_index >= end_index:
-                break
-            tablet_cells_for_thread = end_index - start_index
-            thread = Thread(target=do_create, args=(tablet_cells_for_thread, attributes))
-            thread.start()
-            threads.append(thread)
+    if args.action == "show":
+        show(args)
+    elif args.action == "save":
+        save(args)
+    elif args.action == "restore":
+        restore(args)
     elif args.action == "remove":
-        tablet_cells = yt.list("//sys/tablet_cells")
-
-        if args.bundle:
-            reqs = []
-            for cell in tablet_cells:
-                reqs.append({"command": "get", "parameters": {"path": "#" + cell + "/@tablet_cell_bundle"}})
-            rsps = execute_batch(reqs)
-            filtered = []
-            for index in xrange(len(reqs)):
-                rsp = rsps[index]
-                if "error" in rsp:
-                    logging.error("%r", rsp)
-                else:
-                    if rsp["output"] == args.bundle:
-                        filtered.append(tablet_cells[index])
-            tablet_cells = filtered
-
-        logging.info("Will remove %s tablet cells; sleeping for 5 seconds...", len(tablet_cells))
-        time.sleep(5)
-
-        tablet_cells_per_thread = 1 + (len(tablet_cells) / args.thread_count)
-        for thread_index in xrange(args.thread_count):
-            start_index = thread_index * tablet_cells_per_thread
-            end_index = min(len(tablet_cells), (thread_index + 1) * tablet_cells_per_thread)
-            if start_index >= end_index:
-                break
-            tablet_cells_for_thread = tablet_cells[start_index:end_index]
-            thread = Thread(target=do_remove, args=(tablet_cells_for_thread,))
-            thread.start()
-            threads.append(thread)
-
-    for thread in threads:
-        thread.join()
+        remove(args)
+    elif args.action == "create":
+        create(args)
 
 if __name__ == "__main__":
-    main()
+    main2()
