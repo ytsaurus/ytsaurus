@@ -40,7 +40,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
-        auto timeout = FromProto<TDuration>(request->timeout());
+        auto timeout = request->has_timeout_new() ? FromProto<TDuration>(request->timeout_new()) : FromProto<TDuration>(request->timeout_old());
         auto title = request->has_title() ? MakeNullable(request->title()) : Null;
 
         context->SetRequestInfo("ParentId: %v, Timeout: %v, Title: %v",
@@ -51,7 +51,7 @@ private:
         NTransactionServer::NProto::TReqStartTransaction hydraRequest;
         hydraRequest.mutable_attributes()->Swap(request->mutable_attributes());
         hydraRequest.mutable_parent_id()->Swap(request->mutable_parent_id());
-        hydraRequest.set_timeout(request->timeout());
+        hydraRequest.set_timeout(request->has_timeout_new() ? request->timeout_new() : request->timeout_old());
         hydraRequest.set_user_name(context->GetUser());
         if (title) {
             hydraRequest.set_title(*title);
