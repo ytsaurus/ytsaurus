@@ -595,6 +595,6 @@ class OperationsTracker(object):
         else:
             logger.warning(
                 "Error: (type=%s, value=%s), aborting all operations in tracker...",
-                type,
+                exc_type,
                 str(exc_value).replace("\n", "\\n"))
             self.abort_all()
