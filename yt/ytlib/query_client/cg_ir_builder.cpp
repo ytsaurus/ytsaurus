@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/assert.h>
 
+#include <yt/core/codegen/llvm_migrate_helpers.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -32,7 +34,7 @@ TCGIRBuilder::TCGIRBuilder(
     , ClosurePtr_(closurePtr)
 {
     for (auto it = function->arg_begin(); it != function->arg_end(); ++it) {
-        ValuesInContext_.insert(it);
+        ValuesInContext_.insert(ConvertToPointer(it));
     }
     EntryBlock_ = GetInsertBlock();
 }

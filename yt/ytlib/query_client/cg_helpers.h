@@ -4,6 +4,7 @@
 #include "cg_types.h"
 
 #include <yt/core/codegen/module.h>
+#include <yt/core/codegen/llvm_migrate_helpers.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -739,12 +740,12 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
         function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
 
         auto args = function->arg_begin();
-        Value* closurePtr = args++; closurePtr->setName("closure");
+        Value* closurePtr = ConvertToPointer(args++); closurePtr->setName("closure");
 
         Value* argsArray[sizeof...(TArgs)];
         size_t index = 0;
         while (args != function->arg_end()) {
-            argsArray[index++] = args++;
+            argsArray[index++] = ConvertToPointer(args++);
         }
         YCHECK(index == sizeof...(TArgs));
 
@@ -801,7 +802,7 @@ struct TFunctionDefiner<TResult(TArgs...)>
         Value* argsArray[sizeof...(TArgs)];
         size_t index = 0;
         while (args != function->arg_end()) {
-            argsArray[index++] = args++;
+            argsArray[index++] = ConvertToPointer(args++);
         }
         YCHECK(index == sizeof...(TArgs));
 

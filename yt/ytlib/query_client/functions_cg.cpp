@@ -4,13 +4,17 @@
 #include <yt/ytlib/table_client/llvm_types.h>
 #include <yt/ytlib/table_client/row_base.h>
 
+#include <yt/core/codegen/llvm_migrate_helpers.h>
 #include <yt/core/codegen/routine_registry.h>
 
 #include <llvm/IR/DiagnosticPrinter.h>
+#include <llvm/IR/DiagnosticInfo.h>
 
 #include <llvm/IRReader/IRReader.h>
 
 #include <llvm/Linker/Linker.h>
+
+#include <llvm-c/Linker.h>
 
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/SourceMgr.h>
@@ -477,15 +481,35 @@ void LoadLlvmBitcode(
 
     std::string what;
     bool linkerFailed;
+    llvm::raw_string_ostream os(what);
+#if LLVM_TEST(4, 0)
     {
-        llvm::raw_string_ostream os(what);
+        auto handler = [] (const DiagnosticInfo& info, void *context) {
+            auto os = reinterpret_cast<llvm::raw_string_ostream*>(context);
+            llvm::DiagnosticPrinterRawOStream printer(*os);
+            info.print(printer);
+        };
+
+        auto dest = module;
+        LLVMContext& context = dest->getContext();
+        LLVMContext::DiagnosticHandlerTy oldDiagnosticHandler = context.getDiagnosticHandler();
+        void *oldDiagnosticContext = context.getDiagnosticContext();
+        context.setDiagnosticHandler((LLVMContext::DiagnosticHandlerTy)handler, &os, true);
+
+        linkerFailed = Linker::linkModules(*dest, std::move(implModule));
+
+        context.setDiagnosticHandler(oldDiagnosticHandler, oldDiagnosticContext, true);
+    }
+#else
+    {
         llvm::DiagnosticPrinterRawOStream printer(os);
         // Link two modules together, with the first module modified to be the
         // composite of the two input modules.
         linkerFailed = Linker::LinkModules(module, implModule.get(), [&] (const DiagnosticInfo& info) {
-            info.print(printer);
+           info.print(printer);
         });
     }
+#endif
 
     if (linkerFailed) {
         THROW_ERROR_EXCEPTION(

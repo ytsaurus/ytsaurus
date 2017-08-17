@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include <yt/core/codegen/llvm_migrate_helpers.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -34,10 +36,18 @@ public:
 };
 
 class TCGIRBuilder
+#if LLVM_TEST(4, 0)
+    : public llvm::IRBuilder<llvm::ConstantFolder, TContextTrackingInserter>
+#else
     : public llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter>
+#endif
 {
 private:
+#if LLVM_TEST(4, 0)
+    typedef llvm::IRBuilder<llvm::ConstantFolder, TContextTrackingInserter> TBase;
+#else
     typedef llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter> TBase;
+#endif
 
     //! Builder associated with the parent context.
     TCGIRBuilder* Parent_;
