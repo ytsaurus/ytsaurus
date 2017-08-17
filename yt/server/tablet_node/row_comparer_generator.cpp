@@ -7,6 +7,7 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/codegen/module.h>
+#include <yt/core/codegen/llvm_migrate_helpers.h>
 #include <yt/core/codegen/routine_registry.h>
 
 #include <mutex>
@@ -338,10 +339,10 @@ void TComparerBuilder::BuildDDComparer(TString& functionName)
         Module_->GetModule());
     SetInsertPoint(CreateBB("entry"));
     auto args = Function_->arg_begin();
-    Value* lhsNullKeyMask = args;
-    Value* lhsKeys = ++args;
-    Value* rhsNullKeyMask = ++args;
-    Value* rhsKeys = ++args;
+    Value* lhsNullKeyMask = ConvertToPointer(args);
+    Value* lhsKeys = ConvertToPointer(++args);
+    Value* rhsNullKeyMask = ConvertToPointer(++args);
+    Value* rhsKeys = ConvertToPointer(++args);
     YCHECK(++args == Function_->arg_end());
     auto lhsBuilder = TDynamicValueBuilder(*this, lhsNullKeyMask, lhsKeys);
     auto rhsBuilder = TDynamicValueBuilder(*this, rhsNullKeyMask, rhsKeys);
@@ -358,10 +359,10 @@ void TComparerBuilder::BuildDUComparer(TString& functionName)
         Module_->GetModule());
     SetInsertPoint(CreateBB("entry"));
     auto args = Function_->arg_begin();
-    Value* lhsNullKeyMask = args;
-    Value* lhsKeys = ++args;
-    Value* rhsKeys = ++args;
-    Value* length = ++args;
+    Value* lhsNullKeyMask = ConvertToPointer(args);
+    Value* lhsKeys = ConvertToPointer(++args);
+    Value* rhsKeys = ConvertToPointer(++args);
+    Value* length = ConvertToPointer(++args);
     YCHECK(++args == Function_->arg_end());
     auto lhsBuilder = TDynamicValueBuilder(*this, lhsNullKeyMask, lhsKeys);
     auto rhsBuilder = TUnversionedValueBuilder(*this, rhsKeys);
@@ -379,10 +380,10 @@ void TComparerBuilder::BuildUUComparer(TString& functionName)
         Module_->GetModule());
     SetInsertPoint(CreateBB("entry"));
     auto args = Function_->arg_begin();
-    Value* lhsKeys = args;
-    Value* lhsLength = ++args;
-    Value* rhsKeys = ++args;
-    Value* rhsLength = ++args;
+    Value* lhsKeys = ConvertToPointer(args);
+    Value* lhsLength = ConvertToPointer(++args);
+    Value* rhsKeys = ConvertToPointer(++args);
+    Value* rhsLength = ConvertToPointer(++args);
     YCHECK(++args == Function_->arg_end());
     auto length = CreateMin(lhsLength, rhsLength, EValueType::Int64);
     auto lhsBuilder = TUnversionedValueBuilder(*this, lhsKeys);
