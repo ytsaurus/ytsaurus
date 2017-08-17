@@ -102,11 +102,13 @@ public:
     NTabletClient::ETabletState GetTabletState() const;
 
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
-    NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp() const;
+    NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
+        NTransactionClient::ITimestampProviderPtr timestampProvider) const;
 
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
-    NTransactionClient::TTimestamp CalculateUnflushedTimestamp() const;
+    NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
+        NTransactionClient::ITimestampProviderPtr timestampProvider) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
