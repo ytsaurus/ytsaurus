@@ -55,7 +55,7 @@ def get_table_paths(table_ids):
 def action(tables, command):
     reqs = []
     for table in tables:
-        reqs.append({"command": command, "parameters": {"path": table}})
+        reqs.append({"command": command, "parameters": {"path": "#" + table}})
     rsps = execute_batch(reqs)
     for table, rsp in zip(tables, rsps):
         if "error" in rsp:
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         with open(args.tables, "a") as f:
             tables = get_mounted_tables(args.bundle)
             for table in tables:
-                f.write("#" + table + "\n")
+                f.write(table + "\n")
             f.close()
             unmount(tables)
     elif args.command == "mount":
