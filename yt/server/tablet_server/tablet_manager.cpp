@@ -1317,7 +1317,7 @@ public:
         }
 
         // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "mount_table");
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1644,7 +1644,7 @@ public:
         }
 
         // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "freeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1706,7 +1706,7 @@ public:
         }
 
         // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unfreeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
