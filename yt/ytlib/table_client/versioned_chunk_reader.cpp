@@ -474,14 +474,25 @@ public:
                 if (key == BlockReader_->GetKey()) {
                     auto row = BlockReader_->GetRow(&MemoryPool_);
                     rows->push_back(row);
-                } else {
+                    ++RowCount_;
+                    DataWeight_ += GetDataWeight(rows->back());
+                } else if (BlockReader_->GetKey() > key) {
+                    auto nextKeyIt = std::lower_bound(
+                        Keys_.begin() + RowCount_,
+                        Keys_.end(),
+                        BlockReader_->GetKey());
+
+                    size_t skipedKeys = std::distance(Keys_.begin() + RowCount_, nextKeyIt);
+                    skipedKeys = std::min(skipedKeys, rows->capacity() - rows->size());
                     rows->push_back(TVersionedRow());
-                    ++PerformanceCounters_->StaticChunkRowLookupFalsePositiveCount;
+                    rows->insert(rows->end(), skipedKeys, TVersionedRow());
+                    PerformanceCounters_->StaticChunkRowLookupFalsePositiveCount += skipedKeys;
+                    RowCount_ += skipedKeys;
+                    DataWeight_ += skipedKeys * GetDataWeight(TVersionedRow());
+                } else {
+                    Y_UNREACHABLE();
                 }
             }
-            ++RowCount_;
-            DataWeight_ += GetDataWeight(rows->back());
-
         }
 
         PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
@@ -501,41 +512,30 @@ private:
         const auto& blockIndexKeys = ChunkMeta_->BlockLastKeys();
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
-        if (Keys_.Empty()) {
-            return blocks;
-        }
 
-        for (int keyIndex = 0; keyIndex < Keys_.Size(); ++keyIndex) {
-            auto& key = Keys_[keyIndex];
-#if 0
-            // FIXME(savrus): Use bloom filter here.
-            if (!VersionedChunkMeta_->KeyFilter().Contains(key)) {
-                KeyFilterTest_[keyIndex] = false;
-                continue;
-            }
-#endif
-            int blockIndex = GetBlockIndexByKey(
-                key,
-                blockIndexKeys,
-                BlockIndexes_.empty() ? 0 : BlockIndexes_.back());
+        auto keyIt = Keys_.begin();
+        auto blocksIt = blockIndexKeys.begin();
 
-            if (blockIndex == blockIndexKeys.Size()) {
+        while (keyIt != Keys_.end()) {
+            blocksIt = std::lower_bound(
+                blocksIt,
+                blockIndexKeys.end(),
+                *keyIt);
+
+            if (blocksIt != blockIndexKeys.end()) {
+                auto saved = keyIt;
+                keyIt = std::upper_bound(keyIt, Keys_.end(), *blocksIt);
+                YCHECK(keyIt > saved);
+
+                auto blockIndex = std::distance(blockIndexKeys.begin(), blocksIt);
+                BlockIndexes_.push_back(blockIndex);
+                auto& blockMeta = blockMetaExt->blocks(blockIndex);
+                blocks.push_back(TBlockFetcher::TBlockInfo(blockIndex, blockMeta.uncompressed_size(), blocks.size()));
+
+                ++blocksIt;
+            } else {
                 break;
             }
-            if (BlockIndexes_.empty() || BlockIndexes_.back() < blockIndex) {
-                BlockIndexes_.push_back(blockIndex);
-            }
-            YCHECK(blockIndex == BlockIndexes_.back());
-            YCHECK(blockIndex < blockIndexKeys.Size());
-        }
-
-        for (int blockIndex : BlockIndexes_) {
-            auto& blockMeta = blockMetaExt->blocks(blockIndex);
-            TBlockFetcher::TBlockInfo blockInfo;
-            blockInfo.Index = blockIndex;
-            blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-            blockInfo.Priority = blocks.size();
-            blocks.push_back(blockInfo);
         }
 
         return blocks;
