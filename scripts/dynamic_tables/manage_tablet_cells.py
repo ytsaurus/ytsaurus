@@ -27,31 +27,45 @@ def get_tablet_cell_count_per_bundle():
         reqs.append({"command": "get", "parameters": {
             "path": "//sys/tablet_cell_bundles/{0}/@tablet_cell_count".format(bundle)}})
     rsps = execute_batch(reqs, concurrency=100)
-    data = {}
+    config = {}
     for i in range(len(rsps)):
-        data[bundles[i]] = rsps[i]["output"]
-    return data
+        config[bundles[i]] = rsps[i]["output"]
+    return config
 
-def create_tablet_cells(data):
+def create_tablet_cells(config):
     reqs = []
-    for bundle, count in data.iteritems():
+    for bundle, count in config.iteritems():
         for i in xrange(count):
             reqs.append({"command": "create", "parameters": {
                 "type": "tablet_cell", "attributes": {"tablet_cell_bundle": bundle}}})
     execute_batch(reqs, concurrency=100)
 
-def list_tablet_cells(data):
+def list_empty_tablet_cells(config):
     reqs = []
-    data = data.items()
+    data = config.items()
     for bundle, count in data:
         reqs.append({"command": "get", "parameters": {
             "max_size": count,
             "path": "//sys/tablet_cell_bundles/{0}/@tablet_cell_ids".format(bundle)}})
     rsps = execute_batch(reqs, concurrency=100)
+    reqs = []
+    bundles = []
     cells = []
     for i in xrange(len(rsps)):
-        cells += rsps[i]["output"][0:data[i][1]]
-    return cells
+        for cell in rsps[i]["output"]:
+            reqs.append({"command": "get", "parameters": {
+                "path": "//sys/tablet_cells/{0}/@tablet_count".format(cell)}})
+            bundles.append(data[i][0])
+            cells.append(cell)
+    rsps = execute_batch(reqs, concurrency=100)
+    count = {bundle:0 for bundle in config.keys()}
+    response = []
+    for i in xrange(len(rsps)):
+        bundle = bundles[i]
+        if rsps[i]["output"] == 0 and count[bundle] < config[bundle]:
+            response.append(cells[i])
+            count[bundle] += 1
+    return count, response
 
 def remove_tablet_cells(cells):
     reqs = []
@@ -67,16 +81,16 @@ def show(args):
 def save(args):
     if args.file is None:
         raise Exception("Need to specify file")
-    data = get_tablet_cell_count_per_bundle()
+    config = get_tablet_cell_count_per_bundle()
     with open(args.file, "w") as f:
-        yson.dump(data, f, yson_format="pretty")
+        yson.dump(config, f, yson_format="pretty")
 
 def restore(args):
     if args.file is None:
         raise Exception("Need to specify file")
     with open(args.file, "r") as f:
-        data = yson.load(f)
-    create_tablet_cells(data)
+        config = yson.load(f)
+    create_tablet_cells(config)
 
 def remove(args):
     if args.bundle is not None and args.config is not None:
@@ -84,7 +98,8 @@ def remove(args):
     elif args.bundle:
         cells = yt.get("//sys/tablet_cell_bundles/{0}/@tablet_cell_ids".format(args.bundle))
     elif args.config:
-        cells = list_tablet_cells(yson.loads(args.config))
+        config, cells = list_empty_tablet_cells(yson.loads(args.config))
+        print "Remove: ", config
     else:
         cells = yt.get("//sys/tablet_cells")
     remove_tablet_cells(cells)
