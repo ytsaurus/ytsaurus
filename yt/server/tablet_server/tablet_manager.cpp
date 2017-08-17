@@ -62,6 +62,8 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/address.h>
@@ -1401,6 +1403,7 @@ public:
         const auto nodeProxy = cypressManager->GetNodeProxy(table);
         TYPath path = nodeProxy->GetPath();
         const auto& allTablets = table->Tablets();
+        auto mountTimestamp = Bootstrap_->GetTimestampProvider()->GetLatestTimestamp();
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
             auto* cell = pair.second;
@@ -1418,6 +1421,7 @@ public:
 
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
+            tablet->NodeStatistics().set_unflushed_timestamp(mountTimestamp);
 
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
 

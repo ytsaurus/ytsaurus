@@ -4,6 +4,8 @@
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell_bundle.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 namespace NYT {
 namespace NTableServer {
 
@@ -14,6 +16,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectServer;
+using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTabletServer;
 
@@ -274,11 +277,12 @@ bool TTableNode::IsEmpty() const
     return ComputeTotalStatistics().chunk_count() == 0;
 }
 
-TTimestamp TTableNode::GetCurrentUnflushedTimestamp() const
+TTimestamp TTableNode::GetCurrentUnflushedTimestamp(
+    ITimestampProviderPtr timestampProvider) const
 {
     return UnflushedTimestamp_ != NullTimestamp
         ? UnflushedTimestamp_
-        : CalculateUnflushedTimestamp();
+        : CalculateUnflushedTimestamp(std::move(timestampProvider));
 }
 
 TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
@@ -288,21 +292,23 @@ TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
         : CalculateRetainedTimestamp();
 }
 
-TTimestamp TTableNode::CalculateUnflushedTimestamp() const
+TTimestamp TTableNode::CalculateUnflushedTimestamp(
+    ITimestampProviderPtr timestampProvider) const
 {
     auto* trunkNode = GetTrunkNode();
     if (!trunkNode->IsDynamic()) {
         return NullTimestamp;
     }
 
+    auto latestTimestamp = timestampProvider->GetLatestTimestamp();
     auto result = MaxTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
-        if (tablet->GetState() != ETabletState::Unmounted) {
-            auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
-            result = std::min(result, timestamp);
-        }
+        auto timestamp = tablet->GetState() != ETabletState::Unmounted
+            ? static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp())
+            : latestTimestamp;
+        result = std::min(result, timestamp);
     }
-    return result != MaxTimestamp ? result : NullTimestamp;
+    return result;
 }
 
 TTimestamp TTableNode::CalculateRetainedTimestamp() const

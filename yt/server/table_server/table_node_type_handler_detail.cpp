@@ -179,10 +179,12 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     TImpl* branchedNode,
     ELockMode mode)
 {
+    const auto& timestampProvider = this->Bootstrap_->GetTimestampProvider();
+
     branchedNode->TableSchema() = originatingNode->TableSchema();
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
-    branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp());
+    branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp(timestampProvider));
     branchedNode->SetUpstreamReplicaId(originatingNode->GetUpstreamReplicaId());
 
     TBase::DoBranch(originatingNode, branchedNode, mode);

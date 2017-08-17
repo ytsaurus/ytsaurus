@@ -24,8 +24,6 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
-
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/serialize.h>
@@ -142,8 +140,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
     auto statistics = table->ComputeTotalStatistics();
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
-    bool isUnmounted = trunkTable->Tablets().size() ==
-        trunkTable->TabletCountByState()[ETabletState::Unmounted];
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
@@ -273,9 +269,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
 
     if (key == "unflushed_timestamp" && isDynamic && isSorted) {
         BuildYsonFluently(consumer)
-            .Value(isUnmounted
-                ? timestampProvider->GetLatestTimestamp()
-                : table->GetCurrentUnflushedTimestamp());
+            .Value(table->GetCurrentUnflushedTimestamp(timestampProvider));
         return true;
     }
 
