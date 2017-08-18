@@ -6076,8 +6076,6 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplate()
 
     ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
-=======
->>>>>>> fe442ad... Refactoring around scheduler in the name of auto-merge
 }
 
 TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
@@ -6105,11 +6103,6 @@ TNullable<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
     return Null;
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> fe442ad... Refactoring around scheduler in the name of auto-merge
 TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptions() const
 {
     auto options = New<NTableClient::TTableWriterOptions>();
@@ -6124,7 +6117,6 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     options->TableIndex = 0;
     return options;
 }
-<<<<<<< HEAD
 
 void TOperationControllerBase::UnstageChunkStripe(const TChunkStripePtr& stripe)
 {
@@ -6146,9 +6138,6 @@ bool TOperationControllerBase::IsCompleted() const
     return true;
 }
 
->>>>>>> 6341ee9... Add auto-merge task
-=======
->>>>>>> fe442ad... Refactoring around scheduler in the name of auto-merge
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TSink::TSink(TOperationControllerBase* controller, int outputTableIndex)
