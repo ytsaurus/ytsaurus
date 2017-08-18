@@ -111,6 +111,8 @@ struct ITaskHost
         NChunkClient::TInputChunkPtr chunkSpec,
         NChunkPools::TChunkStripeKey key,
         int tableIndex) = 0;
+
+    virtual void UnstageChunkStripe(const NChunkPools::TChunkStripePtr& stripe) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost);
