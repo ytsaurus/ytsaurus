@@ -191,7 +191,7 @@ test_copy_move_link()
     $YT remove //home/wrapper_test/other_table
 
     $YT create table //home/wrapper_test/table --attributes '{expiration_time="2050-01-01T12:00:00.000000Z"}'
-    $YT move //home/wrapper_test/table //home/wrapper_test/other_table
+    $YT move //home/wrapper_test/table //home/wrapper_test/other_table --preserve-expiration-time
     check 'true' "$($YT exists //home/wrapper_test/other_table/@expiration_time)"
     $YT remove //home/wrapper_test/other_table
 
