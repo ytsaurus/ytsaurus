@@ -1,4 +1,6 @@
 #include "map_controller.h"
+
+#include "auto_merge_task.h"
 #include "legacy_merge_controller.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
@@ -238,6 +240,7 @@ protected:
     };
 
     INHERIT_DYNAMIC_PHOENIX_TYPE(TUnorderedTaskBase, TUnorderedTask, 0x8ab75ee7);
+    using TAutoMergeableUnorderedTask = TAutoMergeabilityMixin<TUnorderedTaskBase, 0x9a9bcee3>;
 
     typedef TIntrusivePtr<TUnorderedTaskBase> TUnorderedTaskPtr;
 
@@ -245,7 +248,6 @@ protected:
 
     TUnorderedTaskPtr UnorderedTask;
     TTaskGroupPtr UnorderedTaskGroup;
-
 
     // Custom bits of preparation pipeline.
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -270,7 +272,7 @@ protected:
     virtual bool IsCompleted() const override
     {
         // Unordered task may be null, if all chunks were teleported.
-        return !UnorderedTask || UnorderedTask->IsCompleted();
+        return TOperationControllerBase::IsCompleted() && (!UnorderedTask || UnorderedTask->IsCompleted());
     }
 
     virtual void CustomPrepare() override
@@ -348,7 +350,20 @@ protected:
                     GetJobSizeAdjusterConfig());
 
                 auto edgeDescriptors = GetStandardEdgeDescriptors();
+                bool requiresAutoMerge = false;
+                for (int index = 0; index < edgeDescriptors.size(); ++index) {
+                    if (AutoMergeTasks[index]) {
+                        edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
+                        edgeDescriptors[index].WriteToChunkList = false;
+                        requiresAutoMerge = true;
+                    }
+                }
+                if (requiresAutoMerge) {
+                    UnorderedTask = New<TAutoMergeableUnorderedTask>(this, std::move(edgeDescriptors));
+                    RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, Spec->JobProxyMemoryDigest);
+                } else {
                     UnorderedTask = New<TUnorderedTask>(this, std::move(edgeDescriptors));
+                }
                 UnorderedTask->AddInput(stripes);
                 UnorderedTask->FinishInput();
                 RegisterTask(UnorderedTask);
@@ -414,6 +429,7 @@ protected:
 
     void InitJobIOConfig()
     {
+        // TODO(max42): Looks like InitFinalOutputConfig may be easily removed as well as cloning the JobIO.
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
     }
@@ -611,6 +627,9 @@ private:
 
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
+        if (joblet->JobType != EJobType::Map) {
+            return;
+        }
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),

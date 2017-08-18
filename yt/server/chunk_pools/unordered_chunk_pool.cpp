@@ -66,8 +66,10 @@ public:
 
     TUnorderedChunkPool(
         IJobSizeConstraintsPtr jobSizeConstraints,
-        TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig)
+        TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig,
+        bool ignoreIdealDataSizePerJob)
         : JobSizeConstraints(std::move(jobSizeConstraints))
+        , IgnoreIdealDataSizePerJob(ignoreIdealDataSizePerJob)
     {
         YCHECK(JobSizeConstraints);
 
@@ -246,8 +248,6 @@ public:
 
     virtual IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
     {
-        YCHECK(Finished);
-
         if (GetPendingJobCount() == 0) {
             return IChunkPoolOutput::NullCookie;
         }
@@ -409,11 +409,13 @@ public:
         Persist(context, ExtractedLists);
         Persist(context, LostCookies);
         Persist(context, ReplayCookies);
+        Persist(context, IgnoreIdealDataSizePerJob);
 
         // COMPAT(psushin).
         if (context.GetVersion() >= 200512) {
             Persist(context, TotalDataSliceCount);
         }
+
     }
 
 private:
@@ -465,6 +467,8 @@ private:
     yhash_set<IChunkPoolOutput::TCookie> LostCookies;
     yhash_set<IChunkPoolOutput::TCookie> ReplayCookies;
 
+    bool IgnoreIdealDataSizePerJob;
+
     int GetFreePendingJobCount() const
     {
         return JobCounter.GetPending() - LostCookies.size();
@@ -472,6 +476,9 @@ private:
 
     i64 GetIdealDataWeightPerJob() const
     {
+        if (IgnoreIdealDataSizePerJob) {
+            return std::numeric_limits<i64>::max();
+        }
         int freePendingJobCount = GetFreePendingJobCount();
         YCHECK(freePendingJobCount > 0);
         return std::max(
@@ -677,11 +684,13 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     IJobSizeConstraintsPtr jobSizeConstraints,
-    TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig)
+    TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig,
+    bool ignoreIdealDataSizePerJob)
 {
     return std::unique_ptr<IChunkPool>(new TUnorderedChunkPool(
         std::move(jobSizeConstraints),
-        std::move(jobSizeAdjusterConfig)));
+        std::move(jobSizeAdjusterConfig),
+        ignoreIdealDataSizePerJob));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
