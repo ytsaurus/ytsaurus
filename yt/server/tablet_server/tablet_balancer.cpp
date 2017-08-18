@@ -478,15 +478,15 @@ private:
         auto* table = tablet->GetTable();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
-        const auto& tableAttributes = tableProxy->Attributes();
 
-        if (tableAttributes.Get<bool>("disable_tablet_balancer", false)) {
+        auto enabled = table->GetEnableTabletBalancer();
+        if (enabled && !*enabled) {
             return TTabletSizeConfig{0, std::numeric_limits<i64>::max(), 0};
         }
 
-        auto tableMinTabletSize = tableAttributes.Find<i64>("min_tablet_size");
-        auto tableMaxTabletSize = tableAttributes.Find<i64>("max_tablet_size");
-        auto tableDesiredTabletSize = tableAttributes.Find<i64>("desired_tablet_size");
+        auto tableMinTabletSize = table->GetMinTabletSize();
+        auto tableMaxTabletSize = table->GetMaxTabletSize();
+        auto tableDesiredTabletSize = table->GetDesiredTabletSize();
 
         if (tableMinTabletSize && tableMaxTabletSize && tableDesiredTabletSize &&
             *tableMinTabletSize < *tableDesiredTabletSize &&
@@ -544,9 +544,9 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         auto sysNode = resolver->ResolvePath("//sys");
-        if (sysNode->Attributes().Get<bool>("disable_tablet_balancer", false)) {
+        if (!sysNode->Attributes().Get<bool>("enable_tablet_balancer", true)) {
             if (Enabled_) {
-                LOG_INFO("Tablet balancer is disabled by //sys/@disable_tablet_balancer setting");
+                LOG_INFO("Tablet balancer is disabled by //sys/@enable_tablet_balancer setting");
             }
             enabled = false;
         }
