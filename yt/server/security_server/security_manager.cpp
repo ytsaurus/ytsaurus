@@ -1439,7 +1439,7 @@ private:
         // COMPAT(savrus)
         ValidateAccountResourceUsage_ = context.GetVersion() >= 606;
         RecomputeAccountResourceUsage_ = context.GetVersion() < 606;
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 606;
+        RecomputeNodeResourceUsage_ = context.GetVersion() < 613;
     }
 
     virtual void OnAfterSnapshotLoaded() override
