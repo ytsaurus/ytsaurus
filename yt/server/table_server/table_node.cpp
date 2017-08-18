@@ -35,6 +35,10 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, LastCommitTimestamp);
     Save(context, TabletCountByState);
     Save(context, Tablets);
+    Save(context, EnableTabletBalancer);
+    Save(context, MinTabletSize);
+    Save(context, MaxTabletSize);
+    Save(context, DesiredTabletSize);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -47,6 +51,14 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, LastCommitTimestamp);
     Load(context, TabletCountByState);
     Load(context, Tablets);
+
+    //COMPAT(savrus)
+    if (context.GetVersion() >= 614) {
+        Load(context, EnableTabletBalancer);
+        Load(context, MinTabletSize);
+        Load(context, MaxTabletSize);
+        Load(context, DesiredTabletSize);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -226,14 +238,31 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
     }
 
     //COMPAT(savrus)
-    if (context.GetVersion() < 611) {
+    if (context.GetVersion() < 614) {
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
-            static const TString nodeTagFilterAttributeName("node_tag_filter");
-            auto it = attributes.find(nodeTagFilterAttributeName);
-            if (it != attributes.end()) {
-                attributes.erase(it);
-            }
+
+            auto processAttribute = [&] (const TString& attributeName, auto functor) {
+                auto it = attributes.find(attributeName);
+                if (it != attributes.end()) {
+                    try {
+                        functor(*it);
+                    } catch (...) {
+                    }
+                    attributes.erase(it);
+                }
+            };
+            static const TString disableTabletBalancerAttributeName("disable_tablet_balancer");
+            static const TString minTabletSizeAttributeName("min_tablet_size");
+            static const TString maxTabletSizeAttributeName("max_tablet_size");
+            static const TString desiredTabletSizeAttributeName("desired_tablet_size");
+            processAttribute(disableTabletBalancerAttributeName, [&] (auto val) {
+                    SetEnableTabletBalancer(!ConvertTo<bool>(val));
+                });
+            processAttribute(minTabletSizeAttributeName, [&] (auto val) { SetMinTabletSize(ConvertTo<i64>(val)); });
+            processAttribute(maxTabletSizeAttributeName, [&] (auto val) { SetMaxTabletSize(ConvertTo<i64>(val)); });
+            processAttribute(desiredTabletSizeAttributeName, [&] (auto val) { SetDesiredTabletSize(ConvertTo<i64>(val)); });
+
             if (attributes.empty()) {
                 Attributes_.reset();
             }

@@ -44,6 +44,10 @@ private:
         NTransactionClient::TTimestamp LastCommitTimestamp = NTransactionClient::NullTimestamp;
         TTabletStateIndexedVector TabletCountByState;
         TTabletList Tablets;
+        TNullable<bool> EnableTabletBalancer;
+        TNullable<i64> MinTabletSize;
+        TNullable<i64> MaxTabletSize;
+        TNullable<i64> DesiredTabletSize;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -66,6 +70,10 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastCommitTimestamp);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, Tablets);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableTabletBalancer);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MinTabletSize);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MaxTabletSize);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletSize);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);

@@ -131,6 +131,18 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("table_chunk_format_statistics")
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("enable_tablet_balancer")
+        .SetWritable(true)
+        .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
+    descriptors->push_back(TAttributeDescriptor("min_tablet_size")
+        .SetWritable(true)
+        .SetPresent(static_cast<bool>(table->GetMinTabletSize())));
+    descriptors->push_back(TAttributeDescriptor("max_tablet_size")
+        .SetWritable(true)
+        .SetPresent(static_cast<bool>(table->GetMaxTabletSize())));
+    descriptors->push_back(TAttributeDescriptor("desired_tablet_size")
+        .SetWritable(true)
+        .SetPresent(static_cast<bool>(table->GetDesiredTabletSize())));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
@@ -313,6 +325,36 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
         return true;
     }
 
+    if (key == "tablet_count" && isDynamic) {
+        BuildYsonFluently(consumer)
+            .Value(trunkTable->Tablets().size());
+        return true;
+    }
+
+    if (key == "enable_tablet_balancer" && static_cast<bool>(trunkTable->GetEnableTabletBalancer())) {
+        BuildYsonFluently(consumer)
+            .Value(*trunkTable->GetEnableTabletBalancer());
+        return true;
+    }
+
+    if (key == "min_tablet_size" && static_cast<bool>(trunkTable->GetMinTabletSize())) {
+        BuildYsonFluently(consumer)
+            .Value(*trunkTable->GetMinTabletSize());
+        return true;
+    }
+
+    if (key == "max_tablet_size" && static_cast<bool>(trunkTable->GetMaxTabletSize())) {
+        BuildYsonFluently(consumer)
+            .Value(*trunkTable->GetDesiredTabletSize());
+        return true;
+    }
+
+    if (key == "desired_tablet_size" && static_cast<bool>(trunkTable->GetDesiredTabletSize())) {
+        BuildYsonFluently(consumer)
+            .Value(*trunkTable->GetDesiredTabletSize());
+        return true;
+    }
+
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
@@ -469,6 +511,37 @@ bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString&
         auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(key));
         lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
 
+        return true;
+    }
+
+    if (key == "enable_tablet_balancer") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetEnableTabletBalancer(ConvertTo<bool>(value));
+        return true;
+    }
+
+    // COMPAT(savrus)
+    if (key == "disable_tablet_balancer") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetEnableTabletBalancer(!ConvertTo<bool>(value));
+        return true;
+    }
+
+    if (key == "min_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetMinTabletSize(ConvertTo<i64>(value));
+        return true;
+    }
+
+    if (key == "max_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetMaxTabletSize(ConvertTo<i64>(value));
+        return true;
+    }
+
+    if (key == "desired_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetDesiredTabletSize(ConvertTo<i64>(value));
         return true;
     }
 
