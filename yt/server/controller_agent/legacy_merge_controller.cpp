@@ -229,7 +229,7 @@ protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
             AddParallelInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
     private:
@@ -279,11 +279,11 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(jobSummary.Result, joblet->ChunkListIds);
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
             if (jobSummary.InterruptReason != EInterruptReason::None) {
                 Controller->ReinstallUnreadInputDataSlices(jobSummary.UnreadInputDataSlices);

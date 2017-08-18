@@ -228,15 +228,14 @@ private:
         {
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
             AddSequentialInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            auto stripe = New<TChunkStripe>(joblet->ChunkListIds[0 /* tableIndex */]);
-            DestinationPoolInputs_[0 /* tableIndex */]->Add(std::move(stripe), Index_);
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -435,7 +434,6 @@ private:
     {
         auto addTask = [this] (const std::vector<TChunkStripePtr>& stripes, int index) {
             auto task = New<TRemoteCopyTask>(this, index);
-            task->Initialize();
             task->AddInput(stripes);
             task->FinishInput();
             RegisterTask(task);

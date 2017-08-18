@@ -134,9 +134,15 @@ TOutputStream* TUserJobIOBase::GetStderrTableWriter() const
 
 void TUserJobIOBase::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
 {
+    std::vector<NChunkClient::NProto::TChunkSpec> writtenChunkSpecs;
     for (const auto& writer : Writers_) {
         *schedulerJobResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(writer);
+        auto writtenChunks = writer->GetWrittenChunksMasterMeta();
+        for (auto& chunkSpec : writtenChunks) {
+            writtenChunkSpecs.emplace_back(std::move(chunkSpec));
+        }
     }
+    ToProto(schedulerJobResultExt->mutable_output_chunk_specs(), writtenChunkSpecs);
 }
 
 void TUserJobIOBase::PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt)

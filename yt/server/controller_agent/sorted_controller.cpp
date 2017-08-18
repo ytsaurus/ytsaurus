@@ -115,9 +115,7 @@ protected:
                 controller->GetSortedChunkPoolOptions(),
                 controller->CreateChunkSliceFetcherFactory(),
                 controller->GetInputStreamDirectory()))
-        {
-            SetupCallbacks();
-        }
+        { }
 
         virtual TString GetId() const override
         {
@@ -156,17 +154,13 @@ protected:
             using NYT::Persist;
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
-
-            if (context.IsLoad()) {
-                SetupCallbacks();
-            }
         }
 
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
             AddParallelInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
     private:
@@ -209,11 +203,11 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(jobSummary.Result, joblet->ChunkListIds);
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -221,8 +215,10 @@ protected:
             TTask::OnJobAborted(joblet, jobSummary);
         }
 
-        void SetupCallbacks()
+        virtual void SetupCallbacks() override
         {
+            TTask::SetupCallbacks();
+
             ChunkPool_->SubscribePoolOutputInvalidated(BIND([&] (const TError& error) {
                 YCHECK(false && "Error during resuming stripe in sorted task");
             }));
@@ -450,6 +446,7 @@ protected:
         InitTeleportableInputTables();
 
         SortedTask_ = New<TSortedTask>(this);
+        RegisterTask(SortedTask_);
 
         ProcessInputs();
 
@@ -459,8 +456,6 @@ protected:
             // If teleport chunks were found, then teleport table index should be non-Null.
             RegisterTeleportChunk(teleportChunk, 0, *GetOutputTeleportTableIndex());
         }
-
-        RegisterTask(SortedTask_);
 
         FinishPreparation();
     }

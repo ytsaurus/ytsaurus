@@ -434,6 +434,7 @@ protected:
 
     TNullable<TInputQuery> InputQuery;
 
+
     //! All tasks declared by calling #RegisterTask, mostly for debugging purposes.
     std::vector<TTaskPtr> Tasks;
 
@@ -721,10 +722,10 @@ protected:
 
     void AttachToLivePreview(NChunkClient::TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId);
 
-    void RegisterTeleportChunk(
+    virtual void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunkSpec,
         NChunkPools::TChunkStripeKey key,
-        int tableIndex);
+        int tableIndex) override;
 
     bool HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable);
 
@@ -819,7 +820,9 @@ protected:
 
     void CheckFailedJobsStatusReceived();
 
-    virtual std::vector<NChunkPools::IChunkPoolInput*> GetSinks() override;
+    virtual std::vector<TEdgeDescriptor> GetStandardEdgeDescriptors() override;
+
+    NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
 
 private:
     typedef TOperationControllerBase TThis;

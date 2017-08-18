@@ -157,7 +157,7 @@ protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
             AddParallelInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
@@ -192,7 +192,7 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -201,7 +201,7 @@ protected:
                 key = TOutputOrder::TEntry(joblet->OutputCookie);
             }
 
-            RegisterOutput(jobSummary.Result, joblet->ChunkListIds, key);
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet, key);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -391,6 +391,7 @@ protected:
         }
 
         OrderedTask_ = New<TOrderedTask>(this);
+        RegisterTask(OrderedTask_);
 
         ProcessInputs();
 
@@ -409,8 +410,6 @@ protected:
                     0 /* tableIndex */);
             }
         }
-
-        RegisterTask(OrderedTask_);
 
         FinishPreparation();
     }
