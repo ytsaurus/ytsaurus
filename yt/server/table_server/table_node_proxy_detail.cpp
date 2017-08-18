@@ -133,15 +133,19 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("enable_tablet_balancer")
         .SetWritable(true)
+        .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
     descriptors->push_back(TAttributeDescriptor("min_tablet_size")
         .SetWritable(true)
+        .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetMinTabletSize())));
     descriptors->push_back(TAttributeDescriptor("max_tablet_size")
         .SetWritable(true)
+        .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetMaxTabletSize())));
     descriptors->push_back(TAttributeDescriptor("desired_tablet_size")
         .SetWritable(true)
+        .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetDesiredTabletSize())));
 }
 
@@ -376,85 +380,40 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(const TString& ke
     return TBase::GetBuiltinAttributeAsync(key);
 }
 
-void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
+bool TTableNodeProxy::RemoveBuiltinAttribute(const TString& key)
 {
-    auto* table = LockThisImpl();
-
-    if (table->IsReplicated()) {
-        THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
+    if (key == "enable_tablet_balancer") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetEnableTabletBalancer(Null);
+        return true;
     }
 
-    if (options.Dynamic) {
-        ValidateNoTransaction();
-
-        if (*options.Dynamic && table->IsExternal()) {
-            THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
-        }
+    // COMPAT(savrus)
+    if (key == "disable_tablet_balancer") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetEnableTabletBalancer(Null);
+        return true;
     }
 
-    if (options.Schema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
-        THROW_ERROR_EXCEPTION("Cannot change table schema since not all of its tablets are in %Qlv state",
-            ETabletState::Unmounted);
+    if (key == "min_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetMinTabletSize(Null);
+        return true;
     }
 
-    auto dynamic = options.Dynamic.Get(table->IsDynamic());
-    auto schema = options.Schema.Get(table->TableSchema());
-
-    if (options.UpstreamReplicaId) {
-        ValidateNoTransaction();
-
-        if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot change upstream replica since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
-        }
-        if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
-        }
-        if (!schema.IsSorted()) {
-            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
-        }
-        if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
-        }
+    if (key == "max_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetMaxTabletSize(Null);
+        return true;
     }
 
-    // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
-        schema = schema.ToUniqueKeys();
+    if (key == "desired_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetDesiredTabletSize(Null);
+        return true;
     }
 
-    ValidateTableSchemaUpdate(
-        table->TableSchema(),
-        schema,
-        dynamic,
-        table->IsEmpty());
-
-    auto oldSchema = table->TableSchema();
-    auto oldSchemaMode = table->GetSchemaMode();
-
-    if (options.Schema) {
-        table->TableSchema() = std::move(schema);
-        table->SetSchemaMode(ETableSchemaMode::Strong);
-    }
-
-    try {
-        if (options.Dynamic) {
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            if (*options.Dynamic) {
-                tabletManager->MakeTableDynamic(table);
-            } else {
-                tabletManager->MakeTableStatic(table);
-            }
-        }
-    } catch (const std::exception&) {
-        table->TableSchema() = std::move(oldSchema);
-        table->SetSchemaMode(oldSchemaMode);
-        throw;
-    }
-
-    if (options.UpstreamReplicaId) {
-        table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
-    }
+    return TBase::RemoveBuiltinAttribute(key);
 }
 
 bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString& value)
@@ -579,6 +538,87 @@ void TTableNodeProxy::ValidateFetchParameters(
         if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
             THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
         }
+    }
+}
+
+void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
+{
+    auto* table = LockThisImpl();
+
+    if (table->IsReplicated()) {
+        THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
+    }
+
+    if (options.Dynamic) {
+        ValidateNoTransaction();
+
+        if (*options.Dynamic && table->IsExternal()) {
+            THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
+        }
+    }
+
+    if (options.Schema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
+        THROW_ERROR_EXCEPTION("Cannot change table schema since not all of its tablets are in %Qlv state",
+            ETabletState::Unmounted);
+    }
+
+    auto dynamic = options.Dynamic.Get(table->IsDynamic());
+    auto schema = options.Schema.Get(table->TableSchema());
+
+    if (options.UpstreamReplicaId) {
+        ValidateNoTransaction();
+
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change upstream replica since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
+        }
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
+        }
+        if (!schema.IsSorted()) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
+        }
+        if (table->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
+        }
+    }
+
+    // NB: Sorted dynamic tables contain unique keys, set this for user.
+    if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
+        schema = schema.ToUniqueKeys();
+    }
+
+    ValidateTableSchemaUpdate(
+        table->TableSchema(),
+        schema,
+        dynamic,
+        table->IsEmpty());
+
+    auto oldSchema = table->TableSchema();
+    auto oldSchemaMode = table->GetSchemaMode();
+
+    if (options.Schema) {
+        table->TableSchema() = std::move(schema);
+        table->SetSchemaMode(ETableSchemaMode::Strong);
+    }
+
+    try {
+        if (options.Dynamic) {
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            if (*options.Dynamic) {
+                tabletManager->MakeTableDynamic(table);
+            } else {
+                tabletManager->MakeTableStatic(table);
+            }
+        }
+    } catch (const std::exception&) {
+        table->TableSchema() = std::move(oldSchema);
+        table->SetSchemaMode(oldSchemaMode);
+        throw;
+    }
+
+    if (options.UpstreamReplicaId) {
+        table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
     }
 }
 

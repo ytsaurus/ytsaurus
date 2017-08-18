@@ -1037,7 +1037,11 @@ class TestTabletActions(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2
-        set("//tmp/t/@enable_tablet_balancer", True)
+        set("//sys/tablet_cell_bundles/default/@enable_tablet_balancer", False)
+        remove("//tmp/t/@enable_tablet_balancer")
+        sleep(1)
+        assert get("//tmp/t/@tablet_count") == 2
+        set("//sys/tablet_cell_bundles/default/@enable_tablet_balancer", True)
         sleep(1)
         self._wait_for_tablets("//tmp/t", "mounted")
         assert get("//tmp/t/@tablet_count") == 1

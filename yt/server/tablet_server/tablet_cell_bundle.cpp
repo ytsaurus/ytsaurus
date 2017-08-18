@@ -30,6 +30,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, *Options_);
     Save(context, NodeTagFilter_);
     Save(context, TabletCells_);
+    Save(context, EnableTabletBalancer_);
 }
 
 void TTabletCellBundle::Load(TLoadContext& context)
@@ -57,6 +58,9 @@ void TTabletCellBundle::Load(TLoadContext& context)
     // COMAPT(babenko)
     if (context.GetVersion() >= 400) {
         Load(context, TabletCells_);
+    }
+    if (context.GetVersion() >= 614) {
+        Load(context, EnableTabletBalancer_);
     }
 
     //COMPAT(savrus)
