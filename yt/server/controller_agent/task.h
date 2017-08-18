@@ -4,6 +4,7 @@
 
 #include "progress_counter.h"
 #include "serialize.h"
+#include "data_flow_graph.h"
 
 #include <yt/server/scheduler/job.h>
 
@@ -30,7 +31,7 @@ public:
 public:
     //! For persistence only.
     TTask();
-    TTask(ITaskHostPtr taskHost, std::vector<NChunkPools::IChunkPoolInput*> destinationPoolInputs);
+    TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors);
     explicit TTask(ITaskHostPtr taskHost);
 
     void Initialize();
@@ -49,6 +50,7 @@ public:
     virtual TJobResources GetTotalNeededResources() const;
     TJobResources GetTotalNeededResourcesDelta();
 
+    // TODO(max42): Remove this method in favour of EdgeDescriptors_.
     virtual bool IsIntermediateOutput() const;
 
     bool IsStderrTableEnabled() const;
@@ -76,10 +78,10 @@ public:
         const TJobResources& jobLimits,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
-    virtual void OnJobCompleted(TJobletPtr joblet, const NScheduler::TCompletedJobSummary& jobSummary);
+    virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary);
     virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary);
     virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary);
-    virtual void OnJobLost(TCompletedJobPtr completedJob);
+    virtual void OnJobLost(TJobletPtr joblet, TCompletedJobPtr completedJob);
 
     // First checks against a given node, then against all nodes if needed.
     void CheckResourceDemandSanity(
@@ -92,7 +94,6 @@ public:
 
     void DoCheckResourceDemandSanity(const TJobResources& neededResources);
 
-    bool IsPending() const;
     bool IsCompleted() const;
 
     virtual bool IsActive() const;
@@ -117,6 +118,8 @@ public:
     ITaskHost* GetTaskHost();
     void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
     void AddPendingHint();
+
+    virtual void SetupCallbacks();
 
 protected:
     NLogging::TLogger Logger;
@@ -152,39 +155,50 @@ protected:
         NScheduler::NProto::TTableInputSpec* inputSpec,
         NChunkPools::TChunkStripePtr stripe);
 
-    void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
-    void AddIntermediateOutputSpec(
-        NJobTrackerClient::NProto::TJobSpec* jobSpec,
-        TJobletPtr joblet,
-        const NTableClient::TKeyColumns& keyColumns);
+    void AddOutputTableSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
     static void UpdateInputSpecTotals(
         NJobTrackerClient::NProto::TJobSpec* jobSpec,
         TJobletPtr joblet);
 
-    // Send stripe to the next chunk pool registering the recovery info.
-    void RegisterIntermediate(
+    // Send stripe to the next chunk pool.
+    void RegisterStripe(
         NChunkPools::TChunkStripePtr chunkStripe,
-        NChunkPools::IChunkPoolInput* destinationPool,
-        TJobletPtr joblet);
+        const TEdgeDescriptor& edgeDescriptor,
+        TJobletPtr joblet,
+        NChunkPools::TChunkStripeKey key = NChunkPools::TChunkStripeKey());
+
+    static std::vector<NChunkPools::TChunkStripePtr> BuildChunkStripes(
+        google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs,
+        int tableCount);
 
     static NChunkPools::TChunkStripePtr BuildIntermediateChunkStripe(
         google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
     std::vector<NChunkPools::TChunkStripePtr> BuildOutputChunkStripes(
+        NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt,
         const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
         google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeys);
 
     void AddFootprintAndUserJobResources(NScheduler::TExtendedJobResources& jobResources) const;
 
+    //! This method processes `chunkListIds`, forming the chunk stripes (maybe with boundary
+    //! keys taken from `jobResult` if they are present) and sends them to the destination pools
+    //! depending on the table index.
+    //!
+    //! If destination pool requires the recovery info, `joblet` should be non-null since it is used
+    //! in the recovery info, otherwise it is not used.
+    //!
+    //! This method steals output chunk specs for `jobResult`.
     void RegisterOutput(
-        const NJobTrackerClient::NProto::TJobResult& jobResult,
+        NJobTrackerClient::NProto::TJobResult* jobResult,
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+        TJobletPtr joblet,
         const NChunkPools::TChunkStripeKey& key = NChunkPools::TChunkStripeKey());
 
 protected:
-    //! Destination pools for each possible table index (usually).
-    std::vector<NChunkPools::IChunkPoolInput*> DestinationPoolInputs_;
+    //! Outgoing edges in data flow graph.
+    std::vector<TEdgeDescriptor> EdgeDescriptors_;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);

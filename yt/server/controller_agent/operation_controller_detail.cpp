@@ -435,11 +435,12 @@ void TOperationControllerBase::InitializeStructures()
         InputTables.push_back(table);
     }
 
-    for (const auto& path : GetOutputTablePaths()) {
+    const auto& outputTablePaths = GetOutputTablePaths();
+    for (int index = 0; index < outputTablePaths.size(); ++index) {
         TOutputTable table;
-        table.Path = path;
-
-        auto rowCountLimit = path.GetRowCountLimit();
+        table.Path = outputTablePaths[index];
+        table.Options->TableIndex = index;
+        auto rowCountLimit = table.Path.GetRowCountLimit();
         if (rowCountLimit) {
             if (RowCountLimitTableIndex) {
                 THROW_ERROR_EXCEPTION("Only one output table with row_count_limit is supported");
@@ -1950,7 +1951,8 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     completedJob->Lost = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
     completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
-    completedJob->SourceTask->OnJobLost(completedJob);
+    auto joblet = GetJoblet(completedJob->JobId);
+    completedJob->SourceTask->OnJobLost(std::move(joblet), completedJob);
     AddTaskPendingHint(completedJob->SourceTask);
     return true;
 }
@@ -2465,7 +2467,8 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& /* joblet */, 
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
 {
-    Tasks.push_back(std::move(task));
+    task->Initialize();
+    Tasks.emplace_back(std::move(task));
 }
 
 void TOperationControllerBase::RegisterTaskGroup(TTaskGroupPtr group)
@@ -2736,6 +2739,8 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
     auto now = NProfiling::CpuInstantToInstant(context->GetNow());
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetNodeDescriptor().Address;
+
+
 
     for (const auto& group : TaskGroups) {
         if (scheduleJobResult->IsScheduleStopNeeded()) {
@@ -3095,13 +3100,21 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
     }
 }
 
-std::vector<IChunkPoolInput*> TOperationControllerBase::GetSinks()
+std::vector<TEdgeDescriptor> TOperationControllerBase::GetStandardEdgeDescriptors()
 {
-    std::vector<IChunkPoolInput*> sinks(Sinks_.size());
+    std::vector<TEdgeDescriptor> descriptors(Sinks_.size());
     for (int index = 0; index < Sinks_.size(); ++index) {
-        sinks[index] = Sinks_[index].get();
+        descriptors[index].DestinationPool = Sinks_[index].get();
+        descriptors[index].TableUploadOptions = OutputTables_[index].TableUploadOptions;
+        descriptors[index].TableWriterOptions = OutputTables_[index].Options;
+        descriptors[index].TableWriterConfig = OutputTables_[index].WriterConfig;
+        // Output tables never lose data (hopefully), so we do not need to store
+        // recovery info for chunks that get there.
+        descriptors[index].RequiresRecoveryInfo = false;
+        descriptors[index].WriteToChunkList = true;
+        descriptors[index].CellTag = OutputTables_[index].CellTag;
     }
-    return sinks;
+    return descriptors;
 }
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
@@ -5853,7 +5866,9 @@ const IDigest* TOperationControllerBase::GetUserJobMemoryDigest(EJobType jobType
 
 void TOperationControllerBase::RegisterJobProxyMemoryDigest(EJobType jobType, const TLogDigestConfigPtr& config)
 {
-    YCHECK(JobProxyMemoryDigests_.find(jobType) == JobProxyMemoryDigests_.end());
+    if (JobProxyMemoryDigests_.has(jobType)) {
+        return;
+    }
     JobProxyMemoryDigests_[jobType] = CreateLogDigest(config);
 }
 
@@ -6037,11 +6052,9 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeTasks);
     Persist(context, AutoMergeJobSpecTemplate_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
-    Persist(context, StderrCount_);
-    Persist(context, JobNodeCount_);
-    Persist(context, FinishedJobs_);
-    Persist(context, Sinks_);
 
+    // NB: Keep this at the end of persist as it requires some of the previous
+    // fields to be already intialized.
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {
             task->Initialize();
@@ -6063,6 +6076,8 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplate()
 
     ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
+=======
+>>>>>>> fe442ad... Refactoring around scheduler in the name of auto-merge
 }
 
 TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
@@ -6091,7 +6106,10 @@ TNullable<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> fe442ad... Refactoring around scheduler in the name of auto-merge
 TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptions() const
 {
     auto options = New<NTableClient::TTableWriterOptions>();
@@ -6106,6 +6124,7 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     options->TableIndex = 0;
     return options;
 }
+<<<<<<< HEAD
 
 bool TOperationControllerBase::IsCompleted() const
 {
@@ -6118,6 +6137,8 @@ bool TOperationControllerBase::IsCompleted() const
 }
 
 >>>>>>> 6341ee9... Add auto-merge task
+=======
+>>>>>>> fe442ad... Refactoring around scheduler in the name of auto-merge
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TSink::TSink(TOperationControllerBase* controller, int outputTableIndex)

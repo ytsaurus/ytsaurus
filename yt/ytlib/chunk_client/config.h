@@ -432,6 +432,10 @@ public:
     bool ChunksMovable;
     bool ValidateResourceUsageIncrease;
 
+    //! This field doesn't affect the behavior of writer.
+    //! It is stored in table_index field of output_chunk_specs.
+    int TableIndex;
+
     NErasure::ECodec ErasureCodec;
 
     TMultiChunkWriterOptions()
@@ -449,6 +453,8 @@ public:
             .Default(true);
         RegisterParameter("erasure_codec", ErasureCodec)
             .Default(NErasure::ECodec::None);
+        RegisterParameter("table_index", TableIndex)
+            .Default(-1);
     }
 };
 

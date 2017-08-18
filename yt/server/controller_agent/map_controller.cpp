@@ -88,18 +88,17 @@ protected:
     //! Flag set when job count was explicitly specified.
     bool IsExplicitJobCount;
 
-
-    class TUnorderedTask
+    class TUnorderedTaskBase
         : public TTask
     {
     public:
         //! For persistence only.
-        TUnorderedTask()
+        TUnorderedTaskBase()
             : Controller(nullptr)
         { }
 
-        explicit TUnorderedTask(TUnorderedOperationControllerBase* controller)
-            : TTask(controller)
+        TUnorderedTaskBase(TUnorderedOperationControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TTask(controller, std::move(edgeDescriptors))
             , Controller(controller)
         { }
 
@@ -154,9 +153,18 @@ protected:
             return Controller->GetJobType();
         }
 
-    private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedTask, 0x8ab75ee7);
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        {
+            TTask::OnJobCompleted(joblet, jobSummary);
 
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+
+            if (jobSummary.InterruptReason != EInterruptReason::None) {
+                SplitByRowsAndReinstall(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
+            }
+        }
+
+    private:
         TUnorderedOperationControllerBase* Controller;
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
@@ -176,18 +184,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
-        }
-
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
-        {
-            TTask::OnJobCompleted(joblet, jobSummary);
-
-            RegisterOutput(jobSummary.Result, joblet->ChunkListIds);
-
-            if (jobSummary.InterruptReason != EInterruptReason::None) {
-                SplitByRowsAndReinstall(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
-            }
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
         void SplitByRowsAndReinstall(
@@ -238,15 +235,11 @@ protected:
             AddInput(stripes);
             FinishInput();
         }
-
-        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
-        {
-            TTask::OnJobAborted(joblet, jobSummary);
-        }
-
     };
 
-    typedef TIntrusivePtr<TUnorderedTask> TUnorderedTaskPtr;
+    INHERIT_DYNAMIC_PHOENIX_TYPE(TUnorderedTaskBase, TUnorderedTask, 0x8ab75ee7);
+
+    typedef TIntrusivePtr<TUnorderedTaskBase> TUnorderedTaskPtr;
 
     std::unique_ptr<IChunkPool> UnorderedPool;
 
@@ -282,6 +275,8 @@ protected:
 
     virtual void CustomPrepare() override
     {
+        TOperationControllerBase::CustomPrepare();
+
         // The total data size for processing (except teleport chunks).
         i64 totalDataWeight = 0;
         i64 totalRowCount = 0;
@@ -352,8 +347,8 @@ protected:
                     std::move(jobSizeConstraints),
                     GetJobSizeAdjusterConfig());
 
-                UnorderedTask = New<TUnorderedTask>(this);
-                UnorderedTask->Initialize();
+                auto edgeDescriptors = GetStandardEdgeDescriptors();
+                    UnorderedTask = New<TUnorderedTask>(this, std::move(edgeDescriptors));
                 UnorderedTask->AddInput(stripes);
                 UnorderedTask->FinishInput();
                 RegisterTask(UnorderedTask);
@@ -381,7 +376,6 @@ protected:
         return result;
     }
 
-
     // Progress reporting.
     virtual TString GetLoggingProgress() const override
     {
@@ -397,7 +391,6 @@ protected:
             JobCounter.GetInterruptedTotal(),
             GetUnavailableInputChunkCount());
     }
-
 
     // Unsorted helpers.
     virtual EJobType GetJobType() const = 0;
@@ -515,7 +508,6 @@ private:
     TMapOperationOptionsPtr Options;
 
     i64 StartRowIndex = 0;
-
 
     // Custom bits of preparation pipeline.
 

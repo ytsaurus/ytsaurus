@@ -22,6 +22,7 @@ static const int MaxSchedulingTagRuleCount = 100;
 namespace NProto {
 
 class TSchedulerJobSpecExt;
+class TSchedulerJobResultExt;
 class TTableInputSpec;
 
 } // namespace NProto
