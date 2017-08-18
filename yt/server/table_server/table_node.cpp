@@ -12,6 +12,7 @@ namespace NTableServer {
 using namespace NTableClient;
 using namespace NCypressServer;
 using namespace NYTree;
+using namespace NYson;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -242,11 +243,14 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
 
-            auto processAttribute = [&] (const TString& attributeName, auto functor) {
+            auto processAttribute = [&] (
+                const TString& attributeName,
+                std::function<void(const TYsonString&)> functor)
+            {
                 auto it = attributes.find(attributeName);
                 if (it != attributes.end()) {
                     try {
-                        functor(*it);
+                        functor(it->second);
                     } catch (...) {
                     }
                     attributes.erase(it);
@@ -256,12 +260,18 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
             static const TString minTabletSizeAttributeName("min_tablet_size");
             static const TString maxTabletSizeAttributeName("max_tablet_size");
             static const TString desiredTabletSizeAttributeName("desired_tablet_size");
-            processAttribute(disableTabletBalancerAttributeName, [&] (auto val) {
-                    SetEnableTabletBalancer(!ConvertTo<bool>(val));
-                });
-            processAttribute(minTabletSizeAttributeName, [&] (auto val) { SetMinTabletSize(ConvertTo<i64>(val)); });
-            processAttribute(maxTabletSizeAttributeName, [&] (auto val) { SetMaxTabletSize(ConvertTo<i64>(val)); });
-            processAttribute(desiredTabletSizeAttributeName, [&] (auto val) { SetDesiredTabletSize(ConvertTo<i64>(val)); });
+            processAttribute(disableTabletBalancerAttributeName, [&] (const TYsonString& val) {
+                SetEnableTabletBalancer(!ConvertTo<bool>(val));
+            });
+            processAttribute(minTabletSizeAttributeName, [&] (const TYsonString& val) {
+                SetMinTabletSize(ConvertTo<i64>(val));
+            });
+            processAttribute(maxTabletSizeAttributeName, [&] (const TYsonString& val) {
+                SetMaxTabletSize(ConvertTo<i64>(val));
+            });
+            processAttribute(desiredTabletSizeAttributeName, [&] (const TYsonString& val) {
+                SetDesiredTabletSize(ConvertTo<i64>(val));
+            });
 
             if (attributes.empty()) {
                 Attributes_.reset();
