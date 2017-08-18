@@ -95,12 +95,8 @@ public:
             return;
         }
 
-        if (!IsObjectAlive(tablet) ||
-            !IsObjectAlive(tablet->GetTable()) ||
-            !tablet->GetTable()->IsSorted() ||
-            tablet->GetAction() ||
-            QueuedTabletIds_.find(tablet->GetId()) != QueuedTabletIds_.end() ||
-            !tablet->Replicas().empty())
+        if (!IsTabletReshardable(tablet) ||
+            QueuedTabletIds_.find(tablet->GetId()) != QueuedTabletIds_.end())
         {
             return;
         }
@@ -144,6 +140,20 @@ private:
     int SplitCount_ = 0;
 
     bool BalanceCells_ = false;
+
+    bool IsTabletReshardable(const TTablet* tablet)
+    {
+        return tablet &&
+            IsObjectAlive(tablet) &&
+            !tablet->GetAction() &&
+            IsObjectAlive(tablet->GetTable()) &&
+            tablet->GetTable()->IsSorted() &&
+            IsObjectAlive(tablet->GetCell()) &&
+            IsObjectAlive(tablet->GetCell()->GetCellBundle()) &&
+            tablet->GetCell()->GetCellBundle()->GetEnableTabletBalancer() &&
+            tablet->Replicas().empty() &&
+            IsTabletUntouched(tablet);
+    }
 
     void Balance()
     {
@@ -198,6 +208,10 @@ private:
 
     void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
     {
+        if (!bundle->GetEnableTabletBalancer()) {
+            return;
+        }
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         std::vector<const TTabletCell*> cells;
 
@@ -336,12 +350,7 @@ private:
             QueuedTabletIds_.erase(tabletId);
 
             auto* tablet = tabletManager->FindTablet(tabletId);
-            if (!tablet ||
-                !IsObjectAlive(tablet) ||
-                !IsObjectAlive(tablet->GetTable()) ||
-                !tablet->Replicas().empty() ||
-                !IsTabletUntouched(tablet))
-            {
+            if (!IsTabletReshardable(tablet)) {
                 continue;
             }
 
@@ -362,7 +371,7 @@ private:
             : statistics.MemorySize;
     }
 
-    bool IsTabletUntouched(TTablet* tablet)
+    bool IsTabletUntouched(const TTablet* tablet)
     {
         return TouchedTablets_.find(tablet) == TouchedTablets_.end();
     }
