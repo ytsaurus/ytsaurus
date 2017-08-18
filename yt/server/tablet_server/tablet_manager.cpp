@@ -1349,8 +1349,6 @@ public:
             serializedReaderConfig,
             serializedWriterConfig,
             serializedWriterOptions);
-
-        CommitTabletStaticMemoryUpdate(table);
     }
 
     void DoMountTablet(
@@ -1501,6 +1499,8 @@ public:
                 replicaInfo.SetState(ETableReplicaState::Enabled);
             }
         }
+
+        CommitTabletStaticMemoryUpdate(table);
     }
 
     void UnmountTable(

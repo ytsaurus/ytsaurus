@@ -1124,6 +1124,44 @@ class TestTabletActions(TestDynamicTablesBase):
         expected_state = "frozen" if freeze else "mounted"
         self._wait_for_tablets("//tmp/t", expected_state)
 
+    @pytest.mark.parametrize("skip_freezing", [False, True])
+    @pytest.mark.parametrize("freeze", [False, True])
+    def test_action_tablet_static_memory(self, skip_freezing, freeze):
+        create_account("test_account")
+        set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 1000)
+        cells = self.sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@account", "test_account")
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "A"*256} for i in xrange(2)])
+        self.sync_unmount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def move(dst):
+            action = create("tablet_action", "", attributes={
+                "kind": "move",
+                "skip_freezing": skip_freezing,
+                "tablet_ids": [tablet_id],
+                "cell_ids": [dst]})
+            wait(lambda: get("#{0}/@cell_id".format(tablet_id)) == dst)
+            wait(lambda: get("#{0}/@state".format(tablet_id)) == "mounted")
+
+        set("//tmp/t/@in_memory_mode", "compressed")
+        self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
+        size = get("//sys/accounts/test_account/@resource_usage/tablet_static_memory")
+        assert size >= get("//tmp/t/@compressed_data_size")
+
+        move(cells[1])
+        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size
+
+        set("//tmp/t/@in_memory_mode", "none")
+        move(cells[0])
+        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == 0
+
+        set("//tmp/t/@in_memory_mode", "compressed")
+        move(cells[1])
+        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size
+
 ##################################################################
 
 class TestDynamicTablesMulticell(TestDynamicTables):
