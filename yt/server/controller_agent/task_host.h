@@ -89,6 +89,12 @@ struct ITaskHost
         const TCompletedJobPtr& completedJob,
         const NChunkPools::TChunkStripePtr& stripe) = 0;
 
+    virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
+        const NChunkPools::TChunkStripeStatisticsVector& statistics) const = 0;
+    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate() const = 0;
+    virtual TTaskGroupPtr GetAutoMergeTaskGroup() const = 0;
+    virtual TAutoMergeDirector* GetAutoMergeDirector() = 0;
+
     virtual void Persist(const TPersistenceContext& context) = 0;
 
     virtual std::vector<NChunkPools::IChunkPoolInput*> GetSinks() = 0;

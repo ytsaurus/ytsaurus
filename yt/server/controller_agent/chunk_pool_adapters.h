@@ -1,3 +1,5 @@
+#pragma once
+
 #include "private.h"
 
 #include "task_host.h"
@@ -6,6 +8,32 @@
 
 namespace NYT {
 namespace NControllerAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkPoolInputAdapterBase
+    : public NChunkPools::IChunkPoolInput
+    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+{
+public:
+    TChunkPoolInputAdapterBase() = default;
+
+    explicit TChunkPoolInputAdapterBase(NChunkPools::IChunkPoolInput* underlyingInput);
+
+    virtual TCookie Add(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
+
+    virtual void Suspend(TCookie cookie) override;
+
+    virtual void Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe) override;
+
+    virtual void Finish() override;
+
+    void Persist(const TPersistenceContext& context);
+
+private:
+    // NB: Underlying input is owned by the owner of the adapter.
+    NChunkPools::IChunkPoolInput* UnderlyingInput_ = nullptr;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

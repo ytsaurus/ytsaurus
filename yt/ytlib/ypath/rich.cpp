@@ -560,6 +560,11 @@ TNullable<NErasure::ECodec> TRichYPath::GetErasureCodec() const
     return FindAttribute<NErasure::ECodec>(*this, "erasure_codec");
 }
 
+bool TRichYPath::GetAutoMerge() const
+{
+    return GetAttribute<bool>(*this, "auto_merge", false);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRichYPath& path)
