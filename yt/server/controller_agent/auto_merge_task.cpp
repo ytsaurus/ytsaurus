@@ -180,9 +180,9 @@ void TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& job
 
     CurrentChunkCount_ -= joblet->InputStripeList->TotalChunkCount;
 
-    /*for (const auto& stripe : joblet->InputStripeList->Stripes) {
+    for (const auto& stripe : joblet->InputStripeList->Stripes) {
         TaskHost_->UnstageChunkStripe(stripe);
-    }*/
+    }
 
     RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 

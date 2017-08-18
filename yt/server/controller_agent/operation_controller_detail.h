@@ -824,6 +824,8 @@ protected:
 
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
 
+    virtual void UnstageChunkStripe(const NChunkPools::TChunkStripePtr& stripe) override;
+
 private:
     typedef TOperationControllerBase TThis;
 

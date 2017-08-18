@@ -6126,6 +6126,16 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
 }
 <<<<<<< HEAD
 
+void TOperationControllerBase::UnstageChunkStripe(const TChunkStripePtr& stripe)
+{
+    std::vector<TChunkId> chunkIds;
+    for (const auto& dataSlice : stripe->DataSlices) {
+        chunkIds.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId());
+    }
+    MasterConnector->AddChunksToUnstageList(std::move(chunkIds));
+
+}
+
 bool TOperationControllerBase::IsCompleted() const
 {
     for (const auto& task : AutoMergeTasks) {

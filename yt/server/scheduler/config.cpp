@@ -370,6 +370,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(1));
     RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
+    RegisterParameter("chunk_unstage_period", ChunkUnstagePeriod)
+        .Default(TDuration::Seconds(3));
     RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
         .Default(TDuration::Seconds(10));
 

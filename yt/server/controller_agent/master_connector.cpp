@@ -82,12 +82,18 @@ public:
             BIND(&TImpl::BuildSnapshot, MakeStrong(this)),
             Config_->SnapshotPeriod,
             EPeriodicExecutorMode::Automatic))
+        , UnstageExecutor_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TImpl::UnstageChunks, MakeWeak(this)),
+            Config_->ChunkUnstagePeriod,
+            EPeriodicExecutorMode::Automatic))
     {
         OperationNodesUpdateExecutor_->StartPeriodicUpdates(
             Invoker_,
             Config_->OperationsUpdatePeriod);
         TransactionRefreshExecutor_->Start();
         SnapshotExecutor_->Start();
+        UnstageExecutor_->Start();
     }
 
     const IInvokerPtr& GetInvoker() const
@@ -178,6 +184,15 @@ public:
             .AsyncVia(Invoker_)
             .Run();
     }
+    
+    void AddChunksToUnstageList(std::vector<TChunkId> chunkIds)
+    {
+        BIND(&TImpl::DoAddChunksToUnstageList,
+             MakeWeak(this),
+             Passed(std::move(chunkIds)))
+            .Via(Invoker_)
+            .Run();
+    }
 
     void AttachJobContext(
         const TYPath& path,
@@ -248,6 +263,9 @@ private:
 
     TPeriodicExecutorPtr TransactionRefreshExecutor_;
     TPeriodicExecutorPtr SnapshotExecutor_;
+    TPeriodicExecutorPtr UnstageExecutor_;
+
+    yhash<TCellTag, std::vector<TChunkId>> CellTagToChunkUnstageList_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -958,6 +976,59 @@ private:
     {
         return !GetOperationController(update->OperationId);
     }
+    
+    void DoAddChunksToUnstageList(std::vector<TChunkId> chunkIds)
+    {
+        for (const auto& chunkId : chunkIds) {
+            auto cellTag = CellTagFromId(chunkId);
+            CellTagToChunkUnstageList_[cellTag].emplace_back(chunkId);
+        }
+    }
+
+    void UnstageChunks()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (auto& pair : CellTagToChunkUnstageList_) {
+            const auto& cellTag = pair.first;
+            auto& chunkIds = pair.second;
+
+            if (chunkIds.empty()) {
+                continue;
+            }
+
+            LOG_DEBUG("Unstaging %v chunks from cell %v", chunkIds.size(), cellTag);
+
+            TChunkServiceProxy proxy(Bootstrap_
+                ->GetMasterClient()
+                ->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag));
+
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& chunkId : chunkIds) {
+                auto req = batchReq->add_unstage_chunk_tree_subrequests();
+                ToProto(req->mutable_chunk_tree_id(), chunkId);
+                // Chunk trees are actually single chunks, so the value of recursive
+                // doesn't matter. It is a required proto field, though :)
+                req->set_recursive(false);
+            }
+
+            chunkIds.clear();
+
+            batchReq->Invoke().Apply(
+                BIND(&TImpl::OnChunksUnstaged, MakeStrong(this), cellTag)
+                    .AsyncVia(Invoker_));
+        }
+    }
+
+    void OnChunksUnstaged(TCellTag cellTag, const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!batchRspOrError.IsOK()) {
+            LOG_DEBUG(batchRspOrError, "Error unstaging chunks in cell %v", cellTag);
+            return;
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1013,6 +1084,11 @@ TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(const TOperationI
 TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
 {
     return Impl_->RemoveSnapshot(operationId);
+}
+
+void TMasterConnector::AddChunksToUnstageList(std::vector<TChunkId> chunkIds)
+{
+    Impl_->AddChunksToUnstageList(std::move(chunkIds));
 }
 
 void TMasterConnector::AttachJobContext(

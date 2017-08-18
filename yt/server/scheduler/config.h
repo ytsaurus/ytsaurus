@@ -437,6 +437,8 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
+    TDuration ChunkUnstagePeriod;
+
     TDuration NodeShardsUpdatePeriod;
 
     TDuration ResourceDemandSanityCheckPeriod;
