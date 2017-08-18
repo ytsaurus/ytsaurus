@@ -1133,7 +1133,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@account", "test_account")
         self.sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i, "value": "A"*256} for i in xrange(2)])
+        insert_rows("//tmp/t", [{"key": i, "value": "A"*128} for i in xrange(1)])
         self.sync_unmount_table("//tmp/t")
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
