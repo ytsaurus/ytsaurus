@@ -1037,7 +1037,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2
-        remove("//tmp/t/@enable_tablet_balancer")
+        set("//tmp/t/@enable_tablet_balancer", True)
         sleep(1)
         self._wait_for_tablets("//tmp/t", "mounted")
         assert get("//tmp/t/@tablet_count") == 1
@@ -1144,7 +1144,8 @@ class TestTabletActions(TestDynamicTablesBase):
                 "tablet_ids": [tablet_id],
                 "cell_ids": [dst]})
             wait(lambda: get("#{0}/@cell_id".format(tablet_id)) == dst)
-            wait(lambda: get("#{0}/@state".format(tablet_id)) == "mounted")
+            expected = "frozen" if freeze else "mounted"
+            wait(lambda: get("#{0}/@state".format(tablet_id)) == expected)
 
         set("//tmp/t/@in_memory_mode", "compressed")
         self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
