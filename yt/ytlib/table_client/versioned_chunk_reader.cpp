@@ -482,13 +482,13 @@ public:
                         Keys_.end(),
                         BlockReader_->GetKey());
 
-                    size_t skipedKeys = std::distance(Keys_.begin() + RowCount_, nextKeyIt);
-                    skipedKeys = std::min(skipedKeys, rows->capacity() - rows->size());
-                    rows->push_back(TVersionedRow());
-                    rows->insert(rows->end(), skipedKeys, TVersionedRow());
-                    PerformanceCounters_->StaticChunkRowLookupFalsePositiveCount += skipedKeys;
-                    RowCount_ += skipedKeys;
-                    DataWeight_ += skipedKeys * GetDataWeight(TVersionedRow());
+                    size_t skippedKeys = std::distance(Keys_.begin() + RowCount_, nextKeyIt);
+                    skippedKeys = std::min(skippedKeys, rows->capacity() - rows->size());
+
+                    rows->insert(rows->end(), skippedKeys, TVersionedRow());
+                    PerformanceCounters_->StaticChunkRowLookupFalsePositiveCount += skippedKeys;
+                    RowCount_ += skippedKeys;
+                    DataWeight_ += skippedKeys * GetDataWeight(TVersionedRow());
                 } else {
                     Y_UNREACHABLE();
                 }
