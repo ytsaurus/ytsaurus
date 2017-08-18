@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "auto_merge_director.h"
 #include "chunk_list_pool.h"
 #include "job_memory.h"
 #include "job_splitter.h"
@@ -278,6 +279,12 @@ public:
     virtual bool IsJobInterruptible() const override;
     virtual bool ShouldSkipSanityCheck() override;
 
+    virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
+        const NChunkPools::TChunkStripeStatisticsVector& statistics) const override;
+    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate() const override;
+    virtual TTaskGroupPtr GetAutoMergeTaskGroup() const override;
+    virtual TAutoMergeDirector* GetAutoMergeDirector() override;
+
     virtual const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const override;
     virtual const IDigest* GetUserJobMemoryDigest(EJobType jobType) const override;
 
@@ -432,6 +439,10 @@ protected:
 
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroupPtr> TaskGroups;
+
+    //! Auto merge task for each of the output tables.
+    std::vector<TAutoMergeTaskPtr> AutoMergeTasks;
+    TTaskGroupPtr AutoMergeTaskGroup;
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
@@ -655,7 +666,7 @@ protected:
 
     virtual void OnOperationTimeLimitExceeded();
 
-    virtual bool IsCompleted() const = 0;
+    virtual bool IsCompleted() const;
 
     //! Returns |true| when the controller is prepared.
     /*!
@@ -920,6 +931,10 @@ private:
     class TSink;
     std::vector<std::unique_ptr<TSink>> Sinks_;
 
+    NJobTrackerClient::NProto::TJobSpec AutoMergeJobSpecTemplate_;
+
+    std::unique_ptr<TAutoMergeDirector> AutoMergeDirector_;
+
     void BuildAndSaveProgress();
 
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
@@ -972,6 +987,8 @@ private:
     NYson::TYsonString BuildInputPathYson(const TJobletPtr& joblet) const;
 
     void ProcessFinishedJobResult(std::unique_ptr<NScheduler::TJobSummary> summary, bool suggestCreateJobNodeByStatus);
+
+    void InitAutoMergeJobSpecTemplate();
 
     void BuildJobAttributes(
         const TJobInfoPtr& job,

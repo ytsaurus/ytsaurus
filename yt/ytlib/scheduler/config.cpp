@@ -47,6 +47,16 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(EControllerFailureType::None);
 }
 
+TAutoMergeConfig::TAutoMergeConfig()
+{
+    RegisterParameter("job_io", JobIO)
+        .DefaultNew();
+    RegisterParameter("max_intermediate_chunk_count", MaxIntermediateChunkCount)
+        .Default(Null);
+    RegisterParameter("max_chunk_count_per_merge_job", MaxChunkCountPerMergeJob)
+        .Default(Null);
+}
+
 TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
 {
     RegisterParameter("scheduling_tag_filter", SchedulingTagFilter)
@@ -138,6 +148,9 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("nightly_options", NightlyOptions)
         .Default();
+
+    RegisterParameter("auto_merge", AutoMerge)
+        .DefaultNew();
 
     RegisterValidator([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

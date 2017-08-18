@@ -9,48 +9,36 @@ using namespace NChunkPools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkPoolInputAdapterBase
-    : public IChunkPoolInput
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+TChunkPoolInputAdapterBase::TChunkPoolInputAdapterBase(IChunkPoolInput* underlyingInput)
+    : UnderlyingInput_(underlyingInput)
+{ }
+
+IChunkPoolInput::TCookie TChunkPoolInputAdapterBase::Add(TChunkStripePtr stripe, TChunkStripeKey key)
 {
-public:
-    TChunkPoolInputAdapterBase() = default;
+    return UnderlyingInput_->Add(std::move(stripe), key);
+}
 
-    explicit TChunkPoolInputAdapterBase(IChunkPoolInput* underlyingInput)
-        : UnderlyingInput_(underlyingInput)
-    { }
+void TChunkPoolInputAdapterBase::Suspend(IChunkPoolInput::TCookie cookie)
+{
+    UnderlyingInput_->Suspend(cookie);
+}
 
-    virtual TCookie Add(TChunkStripePtr stripe, TChunkStripeKey key) override
-    {
-        return UnderlyingInput_->Add(std::move(stripe), key);
-    }
+void TChunkPoolInputAdapterBase::Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe)
+{
+    UnderlyingInput_->Resume(cookie, std::move(stripe));
+}
 
-    virtual void Suspend(TCookie cookie) override
-    {
-        UnderlyingInput_->Suspend(cookie);
-    }
+void TChunkPoolInputAdapterBase::Finish()
+{
+    UnderlyingInput_->Finish();
+}
 
-    virtual void Resume(TCookie cookie, TChunkStripePtr stripe) override
-    {
-        UnderlyingInput_->Resume(cookie, std::move(stripe));
-    }
+void TChunkPoolInputAdapterBase::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
 
-    virtual void Finish() override
-    {
-        UnderlyingInput_->Finish();
-    }
-
-    void Persist(const TPersistenceContext& context)
-    {
-        using NYT::Persist;
-
-        Persist(context, UnderlyingInput_);
-    }
-
-private:
-    // NB: Underlying input is owned by the owner of the adapter.
-    IChunkPoolInput* UnderlyingInput_ = nullptr;
-};
+    Persist(context, UnderlyingInput_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -195,6 +195,22 @@ DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAutoMergeConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TJobIOConfigPtr JobIO;
+
+    TNullable<i64> MaxIntermediateChunkCount;
+    TNullable<i64> MaxChunkCountPerMergeJob;
+
+    TAutoMergeConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TAutoMergeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -258,6 +274,8 @@ public:
 
     //! Generic map to turn on/off different experimental options.
     NYTree::IMapNodePtr NightlyOptions;
+
+    TAutoMergeConfigPtr AutoMerge;
 
     TOperationSpecBase();
 
