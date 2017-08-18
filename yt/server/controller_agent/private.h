@@ -40,6 +40,8 @@ struct TLivePreviewTableBase;
 struct TInputTable;
 struct TOutputTable;
 
+class TAutoMergeDirector;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const double ApproximateSizesBoostFactor;
