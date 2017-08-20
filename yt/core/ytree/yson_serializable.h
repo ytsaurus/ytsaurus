@@ -35,7 +35,8 @@ public:
         : public TIntrinsicRefCounted
     {
         virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) = 0;
-        virtual void Validate(const NYPath::TYPath& path) const = 0;virtual void SetDefaults() = 0;
+        virtual void Validate(const NYPath::TYPath& path) const = 0;
+        virtual void SetDefaults() = 0;
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
         virtual bool HasValue() const = 0;
         virtual const std::vector<TString>& GetAliases() const = 0;
