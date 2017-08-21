@@ -5,7 +5,7 @@ CODENAME="$(lsb_release --short --codename)"
 clean() {
     rm -rf yt/wrapper/tests.sandbox/* .pybuild *.egg-info
     python setup.py clean
-    sudo make -f debian/rules clean
+    make -f debian/rules clean
 }
 
 found_version() {
