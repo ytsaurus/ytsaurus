@@ -346,7 +346,7 @@ private:
                         foreignExecuteCallback,
                         functionGenerators,
                         aggregateGenerators,
-                        Options_.EnableCodeCache);
+                        Options_);
 
                 asyncStatistics = asyncStatistics.Apply(BIND([
                     =,
@@ -382,7 +382,7 @@ private:
                     std::move(writer),
                     functionGenerators,
                     aggregateGenerators,
-                    Options_.EnableCodeCache);
+                    Options_);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             });

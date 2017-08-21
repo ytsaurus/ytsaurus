@@ -615,9 +615,6 @@ void FromProto(TConstOrderClausePtr* original, const NProto::TOrderClause& seria
 
 void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
 {
-    serialized->set_input_row_limit(original->InputRowLimit);
-    serialized->set_output_row_limit(original->OutputRowLimit);
-
     ToProto(serialized->mutable_id(), original->Id);
 
     serialized->set_limit(original->Limit);
@@ -653,10 +650,7 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
 
 void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 {
-    auto result = New<TQuery>(
-        serialized.input_row_limit(),
-        serialized.output_row_limit(),
-        FromProto<TGuid>(serialized.id()));
+    auto result = New<TQuery>(FromProto<TGuid>(serialized.id()));
 
     result->Limit = serialized.limit();
     result->UseDisjointGroupBy = serialized.use_disjoint_group_by();

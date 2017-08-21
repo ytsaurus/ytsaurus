@@ -497,7 +497,7 @@ private:
                     std::move(writer),
                     functionGenerators,
                     aggregateGenerators,
-                    options.EnableCodeCache);
+                    options);
             });
     }
 
@@ -620,6 +620,8 @@ private:
             {
                 NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
                 ToProto(req->mutable_query(), query);
+                req->mutable_query()->set_input_row_limit(options.InputRowLimit);
+                req->mutable_query()->set_output_row_limit(options.OutputRowLimit);
                 ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
                 externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
                 ToProto(req->mutable_options(), options);

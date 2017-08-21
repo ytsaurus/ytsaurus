@@ -1772,8 +1772,6 @@ private:
             queryPreparer.Get(),
             *parsedQuery,
             fetchFunctions,
-            inputRowLimit,
-            outputRowLimit,
             options.Timestamp);
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
@@ -1785,6 +1783,8 @@ private:
         queryOptions.EnableCodeCache = options.EnableCodeCache;
         queryOptions.MaxSubqueries = options.MaxSubqueries;
         queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
+        queryOptions.InputRowLimit = inputRowLimit;
+        queryOptions.OutputRowLimit = outputRowLimit;
 
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -3423,7 +3423,7 @@ private:
         if (options.IncludeArchive) {
             TString conditions = Format("(operation_id_hi, operation_id_lo) = (%vu, %vu)",
                 operationId.Parts64[0], operationId.Parts64[1]);
-        
+
             if (options.JobType) {
                 conditions = Format("%v and type = %Qv", conditions, FormatEnum(*options.JobType));
             }
@@ -3605,7 +3605,7 @@ private:
                 if (options.HasStderr) {
                     if (*options.HasStderr && stderrSize <= 0) {
                         continue;
-                    } 
+                    }
                     if (!(*options.HasStderr) && stderrSize > 0) {
                         continue;
                     }

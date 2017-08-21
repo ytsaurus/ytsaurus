@@ -187,8 +187,6 @@ TWriteOpClosure::TWriteOpClosure()
 TJoinParameters GetJoinEvaluator(
     const TJoinClause& joinClause,
     const TTableSchema& selfTableSchema,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
     size_t batchSize,
     bool isOrdered)
 {
@@ -197,7 +195,7 @@ TJoinParameters GetJoinEvaluator(
     auto commonKeyPrefix = joinClause.CommonKeyPrefix;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
-    auto subquery = New<TQuery>(inputRowLimit, outputRowLimit);
+    auto subquery = New<TQuery>();
 
     subquery->OriginalSchema = joinClause.OriginalSchema;
     subquery->SchemaMapping = joinClause.SchemaMapping;

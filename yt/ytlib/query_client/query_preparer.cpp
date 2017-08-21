@@ -2137,16 +2137,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
     const TFunctionsFetcher& functionsFetcher,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
     TTimestamp timestamp)
 {
     return PreparePlanFragment(
         callbacks,
         *ParseSource(source, EParseMode::Query),
         functionsFetcher,
-        inputRowLimit,
-        outputRowLimit,
         timestamp);
 }
 
@@ -2154,11 +2150,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
     const TFunctionsFetcher& functionsFetcher,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
     TTimestamp timestamp)
 {
-    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
+    auto query = New<TQuery>(TGuid::Create());
 
     auto Logger = MakeQueryLogger(query);
 
@@ -2557,10 +2551,7 @@ TQueryPtr PrepareJobQuery(
         THROW_ERROR_EXCEPTION("GROUP BY is not supported in map-reduce queries");
     }
 
-    auto query = New<TQuery>(
-        std::numeric_limits<i64>::max(),
-        std::numeric_limits<i64>::max(),
-        TGuid::Create());
+    auto query = New<TQuery>(TGuid::Create());
     query->OriginalSchema = tableSchema;
 
     TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(

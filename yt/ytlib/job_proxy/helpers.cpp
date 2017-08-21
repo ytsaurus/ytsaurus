@@ -70,7 +70,7 @@ void RunQuery(
     auto reader = CreateSchemafulReaderAdapter(readerFactory, query->GetReadSchema());
 
     LOG_INFO("Reading, evaluating query and writing");
-    evaluator->Run(query, reader, writer, functionGenerators, aggregateGenerators, true);
+    evaluator->Run(query, reader, writer, functionGenerators, aggregateGenerators, TQueryBaseOptions());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

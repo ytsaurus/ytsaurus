@@ -887,8 +887,6 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
         int index = Variables_->AddOpaque<TJoinParameters>(GetJoinEvaluator(
             *joinClause,
             schema,
-            query->InputRowLimit,
-            query->OutputRowLimit,
             joinBatchSize,
             query->IsOrdered()));
 

@@ -33,12 +33,7 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 {
     auto Logger = MakeQueryLogger(query);
 
-    auto subqueryInputRowLimit = query->InputRowLimit;
-    auto subqueryOutputRowLimit = query->OutputRowLimit;
-
-    auto subqueryPattern = New<TQuery>(
-        subqueryInputRowLimit,
-        subqueryOutputRowLimit);
+    auto subqueryPattern = New<TQuery>();
 
     subqueryPattern->OriginalSchema = query->OriginalSchema;
     subqueryPattern->SchemaMapping = query->SchemaMapping;
@@ -51,9 +46,7 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     subqueryPattern->InferRanges = query->InferRanges;
     subqueryPattern->IsFinal = false;
 
-    auto topQuery = New<TFrontQuery>(
-        query->InputRowLimit,
-        query->OutputRowLimit);
+    auto topQuery = New<TFrontQuery>();
 
     if (auto groupClause = query->GroupClause.Get()) {
         auto topGroupClause = New<TGroupClause>();

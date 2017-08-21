@@ -4216,6 +4216,8 @@ void TOperationControllerBase::WriteInputQueryToJobSpec(
 {
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), InputQuery->Query);
+    querySpec->mutable_query()->set_input_row_limit(std::numeric_limits<i64>::max());
+    querySpec->mutable_query()->set_output_row_limit(std::numeric_limits<i64>::max());
     ToProto(querySpec->mutable_external_functions(), InputQuery->ExternalCGInfo->Functions);
 }
 
@@ -5582,7 +5584,7 @@ void TOperationControllerBase::InitUserJobSpec(
     if (StderrCount_ >= Spec_->MaxStderrCount) {
         jobSpec->set_upload_stderr_if_completed(false);
     }
-    
+
     if (joblet->StderrTableChunkListId) {
         AddStderrOutputSpecs(jobSpec, joblet);
     }
