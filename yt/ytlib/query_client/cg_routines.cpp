@@ -468,6 +468,14 @@ void JoinOpHelper(
             });
     };
 
+    auto executeForeign = [&] (std::vector<TRow> keys, ISchemafulWriterPtr writer) {
+        TQueryPtr foreignQuery;
+        TDataRanges dataSource;
+
+        std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(std::move(keys), closure.Buffer);
+        return context->ExecuteCallback(foreignQuery, dataSource, writer);
+    };
+
     closure.ProcessJoinBatch = [&] () {
         closure.ProcessSegment();
 
@@ -501,14 +509,7 @@ void JoinOpHelper(
         if (!parameters->IsOrdered) {
             auto pipe = New<NTableClient::TSchemafulPipe>();
 
-            TQueryPtr foreignQuery;
-            TDataRanges dataSource;
-
-            std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(
-                std::move(keys),
-                closure.Buffer);
-
-            context->ExecuteCallback(foreignQuery, dataSource, pipe->GetWriter())
+            executeForeign(std::move(keys), pipe->GetWriter())
                 .Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
                     if (!error.IsOK()) {
                         pipe->Fail(error);
@@ -539,20 +540,13 @@ void JoinOpHelper(
             NApi::IUnversionedRowsetPtr rowset;
 
             {
-                TQueryPtr foreignQuery;
-                TDataRanges dataSource;
-
-                std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(
-                    std::move(keys),
-                    closure.Buffer);
-
                 ISchemafulWriterPtr writer;
                 TFuture<NApi::IUnversionedRowsetPtr> rowsetFuture;
                 // Any schema, it is not used.
                 std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(TTableSchema());
                 NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
 
-                WaitFor(context->ExecuteCallback(foreignQuery, dataSource, writer))
+                WaitFor(executeForeign(std::move(keys), writer))
                     .ThrowOnError();
 
                 YCHECK(rowsetFuture.IsSet());
