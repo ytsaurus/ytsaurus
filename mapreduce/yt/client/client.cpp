@@ -354,18 +354,8 @@ void TClientBase::AlterTable(
     const TAlterTableOptions& options)
 {
     THttpHeader header("POST", "alter_table");
-    header.AddTransactionId(TransactionId_);
-    header.AddPath(AddPathPrefix(path));
-
-    if (options.Dynamic_) {
-        header.AddParam("dynamic", *options.Dynamic_);
-    }
-    if (options.Schema_) {
-        header.SetParameters(BuildYsonStringFluently().BeginMap()
-            .Item("schema")
-            .Value(*options.Schema_)
-        .EndMap());
-    }
+    header.AddMutationId();
+    header.SetParameters(SerializeParamsForAlterTable(TransactionId_, path, options));
     RetryRequest(Auth_, header);
 }
 

@@ -1,11 +1,13 @@
 #include "rpc_parameters_serialization.h"
 
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/serialize.h>
 
 #include <mapreduce/yt/interface/client_method_options.h>
 
 #include <mapreduce/yt/node/node.h>
 #include <mapreduce/yt/node/node_io.h>
+#include <mapreduce/yt/node/node_builder.h>
 
 #include <util/generic/guid.h>
 #include <util/string/cast.h>
@@ -258,6 +260,31 @@ TNode SerializeParamsForAlterTableReplica(const TReplicaId& replicaId, const TAl
     }
     if (options.Mode_) {
         result["mode"] = ::ToString(*options.Mode_);
+    }
+    return result;
+}
+
+TNode SerializeParamsForAlterTable(
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TAlterTableOptions& options)
+{
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    SetPathParam(&result, path);
+    if (options.Dynamic_) {
+        result["dynamic"] = *options.Dynamic_;
+    }
+    if (options.Schema_) {
+        TNode schema;
+        {
+            TNodeBuilder builder(&schema);
+            Serialize(*options.Schema_, &builder);
+        }
+        result["schema"] = schema;
+    }
+    if (options.UpstreamReplicaId_) {
+        result["upstream_replica_id"] = GetGuidAsString(*options.UpstreamReplicaId_);
     }
     return result;
 }
