@@ -732,6 +732,7 @@ void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableRe
     THttpHeader header("POST", "alter_table_replica");
     header.AddMutationId();
     header.SetParameters(NDetail::SerializeParamsForAlterTableReplica(replicaId, options));
+    RetryRequest(Auth_, header);
 }
 
 ui64 TClient::GenerateTimestamp()
