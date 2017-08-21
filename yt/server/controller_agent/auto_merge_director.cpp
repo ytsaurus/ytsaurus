@@ -16,29 +16,29 @@ TAutoMergeDirector::TAutoMergeDirector(
     int maxChunkCountPerMergeJob,
     TOperationId operationId)
     : MaxIntermediateChunkCount_(maxIntermediateChunkCount)
-    , MaxChunkCountPerMergeJob_(maxChunkCountPerMergeJob)
+    , ChunkCountPerMergeJob_(maxChunkCountPerMergeJob)
     , OperationId_(operationId)
     , Logger(AutoMergeLogger)
 {
     Logger.AddTag("OperationId: %v", OperationId_);
 }
 
-bool TAutoMergeDirector::TryScheduleTaskJob(int intermediateChunkCountEstimate)
+bool TAutoMergeDirector::TryScheduleTaskJob(int intermediateChunkCount)
 {
-    if (intermediateChunkCountEstimate + CurrentIntermediateChunkCount_ <= MaxIntermediateChunkCount_) {
-        LOG_DEBUG("Allowing scheduling of a task job "
+    if (intermediateChunkCount + CurrentIntermediateChunkCount_ <= MaxIntermediateChunkCount_) {
+        LOG_DEBUG("Allowing scheduling of task job "
             "(IntermediateChunkCountEstimate: %v, CurrentIntermediateChunkCount: %v, MaxIntermediateChunkCount: %v)",
-            intermediateChunkCountEstimate,
+            intermediateChunkCount,
             CurrentIntermediateChunkCount_,
             MaxIntermediateChunkCount_);
         return true;
     } else {
         // First, check for marginal case. If the job produces more than `MaxIntermediateChunkCount_`
         // chunks itself, there is no way we can stay under limit, so just let it go.
-        if (intermediateChunkCountEstimate > MaxIntermediateChunkCount_) {
+        if (intermediateChunkCount > MaxIntermediateChunkCount_) {
             LOG_DEBUG("Allowing scheduling of a marginally large task job "
-                "(InteremediateChunkCountEstimate: %v, MaxIntermediateChunkCount: %v",
-                intermediateChunkCountEstimate,
+                "(IntermediateChunkCountEstimate: %v, MaxIntermediateChunkCount: %v",
+                intermediateChunkCount,
                 MaxIntermediateChunkCount_);
             return true;
         }
@@ -46,14 +46,14 @@ bool TAutoMergeDirector::TryScheduleTaskJob(int intermediateChunkCountEstimate)
         LOG_DEBUG("Disallowing scheduling of a task job "
             "(IntermediateChunkCountEstimate: %v, CurrentIntermediateChunkCount: %v, MaxIntermediateChunkCount: %v, "
             "RunningMergeJobCount: %v",
-            intermediateChunkCountEstimate,
+            intermediateChunkCount,
             CurrentIntermediateChunkCount_,
             MaxIntermediateChunkCount_,
             RunningMergeJobCount_);
 
         // If there are already some auto-merge jobs running, we should just wait for them.
         // Otherwise, we enable force-flush mode.
-        if (RunningMergeJobCount_ == 0 && !ForceFlush_) {
+        if (RunningMergeJobCount_ == 0 && RunningTaskJobCount_ == 0 && !ForceFlush_) {
             LOG_DEBUG("Force flush mode enabled");
             ForceFlush_ = true;
             StateChanged_.Fire();
@@ -64,19 +64,19 @@ bool TAutoMergeDirector::TryScheduleTaskJob(int intermediateChunkCountEstimate)
 
 bool TAutoMergeDirector::TryScheduleMergeJob(int intermediateChunkCount) const
 {
-    if (intermediateChunkCount > MaxChunkCountPerMergeJob_ || ForceFlush_ || TaskCompleted_) {
+    if (intermediateChunkCount >= ChunkCountPerMergeJob_ || ForceFlush_ || TaskCompleted_) {
         LOG_DEBUG("Allowing scheduling of a merge job "
-            "(IntermediateChunkCount: %v, MaxChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v",
+            "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v",
             intermediateChunkCount,
-            MaxChunkCountPerMergeJob_,
+            ChunkCountPerMergeJob_,
             ForceFlush_,
             TaskCompleted_);
         return true;
     } else {
         LOG_DEBUG("Disallowing scheduling of a merge job "
-            "(IntermediateChunkCount: %v, MaxChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v",
+            "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v",
             intermediateChunkCount,
-            MaxChunkCountPerMergeJob_,
+            ChunkCountPerMergeJob_,
             ForceFlush_,
             TaskCompleted_);
         return false;
@@ -85,12 +85,14 @@ bool TAutoMergeDirector::TryScheduleMergeJob(int intermediateChunkCount) const
 
 void TAutoMergeDirector::OnTaskJobStarted(int intermediateChunkCountEstimate)
 {
+    ++RunningTaskJobCount_;
     CurrentIntermediateChunkCount_ += intermediateChunkCountEstimate;
     StateChanged_.Fire();
 }
 
 void TAutoMergeDirector::OnTaskJobFinished(int intermediateChunkCountEstimate)
 {
+    --RunningTaskJobCount_;
     CurrentIntermediateChunkCount_ -= intermediateChunkCountEstimate;
     YCHECK(CurrentIntermediateChunkCount_ >= 0);
     StateChanged_.Fire();
@@ -105,6 +107,12 @@ void TAutoMergeDirector::OnMergeInputProcessed(int intermediateChunkCount)
 void TAutoMergeDirector::OnMergeJobStarted()
 {
     ++RunningMergeJobCount_;
+
+    if (ForceFlush_) {
+        LOG_DEBUG("Force flush mode disabled");
+        ForceFlush_ = false;
+    }
+
     StateChanged_.Fire();
 }
 
@@ -115,10 +123,6 @@ void TAutoMergeDirector::OnMergeJobFinished(int unregisteredOutputChunkCount)
     CurrentIntermediateChunkCount_ -= unregisteredOutputChunkCount;
     YCHECK(CurrentIntermediateChunkCount_ >= 0);
 
-    if (ForceFlush_) {
-        LOG_DEBUG("Force flush mode disabled");
-        ForceFlush_ = false;
-    }
     StateChanged_.Fire();
 }
 
@@ -133,14 +137,16 @@ void TAutoMergeDirector::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, MaxIntermediateChunkCount_);
-    Persist(context, MaxChunkCountPerMergeJob_);
+    Persist(context, ChunkCountPerMergeJob_);
     Persist(context, OperationId_);
     Persist(context, CurrentIntermediateChunkCount_);
     Persist(context, RunningMergeJobCount_);
     Persist(context, ForceFlush_);
     Persist(context, TaskCompleted_);
+    Persist(context, RunningTaskJobCount_);
 
     if (context.IsLoad()) {
+        Logger = AutoMergeLogger;
         Logger.AddTag("OperationId: %v", OperationId_);
     }
 }

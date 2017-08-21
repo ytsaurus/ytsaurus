@@ -193,6 +193,17 @@ private:                                                              \
     DECLARE_DYNAMIC_PHOENIX_TYPE(type, tag);                          \
 };
 
+#define INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(baseType, type, tag, ...) \
+class type                                                               \
+    : public baseType<__VA_ARGS__>                                       \
+{                                                                        \
+public:                                                                  \
+    using baseType::baseType;                                            \
+                                                                         \
+private:                                                                 \
+    DECLARE_DYNAMIC_PHOENIX_TYPE(type, tag);                             \
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext

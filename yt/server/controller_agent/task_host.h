@@ -95,7 +95,7 @@ struct ITaskHost
 
     virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const = 0;
-    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate() const = 0;
+    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const = 0;
     virtual TTaskGroupPtr GetAutoMergeTaskGroup() const = 0;
     virtual TAutoMergeDirector* GetAutoMergeDirector() = 0;
 

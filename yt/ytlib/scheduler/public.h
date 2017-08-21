@@ -93,6 +93,7 @@ DEFINE_ENUM(EAbortReason,
     (SchedulingJobSpecThrottling)
     (SchedulingOther)
     (SchedulingLast)
+    (IntermediateChunkLimitExceeded)
 );
 
 DEFINE_ENUM(EInterruptReason,

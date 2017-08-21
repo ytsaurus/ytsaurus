@@ -13,7 +13,7 @@ namespace NChunkPools {
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     NControllerAgent::IJobSizeConstraintsPtr jobSizeConstraints,
     NControllerAgent::TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig,
-    bool ignoreIdealDataSizePerJob = false);
+    bool autoMergeMode = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

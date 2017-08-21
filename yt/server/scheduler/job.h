@@ -191,19 +191,20 @@ struct TJobStartRequest
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EScheduleJobFailReason,
-    ((Unknown)                    ( 0))
-    ((OperationNotRunning)        ( 1))
-    ((NoPendingJobs)              ( 2))
-    ((NotEnoughChunkLists)        ( 3))
-    ((NotEnoughResources)         ( 4))
-    ((Timeout)                    ( 5))
-    ((EmptyInput)                 ( 6))
-    ((NoLocalJobs)                ( 7))
-    ((TaskDelayed)                ( 8))
-    ((NoCandidateTasks)           ( 9))
-    ((ResourceOvercommit)         (10))
-    ((TaskRefusal)                (11))
-    ((JobSpecThrottling)          (12))
+    ((Unknown)                       ( 0))
+    ((OperationNotRunning)           ( 1))
+    ((NoPendingJobs)                 ( 2))
+    ((NotEnoughChunkLists)           ( 3))
+    ((NotEnoughResources)            ( 4))
+    ((Timeout)                       ( 5))
+    ((EmptyInput)                    ( 6))
+    ((NoLocalJobs)                   ( 7))
+    ((TaskDelayed)                   ( 8))
+    ((NoCandidateTasks)              ( 9))
+    ((ResourceOvercommit)            (10))
+    ((TaskRefusal)                   (11))
+    ((JobSpecThrottling)             (12))
+    ((IntermediateChunkLimitExceeded)(13))
 );
 
 struct TScheduleJobResult

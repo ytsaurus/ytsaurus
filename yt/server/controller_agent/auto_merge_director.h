@@ -61,7 +61,7 @@ private:
     int MaxIntermediateChunkCount_;
 
     //! Maximum number of chunks per each merge job.
-    int MaxChunkCountPerMergeJob_;
+    int ChunkCountPerMergeJob_;
 
     //! Id of the operation this auto-merge director belongs to.
     TOperationId OperationId_;
@@ -74,6 +74,9 @@ private:
 
     //! The number of currently running auto-merge jobs.
     int RunningMergeJobCount_ = 0;
+
+    //! The number of currently running task jobs.
+    int RunningTaskJobCount_ = 0;
 
     //! Flag showing that there are currently too many intermediate chunks.
     bool ForceFlush_ = false;

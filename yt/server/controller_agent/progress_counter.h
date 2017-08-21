@@ -34,6 +34,9 @@ public:
     i64 GetAbortedNonScheduled() const;
     i64 GetAborted(EAbortReason reason) const;
     i64 GetLost() const;
+    //! Useful when !TotalEnabled_ but you need to get the actual total
+    //! number of jobs somehow.
+    i64 CalculateTotal() const;
 
     void Start(i64 count);
     void Completed(i64 count, EInterruptReason reason = EInterruptReason::None);

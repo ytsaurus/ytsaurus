@@ -100,13 +100,11 @@ TEST(TAutoMergeTest, ForceFlush)
     // currently running merge jobs, so the force-flush mode becomes enabled.
     EXPECT_TRUE(director.TryScheduleMergeJob(4));
     director.OnMergeJobStarted();
-    EXPECT_TRUE(director.TryScheduleMergeJob(4));
-    director.OnMergeJobStarted();
-    director.OnMergeJobFinished(4);
-    // By this moment the force flush mode is once again disabled.
-    director.OnMergeJobFinished(4);
+    // One merge job is already running, so there is no need in scheduling
+    // merge jobs with < 5 chunks any more. Force-flush mode becomes disabled.
     EXPECT_FALSE(director.TryScheduleMergeJob(4));
-
+    director.OnMergeJobFinished(4);
+    
     // Now we are able to schedule the long-waiting job.
     EXPECT_TRUE(director.TryScheduleTaskJob(12));
 }

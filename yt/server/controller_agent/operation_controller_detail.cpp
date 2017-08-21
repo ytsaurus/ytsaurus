@@ -265,9 +265,9 @@ TExtendedJobResources TOperationControllerBase::GetAutoMergeResources(
     return result;
 }
 
-const TJobSpec& TOperationControllerBase::GetAutoMergeJobSpecTemplate() const
+const TJobSpec& TOperationControllerBase::GetAutoMergeJobSpecTemplate(int tableIndex) const
 {
-    return AutoMergeJobSpecTemplate_;
+    return AutoMergeJobSpecTemplates_[tableIndex];
 }
 
 void TOperationControllerBase::InitializeConnections()
@@ -4294,7 +4294,7 @@ void TOperationControllerBase::CollectTotals()
 
 void TOperationControllerBase::CustomPrepare()
 {
-    InitAutoMergeJobSpecTemplate();
+    InitAutoMergeJobSpecTemplates();
 
     AutoMergeTaskGroup = New<TTaskGroup>();
     AutoMergeTaskGroup->MinNeededResources.SetCpu(1);
@@ -4302,11 +4302,13 @@ void TOperationControllerBase::CustomPrepare()
     RegisterTaskGroup(AutoMergeTaskGroup);
     AutoMergeTasks.reserve(OutputTables_.size());
 
-    i64 maxChunkCountPerMergeJob = Spec_->AutoMerge->MaxChunkCountPerMergeJob.Get(
+    i64 maxChunkCountPerMergeJob = Spec_->AutoMerge->ChunkCountPerMergeJob.Get(
         std::max(1, static_cast<int>(sqrt(TotalEstimatedInputChunkCount))));
+    i64 maxIntermediateChunkCount = Spec_->AutoMerge->MaxIntermediateChunkCount.Get(
+        2 * maxChunkCountPerMergeJob);
 
     AutoMergeDirector_ = std::make_unique<TAutoMergeDirector>(
-        maxChunkCountPerMergeJob * 2,
+        maxIntermediateChunkCount,
         maxChunkCountPerMergeJob,
         OperationId);
 
@@ -4314,12 +4316,17 @@ void TOperationControllerBase::CustomPrepare()
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
         if (outputTable.Path.GetAutoMerge()) {
+            auto edgeDescriptor = standardEdgeDescriptors[index];
+            // Auto-merge jobs produce single output, so we override the table
+            // index in writer options with 0.
+            edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
+            edgeDescriptor.TableWriterOptions->TableIndex = 0;
             auto task = New<TAutoMergeTask>(
                 this /* taskHost */,
                 index,
                 maxChunkCountPerMergeJob,
                 Spec_->AutoMerge->JobIO->TableWriter->DesiredChunkSize,
-                standardEdgeDescriptors[index]);
+                edgeDescriptor);
             RegisterTask(task);
             AutoMergeTasks.emplace_back(std::move(task));
         } else {
@@ -5691,8 +5698,6 @@ TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
 
 TDataSourceDirectoryPtr TOperationControllerBase::CreateIntermediateDataSource() const
 {
-    static const TString IntermediatePath("<intermediate>");
-
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
         IntermediatePath,
@@ -6054,7 +6059,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, Sinks_);
     Persist(context, AutoMergeTaskGroup);
     Persist(context, AutoMergeTasks);
-    Persist(context, AutoMergeJobSpecTemplate_);
+    Persist(context, AutoMergeJobSpecTemplates_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
@@ -6067,19 +6072,34 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     }
 }
 
-void TOperationControllerBase::InitAutoMergeJobSpecTemplate()
+void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
 {
     // TODO(max42): should this really belong to TOperationControllerBase?
     // We can possibly move it to TAutoMergeTask itself.
-    AutoMergeJobSpecTemplate_.set_type(static_cast<int>(EJobType::UnorderedMerge));
-    auto* schedulerJobSpecExt = AutoMergeJobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->AutoMerge->JobIO)).GetData());
 
-    ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
-    schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+    AutoMergeJobSpecTemplates_.resize(OutputTables_.size());
+    for (int tableIndex = 0; tableIndex < OutputTables_.size(); ++tableIndex) {
+        AutoMergeJobSpecTemplates_[tableIndex].set_type(static_cast<int>(EJobType::UnorderedMerge));
+        auto* schedulerJobSpecExt = AutoMergeJobSpecTemplates_[tableIndex]
+            .MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(
+            ConvertToYsonString(CreateTableReaderOptions(Spec_->AutoMerge->JobIO)).GetData());
 
-    ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-    schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+
+        auto dataSourceDirectory = New<TDataSourceDirectory>();
+        // NB: chunks read by auto-merge jobs have table index set to output table index,
+        // so we need to specify several unused data sources before actual one.
+        dataSourceDirectory->DataSources().resize(tableIndex);
+        dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+            IntermediatePath,
+            OutputTables_[tableIndex].TableUploadOptions.TableSchema,
+            Null));
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), dataSourceDirectory);
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
+    }
 }
 
 TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
@@ -6192,7 +6212,7 @@ void TOperationControllerBase::TSink::Resume(TCookie cookie, TChunkStripePtr str
 
 void TOperationControllerBase::TSink::Finish()
 {
-    Y_UNREACHABLE();
+    // Mmkay. Don't know what to do here though :)
 }
 
 void TOperationControllerBase::TSink::Persist(const TPersistenceContext& context)

@@ -202,7 +202,7 @@ public:
     TJobIOConfigPtr JobIO;
 
     TNullable<i64> MaxIntermediateChunkCount;
-    TNullable<i64> MaxChunkCountPerMergeJob;
+    TNullable<i64> ChunkCountPerMergeJob;
 
     TAutoMergeConfig();
 };

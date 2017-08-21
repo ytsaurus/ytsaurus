@@ -85,7 +85,7 @@ TAutoMergeTask::TAutoMergeTask(
     ChunkPool_ = CreateUnorderedChunkPool(
         autoMergeJobSizeConstraints,
         nullptr /* jobSizeAdjusterConfig */,
-        true /* ignoreIdealDataSizePerJob */);
+        true /* autoMergeMode */);
 
     ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(ChunkPool_.get(), this);
 }
@@ -147,7 +147,7 @@ TExtendedJobResources TAutoMergeTask::GetMinNeededResourcesHeavy() const
 
 void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec)
 {
-    jobSpec->CopyFrom(TaskHost_->GetAutoMergeJobSpecTemplate());
+    jobSpec->CopyFrom(TaskHost_->GetAutoMergeJobSpecTemplate(TableIndex_));
     AddSequentialInputSpec(jobSpec, joblet);
     AddOutputTableSpecs(jobSpec, joblet);
 }
@@ -158,11 +158,17 @@ void TAutoMergeTask::UpdateSelf()
     if (CanScheduleJob_) {
         TaskHost_->AddTaskPendingHint(this);
     }
+    if (CanScheduleJob_ && GetPendingJobCount() == 0 && CurrentChunkCount_ > 0) {
+        auto* chunkPool = ChunkPool_.get();
+        YCHECK(false);
+    }
 }
 
 void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)
 {
     TTask::OnJobStarted(joblet);
+
+    CurrentChunkCount_ -= joblet->InputStripeList->TotalChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobStarted();
 }
@@ -171,14 +177,14 @@ void TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& j
 {
     TTask::OnJobAborted(joblet, jobSummary);
 
+    CurrentChunkCount_ += joblet->InputStripeList->TotalChunkCount;
+
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
 }
 
 void TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
     TTask::OnJobCompleted(joblet, jobSummary);
-
-    CurrentChunkCount_ -= joblet->InputStripeList->TotalChunkCount;
 
     for (const auto& stripe : joblet->InputStripeList->Stripes) {
         std::vector<NChunkClient::TChunkId> chunkIds;
@@ -197,6 +203,8 @@ void TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& job
 void TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 {
     TTask::OnJobFailed(joblet, jobSummary);
+
+    CurrentChunkCount_ += joblet->InputStripeList->TotalChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
 }

@@ -18,6 +18,7 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, TableWriterConfig);
     Persist(context, Timestamp);
     Persist(context, CellTag);
+    Persist(context, ImmediatelyUnstageChunkLists);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
