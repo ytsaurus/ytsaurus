@@ -39,7 +39,6 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, EnablePeriodicYielder);
     Persist(context, PivotKeys);
     Persist(context, UseNewEndpointKeys);
-    Persist(context, LogEndpoints);
 
     // COMPAT(max42): remove this when snapshots older than v200564 are
     // not supported.
@@ -81,11 +80,13 @@ public:
         IJobSizeConstraintsPtr jobSizeConstraints,
         const TRowBufferPtr& rowBuffer,
         const std::vector<TInputChunkPtr>& teleportChunks,
+        bool inSplit,
         const TLogger& logger)
         : Options_(options)
         , JobSizeConstraints_(std::move(jobSizeConstraints))
         , RowBuffer_(rowBuffer)
         , TeleportChunks_(teleportChunks)
+        , InSplit_(inSplit)
         , Logger(logger)
     { }
 
@@ -288,20 +289,6 @@ private:
 
                 return false;
             });
-        if (Options_.LogEndpoints) {
-            for (int index = 0; index < Endpoints_.size(); ++index) {
-                const auto& endpoint = Endpoints_[index];
-                LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %p)",
-                    index,
-                    endpoint.Key,
-                    endpoint.RowIndex,
-                    (endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
-                    ? MakeNullable(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
-                    : Null,
-                    endpoint.Type,
-                    endpoint.DataSlice.Get());
-            }
-        }
     }
 
     void BuildJobs()
@@ -430,6 +417,30 @@ private:
             Jobs_.pop_back();
         }
         LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
+        if (InSplit_ && Jobs_.size() == 1 && JobSizeConstraints_->GetJobCount() > 1) {
+            LOG_WARNING("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
+                JobSizeConstraints_->GetJobCount(),
+                Jobs_.size());
+            for (int index = 0; index < Endpoints_.size(); ++index) {
+                const auto& endpoint = Endpoints_[index];
+                LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %p)",
+                    index,
+                    endpoint.Key,
+                    endpoint.RowIndex,
+                    (endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
+                    ? MakeNullable(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
+                    : Null,
+                    endpoint.Type,
+                    endpoint.DataSlice.Get());
+            }
+            for (const auto& pair : DataSliceToInputCookie_) {
+                const auto& dataSlice = pair.first;
+                LOG_DEBUG("Data slice %v (DataWeight: %v, InputStreamIndex: %v)",
+                    dataSlice.Get(),
+                    dataSlice->GetDataWeight(),
+                    dataSlice->InputStreamIndex);
+            }
+        }
     }
 
     void AttachForeignSlices()
@@ -528,6 +539,8 @@ private:
     i64 TotalSliceCount_ = 0;
 
     const std::vector<TInputChunkPtr>& TeleportChunks_;
+
+    bool InSplit_ = false;
 
     const TLogger& Logger;
 };
@@ -1190,6 +1203,7 @@ private:
             JobSizeConstraints_,
             RowBuffer_,
             TeleportChunks_,
+            false /* inSplit */,
             Logger);
 
         FetchNonTeleportPrimaryDataSlices(builder);
@@ -1241,6 +1255,7 @@ private:
             std::move(jobSizeConstraints),
             RowBuffer_,
             teleportChunks,
+            true /* inSplit */,
             Logger);
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = *dataSlice->Tag;

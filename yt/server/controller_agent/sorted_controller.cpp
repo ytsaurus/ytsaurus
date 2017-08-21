@@ -518,10 +518,6 @@ protected:
             if (useNewEndpointKeys && useNewEndpointKeys->GetType() == ENodeType::Boolean) {
                 jobOptions.UseNewEndpointKeys = useNewEndpointKeys->AsBoolean()->GetValue();
             }
-            auto logEndpoints = Spec_->NightlyOptions->FindChild("log_endpoints");
-            if (logEndpoints && logEndpoints->GetType() == ENodeType::Boolean) {
-                jobOptions.LogEndpoints = logEndpoints->AsBoolean()->GetValue();
-            }
         }
 
         chunkPoolOptions.SortedJobOptions = jobOptions;
