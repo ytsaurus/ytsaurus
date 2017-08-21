@@ -323,6 +323,36 @@ int GetSocketError(SOCKET socket)
     return error;
 }
 
+TNetworkAddress GetSocketName(SOCKET socket)
+{
+    TNetworkAddress address;
+    socklen_t length = address.GetLength();
+    int result = getsockname(socket, address.GetSockAddr(), &length);
+    if (result != 0) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::TransportError,
+            "Failed to get socket name")
+            << TError::FromSystem();
+    }
+
+    return address;
+}
+
+TNetworkAddress GetSocketPeerName(SOCKET socket)
+{
+    TNetworkAddress address;
+    socklen_t length = address.GetLength();
+    int result = getpeername(socket, address.GetSockAddr(), &length);
+    if (result != 0) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::TransportError,
+            "Failed to get socket peer name")
+            << TError::FromSystem();
+    }
+
+    return address;
+}
+
 void SetSocketPriority(SOCKET socket, int priority)
 {
 #ifdef _linux_
