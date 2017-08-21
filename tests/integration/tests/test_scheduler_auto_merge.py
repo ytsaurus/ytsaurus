@@ -30,7 +30,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     # Most common way of this test to fail is to run into state when no job can be scheduled but the
     # operation is still incomplete. In this case it should fail within the timeout given below.
-    @pytest.mark.timeout(90)
+    @pytest.mark.timeout(240)
     def test_auto_merge_does_not_stuck(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -64,7 +64,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                    (row_count - 1) // min(chunk_count_per_merge_job, max_intermediate_chunk_count) + 1
             assert get("//tmp/t_out/@row_count") == row_count
 
-    @pytest.mark.timeout(90)
+    @pytest.mark.timeout(240)
     def test_account_chunk_limit(self):
         create_account("acc")
         set("//sys/accounts/acc/@resource_limits/chunk_count", 50)
@@ -151,7 +151,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert get("//tmp/t_out1/@row_count") == row_count // 2
         assert get("//tmp/t_out2/@row_count") == row_count // 2
 
-    @pytest.mark.timeout(90)
+    @pytest.mark.timeout(240)
     def test_only_auto_merge_output_table(self):
         create_account("acc")
         set("//sys/accounts/acc/@resource_limits/chunk_count", 40)
@@ -198,7 +198,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert get("//tmp/t_out2/@row_count") == row_count * 9 // 10
 
 
-    @pytest.mark.timeout(90)
+    @pytest.mark.timeout(240)
     def test_auto_merge_with_schema_and_append(self):
         schema_in = yson.loads("<unique_keys=%false;strict=%true>[{name=a;type=int64;sort_order=ascending};{name=b;type=string}]")
         create("table", "//tmp/t_in", attributes={"schema": schema_in})
