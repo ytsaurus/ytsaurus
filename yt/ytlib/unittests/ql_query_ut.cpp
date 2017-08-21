@@ -538,6 +538,7 @@ TQueryStatistics DoExecuteQuery(
     EFailureLocation failureLocation,
     TConstQueryPtr query,
     ISchemafulWriterPtr writer,
+    const TQueryBaseOptions& options,
     TExecuteQueryCallback executeCallback = nullptr)
 {
     std::vector<TOwningRow> owningSource;
@@ -573,7 +574,7 @@ TQueryStatistics DoExecuteQuery(
         executeCallback,
         functionProfilers,
         aggregateProfilers,
-        true);
+        options);
 }
 
 std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<TString>& columns, const TTableSchema& tableSchema)
@@ -826,13 +827,15 @@ protected:
             MergeFrom(typeInferrers.Get(), *TypeInferers_);
         };
 
+        TQueryBaseOptions options;
+        options.InputRowLimit = inputRowLimit;
+        options.OutputRowLimit = outputRowLimit;
+
         auto prepareAndExecute = [&] () {
             auto fragment = PreparePlanFragment(
                 &PrepareMock_,
                 query,
-                fetchFunctions,
-                inputRowLimit,
-                outputRowLimit);
+                fetchFunctions);
             const auto& primaryQuery = fragment->Query;
 
             auto executeCallback = [&] (
@@ -846,7 +849,8 @@ protected:
                     AggregateProfilers_,
                     failureLocation,
                     subquery,
-                    writer));
+                    writer,
+                    options));
             };
 
             ISchemafulWriterPtr writer;
@@ -861,6 +865,7 @@ protected:
                 failureLocation,
                 primaryQuery,
                 writer,
+                options,
                 executeCallback);
 
             auto resultRowset = WaitFor(asyncResultRowset)

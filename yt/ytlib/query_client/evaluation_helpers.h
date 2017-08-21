@@ -328,8 +328,6 @@ struct TCGAggregateCallbacks
 TJoinParameters GetJoinEvaluator(
     const TJoinClause& joinClause,
     const TTableSchema& selfTableSchema,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
     size_t batchSize,
     bool isOrdered);
 

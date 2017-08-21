@@ -87,6 +87,8 @@ private:
         externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
 
         auto options = FromProto<TQueryOptions>(request->options());
+        options.InputRowLimit = request->query().input_row_limit();
+        options.OutputRowLimit = request->query().output_row_limit();
 
         auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
@@ -94,8 +96,8 @@ private:
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "DataRangeCount: %v)",
             query->Id,
-            query->InputRowLimit,
-            query->OutputRowLimit,
+            options.InputRowLimit,
+            options.OutputRowLimit,
             options.RangeExpansionLimit,
             options.MaxSubqueries,
             options.EnableCodeCache,
