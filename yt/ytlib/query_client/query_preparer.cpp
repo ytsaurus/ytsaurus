@@ -2206,6 +2206,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
 
+    std::vector<TJoinClausePtr> joinClauses;
     for (size_t joinIndex = 0; joinIndex < ast.Joins.size(); ++joinIndex) {
         const auto& join = ast.Joins[joinIndex];
         const auto& foreignDataSplit = dataSplits[joinIndex + 1];
@@ -2429,10 +2430,29 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             schemaProxy,
             foreignSourceProxy);
 
-        query->JoinClauses.push_back(std::move(joinClause));
+        joinClauses.push_back(std::move(joinClause));
     }
 
     PrepareQuery(query, ast, schemaProxy, builder);
+
+    auto& whereClause = query->WhereClause;
+    for (auto& joinClause : joinClauses) {
+        auto& joinPredicate = joinClause->Predicate;
+        if (!joinClause->IsLeft) {
+            TConstExpressionPtr foreignPredicate;
+            std::tie(foreignPredicate, whereClause) = SplitPredicateByColumnSubset(
+                whereClause,
+                joinClause->GetRenamedSchema());
+
+            if (joinPredicate) {
+                joinPredicate = MakeAndExpression(joinPredicate, foreignPredicate);
+            } else {
+                joinPredicate = foreignPredicate;
+            }
+        }
+    }
+
+    query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
 
     if (auto groupClause = query->GroupClause) {
         auto keyColumns = query->GetKeyColumns();

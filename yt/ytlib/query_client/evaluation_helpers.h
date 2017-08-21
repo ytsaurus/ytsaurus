@@ -327,7 +327,6 @@ struct TCGAggregateCallbacks
 
 TJoinParameters GetJoinEvaluator(
     const TJoinClause& joinClause,
-    TConstExpressionPtr predicate,
     const TTableSchema& selfTableSchema,
     i64 inputRowLimit,
     i64 outputRowLimit,

@@ -186,7 +186,6 @@ TWriteOpClosure::TWriteOpClosure()
 
 TJoinParameters GetJoinEvaluator(
     const TJoinClause& joinClause,
-    TConstExpressionPtr foreignPredicate,
     const TTableSchema& selfTableSchema,
     i64 inputRowLimit,
     i64 outputRowLimit,
@@ -194,11 +193,8 @@ TJoinParameters GetJoinEvaluator(
     bool isOrdered)
 {
     const auto& foreignEquations = joinClause.ForeignEquations;
-    auto isLeft = joinClause.IsLeft;
     auto canUseSourceRanges = joinClause.CanUseSourceRanges;
     auto commonKeyPrefix = joinClause.CommonKeyPrefix;
-    auto foreignKeyPrefix = joinClause.ForeignKeyPrefix;
-    auto& foreignDataId = joinClause.ForeignDataId;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
     auto subquery = New<TQuery>(inputRowLimit, outputRowLimit);
@@ -255,10 +251,15 @@ TJoinParameters GetJoinEvaluator(
         }
     };
 
-    auto getForeignQuery = [subquery, canUseSourceRanges, commonKeyPrefix, foreignKeyPrefix, joinKeyExprs, foreignDataId,
-    foreignPredicate] (
-        std::vector<TRow> keys,
-        TRowBufferPtr permanentBuffer)
+    auto getForeignQuery = [
+        subquery,
+        canUseSourceRanges,
+        commonKeyPrefix,
+        foreignKeyPrefix = joinClause.ForeignKeyPrefix,
+        joinKeyExprs,
+        foreignDataId = joinClause.ForeignDataId,
+        foreignPredicate = joinClause.Predicate
+    ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer)
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
 
@@ -321,7 +322,7 @@ TJoinParameters GetJoinEvaluator(
 
     return TJoinParameters{
         isOrdered,
-        isLeft,
+        joinClause.IsLeft,
         selfColumns,
         foreignColumns,
         canUseSourceRanges && commonKeyPrefix > 0,
