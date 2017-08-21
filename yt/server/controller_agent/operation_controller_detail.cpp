@@ -853,18 +853,17 @@ void TOperationControllerBase::InitChunkListPool()
         OperationId,
         OutputTransaction->GetId());
 
-    CellTagToOutputRequiredChunkList.clear();
+    CellTagToRequiredChunkLists.clear();
     for (const auto* table : UpdatingTables) {
-        ++CellTagToOutputRequiredChunkList[table->CellTag];
+        ++CellTagToRequiredChunkLists[table->CellTag];
     }
 
-    CellTagToIntermediateRequiredChunkList.clear();
-    ++CellTagToIntermediateRequiredChunkList[IntermediateOutputCellTag];
+    ++CellTagToRequiredChunkLists[IntermediateOutputCellTag];
     if (StderrTable_) {
-        ++CellTagToIntermediateRequiredChunkList[StderrTable_->CellTag];
+        ++CellTagToRequiredChunkLists[StderrTable_->CellTag];
     }
     if (CoreTable_) {
-        ++CellTagToIntermediateRequiredChunkList[CoreTable_->CellTag];
+        ++CellTagToRequiredChunkLists[CoreTable_->CellTag];
     }
 }
 
@@ -2710,7 +2709,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 bestTask->GetPendingDataWeight(),
                 bestTask->GetPendingJobCount());
 
-            if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput(), bestTask->IsStderrTableEnabled(), bestTask->IsCoreTableEnabled())) {
+            if (!HasEnoughChunkLists(bestTask->IsStderrTableEnabled(), bestTask->IsCoreTableEnabled())) {
                 LOG_DEBUG("Job chunk list demand is not met");
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
                 break;
@@ -2836,7 +2835,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     task->GetPendingDataWeight(),
                     task->GetPendingJobCount());
 
-                if (!HasEnoughChunkLists(task->IsIntermediateOutput(), task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
+                if (!HasEnoughChunkLists(task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
                     LOG_DEBUG("Job chunk list demand is not met");
                     scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
                     break;
@@ -4998,12 +4997,9 @@ TRowBufferPtr TOperationControllerBase::GetRowBuffer()
     return RowBuffer;
 }
 
-bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable)
+bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)
 {
-    const auto& cellTagToRequiredChunkList = intermediate
-        ? CellTagToIntermediateRequiredChunkList
-        : CellTagToOutputRequiredChunkList;
-    for (const auto& pair : cellTagToRequiredChunkList) {
+    for (const auto& pair : CellTagToRequiredChunkLists) {
         const auto cellTag = pair.first;
         auto requiredChunkList = pair.second;
         if (StderrTable_ && !isWritingStderrTable && StderrTable_->CellTag == cellTag) {
@@ -6026,7 +6022,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TaskGroups);
     Persist(context, InputChunkMap);
     Persist(context, IntermediateOutputCellTag);
-    Persist(context, CellTagToOutputRequiredChunkList);
+    Persist(context, CellTagToRequiredChunkLists);
     Persist(context, CachedPendingJobCount);
     Persist(context, CachedNeededResources);
     Persist(context, ChunkOriginMap);

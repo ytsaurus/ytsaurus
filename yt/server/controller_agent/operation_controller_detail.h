@@ -727,7 +727,7 @@ protected:
         NChunkPools::TChunkStripeKey key,
         int tableIndex) override;
 
-    bool HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable);
+    bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
 
     //! Called after preparation to decrease memory footprint.
     void ClearInputChunkBoundaryKeys();
@@ -840,8 +840,7 @@ private:
 
     NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
     TChunkListPoolPtr ChunkListPool_;
-    yhash<NObjectClient::TCellTag, int> CellTagToOutputRequiredChunkList;
-    yhash<NObjectClient::TCellTag, int> CellTagToIntermediateRequiredChunkList;
+    yhash<NObjectClient::TCellTag, int> CellTagToRequiredChunkLists;
 
     std::atomic<int> CachedPendingJobCount = {0};
 
