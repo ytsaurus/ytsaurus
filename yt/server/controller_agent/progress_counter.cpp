@@ -125,6 +125,11 @@ i64 TProgressCounter::GetLost() const
     return Lost_;
 }
 
+i64 TProgressCounter::CalculateTotal() const
+{
+    return GetRunning() + GetCompletedTotal() + GetFailed() + GetAbortedTotal() + GetLost();
+}
+
 void TProgressCounter::Start(i64 count)
 {
     if (TotalEnabled_) {

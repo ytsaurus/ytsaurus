@@ -52,43 +52,6 @@ class TUnorderedOperationControllerBase
     : public TOperationControllerBase
 {
 public:
-    TUnorderedOperationControllerBase(
-        TSchedulerConfigPtr config,
-        TUnorderedOperationSpecBasePtr spec,
-        TSimpleOperationOptionsPtr options,
-        IOperationHost* host,
-        TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
-        , Spec(spec)
-        , Options(options)
-    { }
-
-    // Persistence.
-    virtual void Persist(const TPersistenceContext& context) override
-    {
-        TOperationControllerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, JobIOConfig);
-        Persist(context, JobSpecTemplate);
-        Persist(context, IsExplicitJobCount);
-        Persist(context, UnorderedPool);
-        Persist(context, UnorderedTask);
-        Persist(context, UnorderedTaskGroup);
-    }
-
-protected:
-    TUnorderedOperationSpecBasePtr Spec;
-    TSimpleOperationOptionsPtr Options;
-
-    //! Customized job IO config.
-    TJobIOConfigPtr JobIOConfig;
-
-    //! The template for starting new jobs.
-    TJobSpec JobSpecTemplate;
-
-    //! Flag set when job count was explicitly specified.
-    bool IsExplicitJobCount;
 
     class TUnorderedTaskBase
         : public TTask
@@ -101,7 +64,7 @@ protected:
 
         TUnorderedTaskBase(TUnorderedOperationControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
             : TTask(controller, std::move(edgeDescriptors))
-            , Controller(controller)
+              , Controller(controller)
         { }
 
         virtual TString GetId() const override
@@ -245,9 +208,47 @@ protected:
     };
 
     INHERIT_DYNAMIC_PHOENIX_TYPE(TUnorderedTaskBase, TUnorderedTask, 0x8ab75ee7);
-    using TAutoMergeableUnorderedTask = TAutoMergeabilityMixin<TUnorderedTaskBase, 0x9a9bcee3>;
+    INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(TAutoMergeabilityMixin, TAutoMergeableUnorderedTask, 0x9a9bcee3, TUnorderedTaskBase);
 
     typedef TIntrusivePtr<TUnorderedTaskBase> TUnorderedTaskPtr;
+
+    TUnorderedOperationControllerBase(
+        TSchedulerConfigPtr config,
+        TUnorderedOperationSpecBasePtr spec,
+        TSimpleOperationOptionsPtr options,
+        IOperationHost* host,
+        TOperation* operation)
+        : TOperationControllerBase(config, spec, options, host, operation)
+        , Spec(spec)
+        , Options(options)
+    { }
+
+    // Persistence.
+    virtual void Persist(const TPersistenceContext& context) override
+    {
+        TOperationControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, JobIOConfig);
+        Persist(context, JobSpecTemplate);
+        Persist(context, IsExplicitJobCount);
+        Persist(context, UnorderedPool);
+        Persist(context, UnorderedTask);
+        Persist(context, UnorderedTaskGroup);
+    }
+
+protected:
+    TUnorderedOperationSpecBasePtr Spec;
+    TSimpleOperationOptionsPtr Options;
+
+    //! Customized job IO config.
+    TJobIOConfigPtr JobIOConfig;
+
+    //! The template for starting new jobs.
+    TJobSpec JobSpecTemplate;
+
+    //! Flag set when job count was explicitly specified.
+    bool IsExplicitJobCount;
 
     std::unique_ptr<IChunkPool> UnorderedPool;
 
@@ -471,6 +472,7 @@ protected:
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TUnorderedTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TAutoMergeableUnorderedTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 

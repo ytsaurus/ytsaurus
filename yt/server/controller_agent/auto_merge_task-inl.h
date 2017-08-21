@@ -9,7 +9,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TUnderlyingTask, ui32 tag>
+template <class TUnderlyingTask>
 class TAutoMergeabilityMixin
     : public TUnderlyingTask
 {
@@ -32,14 +32,24 @@ public:
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskCompleted();
 
-        this->EdgeDescriptors_[0].DestinationPool->Finish();
+        for (const auto& edgeDescriptor : this->EdgeDescriptors_) {
+            edgeDescriptor.DestinationPool->Finish();
+        }
     }
 
     virtual void OnJobStarted(TJobletPtr joblet) override
     {
         TUnderlyingTask::OnJobStarted(joblet);
 
+        // This job is going to be scheduled, we do not have any better estimate any more.
+        LastChunkCount_ = 1;
+
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobStarted(joblet->InputStripeList->TotalChunkCount);
+    }
+
+    virtual bool ValidateChunkCount(int chunkCount) const override
+    {
+        return this->TaskHost_->GetAutoMergeDirector()->TryScheduleTaskJob(chunkCount);
     }
 
     virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary) override
@@ -59,11 +69,6 @@ public:
     virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary) override
     {
         TUnderlyingTask::OnJobCompleted(joblet, jobSummary);
-
-        // We unstage all the output chunk lists so that they do not affect the lifetime
-        // of the output chunks. It allows us to unstage the unnecessary output chunks
-        // after they are successfully auto-merged on the fly.
-        this->TaskHost_->UnstageChunkTreesNonRecursively(std::move(joblet->ChunkListIds));
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
     }
@@ -94,29 +99,25 @@ public:
         using NYT::Persist;
 
         Persist(context, CanScheduleJob_);
+        Persist(context, LastChunkCount_);
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeabilityMixin, tag);
-
     bool CanScheduleJob_ = true;
+    // Our current best estimate to the number of chunks in the next job we are able to schedule.
+    int LastChunkCount_ = 1;
 
     void UpdateSelf()
     {
-        // We do not know how much intermediate chunks our jobs will produce, so we use an optimistic estimate of 1.
         if (this->IsCompleted()) {
             return;
         }
-        CanScheduleJob_ = this->TaskHost_->GetAutoMergeDirector()->TryScheduleTaskJob(1 /* intermediateChunkCount */);
+        CanScheduleJob_ = this->TaskHost_->GetAutoMergeDirector()->TryScheduleTaskJob(LastChunkCount_ /* intermediateChunkCount */);
         if (CanScheduleJob_) {
             this->TaskHost_->AddTaskPendingHint(this);
         }
     }
 };
-
-template <class TUnderlyingTask, ui32 tag>
-NPhoenix::TDynamicInitializer<TAutoMergeabilityMixin<TUnderlyingTask, tag>, tag>
-    TAutoMergeabilityMixin<TUnderlyingTask, tag>::DynamicPhoenixInitializer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

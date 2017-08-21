@@ -281,7 +281,7 @@ public:
 
     virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const override;
-    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate() const override;
+    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const override;
     virtual TTaskGroupPtr GetAutoMergeTaskGroup() const override;
     virtual TAutoMergeDirector* GetAutoMergeDirector() override;
 
@@ -937,7 +937,7 @@ private:
     class TSink;
     std::vector<std::unique_ptr<TSink>> Sinks_;
 
-    NJobTrackerClient::NProto::TJobSpec AutoMergeJobSpecTemplate_;
+    std::vector<NJobTrackerClient::NProto::TJobSpec> AutoMergeJobSpecTemplates_;
 
     std::unique_ptr<TAutoMergeDirector> AutoMergeDirector_;
 
@@ -994,7 +994,7 @@ private:
 
     void ProcessFinishedJobResult(std::unique_ptr<NScheduler::TJobSummary> summary, bool suggestCreateJobNodeByStatus);
 
-    void InitAutoMergeJobSpecTemplate();
+    void InitAutoMergeJobSpecTemplates();
 
     void BuildJobAttributes(
         const TJobInfoPtr& job,

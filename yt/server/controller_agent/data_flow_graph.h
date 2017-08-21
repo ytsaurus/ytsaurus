@@ -24,6 +24,7 @@ struct TEdgeDescriptor
     TNullable<NTransactionClient::TTimestamp> Timestamp;
     // Cell tag to allocate chunk lists.
     NObjectClient::TCellTag CellTag;
+    bool ImmediatelyUnstageChunkLists;
 
     void Persist(const TPersistenceContext& context);
 };

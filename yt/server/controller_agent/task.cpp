@@ -200,6 +200,11 @@ ITaskHost* TTask::GetTaskHost()
     return TaskHost_;
 }
 
+bool TTask::ValidateChunkCount(int chunkCount) const
+{
+    return true;
+}
+
 void TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
@@ -210,7 +215,6 @@ void TTask::ScheduleJob(
         return;
     }
 
-    bool intermediateOutput = IsIntermediateOutput();
     int jobIndex = TaskHost_->NextJobIndex();
     auto joblet = New<TJoblet>(TaskHost_->CreateJobMetricsUpdater(), this, jobIndex);
 
@@ -228,6 +232,13 @@ void TTask::ScheduleJob(
     }
 
     int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
+
+    if (!ValidateChunkCount(sliceCount)) {
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::IntermediateChunkLimitExceeded);
+        chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::IntermediateChunkLimitExceeded);
+        return;
+    }
+
     const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
     if (sliceCount > TaskHost_->SchedulerConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
@@ -436,6 +447,10 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
             auto outputStatistics = outputStatisticsMap[index];
             if (outputStatistics.chunk_count() == 0) {
                 TaskHost_->ChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                joblet->ChunkListIds[index] = NullChunkListId;
+            }
+            if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
+                this->TaskHost_->UnstageChunkTreesNonRecursively({joblet->ChunkListIds[index]});
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
         }

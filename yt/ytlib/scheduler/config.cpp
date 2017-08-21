@@ -53,7 +53,7 @@ TAutoMergeConfig::TAutoMergeConfig()
         .DefaultNew();
     RegisterParameter("max_intermediate_chunk_count", MaxIntermediateChunkCount)
         .Default(Null);
-    RegisterParameter("max_chunk_count_per_merge_job", MaxChunkCountPerMergeJob)
+    RegisterParameter("chunk_count_per_merge_job", ChunkCountPerMergeJob)
         .Default(Null);
 }
 
