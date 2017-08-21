@@ -181,7 +181,11 @@ void TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& job
     CurrentChunkCount_ -= joblet->InputStripeList->TotalChunkCount;
 
     for (const auto& stripe : joblet->InputStripeList->Stripes) {
-        TaskHost_->UnstageChunkStripe(stripe);
+        std::vector<NChunkClient::TChunkId> chunkIds;
+        for (const auto& dataSlice : stripe->DataSlices) {
+            chunkIds.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId());
+        }
+        TaskHost_->UnstageChunkTreesNonRecursively(std::move(chunkIds));
     }
 
     RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
@@ -227,6 +231,11 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
     Persist(context, MaxChunksPerJob_);
     Persist(context, DesiredChunkSize_);
     Persist(context, CanScheduleJob_);
+}
+
+bool TAutoMergeTask::SupportsInputPathYson() const
+{
+    return false;
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);

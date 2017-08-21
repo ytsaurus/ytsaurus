@@ -374,7 +374,6 @@ protected:
             return Controller->GetPartitionJobType();
         }
 
-
         virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
@@ -384,6 +383,11 @@ protected:
             Persist(context, NodeIdToAdjustedDataWeight);
             Persist(context, AdjustedScheduledDataWeight);
             Persist(context, MaxDataWeightPerJob);
+        }
+
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
         }
 
     private:
@@ -626,6 +630,10 @@ protected:
             return IsActive() ? TTask::GetTotalJobCount() : 0;
         }
 
+        virtual bool SupportsInputPathYson() const override
+        {
+            return false;
+        }
 
     protected:
         TSortControllerBase* Controller;
@@ -2356,9 +2364,8 @@ private:
 
         InitPartitionPool(partitionJobSizeConstraints, nullptr);
 
-        TEdgeDescriptor partitionTaskEdgeDescriptor;
+        TEdgeDescriptor partitionTaskEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
         partitionTaskEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
-        partitionTaskEdgeDescriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
         PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
@@ -2934,10 +2941,8 @@ private:
             ? Options->PartitionJobSizeAdjuster
             : nullptr);
 
-        TEdgeDescriptor partitionTaskEdgeDescriptor;
+        TEdgeDescriptor partitionTaskEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
         partitionTaskEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
-        partitionTaskEdgeDescriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
-        partitionTaskEdgeDescriptor.RequiresRecoveryInfo = true;
         PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
@@ -3230,7 +3235,11 @@ private:
 
     virtual bool IsSortedMergeNeeded(const TPartitionPtr& partition) const override
     {
-        return Spec->ForceReduceCombiners || TSortControllerBase::IsSortedMergeNeeded(partition);
+        if (Spec->ForceReduceCombiners) {
+            partition->CachedSortedMergeNeeded = true;
+            partition->SortTask->OnSortedMergeNeeded();
+        }
+        return TSortControllerBase::IsSortedMergeNeeded(partition);
     }
 
     virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(const TPartitionPtr& partition) const override

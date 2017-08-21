@@ -3108,10 +3108,10 @@ std::vector<TEdgeDescriptor> TOperationControllerBase::GetStandardEdgeDescriptor
         descriptors[index].TableUploadOptions = OutputTables_[index].TableUploadOptions;
         descriptors[index].TableWriterOptions = OutputTables_[index].Options;
         descriptors[index].TableWriterConfig = OutputTables_[index].WriterConfig;
+        descriptors[index].Timestamp = OutputTables_[index].Timestamp;
         // Output tables never lose data (hopefully), so we do not need to store
         // recovery info for chunks that get there.
         descriptors[index].RequiresRecoveryInfo = false;
-        descriptors[index].WriteToChunkList = true;
         descriptors[index].CellTag = OutputTables_[index].CellTag;
     }
     return descriptors;
@@ -5351,6 +5351,10 @@ TYsonString TOperationControllerBase::BuildInputPathYson(const TJobletPtr& joble
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    if (!joblet->Task->SupportsInputPathYson()) {
+        return TYsonString();
+    }
+
     return BuildInputPaths(
         GetInputTablePaths(),
         joblet->InputStripeList,
@@ -6118,13 +6122,18 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     return options;
 }
 
-void TOperationControllerBase::UnstageChunkStripe(const TChunkStripePtr& stripe)
+TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate() const
 {
-    std::vector<TChunkId> chunkIds;
-    for (const auto& dataSlice : stripe->DataSlices) {
-        chunkIds.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId());
-    }
-    MasterConnector->AddChunksToUnstageList(std::move(chunkIds));
+    TEdgeDescriptor descriptor;
+    descriptor.CellTag = GetIntermediateOutputCellTag();
+    descriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
+    descriptor.RequiresRecoveryInfo = true;
+    return descriptor;
+}
+
+void TOperationControllerBase::UnstageChunkTreesNonRecursively(std::vector<TChunkTreeId> chunkTreeIds)
+{
+    MasterConnector->AddChunksToUnstageList(std::move(chunkTreeIds));
 
 }
 

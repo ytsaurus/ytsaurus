@@ -156,6 +156,11 @@ protected:
             Persist(context, ChunkPool_);
         }
 
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
+        }
+
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {

@@ -338,15 +338,8 @@ void TTask::ScheduleJob(
         joblet->UserJobMemoryReserveFactor,
         FormatResources(neededResources));
 
-    // Prepare chunk lists.
-    if (intermediateOutput) {
-        joblet->ChunkListIds.push_back(TaskHost_->ExtractChunkList(TaskHost_->GetIntermediateOutputCellTag()));
-    } else {
-        for (const auto& edgeDescriptor : EdgeDescriptors_) {
-            joblet->ChunkListIds.push_back(edgeDescriptor.WriteToChunkList
-                ? TaskHost_->ExtractChunkList(edgeDescriptor.CellTag)
-                : NullChunkListId);
-        }
+    for (const auto& edgeDescriptor : EdgeDescriptors_) {
+        joblet->ChunkListIds.push_back(TaskHost_->ExtractChunkList(edgeDescriptor.CellTag));
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {
@@ -673,9 +666,11 @@ void TTask::AddOutputTableSpecs(
         if (edgeDescriptor.TableWriterConfig) {
             outputSpec->set_table_writer_config(edgeDescriptor.TableWriterConfig.GetData());
         }
-        outputSpec->set_timestamp(edgeDescriptor.Timestamp);
         ToProto(outputSpec->mutable_table_schema(), edgeDescriptor.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
+        if (edgeDescriptor.Timestamp) {
+            outputSpec->set_timestamp(*edgeDescriptor.Timestamp);
+        }
     }
 }
 
@@ -734,7 +729,7 @@ void TTask::RegisterOutput(
 {
     auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
     auto outputStripes = BuildOutputChunkStripes(schedulerJobResultExt, chunkListIds, schedulerJobResultExt->output_boundary_keys());
-    for (int tableIndex = 0; tableIndex < TaskHost_->OutputTables().size(); ++tableIndex) {
+    for (int tableIndex = 0; tableIndex < EdgeDescriptors_.size(); ++tableIndex) {
         if (outputStripes[tableIndex]) {
             RegisterStripe(
                 std::move(outputStripes[tableIndex]),
@@ -824,7 +819,7 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         // the same boundary keys when the job output is lost).
         dataSlice->Tag = index;
         int tableIndex = inputChunk->GetTableIndex();
-        YCHECK(0 <= tableIndex && tableIndex < chunkSpecs->size());
+        YCHECK(0 <= tableIndex && tableIndex < tableCount);
         stripes[tableIndex]->DataSlices.emplace_back(std::move(dataSlice));
     }
     return stripes;

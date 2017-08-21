@@ -17,7 +17,6 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, TableUploadOptions);
     Persist(context, TableWriterConfig);
     Persist(context, Timestamp);
-    Persist(context, WriteToChunkList);
     Persist(context, CellTag);
 }
 

@@ -166,6 +166,11 @@ protected:
             }
         }
 
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
+        }
+
     private:
         TUnorderedOperationControllerBase* Controller;
 
@@ -354,7 +359,6 @@ protected:
                 for (int index = 0; index < edgeDescriptors.size(); ++index) {
                     if (AutoMergeTasks[index]) {
                         edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
-                        edgeDescriptors[index].WriteToChunkList = false;
                         requiresAutoMerge = true;
                     }
                 }
