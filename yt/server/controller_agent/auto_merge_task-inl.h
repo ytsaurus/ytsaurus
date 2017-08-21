@@ -60,6 +60,11 @@ public:
     {
         TUnderlyingTask::OnJobCompleted(joblet, jobSummary);
 
+        // We unstage all the output chunk lists so that they do not affect the lifetime
+        // of the output chunks. It allows us to unstage the unnecessary output chunks
+        // after they are successfully auto-merged on the fly.
+        this->TaskHost_->UnstageChunkTreesNonRecursively(std::move(joblet->ChunkListIds));
+
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
     }
 

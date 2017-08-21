@@ -112,7 +112,7 @@ struct ITaskHost
         NChunkPools::TChunkStripeKey key,
         int tableIndex) = 0;
 
-    virtual void UnstageChunkStripe(const NChunkPools::TChunkStripePtr& stripe) = 0;
+    virtual void UnstageChunkTreesNonRecursively(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost);

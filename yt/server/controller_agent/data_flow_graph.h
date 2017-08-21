@@ -21,10 +21,8 @@ struct TEdgeDescriptor
     NTableClient::TTableWriterOptionsPtr TableWriterOptions;
     NTableClient::TTableUploadOptions TableUploadOptions;
     NYson::TYsonString TableWriterConfig;
-    NTransactionClient::TTimestamp Timestamp;
-
-    bool WriteToChunkList = true;
-    // CellTag to allocate chunks list.
+    TNullable<NTransactionClient::TTimestamp> Timestamp;
+    // Cell tag to allocate chunk lists.
     NObjectClient::TCellTag CellTag;
 
     void Persist(const TPersistenceContext& context);

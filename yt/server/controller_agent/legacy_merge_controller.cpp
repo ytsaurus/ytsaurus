@@ -225,6 +225,11 @@ protected:
             return false;
         }
 
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
+        }
+
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {

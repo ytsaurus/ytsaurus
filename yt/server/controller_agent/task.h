@@ -121,6 +121,11 @@ public:
 
     virtual void SetupCallbacks();
 
+    //! This method shows if the jobs of this task have an "input_paths" attribute
+    //! in Cypress. This depends on if this task gets it input directly from the
+    //! input tables or from the intermediate data.
+    virtual bool SupportsInputPathYson() const = 0;
+
 protected:
     NLogging::TLogger Logger;
 

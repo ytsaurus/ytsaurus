@@ -178,6 +178,11 @@ private:
             Persist(context, Index_);
         }
 
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyTask, 0x83b0dfe3);
 

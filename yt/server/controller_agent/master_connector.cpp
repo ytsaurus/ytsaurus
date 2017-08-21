@@ -997,7 +997,7 @@ private:
                 continue;
             }
 
-            LOG_DEBUG("Unstaging %v chunks from cell %v", chunkIds.size(), cellTag);
+            LOG_DEBUG("Unstaging %v chunk trees from cell %v", chunkIds.size(), cellTag);
 
             TChunkServiceProxy proxy(Bootstrap_
                 ->GetMasterClient()
@@ -1007,8 +1007,9 @@ private:
             for (const auto& chunkId : chunkIds) {
                 auto req = batchReq->add_unstage_chunk_tree_subrequests();
                 ToProto(req->mutable_chunk_tree_id(), chunkId);
-                // Chunk trees are actually single chunks, so the value of recursive
-                // doesn't matter. It is a required proto field, though :)
+                // Chunk trees are either single chunks or the chunk lists
+                // that should be unstaged in non-recursive manner (useful for
+                // auto-merge, we destroy each of the containing chunks afterwards).
                 req->set_recursive(false);
             }
 
@@ -1025,7 +1026,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!batchRspOrError.IsOK()) {
-            LOG_DEBUG(batchRspOrError, "Error unstaging chunks in cell %v", cellTag);
+            LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees in cell %v", cellTag);
             return;
         }
     }

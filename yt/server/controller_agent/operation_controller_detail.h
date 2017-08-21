@@ -823,8 +823,9 @@ protected:
     virtual std::vector<TEdgeDescriptor> GetStandardEdgeDescriptors() override;
 
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
+    TEdgeDescriptor GetIntermediateEdgeDescriptorTemplate() const;
 
-    virtual void UnstageChunkStripe(const NChunkPools::TChunkStripePtr& stripe) override;
+    virtual void UnstageChunkTreesNonRecursively(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds) override;
 
 private:
     typedef TOperationControllerBase TThis;
