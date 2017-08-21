@@ -31,6 +31,9 @@ void ListenSocket(SOCKET serverSocket, int backlog);
 
 int GetSocketError(SOCKET socket);
 
+TNetworkAddress GetSocketName(SOCKET socket);
+TNetworkAddress GetSocketPeer(SOCKET socket);
+
 void SetSocketPriority(SOCKET socket, int priority);
 void SetSocketNoDelay(SOCKET socket);
 void SetSocketKeepAlive(SOCKET socket);
