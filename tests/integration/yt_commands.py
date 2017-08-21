@@ -104,7 +104,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     verbose = verbose is None or verbose
 
     if "verbose_error" in parameters:
-        verbose = parameters["verbose_error"]
+        verbose_error = parameters["verbose_error"]
         del parameters["verbose_error"]
     verbose_error = verbose_error is None or verbose_error
 
@@ -267,11 +267,15 @@ def remove(path, **kwargs):
     return execute_command('remove', kwargs)
 
 def get(path, is_raw=False, **kwargs):
-    def has_arg(name):
-        return name in kwargs and kwargs[name] is not None
-
     kwargs["path"] = path
-    result = execute_command('get', kwargs)
+    if "default" in kwargs and not "verbose_error" in kwargs:
+        kwargs["verbose_error"] = False
+    try:
+        result = execute_command("get", kwargs)
+    except YtResponseError, err:
+        if err.is_resolve_error() and "default" in kwargs:
+            return kwargs["default"]
+        raise
     return result if is_raw else yson.loads(result)
 
 def get_operation(operationId, is_raw=False,  **kwargs):

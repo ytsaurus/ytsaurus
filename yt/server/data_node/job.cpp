@@ -256,6 +256,16 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual bool GetStored() const override
+    {
+        return false;
+    }
+
+    virtual void SetStored(bool /* value */) override
+    {
+        Y_UNREACHABLE();
+    }
+
 protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;

@@ -229,7 +229,6 @@ private:
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 
     void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

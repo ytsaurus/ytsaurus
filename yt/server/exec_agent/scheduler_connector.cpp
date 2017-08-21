@@ -140,7 +140,7 @@ void TSchedulerConnector::SendHeartbeat()
         reporter->SetSpecEnabled(rsp->enable_job_spec_reporter());
     }
 
-    jobController->ProcessHeartbeatResponse(rsp, client->GetSchedulerChannel());
+    jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob, client->GetSchedulerChannel());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

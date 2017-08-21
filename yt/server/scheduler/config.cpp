@@ -658,6 +658,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_metrics_batch_interval", JobMetricsBatchInterval)
         .Default(TDuration::Minutes(1));
 
+    RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
+        .Default(TDuration::Minutes(5));
+
     RegisterInitializer([&] () {
         ChunkLocationThrottler->Limit = 10000;
 

@@ -323,6 +323,12 @@ public:
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() override;
 
+    virtual int GetRecentlyCompletedJobCount() const override;
+
+    virtual TFuture<void> ReleaseJobs(int jobCount) override;
+
+    virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override;
+
 protected:
     TSchedulerConfigPtr Config;
     IOperationHost* Host;
@@ -514,8 +520,7 @@ protected:
     TJobletPtr FindJoblet(const TJobId& jobId) const;
     TJobletPtr GetJoblet(const TJobId& jobId) const;
     TJobletPtr GetJobletOrThrow(const TJobId& jobId) const;
-    void RemoveJoblet(const TJobId& jobId);
-
+    void RemoveJoblet(const TJobletPtr& joblet);
 
     // Initialization.
     virtual void DoInitialize();
@@ -577,7 +582,6 @@ protected:
 
     // Revival.
     void ReinstallLivePreview();
-    void AbortAllJoblets();
 
     void DoLoadSnapshot(const TOperationSnapshot& snapshot);
 
@@ -862,9 +866,11 @@ private:
     TIntermediateChunkScraperPtr IntermediateChunkScraper;
 
     //! Maps scheduler's job ids to controller's joblets.
-    //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but
-    //! it cannot be serialized that easily.
     yhash<TJobId, TJobletPtr> JobletMap;
+
+    //! List of job ids that were completed after the latest snapshot was built.
+    //! This list is transient.
+    std::deque<TJobId> RecentlyCompletedJobIds;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
@@ -1026,6 +1032,8 @@ private:
         i64 suspiciousCpuUsageThreshold,
         double suspiciousInputPipeIdleTimeFraction,
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
+
+    NScheduler::TJobPtr BuildJobFromJoblet(const TJobletPtr& joblet) const;
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

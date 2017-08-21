@@ -75,6 +75,7 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration WaitingJobsTimeout;
     TDuration GetJobSpecsTimeout;
+    TDuration StoredJobsSendPeriod;
 
     TJobControllerConfig()
     {
@@ -89,6 +90,9 @@ public:
 
         RegisterParameter("get_job_specs_timeout", GetJobSpecsTimeout)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("stored_jobs_send_period", StoredJobsSendPeriod)
+            .Default(TDuration::Minutes(10));
 
         RegisterInitializer([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to

@@ -762,6 +762,16 @@ public:
         }
     }
 
+    virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        const auto& element = FindOperationElement(operationId);
+        for (const auto& job : jobs) {
+            element->OnJobStarted(job->GetId(), job->ResourceUsage());
+        }
+    }
+
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
@@ -1430,7 +1440,6 @@ private:
         }
         return it->second;
     }
-
 
     TOperationElementPtr FindOperationElement(const TOperationId& operationId)
     {

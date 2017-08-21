@@ -86,6 +86,7 @@ DEFINE_ENUM(EAbortReason,
     (WaitingTimeout)
     (AccountLimitExceeded)
     (Unknown)
+    (RevivalConfirmationTimeout)
     (SchedulingFirst)
     (SchedulingTimeout)
     (SchedulingResourceOvercommit)
