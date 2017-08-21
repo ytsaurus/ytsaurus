@@ -85,6 +85,7 @@ public:
     ~TThreadPoolPoller()
     {
         Shutdown();
+        YCHECK(Pollables_.empty());
     }
 
     // IPoller implementation.
@@ -96,6 +97,7 @@ public:
         }
 
         Invoker_->DrainQueue();
+        DrainUnregister();
     }
 
     virtual void Register(const IPollablePtr& pollable) override
@@ -112,8 +114,12 @@ public:
         LOG_DEBUG("Requesting pollable unregistration (%v)", pollable->GetLoggingId());
         auto entry = New<TUnregisterEntry>();
         entry->Pollable = pollable;
-        for (const auto& thread : Threads_) {
-            thread->ScheduleUnregister(entry);
+        if (!ShutdownRequested_.load()) {
+            for (const auto& thread : Threads_) {
+                thread->ScheduleUnregister(entry);
+            }
+        } else {
+            ShutdownUnregisterEntries_.Enqueue(entry);
         }
         return entry->Promise;
     }
@@ -210,7 +216,9 @@ private:
         { }
 
         virtual void AfterShutdown() override
-        { }
+        {
+            HandleUnregister();
+        }
 
     private:
         TThreadPoolPoller* const Poller_;
@@ -274,6 +282,8 @@ private:
 
     TSpinLock SpinLock_;
     yhash_set<IPollablePtr> Pollables_;
+
+    TMultipleProducerSingleConsumerLockFreeStack<TUnregisterEntryPtr> ShutdownUnregisterEntries_;
 
     class TInvoker
         : public IInvoker
@@ -374,6 +384,20 @@ private:
     };
 
     TPollerImpl<TMutexLocking> Impl_;
+
+    void DrainUnregister()
+    {
+        while (!ShutdownUnregisterEntries_.IsEmpty()) {
+            TUnregisterEntryPtr entry;
+            YCHECK(ShutdownUnregisterEntries_.Dequeue(&entry));
+            entry->Pollable->OnShutdown();
+            LOG_DEBUG("Pollable unregistered (%v)", entry->Pollable->GetLoggingId());
+            entry->Promise.Set();
+
+            auto guard = Guard(SpinLock_);
+            YCHECK(Pollables_.erase(entry->Pollable) == 1);
+        }
+    }
 };
 
 IPollerPtr CreateThreadPoolPoller(
