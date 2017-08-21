@@ -208,8 +208,15 @@ struct TAlterTableOptions
 {
     using TSelf = TAlterTableOptions;
 
+    // Change table schema.
     FLUENT_FIELD_OPTION(TTableSchema, Schema);
+
+    // Alter table between static and dynamic mode.
     FLUENT_FIELD_OPTION(bool, Dynamic);
+
+    // Changes id of upstream replica on metacluster.
+    // https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/
+    FLUENT_FIELD_OPTION(TReplicaId, UpstreamReplicaId);
 };
 
 struct TLookupRowsOptions

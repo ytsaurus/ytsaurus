@@ -72,6 +72,11 @@ TNode SerializeParamsForParseYPath(const TRichYPath& path);
 
 TNode SerializeParamsForAlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options);
 
+TNode SerializeParamsForAlterTable(
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TAlterTableOptions& options);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
