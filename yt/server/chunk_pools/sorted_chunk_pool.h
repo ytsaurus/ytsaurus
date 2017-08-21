@@ -31,8 +31,6 @@ struct TSortedJobOptions
     //! Experimental workaround for YTADMINREQ-5836.
     bool UseNewEndpointKeys = false;
 
-    bool LogEndpoints = false;
-
     void Persist(const TPersistenceContext& context);
 };
 
