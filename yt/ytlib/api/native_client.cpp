@@ -881,38 +881,24 @@ private:
                 error = ex.Error();
             }
 
-            auto config = Connection_->GetConfig();
-            if (++retryCount <= config->TableMountCache->OnErrorRetryCount) {
-                bool retry = false;
-                std::vector<NTabletClient::EErrorCode> retriableCodes = {
-                    NTabletClient::EErrorCode::NoSuchTablet,
-                    NTabletClient::EErrorCode::TabletNotMounted,
-                    NTabletClient::EErrorCode::InvalidMountRevision};
+            const auto& config = Connection_->GetConfig();
+            const auto& tableMountCache = Connection_->GetTableMountCache();
+            bool retry;
+            TTabletInfoPtr tabletInfo;
+            std::tie(retry, tabletInfo) = tableMountCache->InvalidateOnError(error);
 
-                for (const auto& errCode : retriableCodes) {
-                    if (auto err = error.FindMatching(errCode)) {
-                        error = err.Get();
-                        retry = true;
-                        break;
+            if (retry && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
+                LOG_DEBUG(error, "Got error, will retry");
+
+                if (tabletInfo) {
+                    auto now = Now();
+                    auto retryTime = tabletInfo->UpdateTime + config->TableMountCache->OnErrorSlackPeriod;
+                    if (retryTime > now) {
+                        WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
+                            .ThrowOnError();
                     }
                 }
-
-                if (retry) {
-                    LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
-                    auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
-                    const auto& tableMountCache = Connection_->GetTableMountCache();
-                    auto tabletInfo = tableMountCache->FindTablet(tabletId);
-                    if (tabletInfo) {
-                        tableMountCache->InvalidateTablet(tabletInfo);
-                        auto now = Now();
-                        auto retryTime = tabletInfo->UpdateTime + config->TableMountCache->OnErrorSlackPeriod;
-                        if (retryTime > now) {
-                            WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
-                                .ThrowOnError();
-                        }
-                    }
-                    continue;
-                }
+                continue;
             }
 
             THROW_ERROR error;

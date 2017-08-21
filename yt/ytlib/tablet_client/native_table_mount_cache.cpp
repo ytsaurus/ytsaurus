@@ -254,6 +254,28 @@ public:
         }
     }
 
+    virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) override
+    {
+        std::vector<NTabletClient::EErrorCode> retriableCodes = {
+            NTabletClient::EErrorCode::NoSuchTablet,
+            NTabletClient::EErrorCode::TabletNotMounted,
+            NTabletClient::EErrorCode::InvalidMountRevision};
+
+        for (const auto& errCode : retriableCodes) {
+            if (auto err = error.FindMatching(errCode)) {
+                auto tabletId = err->Attributes().Get<TTabletId>("tablet_id");
+                auto tabletInfo = FindTablet(tabletId);
+                if (tabletInfo) {
+                    LOG_DEBUG("Invalidate tablet %v in table mount cache due to error %Qv", tabletId, error);
+                    InvalidateTablet(tabletInfo);
+                }
+                return std::make_pair(true, tabletInfo);
+            }
+        }
+
+        return std::make_pair(false, nullptr);
+    }
+
     virtual void Clear()
     {
         TExpiringCache::Clear();
