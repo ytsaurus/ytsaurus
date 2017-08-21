@@ -70,11 +70,14 @@ struct ISuspendableInvoker
      *  All incoming callbacks will be at once propagated to underlying invoker.
      */
     virtual void Resume() = 0;
+
+    //! Returns true when invoker is suspended (i.e. no callbacks are submitted
+    virtual bool IsSuspended() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISuspendableInvoker)
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////n/////////////////////////////////////
 
 } // namespace NYT
 

@@ -97,6 +97,7 @@ TFuture<void> TSnapshotBuilder::Run()
                         job->Suspended = true;
                         LOG_DEBUG("Controller suspended (OperationId: %v)",
                             operation->GetId());
+                        job->NumberOfJobsToRelease = job->Controller->GetRecentlyCompletedJobCount();
                     } else {
                         LOG_DEBUG("Controller suspended too late (OperationId: %v)",
                             operation->GetId());
@@ -326,6 +327,12 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         // Commit outer transaction.
         WaitFor(transaction->Commit())
             .ThrowOnError();
+
+        if (auto controller = job->Operation->GetController()) {
+            // Safely remove jobs that we do not need any more.
+            WaitFor(controller->ReleaseJobs(job->NumberOfJobsToRelease))
+                .ThrowOnError();
+        }
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error uploading snapshot");
     }

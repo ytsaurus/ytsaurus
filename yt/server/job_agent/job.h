@@ -74,6 +74,9 @@ struct IJob
     virtual void SignalJob(const TString& signalName) = 0;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
 
+    virtual bool GetStored() const = 0;
+    virtual void SetStored(bool value) = 0;
+
     virtual void ReportStatistics(TJobStatistics&& statistics) = 0;
 
     virtual void Interrupt() = 0;
