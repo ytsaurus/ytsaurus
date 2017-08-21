@@ -120,6 +120,7 @@ struct ITableMountCache
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) = 0;
     virtual TTabletInfoPtr FindTablet(const TTabletId& tabletId) = 0;
     virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) = 0;
+    virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) = 0;
 
     virtual void Clear() = 0;
 };

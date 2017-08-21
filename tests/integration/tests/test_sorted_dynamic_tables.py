@@ -842,51 +842,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         reshard([[]])
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-    def test_metadata_cache_invalidation(self):
-        def sync_mount_table_and_preserve_cache(path, **kwargs):
-            kwargs["path"] = path
-            execute_command("mount_table", kwargs)
-            wait(lambda: all(x["state"] == "mounted" for x in get(path + "/@tablets")))
-
-        def sync_unmount_table_and_preserve_cache(path, **kwargs):
-            kwargs["path"] = path
-            execute_command("unmount_table", kwargs)
-            wait(lambda: all(x["state"] == "unmounted" for x in get(path + "/@tablets")))
-
-        def reshard_and_preserve_cache(path, pivots):
-            sync_unmount_table_and_preserve_cache(path)
-            reshard_table(path, pivots)
-            sync_mount_table_and_preserve_cache(path)
-
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t1", disable_compaction_and_partitioning=True)
-        self.sync_mount_table("//tmp/t1")
-
-        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
-        keys = [{"key": row["key"]} for row in rows]
-        insert_rows("//tmp/t1", rows)
-        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
-
-        sync_unmount_table_and_preserve_cache("//tmp/t1")
-        with pytest.raises(YtError): lookup_rows("//tmp/t1", keys)
-        clear_metadata_caches()
-        sync_mount_table_and_preserve_cache("//tmp/t1")
-
-        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
-
-        sync_unmount_table_and_preserve_cache("//tmp/t1")
-        with pytest.raises(YtError): select_rows("* from [//tmp/t1]")
-        clear_metadata_caches()
-        sync_mount_table_and_preserve_cache("//tmp/t1")
-
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
-
-        reshard_and_preserve_cache("//tmp/t1", [[], [1]])
-        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
-
-        reshard_and_preserve_cache("//tmp/t1", [[], [1], [2]])
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
-
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_any_value_type(self, optimize_for):
         self.sync_create_cells(1)
@@ -2069,18 +2024,6 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         }
     }
 
-    def _create_simple_table(self, path, atomicity="full", optimize_for="lookup", tablet_cell_bundle="default"):
-        create("table", path,
-            attributes={
-                "dynamic": True,
-                "atomicity": atomicity,
-                "optimize_for": optimize_for,
-                "tablet_cell_bundle": tablet_cell_bundle,
-                "schema": [
-                    {"name": "key", "type": "int64", "sort_order": "ascending"},
-                    {"name": "value", "type": "string"}]
-            })
-
     # Reimplement dynamic table commands without calling clear_metadata_caches()
 
     def mount_table(self, path, **kwargs):
@@ -2123,6 +2066,47 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
         expected = [{"key": i, "key2": None, "value": str(i)} for i in xrange(2)]
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)
+
+    def test_metadata_cache_invalidation(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t1", disable_compaction_and_partitioning=True)
+        self.sync_mount_table("//tmp/t1")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        keys = [{"key": row["key"]} for row in rows]
+        insert_rows("//tmp/t1", rows)
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+        self.sync_unmount_table("//tmp/t1")
+        with pytest.raises(YtError): lookup_rows("//tmp/t1", keys)
+        clear_metadata_caches()
+        self.sync_mount_table("//tmp/t1")
+
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+        self.sync_unmount_table("//tmp/t1")
+        with pytest.raises(YtError): select_rows("* from [//tmp/t1]")
+        clear_metadata_caches()
+        self.sync_mount_table("//tmp/t1")
+
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+
+        def reshard_mounted_table(path, pivots):
+            self.sync_unmount_table("//tmp/t1")
+            self.reshard_table("//tmp/t1", pivots)
+            self.sync_mount_table("//tmp/t1")
+
+        reshard_mounted_table("//tmp/t1", [[], [1]])
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+        reshard_mounted_table("//tmp/t1", [[], [1], [2]])
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+
+        reshard_mounted_table("//tmp/t1", [[]])
+        rows = [{"key": i, "value": str(i+1)} for i in xrange(3)]
+        with pytest.raises(YtError): insert_rows("//tmp/t1", rows)
+        insert_rows("//tmp/t1", rows)
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
 ##################################################################
 

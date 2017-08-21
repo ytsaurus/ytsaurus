@@ -793,9 +793,10 @@ private:
             , TabletInfo_(std::move(tabletInfo))
             , TableSession_(std::move(tableSession))
             , Config_(transaction->Client_->GetNativeConnection()->GetConfig())
+            , ColumnEvaluator_(std::move(columnEvauator))
+            , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
-            , ColumnEvaluator_(std::move(columnEvauator))
             , Logger(NLogging::TLogger(transaction->Logger)
                 .AddTag("TabletId: %v", TabletInfo_->TabletId))
         { }
@@ -866,13 +867,14 @@ private:
         const TTabletInfoPtr TabletInfo_;
         const TTableCommitSessionPtr TableSession_;
         const TNativeConnectionConfigPtr Config_;
+        const TColumnEvaluatorPtr ColumnEvaluator_;
+        const ITableMountCachePtr TableMountCache_;
         const int ColumnCount_;
         const int KeyColumnCount_;
 
         struct TCommitSessionBufferTag
         { };
 
-        TColumnEvaluatorPtr ColumnEvaluator_;
         TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TCommitSessionBufferTag());
 
         NLogging::TLogger Logger;
@@ -1081,6 +1083,7 @@ private:
         {
             if (!rspOrError.IsOK()) {
                 LOG_DEBUG(rspOrError, "Error sending transaction rows");
+                TableMountCache_->InvalidateOnError(rspOrError);
                 InvokePromise_.Set(rspOrError);
                 return;
             }
