@@ -259,14 +259,15 @@ public:
         std::vector<NTabletClient::EErrorCode> retriableCodes = {
             NTabletClient::EErrorCode::NoSuchTablet,
             NTabletClient::EErrorCode::TabletNotMounted,
-            NTabletClient::EErrorCode::InvalidMountRevision};
+            NTabletClient::EErrorCode::InvalidMountRevision
+        };
 
-        for (const auto& errCode : retriableCodes) {
-            if (auto err = error.FindMatching(errCode)) {
-                auto tabletId = err->Attributes().Get<TTabletId>("tablet_id");
+        for (auto errCode : retriableCodes) {
+            if (auto retriableError = error.FindMatching(errCode)) {
+                auto tabletId = retriableError->Attributes().Get<TTabletId>("tablet_id");
                 auto tabletInfo = FindTablet(tabletId);
                 if (tabletInfo) {
-                    LOG_DEBUG("Invalidate tablet %v in table mount cache due to error %Qv", tabletId, error);
+                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", tabletId);
                     InvalidateTablet(tabletInfo);
                 }
                 return std::make_pair(true, tabletInfo);
