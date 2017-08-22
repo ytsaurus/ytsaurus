@@ -261,6 +261,8 @@ TExtendedJobResources TOperationControllerBase::GetAutoMergeResources(
     TExtendedJobResources result;
     result.SetUserSlots(1);
     result.SetCpu(1);
+    // TODO(max42): this way to estimate memory of an auto-merge job is wrong as it considers each
+    // auto-merge task writing to all output tables.
     result.SetJobProxyMemory(GetFinalIOMemorySize(Spec_->AutoMerge->JobIO, AggregateStatistics(statistics)));
     return result;
 }
@@ -577,6 +579,8 @@ void TOperationControllerBase::SafePrepare()
 
         LockOutputTablesAndGetAttributes();
     }
+
+    InitializeStandardEdgeDescriptors();
 }
 
 void TOperationControllerBase::SafeMaterialize()
@@ -908,6 +912,50 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         },
         BIND(&TThis::OnIntermediateChunkLocated, MakeWeak(this)),
         Logger);
+}
+
+void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate)
+{
+    InitAutoMergeJobSpecTemplates();
+
+    AutoMergeTaskGroup = New<TTaskGroup>();
+    AutoMergeTaskGroup->MinNeededResources.SetCpu(1);
+
+    RegisterTaskGroup(AutoMergeTaskGroup);
+    AutoMergeTasks.reserve(OutputTables_.size());
+
+    i64 maxIntermediateChunkCount = Spec_->AutoMerge->MaxIntermediateChunkCount.Get(
+        std::max(500, static_cast<int>(2.5 * sqrt(outputChunkCountEstimate))));
+    i64 maxChunkCountPerMergeJob = std::min(
+        maxIntermediateChunkCount,
+        Spec_->AutoMerge->ChunkCountPerMergeJob.Get(maxIntermediateChunkCount / 10));
+
+    AutoMergeDirector_ = std::make_unique<TAutoMergeDirector>(
+        maxIntermediateChunkCount,
+        maxChunkCountPerMergeJob,
+        OperationId);
+
+    auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
+    for (int index = 0; index < OutputTables_.size(); ++index) {
+        const auto& outputTable = OutputTables_[index];
+        if (outputTable.Path.GetAutoMerge()) {
+            auto edgeDescriptor = standardEdgeDescriptors[index];
+            // Auto-merge jobs produce single output, so we override the table
+            // index in writer options with 0.
+            edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
+            edgeDescriptor.TableWriterOptions->TableIndex = 0;
+            auto task = New<TAutoMergeTask>(
+                this /* taskHost */,
+                index,
+                maxChunkCountPerMergeJob,
+                Spec_->AutoMerge->JobIO->TableWriter->DesiredChunkSize,
+                edgeDescriptor);
+            RegisterTask(task);
+            AutoMergeTasks.emplace_back(std::move(task));
+        } else {
+            AutoMergeTasks.emplace_back(nullptr);
+        }
+    }
 }
 
 yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
@@ -3099,26 +3147,23 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
     }
 }
 
-std::vector<TEdgeDescriptor> TOperationControllerBase::GetStandardEdgeDescriptors()
+const std::vector<TEdgeDescriptor>& TOperationControllerBase::GetStandardEdgeDescriptors()
 {
-    std::vector<TEdgeDescriptor> descriptors(Sinks_.size());
+    return StandardEdgeDescriptors_;
+}
+
+void TOperationControllerBase::InitializeStandardEdgeDescriptors()
+{
+    StandardEdgeDescriptors_.resize(Sinks_.size());
     for (int index = 0; index < Sinks_.size(); ++index) {
-        descriptors[index].DestinationPool = Sinks_[index].get();
-        descriptors[index].TableUploadOptions = OutputTables_[index].TableUploadOptions;
-        descriptors[index].TableWriterOptions = OutputTables_[index].Options;
-        descriptors[index].TableWriterConfig = OutputTables_[index].WriterConfig;
-        descriptors[index].Timestamp = OutputTables_[index].Timestamp;
-        // Output tables never lose data (hopefully), so we do not need to store
-        // recovery info for chunks that get there.
-        descriptors[index].RequiresRecoveryInfo = false;
-        descriptors[index].CellTag = OutputTables_[index].CellTag;
+        StandardEdgeDescriptors_[index] = OutputTables_[index].GetEdgeDescriptorTemplate();
+        StandardEdgeDescriptors_[index].DestinationPool = Sinks_[index].get();
     }
-    return descriptors;
 }
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
 {
-    OnOperationFailed(TError("Exception thrown in operation controller that led to operation failure")
+    OnOperationFailed(TError("Exception thrown in operation controller that leInitAutoMerge(jobSizeConstraints->GetJobCount());d to operation failure")
         << ex);
 }
 
@@ -4292,47 +4337,7 @@ void TOperationControllerBase::CollectTotals()
 }
 
 void TOperationControllerBase::CustomPrepare()
-{
-    InitAutoMergeJobSpecTemplates();
-
-    AutoMergeTaskGroup = New<TTaskGroup>();
-    AutoMergeTaskGroup->MinNeededResources.SetCpu(1);
-
-    RegisterTaskGroup(AutoMergeTaskGroup);
-    AutoMergeTasks.reserve(OutputTables_.size());
-
-    i64 maxChunkCountPerMergeJob = Spec_->AutoMerge->ChunkCountPerMergeJob.Get(
-        std::max(1, static_cast<int>(sqrt(TotalEstimatedInputChunkCount))));
-    i64 maxIntermediateChunkCount = Spec_->AutoMerge->MaxIntermediateChunkCount.Get(
-        2 * maxChunkCountPerMergeJob);
-
-    AutoMergeDirector_ = std::make_unique<TAutoMergeDirector>(
-        maxIntermediateChunkCount,
-        maxChunkCountPerMergeJob,
-        OperationId);
-
-    auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
-    for (int index = 0; index < OutputTables_.size(); ++index) {
-        const auto& outputTable = OutputTables_[index];
-        if (outputTable.Path.GetAutoMerge()) {
-            auto edgeDescriptor = standardEdgeDescriptors[index];
-            // Auto-merge jobs produce single output, so we override the table
-            // index in writer options with 0.
-            edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
-            edgeDescriptor.TableWriterOptions->TableIndex = 0;
-            auto task = New<TAutoMergeTask>(
-                this /* taskHost */,
-                index,
-                maxChunkCountPerMergeJob,
-                Spec_->AutoMerge->JobIO->TableWriter->DesiredChunkSize,
-                edgeDescriptor);
-            RegisterTask(task);
-            AutoMergeTasks.emplace_back(std::move(task));
-        } else {
-            AutoMergeTasks.emplace_back(nullptr);
-        }
-    }
-}
+{ }
 
 void TOperationControllerBase::ClearInputChunkBoundaryKeys()
 {
@@ -4851,7 +4856,7 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
     if (boundaryKeys.empty()) {
         return;
     }
-    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, *StderrTable_, RowBuffer);
+    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, StderrTable_->GetEdgeDescriptorTemplate(), RowBuffer);
     StderrTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 
     LOG_DEBUG("Stderr chunk tree registered (ChunkListId: %v)",
@@ -4887,7 +4892,7 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     if (boundaryKeys.empty()) {
         return;
     }
-    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, *CoreTable_, RowBuffer);
+    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, CoreTable_->GetEdgeDescriptorTemplate(), RowBuffer);
     CoreTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 }
 
@@ -4924,7 +4929,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
         ToProto(resultBoundaryKeys.mutable_min(), chunkSpec->BoundaryKeys()->MinKey);
         ToProto(resultBoundaryKeys.mutable_max(), chunkSpec->BoundaryKeys()->MaxKey);
 
-        key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, table, RowBuffer);
+        key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, StandardEdgeDescriptors_[tableIndex], RowBuffer);
     }
 
     table.OutputChunkTreeIds.emplace_back(key, chunkSpec->ChunkId());

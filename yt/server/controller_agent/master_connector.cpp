@@ -1016,18 +1016,11 @@ private:
             chunkIds.clear();
 
             batchReq->Invoke().Apply(
-                BIND(&TImpl::OnChunksUnstaged, MakeStrong(this), cellTag)
-                    .AsyncVia(Invoker_));
-        }
-    }
-
-    void OnChunksUnstaged(TCellTag cellTag, const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!batchRspOrError.IsOK()) {
-            LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees in cell %v", cellTag);
-            return;
+                BIND([=] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                    if (!batchRspOrError.IsOK()) {
+                        LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees in cell %v", cellTag);
+                    }
+                }));
         }
     }
 };

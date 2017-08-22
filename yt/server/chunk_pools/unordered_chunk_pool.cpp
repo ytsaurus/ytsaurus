@@ -67,13 +67,13 @@ public:
     TUnorderedChunkPool(
         IJobSizeConstraintsPtr jobSizeConstraints,
         TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig,
-        bool autoMergeMode)
+        EUnorderedChunkPoolMode mode)
         : JobSizeConstraints(std::move(jobSizeConstraints))
-        , AutoMergeMode(autoMergeMode)
+        , Mode(mode)
     {
         YCHECK(JobSizeConstraints);
 
-        if (!autoMergeMode) {
+        if (Mode == EUnorderedChunkPoolMode::Normal) {
             JobCounter.Set(JobSizeConstraints->GetJobCount());
         }
 
@@ -182,7 +182,9 @@ public:
 
     virtual int GetTotalJobCount() const override
     {
-        return AutoMergeMode ? GetPendingJobCount() + JobCounter.CalculateTotal() : JobCounter.GetTotal();
+        return Mode == EUnorderedChunkPoolMode::AutoMerge
+            ? 1 + JobCounter.GetRunning() + JobCounter.GetCompletedTotal()
+            : JobCounter.GetTotal();
     }
 
     virtual i64 GetDataSliceCount() const override
@@ -192,7 +194,7 @@ public:
 
     virtual int GetPendingJobCount() const override
     {
-        if (!AutoMergeMode) {
+        if (Mode == EUnorderedChunkPoolMode::Normal) {
             // TODO(babenko): refactor
             bool hasAvailableLostJobs = LostCookies.size() > UnavailableLostCookieCount;
             if (hasAvailableLostJobs) {
@@ -201,7 +203,8 @@ public:
 
             int freePendingJobCount = GetFreePendingJobCount();
             YCHECK(freePendingJobCount >= 0);
-            //YCHECK(!(FreePendingDataWeight > 0 && freePendingJobCount == 0 && JobCounter.GetInterruptedTotal() == 0));
+            YCHECK(Mode == EUnorderedChunkPoolMode::AutoMerge ||
+                   !(FreePendingDataWeight > 0 && freePendingJobCount == 0 && JobCounter.GetInterruptedTotal() == 0));
 
             if (freePendingJobCount == 0) {
                 return 0;
@@ -415,13 +418,7 @@ public:
         Persist(context, ExtractedLists);
         Persist(context, LostCookies);
         Persist(context, ReplayCookies);
-        Persist(context, AutoMergeMode);
-
-        // COMPAT(psushin).
-        if (context.GetVersion() >= 200512) {
-            Persist(context, TotalDataSliceCount);
-        }
-
+        Persist(context, Mode);
     }
 
 private:
@@ -473,16 +470,16 @@ private:
     yhash_set<IChunkPoolOutput::TCookie> LostCookies;
     yhash_set<IChunkPoolOutput::TCookie> ReplayCookies;
 
-    bool AutoMergeMode;
+    EUnorderedChunkPoolMode Mode;
 
     int GetFreePendingJobCount() const
     {
-        return AutoMergeMode ? 1 : JobCounter.GetPending() - LostCookies.size();
+        return Mode == EUnorderedChunkPoolMode::AutoMerge ? 1 : JobCounter.GetPending() - LostCookies.size();
     }
 
     i64 GetIdealDataWeightPerJob() const
     {
-        if (AutoMergeMode) {
+        if (Mode == EUnorderedChunkPoolMode::AutoMerge) {
             return std::numeric_limits<i64>::max();
         }
         int freePendingJobCount = GetFreePendingJobCount();
@@ -494,7 +491,7 @@ private:
 
     void UpdateJobCounter()
     {
-        if (AutoMergeMode) {
+        if (Mode == EUnorderedChunkPoolMode::AutoMerge) {
             return;
         }
 
@@ -695,12 +692,12 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     IJobSizeConstraintsPtr jobSizeConstraints,
     TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig,
-    bool autoMergeMode)
+    EUnorderedChunkPoolMode mode)
 {
-    return std::unique_ptr<IChunkPool>(new TUnorderedChunkPool(
+    return std::make_unique<TUnorderedChunkPool>(
         std::move(jobSizeConstraints),
         std::move(jobSizeAdjusterConfig),
-        autoMergeMode));
+        mode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

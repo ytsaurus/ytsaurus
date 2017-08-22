@@ -52,9 +52,19 @@ TAutoMergeConfig::TAutoMergeConfig()
     RegisterParameter("job_io", JobIO)
         .DefaultNew();
     RegisterParameter("max_intermediate_chunk_count", MaxIntermediateChunkCount)
-        .Default(Null);
+        .Default(Null)
+        .GreaterThanOrEqual(1);
     RegisterParameter("chunk_count_per_merge_job", ChunkCountPerMergeJob)
-        .Default(Null);
+        .Default(Null)
+        .GreaterThanOrEqual(1);
+
+    RegisterValidator([&] {
+        if (MaxIntermediateChunkCount && ChunkCountPerMergeJob && *MaxIntermediateChunkCount < *ChunkCountPerMergeJob) {
+            THROW_ERROR_EXCEPTION("Maximum intermediate chunk count can't be less than chunk count per merge job")
+                << TErrorAttribute("max_intermediate_chunk_count", *MaxIntermediateChunkCount)
+                << TErrorAttribute("chunk_count_per_merge_job", *ChunkCountPerMergeJob);
+        }
+    });
 }
 
 TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()

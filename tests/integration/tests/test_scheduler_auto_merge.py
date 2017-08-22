@@ -36,6 +36,10 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         parameters = [
+            [1, 1, 1],
+            [9, 1, 1],
+            [9, 9, 1],
+            [9, 9, 9],
             [9, 4, 2],
             [16, 5, 3],
             [16, 3, 5], # these values seem to be invalid, but still shouldn't lead to hangup
@@ -64,6 +68,19 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                    (row_count - 1) // min(chunk_count_per_merge_job, max_intermediate_chunk_count) + 1
             assert get("//tmp/t_out/@row_count") == row_count
 
+    def _track_and_report_peak_chunk_count(self, op):
+        peak_chunk_count = 0
+        while True:
+            state = op.get_state()
+            if state == "completed":
+                break
+            if op.get_state() == "failed":
+                op.track() # this should raise an exception
+            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
+            peak_chunk_count = max(peak_chunk_count, current_chunk_count)
+            sleep(0.5)
+        print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
+
     @pytest.mark.timeout(240)
     def test_account_chunk_limit(self):
         create_account("acc")
@@ -90,18 +107,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "data_size_per_job": 1
             })
 
-        peak_chunk_count = 0
-        while True:
-            state = op.get_state()
-            if state == "completed":
-                break
-            if op.get_state() == "failed":
-                op.track() # this should raise an exception
-            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
-            peak_chunk_count = max(peak_chunk_count, current_chunk_count)
-            sleep(0.5)
-
-        print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
+        self._track_and_report_peak_chunk_count(op)
 
         assert get("//tmp/t_out/@row_count") == row_count
 
@@ -136,17 +142,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "data_size_per_job": 1
             })
 
-        peak_chunk_count = 0
-        while True:
-            state = op.get_state()
-            if state == "completed":
-                break
-            if op.get_state() == "failed":
-                op.track() # this should raise an exception
-            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
-            peak_chunk_count = max(peak_chunk_count, current_chunk_count)
-            sleep(0.5)
-        print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
+        self._track_and_report_peak_chunk_count(op)
 
         assert get("//tmp/t_out1/@row_count") == row_count // 2
         assert get("//tmp/t_out2/@row_count") == row_count // 2
@@ -182,17 +178,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "data_size_per_job": 1
             })
 
-        peak_chunk_count = 0
-        while True:
-            state = op.get_state()
-            if state == "completed":
-                break
-            if op.get_state() == "failed":
-                op.track() # this should raise an exception
-            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
-            peak_chunk_count = max(peak_chunk_count, current_chunk_count)
-            sleep(0.5)
-        print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
+        self._track_and_report_peak_chunk_count(op)
 
         assert get("//tmp/t_out1/@row_count") == row_count // 10
         assert get("//tmp/t_out2/@row_count") == row_count * 9 // 10

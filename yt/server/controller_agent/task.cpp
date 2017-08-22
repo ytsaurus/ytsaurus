@@ -200,7 +200,7 @@ ITaskHost* TTask::GetTaskHost()
     return TaskHost_;
 }
 
-bool TTask::ValidateChunkCount(int chunkCount) const
+bool TTask::ValidateChunkCount(int /* chunkCount */)
 {
     return true;
 }
@@ -864,7 +864,7 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
         {
             stripes[tableIndex]->BoundaryKeys = BuildBoundaryKeysFromOutputResult(
                 boundaryKeysPerTable.Get(tableIndex),
-                TaskHost_->OutputTables()[tableIndex],
+                EdgeDescriptors_[tableIndex],
                 TaskHost_->GetRowBuffer());
         }
     }

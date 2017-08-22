@@ -73,7 +73,7 @@ public:
 
     void CheckCompleted();
 
-    virtual bool ValidateChunkCount(int chunkCount) const;
+    virtual bool ValidateChunkCount(int chunkCount);
 
     void ScheduleJob(
         NScheduler::ISchedulingContext* context,

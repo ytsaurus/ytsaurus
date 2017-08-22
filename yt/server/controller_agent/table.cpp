@@ -64,6 +64,22 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, WriterConfig);
 }
 
+TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate()
+{
+    TEdgeDescriptor descriptor;
+    descriptor.DestinationPool = nullptr;
+    descriptor.TableUploadOptions = TableUploadOptions;
+    descriptor.TableWriterOptions = Options;
+    descriptor.TableWriterConfig = WriterConfig;
+    descriptor.Timestamp = Timestamp;
+    // Output tables never lose data (hopefully), so we do not need to store
+    // recovery info for chunks that get there.
+    descriptor.RequiresRecoveryInfo = false;
+    descriptor.CellTag = CellTag;
+    descriptor.ImmediatelyUnstageChunkLists = false;
+    return descriptor;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TIntermediateTable::Persist(const TPersistenceContext& context)

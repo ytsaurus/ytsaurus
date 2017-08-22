@@ -29,8 +29,9 @@ IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe,
     // We perform an in-place filtration of all large chunks.
     int firstUnusedIndex = 0;
     for (auto& slice : stripe->DataSlices) {
-        if (slice->GetSingleUnversionedChunkOrThrow()->IsLargeCompleteChunk(Task_->GetDesiredChunkSize())) {
-            Task_->RegisterTeleportChunk(slice->GetSingleUnversionedChunkOrThrow());
+        const auto& chunk = slice->GetSingleUnversionedChunkOrThrow();
+        if (chunk->IsLargeCompleteChunk(Task_->GetDesiredChunkSize())) {
+            Task_->RegisterTeleportChunk(chunk);
         } else {
             stripe->DataSlices[firstUnusedIndex++] = std::move(slice);
         }
@@ -64,7 +65,7 @@ TAutoMergeTask::TAutoMergeTask(
     ITaskHostPtr taskHost,
     int tableIndex,
     int maxChunksPerJob,
-    int desiredChunkSize,
+    i64 desiredChunkSize,
     TEdgeDescriptor edgeDescriptor)
     : TTask(taskHost, {edgeDescriptor})
     , TableIndex_(tableIndex)
@@ -85,7 +86,7 @@ TAutoMergeTask::TAutoMergeTask(
     ChunkPool_ = CreateUnorderedChunkPool(
         autoMergeJobSizeConstraints,
         nullptr /* jobSizeAdjusterConfig */,
-        true /* autoMergeMode */);
+        EUnorderedChunkPoolMode::AutoMerge /* autoMergeMode */);
 
     ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(ChunkPool_.get(), this);
 }
@@ -154,14 +155,12 @@ void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::
 
 void TAutoMergeTask::UpdateSelf()
 {
-    CanScheduleJob_ = TaskHost_->GetAutoMergeDirector()->TryScheduleMergeJob(CurrentChunkCount_);
+    CanScheduleJob_ = TaskHost_->GetAutoMergeDirector()
+        ->CanSchedulerMergeJob(CurrentChunkCount_);
     if (CanScheduleJob_) {
         TaskHost_->AddTaskPendingHint(this);
     }
-    if (CanScheduleJob_ && GetPendingJobCount() == 0 && CurrentChunkCount_ > 0) {
-        auto* chunkPool = ChunkPool_.get();
-        YCHECK(false);
-    }
+    YCHECK(!(CanScheduleJob_ && GetPendingJobCount() == 0 && CurrentChunkCount_ > 0));
 }
 
 void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)
@@ -249,7 +248,6 @@ bool TAutoMergeTask::SupportsInputPathYson() const
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NControllerAgent
 } // namespace NYT
