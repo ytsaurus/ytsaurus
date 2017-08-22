@@ -1510,6 +1510,7 @@ public:
     EOperationStatus GetStatus();
     TMaybe<TYtError> GetError();
     TJobStatistics GetJobStatistics();
+    void AbortOperation();
 
     void AsyncFinishOperation(TOperationAttributes operationAttributes);
     void FinishWithException(std::exception_ptr exception);
@@ -1648,6 +1649,10 @@ void TOperation::TOperationImpl::FinishWithException(std::exception_ptr e)
     CompletePromise_->SetException(e);
 }
 
+void TOperation::TOperationImpl::AbortOperation() {
+    NYT::NDetail::AbortOperation(Auth_, Id_);
+}
+
 struct TAsyncFinishOperationsArgs
 {
     ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl;
@@ -1753,6 +1758,11 @@ TMaybe<TYtError> TOperation::GetError()
 TJobStatistics TOperation::GetJobStatistics()
 {
     return Impl_->GetJobStatistics();
+}
+
+void TOperation::AbortOperation()
+{
+    return Impl_->AbortOperation();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

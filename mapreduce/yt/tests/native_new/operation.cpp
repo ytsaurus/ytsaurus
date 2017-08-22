@@ -513,7 +513,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         UNIT_ASSERT(operation->GetError().Defined());
     }
 
-    SIMPLE_UNIT_TEST(AbortedOperationWatch)
+    void AbortedOperationWatchImpl(bool useOperationAbort)
     {
         auto client = CreateTestClient();
 
@@ -531,7 +531,12 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
             new TSleepingMapper(TDuration::Seconds(10)),
             TOperationOptions().Wait(false));
 
-        client->AbortOperation(operation->GetId());
+        if (useOperationAbort) {
+            client->AbortOperation(operation->GetId());
+        } else {
+            operation->AbortOperation();
+        }
+
         auto fut = operation->Watch();
         fut.Wait();
         UNIT_ASSERT_EXCEPTION(fut.GetValue(), TOperationFailedError);
@@ -540,6 +545,16 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         EmulateOperationArchivation(client, operation->GetId());
         UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_ABORTED);
         UNIT_ASSERT(operation->GetError().Defined());
+    }
+
+    SIMPLE_UNIT_TEST(AbortedOperationWatch_ClientAbort)
+    {
+        AbortedOperationWatchImpl(false);
+    }
+
+    SIMPLE_UNIT_TEST(AbortedOperationWatch_OperationAbort)
+    {
+        AbortedOperationWatchImpl(true);
     }
 
     void TestGetFailedJobInfoImpl(IClientBasePtr client)
