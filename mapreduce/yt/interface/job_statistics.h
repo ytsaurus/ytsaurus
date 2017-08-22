@@ -60,7 +60,20 @@ T ConvertJobStatisticsEntry(i64 value);
 class TJobStatistics
 {
 public:
+    // Construct empty statistics.
+    TJobStatistics();
+
+    // Construct statistcs from statistics node.
+    // Such statistics node can be read from path:
+    //   //sys/operations/<operation-id>/@progress/job_statistics
     TJobStatistics(const NYT::TNode& statistics);
+
+    TJobStatistics(const TJobStatistics& jobStatistics);
+    TJobStatistics(TJobStatistics&& jobStatistics);
+
+    TJobStatistics& operator=(const TJobStatistics& jobStatistics);
+    TJobStatistics& operator=(TJobStatistics&& jobStatistics);
+
     ~TJobStatistics();
 
     // Filter statistics by job type.

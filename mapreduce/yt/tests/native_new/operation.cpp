@@ -435,6 +435,25 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_FAILED);
         UNIT_ASSERT(operation->GetError().Defined());
     }
+
+    SIMPLE_UNIT_TEST(TestGetOperationStatistics)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        auto operation = client->Sort(
+            TSortOperationSpec().SortBy({"foo"})
+            .AddInput("//testing/input")
+            .Output("//testing/output"));
+        auto jobStatistics = operation->GetJobStatistics();
+        UNIT_ASSERT(jobStatistics.GetStatistics("time/total").Max().Defined());
+    }
 }
 
 SIMPLE_UNIT_TEST_SUITE(OperationWatch)
