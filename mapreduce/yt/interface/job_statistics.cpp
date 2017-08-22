@@ -37,6 +37,8 @@ public:
     TName2State2Type2Data Name2State2Type2Data;
 
 public:
+    TData() = default;
+
     TData(const TNode& statisticsNode)
     {
         ParseNode(statisticsNode, TString(), &Name2State2Type2Data);
@@ -122,17 +124,27 @@ struct TJobStatistics::TFilter
 
 ////////////////////////////////////////////////////////////////////
 
+TJobStatistics::TJobStatistics()
+    : Data_(::MakeIntrusive<TData>())
+    , Filter_(::MakeIntrusive<TFilter>())
+{ }
+
+
 TJobStatistics::TJobStatistics(const NYT::TNode& statisticsNode)
     : Data_(::MakeIntrusive<TData>(statisticsNode))
     , Filter_(::MakeIntrusive<TFilter>())
-{
-}
+{ }
 
 TJobStatistics::TJobStatistics(::TIntrusivePtr<TData> data, ::TIntrusivePtr<TFilter> filter)
     : Data_(data)
     , Filter_(filter)
-{
-}
+{ }
+
+TJobStatistics::TJobStatistics(const TJobStatistics& jobStatistics) = default;
+TJobStatistics::TJobStatistics(TJobStatistics&&) = default;
+
+TJobStatistics& TJobStatistics::operator=(const TJobStatistics& jobStatistics) = default;
+TJobStatistics& TJobStatistics::operator=(TJobStatistics&& jobStatistics) = default;
 
 TJobStatistics::~TJobStatistics() = default;
 

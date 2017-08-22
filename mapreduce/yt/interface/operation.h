@@ -1,6 +1,7 @@
 #pragma once
 
 #include "io.h"
+#include "job_statistics.h"
 
 #include <library/threading/future/future.h>
 #include <util/generic/vector.h>
@@ -441,6 +442,10 @@ struct IOperation
     // Will return Nothing if operation is in OS_COMPLETED or OS_IN_PROGREES state.
     // For failed / aborted operation will return nonempty error explaining operation fail / abort.
     virtual TMaybe<TYtError> GetError() = 0;
+
+    //
+    // Retrieve job statistics.
+    virtual TJobStatistics GetJobStatistics() = 0;
 };
 
 struct TOperationOptions

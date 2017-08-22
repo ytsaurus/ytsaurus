@@ -29,6 +29,7 @@ public:
     virtual yvector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) override;
     virtual EOperationStatus GetStatus() override;
     virtual TMaybe<TYtError> GetError() override;
+    virtual TJobStatistics GetJobStatistics() override;
 
 private:
     TClientPtr Client_;

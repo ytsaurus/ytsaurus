@@ -5,6 +5,7 @@
 #include "yt_poller.h"
 
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/interface/job_statistics.h>
 
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
@@ -1462,6 +1463,7 @@ struct TOperationAttributes
 {
     EOperationStatus Status = OS_IN_PROGRESS;
     TMaybe<TYtError> Error;
+    TMaybe<TJobStatistics> JobStatistics;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1480,6 +1482,14 @@ TOperationAttributes ParseAttributes(const TNode& node)
         result.Status = OS_FAILED;
         result.Error = TYtError(node["result"]["error"]);
     }
+    if (node.HasKey("progress")) {
+        const auto& jobStatisticsNode = node["progress"]["job_statistics"];
+        if (jobStatisticsNode.IsUndefined()) {
+            result.JobStatistics.ConstructInPlace();
+        } else {
+            result.JobStatistics.ConstructInPlace(jobStatisticsNode);
+        }
+    }
     return result;
 }
 
@@ -1497,15 +1507,15 @@ public:
     const TOperationId& GetId() const;
     NThreading::TFuture<void> Watch(TYtPoller& ytPoller);
 
-    // TODO: rewrite these functions to use TAuth and raw requests
-    EOperationStatus GetStatus(const IClientPtr& client);
-    TMaybe<TYtError> GetError(const IClientPtr& client);
+    EOperationStatus GetStatus();
+    TMaybe<TYtError> GetError();
+    TJobStatistics GetJobStatistics();
 
     void AsyncFinishOperation(TOperationAttributes operationAttributes);
     void FinishWithException(std::exception_ptr exception);
 
 private:
-    void UpdateAttributesAndCall(const IClientPtr& client, std::function<void(const TOperationAttributes&)> func);
+    void UpdateAttributesAndCall(bool needJobStatistics, std::function<void(const TOperationAttributes&)> func);
 
     void SyncFinishOperationImpl(const TOperationAttributes&);
     static void* SyncFinishOperationProc(void* );
@@ -1531,11 +1541,12 @@ public:
 
     virtual void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
+        // NOTE: we don't request progress/job_statistics here, because it is huge.
         OperationState_ = batchRequest->Get(TTransactionId(), OperationAttrPath_,
             TGetOptions().AttributeFilter(
                 TAttributeFilter()
-                .AddAttribute("state")
-                .AddAttribute("result")));
+                .AddAttribute("result")
+                .AddAttribute("state")));
     }
 
     virtual EStatus OnRequestExecuted() override
@@ -1578,39 +1589,51 @@ NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TYtPoller& ytPoller)
     return *CompletePromise_;
 }
 
-EOperationStatus TOperation::TOperationImpl::GetStatus(const IClientPtr& client)
+EOperationStatus TOperation::TOperationImpl::GetStatus()
 {
     EOperationStatus result = OS_IN_PROGRESS;
-    UpdateAttributesAndCall(client, [&] (const TOperationAttributes& attributes) {
+    UpdateAttributesAndCall(false, [&] (const TOperationAttributes& attributes) {
         result = attributes.Status;
     });
     return result;
 }
 
-TMaybe<TYtError> TOperation::TOperationImpl::GetError(const IClientPtr& client)
+TMaybe<TYtError> TOperation::TOperationImpl::GetError()
 {
     TMaybe<TYtError> result;
-    UpdateAttributesAndCall(client, [&] (const TOperationAttributes& attributes) {
+    UpdateAttributesAndCall(false, [&] (const TOperationAttributes& attributes) {
         result = attributes.Error;
     });
     return result;
 }
 
-void TOperation::TOperationImpl::UpdateAttributesAndCall(const IClientPtr& client, std::function<void(const TOperationAttributes&)> func)
+TJobStatistics TOperation::TOperationImpl::GetJobStatistics()
+{
+    TJobStatistics result;
+    UpdateAttributesAndCall(true, [&] (const TOperationAttributes& attributes) {
+        result = std::move(*attributes.JobStatistics);
+    });
+    return result;
+}
+
+void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics, std::function<void(const TOperationAttributes&)> func)
 {
     {
         auto g = Guard(Lock_);
-        if (Attributes_.Status != OS_IN_PROGRESS) {
+        if (Attributes_.Status != OS_IN_PROGRESS
+            && (!needJobStatistics || Attributes_.JobStatistics.Defined()))
+        {
             func(Attributes_);
             return;
         }
     }
 
-    auto node = client->Get("//sys/operations/" + GetGuidAsString(Id_) + "/@",
+    auto node = NYT::NDetail::Get(Auth_, TTransactionId(), "//sys/operations/" + GetGuidAsString(Id_) + "/@",
         TGetOptions().AttributeFilter(
             TAttributeFilter()
-            .AddAttribute("state")
-            .AddAttribute("result")));
+            .AddAttribute("result")
+            .AddAttribute("progress")
+            .AddAttribute("state")));
     auto attributes = ParseAttributes(node);
     func(attributes);
 
@@ -1654,8 +1677,17 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
     Y_VERIFY(attributes.Status != OS_IN_PROGRESS);
 
     {
-        auto g = Guard(Lock_);
-        Attributes_ = attributes;
+        try {
+            // `attributes' that came from poller don't have JobStatistics
+            // so we call `GetJobStatistics' in order to get it from server
+            // and cache inside object.
+            GetJobStatistics();
+        } catch (const TErrorResponse& ) {
+            // But if for any reason we failed to get attributes
+            // we complete operation using what we have.
+            auto g = Guard(Lock_);
+            Attributes_ = attributes;
+        }
     }
 
     if (attributes.Status == OS_COMPLETED) {
@@ -1710,12 +1742,17 @@ yvector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOpti
 
 EOperationStatus TOperation::GetStatus()
 {
-    return Impl_->GetStatus(Client_);
+    return Impl_->GetStatus();
 }
 
 TMaybe<TYtError> TOperation::GetError()
 {
-    return Impl_->GetError(Client_);
+    return Impl_->GetError();
+}
+
+TJobStatistics TOperation::GetJobStatistics()
+{
+    return Impl_->GetJobStatistics();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
