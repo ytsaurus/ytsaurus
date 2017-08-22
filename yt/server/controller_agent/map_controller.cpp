@@ -64,7 +64,7 @@ public:
 
         TUnorderedTaskBase(TUnorderedOperationControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
             : TTask(controller, std::move(edgeDescriptors))
-              , Controller(controller)
+            , Controller(controller)
         { }
 
         virtual TString GetId() const override
@@ -283,6 +283,7 @@ protected:
 
     virtual void CustomPrepare() override
     {
+        // NB: this call should be after TotalEstimatedOutputChunkCount is calculated.
         TOperationControllerBase::CustomPrepare();
 
         // The total data size for processing (except teleport chunks).
@@ -346,6 +347,7 @@ protected:
 
                 auto jobSizeConstraints = createJobSizeConstraints();
                 IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
+                InitAutoMerge(jobSizeConstraints->GetJobCount());
 
                 std::vector<TChunkStripePtr> stripes;
                 SliceUnversionedChunks(mergedChunks, jobSizeConstraints, &stripes);

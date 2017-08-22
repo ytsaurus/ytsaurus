@@ -23,7 +23,7 @@ TAutoMergeDirector::TAutoMergeDirector(
     Logger.AddTag("OperationId: %v", OperationId_);
 }
 
-bool TAutoMergeDirector::TryScheduleTaskJob(int intermediateChunkCount)
+bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
 {
     if (intermediateChunkCount + CurrentIntermediateChunkCount_ <= MaxIntermediateChunkCount_) {
         LOG_DEBUG("Allowing scheduling of task job "
@@ -62,7 +62,7 @@ bool TAutoMergeDirector::TryScheduleTaskJob(int intermediateChunkCount)
     }
 }
 
-bool TAutoMergeDirector::TryScheduleMergeJob(int intermediateChunkCount) const
+bool TAutoMergeDirector::CanSchedulerMergeJob(int intermediateChunkCount) const
 {
     if (intermediateChunkCount >= ChunkCountPerMergeJob_ || ForceFlush_ || TaskCompleted_) {
         LOG_DEBUG("Allowing scheduling of a merge job "

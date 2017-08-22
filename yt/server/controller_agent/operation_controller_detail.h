@@ -297,7 +297,7 @@ public:
     virtual TOperationId GetOperationId() const override;
     virtual EOperationType GetOperationType() const override;
 
-    virtual const std::vector<TOutputTable>& OutputTables() const override;
+    const std::vector<TOutputTable>& OutputTables() const;
     virtual const TNullable<TOutputTable>& StderrTable() const override;
     virtual const TNullable<TOutputTable>& CoreTable() const override;
 
@@ -536,6 +536,7 @@ protected:
     void AddAllTaskPendingHints();
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
+    void InitAutoMerge(int outputChunkCountEstimate);
 
     void ParseInputQuery(
         const TString& queryString,
@@ -820,7 +821,7 @@ protected:
 
     void CheckFailedJobsStatusReceived();
 
-    virtual std::vector<TEdgeDescriptor> GetStandardEdgeDescriptors() override;
+    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() override;
 
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
     TEdgeDescriptor GetIntermediateEdgeDescriptorTemplate() const;
@@ -923,6 +924,8 @@ private:
     NYson::TYsonString ProgressString_;
     NYson::TYsonString BriefProgressString_;
 
+    std::vector<TEdgeDescriptor> StandardEdgeDescriptors_;
+
     TSpinLock ProgressLock_;
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
@@ -962,6 +965,8 @@ private:
     void UpdateAllTasksIfNeeded();
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
+
+    void InitializeStandardEdgeDescriptors();
 
     TNullable<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;

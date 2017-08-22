@@ -47,9 +47,11 @@ public:
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobStarted(joblet->InputStripeList->TotalChunkCount);
     }
 
-    virtual bool ValidateChunkCount(int chunkCount) const override
+    virtual bool ValidateChunkCount(int chunkCount) override
     {
-        return this->TaskHost_->GetAutoMergeDirector()->TryScheduleTaskJob(chunkCount);
+        CanScheduleJob_ = this->TaskHost_->GetAutoMergeDirector()->CanScheduleTaskJob(chunkCount);
+        LastChunkCount_ = chunkCount;
+        return CanScheduleJob_;
     }
 
     virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary) override
@@ -112,7 +114,7 @@ private:
         if (this->IsCompleted()) {
             return;
         }
-        CanScheduleJob_ = this->TaskHost_->GetAutoMergeDirector()->TryScheduleTaskJob(LastChunkCount_ /* intermediateChunkCount */);
+        CanScheduleJob_ = this->TaskHost_->GetAutoMergeDirector()->CanScheduleTaskJob(LastChunkCount_ /* intermediateChunkCount */);
         if (CanScheduleJob_) {
             this->TaskHost_->AddTaskPendingHint(this);
         }

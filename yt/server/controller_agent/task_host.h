@@ -74,7 +74,6 @@ struct ITaskHost
     virtual TOperationId GetOperationId() const = 0;
     virtual EOperationType GetOperationType() const = 0;
 
-    virtual const std::vector<TOutputTable>& OutputTables() const = 0;
     virtual const TNullable<TOutputTable>& StderrTable() const = 0;
     virtual const TNullable<TOutputTable>& CoreTable() const = 0;
 
@@ -101,7 +100,7 @@ struct ITaskHost
 
     virtual void Persist(const TPersistenceContext& context) = 0;
 
-    virtual std::vector<TEdgeDescriptor> GetStandardEdgeDescriptors() = 0;
+    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() = 0;
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() = 0;
 

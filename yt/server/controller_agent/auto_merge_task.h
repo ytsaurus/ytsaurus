@@ -47,24 +47,24 @@ public:
         ITaskHostPtr taskHost,
         int tableIndex,
         int maxChunksPerJob,
-        int desiredChunkSize,
+        i64 desiredChunkSize,
         TEdgeDescriptor edgeDescriptor);
 
-    TString GetId() const override;
+    virtual TString GetId() const override;
 
-    TTaskGroupPtr GetGroup() const override;
+    virtual TTaskGroupPtr GetGroup() const override;
 
-    TDuration GetLocalityTimeout() const override;
+    virtual TDuration GetLocalityTimeout() const override;
 
-    NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
+    virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
-    NChunkPools::IChunkPoolInput* GetChunkPoolInput() const override;
+    virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const override;
 
-    NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const override;
+    virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const override;
 
     i64 GetDesiredChunkSize() const;
 
-    EJobType GetJobType() const override;
+    virtual EJobType GetJobType() const override;
 
     virtual int GetPendingJobCount() const override;
 
