@@ -390,7 +390,7 @@ add_custom_target(version
 )
 
 if(CMAKE_VERSION VERSION_GREATER "3.0")
-  file(LOCK ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py)
+  file(LOCK ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py GUARD FILE)
 endif()
 file(WRITE ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py "BUILD_TYPE = \"${CMAKE_BUILD_TYPE}\"")
 
