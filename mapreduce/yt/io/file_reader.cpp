@@ -8,9 +8,10 @@
 
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/http.h>
-#include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/http/transaction.h>
+
+#include <mapreduce/yt/raw_client/raw_requests.h>
 
 namespace NYT {
 
@@ -38,7 +39,7 @@ TFileReader::TFileReader(
     , CurrentOffset_(FileReaderOptions_.Offset_.GetOrElse(0))
     , EndOffset_(GetEndOffset(FileReaderOptions_))
 {
-    Lock(Auth_, ReadTransaction_->GetId(), path.Path_, "snapshot");
+    NDetail::Lock(Auth_, ReadTransaction_->GetId(), path.Path_, LM_SNAPSHOT);
 
     DoRead(nullptr, 0);
 }

@@ -11,22 +11,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum ENodeType : int
-{
-    NT_STRING               /* "string_node" */,
-    NT_INT64                /* "int64_node" */,
-    NT_UINT64               /* "uint64_node" */,
-    NT_DOUBLE               /* "double_node" */,
-    NT_BOOLEAN              /* "boolean_node" */,
-    NT_MAP                  /* "map_node" */,
-    NT_LIST                 /* "list_node" */,
-    NT_FILE                 /* "file" */,
-    NT_TABLE                /* "table" */,
-    NT_DOCUMENT             /* "document" */,
-    NT_REPLICATED_TABLE     /* "replicated_table" */,
-    NT_TABLE_REPLICA        /* "table_replica" */,
-};
-
 class ICypressClient
 {
 public:

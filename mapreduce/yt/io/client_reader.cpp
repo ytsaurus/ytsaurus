@@ -11,6 +11,9 @@
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/http/transaction.h>
+
+#include <mapreduce/yt/raw_client/raw_requests.h>
+
 #include <library/yson/json_writer.h>
 
 #include <library/json/json_writer.h>
@@ -41,7 +44,7 @@ TClientReader::TClientReader(
     , ReadTransaction_(new TPingableTransaction(auth, transactionId))
     , RetriesLeft_(TConfig::Get()->RetryCount)
 {
-    Lock(Auth_, ReadTransaction_->GetId(), path.Path_, "snapshot");
+    NDetail::Lock(Auth_, ReadTransaction_->GetId(), path.Path_, LM_SNAPSHOT);
     TransformYPath();
     CreateRequest();
 }

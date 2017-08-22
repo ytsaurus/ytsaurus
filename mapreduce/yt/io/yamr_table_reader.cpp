@@ -3,7 +3,7 @@
 #include "proxy_input.h"
 
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/http/requests.h>
+#include <mapreduce/yt/raw_client/raw_requests.h>
 
 namespace NYT {
 
@@ -15,10 +15,10 @@ TMaybe<TNode> GetTableFormat(
     const TRichYPath& path)
 {
     auto formatPath = path.Path_ + "/@_format";
-    if (!Exists(auth, transactionId, formatPath)) {
+    if (!NDetail::Exists(auth, transactionId, formatPath)) {
         return TMaybe<TNode>();
     }
-    TMaybe<TNode> format = NodeFromYsonString(Get(auth, transactionId, formatPath));
+    TMaybe<TNode> format = NDetail::Get(auth, transactionId, formatPath);
     if (format.Get()->AsString() != "yamred_dsv") {
         return TMaybe<TNode>();
     }

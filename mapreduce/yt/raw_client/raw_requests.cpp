@@ -1,6 +1,7 @@
 #include "raw_requests.h"
 
 #include "raw_batch_request.h"
+#include "rpc_parameters_serialization.h"
 
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/http/retry_request.h>
@@ -41,7 +42,7 @@ void ExecuteBatch(
             header.AddMutationId();
             NDetail::TResponseInfo result;
             try {
-                result = RetryRequest(auth, header, body, retryPolicy);
+                result = RetryRequestWithPolicy(auth, header, body, retryPolicy);
             } catch (const yexception& e) {
                 batchRequest.SetErrorResult(std::current_exception());
                 retryBatch.SetErrorResult(std::current_exception());
@@ -52,6 +53,90 @@ void ExecuteBatch(
 
         batchRequest = std::move(retryBatch);
     }
+}
+
+TNode Get(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TGetOptions& options)
+{
+    THttpHeader header("GET", "get");
+    header.SetParameters(NDetail::SerializeParamsForGet(transactionId, path, options));
+    return NodeFromYsonString(RetryRequest(auth, header));
+}
+
+void Set(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TNode& value)
+{
+    THttpHeader header("PUT", "set");
+    header.AddMutationId();
+    header.SetParameters(NDetail::SerializeParamsForSet(transactionId, path));
+    RetryRequest(auth, header, NodeToYsonString(value));
+}
+
+bool Exists(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path)
+{
+    THttpHeader header("GET", "exists");
+    header.SetParameters(NDetail::SerializeParamsForExists(transactionId, path));
+    return ParseBoolFromResponse(RetryRequest(auth, header));
+}
+
+TNodeId Create(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const ENodeType& type,
+    const TCreateOptions& options)
+{
+    THttpHeader header("POST", "create");
+    header.AddMutationId();
+    header.SetParameters(NDetail::SerializeParamsForCreate(transactionId, path, type, options));
+    return ParseGuidFromResponse(RetryRequest(auth, header));
+}
+
+void Remove(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TRemoveOptions& options)
+{
+    THttpHeader header("POST", "remove");
+    header.AddMutationId();
+    header.SetParameters(NDetail::SerializeParamsForRemove(transactionId, path, options));
+    RetryRequest(auth, header);
+}
+
+TNodeId Link(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& targetPath,
+    const TYPath& linkPath,
+    const TLinkOptions& options)
+{
+    THttpHeader header("POST", "link");
+    header.AddMutationId();
+    header.SetParameters(NDetail::SerializeParamsForLink(transactionId, targetPath, linkPath, options));
+    return ParseGuidFromResponse(RetryRequest(auth, header));
+}
+
+TLockId Lock(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    ELockMode mode,
+    const TLockOptions& options)
+{
+    THttpHeader header("POST", "lock");
+    header.AddMutationId();
+    header.SetParameters(NDetail::SerializeParamsForLock(transactionId, path, mode, options));
+    return ParseGuidFromResponse(RetryRequest(auth, header));
 }
 
 } // namespace NDetail
