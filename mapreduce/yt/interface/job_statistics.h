@@ -60,9 +60,11 @@ T ConvertJobStatisticsEntry(i64 value);
 class TJobStatistics
 {
 public:
+    //
     // Construct empty statistics.
     TJobStatistics();
 
+    //
     // Construct statistcs from statistics node.
     // Such statistics node can be read from path:
     //   //sys/operations/<operation-id>/@progress/job_statistics
@@ -76,21 +78,30 @@ public:
 
     ~TJobStatistics();
 
+    //
     // Filter statistics by job type.
     // By default filter includes all job types.
     // Specify empty `filter' to include all job types.
     TJobStatistics JobType(yvector<EJobType> filter) const;
 
+    //
     // Filter statistics by job state.
     // By default filter includes only (successfuly) completed jobs.
     // Specify empty `filter' to include all job states.
     TJobStatistics JobStatus(yvector<EFinishedJobState> filter) const;
 
+    //
     // Get statistics by name.
+    // Slash separated statistics name should be used e.g. "time/total" (like it appears in web interface).
+    //
     // If statistics is missing returned value is empty (all fields are Nothing).
     //
     // In order to use GetStatisticsAs method, ConvertJobStatisticsEntry function must be defined.
     // (Library defines it for i64 and TDuration, user may define it for other types).
+    //
+    // NOTE: We don't use TMaybe<TJobStatisticsEntry> here instead TJobStatisticsEntry return TMaybe<i64>,
+    // so user easier use GetOrElse:
+    //     jobStatistics.GetStatistics("some/statistics/name").Max().GetOrElse(0);
     TJobStatisticsEntry<i64> GetStatistics(TStringBuf name) const;
 
     template <typename T>
@@ -139,6 +150,7 @@ public:
         return Nothing();
     }
 
+    //
     // NOTE: Only jobs that emited statistics are taken into account.
     TMaybe<T> Avg() const
     {
