@@ -362,8 +362,6 @@ function (CYTHON source)
   set(_input ${source}.pyx)
   set(_c_source ${CMAKE_CURRENT_BINARY_DIR}/${_basename}.c)
 
-  MESSAGE("_c_source ${_c_source}")
-
   add_custom_command(
     OUTPUT
       ${_c_source}
