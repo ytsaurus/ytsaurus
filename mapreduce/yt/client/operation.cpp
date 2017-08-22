@@ -31,6 +31,7 @@
 #include <mapreduce/yt/io/file_reader.h>
 
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
+#include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <util/string/printf.h>
 #include <util/string/builder.h>
@@ -80,7 +81,7 @@ bool IsLocalMode(const TAuth& auth)
     bool isLocalMode = false;
     TString localModeAttr("//sys/@local_mode_fqdn");
     if (Exists(auth, TTransactionId(), localModeAttr)) {
-        auto fqdn = NodeFromYsonString(Get(auth, TTransactionId(), localModeAttr)).AsString();
+        auto fqdn = Get(auth, TTransactionId(), localModeAttr).AsString();
         isLocalMode = (fqdn == TProcessState::Get()->HostName);
     }
 
@@ -225,7 +226,10 @@ private:
     {
         TString cypressFolder = TStringBuilder() << GetFileStorage() << "/hash";
         if (!Exists(Auth_, Options_.FileStorageTransactionId_, cypressFolder)) {
-            Create(Auth_, Options_.FileStorageTransactionId_, cypressFolder, "map_node", true, true);
+            NYT::NDetail::Create(Auth_, Options_.FileStorageTransactionId_, cypressFolder, NT_MAP,
+                TCreateOptions()
+                .IgnoreExisting(true)
+                .Recursive(true));
         }
     }
 
@@ -246,8 +250,7 @@ private:
             TNode linkAttrs;
             if (Exists(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&")) {
                 try {
-                    linkAttrs = NodeFromYsonString(
-                        Get(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&/@"));
+                    linkAttrs = Get(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&/@");
                 } catch (TErrorResponse& e) {
                     if (!e.IsResolveError()) {
                         throw;
@@ -263,21 +266,25 @@ private:
                     {
                         linkExists = true;
                     } else {
-                        Remove(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&", true, true);
+                        NYT::NDetail::Remove(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&",
+                            TRemoveOptions().Recursive(true).Force(true));
                     }
                 }
 
                 if (linkExists) {
-                    Set(Auth_, Options_.FileStorageTransactionId_, cypressPath + "/@touched", "\"true\"");
-                    Set(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&/@touched", "\"true\"");
+                    NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, cypressPath + "/@touched", "true");
+                    NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&/@touched", "true");
                     return cypressPath;
                 }
 
                 TString uniquePath = TStringBuilder() << GetFileStorage() <<
                     "/" << twoDigits << "/cpp_" << CreateGuidAsString();
 
-                Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, "file", true, true,
-                    TNode()("hash", buf)("touched", true));
+                NYT::NDetail::Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, NT_FILE,
+                    TCreateOptions()
+                        .IgnoreExisting(true)
+                        .Recursive(true)
+                        .Attributes(TNode()("hash", buf)("touched", true)));
 
                 {
                     THttpHeader header("PUT", GetWriteFileCommand());
@@ -289,8 +296,11 @@ private:
                     RetryHeavyWriteRequest(Auth_, Options_.FileStorageTransactionId_, header, streamMaker);
                 }
 
-                Link(Auth_, Options_.FileStorageTransactionId_, uniquePath, cypressPath, true, true,
-                    TNode()("touched", true));
+                NYT::NDetail::Link(Auth_, Options_.FileStorageTransactionId_, uniquePath, cypressPath,
+                    TLinkOptions()
+                        .IgnoreExisting(true)
+                        .Recursive(true)
+                        .Attributes(TNode()("touched", true)));
 
             } catch (TErrorResponse& e) {
                 if (!e.IsResolveError() || attempt + 1 == retryCount) {
@@ -312,9 +322,7 @@ private:
             }
 
             if (ShouldMountSandbox()) {
-                auto size = NodeFromYsonString(
-                    Get(Auth_, TransactionId_, file.Path_ + "/@uncompressed_data_size")
-                ).AsInt64();
+                auto size = Get(Auth_, TransactionId_, file.Path_ + "/@uncompressed_data_size").AsInt64();
 
                 TotalFileSize_ += RoundUpFileSize(static_cast<ui64>(size));
             }
@@ -450,8 +458,7 @@ yvector<TFailedJobInfo> GetFailedJobInfo(
         }
 
         TRichYPath path(stderrPath);
-        i64 stderrSize = NodeFromYsonString(
-            Get(auth, TTransactionId(), stderrPath + "/@uncompressed_data_size")).AsInt64();
+        i64 stderrSize = Get(auth, TTransactionId(), stderrPath + "/@uncompressed_data_size").AsInt64();
         if (stderrSize > stderrTailSize) {
             path.AddRange(
                 TReadRange().LowerLimit(
@@ -561,8 +568,7 @@ EOperationStatus CheckOperation(
         ythrow yexception() << "Operation " << opIdStr << " does not exist";
     }
 
-    TString state = NodeFromYsonString(
-        Get(auth, TTransactionId(), statePath)).AsString();
+    TString state = Get(auth, TTransactionId(), statePath).AsString();
 
     if (state == "completed") {
         return OS_COMPLETED;
@@ -576,7 +582,7 @@ EOperationStatus CheckOperation(
         auto errorPath = opPath + "/@result/error";
         TYtError ytError(TString("unknown operation error"));
         if (Exists(auth, TTransactionId(), errorPath)) {
-            ytError = TYtError(NodeFromYsonString(Get(auth, TTransactionId(), errorPath)));
+            ytError = TYtError(Get(auth, TTransactionId(), errorPath));
         }
 
         TStringStream jobErrors;
@@ -832,10 +838,16 @@ template <typename TSpec>
 void CreateDebugOutputTables(const TSpec& spec, const TAuth& auth)
 {
     if (spec.StderrTablePath_.Defined()) {
-        Create(auth, TTransactionId(), *spec.StderrTablePath_, "table", true, true);
+        NYT::NDetail::Create(auth, TTransactionId(), *spec.StderrTablePath_, NT_TABLE,
+            TCreateOptions()
+                .IgnoreExisting(true)
+                .Recursive(true));
     }
     if (spec.CoreTablePath_.Defined()) {
-        Create(auth, TTransactionId(), *spec.CoreTablePath_, "table", true, true);
+        NYT::NDetail::Create(auth, TTransactionId(), *spec.CoreTablePath_, NT_TABLE,
+            TCreateOptions()
+                .IgnoreExisting(true)
+                .Recursive(true));
     }
 }
 
@@ -847,7 +859,10 @@ void CreateOutputTable(
     if (!path.Path_) {
         ythrow yexception() << "Output table is not set";
     }
-    Create(auth, transactionId, path.Path_, "table", true, true);
+    NYT::NDetail::Create(auth, transactionId, path.Path_, NT_TABLE,
+        TCreateOptions()
+            .IgnoreExisting(true)
+            .Recursive(true));
 }
 
 void CreateOutputTables(

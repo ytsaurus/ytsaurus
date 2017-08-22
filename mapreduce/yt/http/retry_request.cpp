@@ -49,7 +49,7 @@ TString TAttemptLimitedRetryPolicy::GetAttemptDescription() const
 
 ////////////////////////////////////////////////////////////////////
 
-TResponseInfo RetryRequest(
+TResponseInfo RetryRequestWithPolicy(
     const TAuth& auth,
     THttpHeader& header,
     TStringBuf body,

@@ -40,55 +40,6 @@ void CommitTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString Get(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TYPath& path);
-
-void Set(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TYPath& path,
-    const TString& value);
-
-bool Exists(
-    const TAuth& auth,
-    const TTransactionId& transactionid,
-    const TYPath& path);
-
-void Create(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TYPath& path,
-    const TString& type,
-    bool ignoreExisting = true,
-    bool recursive = false,
-    const TMaybe<TNode>& attributes = Nothing());
-
-void Remove(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TYPath& path,
-    bool recursive = false,
-    bool force = false);
-
-void Link(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TYPath& targetPath,
-    const TYPath& linkPath,
-    bool ignoreExisting = true,
-    bool recursive = false,
-    const TMaybe<TNode>& attributes = Nothing());
-
-void Lock(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TYPath& path,
-    const TString& mode);
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool ParseBoolFromResponse(const TString& response);
 
 TGUID ParseGuidFromResponse(const TString& response);

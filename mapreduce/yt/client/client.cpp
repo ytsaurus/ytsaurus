@@ -18,6 +18,8 @@
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 
+#include <mapreduce/yt/raw_client/raw_requests.h>
+
 #include <mapreduce/yt/io/client_reader.h>
 #include <mapreduce/yt/io/client_writer.h>
 #include <mapreduce/yt/io/yamr_table_reader.h>
@@ -90,19 +92,14 @@ TNode TClientBase::Get(
     const TYPath& path,
     const TGetOptions& options)
 {
-    THttpHeader header("GET", "get");
-    header.SetParameters(NDetail::SerializeParamsForGet(TransactionId_, path, options));
-    return NodeFromYsonString(RetryRequest(Auth_, header));
+    return NDetail::Get(Auth_, TransactionId_, path, options);
 }
 
 void TClientBase::Set(
     const TYPath& path,
     const TNode& value)
 {
-    THttpHeader header("PUT", "set");
-    header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForSet(TransactionId_, path));
-    RetryRequest(Auth_, header, NodeToYsonString(value));
+    NDetail::Set(Auth_, TransactionId_, path, value);
 }
 
 TNode::TList TClientBase::List(
@@ -198,8 +195,9 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     const TFileWriterOptions& options)
 {
     auto realPath = CanonizePath(Auth_, path);
-    if (!NYT::Exists(Auth_, TransactionId_, realPath.Path_)) {
-        NYT::Create(Auth_, TransactionId_, realPath.Path_, "file");
+    if (!NYT::NDetail::Exists(Auth_, TransactionId_, realPath.Path_)) {
+        NYT::NDetail::Create(Auth_, TransactionId_, realPath.Path_, NT_FILE,
+            TCreateOptions().IgnoreExisting(true));
     }
     return new TFileWriter(realPath, Auth_, TransactionId_, options);
 }
@@ -381,8 +379,9 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TString& formatConfig)
 {
     auto realPath = CanonizePath(Auth_, path);
-    if (!NYT::Exists(Auth_, TransactionId_, realPath.Path_)) {
-        NYT::Create(Auth_, TransactionId_, realPath.Path_, "table");
+    if (!NYT::NDetail::Exists(Auth_, TransactionId_, realPath.Path_)) {
+        NYT::NDetail::Create(Auth_, TransactionId_, realPath.Path_, NT_TABLE,
+            TCreateOptions().IgnoreExisting(true));
     }
     return MakeHolder<TClientWriter>(
         realPath, Auth_, TransactionId_, format, formatConfig, options);
