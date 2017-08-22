@@ -30,6 +30,7 @@ public:
     virtual EOperationStatus GetStatus() override;
     virtual TMaybe<TYtError> GetError() override;
     virtual TJobStatistics GetJobStatistics() override;
+    virtual void AbortOperation() override;
 
 private:
     TClientPtr Client_;

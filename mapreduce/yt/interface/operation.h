@@ -446,6 +446,10 @@ struct IOperation
     //
     // Retrieve job statistics.
     virtual TJobStatistics GetJobStatistics() = 0;
+
+    //
+    // Abort operation.
+    virtual void AbortOperation() = 0;
 };
 
 struct TOperationOptions
