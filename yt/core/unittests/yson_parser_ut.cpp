@@ -4,6 +4,8 @@
 #include <yt/core/yson/null_consumer.h>
 #include <yt/core/yson/parser.h>
 
+#include <yt/core/misc/error.h>
+
 #include <util/stream/mem.h>
 
 namespace NYT {
@@ -172,7 +174,6 @@ TEST_F(TYsonParserTest, BinaryBoolean)
     EXPECT_CALL(Mock, OnBooleanScalar(true));
     Run(TString("\x05", 1));
 }
-
 
 TEST_F(TYsonParserTest, InvalidBinaryDouble)
 {
@@ -528,6 +529,28 @@ TEST_F(TYsonParserTest, ContextInExceptions_ManyBlocks)
     GTEST_FAIL() << "Expected exception to be thrown";
 }
 
+TEST(TYsonTest, ContextInExceptions_ContextAtTheVeryBeginning)
+{
+    struct TNoAttributesAllowedConsumer
+        : public TNullYsonConsumer
+    {
+    public:
+        virtual void OnBeginAttributes() override
+        {
+            THROW_ERROR_EXCEPTION("I don't like attributes");
+        }
+    } consumer;
+
+    try {
+        TStatelessYsonParser Parser(&consumer);
+        Parser.Parse("<a=42>#");
+    } catch (const std::exception& ex) {
+        EXPECT_THAT(ex.what(), testing::HasSubstr("a=42"));
+        EXPECT_THAT(ex.what(), testing::HasSubstr("don't like"));
+        return;
+    }
+    GTEST_FAIL() << "Expected exception to be thrown";
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,5 +1,4 @@
 #include "null_consumer.h"
-#include "consumer.h"
 #include "string.h"
 
 namespace NYT {
@@ -7,54 +6,52 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNullYsonConsumer
-    : public IYsonConsumer
-{
-    virtual void OnStringScalar(const TStringBuf& /*value*/) override
-    { }
+void TNullYsonConsumer::OnStringScalar(const TStringBuf& /*value*/)
+{ }
 
-    virtual void OnInt64Scalar(i64 /*value*/) override
-    { }
+void TNullYsonConsumer::OnInt64Scalar(i64 /*value*/)
+{ }
 
-    virtual void OnUint64Scalar(ui64 /*value*/) override
-    { }
+void TNullYsonConsumer::OnUint64Scalar(ui64 /*value*/)
+{ }
 
-    virtual void OnDoubleScalar(double /*value*/) override
-    { }
+void TNullYsonConsumer::OnDoubleScalar(double /*value*/)
+{ }
 
-    virtual void OnBooleanScalar(bool /*value*/) override
-    { }
+void TNullYsonConsumer::OnBooleanScalar(bool /*value*/)
+{ }
 
-    virtual void OnEntity() override
-    { }
+void TNullYsonConsumer::OnEntity()
+{ }
 
-    virtual void OnBeginList() override
-    { }
+void TNullYsonConsumer::OnBeginList()
+{ }
 
-    virtual void OnListItem() override
-    { }
+void TNullYsonConsumer::OnListItem()
+{ }
 
-    virtual void OnEndList() override
-    { }
+void TNullYsonConsumer::OnEndList()
+{ }
 
-    virtual void OnBeginMap() override
-    { }
+void TNullYsonConsumer::OnBeginMap()
+{ }
 
-    virtual void OnKeyedItem(const TStringBuf& /*name*/) override
-    { }
+void TNullYsonConsumer::OnKeyedItem(const TStringBuf& /*name*/)
+{ }
 
-    virtual void OnEndMap() override
-    { }
+void TNullYsonConsumer::OnEndMap()
+{ }
 
-    virtual void OnBeginAttributes() override
-    { }
+void TNullYsonConsumer::OnBeginAttributes()
+{ }
 
-    virtual void OnEndAttributes() override
-    { }
+void TNullYsonConsumer::OnEndAttributes()
+{ }
 
-    virtual void OnRaw(const TStringBuf& /*yson*/, EYsonType /*type*/)
-    { }
-};
+void TNullYsonConsumer::OnRaw(const TStringBuf& /*yson*/, EYsonType /*type*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
 
 IYsonConsumer* GetNullYsonConsumer()
 {
