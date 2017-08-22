@@ -212,6 +212,9 @@ public:
 private:
     void SaveLeftContextToContextBuffer()
     {
+        if (CurrentBlockBegin == nullptr) {
+            CurrentBlockBegin = TBlockStream::Begin();
+        }
         int currentBlockContextMargin = *ContextBegin - CurrentBlockBegin;
         auto currentBlockMarginBegin = std::max<int>(0, currentBlockContextMargin - MaxLeftMargin);
         auto sizeFromBlock = currentBlockContextMargin - currentBlockMarginBegin;
