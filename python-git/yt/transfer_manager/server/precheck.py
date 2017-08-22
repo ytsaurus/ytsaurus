@@ -59,7 +59,7 @@ def perform_precheck(task, clusters_configuration, logger):
     if destination_client._type == "kiwi" and clusters_configuration.kiwi_transmitter is None:
         raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
 
-    if source_client._type == "hive" and "." not in task.source_table:
+    if source_client._type == "hive" and ("." not in task.source_table or "/" in task.source_table):
         raise yt.YtError("Incorrect source table for hive, it must have format {database_name}.{table_name}")
 
     if (source_client._type in ["hive", "hdfs", "hbase"]) and clusters_configuration.hadoop_transmitter is None:
