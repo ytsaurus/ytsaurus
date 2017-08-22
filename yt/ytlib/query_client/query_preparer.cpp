@@ -2429,22 +2429,22 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     PrepareQuery(query, ast, schemaProxy, builder);
 
-    auto& whereClause = query->WhereClause;
-    for (auto& joinClause : joinClauses) {
-        auto& joinPredicate = joinClause->Predicate;
-        if (!joinClause->IsLeft) {
-            TConstExpressionPtr foreignPredicate;
-            std::tie(foreignPredicate, whereClause) = SplitPredicateByColumnSubset(
-                whereClause,
-                joinClause->GetRenamedSchema());
-
-            if (joinPredicate) {
-                joinPredicate = MakeAndExpression(joinPredicate, foreignPredicate);
-            } else {
-                joinPredicate = foreignPredicate;
-            }
-        }
-    }
+//    auto& whereClause = query->WhereClause;
+//    for (auto& joinClause : joinClauses) {
+//        auto& joinPredicate = joinClause->Predicate;
+//        if (!joinClause->IsLeft) {
+//            TConstExpressionPtr foreignPredicate;
+//            std::tie(foreignPredicate, whereClause) = SplitPredicateByColumnSubset(
+//                whereClause,
+//                joinClause->GetRenamedSchema());
+//
+//            if (joinPredicate) {
+//                joinPredicate = MakeAndExpression(joinPredicate, foreignPredicate);
+//            } else {
+//                joinPredicate = foreignPredicate;
+//            }
+//        }
+//    }
 
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
 
