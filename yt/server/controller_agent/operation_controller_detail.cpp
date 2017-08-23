@@ -5031,7 +5031,6 @@ void TOperationControllerBase::BuildSpec(IYsonConsumer* consumer) const
     Serialize(Spec_, consumer);
 }
 
-
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
