@@ -249,7 +249,7 @@ public:
     {
         for (const auto& weakOwner : tabletInfo->Owners) {
             if (auto owner = weakOwner.Lock()) {
-                TryRemove(owner->Path);
+                Invalidate(owner->Path);
             }
         }
     }
