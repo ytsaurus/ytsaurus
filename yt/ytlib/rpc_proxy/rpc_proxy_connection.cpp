@@ -142,11 +142,12 @@ void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)
     auto guard = Guard(SpinLock_);
     YCHECK(Transactions_.insert(MakeWeak(transaction)).second);
 
-    if (Transactions_.empty() && !PingExecutor_) {
+    if (!PingExecutor_) {
         PingExecutor_ = New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
             BIND(&TRpcProxyConnection::OnPing, MakeWeak(this)),
             Config_->PingPeriod);
+        PingExecutor_->Start();
     }
 }
 
