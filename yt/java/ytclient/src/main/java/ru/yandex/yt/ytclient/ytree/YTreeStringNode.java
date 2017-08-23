@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class YTreeStringNode extends YTreeNode {
-    private final String value;
+    private volatile String value;
     private final byte[] bytes;
 
     public YTreeStringNode(String value) {
@@ -26,8 +26,8 @@ public class YTreeStringNode extends YTreeNode {
 
     public YTreeStringNode(byte[] bytes, Map<String, YTreeNode> attributes) {
         super(attributes);
+        this.value = null;
         this.bytes = Objects.requireNonNull(bytes);
-        this.value = new String(this.bytes, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -37,7 +37,12 @@ public class YTreeStringNode extends YTreeNode {
 
     @Override
     public String stringValue() {
-        return value;
+        String result = value;
+        if (result == null) {
+            result = new String(this.bytes, StandardCharsets.UTF_8);
+            value = result;
+        }
+        return result;
     }
 
     @Override
@@ -48,9 +53,9 @@ public class YTreeStringNode extends YTreeNode {
     @Override
     protected void writeValueTo(YTreeConsumer consumer) {
         if (consumer.isBinaryPreferred()) {
-            consumer.onStringScalar(bytes);
+            consumer.onStringScalar(bytesValue());
         } else {
-            consumer.onStringScalar(value);
+            consumer.onStringScalar(stringValue());
         }
     }
 
