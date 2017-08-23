@@ -2,14 +2,17 @@ package ru.yandex.yt.ytclient.ytree;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class YTreeBuilder implements YTreeConsumer {
     private final List<State> stack = new ArrayList<>();
     private Map<String, YTreeNode> currentAttributes;
+    private Supplier<Map<String, YTreeNode>> mapSupplier = HashMap::new;
+    private Supplier<List<YTreeNode>> listSupplier = ArrayList::new;
 
     protected abstract static class State {
         public void onKeyedItem(String key) {
@@ -42,8 +45,12 @@ public class YTreeBuilder implements YTreeConsumer {
     }
 
     protected abstract static class AbstractMapBuilder extends State {
-        private final Map<String, YTreeNode> map = new LinkedHashMap<>();
+        private final Map<String, YTreeNode> map;
         private String nextKey;
+
+        protected AbstractMapBuilder(Supplier<Map<String, YTreeNode>> mapSupplier) {
+            this.map = mapSupplier.get();
+        }
 
         @Override
         public void onKeyedItem(String key) {
@@ -74,8 +81,12 @@ public class YTreeBuilder implements YTreeConsumer {
         }
     }
 
-    protected static class AbstractListBuilder extends State {
-        private final List<YTreeNode> list = new ArrayList<>();
+    protected abstract static class AbstractListBuilder extends State {
+        private final List<YTreeNode> list;
+
+        protected AbstractListBuilder(Supplier<List<YTreeNode>> listSupplier) {
+            this.list = listSupplier.get();
+        }
 
         @Override
         public void onListItem() {
@@ -97,6 +108,10 @@ public class YTreeBuilder implements YTreeConsumer {
     }
 
     protected static class AttributesBuilder extends AbstractMapBuilder {
+        public AttributesBuilder(Supplier<Map<String, YTreeNode>> mapSupplier) {
+            super(mapSupplier);
+        }
+
         @Override
         public Map<String, YTreeNode> onEndAttributes() {
             return finishMap();
@@ -106,7 +121,8 @@ public class YTreeBuilder implements YTreeConsumer {
     protected static class MapBuilder extends AbstractMapBuilder {
         private final Map<String, YTreeNode> attributes;
 
-        public MapBuilder(Map<String, YTreeNode> attributes) {
+        public MapBuilder(Supplier<Map<String, YTreeNode>> mapSupplier, Map<String, YTreeNode> attributes) {
+            super(mapSupplier);
             this.attributes = attributes;
         }
 
@@ -124,7 +140,8 @@ public class YTreeBuilder implements YTreeConsumer {
     protected static class ListBuilder extends AbstractListBuilder {
         private final Map<String, YTreeNode> attributes;
 
-        public ListBuilder(Map<String, YTreeNode> attributes) {
+        public ListBuilder(Supplier<List<YTreeNode>> listSupplier, Map<String, YTreeNode> attributes) {
+            super(listSupplier);
             this.attributes = attributes;
         }
 
@@ -150,6 +167,22 @@ public class YTreeBuilder implements YTreeConsumer {
         public YTreeNode result() {
             return value;
         }
+    }
+
+    /**
+     * Use a specific Map implementation supplier (e.g. LinkedHashMap::new for preserving key order)
+     */
+    public YTreeBuilder setMapSupplier(Supplier<Map<String, YTreeNode>> mapSupplier) {
+        this.mapSupplier = mapSupplier;
+        return this;
+    }
+
+    /**
+     * Use a specific List implementation supplier
+     */
+    public YTreeBuilder setListSupplier(Supplier<List<YTreeNode>> listSupplier) {
+        this.listSupplier = listSupplier;
+        return this;
     }
 
     protected boolean isEmpty() {
@@ -238,7 +271,7 @@ public class YTreeBuilder implements YTreeConsumer {
 
     @Override
     public void onBeginList() {
-        push(new ListBuilder(takeAttributes()));
+        push(new ListBuilder(listSupplier, takeAttributes()));
     }
 
     @Override
@@ -253,7 +286,7 @@ public class YTreeBuilder implements YTreeConsumer {
 
     @Override
     public void onBeginMap() {
-        push(new MapBuilder(takeAttributes()));
+        push(new MapBuilder(mapSupplier, takeAttributes()));
     }
 
     @Override
@@ -271,7 +304,7 @@ public class YTreeBuilder implements YTreeConsumer {
         if (currentAttributes != null) {
             throw new IllegalStateException("Cannot build multiple consecutive attribute blocks");
         }
-        push(new AttributesBuilder());
+        push(new AttributesBuilder(mapSupplier));
     }
 
     @Override
