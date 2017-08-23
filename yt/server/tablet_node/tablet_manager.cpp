@@ -244,7 +244,7 @@ public:
                 NTabletClient::EErrorCode::NoSuchTablet,
                 "No such tablet %v",
                 id)
-                << TErrorAttribute("tablet_id", tablet->GetId());
+                << TErrorAttribute("tablet_id", id);
         }
         return tablet;
     }
