@@ -540,8 +540,13 @@ private:
 
 std::pair<IConnectionPtr, IConnectionPtr> CreateConnectionPair(const IPollerPtr& poller)
 {
+    int flags = SOCK_STREAM;
+#ifdef _linux_
+    flags |= SOCK_NONBLOCK | SOCK_CLOEXEC;
+#endif
+
     int fds[2];
-    if (HandleEintr(::socketpair, AF_LOCAL, SOCK_NONBLOCK | SOCK_CLOEXEC | SOCK_STREAM, 0, fds) == -1) {
+    if (HandleEintr(::socketpair, AF_LOCAL, flags, 0, fds) == -1) {
         THROW_ERROR_EXCEPTION("Failed to create socket pair")
             << TError::FromSystem();
     }
