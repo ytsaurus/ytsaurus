@@ -243,7 +243,8 @@ public:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::NoSuchTablet,
                 "No such tablet %v",
-                id);
+                id)
+                << TErrorAttribute("tablet_id", tablet->GetId());
         }
         return tablet;
     }
@@ -2852,7 +2853,8 @@ private:
                 NTabletClient::EErrorCode::TabletNotMounted,
                 "Tablet %v is not in %Qlv state",
                 tablet->GetId(),
-                ETabletState::Mounted);
+                ETabletState::Mounted)
+                << TErrorAttribute("tablet_id", tablet->GetId());
         }
     }
 
