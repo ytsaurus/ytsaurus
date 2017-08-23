@@ -264,6 +264,7 @@ public:
 
         for (auto errCode : retriableCodes) {
             if (auto retriableError = error.FindMatching(errCode)) {
+                // COMPAT(savrus) Not all above exceptions had tablet_id attribute in early 19.2 versions.
                 auto tabletId = retriableError->Attributes().Find<TTabletId>("tablet_id");
                 if (!tabletId) {
                     continue;
