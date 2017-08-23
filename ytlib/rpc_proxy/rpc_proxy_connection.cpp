@@ -135,6 +135,7 @@ void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)
             ActionQueue_->GetInvoker(),
             BIND(&TRpcProxyConnection::OnPing, MakeWeak(this)),
             Config_->PingPeriod);
+        PingExecutor_->Start();
     }
 }
 
