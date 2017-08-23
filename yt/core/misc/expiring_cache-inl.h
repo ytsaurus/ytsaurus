@@ -148,10 +148,13 @@ TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TK
 }
 
 template <class TKey, class TValue>
-bool TExpiringCache<TKey, TValue>::TryRemove(const TKey& key)
+void TExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
-    return Map_.erase(key) != 0;
+    auto it = Map_.find(key);
+    if (it != Map_.end() && it->second->Promise.IsSet()) {
+        Map_.erase(it);
+    }
 }
 
 template <class TKey, class TValue>
