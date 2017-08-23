@@ -83,9 +83,7 @@ void TClientBase::Remove(
 
 bool TClientBase::Exists(const TYPath& path)
 {
-    THttpHeader header("GET", "exists");
-    header.SetParameters(NDetail::SerializeParamsForExists(TransactionId_, path));
-    return ParseBoolFromResponse(RetryRequest(Auth_, header));
+    return NYT::NDetail::Exists(Auth_, TransactionId_, path);
 }
 
 TNode TClientBase::Get(
@@ -146,10 +144,7 @@ TNodeId TClientBase::Link(
     const TYPath& linkPath,
     const TLinkOptions& options)
 {
-    THttpHeader header("POST", "link");
-    header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForLink(TransactionId_, targetPath, linkPath, options));
-    return ParseGuidFromResponse(RetryRequest(Auth_, header));
+    return NYT::NDetail::Link(Auth_, TransactionId_, targetPath, linkPath, options);
 }
 
 void TClientBase::Concatenate(
@@ -498,11 +493,7 @@ ILockPtr TTransaction::Lock(
     ELockMode mode,
     const TLockOptions& options)
 {
-    THttpHeader header("POST", "lock");
-    header.AddMutationId();
-    header.SetParameters(NDetail::SerializeParamsForLock(TransactionId_, path, mode, options));
-
-    auto lockId = ParseGuidFromResponse(RetryRequest(Auth_, header));
+    auto lockId = NYT::NDetail::Lock(Auth_, TransactionId_, path, mode, options);
     if (options.Waitable_) {
         return ::MakeIntrusive<TLock>(lockId, GetParentClient());
     } else {
