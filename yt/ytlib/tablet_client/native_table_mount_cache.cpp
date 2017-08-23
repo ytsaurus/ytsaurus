@@ -264,10 +264,13 @@ public:
 
         for (auto errCode : retriableCodes) {
             if (auto retriableError = error.FindMatching(errCode)) {
-                auto tabletId = retriableError->Attributes().Get<TTabletId>("tablet_id");
-                auto tabletInfo = FindTablet(tabletId);
+                auto tabletId = retriableError->Attributes().Find<TTabletId>("tablet_id");
+                if (!tabletId) {
+                    continue;
+                }
+                auto tabletInfo = FindTablet(*tabletId);
                 if (tabletInfo) {
-                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", tabletId);
+                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
                     InvalidateTablet(tabletInfo);
                 }
                 return std::make_pair(true, tabletInfo);
