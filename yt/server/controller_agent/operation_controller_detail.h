@@ -145,7 +145,6 @@ private: \
 
     IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
     IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
-    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
 
     IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker), true)
     IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<NScheduler::TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
@@ -187,6 +186,10 @@ public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
     // If some of these methods still fails due to unnoticed YCHECK, consider
     // moving it to the section above.
+
+    // NB(max42): Don't make Revive safe! It may lead to either destroying all
+    // operations on a cluster, or to a scheduler crash.
+    virtual void Revive() override;
 
     virtual void Initialize() override;
     virtual TOperationControllerInitializeResult GetInitializeResult() const override;
