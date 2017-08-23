@@ -256,25 +256,27 @@ public:
 
     virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) override
     {
-        std::vector<NTabletClient::EErrorCode> retriableCodes = {
-            NTabletClient::EErrorCode::NoSuchTablet,
-            NTabletClient::EErrorCode::TabletNotMounted,
-            NTabletClient::EErrorCode::InvalidMountRevision
-        };
+        if (!error.IsOK()) {
+            std::vector<NTabletClient::EErrorCode> retriableCodes = {
+                NTabletClient::EErrorCode::NoSuchTablet,
+                NTabletClient::EErrorCode::TabletNotMounted,
+                NTabletClient::EErrorCode::InvalidMountRevision
+            };
 
-        for (auto errCode : retriableCodes) {
-            if (auto retriableError = error.FindMatching(errCode)) {
-                // COMPAT(savrus) Not all above exceptions had tablet_id attribute in early 19.2 versions.
-                auto tabletId = retriableError->Attributes().Find<TTabletId>("tablet_id");
-                if (!tabletId) {
-                    continue;
+            for (auto errCode : retriableCodes) {
+                if (auto retriableError = error.FindMatching(errCode)) {
+                    // COMPAT(savrus) Not all above exceptions had tablet_id attribute in early 19.2 versions.
+                    auto tabletId = retriableError->Attributes().Find<TTabletId>("tablet_id");
+                    if (!tabletId) {
+                        continue;
+                    }
+                    auto tabletInfo = FindTablet(*tabletId);
+                    if (tabletInfo) {
+                        LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
+                        InvalidateTablet(tabletInfo);
+                    }
+                    return std::make_pair(true, tabletInfo);
                 }
-                auto tabletInfo = FindTablet(*tabletId);
-                if (tabletInfo) {
-                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
-                    InvalidateTablet(tabletInfo);
-                }
-                return std::make_pair(true, tabletInfo);
             }
         }
 
