@@ -295,8 +295,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         keys = [{"key": i % 2} for i in xrange(10)]
         expected = [{"key": i % 2, "value": str(i % 2)} for i in xrange(10)]
-
         assert lookup_rows("//tmp/t", keys) == expected
+
+        expected = [{"value": str(i % 2)} for i in xrange(10)]
+        assert lookup_rows("//tmp/t", keys, column_names=["value"]) == expected
 
     def test_lookup_versioned(self):
         self.sync_create_cells(1)
