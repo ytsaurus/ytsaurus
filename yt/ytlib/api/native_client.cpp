@@ -1520,11 +1520,11 @@ private:
         return replicaConnection->CreateClient(Options_);
     }
 
-    void RemapValueIds(TSharedRange<TVersionedRow> rows, const std::vector<int>& mapping)
+    void RemapValueIds(TVersionedRow /*row*/, std::vector<TTypeErasedRow>& rows, const std::vector<int>& mapping)
     {
-        auto mutableRows = ReinterpretCastRange<TMutableVersionedRow>(rows);
-
-        for (auto row : mutableRows) {
+        auto* begin = reinterpret_cast<TMutableVersionedRow*>(&rows[0]);
+        for (int rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+            auto row = begin[rowIndex];
             if (!row) {
                 continue;
             }
@@ -1542,11 +1542,11 @@ private:
 
     }
 
-    void RemapValueIds(TSharedRange<TUnversionedRow> rows, const std::vector<int>& mapping)
+    void RemapValueIds(TUnversionedRow /*row*/, std::vector<TTypeErasedRow>& rows, const std::vector<int>& mapping)
     {
-        auto mutableRows = ReinterpretCastRange<TMutableUnversionedRow>(rows);
-
-        for (auto row : mutableRows) {
+        auto* begin = reinterpret_cast<TMutableUnversionedRow*>(&rows[0]);
+        for (int rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+            auto row = begin[rowIndex];
             if (!row) {
                 continue;
             }
@@ -1689,6 +1689,11 @@ private:
             session->ParseResponse(outputRowBuffer, &uniqueResultRows);
         }
 
+        if (!remappedColumnFilter.All) {
+            auto mapping = BuildResponseIdMaping(remappedColumnFilter);
+            RemapValueIds(TRow(), uniqueResultRows, mapping);
+        }
+
         std::vector<TTypeErasedRow> resultRows;
         resultRows.resize(keys.Size());
 
@@ -1708,11 +1713,6 @@ private:
         }
 
         auto rowRange = ReinterpretCastRange<TRow>(MakeSharedRange(std::move(resultRows), outputRowBuffer));
-        if (!remappedColumnFilter.All) {
-            auto mapping = BuildResponseIdMaping(remappedColumnFilter);
-            RemapValueIds(rowRange, mapping);
-        }
-
         return CreateRowset(resultSchema, std::move(rowRange));
     }
 
