@@ -633,7 +633,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
     if (key == "user_attribute_keys") {
         std::vector<TAttributeDescriptor> systemAttributes;
-        ListSystemAttributes(&systemAttributes);
+        ReserveAndListSystemAttributes(&systemAttributes);
 
         auto customAttributes = GetCustomAttributes()->List();
         yhash_set<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
@@ -1343,8 +1343,9 @@ TIntrusivePtr<ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsCompo
 
 void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    descriptors->push_back("count");
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);
+
+    descriptors->push_back("count");
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
