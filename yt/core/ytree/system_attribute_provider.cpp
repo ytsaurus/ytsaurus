@@ -41,7 +41,7 @@ TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvid
     const TString& key)
 {
     std::vector<TAttributeDescriptor> builtinAttributes;
-    ReserveAndListSystemAttributes(&builtinAttributes);
+    ListBuiltinAttributes(&builtinAttributes);
 
     auto it = std::find_if(
         builtinAttributes.begin(),
