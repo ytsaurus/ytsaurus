@@ -57,7 +57,7 @@ public:
                 dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio), (i64)1);
             }
 
-            if (IsSmallForeignRatio() || Spec_->ConsiderOnlyPrimarySize) {
+            if (IsSmallForeignRatio()) {
                 // Since foreign tables are quite small, we use primary table to estimate job count.
                 JobCount_ = std::max(
                     DivCeil(PrimaryInputDataWeight_, dataWeightPerJob),
@@ -105,9 +105,7 @@ public:
 
     virtual i64 GetDataWeightPerJob() const override
     {
-        if (Spec_->ConsiderOnlyPrimarySize) {
-            return std::numeric_limits<i64>::max();
-        } else if (JobCount_ == 0 ){
+        if (JobCount_ == 0 ){
             return 1;
         } else if (IsSmallForeignRatio()) {
             return std::min(

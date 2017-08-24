@@ -924,6 +924,23 @@ print row + table_index
         assert get("//tmp/t_output/@sorted_by") == ["key"]
         assert read_table("//tmp/t_output") == original_data
 
+    # This is a really strange case that was added after YT-7507.
+    def test_ordered_map_job_count_consider_only_primary_size(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        for i in xrange(20):
+            write_table("<append=true>//tmp/t_input", [{"a": "x" * 1024 * 1024}])
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            ordered=True,
+            command="cat >/dev/null; echo stderr 1>&2",
+            spec={"job_count":10, "consider_only_primary_size": True})
+
+        jobs = get("//sys/operations/" + op.id + "/jobs/@count")
+        assert jobs == 10
+
     # ToDo(psushin): uncomment and use parameter after YT-7064.
     # @pytest.mark.parametrize("ordered", [False, True])
     def test_map_job_splitter(self):

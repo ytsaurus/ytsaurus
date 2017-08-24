@@ -284,7 +284,7 @@ protected:
                         Options_,
                         OutputTables_.size(),
                         DataWeightRatio,
-                        PrimaryInputDataWeight + ForeignInputDataWeight);
+                        PrimaryInputDataWeight);
             }
         };
 
