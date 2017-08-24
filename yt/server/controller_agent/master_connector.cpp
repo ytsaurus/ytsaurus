@@ -456,6 +456,7 @@ private:
             req->set_value(progress.GetData());
             batchReq->AddRequest(req, "update_op_node");
         }
+
         // Set brief progress.
         {
             auto progress = controller->GetBriefProgress();
