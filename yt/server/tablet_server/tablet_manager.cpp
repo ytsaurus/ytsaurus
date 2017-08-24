@@ -1138,8 +1138,7 @@ public:
                             serializedMountConfig,
                             serializedReaderConfig,
                             serializedWriterConfig,
-                            serializedWriterOptions,
-                            Null);
+                            serializedWriterOptions);
 
                         break;
                     }
@@ -1256,7 +1255,7 @@ public:
         int lastTabletIndex,
         TTabletCell* hintCell,
         bool freeze,
-        TNullable<TTimestamp> mountTimestamp)
+        TTimestamp mountTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
@@ -1383,8 +1382,7 @@ public:
             serializedMountConfig,
             serializedReaderConfig,
             serializedWriterConfig,
-            serializedWriterOptions,
-            Null);
+            serializedWriterOptions);
     }
 
     void DoMountTablets(
@@ -1396,7 +1394,7 @@ public:
         const TYsonString& serializedReaderConfig,
         const TYsonString& serializedWriterConfig,
         const TYsonString& serializedWriterOptions,
-        TNullable<TTimestamp> mountTimestamp)
+        TTimestamp mountTimestamp = NullTimestamp)
     {
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1421,8 +1419,8 @@ public:
 
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
-            if (mountTimestamp) {
-                tablet->NodeStatistics().set_unflushed_timestamp(*mountTimestamp);
+            if (mountTimestamp != NullTimestamp) {
+                tablet->NodeStatistics().set_unflushed_timestamp(mountTimestamp);
             }
 
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
@@ -4358,7 +4356,7 @@ void TTabletManager::MountTable(
     int lastTabletIndex,
     TTabletCell* hintCell,
     bool freeze,
-    TNullable<TTimestamp> mountTimestamp)
+    TTimestamp mountTimestamp)
 {
     Impl_->MountTable(
         table,
