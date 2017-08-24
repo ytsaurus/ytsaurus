@@ -49,8 +49,8 @@ TEST_F(TAstFormatTest, Reference)
 {
     EXPECT_EQ("column", FormatReference(TReference(TString("column"))));
     EXPECT_EQ("table.column", FormatReference(TReference(TString("column"), TString("table"))));
-    EXPECT_EQ("[my.column]", FormatReference(TReference(TString("my.column"))));
-    EXPECT_EQ("table.[my.column]", FormatReference(TReference(TString("my.column"), TString("table"))));
+    EXPECT_EQ("my.column", FormatReference(TReference(TString("my.column"))));
+    EXPECT_EQ("table.my.column", FormatReference(TReference(TString("my.column"), TString("table"))));
 }
 
 TEST_F(TAstFormatTest, LiteralValue)
@@ -108,6 +108,11 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("f(a, b)");
     TestExpression("f(a, b, c)");
     TestExpression("(a + 1 as x) * x");
+    TestExpression("[a]");
+    TestExpression("[t.a]");
+    TestExpression("t.[a]");
+    TestExpression("[t.a] + b");
+    TestExpression("t.[a] + b");
 }
 
 TEST_F(TAstFormatTest, Query)

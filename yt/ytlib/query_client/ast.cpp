@@ -288,7 +288,7 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
     if (auto* typedExpr = expr.As<NAst::TLiteralExpression>()) {
         builder->AppendString(NAst::FormatLiteralValue(typedExpr->Value));
     } else if (auto* typedExpr = expr.As<NAst::TReferenceExpression>()) {
-        builder->AppendString(NAst::FormatReference(typedExpr->Reference));
+        NAst::FormatReference(builder, typedExpr->Reference);
     } else if (auto* typedExpr = expr.As<NAst::TAliasExpression>()) {
         if (expandAliases) {
             builder->AppendChar('(');
@@ -400,7 +400,7 @@ void FormatQuery(TStringBuilder* builder, const NAst::TQuery& query)
                 join.Fields.begin(),
                 join.Fields.end(),
                 [] (TStringBuilder* builder, const NAst::TReferenceExpressionPtr& referenceExpr) {
-                    builder->AppendString(NAst::FormatReference(referenceExpr->Reference));
+                     NAst::FormatReference(builder, referenceExpr->Reference);
                 });
         }
         if (join.Predicate) {
@@ -467,7 +467,11 @@ TString FormatId(const TStringBuf& id)
 TString FormatReference(const TReference& ref)
 {
     TStringBuilder builder;
-    FormatReference(&builder, ref);
+    if (ref.TableName) {
+        builder.AppendString(*ref.TableName);
+        builder.AppendChar('.');
+    }
+    builder.AppendString(ref.ColumnName);
     return builder.Flush();
 }
 
