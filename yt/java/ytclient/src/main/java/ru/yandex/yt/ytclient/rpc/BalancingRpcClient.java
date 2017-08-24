@@ -122,6 +122,15 @@ public class BalancingRpcClient implements RpcClient {
         }
     }
 
+    public RpcClient getAliveClient() {
+        List<BalancingDestination> r = selectDestinations(dataCenters, 1, localDataCenter != null, rnd);
+        if (r.isEmpty()) {
+            return null;
+        } else {
+            return r.get(0).getClient();
+        }
+    }
+
     static List<BalancingDestination> selectDestinations(DataCenter [] dataCenters, int maxSelect, boolean hasLocal, Random rnd) {
         List<BalancingDestination> r = new ArrayList<>();
 
