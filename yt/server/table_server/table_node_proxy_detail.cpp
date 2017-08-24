@@ -135,6 +135,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
+    descriptors->push_back(TAttributeDescriptor("disable_tablet_balancer")
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
     descriptors->push_back(TAttributeDescriptor("min_tablet_size")
         .SetWritable(true)
         .SetRemovable(true)
@@ -341,6 +345,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
         return true;
     }
 
+    if (key == "disable_tablet_balancer" && static_cast<bool>(trunkTable->GetEnableTabletBalancer())) {
+        BuildYsonFluently(consumer)
+            .Value(!*trunkTable->GetEnableTabletBalancer());
+        return true;
+    }
+
     if (key == "min_tablet_size" && static_cast<bool>(trunkTable->GetMinTabletSize())) {
         BuildYsonFluently(consumer)
             .Value(*trunkTable->GetMinTabletSize());
@@ -388,7 +398,6 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(const TString& key)
         return true;
     }
 
-    // COMPAT(savrus)
     if (key == "disable_tablet_balancer") {
         auto* lockedTable = LockThisImpl();
         lockedTable->SetEnableTabletBalancer(Null);
@@ -479,7 +488,6 @@ bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString&
         return true;
     }
 
-    // COMPAT(savrus)
     if (key == "disable_tablet_balancer") {
         auto* lockedTable = LockThisImpl();
         lockedTable->SetEnableTabletBalancer(!ConvertTo<bool>(value));

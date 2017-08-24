@@ -250,7 +250,7 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
 void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
 {
     //COMPAT(savrus)
-    if (context.GetVersion() < 615) {
+    if (context.GetVersion() < 616) {
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
 
@@ -272,11 +272,15 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
                 }
             };
             static const TString disableTabletBalancerAttributeName("disable_tablet_balancer");
+            static const TString enableTabletBalancerAttributeName("enable_tablet_balancer");
             static const TString minTabletSizeAttributeName("min_tablet_size");
             static const TString maxTabletSizeAttributeName("max_tablet_size");
             static const TString desiredTabletSizeAttributeName("desired_tablet_size");
             processAttribute(disableTabletBalancerAttributeName, [&] (const TYsonString& val) {
                 SetEnableTabletBalancer(!ConvertTo<bool>(val));
+            });
+            processAttribute(enableTabletBalancerAttributeName, [&] (const TYsonString& val) {
+                SetEnableTabletBalancer(ConvertTo<bool>(val));
             });
             processAttribute(minTabletSizeAttributeName, [&] (const TYsonString& val) {
                 SetMinTabletSize(ConvertTo<i64>(val));
