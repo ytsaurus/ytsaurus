@@ -50,7 +50,7 @@ public:
         int lastTabletIndex,
         TTabletCell* hintCell,
         bool freeze,
-        TNullable<NTransactionClient::TTimestamp> mountTimestamp);
+        NTransactionClient::TTimestamp mountTimestamp);
 
     void UnmountTable(
         NTableServer::TTableNode* table,
