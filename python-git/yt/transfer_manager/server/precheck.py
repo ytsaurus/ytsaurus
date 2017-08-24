@@ -49,12 +49,16 @@ def perform_precheck(task, clusters_configuration, logger):
             raise yt.YtError("User {0} has no permission to write to {1}. Make sure correct token is "
                              "supplied and ACLs are correctly configured".format(destination_user, destination_dir))
 
-    if destination_client._type == "yt" and destination_exists and source_client._type == "yt":
+    if source_client._type == "yt":
         src_type = source_client.get(yt.TablePath(task.source_table, client=source_client) + "/@type")
-        dst_type = destination_client.get(yt.TablePath(task.destination_table, client=destination_client) + "/@type")
-        if src_type != dst_type:
-            raise yt.YtError("Source '{0}' and destination '{1}' "
-                             "must have the same type".format(task.source_table, task.destination_table))
+        if src_type not in ["table", "file"]:
+            raise yt.YtError('Unsupported source node type. Only "table" and "file" nodes can be copied')
+
+        if destination_client._type == "yt" and destination_exists:
+            dst_type = destination_client.get(yt.TablePath(task.destination_table, client=destination_client) + "/@type")
+            if src_type != dst_type:
+                raise yt.YtError("Source '{0}' and destination '{1}' "
+                                 "must have the same type".format(task.source_table, task.destination_table))
 
     if destination_client._type == "kiwi" and clusters_configuration.kiwi_transmitter is None:
         raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
