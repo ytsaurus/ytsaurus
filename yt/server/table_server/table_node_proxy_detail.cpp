@@ -665,13 +665,17 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
     int lastTabletIndex = request->last_tablet_index();
     auto cellId = FromProto<TTabletCellId>(request->cell_id());
     bool freeze = request->freeze();
+    TNullable<TTimestamp> mountTimestamp = request->has_mount_timestamp()
+        ? MakeNullable(static_cast<TTimestamp>(request->mount_timestamp()))
+        : Null;
 
     context->SetRequestInfo(
-        "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v",
+        "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v, MountTimestamp: %v",
         firstTabletIndex,
         lastTabletIndex,
         cellId,
-        freeze);
+        freeze,
+        mountTimestamp);
 
     ValidateNotExternal();
     ValidateNoTransaction();
@@ -691,7 +695,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
         firstTabletIndex,
         lastTabletIndex,
         cell,
-        freeze);
+        freeze,
+        mountTimestamp);
 
     context->Reply();
 }

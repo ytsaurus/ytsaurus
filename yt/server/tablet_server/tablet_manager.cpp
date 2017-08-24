@@ -62,8 +62,6 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
-
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/address.h>
@@ -1140,7 +1138,8 @@ public:
                             serializedMountConfig,
                             serializedReaderConfig,
                             serializedWriterConfig,
-                            serializedWriterOptions);
+                            serializedWriterOptions,
+                            Null);
 
                         break;
                     }
@@ -1256,7 +1255,8 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCell* hintCell,
-        bool freeze)
+        bool freeze,
+        TNullable<TTimestamp> mountTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
@@ -1348,7 +1348,8 @@ public:
             serializedMountConfig,
             serializedReaderConfig,
             serializedWriterConfig,
-            serializedWriterOptions);
+            serializedWriterOptions,
+            mountTimestamp);
     }
 
     void DoMountTablet(
@@ -1382,7 +1383,8 @@ public:
             serializedMountConfig,
             serializedReaderConfig,
             serializedWriterConfig,
-            serializedWriterOptions);
+            serializedWriterOptions,
+            Null);
     }
 
     void DoMountTablets(
@@ -1393,7 +1395,8 @@ public:
         const TYsonString& serializedMountConfig,
         const TYsonString& serializedReaderConfig,
         const TYsonString& serializedWriterConfig,
-        const TYsonString& serializedWriterOptions)
+        const TYsonString& serializedWriterOptions,
+        TNullable<TTimestamp> mountTimestamp)
     {
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1401,7 +1404,6 @@ public:
         const auto nodeProxy = cypressManager->GetNodeProxy(table);
         TYPath path = nodeProxy->GetPath();
         const auto& allTablets = table->Tablets();
-        auto mountTimestamp = Bootstrap_->GetTimestampProvider()->GetLatestTimestamp();
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
             auto* cell = pair.second;
@@ -1419,7 +1421,9 @@ public:
 
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
-            tablet->NodeStatistics().set_unflushed_timestamp(mountTimestamp);
+            if (mountTimestamp) {
+                tablet->NodeStatistics().set_unflushed_timestamp(*mountTimestamp);
+            }
 
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
 
@@ -4353,14 +4357,16 @@ void TTabletManager::MountTable(
     int firstTabletIndex,
     int lastTabletIndex,
     TTabletCell* hintCell,
-    bool freeze)
+    bool freeze,
+    TNullable<TTimestamp> mountTimestamp)
 {
     Impl_->MountTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
         hintCell,
-        freeze);
+        freeze,
+        mountTimestamp);
 }
 
 void TTabletManager::UnmountTable(
