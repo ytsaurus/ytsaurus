@@ -229,7 +229,7 @@ TMapOperationOptions::TMapOperationOptions()
         .DefaultNew();
 
     RegisterInitializer([&] () {
-        DataWeightPerJob = (i64) 128 * MB;
+        DataWeightPerJob = 128 * MB;
     });
 }
 
@@ -241,7 +241,7 @@ TReduceOperationOptions::TReduceOperationOptions()
         .DefaultNew();
 
     RegisterInitializer([&] () {
-        DataWeightPerJob = (i64) 128 * MB;
+        DataWeightPerJob = 128 * MB;
     });
 }
 
@@ -661,13 +661,13 @@ TSchedulerConfig::TSchedulerConfig()
         EventLog->MaxRowWeight = 128 * MB;
 
         // Value in options is an upper bound hint on uncompressed data size for merge jobs.
-        OrderedMergeOperationOptions->DataWeightPerJob = (i64)20 * 1024 * 1024 * 1024;
+        OrderedMergeOperationOptions->DataWeightPerJob = 20 * GB;
         OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
 
-        SortedMergeOperationOptions->DataWeightPerJob = (i64)20 * 1024 * 1024 * 1024;
+        SortedMergeOperationOptions->DataWeightPerJob = 20 * GB;
         SortedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
 
-        UnorderedMergeOperationOptions->DataWeightPerJob = (i64)20 * 1024 * 1024 * 1024;
+        UnorderedMergeOperationOptions->DataWeightPerJob = 20 * GB;
         UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
     });
 
