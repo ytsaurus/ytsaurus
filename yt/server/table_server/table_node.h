@@ -95,6 +95,7 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
     void LoadPre609(NCellMaster::TLoadContext& context);
+    void LoadCompatAfter609(NCellMaster::TLoadContext& context);
 
     typedef TTabletList::const_iterator TTabletListIterator;
     std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
