@@ -70,17 +70,11 @@ using NYT::ToProto;
 using NYT::FromProto;
 using NYT::TRange;
 
-static const i64 PartitionRowCountThreshold = (i64)1000 * 1000;
+static const i64 PartitionRowCountThreshold = 1000 * 1000;
 static const i64 PartitionRowCountLimit = std::numeric_limits<i32>::max() - PartitionRowCountThreshold;
+static const i64 MinRowRangeDataWeight = 64 * KB;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-const i64 MinRowRangeDataWeight = (i64) 64 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkTimestamps::TChunkTimestamps()
-{ }
 
 TChunkTimestamps::TChunkTimestamps(TTimestamp minTimestamp, TTimestamp maxTimestamp)
     : MinTimestamp(minTimestamp)

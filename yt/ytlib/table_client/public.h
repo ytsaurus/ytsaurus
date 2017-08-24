@@ -56,12 +56,12 @@ const int MaxColumnGroupLength = 256;
 // Only for dynamic tables.
 const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
-const i64 MaxStringValueLength = (i64) 16 * 1024 * 1024;
-const i64 MaxAnyValueLength = (i64) 16 * 1024 * 1024;
+const i64 MaxStringValueLength = 16 * MB;
+const i64 MaxAnyValueLength = 16 * MB;
 
 // Only for static tables.
-const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
-const i64 MaxKeyWeightLimit = (i64) 256 * 1024;
+const i64 MaxRowWeightLimit = 128 * MB;
+const i64 MaxKeyWeightLimit = 256 * KB;
 
 // NB(psushin): increasing this parameter requires rewriting all chunks,
 // so one probaly should never want to do it.
