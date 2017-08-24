@@ -300,8 +300,6 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
         .Alias("data_size_per_job")
         .Default()
         .GreaterThan(0);
-    RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
-        .Default(false);
     RegisterParameter("job_count", JobCount)
         .Default()
         .GreaterThan(0);
@@ -422,6 +420,8 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
         .NonEmpty();
     RegisterParameter("output_table_paths", OutputTablePaths)
         .NonEmpty();
+    RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
+        .Default(false);
 
     RegisterValidator([&] () {
         if (!JoinBy.empty()) {

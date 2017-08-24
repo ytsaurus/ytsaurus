@@ -301,7 +301,7 @@ protected:
                         DataWeightRatio,
                         PrimaryInputDataWeight,
                         std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
-                        ForeignInputDataWeight);
+                        GetForeignInputDataWeight());
             }
         };
 
@@ -429,6 +429,8 @@ protected:
     virtual void AdjustKeyColumns() = 0;
 
     virtual i64 GetUserJobMemoryReserve() const = 0;
+
+    virtual i64 GetForeignInputDataWeight() const = 0;
 
     virtual void PrepareOutputTables() override
     {
@@ -711,6 +713,11 @@ public:
         }
     }
 
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return 0;
+    }
+
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
@@ -921,6 +928,11 @@ public:
     virtual bool IsOutputLivePreviewSupported() const override
     {
         return true;
+    }
+
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
 protected:
@@ -1169,6 +1181,11 @@ public:
         if (GetOutputTeleportTableIndex()) {
             THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
         }
+    }
+
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
 protected:
