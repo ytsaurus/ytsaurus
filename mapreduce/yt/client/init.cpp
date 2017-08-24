@@ -77,7 +77,7 @@ void Initialize(int argc, const char* argv[])
 
     THolder<IInputStream> jobStateStream;
     if (hasState) {
-        jobStateStream = new TFileInput("jobstate");
+        jobStateStream = new TIFStream("jobstate");
     } else {
         jobStateStream = new TBufferStream(0);
     }
