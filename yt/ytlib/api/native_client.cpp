@@ -71,6 +71,7 @@
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 #include <yt/ytlib/tablet_client/table_replica_ypath.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/core/compression/codec.h>
@@ -1931,6 +1932,10 @@ private:
             ToProto(req->mutable_cell_id(), options.CellId);
         }
         req->set_freeze(options.Freeze);
+
+        auto mountTimestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+        req->set_mount_timestamp(mountTimestamp);
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
