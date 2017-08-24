@@ -28,9 +28,12 @@ def compress(task):
 
         temp_table = yt.create_temp_table(prefix="compress")
         try:
+            # Saving expiration time of temp table since it will be removed
+            expiration_time = yt.get(temp_table + "/@expiration_time")
             # To copy all attributes of node
             yt.remove(temp_table)
             yt.copy(table, temp_table, preserve_account=True)
+            yt.set(temp_table + "/@expiration_time", expiration_time)
             yt.run_erase(temp_table)
 
             transformed = yt.transform(table,
