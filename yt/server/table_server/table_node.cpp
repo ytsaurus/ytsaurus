@@ -21,6 +21,8 @@ using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTabletServer;
 
+static auto const& Logger = TableServerLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
@@ -172,6 +174,9 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
+
+    // NB: All COMPAT's after version 609 should be in this function.
+    LoadCompatAfter609(context);
 }
 
 void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
@@ -238,8 +243,13 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
         DynamicTableAttributes_ = std::move(dynamic);
     }
 
+    LoadCompatAfter609(context);
+}
+
+void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
+{
     //COMPAT(savrus)
-    if (context.GetVersion() < 614) {
+    if (context.GetVersion() < 615) {
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
 
@@ -249,6 +259,10 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
             {
                 auto it = attributes.find(attributeName);
                 if (it != attributes.end()) {
+                    LOG_DEBUG("Change attriubte from custom to builtin (AttributeName: %Qv, AttributeValue: %Qv, TableId: %v)",
+                        attributeName,
+                        ConvertToYsonString(it->second, EYsonFormat::Text),
+                        Id_);
                     try {
                         functor(it->second);
                     } catch (...) {
