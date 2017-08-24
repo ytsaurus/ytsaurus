@@ -208,7 +208,7 @@ public:
 
     //! Returns the export data w.r.t. to a cell with a given #index.
     /*!
-     *  \see #TMultiCellManager::GetRegisteredMasterCellIndex
+     *  \see #TMulticellManager::GetRegisteredMasterCellIndex
      */
     const TChunkExportData& GetExportData(int cellIndex) const;
 
