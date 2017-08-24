@@ -1521,11 +1521,13 @@ private:
         return replicaConnection->CreateClient(Options_);
     }
 
-    void RemapValueIds(TVersionedRow /*row*/, std::vector<TTypeErasedRow>& rows, const std::vector<int>& mapping)
+    void RemapValueIds(
+        TVersionedRow /*row*/,
+        std::vector<TTypeErasedRow>& rows,
+        const std::vector<int>& mapping)
     {
-        auto* begin = reinterpret_cast<TMutableVersionedRow*>(&rows[0]);
-        for (int rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
-            auto row = begin[rowIndex];
+        for (auto untypedRow : rows) {
+            auto row = TMutableVersionedRow(untypedRow);
             if (!row) {
                 continue;
             }
@@ -1543,11 +1545,13 @@ private:
 
     }
 
-    void RemapValueIds(TUnversionedRow /*row*/, std::vector<TTypeErasedRow>& rows, const std::vector<int>& mapping)
+    void RemapValueIds(
+        TUnversionedRow /*row*/,
+        std::vector<TTypeErasedRow>& rows,
+        const std::vector<int>& mapping)
     {
-        auto* begin = reinterpret_cast<TMutableUnversionedRow*>(&rows[0]);
-        for (int rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
-            auto row = begin[rowIndex];
+        for (auto untypedRow : rows) {
+            auto row = TMutableUnversionedRow(untypedRow);
             if (!row) {
                 continue;
             }

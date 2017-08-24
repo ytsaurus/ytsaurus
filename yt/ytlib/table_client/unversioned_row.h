@@ -533,6 +533,10 @@ public:
         : TUnversionedRow(header)
     { }
 
+    explicit TMutableUnversionedRow(TTypeErasedRow row)
+        : TUnversionedRow(reinterpret_cast<const TUnversionedRowHeader*>(row.OpaqueHeader))
+    { }
+
     static TMutableUnversionedRow Allocate(
         TChunkedMemoryPool* pool,
         ui32 valueCount);
