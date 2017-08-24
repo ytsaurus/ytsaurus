@@ -85,7 +85,7 @@ void TConfig::ValidateToken(const TString& token)
 TString TConfig::LoadTokenFromFile(const TString& tokenPath)
 {
     TFsPath path(tokenPath);
-    return path.IsFile() ? Strip(TFileInput(~path).ReadAll()) : TString();
+    return path.IsFile() ? Strip(TIFStream(path).ReadAll()) : TString();
 }
 
 TNode TConfig::LoadJsonSpec(const TString& strSpec)

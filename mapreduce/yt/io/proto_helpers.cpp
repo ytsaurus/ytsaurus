@@ -57,7 +57,7 @@ yvector<const Descriptor*> GetJobDescriptors(const TString& fileName)
             "Cannot load '" << fileName << "' file";
     }
 
-    TFileInput input(fileName);
+    TIFStream input(fileName);
     TString line;
     while (input.ReadLine(line)) {
         const auto* pool = DescriptorPool::generated_pool();
