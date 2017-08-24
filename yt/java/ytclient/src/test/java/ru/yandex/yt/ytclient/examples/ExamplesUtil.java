@@ -67,8 +67,12 @@ public final class ExamplesUtil {
     }
 
     public static void runExample(Consumer<ApiServiceClient> consumer, String user, String token) {
+        runExample(consumer, user, token, YT_HOST);
+    }
+
+    public static void runExample(Consumer<ApiServiceClient> consumer, String user, String token, String host) {
         try (BusConnector connector = createConnector()) {
-            try (RpcClient rpcClient = createRpcClient(connector, user, token)) {
+            try (RpcClient rpcClient = createRpcClient(connector, user, token, host, YT_PORT)) {
                 ApiServiceClient serviceClient = new ApiServiceClient(rpcClient,
                         new RpcOptions().setDefaultTimeout(Duration.ofSeconds(5)));
                 consumer.accept(serviceClient);
