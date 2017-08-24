@@ -416,6 +416,7 @@ public:
                 replica->GetReplicaPath() == replicaPath)
             {
                 THROW_ERROR_EXCEPTION("Replica table %v at cluster %Qv already exists",
+                    NTabletClient::EErrorCode::TableReplicaAlreadyExists,
                     replicaPath,
                     clusterName);
             }

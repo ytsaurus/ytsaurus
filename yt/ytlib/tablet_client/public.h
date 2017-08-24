@@ -53,6 +53,7 @@ DEFINE_ENUM(EErrorCode,
     ((TabletNotMounted)         (1702))
     ((AllWritesDisabled)        (1703))
     ((InvalidMountRevision)     (1704))
+    ((TableReplicaAlreadyExists)(1705))
 );
 
 constexpr int TypicalPeerCount = 5;
