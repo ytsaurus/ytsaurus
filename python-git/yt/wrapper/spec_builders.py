@@ -478,10 +478,13 @@ class ReduceCombinerSpecBuilder(UserJobSpecBuilder):
         return self._end_script()
 
 class SpecBuilder(object):
-    def __init__(self, spec=None):
+    def __init__(self, user_job_scripts=None, job_io_types=None, spec=None):
         self._spec = {}
         if spec:
             self._spec = spec
+
+        self._user_job_scripts = get_value(user_job_scripts, [])
+        self._job_io_types = get_value(job_io_types, [])
 
         self._local_files_to_remove = []
         self._input_table_paths = []
@@ -584,7 +587,7 @@ class SpecBuilder(object):
         return spec
 
     def _apply_spec_patches(self, spec, spec_patches):
-        for user_job_script in ["mapper", "reducer", "reduce_combiner"]:
+        for user_job_script in self._user_job_scripts:
             if user_job_script in spec_patches:
                 spec.setdefault(user_job_script, UserJobSpecBuilder(job_name=user_job_script))
 
@@ -599,8 +602,7 @@ class SpecBuilder(object):
                 else:
                     spec[user_job_script] = update(user_job_spec, spec[user_job_script])
 
-        for job_io_type in ["job_io", "partition_job_io", "sort_job_io",
-                            "merge_job_io", "map_job_io", "reduce_job_io"]:
+        for job_io_type in self._job_io_types:
             if job_io_type in spec_patches:
                 spec.setdefault(job_io_type, JobIOSpecBuilder())
 
@@ -625,7 +627,9 @@ class SpecBuilder(object):
 
     def _prepare_spec(self, spec, client=None):
         spec = self._prepare_stderr_table(spec, client=client)
-        spec = self._build_job_io(spec, client=client)
+
+        for job_io_type in self._job_io_types:
+            spec = self._build_job_io(spec, job_io_type=job_io_type, client=client)
 
         started_by = get_started_by()
         spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
@@ -672,7 +676,10 @@ class SpecBuilder(object):
 
 class ReduceSpecBuilder(SpecBuilder):
     def __init__(self, spec=None):
-        super(ReduceSpecBuilder, self).__init__(spec=spec)
+        super(ReduceSpecBuilder, self).__init__(
+            user_job_scripts=["reducer"],
+            job_io_types=["job_io"],
+            spec=spec)
         self.operation_type = "reduce"
 
     def reducer(self, reducer_script):
@@ -739,7 +746,9 @@ class ReduceSpecBuilder(SpecBuilder):
 
 class JoinReduceSpecBuilder(SpecBuilder):
     def __init__(self):
-        super(JoinReduceSpecBuilder, self).__init__()
+        super(JoinReduceSpecBuilder, self).__init__(
+            user_job_scripts=["reducer"],
+            job_io_types=["job_io"])
         self.operation_type = "join_reduce"
 
     def reducer(self, reducer_script):
@@ -789,7 +798,9 @@ class JoinReduceSpecBuilder(SpecBuilder):
 
 class MapSpecBuilder(SpecBuilder):
     def __init__(self):
-        super(MapSpecBuilder, self).__init__()
+        super(MapSpecBuilder, self).__init__(
+            user_job_scripts=["mapper"],
+            job_io_types=["job_io"])
         self.operation_type = "map"
 
     def mapper(self, mapper_script):
@@ -839,7 +850,10 @@ class MapSpecBuilder(SpecBuilder):
 
 class MapReduceSpecBuilder(SpecBuilder):
     def __init__(self):
-        super(MapReduceSpecBuilder, self).__init__()
+        super(MapReduceSpecBuilder, self).__init__(
+            user_job_scripts=["mapper", "reducer", "reduce_combiner"],
+            job_io_types=["map_job_io", "sort_job_io", "reduce_job_io"]
+        )
         self.operation_type = "map_reduce"
 
     def mapper(self, mapper_script):
@@ -926,9 +940,6 @@ class MapReduceSpecBuilder(SpecBuilder):
         spec = self._apply_user_spec(spec)
 
         self._prepare_tables(spec, client=client)
-        spec = self._build_job_io(spec, job_io_type="map_job_io", client=client)
-        spec = self._build_job_io(spec, job_io_type="sort_job_io", client=client)
-        spec = self._build_job_io(spec, job_io_type="reduce_job_io", client=client)
 
         if spec.get("sort_by") is None:
             spec["sort_by"] = spec.get("reduce_by")
@@ -961,7 +972,9 @@ class MapReduceSpecBuilder(SpecBuilder):
 
 class MergeSpecBuilder(SpecBuilder):
     def __init__(self, spec=None):
-        super(MergeSpecBuilder, self).__init__(spec=spec)
+        super(MergeSpecBuilder, self).__init__(
+            job_io_types=["job_io"],
+            spec=spec)
         self.operation_type = "merge"
 
     def mode(self, mode):
@@ -1003,7 +1016,9 @@ class MergeSpecBuilder(SpecBuilder):
 
 class SortSpecBuilder(SpecBuilder):
     def __init__(self, spec=None):
-        super(SortSpecBuilder, self).__init__(spec=spec)
+        super(SortSpecBuilder, self).__init__(
+            job_io_types=["partition_job_io", "sort_job_io", "merge_job_io"],
+            spec=spec)
         self.operation_type = "sort"
 
     def sort_by(self, columns):
@@ -1080,17 +1095,13 @@ class SortSpecBuilder(SpecBuilder):
 
         require("input_table_paths" in spec, lambda: YtError("You should specify input_table_paths"))
 
-        spec = self._build_job_io(spec, job_io_type="partition_job_io", client=client)
-        spec = self._build_job_io(spec, job_io_type="sort_job_io", client=client)
-        spec = self._build_job_io(spec, job_io_type="merge_job_io", client=client)
-
         spec = self._prepare_tables_to_sort(spec, client=client)
         spec["sort_by"] = _prepare_sort_by(spec.get("sort_by"), client=client)
         self._prepare_spec(spec, client=client)
 
 class RemoteCopySpecBuilder(SpecBuilder):
     def __init__(self):
-        super(RemoteCopySpecBuilder, self).__init__()
+        super(RemoteCopySpecBuilder, self).__init__(job_io_types=["job_io"])
         self.operation_type = "remote_copy"
 
     def cluster_name(self, name):
@@ -1121,7 +1132,7 @@ class RemoteCopySpecBuilder(SpecBuilder):
 
 class EraseSpecBuilder(SpecBuilder):
     def __init__(self):
-        super(EraseSpecBuilder, self).__init__()
+        super(EraseSpecBuilder, self).__init__(job_io_types=["job_io"])
         self.operation_type = "erase"
 
     def table_path(self, paths):
