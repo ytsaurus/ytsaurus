@@ -243,6 +243,7 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
         DynamicTableAttributes_ = std::move(dynamic);
     }
 
+    // NB: All COMPAT's after version 609 should be in this function.
     LoadCompatAfter609(context);
 }
 
