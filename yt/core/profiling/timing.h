@@ -47,3 +47,6 @@ TValue CpuDurationToValue(TCpuDuration duration);
 } // namespace NProfiling
 } // namespace NYT
 
+#define TIMING_INL_H_
+#include "timing-inl.h"
+#undef TIMING_INL_H_
