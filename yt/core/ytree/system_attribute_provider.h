@@ -132,6 +132,9 @@ struct ISystemAttributeProvider
 
     // Extension methods.
 
+    //! Similar to its interface counterpart, but reserves the vector beforehand.
+    void ReserveAndListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors);
+
     //! Similar to its interface counterpart, but populates a map rather than a vector.
     void ListSystemAttributes(std::map<TString, TAttributeDescriptor>* descriptors);
 

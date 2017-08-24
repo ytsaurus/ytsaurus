@@ -9,11 +9,18 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ISystemAttributeProvider::ReserveAndListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
+{
+    descriptors->reserve(64);
+    ListSystemAttributes(descriptors);
+}
+
 void ISystemAttributeProvider::ListSystemAttributes(std::map<TString, TAttributeDescriptor>* descriptors)
 {
-    std::vector<TAttributeDescriptor> list;
-    ListSystemAttributes(&list);
-    for (const auto& descriptor : list) {
+    std::vector<TAttributeDescriptor> attributes;
+    ReserveAndListSystemAttributes(&attributes);
+
+    for (const auto& descriptor : attributes) {
         YCHECK(descriptors->insert(std::make_pair(TString(descriptor.Key), descriptor)).second);
     }
 }
@@ -21,7 +28,7 @@ void ISystemAttributeProvider::ListSystemAttributes(std::map<TString, TAttribute
 void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     std::vector<TAttributeDescriptor> systemAttributes;
-    ListSystemAttributes(&systemAttributes);
+    ReserveAndListSystemAttributes(&systemAttributes);
 
     for (const auto& attribute : systemAttributes) {
         if (!attribute.Custom) {
@@ -34,7 +41,8 @@ TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvid
     const TString& key)
 {
     std::vector<TAttributeDescriptor> builtinAttributes;
-    ListBuiltinAttributes(&builtinAttributes);
+    ReserveAndListSystemAttributes(&builtinAttributes);
+
     auto it = std::find_if(
         builtinAttributes.begin(),
         builtinAttributes.end(),
