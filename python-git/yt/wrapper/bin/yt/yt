@@ -10,6 +10,8 @@ from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, upd
                               chunk_iter_rows
 from yt.wrapper.cli_helpers import write_silently, run_main
 from yt.wrapper.default_config import get_default_config
+from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
+                                     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder
 import yt.wrapper.job_tool as job_tool
 import yt.wrapper.completers as completers
 import yt.json as json
@@ -665,6 +667,43 @@ def add_delete_rows_parser(add_parser):
                             help="do not require sync replication")
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
 
+SPEC_BUILDERS = {
+    "map": MapSpecBuilder,
+    "reduce": ReduceSpecBuilder,
+    "map-reduce": MapReduceSpecBuilder,
+    "join-reduce": JoinReduceSpecBuilder,
+    "merge": MergeSpecBuilder,
+    "sort": SortSpecBuilder,
+    "erase": EraseSpecBuilder,
+    "remote-copy": RemoteCopySpecBuilder
+}
+
+def get_spec_description(spec_builder_class, depth=0):
+    spec_options = []
+    methods = sorted(dir(spec_builder_class))
+    for method_name in methods:
+        method = getattr(spec_builder_class, method_name)
+        if getattr(method, "is_spec_method", False):
+            spec_options.append("  {0} - {1}".format(method_name, method.description))
+            if method.nested_spec_builder:
+                spec_options += ["  " + get_spec_description(method.nested_spec_builder, depth + 1)]
+    result = ("\n" + "  " * depth).join(spec_options)
+    return result
+
+def show_spec(operation):
+    """Shows available spec options of the operation."""
+    if operation not in SPEC_BUILDERS:
+        raise yt.YtError("No such operation", attributes={"operation": operation})
+
+    spec_description = get_spec_description(SPEC_BUILDERS[operation])
+    print("Spec options for {0} operation\n".format(operation))
+    print(spec_description)
+    print("\nSee more in the documentation: https://wiki.yandex-team.ru/yt/userdoc/operations/")
+
+def add_show_spec_parser(add_parser):
+    parser = add_parser("show-spec", show_spec)
+    parser.add_argument("operation", help="operation type")
+
 def add_src_arg(parser, **kwargs):
     parser.add_argument("--src", action="append", nargs="+", required=True, dest="source_table", **kwargs)
 
@@ -1053,6 +1092,8 @@ def main():
     add_lookup_rows_parser(add_parser)
     add_insert_rows_parser(add_parser)
     add_delete_rows_parser(add_parser)
+
+    add_show_spec_parser(add_parser)
 
     add_erase_parser(add_parser)
     add_merge_parser(add_parser)
