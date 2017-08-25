@@ -601,8 +601,7 @@ class TestTableCommands(object):
     def test_trim_rows(self):
         def remove_control_attributes(rows):
             for row in rows:
-                # TODO(babenko): modern backend versions use escaping
-                for x in ["$tablet_index", "$row_index", "[$tablet_index]", "[$row_index]"]:
+                for x in ["$tablet_index", "$row_index"]:
                     if x in row:
                         del row[x]
 
@@ -622,7 +621,7 @@ class TestTableCommands(object):
             yt.mount_table(table, sync=True)
             yt.insert_rows(table, [{"x": "a", "y": "b"}, {"x": "c", "y": "d"}, {"x": "e", "y": "f"}], raw=False)
             rows = list(yt.select_rows("* from [{0}]".format(table), raw=False))
-            tablet_index = rows[0].get("[$tablet_index]")
+            tablet_index = rows[0].get("$tablet_index")
             remove_control_attributes(rows)
             assert [{"x": "a", "y": "b"}, {"x": "c", "y": "d"}, {"x": "e", "y": "f"}] == rows
 
