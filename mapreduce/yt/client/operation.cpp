@@ -1464,6 +1464,7 @@ struct TOperationAttributes
     EOperationStatus Status = OS_IN_PROGRESS;
     TMaybe<TYtError> Error;
     TMaybe<TJobStatistics> JobStatistics;
+    TMaybe<TOperationBriefProgress> BriefProgress;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1490,6 +1491,23 @@ TOperationAttributes ParseAttributes(const TNode& node)
             result.JobStatistics.ConstructInPlace(jobStatisticsNode);
         }
     }
+    if (node.HasKey("brief_progress") && node["brief_progress"].HasKey("jobs")) {
+        const auto& jobs = node["brief_progress"]["jobs"];
+        result.BriefProgress.ConstructInPlace();
+        auto load = [] (const TNode& item) {
+            // Backward compatibility with old YT versions
+            return item.IsInt64()
+                ? item.AsInt64()
+                : item["total"].AsInt64();
+        };
+        result.BriefProgress->Aborted = load(jobs["aborted"]);
+        result.BriefProgress->Completed = load(jobs["completed"]);
+        result.BriefProgress->Running = jobs["running"].AsInt64();
+        result.BriefProgress->Total = jobs["total"].AsInt64();
+        result.BriefProgress->Failed = jobs["failed"].AsInt64();
+        result.BriefProgress->Lost = jobs["lost"].AsInt64();
+        result.BriefProgress->Pending = jobs["pending"].AsInt64();
+    }
     return result;
 }
 
@@ -1510,10 +1528,12 @@ public:
     EOperationStatus GetStatus();
     TMaybe<TYtError> GetError();
     TJobStatistics GetJobStatistics();
+    TMaybe<TOperationBriefProgress> GetBriefProgress();
     void AbortOperation();
 
     void AsyncFinishOperation(TOperationAttributes operationAttributes);
     void FinishWithException(std::exception_ptr exception);
+    void UpdateBriefProgress(TMaybe<TOperationBriefProgress> briefProgress);
 
 private:
     void UpdateAttributesAndCall(bool needJobStatistics, std::function<void(const TOperationAttributes&)> func);
@@ -1547,7 +1567,8 @@ public:
             TGetOptions().AttributeFilter(
                 TAttributeFilter()
                 .AddAttribute("result")
-                .AddAttribute("state")));
+                .AddAttribute("state")
+                .AddAttribute("brief_progress")));
     }
 
     virtual EStatus OnRequestExecuted() override
@@ -1558,6 +1579,8 @@ public:
             if (attributes.Status != OS_IN_PROGRESS) {
                 OperationImpl_->AsyncFinishOperation(attributes);
                 return PollBreak;
+            } else {
+                OperationImpl_->UpdateBriefProgress(attributes.BriefProgress);
             }
         } catch (const TErrorResponse& e) {
             if (!NDetail::IsRetriable(e)) {
@@ -1617,6 +1640,28 @@ TJobStatistics TOperation::TOperationImpl::GetJobStatistics()
     return result;
 }
 
+TMaybe<TOperationBriefProgress> TOperation::TOperationImpl::GetBriefProgress()
+{
+    {
+        auto g = Guard(Lock_);
+        if (CompletePromise_.Defined()) {
+            // Poller do this job for us
+            return Attributes_.BriefProgress;
+        }
+    }
+    TMaybe<TOperationBriefProgress> result;
+    UpdateAttributesAndCall(false, [&] (const TOperationAttributes& attributes) {
+        result = attributes.BriefProgress;
+    });
+    return result;
+}
+
+void TOperation::TOperationImpl::UpdateBriefProgress(TMaybe<TOperationBriefProgress> briefProgress)
+{
+    auto g = Guard(Lock_);
+    Attributes_.BriefProgress = std::move(briefProgress);
+}
+
 void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics, std::function<void(const TOperationAttributes&)> func)
 {
     {
@@ -1634,7 +1679,8 @@ void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics,
             TAttributeFilter()
             .AddAttribute("result")
             .AddAttribute("progress")
-            .AddAttribute("state")));
+            .AddAttribute("state")
+            .AddAttribute("brief_progress")));
     auto attributes = ParseAttributes(node);
     func(attributes);
 
@@ -1758,6 +1804,11 @@ TMaybe<TYtError> TOperation::GetError()
 TJobStatistics TOperation::GetJobStatistics()
 {
     return Impl_->GetJobStatistics();
+}
+
+TMaybe<TOperationBriefProgress> TOperation::GetBriefProgress()
+{
+    return Impl_->GetBriefProgress();
 }
 
 void TOperation::AbortOperation()
