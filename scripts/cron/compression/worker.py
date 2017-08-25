@@ -34,7 +34,7 @@ def compress(task):
             yt.remove(temp_table)
             yt.copy(table, temp_table, preserve_account=True)
             yt.set(temp_table + "/@expiration_time", expiration_time)
-            yt.run_erase(temp_table)
+            yt.run_erase(temp_table, spec=spec)
 
             transformed = yt.transform(table,
                                        temp_table,
