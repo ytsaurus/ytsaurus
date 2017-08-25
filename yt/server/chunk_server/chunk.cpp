@@ -23,7 +23,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 const TChunk::TCachedReplicas TChunk::EmptyCachedReplicas;
-const TChunk::TStoredReplicas TChunk::EmptyStoredReplicas;
+const TChunk::TReplicasData TChunk::EmptyReplicasData = {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,8 +33,6 @@ TChunk::TChunk(const TChunkId& id)
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
-
-    std::fill(LastSeenReplicas_.begin(), LastSeenReplicas_.end(), InvalidNodeId);
 }
 
 TChunkTreeStatistics TChunk::GetStatistics() const
@@ -101,12 +99,17 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
     Save(context, Parents_);
-    // NB: RemoveReplica calls do not commute and their order is not
-    // deterministic (i.e. when unregistering a node we traverse certain hashtables).
-    TNullableVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas_);
-    Save(context, CachedReplicas_);
-    Save(context, LastSeenReplicas_);
-    Save(context, CurrentLastSeenReplicaIndex_);
+    if (ReplicasData_) {
+        Save(context, true);
+        // NB: RemoveReplica calls do not commute and their order is not
+        // deterministic (i.e. when unregistering a node we traverse certain hashtables).
+        TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, ReplicasData_->StoredReplicas);
+        Save(context, ReplicasData_->CachedReplicas);
+        Save(context, ReplicasData_->LastSeenReplicas);
+        Save(context, ReplicasData_->CurrentLastSeenReplicaIndex);
+    } else {
+        Save(context, false);
+    }
     Save(context, ExportCounter_);
     if (ExportCounter_ > 0) {
         TRangeSerializer::Save(context, TRef::FromPod(ExportDataList_));
@@ -145,20 +148,38 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         SetLocalVital(Load<bool>(context));
     } // Local vital flag is now part of LocalProperties_.
     Load(context, Parents_);
-    Load(context, StoredReplicas_);
-    Load(context, CachedReplicas_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 603) {
-        Load(context, LastSeenReplicas_);
-        Load(context, CurrentLastSeenReplicaIndex_);
+    if (context.GetVersion() >= 616) {
+        if (Load<bool>(context)) {
+            auto* data = MutableReplicasData();
+            Load(context, data->StoredReplicas);
+            Load(context, data->CachedReplicas);
+            Load(context, data->LastSeenReplicas);
+            Load(context, data->CurrentLastSeenReplicaIndex);
+        }
     } else {
-        for (auto replica : StoredReplicas()) {
-            if (IsErasure()) {
-                LastSeenReplicas_[replica.GetReplicaIndex()] = replica.GetPtr()->GetId();
-            } else {
-                LastSeenReplicas_[CurrentLastSeenReplicaIndex_] = replica.GetPtr()->GetId();
-                CurrentLastSeenReplicaIndex_ = (CurrentLastSeenReplicaIndex_ + 1) % LastSeenReplicaCount;
+        auto* data = MutableReplicasData();
+        auto storedReplicas = Load<std::unique_ptr<TStoredReplicas>>(context);
+        if (storedReplicas) {
+            data->StoredReplicas = std::move(*storedReplicas);
+        }
+        Load(context, data->CachedReplicas);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 603) {
+            Load(context, data->LastSeenReplicas);
+            Load(context, data->CurrentLastSeenReplicaIndex);
+        } else {
+            for (auto replica : StoredReplicas()) {
+                if (IsErasure()) {
+                    data->LastSeenReplicas[replica.GetReplicaIndex()] = replica.GetPtr()->GetId();
+                } else {
+                    data->LastSeenReplicas[data->CurrentLastSeenReplicaIndex] = replica.GetPtr()->GetId();
+                    data->CurrentLastSeenReplicaIndex = (data->CurrentLastSeenReplicaIndex + 1) % LastSeenReplicaCount;
+                }
             }
+        }
+        if (data->StoredReplicas.empty() && !data->CachedReplicas) {
+            ReplicasData_.reset();
         }
     }
     Load(context, ExportCounter_);
@@ -199,31 +220,30 @@ void TChunk::RemoveParent(TChunkList* parent)
 
 void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
 {
+    auto* data = MutableReplicasData();
     if (medium->GetCache()) {
         Y_ASSERT(!IsJournal());
-        if (!CachedReplicas_) {
-            CachedReplicas_ = std::make_unique<TCachedReplicas>();
+        auto& cachedReplicas = data->CachedReplicas;
+        if (!cachedReplicas) {
+            cachedReplicas = std::make_unique<TCachedReplicas>();
         }
-        YCHECK(CachedReplicas_->insert(replica).second);
+        YCHECK(cachedReplicas->insert(replica).second);
     } else {
-        if (!StoredReplicas_) {
-            StoredReplicas_ = std::make_unique<TStoredReplicas>();
-        }
         if (IsJournal()) {
-            for (auto& existingReplica : *StoredReplicas_) {
+            for (auto& existingReplica : data->StoredReplicas) {
                 if (existingReplica.GetPtr() == replica.GetPtr()) {
                     existingReplica = replica;
                     return;
                 }
             }
         }
-        StoredReplicas_->push_back(replica);
+        data->StoredReplicas.push_back(replica);
         if (!medium->GetTransient()) {
             if (IsErasure()) {
-                LastSeenReplicas_[replica.GetReplicaIndex()] = replica.GetPtr()->GetId();
+                data->LastSeenReplicas[replica.GetReplicaIndex()] = replica.GetPtr()->GetId();
             } else {
-                LastSeenReplicas_[CurrentLastSeenReplicaIndex_] = replica.GetPtr()->GetId();
-                CurrentLastSeenReplicaIndex_ = (CurrentLastSeenReplicaIndex_ + 1) % LastSeenReplicaCount;
+                data->LastSeenReplicas[data->CurrentLastSeenReplicaIndex] = replica.GetPtr()->GetId();
+                data->CurrentLastSeenReplicaIndex = (data->CurrentLastSeenReplicaIndex + 1) % LastSeenReplicaCount;
             }
         }
     }
@@ -231,22 +251,23 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
 
 void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium)
 {
+    auto* data = MutableReplicasData();
     if (medium->GetCache()) {
-        Y_ASSERT(CachedReplicas_);
-        YCHECK(CachedReplicas_->erase(replica) == 1);
-        if (CachedReplicas_->empty()) {
-            CachedReplicas_.reset();
+        auto& cachedReplicas = data->CachedReplicas;
+        Y_ASSERT(cachedReplicas);
+        YCHECK(cachedReplicas->erase(replica) == 1);
+        if (cachedReplicas->empty()) {
+            cachedReplicas.reset();
         }
     } else {
-        // NB: We don't release StoredReplicas_ when it becomes empty since
-        // the idea is just to save up some space for foreign chunks.
-        for (auto it = StoredReplicas_->begin(); it != StoredReplicas_->end(); ++it) {
+        auto& storedReplicas = data->StoredReplicas;
+        for (auto it = storedReplicas.begin(); it != storedReplicas.end(); ++it) {
             auto& existingReplica = *it;
             if (existingReplica == replica ||
                 IsJournal() && existingReplica.GetPtr() == replica.GetPtr())
             {
-                std::swap(existingReplica, StoredReplicas_->back());
-                StoredReplicas_->pop_back();
+                std::swap(existingReplica, storedReplicas.back());
+                storedReplicas.pop_back();
                 return;
             }
         }
@@ -268,8 +289,8 @@ TNodePtrWithIndexesList TChunk::GetReplicas() const
 void TChunk::ApproveReplica(TNodePtrWithIndexes replica)
 {
     if (IsJournal()) {
-        YCHECK(StoredReplicas_);
-        for (auto& existingReplica : *StoredReplicas_) {
+        auto* data = MutableReplicasData();
+        for (auto& existingReplica : data->StoredReplicas) {
             if (existingReplica.GetPtr() == replica.GetPtr()) {
                 existingReplica = replica;
                 return;
@@ -302,30 +323,31 @@ bool TChunk::IsConfirmed() const
 
 bool TChunk::IsAvailable() const
 {
-    if (!StoredReplicas_) {
+    if (!ReplicasData_) {
         // Actually it makes no sense calling IsAvailable for foreign chunks.
         return false;
     }
 
+    const auto& storedReplicas = ReplicasData_->StoredReplicas;
     switch (GetType()) {
         case EObjectType::Chunk:
-            return !StoredReplicas_->empty();
+            return !storedReplicas.empty();
 
         case EObjectType::ErasureChunk: {
             auto* codec = NErasure::GetCodec(GetErasureCodec());
             int dataPartCount = codec->GetDataPartCount();
             NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
-            for (auto replica : *StoredReplicas_) {
+            for (auto replica : storedReplicas) {
                 missingIndexSet.reset(replica.GetReplicaIndex());
             }
             return missingIndexSet.none();
         }
 
         case EObjectType::JournalChunk:
-            if (StoredReplicas_->size() >= GetReadQuorum()) {
+            if (storedReplicas.size() >= GetReadQuorum()) {
                 return true;
             }
-            for (auto replica : *StoredReplicas_) {
+            for (auto replica : storedReplicas) {
                 if (replica.GetReplicaIndex() == SealedChunkReplicaIndex) {
                     return true;
                 }

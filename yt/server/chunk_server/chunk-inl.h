@@ -10,17 +10,34 @@ namespace NChunkServer {
 
 inline const TChunk::TCachedReplicas& TChunk::CachedReplicas() const
 {
-    return CachedReplicas_ ? *CachedReplicas_ : EmptyCachedReplicas;
+    const auto& data = ReplicasData();
+    return data.CachedReplicas ? *data.CachedReplicas : EmptyCachedReplicas;
 }
 
 inline const TChunk::TStoredReplicas& TChunk::StoredReplicas() const
 {
-    return StoredReplicas_ ? *StoredReplicas_ : EmptyStoredReplicas;
+    const auto& data = ReplicasData();
+    return data.StoredReplicas;
 }
 
 inline const TChunk::TLastSeenReplicas& TChunk::LastSeenReplicas() const
 {
-    return LastSeenReplicas_;
+    const auto& data = ReplicasData();
+    return data.LastSeenReplicas;
+}
+
+inline const TChunk::TReplicasData& TChunk::ReplicasData() const
+{
+    return ReplicasData_ ? *ReplicasData_ : EmptyReplicasData;
+}
+
+inline TChunk::TReplicasData* TChunk::MutableReplicasData()
+{
+    if (!ReplicasData_) {
+        ReplicasData_ = std::make_unique<TReplicasData>();
+        std::fill(ReplicasData_->LastSeenReplicas.begin(), ReplicasData_->LastSeenReplicas.end(), InvalidNodeId);
+    }
+    return ReplicasData_.get();
 }
 
 inline TChunkDynamicData* TChunk::GetDynamicData() const
