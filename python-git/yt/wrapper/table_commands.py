@@ -4,7 +4,7 @@ from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
 from .driver import make_request
-from .errors import YtIncorrectResponse, YtError, YtRetriableError, YtHttpResponseError
+from .errors import YtIncorrectResponse, YtError, YtRetriableError, YtResponseError
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
@@ -249,7 +249,7 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
     if part_size is None:
         try:
             part_size = get_attribute(table, "part_size")
-        except YtHttpResponseError as err:
+        except YtResponseError as err:
             if err.is_resolve_error():
                 raise YtError("You should specify part_size")
             raise
