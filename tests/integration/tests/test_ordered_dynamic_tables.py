@@ -145,7 +145,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
 
         write_rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
-        query_rows = [{"[$tablet_index]": 0, "[$row_index]": i, "a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
+        query_rows = [{"$tablet_index": 0, "$row_index": i, "a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", write_rows)
 
         if not dynamic:
@@ -192,7 +192,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 assert get("//tmp/t/@chunk_count") == k + 1
                 self.sync_mount_table("//tmp/t")
 
-        query_rows = [{"[$tablet_index]": 0, "[$row_index]": i, "a": i % 100} for i in xrange(10, 490)]
+        query_rows = [{"$tablet_index": 0, "$row_index": i, "a": i % 100} for i in xrange(10, 490)]
         assert select_rows("[$tablet_index], [$row_index], a from [//tmp/t] where [$row_index] between 10 and 489") == query_rows
 
     def test_select_with_limits(self):
