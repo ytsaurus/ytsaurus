@@ -356,11 +356,11 @@ TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source);
 
 TString FormatId(const TStringBuf& id);
 TString FormatLiteralValue(const TLiteralValue& value);
-TString FormatReference(const TReference& ref);
+TString FormatReference(const TReference& ref, bool isFinal=true);
 TString FormatExpression(const TExpression& expr);
 TString FormatExpression(const TExpressionList& exprs);
 TString FormatQuery(const TQuery& query);
-TString InferName(const TExpression& expr);
+TString InferColumnName(const TExpression& expr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1316,7 +1316,7 @@ struct TTypedExpressionBuilder
             const auto& descriptor = Functions->GetFunction(functionName);
 
             if (const auto* aggregateFunction = descriptor->As<TAggregateTypeInferrer>()) {
-                auto subexprName = InferName(*functionExpr);
+                auto subexprName = InferColumnName(*functionExpr);
 
                 try {
                     if (functionExpr->Arguments.size() != 1) {
@@ -1957,7 +1957,7 @@ TConstGroupClausePtr BuildGroupClause(
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
         CheckExpressionDepth(typedExpr);
-        groupClause->AddGroupItem(typedExpr, InferName(*expressionAst));
+        groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
     }
 
     schemaProxy = New<TGroupSchemaProxy>(
@@ -2003,7 +2003,7 @@ TConstProjectClausePtr BuildProjectClause(
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
         CheckExpressionDepth(typedExpr);
-        projectClause->AddProjection(typedExpr, InferName(*expressionAst));
+        projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
     }
 
     schemaProxy = New<TScanSchemaProxy>(projectClause->GetTableSchema(), Null);
