@@ -78,12 +78,12 @@ inline TChunk* TChunk::GetNextScannedChunk(EChunkScanKind kind) const
     return node.Next;
 }
 
-inline const TNullable<TChunkRepairQueueIterator>& TChunk::GetRepairQueueIterator(int mediumIndex) const
+inline TChunkRepairQueueIterator TChunk::GetRepairQueueIterator(int mediumIndex) const
 {
     return GetDynamicData()->RepairQueueIterators[mediumIndex];
 }
 
-inline void TChunk::SetRepairQueueIterator(int mediumIndex, const TNullable<TChunkRepairQueueIterator>& value)
+inline void TChunk::SetRepairQueueIterator(int mediumIndex, TChunkRepairQueueIterator value)
 {
     GetDynamicData()->RepairQueueIterators[mediumIndex] = value;
 }
