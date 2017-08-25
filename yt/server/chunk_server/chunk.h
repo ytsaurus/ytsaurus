@@ -228,18 +228,31 @@ private:
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
     TChunkExportDataList ExportDataList_ = {};
 
-    //! This list is usually empty. Keeping a holder is very space efficient.
-    std::unique_ptr<TCachedReplicas> CachedReplicas_;
-    static const TCachedReplicas EmptyCachedReplicas;
+    struct TReplicasData
+    {
+        //! This set is usually empty. Keeping a holder is very space efficient.
+        std::unique_ptr<TCachedReplicas> CachedReplicas;
+
+        //! Just all the stored replicas.
+        TStoredReplicas StoredReplicas;
+
+        //! Null entries are InvalidNodeId.
+        TLastSeenReplicas LastSeenReplicas;
+        //! Indicates the position in LastSeenReplicas to be written next.
+        int CurrentLastSeenReplicaIndex = 0;
+    };
 
     //! This additional indirection helps to save up some space since
     //! no replicas are being maintained for foreign chunks.
-    std::unique_ptr<TStoredReplicas> StoredReplicas_;
-    static const TStoredReplicas EmptyStoredReplicas;
+    //! Is also separates relatively mutable data from static one,
+    //! which helps to avoid excessive CoW during snapshot construction.
+    std::unique_ptr<TReplicasData> ReplicasData_;
 
-    TLastSeenReplicas LastSeenReplicas_;
-    int CurrentLastSeenReplicaIndex_ = 0;
+    const TReplicasData& ReplicasData() const;
+    TReplicasData* MutableReplicasData();
 
+    static const TCachedReplicas EmptyCachedReplicas;
+    static const TReplicasData EmptyReplicasData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
