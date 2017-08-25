@@ -18,6 +18,7 @@ import yt.logger as logger
 
 from yt.packages.six.moves import zip as izip
 
+import functools
 import os
 import shutil
 from copy import deepcopy
@@ -109,7 +110,7 @@ class Finalizer(object):
             return
 
         chunk_count = int(get_attribute(table, "chunk_count", client=self.client))
-        if  chunk_count < get_config(self.client)["auto_merge_output"]["min_chunk_count"]:
+        if chunk_count < get_config(self.client)["auto_merge_output"]["min_chunk_count"]:
             return
 
         # We use uncompressed data size to simplify recommended command
@@ -149,6 +150,18 @@ class Finalizer(object):
                            "data_size_per_job={2}"
                         "}}'".format(table, mode, data_size_per_job, get_config(self.client)["proxy"]["url"]))
 
+def spec_option(description=None, nested_spec_builder=None):
+    def spec_method_decorator(func):
+        @functools.wraps(func)
+        def spec_method(self, value):
+            return func(self, value)
+        spec_method.description = description
+        spec_method.__doc__ = description
+        spec_method.nested_spec_builder = nested_spec_builder
+        spec_method.is_spec_method = True
+        return spec_method
+    return spec_method_decorator
+
 class JobIOSpecBuilder(object):
     def __init__(self, user_job_spec_builder=None, io_name=None, spec=None):
         self._spec = {}
@@ -159,21 +172,27 @@ class JobIOSpecBuilder(object):
         self.user_job_spec_builder = user_job_spec_builder
         self.io_name = io_name
 
+    @spec_option("The configuration of the table reader")
     def table_reader(self, reader):
         return _set_spec_value(self, "table_reader", reader)
 
+    @spec_option("The configuration of the table writer")
     def table_writer(self, writer):
         return _set_spec_value(self, "table_writer", writer)
 
+    @spec_option("The configuration of the stderr file writer")
     def error_file_writer(self, writer):
         return _set_spec_value(self, "error_file_writer", writer)
 
+    @spec_option("The configuration of control attributes")
     def control_attributes(self, attributes):
         return _set_spec_value(self, "control_attributes", attributes)
 
+    @spec_option("The restriction on the number of rows which can be buffered in job proxy")
     def buffer_row_count(self, count):
         return _set_spec_value(self, "buffer_row_count", count)
 
+    @spec_option("The size of the pool for data processing in job proxy")
     def pipe_io_pool_size(self, size):
         return _set_spec_value(self, "pipe_io_pool_size", size)
 
@@ -239,9 +258,11 @@ class UserJobSpecBuilder(object):
         self._operation_type = operation_type
         self._job_type = job_type
 
+    @spec_option("The string that will be completed by bash-c call")
     def command(self, binary_or_python_obj):
         return _set_spec_value(self, "command", binary_or_python_obj)
 
+    @spec_option("The list of paths to files and tables in Cypress that will be downloaded to nodes")
     def file_paths(self, paths):
         return _set_spec_value(self, "file_paths", paths)
 
@@ -249,53 +270,77 @@ class UserJobSpecBuilder(object):
         """Deprecated!"""
         return _set_spec_value(self, "local_files", files)
 
+    @spec_option("The format of tabular data")
     def format(self, format):
         return _set_spec_value(self, "format", format)
 
+    @spec_option("The format of tabular data at the input of the operation")
     def input_format(self, format):
         return _set_spec_value(self, "input_format", format)
 
+    @spec_option("The format of tabular data at the output of the operation")
     def output_format(self, format):
         return _set_spec_value(self, "output_format", format)
 
+    @spec_option("The dictionary of environment variables that will be mentioned during operation running")
     def environment(self, environment_dict):
         return _set_spec_value(self, "environment", environment_dict)
 
+    @spec_option("The amount of processing cores at a job which will be taken into consideration during its scheduling")
     def cpu_limit(self, limit):
         return _set_spec_value(self, "cpu_limit", limit)
 
+    @spec_option("The restriction on consumption of memory by job (in bytes)")
     def memory_limit(self, limit):
         return _set_spec_value(self, "memory_limit", limit)
 
+    @spec_option("Memory reserve factor")
     def memory_reserve_factor(self, factor):
         return _set_spec_value(self, "memory_reserve_factor", factor)
 
+    @spec_option("The path in a sandbox which tmpfs will be mounted in")
     def tmpfs_path(self, path):
         return _set_spec_value(self, "tmpfs_path", path)
 
+    @spec_option("The restriction on size tmpfs in a job")
     def tmpfs_size(self, size):
         return _set_spec_value(self, "tmpfs_size", size)
 
+    @spec_option("The size of the stderr which will be saved as a result of job's work")
     def max_stderr_size(self, size):
         return _set_spec_value(self, "max_stderr_size", size)
 
+    @spec_option("The restriction on the amount of customers' statistics which can be written from job")
     def custom_statistics_count_limit(self, limit):
         return _set_spec_value(self, "custom_statistics_count_limit", limit)
 
+    @spec_option("The restriction on job's work time (in milliseconds)")
     def job_time_limit(self, limit):
         return _set_spec_value(self, "job_time_limit", limit)
 
+    @spec_option("Whether to write in the input stream information about indexes of input tables")
     def enable_input_table_index(self, flag=True):
         return _set_spec_value(self, "enable_input_table_index", flag)
 
+    @spec_option("Whether to copy user files to sandbox")
     def copy_files(self, flag=True):
         return _set_spec_value(self, "copy_files", flag)
 
+    @spec_option("Use yamr numeration for file descriptors of output tables in job")
     def use_yamr_descriptors(self, flag=True):
         return _set_spec_value(self, "use_yamr_descriptors", flag)
 
+    @spec_option("Whether to check that job read all of input data")
     def check_input_fully_consumed(self, flag=True):
         return _set_spec_value(self, "check_input_fully_consumed", flag)
+
+    @spec_option("The restriction on the total size of files in a job's sandbox")
+    def disk_space_limit(self, limit):
+        return _set_spec_value(self, "disk_space_limit", limit)
+
+    @spec_option("The restriction on the total amount of objects in a job's sandbox")
+    def inode_limit(self, limit):
+        return _set_spec_value(self, "inode_limit", limit)
 
     def environment_variable(self, key, value):
         self._spec.setdefault("environment", {})
@@ -520,49 +565,97 @@ class SpecBuilder(object):
 
         self._prepared_spec = None
 
+    @spec_option("The name of the pool in which the operation will work")
     def pool(self, pool_name):
         return _set_spec_value(self, "pool", pool_name)
 
+    @spec_option("The weight of the operation")
     def weight(self, weight):
         return _set_spec_value(self, "weight", weight)
 
+    @spec_option("The dictionary with limits on different resources for a given pool (user_slots, cpu, memory)")
+    def resource_limits(self, limits):
+        return _set_spec_value(self, "resource_limits", limits)
+
+    @spec_option("The minimum share of the resources of the parent pool that must be allocated to this pool")
+    def min_share_ratio(self, ratio):
+        return _set_spec_value(self, "min_share_ratio", ratio)
+
+    @spec_option("The maximum share of the resources of the parent pool that must be allocated to this pool")
+    def max_share_ratio(self, ratio):
+        return _set_spec_value(self, "max_share_ratio", ratio)
+
+    @spec_option("The restriction on time of the operation (in milliseconds)")
     def time_limit(self, limit):
         return _set_spec_value(self, "time_limit", limit)
 
+    @spec_option("The title of the operation")
+    def title(self, title):
+        return _set_spec_value(self, "title", title)
+
+    @spec_option("The list of users who will have the rights to mutating actions on the operation and its jobs")
+    def owners(self, owners):
+        return _set_spec_value(self, "owners", owners)
+
+    @spec_option("Restriction on an amount of saved stderrs of jobs")
     def max_stderr_count(self, count):
         return _set_spec_value(self, "max_stderr_count", count)
 
+    @spec_option("An amount of failed jobs after which the operation is considered to be failed")
     def max_failed_job_count(self, count):
         return _set_spec_value(self, "max_failed_job_count", count)
 
+    @spec_option("The behavior of the scheduler in case of unavailable input data at the operation startup")
     def unavailable_chunk_strategy(self, strategy):
         return _set_spec_value(self, "unavailable_chunk_strategy", strategy)
 
+    @spec_option("The behavior of the scheduler in case of unavailable input data while running the operation")
     def unavailable_chunk_tactics(self, tactics):
         return _set_spec_value(self, "unavailable_chunk_tactics", tactics)
 
+    @spec_option("If this option is specified, the scheduler will run jobs only on nodes marked with the same tag")
     def scheduling_tag(self, tag):
         return _set_spec_value(self, "scheduling_tag", tag)
 
+    @spec_option("Filter for choosing nodes at job startup")
+    def scheduling_tag_filter(self, tag_filter):
+        return _set_spec_value(self, "scheduling_tag_filter", tag_filter)
+
+    @spec_option("The maximum amount of data at the input of one job")
     def max_data_size_per_job(self, size):
         return _set_spec_value(self, "max_data_size_per_job", size)
 
+    @spec_option("The dictionary with environment variables that can not be viewed by unauthorized users")
     def secure_vault(self, secure_vault_dict):
         return _set_spec_value(self, "secure_vault", secure_vault_dict)
 
+    @spec_option("The path to the table for writing stderrs of jobs")
     def stderr_table_path(self, path):
         return _set_spec_value(self, "stderr_table_path", path)
+
+    @spec_option("The path to the table for writing core dumps")
+    def core_table_path(self, path):
+        return _set_spec_value(self, "core_table_path", path)
+
+    @spec_option("The query for pre-filtration of input rows")
+    def input_query(self, query):
+        return _set_spec_value(self, "input_query", query)
+
+    @spec_option("The account of files with stderr and input context")
+    def job_node_account(self, account):
+        return _set_spec_value(self, "job_node_account", account)
+
+    @spec_option('Whether to suspend the operation in case of "Account limit exceeded" error')
+    def suspend_operation_if_account_limit_exceeded(self, flag=True):
+        return _set_spec_value(self, "suspend_operation_if_account_limit_exceeded", flag)
+
+    @spec_option("Whether to allow adaptive job splitting")
+    def enable_job_splitting(self, flag=True):
+        return _set_spec_value(self, "enable_job_splitting", flag)
 
     def spec(self, spec):
         self._user_spec = deepcopy(spec)
         return self
-
-    def job_io(self, job_io_spec):
-        self._spec["job_io"] = deepcopy(job_io_spec)
-        return self
-
-    def begin_job_io(self):
-        return JobIOSpecBuilder(self, "job_io")
 
     def secure_vault_variable(self, key, value):
         self._spec.setdefault("secure_vault", {})
@@ -709,6 +802,7 @@ class ReduceSpecBuilder(SpecBuilder):
             spec=spec)
         self.operation_type = "reduce"
 
+    @spec_option("The description of reducer script", nested_spec_builder=ReducerSpecBuilder)
     def reducer(self, reducer_script):
         self._spec["reducer"] = reducer_script
         return self
@@ -716,26 +810,49 @@ class ReduceSpecBuilder(SpecBuilder):
     def begin_reducer(self):
         return ReducerSpecBuilder(self)
 
+    @spec_option("The approximate amount of data at the input of one job")
     def data_size_per_job(self, size):
         return _set_spec_value(self, "data_size_per_job", size)
 
+    @spec_option("The approximate count of jobs")
     def job_count(self, count):
         return _set_spec_value(self, "job_count", count)
 
+    @spec_option("The set of columns for grouping")
     def reduce_by(self, columns):
         return _set_spec_value(self, "reduce_by", columns)
 
+    @spec_option("The set of columns by which input tables must be sorted")
     def sort_by(self, columns):
         return _set_spec_value(self, "sort_by", columns)
 
+    @spec_option("The set of columns for joining foreign tables")
     def join_by(self, columns):
         return _set_spec_value(self, "join_by", columns)
 
+    @spec_option("The list of the input tables")
     def input_table_paths(self, paths):
         return _set_spec_value(self, "input_table_paths", paths)
 
+    @spec_option("The list of the output tables")
     def output_table_paths(self, paths):
         return _set_spec_value(self, "output_table_paths", paths)
+
+    @spec_option("The list of pivot keys")
+    def pivot_keys(self, keys):
+        return _set_spec_value(self, "pivot_keys", keys)
+
+    @spec_option(description="Take into account only size of primary tables at the job splitting")
+    def consider_only_primary_size(self, flag=True):
+        return _set_spec_value(self, "consider_only_primary_size", flag)
+
+    @spec_option("I/O settings of jobs", nested_spec_builder=JobIOSpecBuilder)
+    def job_io(self, job_io_spec):
+        self._spec["job_io"] = deepcopy(job_io_spec)
+        return self
+
+    def begin_job_io(self):
+        return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
@@ -782,6 +899,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
             job_io_types=["job_io"])
         self.operation_type = "join_reduce"
 
+    @spec_option("The description of reducer script", nested_spec_builder=ReducerSpecBuilder)
     def reducer(self, reducer_script):
         self._spec["reducer"] = reducer_script
         return self
@@ -789,20 +907,37 @@ class JoinReduceSpecBuilder(SpecBuilder):
     def begin_reducer(self):
         return ReducerSpecBuilder(self)
 
+    @spec_option("The approximate amount of data at the input of one job")
     def data_size_per_job(self, size):
         return _set_spec_value(self, "data_size_per_job", size)
 
+    @spec_option("The approximate count of jobs")
     def job_count(self, count):
         return _set_spec_value(self, "job_count", count)
 
+    @spec_option("The set of columns for grouping")
     def join_by(self, columns):
         return _set_spec_value(self, "join_by", columns)
 
+    @spec_option("The list of the input tables")
     def input_table_paths(self, paths):
         return _set_spec_value(self, "input_table_paths", paths)
 
+    @spec_option("The list of the output tables")
     def output_table_paths(self, paths):
         return _set_spec_value(self, "output_table_paths", paths)
+
+    @spec_option(description="Take into account only size of primary tables at the job splitting")
+    def consider_only_primary_size(self, flag=True):
+        return _set_spec_value(self, "consider_only_primary_size", flag)
+
+    @spec_option("I/O settings of jobs", nested_spec_builder=JobIOSpecBuilder)
+    def job_io(self, job_io_spec):
+        self._spec["job_io"] = deepcopy(job_io_spec)
+        return self
+
+    def begin_job_io(self):
+        return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
@@ -838,6 +973,7 @@ class MapSpecBuilder(SpecBuilder):
             job_io_types=["job_io"])
         self.operation_type = "map"
 
+    @spec_option("The description of mapper script", nested_spec_builder=MapperSpecBuilder)
     def mapper(self, mapper_script):
         self._spec["mapper"] = mapper_script
         return self
@@ -845,20 +981,33 @@ class MapSpecBuilder(SpecBuilder):
     def begin_mapper(self):
         return MapperSpecBuilder(self)
 
+    @spec_option("The approximate amount of data at the input of one job")
     def data_size_per_job(self, size):
         return _set_spec_value(self, "data_size_per_job", size)
 
+    @spec_option("The approximate count of jobs")
     def job_count(self, count):
         return _set_spec_value(self, "job_count", count)
 
+    @spec_option("The list of the input tables")
     def input_table_paths(self, paths):
         return _set_spec_value(self, "input_table_paths", paths)
 
+    @spec_option("The list of the output tables")
     def output_table_paths(self, paths):
         return _set_spec_value(self, "output_table_paths", paths)
 
+    @spec_option("Enable ordered mode for job splitting")
     def ordered(self, flag=True):
         return _set_spec_value(self, "ordered", flag)
+
+    @spec_option("I/O settings of jobs", nested_spec_builder=JobIOSpecBuilder)
+    def job_io(self, job_io_spec):
+        self._spec["job_io"] = deepcopy(job_io_spec)
+        return self
+
+    def begin_job_io(self):
+        return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
@@ -896,6 +1045,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         )
         self.operation_type = "map_reduce"
 
+    @spec_option("The description of mapper script", nested_spec_builder=MapperSpecBuilder)
     def mapper(self, mapper_script):
         self._spec["mapper"] = mapper_script
         return self
@@ -903,6 +1053,7 @@ class MapReduceSpecBuilder(SpecBuilder):
     def begin_mapper(self):
         return MapperSpecBuilder(self)
 
+    @spec_option("The description of reducer script", nested_spec_builder=ReducerSpecBuilder)
     def reducer(self, reducer_script):
         self._spec["reducer"] = reducer_script
         return self
@@ -910,42 +1061,71 @@ class MapReduceSpecBuilder(SpecBuilder):
     def begin_reducer(self):
         return ReducerSpecBuilder(self)
 
+    @spec_option("The set of columns by which input tables must be sorted")
     def sort_by(self, columns):
         return _set_spec_value(self, "sort_by", columns)
 
+    @spec_option("The set of columns for grouping")
     def reduce_by(self, columns):
         return _set_spec_value(self, "reduce_by", columns)
 
+    @spec_option("The approximate count of partitions in sorting")
     def partition_count(self, count):
         return _set_spec_value(self, "partition_count", count)
 
+    @spec_option("The approximate amount of data in each partition")
     def partition_data_size(self, size):
         return _set_spec_value(self, "partition_data_size", size)
 
+    @spec_option("The approximate count of map jobs")
     def map_job_count(self, count):
         return _set_spec_value(self, "map_job_count", count)
 
+    @spec_option("The approximate amount of data at the input of one map job")
     def data_size_per_map_job(self, size):
         return _set_spec_value(self, "data_size_per_map_job", size)
 
+    @spec_option("The percentage of source data which remains after the map phase")
     def map_selectivity_factor(self, factor):
         return _set_spec_value(self, "map_selectivity_factor", factor)
 
+    @spec_option("The account of intermediate data")
     def intermediate_data_account(self, account):
         return _set_spec_value(self, "intermediate_data_account", account)
 
+    @spec_option("The factor of intermediate data replication")
+    def intermediate_data_replication_factor(self, factor):
+        return _set_spec_value(self, "intermediate_data_replication_factor", factor)
+
+    @spec_option("The compression codec of intermediate data")
     def intermediate_compression_codec(self, codec):
         return _set_spec_value(self, "intermediate_compression_codec", codec)
 
+    @spec_option("The access rights to intermediate data")
     def intermediate_data_acl(self, acl):
         return _set_spec_value(self, "intermediate_data_acl", acl)
 
+    @spec_option("The list of the input tables")
     def input_table_paths(self, paths):
         return _set_spec_value(self, "input_table_paths", paths)
 
+    @spec_option("The list of the output tables")
     def output_table_paths(self, paths):
         return _set_spec_value(self, "output_table_paths", paths)
 
+    @spec_option("Locality timeout for sorting")
+    def sort_locality_timeout(self, timeout):
+        return _set_spec_value(self, "sort_locality_timeout", timeout)
+
+    @spec_option("The approximate amount of data at the input of one sort job")
+    def data_size_per_sort_job(self, size):
+        return _set_spec_value(self, "data_size_per_sort_job", size)
+
+    @spec_option("Whether to force a startup of the reduce_combiner")
+    def force_reduce_combiners(self, flag=True):
+        return _set_spec_value(self, "force_reduce_combiners", flag)
+
+    @spec_option("I/O settings of map jobs", nested_spec_builder=MapJobIOSpecBuilder)
     def map_job_io(self, job_io_spec):
         self._spec["map_job_io"] = job_io_spec
         return self
@@ -953,6 +1133,7 @@ class MapReduceSpecBuilder(SpecBuilder):
     def begin_map_job_io(self):
         return MapJobIOSpecBuilder(self)
 
+    @spec_option("I/O settings of sort jobs", nested_spec_builder=SortJobIOSpecBuilder)
     def sort_job_io(self, job_io_spec):
         self._spec["sort_job_io"] = job_io_spec
         return self
@@ -960,6 +1141,7 @@ class MapReduceSpecBuilder(SpecBuilder):
     def begin_sort_job_io(self):
         return SortJobIOSpecBuilder(self)
 
+    @spec_option("I/O settings of reduce jobs", nested_spec_builder=ReduceJobIOSpecBuilder)
     def reduce_job_io(self, job_io_spec):
         self._spec["reduce_job_io"] = job_io_spec
         return self
@@ -967,6 +1149,7 @@ class MapReduceSpecBuilder(SpecBuilder):
     def begin_reduce_job_io(self):
         return ReduceJobIOSpecBuilder(self)
 
+    @spec_option("The description of reduce_combiner script", nested_spec_builder=ReduceCombinerSpecBuilder)
     def reduce_combiner(self, reduce_combiner_script):
         self._spec["reduce_combiner"] = reduce_combiner_script
         return self
@@ -1028,29 +1211,49 @@ class MergeSpecBuilder(SpecBuilder):
             spec=spec)
         self.operation_type = "merge"
 
+    @spec_option("The type of merge operation")
     def mode(self, mode):
         return _set_spec_value(self, "mode", mode)
 
+    @spec_option("The set of columns by which output tables must be sorted (in case of mode=sorted)")
     def merge_by(self, columns):
         return _set_spec_value(self, "merge_by", columns)
 
+    @spec_option("The approximate count of jobs")
     def job_count(self, count):
         return _set_spec_value(self, "job_count", count)
 
+    @spec_option("The approximate amount of data at the input of one job")
     def data_size_per_job(self, size):
         return _set_spec_value(self, "data_size_per_job", size)
 
+    @spec_option("The list of the input tables")
     def input_table_paths(self, paths):
         return _set_spec_value(self, "input_table_paths", paths)
 
+    @spec_option("The path of the output table")
     def output_table_path(self, path):
         return _set_spec_value(self, "output_table_path", path)
 
+    @spec_option("Whether to combine small chunks")
     def combine_chunks(self, flag=True):
         return _set_spec_value(self, "combine_chunks", flag)
 
+    @spec_option("Whether to force reading all data from the input tables")
     def force_transform(self, flag=True):
         return _set_spec_value(self, "force_transform", flag)
+
+    @spec_option("Schema inference mode")
+    def schema_inference_mode(self, mode):
+        return _set_spec_value(self, "schema_inference_mode", mode)
+
+    @spec_option("I/O settings of jobs", nested_spec_builder=JobIOSpecBuilder)
+    def job_io(self, job_io_spec):
+        self._spec["job_io"] = deepcopy(job_io_spec)
+        return self
+
+    def begin_job_io(self):
+        return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
@@ -1072,33 +1275,70 @@ class SortSpecBuilder(SpecBuilder):
             spec=spec)
         self.operation_type = "sort"
 
+    @spec_option("The set of columns by which input tables must be sorted")
     def sort_by(self, columns):
         return _set_spec_value(self, "sort_by", columns)
 
+    @spec_option("The approximate count of partitions")
     def partition_count(self, count):
         return _set_spec_value(self, "partition_count", count)
 
+    @spec_option("The approximate amount of data in each partition")
     def partition_data_size(self, size):
         return _set_spec_value(self, "partition_data_size", size)
 
+    @spec_option("The approximate amount of data at the input of one partition job")
     def data_size_per_partition_job(self, size):
         return _set_spec_value(self, "data_size_per_partition_job", size)
 
+    @spec_option("The account of intermediate data")
     def intermediate_data_account(self, account):
         return _set_spec_value(self, "intermediate_data_account", account)
 
+    @spec_option("The media type that stores chunks of the intermediate data")
+    def intermediate_data_medium(self, medium):
+        return _set_spec_value(self, "intermediate_data_medium", medium)
+
+    @spec_option("The compression codec of intermediate data")
+    def intermediate_compression_codec(self, codec):
+        return _set_spec_value(self, "intermediate_compression_codec", codec)
+
+    @spec_option("The factor of intermediate data replication")
+    def intermediate_data_replication_factor(self, factor):
+        return _set_spec_value(self, "intermediate_data_replication_factor", factor)
+
+    @spec_option("The list of the input tables")
     def input_table_paths(self, paths):
         return _set_spec_value(self, "input_table_paths", paths)
 
+    @spec_option("The path of the output table")
     def output_table_path(self, size):
         return _set_spec_value(self, "output_table_path", size)
 
+    @spec_option("The approximate count of partition jobs")
     def partition_job_count(self, count):
         return _set_spec_value(self, "partition_job_count", count)
+
+    @spec_option("Locality timeout")
+    def sort_locality_timeout(self, timeout):
+        return _set_spec_value(self, "sort_locality_timeout", timeout)
+
+    @spec_option("The approximate amount of data at the input of sorted merge job")
+    def data_size_per_sorted_merge_job(self, size):
+        return _set_spec_value(self, "data_size_per_sorted_merge_job", size)
+
+    @spec_option("The number of samples per partition (only for dynamic tables)")
+    def samples_per_partition(self, count):
+        return _set_spec_value(self, "samples_per_partition", count)
+
+    @spec_option("Schema inference mode")
+    def schema_inference_mode(self, mode):
+        return _set_spec_value(self, "schema_inference_mode", mode)
 
     def begin_partition_job_io(self):
         return PartitionJobIOSpecBuilder(self)
 
+    @spec_option("I/O settings of partition jobs", nested_spec_builder=PartitionJobIOSpecBuilder)
     def partition_job_io(self, job_io_spec):
         self._spec["partition_job_io"] = job_io_spec
         return self
@@ -1106,6 +1346,7 @@ class SortSpecBuilder(SpecBuilder):
     def begin_sort_job_io(self):
         return SortJobIOSpecBuilder(self)
 
+    @spec_option("I/O settings of sort jobs", nested_spec_builder=SortJobIOSpecBuilder)
     def sort_job_io(self, job_io_spec):
         self._spec["sort_job_io"] = job_io_spec
         return self
@@ -1113,6 +1354,7 @@ class SortSpecBuilder(SpecBuilder):
     def begin_merge_job_io(self):
         return MergeJobIOSpecBuilder(self)
 
+    @spec_option("I/O settings of merge jobs", nested_spec_builder=MergeJobIOSpecBuilder)
     def merge_job_io(self, job_io_spec):
         self._spec["merge_job_io"] = job_io_spec
         return self
@@ -1155,23 +1397,45 @@ class RemoteCopySpecBuilder(SpecBuilder):
         super(RemoteCopySpecBuilder, self).__init__(job_io_types=["job_io"])
         self.operation_type = "remote_copy"
 
+    @spec_option("The name of the cluster from which you want to copy the data")
     def cluster_name(self, name):
         return _set_spec_value(self, "cluster_name", name)
 
+    @spec_option("The name of the network you want to use when copying")
     def network_name(self, name):
         return _set_spec_value(self, "network_name", name)
 
+    @spec_option("The configuration of connection to the source cluster")
     def cluster_connection(self, cluster):
         return _set_spec_value(self, "cluster_connection", cluster)
 
+    @spec_option("The list of the input tables")
     def input_table_paths(self, paths):
         return _set_spec_value(self, "input_table_paths", paths)
 
+    @spec_option("The path of the output table")
     def output_table_path(self, path):
         return _set_spec_value(self, "output_table_path", path)
 
+    @spec_option("Whether to copy attributes of input table (in case of single input)")
     def copy_attributes(self, flag=True):
         return _set_spec_value(self, "copy_attributes", flag)
+
+    @spec_option("The list of attributes which should be copied")
+    def attribute_keys(self, keys):
+        return _set_spec_value(self, "attribute_keys", keys)
+
+    @spec_option("Schema inference mode")
+    def schema_inference_mode(self, mode):
+        return _set_spec_value(self, "schema_inference_mode", mode)
+
+    @spec_option("I/O settings of jobs", nested_spec_builder=JobIOSpecBuilder)
+    def job_io(self, job_io_spec):
+        self._spec["job_io"] = deepcopy(job_io_spec)
+        return self
+
+    def begin_job_io(self):
+        return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
@@ -1186,11 +1450,25 @@ class EraseSpecBuilder(SpecBuilder):
         super(EraseSpecBuilder, self).__init__(job_io_types=["job_io"])
         self.operation_type = "erase"
 
+    @spec_option("The path of the table")
     def table_path(self, paths):
         return _set_spec_value(self, "table_path", paths)
 
+    @spec_option("Whether to combine small chunks")
     def combine_chunks(self, flag=True):
         return _set_spec_value(self, "combine_chunks", flag)
+
+    @spec_option("Schema inference mode")
+    def schema_inference_mode(self, mode):
+        return _set_spec_value(self, "schema_inference_mode", mode)
+
+    @spec_option("I/O settings of jobs", nested_spec_builder=JobIOSpecBuilder)
+    def job_io(self, job_io_spec):
+        self._spec["job_io"] = deepcopy(job_io_spec)
+        return self
+
+    def begin_job_io(self):
+        return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
         spec = deepcopy(self._spec)
