@@ -404,6 +404,19 @@ struct TGetFailedJobInfoOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationBriefProgress
+{
+    ui64 Aborted = 0;
+    ui64 Completed = 0;
+    ui64 Failed = 0;
+    ui64 Lost = 0;
+    ui64 Pending = 0;
+    ui64 Running = 0;
+    ui64 Total = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperation
     : public TThrRefBase
 {
@@ -446,6 +459,11 @@ struct IOperation
     //
     // Retrieve job statistics.
     virtual TJobStatistics GetJobStatistics() = 0;
+
+    //
+    // Retrieve operation progress.
+    // Will return Nothing if operation has no running jobs yet, f.e. when it is materializing or has pending state
+    virtual TMaybe<TOperationBriefProgress> GetBriefProgress() = 0;
 
     //
     // Abort operation.

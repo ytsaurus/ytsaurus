@@ -454,6 +454,27 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         auto jobStatistics = operation->GetJobStatistics();
         UNIT_ASSERT(jobStatistics.GetStatistics("time/total").Max().Defined());
     }
+
+    SIMPLE_UNIT_TEST(GetBriefProgress)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        auto operation = client->Sort(
+            TSortOperationSpec().SortBy({"foo"})
+            .AddInput("//testing/input")
+            .Output("//testing/output"));
+        // Request brief progress directly
+        auto briefProgress = operation->GetBriefProgress();
+        UNIT_ASSERT(briefProgress.Defined());
+        UNIT_ASSERT(briefProgress->Total > 0);
+    }
 }
 
 SIMPLE_UNIT_TEST_SUITE(OperationWatch)
@@ -591,6 +612,29 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
     SIMPLE_UNIT_TEST(GetFailedJobInfo_Transaction)
     {
         TestGetFailedJobInfoImpl(CreateTestClient()->StartTransaction());
+    }
+
+    SIMPLE_UNIT_TEST(GetBriefProgress)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        auto operation = client->Sort(
+            TSortOperationSpec().SortBy({"foo"})
+            .AddInput("//testing/input")
+            .Output("//testing/output"),
+            TOperationOptions().Wait(false));
+        operation->Watch().Wait();
+        // Request brief progress via poller
+        auto briefProgress = operation->GetBriefProgress();
+        UNIT_ASSERT(briefProgress.Defined());
+        UNIT_ASSERT(briefProgress->Total > 0);
     }
 }
 
