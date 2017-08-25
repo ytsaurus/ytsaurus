@@ -23,11 +23,6 @@ from yt.packages.six.moves import map as imap, filter as ifilter
 import random
 from datetime import datetime, timedelta
 
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
-
 # Auxiliary methods
 
 def _get_format_from_tables(tables, ignore_unexisting_tables):
