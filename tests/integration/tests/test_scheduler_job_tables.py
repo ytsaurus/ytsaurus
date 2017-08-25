@@ -465,7 +465,7 @@ def queue_iterator(queue):
             return
         yield chunk
 
-#@flaky(max_runs=5)
+@flaky(max_runs=5)
 class TestCoreTable(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
