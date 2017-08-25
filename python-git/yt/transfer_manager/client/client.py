@@ -198,8 +198,6 @@ class Poller(object):
             return True
         if error.contains_text("Failed jobs limit exceeded"):
             return True
-        if error.contains_text("Master is not responding"):
-            return True
         return False
 
     def _poll_tasks(self):
