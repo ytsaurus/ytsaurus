@@ -1,6 +1,6 @@
 from .common import update, get_value, remove_nones_from_dict, YtError, require
 from .config import get_config, get_option
-from .errors import YtResponseError
+from .errors import YtChunkUnavailable
 from .format import YtFormatReadError
 from .heavy_commands import process_read_exception, _get_read_response
 from .http_helpers import get_retriable_errors
@@ -19,7 +19,7 @@ import threading
 class ParallelReadRetrier(Retrier):
     def __init__(self, transaction_id, client):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
-        retriable_errors = tuple(list(get_retriable_errors()) + [YtResponseError, YtFormatReadError])
+        retriable_errors = tuple(list(get_retriable_errors()) + [YtChunkUnavailable, YtFormatReadError])
         retry_config = {
             "count": get_config(client)["read_retries"]["retry_count"],
             "backoff": get_config(client)["retry_backoff"],

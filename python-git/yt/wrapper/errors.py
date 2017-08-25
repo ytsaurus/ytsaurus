@@ -73,6 +73,8 @@ class YtHttpResponseError(YtResponseError):
     def __reduce__(self):
         return (YtHttpResponseError, (self.error, self.url, self.headers, self.params))
 
+# TODO(ignat): All concrete errors below should be inherited from YtResponseError
+
 class YtRequestRateLimitExceeded(YtHttpResponseError):
     """Request rate limit exceeded error.
        It is used in retries."""
@@ -103,6 +105,12 @@ class YtMasterCommunicationError(YtHttpResponseError):
     """Master communication error.
        It is used in retries."""
     pass
+
+class YtChunkUnavailable(YtHttpResponseError):
+    """Chunk unavalable error
+       It is use in read retries"""
+    pass
+
 
 class YtProxyUnavailable(YtError):
     """Proxy is under heavy load."""
