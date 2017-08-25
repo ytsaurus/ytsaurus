@@ -1280,7 +1280,7 @@ struct TTypedExpressionBuilder
             }
 
             THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-                NAst::FormatReference(reference));
+                NAst::InferColumnName(reference));
         }
 
         TTypeSet resultTypes({column->Type});
@@ -1718,7 +1718,7 @@ public:
         auto column = SourceTableSchema_.FindColumn(reference.ColumnName);
 
         if (column) {
-            auto formattedName = NAst::FormatReference(reference);
+            auto formattedName = NAst::InferColumnName(reference);
             if (size_t collisionIndex = ColumnsCollisions_.emplace(reference.ColumnName, 0).first->second++) {
                 formattedName = Format("%v#%v", formattedName, collisionIndex);
             }
@@ -1775,7 +1775,7 @@ public:
                 Foreign_->GetColumnPtr(reference))
             {
                 THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables",
-                    NAst::FormatReference(reference));
+                    NAst::InferColumnName(reference));
             }
             SelfJoinedColumns_->push_back(column->Name);
             return column;
@@ -2228,12 +2228,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
             if (!selfColumn || !foreignColumn) {
                 THROW_ERROR_EXCEPTION("Column %Qv not found",
-                    NAst::FormatReference(referenceExpr->Reference));
+                    NAst::InferColumnName(referenceExpr->Reference));
             }
 
             if (selfColumn->Type != foreignColumn->Type) {
                 THROW_ERROR_EXCEPTION("Column %Qv type mismatch",
-                    NAst::FormatReference(referenceExpr->Reference))
+                    NAst::InferColumnName(referenceExpr->Reference))
                     << TErrorAttribute("self_type", selfColumn->Type)
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
             }

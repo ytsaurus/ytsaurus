@@ -464,10 +464,10 @@ TString FormatId(const TStringBuf& id)
     return builder.Flush();
 }
 
-TString FormatReference(const TReference& ref, bool isFinal)
+TString FormatReference(const TReference& ref)
 {
     TStringBuilder builder;
-    FormatReference(&builder, ref, isFinal);
+    FormatReference(&builder, ref);
     return builder.Flush();
 }
 
@@ -495,6 +495,13 @@ TString InferColumnName(const TExpression& expr)
 {
     TStringBuilder builder;
     FormatExpression(&builder, expr, false, true);
+    return builder.Flush();
+}
+
+TString InferColumnName(const TReference& ref)
+{
+    TStringBuilder builder;
+    FormatReference(&builder, ref, true);
     return builder.Flush();
 }
 
