@@ -71,14 +71,16 @@ class Retrier(object):
     def get_backoff(self, attempt, start_time):
         backoff_config = self.retry_config["backoff"]
         now = datetime.now()
+
         if backoff_config["policy"] == "rounded_up_to_request_timeout":
             return max(0.0, self.timeout / 1000.0 - total_seconds(now - start_time))
         elif backoff_config["policy"] == "constant_time":
             return backoff_config["constant_time"] / 1000.0
         elif backoff_config["policy"] == "exponential":
             exponential_policy = backoff_config["exponential_policy"]
-            backoff = exponential_policy["start_timeout"] * (exponential_policy["base"] ** attempt)
-            return min(exponential_policy["max_timeout"] / 1000.0, backoff)
+            backoff = exponential_policy["start_timeout"] * (exponential_policy["base"] ** attempt) / 1000.0
+            timeout = min(exponential_policy["max_timeout"] / 1000.0, backoff)
+            return timeout * (1.0 + exponential_policy["decay_factor_bound"] * random.random())
         else:
             raise YtError("Incorrect retry backoff policy '{0}'".format(backoff_config["policy"]))
 
