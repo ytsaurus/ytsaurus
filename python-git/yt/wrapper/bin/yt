@@ -591,6 +591,7 @@ def add_alter_table_parser(add_parser):
     dynamic_parser = parser.add_mutually_exclusive_group(required=False)
     dynamic_parser.add_argument("--dynamic", dest="dynamic", default=None, action="store_true")
     dynamic_parser.add_argument("--static", dest="dynamic", default=None, action="store_false")
+    parser.add_argument("--upstream-replica-id", help="upstream replica id")
 
 @copy_docstring_from(yt.alter_table_replica)
 def alter_table_replica(**args):
