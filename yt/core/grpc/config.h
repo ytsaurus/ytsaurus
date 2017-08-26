@@ -57,6 +57,13 @@ public:
             .Default(EAddressType::Insecure);
         RegisterParameter("address", Address);
     }
+
+    static TChannelConfigPtr CreateInsecure(const TString& address)
+    {
+        auto config = New<TChannelConfig>();
+        config->Address = address;
+        return config;
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TChannelConfig)
