@@ -1,6 +1,5 @@
 #include "blob.h"
 #include "ref.h"
-#include "ref_counted_tracker.h"
 
 namespace NYT {
 
@@ -148,7 +147,8 @@ void TBlob::Allocate(size_t newCapacity)
     Begin_ = new char[newCapacity];
     Capacity_ = newCapacity;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Allocate(TypeCookie_, newCapacity);
+    TRefCountedTrackerFacade::AllocateTagInstance(TypeCookie_);
+    TRefCountedTrackerFacade::AllocateSpace(TypeCookie_, newCapacity);
 #endif
 }
 
@@ -162,7 +162,7 @@ void TBlob::Reallocate(size_t newCapacity)
     memcpy(newBegin, Begin_, Size_);
     delete[] Begin_;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Reallocate(TypeCookie_, Capacity_, newCapacity);
+    TRefCountedTrackerFacade::ReallocateSpace(TypeCookie_, Capacity_, newCapacity);
 #endif
     Begin_ = newBegin;
     Capacity_ = newCapacity;
@@ -175,7 +175,8 @@ void TBlob::Free()
     }
     delete[] Begin_;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Free(TypeCookie_, Capacity_);
+    TRefCountedTrackerFacade::FreeTagInstance(TypeCookie_);
+    TRefCountedTrackerFacade::FreeSpace(TypeCookie_, Capacity_);
 #endif
     Reset();
 }
