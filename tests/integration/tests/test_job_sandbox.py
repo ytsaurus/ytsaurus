@@ -4,6 +4,8 @@ from yt_commands import *
 from yt.yson import *
 from yt.environment.helpers import assert_items_equal, assert_almost_equal
 
+from flaky import flaky
+
 import pytest
 import time
 
@@ -310,6 +312,7 @@ class TestFilesInSandbox(YTEnvSetup):
         }
     }
 
+    @flaky(max_runs=3)
     def test_operation_abort_with_lost_file(self):
         create("file", "//tmp/script", attributes={"replication_factor": 1, "executable": True})
         write_file("//tmp/script", "#!/bin/bash\ncat")
