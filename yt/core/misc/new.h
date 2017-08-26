@@ -76,6 +76,7 @@ TRefCountedTypeKey GetRefCountedTypeKey();
 
 TRefCountedTypeCookie GetRefCountedTypeCookie(
     TRefCountedTypeKey typeKey,
+    size_t instanceSize,
     const TSourceLocation& location);
 
 template <class T>
@@ -84,9 +85,6 @@ TRefCountedTypeCookie GetRefCountedTypeCookie();
 template <class T, class TTag, int Counter>
 TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(
     const TSourceLocation& location);
-
-template <class T>
-size_t SpaceUsed(const T* instance);
 
 ////////////////////////////////////////////////////////////////////////////////
 

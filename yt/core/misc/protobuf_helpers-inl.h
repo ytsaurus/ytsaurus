@@ -307,32 +307,48 @@ template <class TProto>
 TRefCountedProto<TProto>::TRefCountedProto(const TRefCountedProto<TProto>& other)
 {
     TProto::CopyFrom(other);
+    RegisterExtraSpace();
 }
 
 template <class TProto>
 TRefCountedProto<TProto>::TRefCountedProto(TRefCountedProto<TProto>&& other)
 {
     TProto::Swap(&other);
+    RegisterExtraSpace();
 }
 
 template <class TProto>
 TRefCountedProto<TProto>::TRefCountedProto(const TProto& other)
 {
     TProto::CopyFrom(other);
+    RegisterExtraSpace();
 }
 
 template <class TProto>
 TRefCountedProto<TProto>::TRefCountedProto(TProto&& other)
 {
     TProto::Swap(&other);
+    RegisterExtraSpace();
 }
 
-//! Gives the extra allocated size for protobuf types.
-//! This function is used for ref counted tracking.
 template <class TProto>
-size_t SpaceUsed(const TRefCountedProto<TProto>* instance)
+TRefCountedProto<TProto>::~TRefCountedProto()
 {
-    return sizeof(TRefCountedProto<TProto>) + instance->TProto::SpaceUsed() - sizeof(TProto);
+    UnregisterExtraSpace();
+}
+
+template <class TProto>
+void TRefCountedProto<TProto>::RegisterExtraSpace()
+{
+    Y_ASSERT(ExtraSpace_ == 0);
+    ExtraSpace_ = TProto::SpaceUsed() - sizeof (TProto);
+    TRefCountedTrackerFacade::AllocateSpace(TypeCookie_, ExtraSpace_);
+}
+
+template <class TProto>
+void TRefCountedProto<TProto>::UnregisterExtraSpace()
+{
+    TRefCountedTrackerFacade::FreeSpace(TypeCookie_, ExtraSpace_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
