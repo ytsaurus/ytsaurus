@@ -324,7 +324,7 @@ public:
     {
         auto channelConfig = New<NGrpc::TChannelConfig>();
         channelConfig->Address = address;
-        return NGrpc::CreateChannel(channelConfig);
+        return NGrpc::CreateGrpcChannel(channelConfig);
     }
 
     static IServerPtr CreateServer()
