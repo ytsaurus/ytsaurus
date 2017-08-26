@@ -560,6 +560,16 @@ public:
         return Begin() + GetCount();
     }
 
+    const TUnversionedValue* Begin() const
+    {
+        return reinterpret_cast<const TUnversionedValue*>(TUnversionedRow::GetHeader() + 1);
+    }
+
+    const TUnversionedValue* End() const
+    {
+        return Begin() + GetCount();
+    }
+
     void SetCount(ui32 count)
     {
         Y_ASSERT(count <= GetHeader()->Capacity);
@@ -579,6 +589,16 @@ public:
     }
 
     TUnversionedValue* end()
+    {
+        return End();
+    }
+
+    const TUnversionedValue* begin() const
+    {
+        return Begin();
+    }
+
+    const TUnversionedValue* end() const
     {
         return End();
     }
