@@ -3,6 +3,8 @@
 #include "dispatcher.h"
 #include "helpers.h"
 
+#include <yt/core/misc/singleton.h>
+
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/rpc.pb.h>
@@ -415,11 +417,29 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TChannel)
 
-IChannelPtr CreateChannel(TChannelConfigPtr config)
+IChannelPtr CreateGrpcChannel(TChannelConfigPtr config)
 {
     auto channel = New<TChannel>(std::move(config));
     channel->Initialize();
     return channel;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChannelFactory
+    : public IChannelFactory
+{
+public:
+    virtual IChannelPtr CreateChannel(const TString& address) override
+    {
+        auto config = TChannelConfig::CreateInsecure(address);
+        return CreateGrpcChannel(config);
+    }
+};
+
+IChannelFactoryPtr GetGrpcChannelFactory()
+{
+    return RefCountedSingleton<TChannelFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
