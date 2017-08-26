@@ -24,13 +24,15 @@ public:
     TExecutionContext(TExecutionContext&& other);
     TExecutionContext(const TExecutionContext&) = delete;
 
-    static const int EH_SIZE = 16;
+#ifdef CXXABIv1
+    static const int EHSize = 16;
+#endif
 
 private:
     void* SP_;
 
 #ifdef CXXABIv1
-    char EH_[EH_SIZE];
+    char EH_[EHSize];
 #endif
 
 #if defined(_asan_enabled_)
