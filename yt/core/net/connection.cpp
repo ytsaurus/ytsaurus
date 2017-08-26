@@ -14,8 +14,6 @@ namespace NNet {
 
 using namespace NConcurrency;
 
-static const auto& Logger = NetLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TIOResult
