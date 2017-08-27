@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, \
-    require_ytserver_root_privileges, porto_env_only, skip_if_porto
+    require_ytserver_root_privileges, patch_porto_env_only, skip_if_porto
 from yt_commands import *
 
 from flaky import flaky
@@ -863,8 +863,8 @@ class TestCoreTable(YTEnvSetup):
         assert not "size" in core_info
         assert "error" in core_info
 
-@porto_env_only
-class TestCoreTablePorto(TestCoreTable):
+@patch_porto_env_only(TestCoreTable)
+class TestCoreTablePorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 

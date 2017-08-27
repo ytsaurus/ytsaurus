@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, porto_env_only
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal, assert_almost_equal
@@ -986,8 +986,8 @@ done
 
 ##################################################################
 
-@porto_env_only
-class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
+@patch_porto_env_only(TestSchedulerMapCommands)
+class TestSchedulerMapCommandsPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -1439,8 +1439,8 @@ class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
 
 ##################################################################
 
-@porto_env_only
-class TestMapOnDynamicTablesPorto(TestMapOnDynamicTables):
+@patch_porto_env_only(TestMapOnDynamicTables)
+class TestMapOnDynamicTablesPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -1655,7 +1655,7 @@ class TestInputOutputFormatsMulticell(TestInputOutputFormats):
 
 ##################################################################
 
-@porto_env_only
-class TestInputOutputFormatsPorto(TestInputOutputFormats):
+@patch_porto_env_only(TestInputOutputFormats)
+class TestInputOutputFormatsPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True

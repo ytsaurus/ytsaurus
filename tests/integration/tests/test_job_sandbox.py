@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, porto_env_only
+from yt_env_setup import YTEnvSetup, patch_porto_env_only
 from yt_commands import *
 
 from yt.yson import *
@@ -257,8 +257,8 @@ class TestSandboxTmpfs(YTEnvSetup):
 
 ##################################################################
 
-@porto_env_only
-class TestSandboxTmpfsPorto(TestSandboxTmpfs):
+@patch_porto_env_only(TestSandboxTmpfs)
+class TestSandboxTmpfsPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
