@@ -176,7 +176,7 @@ struct TDynamicInitializer
         DynamicPhoenixInitializer
 
 // __VA_ARGS__ are used because sometimes we want a template type
-// to be an arguement but the single macro argument may not contain
+// to be an argument but the single macro argument may not contain
 // commas. Dat preprocessor :/
 #define DEFINE_DYNAMIC_PHOENIX_TYPE(...)                              \
     decltype(__VA_ARGS__::DynamicPhoenixInitializer)                  \

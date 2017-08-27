@@ -37,7 +37,7 @@ bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
         // chunks itself, there is no way we can stay under limit, so just let it go.
         if (intermediateChunkCount > MaxIntermediateChunkCount_) {
             LOG_DEBUG("Allowing scheduling of a marginally large task job "
-                "(IntermediateChunkCountEstimate: %v, MaxIntermediateChunkCount: %v",
+                "(IntermediateChunkCountEstimate: %v, MaxIntermediateChunkCount: %v)",
                 intermediateChunkCount,
                 MaxIntermediateChunkCount_);
             return true;
@@ -45,7 +45,7 @@ bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
 
         LOG_DEBUG("Disallowing scheduling of a task job "
             "(IntermediateChunkCountEstimate: %v, CurrentIntermediateChunkCount: %v, MaxIntermediateChunkCount: %v, "
-            "RunningMergeJobCount: %v",
+            "RunningMergeJobCount: %v)",
             intermediateChunkCount,
             CurrentIntermediateChunkCount_,
             MaxIntermediateChunkCount_,
@@ -53,31 +53,31 @@ bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
 
         // If there are already some auto-merge jobs running, we should just wait for them.
         // Otherwise, we enable force-flush mode.
-        if (RunningMergeJobCount_ == 0 && RunningTaskJobCount_ == 0 && !ForceFlush_) {
+        if (RunningMergeJobCount_ == 0 && RunningTaskJobCount_ == 0 && !ForceScheduleMergeJob_) {
             LOG_DEBUG("Force flush mode enabled");
-            ForceFlush_ = true;
+            ForceScheduleMergeJob_ = true;
             StateChanged_.Fire();
         }
         return false;
     }
 }
 
-bool TAutoMergeDirector::CanSchedulerMergeJob(int intermediateChunkCount) const
+bool TAutoMergeDirector::CanScheduleMergeJob(int intermediateChunkCount) const
 {
-    if (intermediateChunkCount >= ChunkCountPerMergeJob_ || ForceFlush_ || TaskCompleted_) {
+    if (intermediateChunkCount >= ChunkCountPerMergeJob_ || ForceScheduleMergeJob_ || TaskCompleted_) {
         LOG_DEBUG("Allowing scheduling of a merge job "
-            "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v",
+            "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v)",
             intermediateChunkCount,
             ChunkCountPerMergeJob_,
-            ForceFlush_,
+            ForceScheduleMergeJob_,
             TaskCompleted_);
         return true;
     } else {
         LOG_DEBUG("Disallowing scheduling of a merge job "
-            "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v",
+            "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v)",
             intermediateChunkCount,
             ChunkCountPerMergeJob_,
-            ForceFlush_,
+            ForceScheduleMergeJob_,
             TaskCompleted_);
         return false;
     }
@@ -108,9 +108,9 @@ void TAutoMergeDirector::OnMergeJobStarted()
 {
     ++RunningMergeJobCount_;
 
-    if (ForceFlush_) {
+    if (ForceScheduleMergeJob_) {
         LOG_DEBUG("Force flush mode disabled");
-        ForceFlush_ = false;
+        ForceScheduleMergeJob_ = false;
     }
 
     StateChanged_.Fire();
@@ -141,7 +141,7 @@ void TAutoMergeDirector::Persist(const TPersistenceContext& context)
     Persist(context, OperationId_);
     Persist(context, CurrentIntermediateChunkCount_);
     Persist(context, RunningMergeJobCount_);
-    Persist(context, ForceFlush_);
+    Persist(context, ForceScheduleMergeJob_);
     Persist(context, TaskCompleted_);
     Persist(context, RunningTaskJobCount_);
 

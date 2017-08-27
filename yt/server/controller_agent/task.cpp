@@ -834,7 +834,8 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         // the same boundary keys when the job output is lost).
         dataSlice->Tag = index;
         int tableIndex = inputChunk->GetTableIndex();
-        YCHECK(0 <= tableIndex && tableIndex < tableCount);
+        YCHECK(tableIndex >= 0);
+        YCHECK(tableIndex < tableCount);
         stripes[tableIndex]->DataSlices.emplace_back(std::move(dataSlice));
     }
     return stripes;

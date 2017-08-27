@@ -2787,8 +2787,6 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetNodeDescriptor().Address;
 
-
-
     for (const auto& group : TaskGroups) {
         if (scheduleJobResult->IsScheduleStopNeeded()) {
             return;
@@ -3163,7 +3161,7 @@ void TOperationControllerBase::InitializeStandardEdgeDescriptors()
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
 {
-    OnOperationFailed(TError("Exception thrown in operation controller that leInitAutoMerge(jobSizeConstraints->GetJobCount());d to operation failure")
+    OnOperationFailed(TError("Exception thrown in operation controller that led to operation failure")
         << ex);
 }
 
@@ -6155,7 +6153,6 @@ TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate(
 void TOperationControllerBase::UnstageChunkTreesNonRecursively(std::vector<TChunkTreeId> chunkTreeIds)
 {
     MasterConnector->AddChunksToUnstageList(std::move(chunkTreeIds));
-
 }
 
 bool TOperationControllerBase::IsCompleted() const

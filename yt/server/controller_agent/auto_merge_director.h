@@ -28,7 +28,7 @@ public:
     //! Returns true if it is time to flush intermediate chunks by putting them into a single
     //! auto-merge job.
     //! This method is called from the auto-merge task.
-    bool CanSchedulerMergeJob(int intermediateChunkCount) const;
+    bool CanScheduleMergeJob(int intermediateChunkCount) const;
 
     void OnTaskJobStarted(int intermediateChunkCountEstimate);
 
@@ -79,7 +79,7 @@ private:
     int RunningTaskJobCount_ = 0;
 
     //! Flag showing that there are currently too many intermediate chunks.
-    mutable bool ForceFlush_ = false;
+    mutable bool ForceScheduleMergeJob_ = false;
 
     //! Flag showing that the task has been completed.
     bool TaskCompleted_ = false;
