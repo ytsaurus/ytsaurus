@@ -76,7 +76,7 @@ TAutoMergeTask::TAutoMergeTask(
         false /* canAdjustDataSizePerJob */,
         false /* isExplicitJobCount */,
         1 /* jobCount */,
-        std::numeric_limits<i64>::max() /* dataSizePerJob */,
+        DesiredChunkSize_ /* dataSizePerJob */,
         std::numeric_limits<i64>::max() /* primaryDataSizePerJob */,
         MaxChunksPerJob_ /* maxDataSlicesPerJob */,
         std::numeric_limits<i64>::max(),
@@ -156,7 +156,7 @@ void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::
 void TAutoMergeTask::UpdateSelf()
 {
     CanScheduleJob_ = TaskHost_->GetAutoMergeDirector()
-        ->CanSchedulerMergeJob(CurrentChunkCount_);
+        ->CanScheduleMergeJob(CurrentChunkCount_);
     if (CanScheduleJob_) {
         TaskHost_->AddTaskPendingHint(this);
     }

@@ -28,8 +28,25 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         }
     }
 
-    # Most common way of this test to fail is to run into state when no job can be scheduled but the
-    # operation is still incomplete. In this case it should fail within the timeout given below.
+    def _create_account(self, chunk_count):
+        create_account("acc")
+        set("//sys/accounts/acc/@resource_limits/chunk_count", chunk_count)
+
+    def _track_and_report_peak_chunk_count(self, op):
+        peak_chunk_count = 0
+        while True:
+            state = op.get_state()
+            if state == "completed":
+                break
+            if op.get_state() == "failed":
+                op.track() # this should raise an exception
+            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
+            peak_chunk_count = max(peak_chunk_count, current_chunk_count)
+            sleep(0.5)
+        print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
+
+    # Bugs in auto-merge usually lead to the operation being stuck without scheduling any new jobs.
+    # This is why we use the pytest timeout decorator.
     @pytest.mark.timeout(240)
     def test_auto_merge_does_not_stuck(self):
         create("table", "//tmp/t_in")
@@ -42,7 +59,6 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             [9, 9, 9],
             [9, 4, 2],
             [16, 5, 3],
-            [16, 3, 5], # these values seem to be invalid, but still shouldn't lead to hangup
             [100, 28, 14],
             [9, 20, 15],
             [9, 20, 3],
@@ -68,28 +84,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                    (row_count - 1) // min(chunk_count_per_merge_job, max_intermediate_chunk_count) + 1
             assert get("//tmp/t_out/@row_count") == row_count
 
-    def _track_and_report_peak_chunk_count(self, op):
-        peak_chunk_count = 0
-        while True:
-            state = op.get_state()
-            if state == "completed":
-                break
-            if op.get_state() == "failed":
-                op.track() # this should raise an exception
-            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
-            peak_chunk_count = max(peak_chunk_count, current_chunk_count)
-            sleep(0.5)
-        print >>sys.stderr, "peak_chunk_count =", peak_chunk_count
-
     @pytest.mark.timeout(240)
     def test_account_chunk_limit(self):
-        create_account("acc")
-        set("//sys/accounts/acc/@resource_limits/chunk_count", 50)
+        self._create_account(50)
 
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-        set("//tmp/t_in/@account", "acc")
-        set("//tmp/t_out/@account", "acc")
+        create("table", "//tmp/t_in", attributes={"account": "acc"})
+        create("table", "//tmp/t_out", attributes={"account": "acc"})
 
         row_count = 300
         write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
@@ -112,15 +112,11 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert get("//tmp/t_out/@row_count") == row_count
 
     def test_several_auto_merge_output_tables(self):
-        create_account("acc")
-        set("//sys/accounts/acc/@resource_limits/chunk_count", 35)
+        self._create_account(35)
 
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out1")
-        create("table", "//tmp/t_out2")
-        set("//tmp/t_in/@account", "acc")
-        set("//tmp/t_out1/@account", "acc")
-        set("//tmp/t_out2/@account", "acc")
+        create("table", "//tmp/t_in", attributes={"account": "acc"})
+        create("table", "//tmp/t_out1", attributes={"account": "acc"})
+        create("table", "//tmp/t_out2", attributes={"account": "acc"})
 
         row_count = 100
         write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
@@ -149,15 +145,11 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     @pytest.mark.timeout(240)
     def test_only_auto_merge_output_table(self):
-        create_account("acc")
-        set("//sys/accounts/acc/@resource_limits/chunk_count", 40)
+        self._create_account(40)
 
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out1")
-        create("table", "//tmp/t_out2")
-        set("//tmp/t_in/@account", "acc")
-        set("//tmp/t_out1/@account", "acc")
-        set("//tmp/t_out2/@account", "acc")
+        create("table", "//tmp/t_in", attributes={"account": "acc"})
+        create("table", "//tmp/t_out1", attributes={"account": "acc"})
+        create("table", "//tmp/t_out2", attributes={"account": "acc"})
 
         row_count = 100
         write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
@@ -199,7 +191,6 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         write_table("<append=%true>//tmp/t_out", init_content)
 
         op = map(
-            dont_track=True,
             in_="//tmp/t_in",
             out=["<auto_merge=%true; append=%true>//tmp/t_out"],
             command="cat",
@@ -210,7 +201,6 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
                 "data_size_per_job": 1
             })
-        op.track()
 
         assert get("//tmp/t_out/@row_count") == 11
         assert get("//tmp/t_out/@chunk_count") == 6
@@ -218,3 +208,30 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert sorted(content[1:]) == sorted(data)
         assert content[:1] == init_content
         assert get("//tmp/t_out/@schema") == schema_out
+
+    @pytest.mark.timeout(30)
+    def test_teleport_large_chunks(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["<auto_merge=%true>//tmp/t_out"],
+            command="read x; if [[ $(($x % 2)) == 0 ]]; then python -c \"print '$x' * 1000000\"; else echo $x; fi",
+            spec={
+                "auto_merge": {
+                    "max_intermediate_chunk_count": 50,
+                    "chunk_count_per_merge_job": 50,
+                    "job_io": {"table_writer": {"desired_chunk_size": 100 * 1024}},
+                },
+                "data_size_per_job": 1,
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+            })
+        assert get("//tmp/t_out/@chunk_count") == 6
+        content = sorted(read_table("//tmp/t_out", verbose=False))
+        expected_content = [{"a": str(i) * (1000000 if i % 2 == 0 else 1)} for i in range(10)]
+        assert content == expected_content

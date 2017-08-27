@@ -480,7 +480,7 @@ private:
     i64 GetIdealDataWeightPerJob() const
     {
         if (Mode == EUnorderedChunkPoolMode::AutoMerge) {
-            return std::numeric_limits<i64>::max();
+            return JobSizeConstraints->GetDataWeightPerJob();
         }
         int freePendingJobCount = GetFreePendingJobCount();
         YCHECK(freePendingJobCount > 0);
