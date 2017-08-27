@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import cStringIO
 from cStringIO import StringIO
 
+import pytest
 
 ###########################################################################
 
@@ -1155,3 +1156,4 @@ class PrepareTables(object):
         write_table("//tmp/t_in", {"foo": "bar"})
 
         self._create_table("//tmp/t_out")
+

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, porto_env_only
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only
 from yt_commands import *
 
 from flaky import flaky
@@ -412,7 +412,7 @@ class TestJobProber(YTEnvSetup):
 
 ##################################################################
 
-@porto_env_only
-class TestJobProberPorto(TestJobProber):
+@patch_porto_env_only(TestJobProber)
+class TestJobProberPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True

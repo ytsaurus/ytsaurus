@@ -1,7 +1,7 @@
 import pytest
 import sys
 
-from yt_env_setup import YTEnvSetup, unix_only, porto_env_only
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only
 from yt_commands import *
 
 
@@ -95,8 +95,8 @@ while True:
         command = "cat > /dev/null; mkdir ./tmpxxx; echo 1 > ./tmpxxx/f1; chmod 700 ./tmpxxx;"
         map(in_="//tmp/t_in", out="//tmp/t_out", command=command)
 
-@porto_env_only
-class TestSchedulerMemoryLimitsPorto(TestSchedulerMemoryLimits):
+@patch_porto_env_only(TestSchedulerMemoryLimits)
+class TestSchedulerMemoryLimitsPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -183,7 +183,7 @@ while len(a) * 100000 < 7e7:
         assert not last_memory_reserve is None
         assert 6e7 <= last_memory_reserve <= 8.5e7
 
-@porto_env_only
-class TestMemoryReserveFactorPorto(TestMemoryReserveFactor):
+@patch_porto_env_only(TestMemoryReserveFactor)
+class TestMemoryReserveFactorPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True

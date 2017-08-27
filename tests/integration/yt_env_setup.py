@@ -13,6 +13,7 @@ import logging
 import resource
 import shutil
 import functools
+import inspect
 import stat
 import subprocess
 import uuid
@@ -24,9 +25,68 @@ from threading import Thread
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
 SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 
+##################################################################
+
+def patch_subclass(parent, skip_condition, reason=""):
+    """Work around a pytest.mark.skipif bug
+    https://github.com/pytest-dev/pytest/issues/568
+    The issue causes all subclasses of a TestCase subclass to be skipped if any one
+    of them is skipped.
+    This fix circumvents the issue by overriding Python's existing subclassing mechanism.
+    Instead of having `cls` be a subclass of `parent`, this decorator adds each attribute
+    of `parent` to `cls` without using Python inheritance. When appropriate, it also adds
+    a boolean condition under which to skip tests for the decorated class.
+    :param parent: The "superclass" from which the decorated class should inherit
+        its non-overridden attributes
+    :type parent: class
+    :param skip_condition: A boolean condition that, when True, will cause all tests in
+        the decorated class to be skipped
+    :type skip_condition: bool
+    :param reason: reason for skip.
+    :type reason: str
+    """
+    def patcher(cls):
+        def build_skipped_method(method, cls, skip_condition, reason):
+            if hasattr(method, "skip_condition"):
+                skip_condition = skip_condition or method.skip_condition(cls)
+
+            argspec = inspect.getargspec(method)
+            formatted_args = inspect.formatargspec(*argspec)
+
+            function_code = "@pytest.mark.skipif(skip_condition, reason=reason)\n"\
+                            "def _wrapper({0}):\n"\
+                            "    return method({0})\n"\
+                                .format(formatted_args.lstrip('(').rstrip(')'))
+            exec function_code in locals(), globals()
+
+            return _wrapper
+
+        # two passes required so that skips have access to all class attributes
+        for attr in parent.__dict__:
+            if attr in cls.__dict__:
+                continue
+            if attr.startswith("__"):
+                continue
+            if not attr.startswith("test_"):
+                setattr(cls, attr, parent.__dict__[attr])
+
+        for attr in parent.__dict__:
+            if attr.startswith("test_"):
+                setattr(cls, attr, build_skipped_method(parent.__dict__[attr],
+                                                        cls, skip_condition, reason))
+                if "parametrize" in parent.__dict__[attr].__dict__:
+                    parent.__dict__[attr].__dict__["parametrize"]
+                    cls.__dict__[attr].__dict__["parametrize"] = parent.__dict__[attr].__dict__["parametrize"]
+        return cls
+
+    return patcher
+
+##################################################################
+
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
 unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
-porto_env_only = pytest.mark.skipif(not porto_avaliable(), reason="you need configured porto to run it")
+
+patch_porto_env_only = lambda parent: patch_subclass(parent, not porto_avaliable(), reason="you need configured porto to run it")
 
 def skip_if_porto(func):
     def wrapped_func(self, *args, **kwargs):

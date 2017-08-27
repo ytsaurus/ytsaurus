@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, porto_env_only, wait
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
 from yt_commands import *
 
 from yt.yson import *
@@ -155,8 +155,8 @@ class TestEventLog(YTEnvSetup):
 
 ##################################################################
 
-@porto_env_only
-class TestEventLogPorto(TestEventLog):
+@patch_porto_env_only(TestEventLog)
+class TestEventLogPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -411,8 +411,8 @@ class TestJobStderrMulticell(TestJobStderr):
 
 ##################################################################
 
-@porto_env_only
-class TestJobStderrPorto(TestJobStderr):
+@patch_porto_env_only(TestJobStderr)
+class TestJobStderrPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -621,8 +621,8 @@ class TestUserFilesMulticell(TestUserFiles):
 
 ##################################################################
 
-@porto_env_only
-class TestUserFilesPorto(TestUserFiles):
+@patch_porto_env_only(TestUserFiles)
+class TestUserFilesPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -1089,8 +1089,8 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
 
 ##################################################################
 
-@porto_env_only
-class TestSchedulerCommonPorto(TestSchedulerCommon):
+@patch_porto_env_only(TestSchedulerCommon)
+class TestSchedulerCommonPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
