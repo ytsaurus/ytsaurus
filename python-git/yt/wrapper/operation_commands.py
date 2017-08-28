@@ -185,7 +185,7 @@ class PrintOperationInfo(object):
     def __call__(self, state):
         if state.is_running():
             progress = get_operation_progress(self.operation, client=self.client)
-            if progress != self.progress:
+            if progress and progress != self.progress:
                 self.log(
                     "operation %s: %s",
                     self.operation,
