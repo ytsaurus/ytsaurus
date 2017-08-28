@@ -72,22 +72,22 @@ public:
         Y_UNIMPLEMENTED();
     }
 
-    virtual void SubscribeCommitted(const TClosure& callback) override
+    virtual void SubscribeCommitted(const TClosure&) override
     {
         Y_UNIMPLEMENTED();
     }
 
-    virtual void UnsubscribeCommitted(const TClosure& callback) override
+    virtual void UnsubscribeCommitted(const TClosure&) override
     {
         Y_UNIMPLEMENTED();
     }
 
-    virtual void SubscribeAborted(const TClosure& callback) override
+    virtual void SubscribeAborted(const TClosure&) override
     {
         Y_UNIMPLEMENTED();
     }
 
-    virtual void UnsubscribeAborted(const TClosure& callback) override
+    virtual void UnsubscribeAborted(const TClosure&) override
     {
         Y_UNIMPLEMENTED();
     }
@@ -100,10 +100,10 @@ public:
         const NApi::TModifyRowsOptions& options) override;
 
     virtual void WriteRows(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TVersionedRow> rows,
-        const NApi::TModifyRowsOptions& options) override
+        const NYPath::TYPath&,
+        NTableClient::TNameTablePtr,
+        TSharedRange<NTableClient::TVersionedRow>,
+        const NApi::TModifyRowsOptions&) override
     {
         Y_UNIMPLEMENTED();
     }

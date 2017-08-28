@@ -60,12 +60,12 @@ const IInvokerPtr& TRpcProxyConnection::GetHeavyInvoker()
     return ActionQueue_->GetInvoker();
 }
 
-IAdminPtr TRpcProxyConnection::CreateAdmin(const TAdminOptions& options)
+IAdminPtr TRpcProxyConnection::CreateAdmin(const TAdminOptions&)
 {
     Y_UNIMPLEMENTED();
 }
 
-IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
+NApi::IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
 {
     // TODO(sandello): Extract this to a new TAddressResolver method.
     auto localHostname = GetLocalHostName();
@@ -109,8 +109,8 @@ IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
 }
 
 NHiveClient::ITransactionParticipantPtr TRpcProxyConnection::CreateTransactionParticipant(
-    const NHiveClient::TCellId& cellId,
-    const TTransactionParticipantOptions& options)
+    const NHiveClient::TCellId&,
+    const TTransactionParticipantOptions&)
 {
     Y_UNIMPLEMENTED();
 }
