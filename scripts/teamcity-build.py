@@ -481,7 +481,7 @@ def run_cpp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("C++ integration tests are skipped since all tests are disabled")
         return
-    run_pytest(options, "c++ integration", "{0}/tests/cpp".format(options.checkout_directory))
+    run_pytest(options, "cpp_integration", "{0}/tests/cpp".format(options.checkout_directory))
 
 @build_step
 def run_python_libraries_tests(options, build_context):
