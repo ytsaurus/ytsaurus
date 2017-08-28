@@ -1557,6 +1557,7 @@ private:
                 "account",
                 "chunk_writer",
                 "compression_codec",
+                "dynamic",
                 "erasure_codec",
                 "optimize_for",
                 "primary_medium",
@@ -1577,6 +1578,10 @@ private:
             const auto& rsp = rspOrError.Value();
             auto node = ConvertToNode(TYsonString(rsp->value()));
             const auto& attributes = node->Attributes();
+
+            if (attributes.Get<bool>("dynamic")) {
+                THROW_ERROR_EXCEPTION("Write to dynamic table is not supported");
+            }
 
             TableUploadOptions_ = GetTableUploadOptions(
                 RichPath_,
