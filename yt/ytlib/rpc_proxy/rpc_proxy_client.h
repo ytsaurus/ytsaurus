@@ -28,8 +28,8 @@ public:
 
     // Transactions
     virtual NApi::ITransactionPtr AttachTransaction(
-        const NTransactionClient::TTransactionId& transactionId,
-        const NApi::TTransactionAttachOptions& options) override
+        const NTransactionClient::TTransactionId&,
+        const NApi::TTransactionAttachOptions&) override
     {
         Y_UNIMPLEMENTED();
     };
@@ -81,151 +81,151 @@ public:
 
     // Security
     virtual TFuture<void> AddMember(
-        const TString& group,
-        const TString& member,
-        const NApi::TAddMemberOptions& options) override
+        const TString&,
+        const TString&,
+        const NApi::TAddMemberOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> RemoveMember(
-        const TString& group,
-        const TString& member,
-        const NApi::TRemoveMemberOptions& options) override
+        const TString&,
+        const TString&,
+        const NApi::TRemoveMemberOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<NApi::TCheckPermissionResult> CheckPermission(
-        const TString& user,
-        const NYPath::TYPath& path,
-        NYTree::EPermission permission,
-        const NApi::TCheckPermissionOptions& options) override
+        const TString&,
+        const NYPath::TYPath&,
+        NYTree::EPermission,
+        const NApi::TCheckPermissionOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     // Scheduler
     virtual TFuture<NScheduler::TOperationId> StartOperation(
-        NScheduler::EOperationType type,
-        const NYson::TYsonString& spec,
-        const NApi::TStartOperationOptions& options) override
+        NScheduler::EOperationType,
+        const NYson::TYsonString&,
+        const NApi::TStartOperationOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> AbortOperation(
-        const NScheduler::TOperationId& operationId,
-        const NApi::TAbortOperationOptions& options) override
+        const NScheduler::TOperationId&,
+        const NApi::TAbortOperationOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> SuspendOperation(
-        const NScheduler::TOperationId& operationId,
-        const NApi::TSuspendOperationOptions& options) override
+        const NScheduler::TOperationId&,
+        const NApi::TSuspendOperationOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> ResumeOperation(
-        const NScheduler::TOperationId& operationId,
-        const NApi::TResumeOperationOptions& options) override
+        const NScheduler::TOperationId&,
+        const NApi::TResumeOperationOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> CompleteOperation(
-        const NScheduler::TOperationId& operationId,
-        const NApi::TCompleteOperationOptions& options) override
+        const NScheduler::TOperationId&,
+        const NApi::TCompleteOperationOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
-    
+
     virtual TFuture<NYson::TYsonString> GetOperation(
-        const NScheduler::TOperationId& operationId,
-        const NApi::TGetOperationOptions& options) override
+        const NScheduler::TOperationId&,
+        const NApi::TGetOperationOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> DumpJobContext(
-        const NJobTrackerClient::TJobId& jobId,
-        const NYPath::TYPath& path,
-        const NApi::TDumpJobContextOptions& options) override
+        const NJobTrackerClient::TJobId&,
+        const NYPath::TYPath&,
+        const NApi::TDumpJobContextOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
-        const NJobTrackerClient::TJobId& jobId,
-        const NApi::TGetJobInputOptions& options) override
+        const NJobTrackerClient::TJobId&,
+        const NApi::TGetJobInputOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<TSharedRef> GetJobStderr(
-        const NJobTrackerClient::TOperationId& operationId,
-        const NJobTrackerClient::TJobId& jobId,
-        const NApi::TGetJobStderrOptions& options) override
+        const NJobTrackerClient::TOperationId&,
+        const NJobTrackerClient::TJobId&,
+        const NApi::TGetJobStderrOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<std::vector<NApi::TJob>> ListJobs(
-        const NJobTrackerClient::TOperationId& operationId,
-        const NApi::TListJobsOptions& options) override
+        const NJobTrackerClient::TOperationId&,
+        const NApi::TListJobsOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<NYson::TYsonString> StraceJob(
-        const NJobTrackerClient::TJobId& jobId,
-        const NApi::TStraceJobOptions& options) override
+        const NJobTrackerClient::TJobId&,
+        const NApi::TStraceJobOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> SignalJob(
-        const NJobTrackerClient::TJobId& jobId,
-        const TString& signalName,
-        const NApi::TSignalJobOptions& options) override
+        const NJobTrackerClient::TJobId&,
+        const TString&,
+        const NApi::TSignalJobOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> AbandonJob(
-        const NJobTrackerClient::TJobId& jobId,
-        const NApi::TAbandonJobOptions& options) override
+        const NJobTrackerClient::TJobId&,
+        const NApi::TAbandonJobOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<NYson::TYsonString> PollJobShell(
-        const NJobTrackerClient::TJobId& jobId,
-        const NYson::TYsonString& parameters,
-        const NApi::TPollJobShellOptions& options) override
+        const NJobTrackerClient::TJobId&,
+        const NYson::TYsonString&,
+        const NApi::TPollJobShellOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> AbortJob(
-        const NJobTrackerClient::TJobId& jobId,
-        const NApi::TAbortJobOptions& options) override
+        const NJobTrackerClient::TJobId&,
+        const NApi::TAbortJobOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     // Metadata
     virtual TFuture<NApi::TClusterMeta> GetClusterMeta(
-        const NApi::TGetClusterMetaOptions& options) override
+        const NApi::TGetClusterMetaOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<NApi::TSkynetSharePartsLocationsPtr> LocateSkynetShare(
-        const NYPath::TRichYPath& path,
-        const NApi::TLocateSkynetShareOptions& options = NApi::TLocateSkynetShareOptions()) override
+        const NYPath::TRichYPath&,
+        const NApi::TLocateSkynetShareOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
