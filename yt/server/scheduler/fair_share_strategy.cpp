@@ -206,10 +206,15 @@ public:
             operation->GetSlotIndex(),
             operation->GetId());
 
-        if (CanAddOperationToPool(pool.Get())) {
-            ActivateOperation(operation->GetId());
-        } else {
+        auto violatedPool = FindPoolViolatingMaxRunningOperationCount(pool.Get());
+        if (violatedPool) {
+            LOG_DEBUG("Max running operation count violated (OperationId: %v, Pool: %v, Limit: %v)",
+                operation->GetId(),
+                violatedPool->GetId(),
+                violatedPool->GetMaxRunningOperationCount());
             OperationQueue.push_back(operation);
+        } else {
+            ActivateOperation(operation->GetId());
         }
     }
 
@@ -315,7 +320,7 @@ public:
             while (it != OperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
                 const auto& operation = *it;
                 auto* operationPool = GetOperationElement(operation->GetId())->GetParent();
-                if (CanAddOperationToPool(operationPool)) {
+                if (FindPoolViolatingMaxRunningOperationCount(operationPool) == nullptr) {
                     ActivateOperation(operation->GetId());
                     auto toRemove = it++;
                     OperationQueue.erase(toRemove);
@@ -609,7 +614,6 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        BuildPoolsInformation(consumer);
         BuildYsonMapFluently(consumer)
             .Item("fair_share_info").BeginMap()
                 .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)))
@@ -1200,17 +1204,17 @@ private:
         return params;
     }
 
-    bool CanAddOperationToPool(TCompositeSchedulerElement* pool)
+    TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         while (pool) {
             if (pool->RunningOperationCount() >= pool->GetMaxRunningOperationCount()) {
-                return false;
+                return pool;
             }
             pool = pool->GetParent();
         }
-        return true;
+        return nullptr;
     }
 
     TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element)
