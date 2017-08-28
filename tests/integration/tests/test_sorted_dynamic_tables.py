@@ -365,8 +365,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1)
         self.sync_unmount_table("//tmp/t")
 
-        with pytest.raises(YtError):  read_table("//tmp/t[#5:]")
-        with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
+        with pytest.raises(YtError): read_table("//tmp/t[#5:]")
+        with pytest.raises(YtError): read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for):
@@ -422,6 +422,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         verify_chunk_tree_refcount("//tmp/t", 1, [1])
         assert read_table("//tmp/t") == rows1
         assert read_table("//tmp/t", tx=tx) == []
+
+        with pytest.raises(YtError):
+            read_table("<timestamp={0}>//tmp/t".format(generate_timestamp()))
 
         abort_transaction(tx)
         verify_chunk_tree_refcount("//tmp/t", 1, [1])

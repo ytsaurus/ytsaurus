@@ -960,12 +960,6 @@ private:
 
     TCodicilGuard MakeCodicilGuard() const;
 
-    void ValidateDynamicTableTimestamp(
-        const NYPath::TRichYPath& path,
-        bool dynamic,
-        const NTableClient::TTableSchema& schema,
-        const NYTree::IAttributeDictionary& attributes) const;
-
     void SleepInStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
 
     //! An internal helper for invoking OnOperationFailed with an error
