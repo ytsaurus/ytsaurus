@@ -441,10 +441,19 @@ private:
         const std::vector<i64>& blockSizes,
         const TChunkMeta& meta)
     {
-        WaitFor(CopySemaphore_->GetReadyEvent())
-            .ThrowOnError();
+        auto acquireSemaphoreGuard = [&] () {
+            while (true) {
+                auto guard = TAsyncSemaphoreGuard::TryAcquire(CopySemaphore_);
+                if (guard) {
+                    return std::move(guard);
+                }
 
-        auto semaphoreGuard = TAsyncSemaphoreGuard::Acquire(CopySemaphore_);
+                WaitFor(CopySemaphore_->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        };
+
+        auto semaphoreGuard = acquireSemaphoreGuard();
 
         auto error = WaitFor(writer->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening writer");

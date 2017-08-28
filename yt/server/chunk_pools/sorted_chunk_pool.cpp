@@ -39,7 +39,6 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, EnablePeriodicYielder);
     Persist(context, PivotKeys);
     Persist(context, UseNewEndpointKeys);
-
     // COMPAT(max42): remove this when snapshots older than v200564 are
     // not supported.
     if (context.GetVersion() >= 200564) {
