@@ -28,8 +28,8 @@ public:
 
     // Transactions
     virtual NApi::ITransactionPtr AttachTransaction(
-        const NTransactionClient::TTransactionId& transactionId,
-        const NApi::TTransactionAttachOptions& options) override
+        const NTransactionClient::TTransactionId&,
+        const NApi::TTransactionAttachOptions&) override
     {
         Y_UNIMPLEMENTED();
     };
@@ -141,7 +141,7 @@ public:
     {
         Y_UNIMPLEMENTED();
     }
-    
+
     virtual TFuture<NYson::TYsonString> GetOperation(
         const NScheduler::TOperationId& operationId,
         const NApi::TGetOperationOptions& options) override
