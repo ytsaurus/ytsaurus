@@ -610,6 +610,8 @@ public:
                 operationId);
         }
 
+        ValidateConnected();
+
         LOG_DEBUG("Operation permission successfully validated");
     }
 
