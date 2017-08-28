@@ -10,7 +10,7 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TUnderlyingTask>
-class TAutoMergeabilityMixin
+class TAutoMergeableOutputMixin
     : public TUnderlyingTask
 {
 public:
@@ -86,12 +86,12 @@ public:
     {
         TUnderlyingTask::SetupCallbacks();
 
-        this->TaskHost_->GetAutoMergeDirector()->SubscribeStateChanged(BIND(&TAutoMergeabilityMixin::UpdateSelf, MakeWeak(this)));
+        this->TaskHost_->GetAutoMergeDirector()->SubscribeStateChanged(BIND(&TAutoMergeableOutputMixin::UpdateSelf, MakeWeak(this)));
     }
 
     virtual TString GetId() const override
     {
-        return TUnderlyingTask::GetId() + " + AutoMergeabilityMixin";
+        return TUnderlyingTask::GetId() + " + AutoMergeableOutputMixin";
     }
 
     void Persist(const TPersistenceContext& context)
