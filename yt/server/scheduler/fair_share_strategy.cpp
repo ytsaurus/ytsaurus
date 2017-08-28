@@ -1472,6 +1472,7 @@ private:
                         .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
                         .Item("max_operation_count").Value(pool->GetMaxOperationCount())
                         .Item("aggressive_starvation_enabled").Value(pool->IsAggressiveStarvationEnabled())
+                        .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsFobidden())
                         .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                             fluent
                                 .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
@@ -1551,6 +1552,7 @@ private:
             .Item("weight").Value(element->GetWeight())
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
+            .Item("min_share_resources").Value(element->GetMinShareResources())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
             .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
             .Item("guaranteed_resources").Value(guaranteedResources)
