@@ -614,6 +614,8 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        // TODO(ignat): stop using pools from here and remove this section (since it is also presented in fair_share_info subsection).
+        BuildPoolsInformation(consumer);
         BuildYsonMapFluently(consumer)
             .Item("fair_share_info").BeginMap()
                 .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)))
