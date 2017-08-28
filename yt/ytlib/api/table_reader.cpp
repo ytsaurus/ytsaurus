@@ -17,11 +17,12 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/table_client/blob_table_writer.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/blob_table_writer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
@@ -190,7 +191,9 @@ void TSchemalessTableReader::DoOpen()
         std::vector<TString> attributeKeys{
             "chunk_count",
             "dynamic",
-            "schema"
+            "retained_timestamp",
+            "schema",
+            "unflushed_timestamp"
         };
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
@@ -205,11 +208,8 @@ void TSchemalessTableReader::DoOpen()
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchema>("schema");
 
-        if (timestamp && !(dynamic && schema.IsSorted())) {
-            THROW_ERROR_EXCEPTION("Invalid attribute %Qv: table %Qv is not sorted dynamic",
-                "timestamp",
-                path);
-        }
+        // Validate that timestamp is correct.
+        ValidateDynamicTableTimestamp(RichPath_, dynamic, schema, *attributes);
     }
 
     auto nodeDirectory = New<TNodeDirectory>();

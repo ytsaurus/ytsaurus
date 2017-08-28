@@ -3895,35 +3895,6 @@ void TOperationControllerBase::FetchUserFiles()
     }
 }
 
-void TOperationControllerBase::ValidateDynamicTableTimestamp(
-    const TRichYPath& path,
-    bool dynamic,
-    const TTableSchema& schema,
-    const IAttributeDictionary& attributes) const
-{
-    auto nullableRequested = path.GetTimestamp();
-    if (nullableRequested && !(dynamic && schema.IsSorted())) {
-        THROW_ERROR_EXCEPTION("Invalid attribute %Qv: table %Qv is not sorted dynamic",
-            "timestamp",
-            path.GetPath());
-    }
-
-    auto requested = nullableRequested.Get(AsyncLastCommittedTimestamp);
-    if (requested != AsyncLastCommittedTimestamp) {
-        auto retained = attributes.Get<TTimestamp>("retained_timestamp");
-        auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
-        if (requested < retained || requested >= unflushed) {
-            THROW_ERROR_EXCEPTION("Requested timestamp is out of range for table %v",
-                path.GetPath())
-                << TErrorAttribute("requested_timestamp", requested)
-                << TErrorAttribute("retained_timestamp", retained)
-                << TErrorAttribute("unflushed_timestamp", unflushed);
-        }
-    }
-
-
-}
-
 void TOperationControllerBase::LockUserFiles()
 {
     LOG_INFO("Locking user files");
