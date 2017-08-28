@@ -149,7 +149,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     } // Local vital flag is now part of LocalProperties_.
     Load(context, Parents_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 616) {
+    if (context.GetVersion() >= 617) {
         if (Load<bool>(context)) {
             auto* data = MutableReplicasData();
             Load(context, data->StoredReplicas);
