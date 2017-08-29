@@ -889,15 +889,15 @@ private:
             std::tie(retry, tabletInfo) = tableMountCache->InvalidateOnError(error);
 
             if (retry && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
-                LOG_DEBUG(error, "Got error, will retry");
-
-                if (tabletInfo) {
-                    auto now = Now();
-                    auto retryTime = tabletInfo->UpdateTime + config->TableMountCache->OnErrorSlackPeriod;
-                    if (retryTime > now) {
-                        WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
-                            .ThrowOnError();
-                    }
+                LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
+                    retryCount,
+                    config->TableMountCache->OnErrorRetryCount);
+                auto now = Now();
+                auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
+                    config->TableMountCache->OnErrorSlackPeriod;
+                if (retryTime > now) {
+                    WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
+                        .ThrowOnError();
                 }
                 continue;
             }
