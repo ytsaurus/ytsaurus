@@ -2,7 +2,7 @@ from .config import get_option, get_config, get_total_request_timeout, get_comma
 from .common import (group_blobs_by_size, YtError, update, remove_nones_from_dict,
                      get_value)
 from .retries import Retrier, IteratorRetrier
-from .errors import YtResponseError, YtMasterCommunicationError
+from .errors import YtMasterCommunicationError, YtChunkUnavailable
 from .ypath import YPathSupportingAppend
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
@@ -17,10 +17,7 @@ import time
 from copy import deepcopy
 
 def process_read_exception(exception):
-    if isinstance(exception, YtResponseError) and not exception.is_chunk_unavailable():
-        raise
-    else:
-        logger.warning("Read request failed with error: %s", str(exception))
+    logger.warning("Read request failed with error: %s", str(exception))
 
 class FakeTransaction(object):
     def __enter__(self):
@@ -156,7 +153,7 @@ def _get_read_response(command_name, params, transaction_id, client=None):
 class ReadIterator(IteratorRetrier):
     def __init__(self, command_name, transaction, process_response_action, retriable_state_class, client=None):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
-        retriable_errors = tuple(list(get_retriable_errors()) + [YtResponseError, YtFormatReadError])
+        retriable_errors = tuple(list(get_retriable_errors()) + [YtChunkUnavailable, YtFormatReadError])
         retry_config = {
             "count": get_config(client)["read_retries"]["retry_count"],
             "backoff": get_config(client)["retry_backoff"],
