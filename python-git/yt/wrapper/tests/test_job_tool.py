@@ -86,7 +86,7 @@ for line in sys.stdin:
             assert os.path.exists(os.path.join(output_path, "5"))  # Statistics descriptor
 
 class TestJobTool(object):
-    JOB_TOOL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt-job-tool")
+    JOB_TOOL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt-job-tool", "yt-job-tool")
 
     TEXT_YSON = "<format=pretty>yson"
 

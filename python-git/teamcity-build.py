@@ -220,9 +220,7 @@ def _run_tests(options, python_version):
     interpreter = "pypy" if python_version == "pypy" else "python" + python_version
 
     env = {
-        "PATH": "{0}/bin:{0}/yt/nodejs:{1}/yt/environment/bin:/usr/sbin:{2}".format(options.yt_build_directory,
-                                                                                    options.checkout_directory,
-                                                                                    os.environ["PATH"]),
+        "PATH": "{0}/bin:{0}/yt/nodejs:/usr/sbin:{1}".format(options.yt_build_directory, os.environ["PATH"]),
         "PYTHONPATH": os.pathsep.join([options.checkout_directory, os.environ.get("PYTHONPATH", "")]),
         "NODE_PATH": os.path.join(options.yt_build_directory, "yt", "nodejs", "node_modules"),
         "TESTS_SANDBOX": sandbox_directory,

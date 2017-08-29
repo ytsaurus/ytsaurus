@@ -73,7 +73,8 @@ def _start_transfer_manager(yt_client, config):
     tests_path = os.path.split(__file__)[0]
     tm_server_path = os.path.split(tests_path)[0]
 
-    tm_binary_path = os.path.join(tm_server_path, "bin", "transfer-manager-server")
+    tm_binary_path = os.path.join(
+        tm_server_path, "bin", "transfer-manager-server", "transfer-manager-server")
     script_binary_path = os.path.join(tests_path, "start_tm.sh")
     venv_path = os.path.join(TESTS_SANDBOX, "tmvenv")
 
