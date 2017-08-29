@@ -190,11 +190,6 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
         return;
     }
 
-    if (now > entry->AccessDeadline) {
-        Map_.erase(key);
-        return;
-    }
-
     if (valueOrError.IsOK()) {
         NTracing::TNullTraceContextGuard guard;
         entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
