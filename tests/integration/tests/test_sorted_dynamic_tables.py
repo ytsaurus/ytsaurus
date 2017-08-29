@@ -388,6 +388,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
         insert_rows("//tmp/t", rows2)
         self.sync_unmount_table("//tmp/t")
+        sleep(1)
 
         assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
         assert get("//tmp/t/@chunk_count") == 2
