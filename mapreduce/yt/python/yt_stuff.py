@@ -408,6 +408,9 @@ class YtStuff(object):
                         else:
                             os.rename(dirname, failed_dirname)
                             break
+                if self.tmpfs_path:
+                    for dir_ in os.listdir(self.tmpfs_path):
+                        shutil.rmtree(os.path.join(self.tmpfs_path, dir_))
                 MAX_WAIT_TIME = 60
                 FAIL_PENALTY = 5
                 time_to_sleep = min(i * FAIL_PENALTY, MAX_WAIT_TIME)
