@@ -536,7 +536,7 @@ protected:
     void AddAllTaskPendingHints();
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
-    void InitAutoMerge(int outputChunkCountEstimate);
+    void InitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
 
     void ParseInputQuery(
         const TString& queryString,

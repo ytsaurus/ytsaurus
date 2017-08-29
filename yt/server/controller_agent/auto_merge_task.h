@@ -19,7 +19,10 @@ public:
     //! Used only for persistence.
     TAutoMergeChunkPoolAdapter() = default;
 
-    TAutoMergeChunkPoolAdapter(NChunkPools::IChunkPoolInput* underlyingInput, TAutoMergeTask* task);
+    TAutoMergeChunkPoolAdapter(
+        NChunkPools::IChunkPoolInput* underlyingInput,
+        TAutoMergeTask* task,
+        i64 teleportChunkSize);
 
     virtual NChunkPools::IChunkPoolInput::TCookie Add(
         NChunkPools::TChunkStripePtr stripe,
@@ -30,6 +33,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0xfb888bac);
 
     TAutoMergeTask* Task_;
+    i64 TeleportChunkSize_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +52,7 @@ public:
         int tableIndex,
         int maxChunksPerJob,
         i64 desiredChunkSize,
+        i64 dataWeightPerJob,
         TEdgeDescriptor edgeDescriptor);
 
     virtual TString GetId() const override;
@@ -61,8 +66,6 @@ public:
     virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const override;
 
     virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const override;
-
-    i64 GetDesiredChunkSize() const;
 
     virtual EJobType GetJobType() const override;
 
@@ -96,8 +99,6 @@ private:
 
     int TableIndex_;
     int CurrentChunkCount_ = 0;
-    int MaxChunksPerJob_;
-    i64 DesiredChunkSize_;
 
     bool CanScheduleJob_ = true;
 

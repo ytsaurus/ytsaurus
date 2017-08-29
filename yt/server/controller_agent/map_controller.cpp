@@ -347,7 +347,7 @@ protected:
 
                 auto jobSizeConstraints = createJobSizeConstraints();
                 IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
-                InitAutoMerge(jobSizeConstraints->GetJobCount());
+                InitAutoMerge(jobSizeConstraints->GetJobCount(), DataWeightRatio);
 
                 std::vector<TChunkStripePtr> stripes;
                 SliceUnversionedChunks(mergedChunks, jobSizeConstraints, &stripes);
