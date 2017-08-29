@@ -8,4 +8,8 @@ public interface BusFactory {
      * Устанавливает новое соединение с указанным listener'ом
      */
     Bus createBus(BusListener listener);
+
+    default String destinationName() {
+        return toString();
+    }
 }

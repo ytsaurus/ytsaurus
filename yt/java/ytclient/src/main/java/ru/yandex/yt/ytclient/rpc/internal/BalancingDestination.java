@@ -35,8 +35,8 @@ public class BalancingDestination {
     private final String id;
     private int index;
 
-    final ApiService service;
-    YtGuid transaction = null;
+    private final ApiService service;
+    private YtGuid transaction = null;
 
     public BalancingDestination(String dc, RpcClient client, int index) {
         this.dc = dc;
@@ -45,7 +45,7 @@ public class BalancingDestination {
         this.id = String.format("%s/%s", dc, client.toString());
         service = client.getService(ApiService.class);
 
-        pingHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", client.toString()));
+        pingHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", client.destinationName()));
         pingHistogramDc = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
     }
 

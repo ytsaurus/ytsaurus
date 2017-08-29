@@ -220,4 +220,8 @@ public class BalancingRpcClient implements RpcClient {
 
         return () -> f.cancel(true);
     }
+
+    public String destinationName() {
+        return "multidestination";
+    }
 }

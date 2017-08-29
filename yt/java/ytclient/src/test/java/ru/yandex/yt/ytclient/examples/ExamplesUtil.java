@@ -62,7 +62,7 @@ public final class ExamplesUtil {
 
     public static RpcClient createRpcClient(BusConnector connector, String user, String token, String host, int port) {
         RpcClient client = new DefaultRpcBusClient(
-            new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), host);
+            new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)));
         return client.withTokenAuthentication(user, token);
     }
 

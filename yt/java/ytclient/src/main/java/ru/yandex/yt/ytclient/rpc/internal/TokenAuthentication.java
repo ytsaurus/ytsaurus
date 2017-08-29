@@ -52,4 +52,8 @@ public class TokenAuthentication implements RpcClient {
     public String toString() {
         return "TokenAuthentication@" + client.toString();
     }
+
+    public String destinationName() {
+        return client.destinationName();
+    }
 }

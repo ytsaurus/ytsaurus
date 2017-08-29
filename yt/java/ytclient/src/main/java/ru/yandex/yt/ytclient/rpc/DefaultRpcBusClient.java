@@ -407,12 +407,11 @@ public class DefaultRpcBusClient implements RpcClient {
 
     public DefaultRpcBusClient(BusFactory busFactory) {
         this.busFactory = Objects.requireNonNull(busFactory);
-        this.name = String.format("DefaultRpcBusClient@%d", System.identityHashCode(this));
+        this.name = String.format("%s@%d", busFactory.destinationName(), System.identityHashCode(this));
     }
 
-    public DefaultRpcBusClient(BusFactory busFactory, String name) {
-        this.busFactory = Objects.requireNonNull(busFactory);
-        this.name = String.format("%s@%d", name, System.identityHashCode(this));
+    public String destinationName() {
+        return busFactory.destinationName();
     }
 
     @Override
