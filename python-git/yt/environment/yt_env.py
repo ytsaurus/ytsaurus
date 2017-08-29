@@ -1002,7 +1002,7 @@ class YTInstance(object):
         if watcher_path:
             return watcher_path[0]
 
-        watcher_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "bin", "yt_env_watcher"))
+        watcher_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "bin", "yt_env_watcher", "yt_env_watcher"))
         if os.path.exists(watcher_path):
             return watcher_path
 

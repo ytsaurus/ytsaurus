@@ -8,7 +8,7 @@ set -u
 
 SANDBOX_DIR=$1
 PIDS=""
-YT="$PYTHON_BINARY ./yt"
+YT="$PYTHON_BINARY ./yt/yt"
 
 add_pid_to_kill() {
     PIDS="$PIDS $1"

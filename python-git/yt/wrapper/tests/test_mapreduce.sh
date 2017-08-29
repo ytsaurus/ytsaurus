@@ -12,7 +12,7 @@ else
 fi
 set -u
 
-MAPREDUCE_YT="$PYTHON_BINARY ./mapreduce-yt"
+MAPREDUCE_YT="$PYTHON_BINARY ./mapreduce-yt/mapreduce-yt"
 
 timeout() {
     local time_to_sleep=$1 && shift
@@ -140,7 +140,7 @@ test_list()
 {
     $MAPREDUCE_YT -write "ignat/test_dir/table1" <table_file
     $MAPREDUCE_YT -write "ignat/test_dir/table2" <table_file
-    ./yt create table "ignat/test_dir/table3"
+    ./yt/yt create table "ignat/test_dir/table3"
 
     export YT_IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST=1
     export YT_USE_YAMR_STYLE_PREFIX=1

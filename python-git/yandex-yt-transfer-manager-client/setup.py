@@ -21,8 +21,10 @@ def main():
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
 
-    scripts, data_files = prepare_files(["yt/transfer_manager/client/bin/transfer-manager",
-                                         "yt/transfer_manager/client/bin/transfer-manager-check"])
+    scripts, data_files = prepare_files([
+        "yt/transfer_manager/client/bin/transfer-manager/transfer-manager",
+        "yt/transfer_manager/client/bin/transfer-manager-check/transfer-manager-check"
+    ])
 
     version = get_version()
     with open("yt/transfer_manager/client/version.py", "w") as v_out:

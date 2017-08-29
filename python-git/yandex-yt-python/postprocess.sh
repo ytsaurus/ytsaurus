@@ -5,7 +5,7 @@ export YT_PROXY=locke.yt.yandex.net
 export YT_TOKEN=1da6afc98d189e8ba59d2ea39f29d0f1 #teamcity user
 export PYTHONPATH="."
 DEST="//home/files"
-YT="yt/wrapper/bin/yt"
+YT="yt/wrapper/bin/yt/yt"
 UBUNTU_VERSION="$(lsb_release --short --codename )"
 VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 
@@ -49,7 +49,7 @@ if [ "$PYTHON_VERSION" != "${PYTHON_VERSION/2.7/}" ]; then
             continue
         fi
         rm -rf build dist
-        pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/bin/$name
+        pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/bin/$name/$name
         pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
         cat dist/$name | $YT upload "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}"
         make_link "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}" "$DEST/${name}_${UBUNTU_VERSION}"

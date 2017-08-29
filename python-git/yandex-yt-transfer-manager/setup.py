@@ -8,7 +8,7 @@ def main():
         version = get_version(),
         packages = ["yt.transfer_manager", "yt.transfer_manager.server"],
 
-        scripts = ["yt/transfer_manager/server/bin/transfer-manager-server"],
+        scripts = ["yt/transfer_manager/server/bin/transfer-manager-server/transfer-manager-server"],
 
         author = "Ignat Kolesnichenko",
         author_email = "ignat@yandex-team.ru",
