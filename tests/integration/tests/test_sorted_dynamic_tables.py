@@ -424,7 +424,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t", tx=tx) == []
 
         with pytest.raises(YtError):
-            read_table("<timestamp={0}>//tmp/t".format(generate_timestamp()))
+            read_table("<timestamp={0}>//tmp/t".format(generate_timestamp()), tx=tx)
 
         abort_transaction(tx)
         verify_chunk_tree_refcount("//tmp/t", 1, [1])
