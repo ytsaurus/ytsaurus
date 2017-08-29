@@ -591,13 +591,15 @@ class TestSchedulerRevive(YTEnvSetup):
 
         self._wait_state(op, "running")
 
-        # Wait for snapshot and job completion.
-        time.sleep(2)
-
-        for index in xrange(30):
+        for index in xrange(50):
             if op.get_job_count("completed") == 1 and op.get_job_count("running") == 1:
                 break
             time.sleep(0.1)
+        else:
+            assert False, "Jobs do come to target state after 5 seconds"
+        
+        # Wait for snapshot after job completion.
+        time.sleep(2)
 
         op.complete(ignore_result=True)
 
