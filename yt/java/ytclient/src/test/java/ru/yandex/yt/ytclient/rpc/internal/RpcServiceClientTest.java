@@ -48,6 +48,11 @@ public class RpcServiceClientTest {
             handler.onResponse(attachments);
             return () -> false;
         }
+
+        @Override
+        public String destinationName() {
+            return "RespondingClient";
+        }
     }
 
     public static class FailingClient implements RpcClient {
@@ -67,6 +72,11 @@ public class RpcServiceClientTest {
             request.serialize();
             handler.onError(error);
             return () -> false;
+        }
+
+        @Override
+        public String destinationName() {
+            return "FailingClient";
         }
     }
 

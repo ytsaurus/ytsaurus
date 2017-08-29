@@ -40,4 +40,6 @@ public interface RpcClient extends AutoCloseable {
     default <T> T getService(Class<T> interfaceClass, RpcOptions options) {
         return RpcServiceClient.create(this, interfaceClass, options);
     }
+
+    String destinationName();
 }
