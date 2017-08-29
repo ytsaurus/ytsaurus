@@ -1613,6 +1613,41 @@ print '{hello=world}'
             command="echo '{0}'".format(row), format=yson_with_type_conversion,
             spec={"max_failed_job_count": 1, "mapper": {"output_format": yson_with_type_conversion}})
 
+    #@unix_only
+    def test_invalid_row_indices(self):
+        create("table", "//tmp/t_in")
+        write_table("<append=%true>//tmp/t_in", [{"a": i} for i in range(10)])
+        write_table("<append=%true>//tmp/t_in", [{"a": i} for i in range(10, 20)])
+
+        create("table", "//tmp/t_out")
+
+        # None of this operations should fail.
+
+        map(in_="//tmp/t_in[#18:#2]",
+            out="//tmp/t_out",
+            command="cat")
+
+        map(in_="//tmp/t_in[#8:#2]",
+            out="//tmp/t_out",
+            command="cat")
+
+        map(in_="//tmp/t_in[#18:#12]",
+            out="//tmp/t_out",
+            command="cat")
+
+        map(in_="//tmp/t_in[#8:#8]",
+            out="//tmp/t_out",
+            command="cat")
+
+        map(in_="//tmp/t_in[#10:#10]",
+            out="//tmp/t_out",
+            command="cat")
+
+        map(in_="//tmp/t_in[#12:#12]",
+            out="//tmp/t_out",
+            command="cat")
+
+
 ##################################################################
 
 class TestInputOutputFormatsMulticell(TestInputOutputFormats):
