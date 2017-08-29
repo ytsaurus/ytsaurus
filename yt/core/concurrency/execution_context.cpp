@@ -133,7 +133,8 @@ void* SwitchExecutionContext(
     void* opaque)
 {
 #if defined(_asan_enabled_)
-    target->San_.BeforeSwitch();
+    // XXX(babenko): YT-7531
+    //target->San_.BeforeSwitch();
     // XXX: Or BeforeFinish(). There is no "finish" flag in
     // SwitchExecutionContext interface now. It will leak when
     // using ASan with detect_stack_use_after_return option enabled.
@@ -145,7 +146,8 @@ void* SwitchExecutionContext(
 #endif
     void* result = SwitchExecutionContextImpl(&caller->SP_, &target->SP_, opaque);
 #if defined(_asan_enabled_)
-    target->San_.AfterSwitch();
+    // XXX(babenko): YT-7531
+    //target->San_.AfterSwitch();
 #endif
     return result;
 }
