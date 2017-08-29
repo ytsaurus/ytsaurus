@@ -216,10 +216,11 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         for i in range(10):
             write_table("<append=%true>//tmp/t_in", [{"a": i}])
 
+        # For even lines output a long random string, for odd lines output a single character.
         op = map(
             in_="//tmp/t_in",
             out=["<auto_merge=%true>//tmp/t_out"],
-            command="read x; if [[ $(($x % 2)) == 0 ]]; then python -c \"print '$x' * 1000000\"; else echo $x; fi",
+            command="read x; if [[ $(($x % 2)) == 0 ]]; then head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n'; else echo $x; fi",
             spec={
                 "auto_merge": {
                     "max_intermediate_chunk_count": 50,
@@ -232,6 +233,9 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
             })
         assert get("//tmp/t_out/@chunk_count") == 6
-        content = sorted(read_table("//tmp/t_out", verbose=False))
-        expected_content = [{"a": str(i) * (1000000 if i % 2 == 0 else 1)} for i in range(10)]
-        assert content == expected_content
+        chunk_ids = get("//tmp/t_out/@chunk_ids")
+        row_counts = []
+        for chunk_id in chunk_ids:
+            row_counts.append(get("#{0}/@row_count".format(chunk_id)))
+        row_counts = sorted(row_counts)
+        assert row_counts == [1, 1, 1, 1, 1, 5]
