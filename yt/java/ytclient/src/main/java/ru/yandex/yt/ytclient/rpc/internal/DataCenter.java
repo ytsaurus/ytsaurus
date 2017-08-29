@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.rpc.internal;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.SharedMetricRegistries;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -8,16 +10,20 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.MetricRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
+import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
 
 /**
  * @author aozeritsky
  */
 public final class DataCenter {
     private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
+    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
+    private final Histogram pingHistogramDc;
 
     private final String dc;
     private final BalancingDestination[] backends;
@@ -27,6 +33,11 @@ public final class DataCenter {
         this.dc = dc;
         this.backends = backends;
         this.aliveCount = backends.length;
+        pingHistogramDc = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
+    }
+
+    public double weight() {
+        return pingHistogramDc.getSnapshot().get99thPercentile();
     }
 
     public String getName() {

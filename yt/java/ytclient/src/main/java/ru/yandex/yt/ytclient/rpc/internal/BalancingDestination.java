@@ -61,6 +61,10 @@ public class BalancingDestination {
         pingHistogramDc = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
     }
 
+    public double weight() {
+        return pingHistogramLocal.getSnapshot().get99thPercentile();
+    }
+
     public String dataCenter() {
         return dc;
     }
