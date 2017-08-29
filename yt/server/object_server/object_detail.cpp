@@ -356,6 +356,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetPresent(hasOwner));
     descriptors->push_back(TAttributeDescriptor("effective_acl")
         .SetOpaque(true));
+    descriptors->push_back("user_attribute_keys");
 }
 
 const yhash_set<const char*>& TObjectProxyBase::GetBuiltinAttributeKeys()
@@ -436,6 +437,24 @@ bool TObjectProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* co
     if (key == "effective_acl") {
         BuildYsonFluently(consumer)
             .Value(securityManager->GetEffectiveAcl(Object_));
+        return true;
+    }
+
+    if (key == "user_attribute_keys") {
+        std::vector<TAttributeDescriptor> systemAttributes;
+        ReserveAndListSystemAttributes(&systemAttributes);
+
+        auto customAttributes = GetCustomAttributes()->List();
+        yhash_set<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
+
+        for (const auto& attribute : systemAttributes) {
+            if (attribute.Custom) {
+                customAttributesSet.erase(attribute.Key);
+            }
+        }
+
+        BuildYsonFluently(consumer)
+            .Value(customAttributesSet);
         return true;
     }
 
