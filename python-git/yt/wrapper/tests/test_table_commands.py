@@ -812,3 +812,38 @@ class TestTableCommands(object):
         assert yt.get(other_table + "/@optimize_for") == "scan"
 
         assert not yt.transform(other_table, other_table, erasure_codec="none", check_codecs=True)
+
+    def test_read_lost_chunk(self):
+        mode = yt.config["backend"]
+        if mode != "native":
+            mode = yt.config["api_version"]
+
+        test_name = "TestYtWrapper" + mode.capitalize()
+        dir = os.path.join(TESTS_SANDBOX, test_name)
+        id = "run_" + uuid.uuid4().hex[:8]
+        try:
+            instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True)
+            client = instance.create_client()
+            client.config["driver_config"] = instance.configs["driver"]
+            client.config["backend"] = yt.config["backend"]
+            client.config["read_retries"]["backoff"]["constant_time"] = 5000
+            client.config["read_retries"]["backoff"]["policy"] = "constant_time"
+
+            table = TEST_DIR + "/test_lost_chunk_table"
+            client.create("table", table, recursive=True)
+            client.set(table + "/@erasure_codec", "reed_solomon_6_3")
+            client.write_table(table, [{"x": 1}])
+            client.write_table("<append=%true>" + table, [{"x": 2}])
+
+            chunk_ids = client.get(table + "/@chunk_ids")
+            chunk_id = chunk_ids[1]
+            replicas = client.get("#%s/@stored_replicas" % chunk_id)
+            address = str(replicas[0])
+
+            client.set("//sys/nodes/{0}/@banned".format(address), True)
+            while client.get("//sys/nodes/{0}/@state".format(address)) != "offline":
+                time.sleep(0.1)
+
+            assert list(client.read_table(table)) == [{"x": 1}, {"x": 2}]
+        finally:
+            stop(instance.id, path=dir)
