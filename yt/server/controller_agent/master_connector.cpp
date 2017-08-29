@@ -107,7 +107,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(ControllerMap_.emplace(operationId, controller).second);
+        {
+            TGuard<TSpinLock> guard(ControllersLock_);
+            YCHECK(ControllerMap_.emplace(operationId, controller).second);
+        }
+
         OperationNodesUpdateExecutor_->AddUpdate(operationId, TOperationNodeUpdate(operationId));
     }
 
