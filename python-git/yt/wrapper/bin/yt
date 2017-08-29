@@ -377,9 +377,9 @@ def read_blob_table(**args):
 def add_read_blob_table_parser(add_parser):
     parser = add_parser("read-blob-table", read_blob_table)
     add_ypath_argument(parser, "table", hybrid=True)
-    parser.add_argument("--part_index_column_name", help="name of column with part indexes")
-    parser.add_argument("--data_column_name", help="name of column with data")
-    parser.add_argument("--part_size", type=int, help="size of each blob")
+    parser.add_argument("--part-index-column-name", help="name of column with part indexes")
+    parser.add_argument("--data-column-name", help="name of column with data")
+    parser.add_argument("--part-size", type=int, help="size of each blob")
     add_structured_argument(parser, "--table-reader")
 
 @copy_docstring_from(yt.write_file)
