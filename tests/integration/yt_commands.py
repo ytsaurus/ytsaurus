@@ -640,7 +640,7 @@ class Operation(object):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
         if state == "aborted" or state == "completed":
             path += "/total"
-        if not exists(path):
+        if not exists(path, verbose=False):
             return 0
         return get(path, verbose=False)
 
