@@ -199,7 +199,7 @@ def _prepare_table_path_for_read_blob_table(table, part_index_column_name, clien
 
     if not table.ranges:
         if required_keys:
-            raise YtError("Key {0} should be specified".format(required_keys))
+            raise YtError("Value for the key {0} must be persented on the path".format(required_keys))
 
         table.ranges = [{"lower_limit": {"key": [0]}}]
         return table
