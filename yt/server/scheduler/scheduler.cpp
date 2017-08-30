@@ -56,7 +56,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/memory_constants.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
@@ -1859,9 +1859,9 @@ private:
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
 
-            TScopedTimer timer;
+            TWallTimer timer;
             auto result = WaitFor(asyncResult);
-            auto prepareDuration = timer.GetElapsed();
+            auto prepareDuration = timer.GetElapsedTime();
             operation->UpdateControllerTimeStatistics("/prepare", prepareDuration);
 
             THROW_ERROR_EXCEPTION_IF_FAILED(result);

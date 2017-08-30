@@ -18,7 +18,7 @@
 
 #include <yt/core/misc/fs.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -172,7 +172,7 @@ void TJournalChunk::DoReadBlockRange(
             firstBlockIndex + blockCount - 1,
             Location_->GetId());
 
-        TScopedTimer timer;
+        TWallTimer timer;
 
         auto asyncBlocks = changelog->Read(
             firstBlockIndex,
@@ -189,7 +189,7 @@ void TJournalChunk::DoReadBlockRange(
             Y_UNREACHABLE(); // Disable() exits the process.
         }
 
-        auto readTime = timer.GetElapsed();
+        auto readTime = timer.GetElapsedTime();
         const auto& blocks = blocksOrError.Value();
         int blocksRead = static_cast<int>(blocks.size());
         i64 bytesRead = GetByteSize(blocks);

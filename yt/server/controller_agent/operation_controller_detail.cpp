@@ -59,7 +59,7 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/numeric_helpers.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>
 
 #include <functional>
@@ -2481,13 +2481,13 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     // SafeScheduleJob must be synchronous; context switches are prohibited.
     TForbidContextSwitchGuard contextSwitchGuard;
 
-    TScopedTimer timer;
+    TWallTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
     DoScheduleJob(context.Get(), jobLimits, scheduleJobResult.Get());
     if (scheduleJobResult->JobStartRequest) {
         JobCounter.Start(1);
     }
-    scheduleJobResult->Duration = timer.GetElapsed();
+    scheduleJobResult->Duration = timer.GetElapsedTime();
 
     ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
 

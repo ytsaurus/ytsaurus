@@ -1,6 +1,6 @@
 #include "sorted_dynamic_store_ut_helpers.h"
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <util/random/random.h>
 
@@ -83,7 +83,7 @@ public:
 
         Cerr << "Testing..." << Endl;
 
-        TScopedTimer timer;
+        TWallTimer timer;
 
         for (int iteration = 0; iteration < iterationCount; ++iteration) {
             if (RandomNumber<unsigned>(100) < writePercentage) {
@@ -93,7 +93,7 @@ public:
             }
         }
 
-        auto elapsed = timer.GetElapsed();
+        auto elapsed = timer.GetElapsedTime();
         Cerr << "Elapsed: " << elapsed.MilliSeconds() << "ms, "
              << "RPS: " << (int) iterationCount / elapsed.SecondsFloat() << Endl;
     }

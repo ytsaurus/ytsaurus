@@ -37,7 +37,7 @@
 #include <yt/core/erasure/public.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/response_keeper.h>
 
@@ -1118,7 +1118,7 @@ void TObjectManager::HydraExecuteLeader(
     const IServiceContextPtr& context,
     TMutationContext*)
 {
-    TScopedTimer timer;
+    TWallTimer timer;
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
@@ -1132,7 +1132,7 @@ void TObjectManager::HydraExecuteLeader(
     }
 
     if (!IsRecovery() && IsObjectAlive(user)) {
-        securityManager->ChargeUserWrite(user, 1, timer.GetElapsed());
+        securityManager->ChargeUserWrite(user, 1, timer.GetElapsedTime());
     }
 
     auto mutationId = context->GetMutationId();

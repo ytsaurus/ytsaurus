@@ -12,7 +12,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -958,7 +958,7 @@ private:
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
             }
 
-            TScopedTimer timer;
+            TWallTimer timer;
             while (schedulingContext->CanStartMoreJobs()) {
                 ++nonPreemptiveScheduleJobCount;
                 if (!rootElement->ScheduleJob(context)) {
@@ -968,7 +968,7 @@ private:
             profileTimings(
                 NonPreemptiveProfilingCounters,
                 nonPreemptiveScheduleJobCount,
-                timer.GetElapsed() - context.TotalScheduleJobDuration);
+                timer.GetElapsedTime() - context.TotalScheduleJobDuration);
 
             if (nonPreemptiveScheduleJobCount > 0) {
                 logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
@@ -1024,7 +1024,7 @@ private:
             context.ExecScheduleJobDuration = TDuration::Zero();
             std::fill(context.FailedScheduleJob.begin(), context.FailedScheduleJob.end(), 0);
 
-            TScopedTimer timer;
+            TWallTimer timer;
             while (schedulingContext->CanStartMoreJobs()) {
                 ++preemptiveScheduleJobCount;
                 if (!rootElement->ScheduleJob(context)) {
@@ -1038,7 +1038,7 @@ private:
             profileTimings(
                 PreemptiveProfilingCounters,
                 preemptiveScheduleJobCount,
-                timer.GetElapsed() - context.TotalScheduleJobDuration);
+                timer.GetElapsedTime() - context.TotalScheduleJobDuration);
             if (preemptiveScheduleJobCount > 0) {
                 logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
             }

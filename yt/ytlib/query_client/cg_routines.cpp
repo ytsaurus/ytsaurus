@@ -25,7 +25,7 @@
 
 #include <yt/core/misc/farm_hash.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <contrib/libs/re2/re2/re2.h>
 

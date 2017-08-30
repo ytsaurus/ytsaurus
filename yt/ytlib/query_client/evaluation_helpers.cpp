@@ -11,7 +11,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NQueryClient {

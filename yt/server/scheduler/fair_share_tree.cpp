@@ -9,7 +9,7 @@
 
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -1843,9 +1843,9 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
         return false;
     }
 
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
     auto scheduleJobResult = DoScheduleJob(context, jobLimits, minNeededResources);
-    auto scheduleJobDuration = timer.GetElapsed();
+    auto scheduleJobDuration = timer.GetElapsedTime();
     context.TotalScheduleJobDuration += scheduleJobDuration;
     context.ExecScheduleJobDuration += scheduleJobResult->Duration;
 
@@ -2208,7 +2208,7 @@ int TOperationElement::ComputePendingJobCount() const
 
 void TOperationElement::UpdatePreemptableJobsList()
 {
-    TScopedTimer timer;
+    TWallTimer timer;
     int moveCount = 0;
 
     SharedState_->UpdatePreemptableJobsList(
@@ -2218,7 +2218,7 @@ void TOperationElement::UpdatePreemptableJobsList()
         StrategyConfig_->AggressivePreemptionSatisfactionThreshold,
         &moveCount);
 
-    auto elapsed = timer.GetElapsed();
+    auto elapsed = timer.GetElapsedTime();
 
     Profiler.Update(PreemptableListUpdateTimeCounter, DurationToValue(elapsed));
     Profiler.Update(PreemptableListUpdateMoveCountCounter, moveCount);

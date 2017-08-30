@@ -11,7 +11,7 @@
 
 #include <yt/core/misc/async_cache.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <llvm/ADT/FoldingSet.h>
 #include <llvm/Support/TargetSelect.h>

@@ -10,7 +10,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -608,9 +608,9 @@ bool TTcpConnection::HasUnreadData() const
 
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
     auto result = HandleEintr(recv, Socket_, buffer, size, 0);
-    auto elapsed = timer.GetElapsed();
+    auto elapsed = timer.GetElapsedTime();
     if (elapsed > ReadTimeWarningThreshold) {
         LOG_DEBUG("Socket read took too long (Elapsed: %v)",
             elapsed);
@@ -800,9 +800,9 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         bytesAvailable -= size;
     }
 
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
     auto result = HandleEintr(::writev, Socket_, SendVector_.data(), SendVector_.size());
-    auto elapsed = timer.GetElapsed();
+    auto elapsed = timer.GetElapsedTime();
     if (elapsed > WriteTimeWarningThreshold) {
         LOG_DEBUG("Socket write took too long (Elapsed: %v)",
             elapsed);
