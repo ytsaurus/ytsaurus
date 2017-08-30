@@ -156,7 +156,12 @@ def sync_create_cell():
 def wait_record_in_job_archive(operation_id, job_id):
     operation_id_hash_pair = yt.common.uuid_hash_pair(operation_id)
     job_id_hash_pair = yt.common.uuid_hash_pair(job_id)
+    # Jobs
     key = {}
     key["operation_id_hi"], key["operation_id_lo"] = operation_id_hash_pair.hi, operation_id_hash_pair.lo
     key["job_id_hi"], key["job_id_lo"] = job_id_hash_pair.hi, job_id_hash_pair.lo
     wait(lambda: any(yt.lookup_rows("//sys/operations_archive/jobs", [key], column_names=["operation_id_hi"])))
+    # Job specs
+    key = {}
+    key["job_id_hi"], key["job_id_lo"] = job_id_hash_pair.hi, job_id_hash_pair.lo
+    wait(lambda: any(yt.lookup_rows("//sys/operations_archive/job_specs", [key], column_names=["spec_version"])))

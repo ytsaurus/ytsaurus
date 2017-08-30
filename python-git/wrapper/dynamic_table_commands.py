@@ -19,6 +19,9 @@ import yt.logger as logger
 from copy import deepcopy
 import time
 
+SYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff01
+ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
+
 def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
     tablet_count = get(path + "/@tablet_count", client=client)
     first_tablet_index = get_value(first_tablet_index, 0)
@@ -253,22 +256,6 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
         return response
     else:
         return format.load_rows(response)
-
-
-def alter_table(path, schema=None, dynamic=None, client=None):
-    """Sets schema of the dynamic table.
-
-    :param path: path to table.
-    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-    :param schema: json-able object.
-    :param bool dynamic: dynamic.
-    """
-
-    params = {"path": TablePath(path, client=client)}
-    set_param(params, "schema", schema)
-    set_param(params, "dynamic", dynamic)
-
-    _make_transactional_request("alter_table", params, client=client)
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None,
                 freeze=False, sync=False, client=None):

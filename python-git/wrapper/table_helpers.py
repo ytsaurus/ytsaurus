@@ -134,7 +134,7 @@ def _remove_tables(tables, client=None):
         if exists_result:
             exists_tables.append(table)
 
-    type_results = batch_apply(get_type, tables, client=client)
+    type_results = batch_apply(get_type, exists_tables, client=client)
 
     tables_to_remove = []
     for table, table_type in izip(exists_tables, type_results):
@@ -271,3 +271,4 @@ def _prepare_stderr_table(name, client=None):
     with Transaction(transaction_id=null_transaction_id, client=client):
         create_table(table, ignore_existing=True, client=client)
     return table
+

@@ -296,7 +296,7 @@ def add_list_parser(add_parser):
     parser.add_argument("--read-from",
                         help='You can specify read-from equaled to "cache"'
                              'for enabling using system cache')
-    parser.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
+    group.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
 
 def find(**args):
     path_filter = None
@@ -367,6 +367,20 @@ def add_read_file_parser(add_parser):
         add_structured_argument(parser, "--file-reader")
         parser.add_argument("--offset", type=int, help="offset in input file in bytes, 0 by default")
         parser.add_argument("--length", type=int, help="length in bytes of desired part of input file, all file without offset by default")
+
+@copy_docstring_from(yt.read_blob_table)
+def read_blob_table(**args):
+    stream = yt.read_blob_table(**args)
+    iterator = chunk_iter_stream(stream, 16 * MB)
+    write_silently(iterator)
+
+def add_read_blob_table_parser(add_parser):
+    parser = add_parser("read-blob-table", read_blob_table)
+    add_ypath_argument(parser, "table", hybrid=True)
+    parser.add_argument("--part-index-column-name", help="name of column with part indexes")
+    parser.add_argument("--data-column-name", help="name of column with data")
+    parser.add_argument("--part-size", type=int, help="size of each blob")
+    add_structured_argument(parser, "--table-reader")
 
 @copy_docstring_from(yt.write_file)
 def write_file(**args):
@@ -486,12 +500,7 @@ def add_copy_parser(add_parser):
 
 @copy_docstring_from(yt.move)
 def move(**args):
-    if "no_preserve_account" in args:
-        args["preserve_account"] = not args["no_preserve_account"]
-        del args["no_preserve_account"]
-    if "no_preserve_expiration_time" in args:
-        args["preserve_expiration_time"] = not args["no_preserve_expiration_time"]
-        del args["no_preserve_expiration_time"]
+    args["preserve_account"] = not args.pop("no_preserve_account")
     yt.move(**args)
 
 def add_move_parser(add_parser):
@@ -502,8 +511,8 @@ def add_move_parser(add_parser):
 
     parser.add_argument("--no-preserve-account", action="store_true",
                         help="do not preserve account of moved nodes")
-    parser.add_argument("--no-preserve-expiration-time", action="store_true",
-                        help="do not preserve expiration time of moved nodes")
+    parser.add_argument("--preserve-expiration-time", action="store_true",
+                        help="preserve expiration time of moved nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
 
@@ -582,6 +591,7 @@ def add_alter_table_parser(add_parser):
     dynamic_parser = parser.add_mutually_exclusive_group(required=False)
     dynamic_parser.add_argument("--dynamic", dest="dynamic", default=None, action="store_true")
     dynamic_parser.add_argument("--static", dest="dynamic", default=None, action="store_false")
+    parser.add_argument("--upstream-replica-id", help="upstream replica id")
 
 @copy_docstring_from(yt.alter_table_replica)
 def alter_table_replica(**args):
@@ -1020,6 +1030,8 @@ def main():
     add_read_table_parser(add_parser)
     add_write_table_parser(add_parser)
     add_create_temp_table_parser(add_parser)
+
+    add_read_blob_table_parser(add_parser)
 
     add_read_file_parser(add_parser)
     add_write_file_parser(add_parser)

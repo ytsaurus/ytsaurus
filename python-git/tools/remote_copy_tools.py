@@ -77,9 +77,9 @@ def _force_parent_dir(path, client):
     client.create("map_node", path, recursive=True, ignore_existing=True)
 
 def _check_output(command, silent=False, **kwargs):
-    logger.info("Executing command '{}'".format(command))
+    logger.info("Executing command '{0}'".format(command))
     result = subprocess.check_output(command, preexec_fn=set_pdeathsig, **kwargs)
-    logger.info("Command '{}' successfully executed".format(command))
+    logger.info("Command '{0}' successfully executed".format(command))
     return result
 
 def _which(file):
@@ -355,22 +355,6 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
         copy_spec_template["schema_inference_mode"] = schema_inference_mode
 
     src = yt.TablePath(src, client=source_client)
-    compressed_data_size = source_client.get_attribute(src, "compressed_data_size")
-    chunk_count = source_client.get_attribute(src, "chunk_count")
-
-    if chunk_count > 100 and compressed_data_size // chunk_count < 10 * MB and not src.has_delimiters():
-        if check_permission(source_client, "write", str(src)):
-            try:
-                # TODO(ignat): introduce preprocess spec template
-                merge_spec = deepcopy(copy_spec_template)
-                del merge_spec["pool"]
-                merge_spec["combine_chunks"] = bool_to_string(True)
-                source_client.run_merge(src, src, spec=merge_spec)
-            except yt.YtError as error:
-                raise yt.YtError("Failed to merge source table", inner_errors=[error])
-        else:
-            raise yt.YtError("Failed to merge source table {0}, no write permission. "
-                             "If you can not get a write permission use 'proxy' copy method".format(str(src)))
 
     _force_parent_dir(os.path.dirname(dst), client=destination_client)
 

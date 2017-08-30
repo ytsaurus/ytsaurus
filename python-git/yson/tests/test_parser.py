@@ -8,7 +8,9 @@ import yt.yson
 from yt.yson.yson_types import YsonEntity, YsonMap, YsonList, YsonInt64, YsonString, YsonUnicode
 from yt.yson import to_yson_type, YsonError
 from yt.packages.six import PY3
+from yt.packages.six.moves import xrange
 
+import copy
 import pytest
 
 try:
@@ -281,3 +283,136 @@ if yt_yson_bindings:
                 yt_yson_bindings.loads(b"[" + b"a" * STREAM_BLOCK_SIZE + b";{1=2}]")
             except YsonError as error:
                 check_context(error, b"aaaaaaaa;{1=2}]", 10)
+
+    class TestLazyDict(object):
+        def test_class(self):
+            result = yt_yson_bindings.loads(b"{a=b;c=d}", lazy=True)
+            assert result["a"] == "b"
+            assert result["c"] == "d"
+            assert not result.attributes
+
+            assert not isinstance(result, (YsonMap, dict))
+
+            result["a"] = 1
+            assert result["a"] == 1
+
+            result["123"] = "abacaba"
+            assert result["123"] == "abacaba"
+
+            assert len(result) == 3
+
+            assert result.has_key("a")
+            assert not result.has_key("some_key")
+
+            del result["a"]
+            assert len(result) == 2
+
+            result.clear()
+            assert len(result) == 0
+
+            result.setdefault("a", 1)
+            assert result["a"] == 1
+            result.setdefault("a", 5)
+            assert result["a"] == 1
+
+            assert result.get("a", 5) == 1
+            assert result.get("some_key", 5) == 5
+            assert "a" in result
+            assert "some_key" not in result
+            assert len(result) == 1
+
+        def test_map_fragment(self):
+            result = yt_yson_bindings.loads(b"a=b;c=1;e=[abacaba;1.5];", lazy=True, yson_type="map_fragment")
+            assert result["a"] == "b"
+            assert result["c"] == 1
+            assert result["e"] == ["abacaba", 1.5]
+            assert len(result) == 3
+            assert not result.attributes
+
+            result = yt_yson_bindings.loads(b"a=b", lazy=True, yson_type="map_fragment")
+            assert result["a"] == "b"
+            assert len(result) == 1
+            assert not result.attributes
+
+        def test_attributes(self):
+            result = yt_yson_bindings.loads(b"<a=b;c=d>{e=k}", lazy=True)
+            assert result.attributes["a"] == "b"
+            assert result.attributes["c"] == "d"
+            assert result["e"] == "k"
+
+            result = yt_yson_bindings.loads(b"<a=b;>{c=d;}", lazy=True)
+            assert result.attributes["a"] == "b"
+            assert result["c"] == "d"
+
+            result = yt_yson_bindings.loads(b"<>{}", lazy=True)
+            assert not result.attributes
+            assert not result
+
+        def test_list_fragment(self):
+            result = list(yt_yson_bindings.loads(b"{a=0};{a=1};{a=2}", lazy=True, yson_type="list_fragment"))
+            assert len(result) == 3
+
+            for i in xrange(3):
+                assert result[i]["a"] == i
+                assert len(result[i]) == 1
+                assert not result[i].attributes
+
+            result = list(yt_yson_bindings.loads(b"{a=[];b=1};<testattr=abacaba>{a=2;b=3}",
+                                                 lazy=True, yson_type="list_fragment"))
+            assert len(result) == 2
+
+            assert result[0]["a"] == []
+            assert result[0]["b"] == 1
+            assert len(result[0]) == 2
+            assert not result[0].attributes
+
+            assert result[1]["a"] == 2
+            assert result[1]["b"] == 3
+            assert len(result[1]) == 2
+            assert len(result[1].attributes) == 1
+            assert result[1].attributes["testattr"] == "abacaba"
+
+        def test_parse_objects(self):
+            result = yt_yson_bindings.loads(b"[1;2;abacaba]", lazy=True)
+            assert result == [1, 2, "abacaba"]
+
+            result = yt_yson_bindings.loads(b"<a=b>abacaba", lazy=True)
+            assert str(result) == "abacaba"
+            assert result.attributes["a"] == "b"
+
+        def test_dumps(self):
+            obj = yt_yson_bindings.loads(b"<a=b>{c=d;e=[1;2;3]}", lazy=True)
+            res = yt_yson_bindings.dumps(obj)
+            assert res == b'<"a"="b";>{"c"="d";"e"=[1;2;3;];}' or res == b'<"a"="b";>{"e"=[1;2;3;];"c"="d";}'
+
+            obj = yt_yson_bindings.loads(b"<a=b>{c=d;e=[1;2;3]}", lazy=True)
+            obj["e"]
+            obj.attributes["a"]
+            res = yt_yson_bindings.dumps(obj)
+            assert res == b'<"a"="b";>{"c"="d";"e"=[1;2;3;];}' or res == b'<"a"="b";>{"e"=[1;2;3;];"c"="d";}'
+
+        def test_copy(self):
+            obj = yt_yson_bindings.loads(b"<a=b;g=[[1];[2]]>{c=d;e=[1;2;3]}", lazy=True)
+            obj["e"]
+            obj.attributes["g"]
+
+            obj2 = copy.copy(obj)
+            assert obj2["c"] == "d"
+            assert obj2["e"] == [1, 2, 3]
+            assert obj2.attributes["a"] == "b"
+            assert obj2.attributes["g"] == [[1], [2]]
+
+            obj2.attributes["g"][0].append(2)
+            assert obj.attributes["g"] == [[1, 2], [2]]
+
+            obj2["e"].append(4)
+            assert obj["e"] == [1, 2, 3, 4]
+
+            obj3 = copy.deepcopy(obj)
+
+            assert obj3["e"] == [1, 2, 3, 4]
+
+            obj3["e"].append(5)
+            obj3.attributes["g"][1].append(3)
+            assert obj["e"] == [1, 2, 3, 4]
+            assert obj.attributes["g"] == [[1, 2], [2]]

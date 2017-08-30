@@ -220,6 +220,7 @@ class YTInstance(object):
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
         self._started = False
+        self._wait_functions = []
 
         if watcher_config is None:
             watcher_config = get_watcher_config()
@@ -363,6 +364,11 @@ class YTInstance(object):
             if self.has_proxy:
                 self.start_proxy(use_proxy_from_package=use_proxy_from_package)
             self.start_all_masters(start_secondary_master_cells=start_secondary_master_cells)
+
+            for func in self._wait_functions:
+                func()
+
+            self._wait_functions = []
             if on_masters_started_func is not None:
                 on_masters_started_func()
             if self.node_count > 0:
@@ -370,16 +376,19 @@ class YTInstance(object):
             if self.scheduler_count > 0:
                 self.start_schedulers()
 
+            for func in self._wait_functions:
+                func()
+
             self._start_watcher()
             self._started = True
 
             self._write_environment_info_to_file()
         except (YtError, KeyboardInterrupt) as err:
-            self.stop()
+            self.stop(force=True)
             raise YtError("Failed to start environment", inner_errors=[err])
 
-    def stop(self):
-        if not self._started:
+    def stop(self, force=False):
+        if not self._started and not force:
             return
 
         with self._lock:
@@ -402,6 +411,7 @@ class YTInstance(object):
             if name not in killed_services:
                 self.kill_service(name)
 
+        self.pids_file.close()
         remove_file(self.pids_filename, force=True)
 
         if self._open_port_iterator is not None:
@@ -682,7 +692,7 @@ class YTInstance(object):
 
             cell_ready = quorum_ready_and_cell_registered
 
-        self._wait_for(cell_ready, master_name, max_wait_time=30)
+        self._wait_functions.append(lambda: self._wait_for(cell_ready, master_name, max_wait_time=30))
 
     def start_all_masters(self, start_secondary_master_cells):
         self.start_master_cell()
@@ -721,7 +731,7 @@ class YTInstance(object):
             nodes = native_client.list("//sys/nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
 
-        self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20))
+        self._wait_functions.append(lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20)))
 
     def _prepare_schedulers(self, scheduler_configs, scheduler_dirs):
         for scheduler_index in xrange(self.scheduler_count):
@@ -781,7 +791,7 @@ class YTInstance(object):
                     raise
                 return False, err
 
-        self._wait_for(schedulers_ready, "scheduler")
+        self._wait_functions.append(lambda: self._wait_for(schedulers_ready, "scheduler"))
 
     def create_client(self):
         if self.has_proxy:
@@ -938,7 +948,7 @@ class YTInstance(object):
 
             return True
 
-        self._wait_for(proxy_ready, "proxy", max_wait_time=20)
+        self._wait_functions.append(lambda: self._wait_for(proxy_ready, "proxy", max_wait_time=20))
 
     def _validate_process_is_running(self, process, name, number=None):
         if number is not None:
@@ -992,7 +1002,7 @@ class YTInstance(object):
         if watcher_path:
             return watcher_path[0]
 
-        watcher_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "bin", "yt_env_watcher"))
+        watcher_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "bin", "yt_env_watcher", "yt_env_watcher"))
         if os.path.exists(watcher_path):
             return watcher_path
 

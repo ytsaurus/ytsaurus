@@ -52,6 +52,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtNoSuchTransaction
         if self.is_master_communication_error():
             self.__class__ = YtMasterCommunicationError
+        if self.is_chunk_unavailable():
+            self.__class__ = YtChunkUnavailable
 
 class YtHttpResponseError(YtResponseError):
     """Reponse error recieved from http proxy with additional http request information."""
@@ -72,6 +74,8 @@ class YtHttpResponseError(YtResponseError):
 
     def __reduce__(self):
         return (YtHttpResponseError, (self.error, self.url, self.headers, self.params))
+
+# TODO(ignat): All concrete errors below should be inherited from YtResponseError
 
 class YtRequestRateLimitExceeded(YtHttpResponseError):
     """Request rate limit exceeded error.
@@ -103,6 +107,12 @@ class YtMasterCommunicationError(YtHttpResponseError):
     """Master communication error.
        It is used in retries."""
     pass
+
+class YtChunkUnavailable(YtHttpResponseError):
+    """Chunk unavalable error
+       It is use in read retries"""
+    pass
+
 
 class YtProxyUnavailable(YtError):
     """Proxy is under heavy load."""

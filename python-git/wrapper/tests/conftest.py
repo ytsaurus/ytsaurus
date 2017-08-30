@@ -77,6 +77,9 @@ class YtTestEnvironment(object):
                 "enable_cgroups" : ENABLE_JOB_CONTROL,
                 "slot_manager" : {
                     "enforce_job_control" : ENABLE_JOB_CONTROL
+                },
+                "statistics_reporter": {
+                    "reporting_period": 1000
                 }
             },
             "data_node": {
@@ -169,6 +172,9 @@ class YtTestEnvironment(object):
 
         self.config["batch_requests_retries"]["backoff"]["constant_time"] = 500
         self.config["batch_requests_retries"]["backoff"]["policy"] = "constant_time"
+
+        self.config["read_parallel"]["data_size_per_thread"] = 1
+        self.config["read_parallel"]["max_thread_count"] = 10
 
         self.config["enable_token"] = False
         self.config["is_local_mode"] = False
@@ -277,33 +283,6 @@ def test_environment_job_archive(request):
 
     return environment
 
-@pytest.fixture(scope="session")
-def test_dynamic_library(request):
-    if not which("g++"):
-        raise RuntimeError("g++ not found")
-    libs_dir = os.path.join(TESTS_SANDBOX, "yt_test_dynamic_library")
-    makedirp(libs_dir)
-
-    get_number_lib = get_test_file_path("getnumber.cpp")
-    subprocess.check_call(["g++", get_number_lib, "-shared", "-fPIC", "-o", os.path.join(libs_dir, "libgetnumber.so")])
-
-    dependant_lib = get_test_file_path("yt_test_lib.cpp")
-    dependant_lib_output = os.path.join(libs_dir, "yt_test_dynamic_library.so")
-    subprocess.check_call(["g++", dependant_lib, "-shared", "-o", dependant_lib_output,
-                           "-L", libs_dir, "-l", "getnumber", "-fPIC"])
-
-    # Adding this pseudo-module to sys.modules and ensuring it will be collected with
-    # its dependency (libgetnumber.so)
-    module = imp.new_module("yt_test_dynamic_library")
-    module.__file__ = dependant_lib_output
-    sys.modules["yt_test_dynamic_library"] = module
-
-    def finalizer():
-        del sys.modules["yt_test_dynamic_library"]
-
-    request.addfinalizer(finalizer)
-    return libs_dir, "libgetnumber.so"
-
 def test_method_teardown():
     if yt.config["backend"] == "proxy":
         assert yt.config["proxy"]["url"].startswith("localhost")
@@ -329,6 +308,33 @@ def yt_env(request, test_environment):
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment
+
+@pytest.fixture(scope="function")
+def test_dynamic_library(request, yt_env):
+    if not which("g++"):
+        raise RuntimeError("g++ not found")
+    libs_dir = os.path.join(yt_env.env.path, "yt_test_dynamic_library")
+    makedirp(libs_dir)
+
+    get_number_lib = get_test_file_path("getnumber.cpp")
+    subprocess.check_call(["g++", get_number_lib, "-shared", "-fPIC", "-o", os.path.join(libs_dir, "libgetnumber.so")])
+
+    dependant_lib = get_test_file_path("yt_test_lib.cpp")
+    dependant_lib_output = os.path.join(libs_dir, "yt_test_dynamic_library.so")
+    subprocess.check_call(["g++", dependant_lib, "-shared", "-o", dependant_lib_output,
+                           "-L", libs_dir, "-l", "getnumber", "-fPIC"])
+
+    # Adding this pseudo-module to sys.modules and ensuring it will be collected with
+    # its dependency (libgetnumber.so)
+    module = imp.new_module("yt_test_dynamic_library")
+    module.__file__ = dependant_lib_output
+    sys.modules["yt_test_dynamic_library"] = module
+
+    def finalizer():
+        del sys.modules["yt_test_dynamic_library"]
+
+    request.addfinalizer(finalizer)
+    return libs_dir, "libgetnumber.so"
 
 @pytest.fixture(scope="function")
 def config(yt_env):

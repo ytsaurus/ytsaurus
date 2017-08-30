@@ -116,7 +116,9 @@ def chunk_iter_list(lines, chunk_size):
             yield chunk
             size = 0
             chunk = []
-    yield chunk
+
+    if chunk:
+        yield chunk
 
 def chunk_iter_stream(stream, chunk_size):
     while True:
@@ -158,6 +160,12 @@ def get_version():
     """ Returns python wrapper version """
     try:
         from .version import VERSION
+        # Add svn revision to version if it presented.
+        try:
+            import library.python.svn_version
+            VERSION = '{0} (r{1})'.format(VERSION, library.python.svn_version.svn_revision())
+        except ImportError:
+            pass
         return VERSION
     except:
         return "unknown"

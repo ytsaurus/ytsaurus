@@ -95,6 +95,7 @@ class TestCypressCommands(object):
         yt.set_attribute(TEST_DIR + "/dir", "opaque", True)
 
         assert set(list(yt.search(TEST_DIR, enable_batch_mode=enable_batch_mode))) == set(res)
+        assert set(list(yt.search(TEST_DIR, enable_batch_mode=enable_batch_mode, map_node_order=None))) == set(res)
         yt.remove(TEST_DIR + "/dir/@opaque")
 
         assert list(yt.search(TEST_DIR, depth_bound=1, enable_batch_mode=enable_batch_mode)) == sorted([
@@ -157,6 +158,8 @@ class TestCypressCommands(object):
         yt.remove(TEST_DIR + "/search_test/search_test_table")
 
         assert list(yt.search(TEST_DIR + "/search_test", follow_links=True)) == [TEST_DIR + "/search_test"]
+
+        assert list(yt.search())
 
     def test_create(self):
         with pytest.raises(yt.YtError):
@@ -252,6 +255,9 @@ class TestCypressCommands(object):
         result = yt.list(TEST_DIR + "/subdir", attributes=["type"])[0]
         assert str(result) == "table"
         assert result.attributes == {"type": "table"}
+
+        with pytest.raises(yt.YtError):
+            yt.list(TEST_DIR + "/subdir", absolute=True, format="json")
 
     def test_get_type(self):
         table = TEST_DIR + "/table"
@@ -510,6 +516,9 @@ class TestCypressCommands(object):
 
         with pytest.raises(yt.YtError):
             yt.concatenate([], None)
+
+        with pytest.raises(yt.YtError):
+            yt.concatenate([], tableA)
 
         with pytest.raises(yt.YtError):
             yt.concatenate([fileA, tableB], output_table)

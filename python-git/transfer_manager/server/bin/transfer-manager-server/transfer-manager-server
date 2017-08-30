@@ -57,6 +57,7 @@ from collections import defaultdict, deque
 from threading import RLock
 from multiprocessing import Process
 from itertools import chain
+import cPickle as pickle
 
 OS_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
 
@@ -123,6 +124,7 @@ class Application(object):
         self._clusters_configuration = get_clusters_configuration_from_config(self._config)
 
         self._path = self._config["path"]
+        self._tmp_dir = self._config.get("default_tmp_dir")
 
     def start_processes(self):
         # We should register sigterm handler only for main transfer manager process.
@@ -863,7 +865,7 @@ class Application(object):
                     self._change_task_state(id, "running", "Preparing to start the operation")
 
                     if temporary_config is None:
-                        with tempfile.NamedTemporaryFile(delete=False, dir=self._config.get("default_tmp_dir")) as fout:
+                        with tempfile.NamedTemporaryFile(delete=False, dir=self._tmp_dir) as fout:
                             temporary_config = fout.name
                             json.dump(self._get_config(), fout)
 
@@ -1111,15 +1113,16 @@ class Application(object):
                         token=token, user=user,
                         dry_run=dry_run,
                         make_precheck=False))
-            return ids
+            return jsonify(ids)
         else:
             enable_early_precheck = self._config.get("enable_early_precheck", True)
-            return self._create_task(
+            id = self._create_task(
                 params=params,
                 token=token,
                 user=user,
                 dry_run=dry_run,
                 make_precheck=enable_early_precheck)
+            return jsonify(id)
 
     def abort_task(self, id):
         if id not in self._tasks:
@@ -1180,9 +1183,17 @@ class Application(object):
         if task is None:
             raise RequestFailed("Unknown task " + id)
 
-        task_description = self._get_task_description(task)
+        description = self._get_task_description(task)
 
-        return jsonify(**task_description)
+        try:
+            json_description = json.dumps(description)
+        except ValueError as err:
+            with tempfile.NamedTemporaryFile(delete=False, dir=self._tmp_dir) as fout:
+                task.logger.warning("Failed to dump task to json (%s), pickling it to %s",
+                                    str(err), fout.name)
+                pickle.dump(description, fout)
+
+        return Response(json_description, mimetype="application/json")
 
     def ping_and_get_task(self, id):
         self.ping_task(id)
@@ -1373,8 +1384,7 @@ class Application(object):
     def profiling_stats(self):
         stats_type = request.args.get("type", "callgrind")
 
-        fd, filename = tempfile.mkstemp(prefix="stats",
-                                        dir=self._config.get("default_tmp_dir"))
+        fd, filename = tempfile.mkstemp(prefix="stats", dir=self._tmp_dir)
         os.close(fd)
         try:
             if yappi is not None:

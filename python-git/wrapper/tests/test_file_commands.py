@@ -11,6 +11,11 @@ import os
 import pytest
 import tempfile
 
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
+
 @pytest.mark.usefixtures("yt_env")
 class TestFileCommands(object):
     def test_file_commands(self):
@@ -57,6 +62,14 @@ class TestFileCommands(object):
         destination = yt.smart_upload_file(filename, placement_strategy="ignore")
         yt.smart_upload_file(filename, placement_strategy="ignore")
         assert yt.read_file(destination).read() == b"some content"
+
+        with set_config_option("write_retries/chunk_size", 2):
+            yt.write_file(file_path, b"abacaba")
+            assert yt.read_file(file_path).read() == b"abacaba"
+
+            yt.remove(file_path)
+            yt.write_file(file_path, BytesIO(b"abacaba"))
+            assert yt.read_file(file_path).read() == b"abacaba"
 
     def test_unicode(self):
         data = u"строка"

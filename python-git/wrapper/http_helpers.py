@@ -371,9 +371,6 @@ def _get_token_by_ssh_session(client):
 
 def get_token(token=None, client=None):
     """Extracts token from given `token` and `client` arguments. Also checks token for correctness."""
-    if get_option("_token_cached", client=client):
-        return get_option("_token", client=client)
-
     if token is None:
         if not get_config(client)["enable_token"]:
             return None
@@ -391,9 +388,16 @@ def get_token(token=None, client=None):
             logger.debug("Token got from environment variable or config")
 
     if not token:
+        if get_option("_token_cached", client=client):
+            return get_option("_token", client=client)
+
         receive_token_by_ssh_session = get_config(client)["allow_receive_token_by_current_ssh_session"]
         if receive_token_by_ssh_session:
             token = _get_token_by_ssh_session(client)
+
+        if token is not None and get_config(client=client)["cache_token"]:
+            set_option("_token", token, client=client)
+            set_option("_token_cached", True, client=client)
 
     # Empty token considered as missing.
     if not token:
@@ -403,11 +407,6 @@ def get_token(token=None, client=None):
     if token is not None:
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
-
-    if token is not None and get_config(client=client)["cache_token"]:
-        set_option("_token", token, client=client)
-        set_option("_token_cached", True, client=client)
-
     return token
 
 def get_user_name(token=None, headers=None, client=None):

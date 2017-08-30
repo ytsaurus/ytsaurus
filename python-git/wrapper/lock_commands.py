@@ -14,7 +14,7 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     :param int wait_for: wait interval in milliseconds. If timeout occurred, \
     :class:`YtError <yt.common.YtError>` is raised.
     :return: taken lock id (as :class:`YsonString <yt.yson.yson_types.YsonString>`) or throws \
-    :class:`YtHttpResponseError <yt.wrapper.errors.YtHttpResponseError>` with 40* code if lock conflict detected.
+    :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` with 40* code if lock conflict detected.
 
     .. seealso:: `lock on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions#versionirovanieiloki>`_
     """

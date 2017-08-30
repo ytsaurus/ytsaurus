@@ -1,16 +1,17 @@
 from .common import (flatten, require, update, parse_bool, get_value, set_param, datetime_to_string,
-                     MB, EMPTY_GENERATOR, chunk_iter_stream)
+                     MB, chunk_iter_stream)
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
 from .driver import make_request
-from .errors import YtIncorrectResponse, YtError, YtRetriableError, YtHttpResponseError
+from .errors import YtIncorrectResponse, YtError, YtRetriableError, YtResponseError
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format)
+from .table_read_parallel import make_read_parallel_request
 from .ypath import TablePath, ypath_join
 
 import yt.json as json
@@ -21,11 +22,6 @@ from yt.packages.six.moves import map as imap, filter as ifilter
 
 import random
 from datetime import datetime, timedelta
-
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
 
 # Auxiliary methods
 
@@ -203,7 +199,7 @@ def _prepare_table_path_for_read_blob_table(table, part_index_column_name, clien
 
     if not table.ranges:
         if required_keys:
-            raise YtError("Key {0} should be specified".format(required_keys))
+            raise YtError("Value for the key {0} must be persented on the path".format(required_keys))
 
         table.ranges = [{"lower_limit": {"key": [0]}}]
         return table
@@ -213,6 +209,8 @@ def _prepare_table_path_for_read_blob_table(table, part_index_column_name, clien
 
     range = table.ranges[-1]
     if "lower_limit" not in range:
+        if required_keys:
+            raise YtError("Lower limit should consist of columns from the list {0}".format(sorted_by[:len(required_keys)]))
         range["lower_limit"] = {"key": [0]}
         return table
 
@@ -225,10 +223,9 @@ def _prepare_table_path_for_read_blob_table(table, part_index_column_name, clien
     range["lower_limit"]["key"].append(0)
     return table
 
-def read_blob_table(table, part_index_column_name="part_index", data_column_name="data",
+def read_blob_table(table, part_index_column_name=None, data_column_name=None,
                     part_size=None, table_reader=None, client=None):
-    """
-    Reads file from blob table.
+    """Reads file from blob table.
 
     :param table: table to read.
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
@@ -241,10 +238,13 @@ def read_blob_table(table, part_index_column_name="part_index", data_column_name
     """
     table = TablePath(table, client=client)
 
+    part_index_column_name = get_value(part_index_column_name, "part_index")
+    data_column_name = get_value(data_column_name, "data")
+
     if part_size is None:
         try:
             part_size = get_attribute(table, "part_size")
-        except YtHttpResponseError as err:
+        except YtResponseError as err:
             if err.is_resolve_error():
                 raise YtError("You should specify part_size")
             raise
@@ -291,7 +291,7 @@ def read_blob_table(table, part_index_column_name="part_index", data_column_name
     return response
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
-               raw=None, response_parameters=None, read_transaction=None, client=None):
+               raw=None, response_parameters=None, client=None):
     """Reads rows from table and parse (optionally).
 
     :param table: table to read.
@@ -331,8 +331,21 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         "output_format": format.to_yson_type()
     }
     set_param(params, "table_reader", table_reader)
-    set_param(params, "control_attributes", control_attributes)
     set_param(params, "unordered", unordered)
+
+    if get_config(client)["read_parallel"]["enable"]:
+        if control_attributes is not None:
+            logger.warning('Cannot read table in parallel since parameter "control_attributes" is specified')
+        elif table.has_key_limit_in_ranges():
+            logger.warning("Cannot read table in parallel since table path contains key limits")
+        else:
+            response = make_read_parallel_request(table, attributes, params, unordered, response_parameters, client)
+            if raw:
+                return response
+            else:
+                return format.load_rows(response)
+
+    set_param(params, "control_attributes", control_attributes)
 
     def set_response_parameters(parameters):
         if response_parameters is not None:
@@ -638,3 +651,21 @@ def is_sorted(table, client=None):
                           "sorted",
                           default="false",
                           client=client))
+
+def alter_table(path, schema=None, dynamic=None, upstream_replica_id=None, client=None):
+    """Performs schema and other table meta information modifications.
+       Applicable to static and dynamic tables.
+
+    :param path: path to table
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param schema: new schema to set on table
+    :param bool dynamic: dynamic
+    :param str upstream_replica_id: upstream_replica_id
+    """
+
+    params = {"path": TablePath(path, client=client)}
+    set_param(params, "schema", schema)
+    set_param(params, "dynamic", dynamic)
+    set_param(params, "upstream_replica_id", upstream_replica_id)
+
+    return make_request("alter_table", params, client=client)

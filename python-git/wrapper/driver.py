@@ -6,6 +6,8 @@ from .config import get_option, get_config, get_backend_type
 from .format import create_format
 from .http_helpers import get_api_commands
 
+from yt.common import YT_NULL_TRANSACTION_ID
+
 import yt.logger as logger
 import yt.yson as yson
 import yt.json as json
@@ -15,6 +17,11 @@ from yt.packages.six import iteritems
 from yt.packages.six.moves import map as imap
 
 from copy import copy, deepcopy
+
+_DEFAULT_COMMAND_PARAMS = {
+    "transaction_id": YT_NULL_TRANSACTION_ID,
+    "ping_ancestor_transactions": False
+}
 
 def process_params(obj):
     attributes = None
@@ -63,6 +70,11 @@ def make_request(command_name,
     backend = get_backend_type(client)
 
     command_params = deepcopy(get_option("COMMAND_PARAMS", client))
+
+    for key in _DEFAULT_COMMAND_PARAMS:
+        if key in command_params and command_params[key] == _DEFAULT_COMMAND_PARAMS[key]:
+            del command_params[key]
+
     params = update(command_params, params)
 
     params = process_params(params)

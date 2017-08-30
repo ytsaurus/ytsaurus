@@ -7,7 +7,7 @@ def create_batch_client(raise_errors=False, max_batch_size=None, client=None):
 
 def batch_apply(function, data, client=None):
     """Applies function to each element from data in a batch mode and returns result."""
-    batch_client = create_batch_client(client=client)
+    batch_client = create_batch_client(raise_errors=True, client=client)
     results = []
     for item in data:
         results.append(function(item, client=batch_client))
