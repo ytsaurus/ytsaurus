@@ -351,6 +351,12 @@ class YTInstance(object):
         # COMPAT. Will be removed eventually.
         self._prepare_console_driver()
 
+    def _wait_or_skip(self, function, sync):
+        if sync:
+            function()
+        else:
+            self._wait_functions.append(function)
+
     def start(self, use_proxy_from_package=True, start_secondary_master_cells=False, on_masters_started_func=None):
         self._process_to_kill.clear()
         self._all_processes.clear()
@@ -362,19 +368,26 @@ class YTInstance(object):
         self.pids_file = open(self.pids_filename, "wt")
         try:
             if self.has_proxy:
-                self.start_proxy(use_proxy_from_package=use_proxy_from_package)
-            self.start_all_masters(start_secondary_master_cells=start_secondary_master_cells)
+                self.start_proxy(use_proxy_from_package=use_proxy_from_package, sync=False)
+
+            self.start_master_cell(sync=False)
 
             for func in self._wait_functions:
                 func()
+
+            if start_secondary_master_cells:
+                self._wait_functions = []
+                self.start_secondary_master_cells(sync=False)
+                for func in self._wait_functions:
+                    func()
 
             self._wait_functions = []
             if on_masters_started_func is not None:
                 on_masters_started_func()
             if self.node_count > 0:
-                self.start_nodes()
+                self.start_nodes(sync=False)
             if self.scheduler_count > 0:
-                self.start_schedulers()
+                self.start_schedulers(sync=False)
 
             for func in self._wait_functions:
                 func()
@@ -647,7 +660,7 @@ class YTInstance(object):
                 self.configs[master_name].append(config)
                 self.config_paths[master_name].append(config_path)
 
-    def start_master_cell(self, cell_index=0):
+    def start_master_cell(self, cell_index=0, sync=True):
         master_name = self._get_master_name("master", cell_index)
         secondary = cell_index > 0
 
@@ -692,17 +705,17 @@ class YTInstance(object):
 
             cell_ready = quorum_ready_and_cell_registered
 
-        self._wait_functions.append(lambda: self._wait_for(cell_ready, master_name, max_wait_time=30))
+        self._wait_or_skip(lambda: self._wait_for(cell_ready, master_name, max_wait_time=30), sync)
 
-    def start_all_masters(self, start_secondary_master_cells):
-        self.start_master_cell()
+    def start_all_masters(self, start_secondary_master_cells, sync=True):
+        self.start_master_cell(sync=sync)
 
         if start_secondary_master_cells:
-            self.start_secondary_master_cells()
+            self.start_secondary_master_cells(sync=sync)
 
-    def start_secondary_master_cells(self):
+    def start_secondary_master_cells(self, sync=True):
         for i in xrange(self.secondary_master_cell_count):
-            self.start_master_cell(i + 1)
+            self.start_master_cell(i + 1, sync=sync)
 
     def _prepare_nodes(self, node_configs, node_dirs):
         for node_index in xrange(self.node_count):
@@ -720,7 +733,7 @@ class YTInstance(object):
             self.configs["node"].append(config)
             self.config_paths["node"].append(config_path)
 
-    def start_nodes(self):
+    def start_nodes(self, sync=True):
         self._run_yt_component("node")
 
         native_client = self.create_client()
@@ -731,7 +744,8 @@ class YTInstance(object):
             nodes = native_client.list("//sys/nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
 
-        self._wait_functions.append(lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20)))
+        wait_function = lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20))
+        self._wait_or_skip(wait_function, sync)
 
     def _prepare_schedulers(self, scheduler_configs, scheduler_dirs):
         for scheduler_index in xrange(self.scheduler_count):
@@ -749,7 +763,7 @@ class YTInstance(object):
             self.configs["scheduler"].append(config)
             self.config_paths["scheduler"].append(config_path)
 
-    def start_schedulers(self):
+    def start_schedulers(self, sync=True):
         self._remove_scheduler_lock()
 
         self._run_yt_component("scheduler")
@@ -791,7 +805,7 @@ class YTInstance(object):
                     raise
                 return False, err
 
-        self._wait_functions.append(lambda: self._wait_for(schedulers_ready, "scheduler"))
+        self._wait_or_skip(self._wait_for(schedulers_ready, "scheduler"), sync)
 
     def create_client(self):
         if self.has_proxy:
@@ -924,7 +938,7 @@ class YTInstance(object):
                    "-c", self.config_paths["proxy"]],
                    "proxy")
 
-    def start_proxy(self, use_proxy_from_package):
+    def start_proxy(self, use_proxy_from_package, sync=True):
         logger.info("Starting proxy")
         if use_proxy_from_package:
             self._start_proxy_from_package()
@@ -948,7 +962,7 @@ class YTInstance(object):
 
             return True
 
-        self._wait_functions.append(lambda: self._wait_for(proxy_ready, "proxy", max_wait_time=20))
+        self._wait_or_skip(self._wait_for(proxy_ready, "proxy", max_wait_time=20), sync)
 
     def _validate_process_is_running(self, process, name, number=None):
         if number is not None:
