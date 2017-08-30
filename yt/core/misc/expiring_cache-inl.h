@@ -212,30 +212,30 @@ void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, 
     }
 
     DoGet(key)
-    .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
+            NConcurrency::TWriterGuard guard(SpinLock_);
 
-        SetResult(weakEntry, key, valueOrError);
-    }));
+            SetResult(weakEntry, key, valueOrError);
+        }));
 }
 
 template <class TKey, class TValue>
 void TExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys)
 {
     DoGetMany(keys)
-    .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TValue>>& valueOrError) {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TValue>>& valueOrError) {
+            NConcurrency::TWriterGuard guard(SpinLock_);
 
-        if (valueOrError.IsOK()) {
-            for (size_t index = 0; index < keys.size(); ++index) {
-                SetResult(entries[index], keys[index], valueOrError.Value()[index]);
+            if (valueOrError.IsOK()) {
+                for (size_t index = 0; index < keys.size(); ++index) {
+                    SetResult(entries[index], keys[index], valueOrError.Value()[index]);
+                }
+            } else {
+                for (size_t index = 0; index < keys.size(); ++index) {
+                    SetResult(entries[index], keys[index], TError(valueOrError));
+                }
             }
-        } else {
-            for (size_t index = 0; index < keys.size(); ++index) {
-                SetResult(entries[index], keys[index], TError(valueOrError));
-            }
-        }
-    }));
+        }));
 }
 
 template <class TKey, class TValue>
