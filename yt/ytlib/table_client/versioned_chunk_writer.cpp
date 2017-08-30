@@ -218,6 +218,16 @@ protected:
             !beginPrevKey && !endPrevKey ||
             CompareRows(beginPrevKey, endPrevKey, row.BeginKeys(), row.EndKeys()) < 0);
     }
+
+    static void ValidateRowDataWeight(TVersionedRow row, i64 dataWeight)
+    {
+        if (dataWeight > MaxVersionedRowDataWeight) {
+            THROW_ERROR_EXCEPTION("Versioned row data weight is too large")
+                << TErrorAttribute("key", RowToKey(row))
+                << TErrorAttribute("actual_data_weight", dataWeight)
+                << TErrorAttribute("max_data_weight", MaxVersionedRowDataWeight);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -267,14 +277,13 @@ private:
         //FIXME: insert key into bloom filter.
         //KeyFilter_.Insert(GetFarmFingerprint(rows.front().BeginKeys(), rows.front().EndKeys()));
         auto firstRow = rows.Front();
-        ValidateRow(firstRow, LastKey_.Begin(), LastKey_.End());
+
         WriteRow(firstRow, LastKey_.Begin(), LastKey_.End());
         FinishBlockIfLarge(firstRow);
 
         int rowCount = static_cast<int>(rows.Size());
         for (int index = 1; index < rowCount; ++index) {
             //KeyFilter_.Insert(GetFarmFingerprint(rows[i].BeginKeys(), rows[i].EndKeys()));
-            ValidateRow(firstRow, LastKey_.Begin(), LastKey_.End());
             WriteRow(rows[index], rows[index - 1].BeginKeys(), rows[index - 1].EndKeys());
             FinishBlockIfLarge(rows[index]);
         }
@@ -282,10 +291,13 @@ private:
 
     static void ValidateRow(
         TVersionedRow row,
+        i64 dataWeight,
         const TUnversionedValue* beginPrevKey,
         const TUnversionedValue* endPrevKey)
     {
         ValidateRowsOrder(row, beginPrevKey, endPrevKey);
+        ValidateRowDataWeight(row, dataWeight);
+
         if (row.GetWriteTimestampCount() > std::numeric_limits<ui16>::max()) {
             THROW_ERROR_EXCEPTION("Too many write timestamps in a versioned row")
                 << TErrorAttribute("key", RowToKey(row));
@@ -302,9 +314,12 @@ private:
         const TUnversionedValue* endPreviousKey)
     {
         EmitSampleRandomly(row);
+        auto rowWeight = GetDataWeight(row);
+
+        ValidateRow(row, rowWeight, beginPreviousKey, endPreviousKey);
 
         ++RowCount_;
-        DataWeight_ += GetDataWeight(row);
+        DataWeight_ += rowWeight;
         BlockWriter_->WriteRow(row, beginPreviousKey, endPreviousKey);
     }
 
@@ -479,17 +494,18 @@ private:
             i64 weight = 0;
             int rowIndex = startRowIndex;
             for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
+                auto rowWeight = GetDataWeight(rows[rowIndex]);
                 if (rowIndex == 0) {
-                    ValidateRow(rows[rowIndex], LastKey_.Begin(), LastKey_.End());
+                    ValidateRow(rows[rowIndex], rowWeight, LastKey_.Begin(), LastKey_.End());
                 } else {
                     ValidateRow(
                         rows[rowIndex],
+                        rowWeight,
                         rows[rowIndex - 1].BeginKeys(),
                         rows[rowIndex - 1].EndKeys());
                 }
 
-                ValidateRow(rows[rowIndex], LastKey_.Begin(), LastKey_.End());
-                weight += GetDataWeight(rows[rowIndex]);
+                weight += rowWeight;
             }
 
             auto range = MakeRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
@@ -513,10 +529,12 @@ private:
 
     static void ValidateRow(
         TVersionedRow row,
+        i64 dataWeight,
         const TUnversionedValue* beginPrevKey,
         const TUnversionedValue* endPrevKey)
     {
         ValidateRowsOrder(row, beginPrevKey, endPrevKey);
+        ValidateRowDataWeight(row, dataWeight);
     }
 
     void TryFlushBlock(TVersionedRow lastRow)
