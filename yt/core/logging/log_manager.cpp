@@ -350,7 +350,8 @@ public:
             auto now = TInstant::Now();
             auto enqueuedEvents = EnqueuedEvents_.load();
             while (enqueuedEvents > FlushedEvents_.load() &&
-                   TInstant::Now() - now < Config_->ShutdownGraceTimeout) {
+                   TInstant::Now() - now < Config_->ShutdownGraceTimeout)
+            {
                 SchedYield();
             }
         }
@@ -386,10 +387,16 @@ public:
         return it->second.get();
     }
 
-    void UpdateCategory(const TLoggingCategory* category)
+    void UpdateCategory(TLoggingCategory* category)
     {
         TGuard<TForkAwareSpinLock> guard(SpinLock_);
         DoUpdateCategory(category);
+    }
+
+    void UpdatePosition(TLoggingPosition* position, const TString& message)
+    {
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        DoUpdatePosition(position, message);
     }
 
     void Enqueue(TLogEvent&& event)
@@ -901,7 +908,7 @@ private:
     }
 
 
-    void DoUpdateCategory(const TLoggingCategory* category)
+    void DoUpdateCategory(TLoggingCategory* category)
     {
         auto level = ELogLevel::Maximum;
         for (const auto& rule : Config_->Rules) {
@@ -910,9 +917,22 @@ private:
             }
         }
 
-        auto* mutableCategory = const_cast<TLoggingCategory*>(category);
-        mutableCategory->MinLevel = level;
-        mutableCategory->CurrentVersion = GetVersion();
+        category->MinLevel = level;
+        category->CurrentVersion = GetVersion();
+    }
+
+    void DoUpdatePosition(TLoggingPosition* position, const TString& message)
+    {
+        bool positionEnabled = true;
+        for (const auto& prefix : Config_->SuppressedMessages) {
+            if (message.StartsWith(prefix)) {
+                positionEnabled = false;
+                break;
+            }
+        }
+
+        position->Enabled = positionEnabled;
+        position->CurrentVersion = GetVersion();
     }
 
 
@@ -1007,9 +1027,14 @@ const TLoggingCategory* TLogManager::GetCategory(const char* categoryName)
     return Impl_->GetCategory(categoryName);
 }
 
-void TLogManager::UpdateCategory(const TLoggingCategory* category)
+void TLogManager::UpdateCategory(TLoggingCategory* category)
 {
     Impl_->UpdateCategory(category);
+}
+
+void TLogManager::UpdatePosition(TLoggingPosition* position,const TString& message)
+{
+    Impl_->UpdatePosition(position, message);
 }
 
 void TLogManager::Enqueue(TLogEvent&& event)

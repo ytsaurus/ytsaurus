@@ -43,6 +43,7 @@ class TRuleConfig
 public:
     TNullable<yhash_set<TString>> IncludeCategories;
     yhash_set<TString> ExcludeCategories;
+
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
 
@@ -87,6 +88,7 @@ public:
 
     std::vector<TRuleConfigPtr> Rules;
     yhash<TString, TWriterConfigPtr> WriterConfigs;
+    std::vector<TString> SuppressedMessages;
 
     TLogConfig()
     {
@@ -110,6 +112,8 @@ public:
 
         RegisterParameter("writers", WriterConfigs);
         RegisterParameter("rules", Rules);
+        RegisterParameter("suppressed_messages", SuppressedMessages)
+            .Default();
 
         RegisterValidator([&] () {
             for (const auto& rule : Rules) {

@@ -23,7 +23,15 @@ bool TRuleConfig::IsApplicable(const TString& category) const
 
 bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level) const
 {
-    return MinLevel <= level && level <= MaxLevel && IsApplicable(category);
+    if (!IsApplicable(category)) {
+        return false;
+    }
+
+    if (MinLevel > level || level > MaxLevel) {
+        return false;
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

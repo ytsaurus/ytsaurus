@@ -28,7 +28,8 @@ public:
     virtual void Shutdown() override;
 
     const TLoggingCategory* GetCategory(const char* categoryName);
-    void UpdateCategory(const TLoggingCategory* category);
+    void UpdateCategory(TLoggingCategory* category);
+    void UpdatePosition(TLoggingPosition* position, const TString& message);
 
     int GetVersion() const;
 
