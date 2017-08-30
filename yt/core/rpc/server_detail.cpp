@@ -71,7 +71,7 @@ void TServiceContextBase::Reply(const TError& error)
         AsyncResponseMessage_.Set(GetResponseMessage());
     }
 
-    if (Logger.IsEnabled(LogLevel_)) {
+    if (Logger.IsLevelEnabled(LogLevel_)) {
         LogResponse();
     }
 }
@@ -108,7 +108,7 @@ void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
         AsyncResponseMessage_.Set(GetResponseMessage());
     }
 
-    if (Logger.IsEnabled(LogLevel_)) {
+    if (Logger.IsLevelEnabled(LogLevel_)) {
         LogResponse();
     }
 }
@@ -277,7 +277,7 @@ TRequestHeader& TServiceContextBase::RequestHeader()
 void TServiceContextBase::SetRawRequestInfo(const TString& info)
 {
     RequestInfo_ = info;
-    if (Logger.IsEnabled(LogLevel_)) {
+    if (Logger.IsLevelEnabled(LogLevel_)) {
         LogRequest();
     }
 }
