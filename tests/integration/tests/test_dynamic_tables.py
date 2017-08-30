@@ -862,8 +862,16 @@ class TestTabletActions(TestDynamicTablesBase):
         "tablet_node": {
             "tablet_manager": {
                 "error_backoff_time": 100
-            }
-        }
+            },
+            "security_manager": {
+                "resource_limits_cache": {
+                    "expire_after_access_time": 0,
+                },
+            },
+        },
+        "master_cache_service": {
+            "capacity": 0
+        },
     }
 
     @pytest.mark.parametrize("skip_freezing", [False, True])
