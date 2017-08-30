@@ -156,6 +156,7 @@ size_t MakeCodegenJoinOp(
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<std::pair<size_t, bool>> equations,
     size_t commonKeyPrefix,
+    size_t foreignKeyPrefix,
     TComparerManagerPtr comparerManager);
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(

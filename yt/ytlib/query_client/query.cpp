@@ -144,10 +144,11 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues)
                 foreignJoinEquation.push_back(InferName(equation, omitValues));
             }
 
-            clauses.push_back(Format("%v JOIN[via ranges: %v, common key prefix: %v] (%v) = (%v)",
+            clauses.push_back(Format(
+                "%v JOIN[common prefix: %v, foreign prefix: %v] (%v) = (%v)",
                 joinClause->IsLeft ? "LEFT" : "INNER",
-                joinClause->CanUseSourceRanges,
                 joinClause->CommonKeyPrefix,
+                joinClause->ForeignKeyPrefix,
                 JoinToString(selfJoinEquation),
                 JoinToString(foreignJoinEquation)));
 
@@ -516,7 +517,10 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
-    proto->set_can_use_source_ranges(original->CanUseSourceRanges);
+
+    // COMPAT(lukyan)
+    bool canUseSourceRanges = original->ForeignKeyPrefix == original->ForeignEquations.size();
+    proto->set_can_use_source_ranges(canUseSourceRanges);
     proto->set_common_key_prefix(original->CommonKeyPrefix);
     proto->set_foreign_key_prefix(original->ForeignKeyPrefix);
 
@@ -536,9 +540,14 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->SelfEquations, serialized.self_equations());
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
-    FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
     FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix());
-    FromProto(&result->ForeignKeyPrefix, serialized.foreign_key_prefix());
+
+    // COMPAT(lukyan)
+    if (serialized.can_use_source_ranges()) {
+        result->ForeignKeyPrefix = result->ForeignEquations.size();
+    } else {
+        FromProto(&result->ForeignKeyPrefix, serialized.foreign_key_prefix());
+    }
 
     if (serialized.has_predicate()) {
         FromProto(&result->Predicate, serialized.predicate());

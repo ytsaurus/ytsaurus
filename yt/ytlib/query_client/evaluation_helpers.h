@@ -105,17 +105,13 @@ struct TJoinParameters
 {
     bool IsOrdered;
     bool IsLeft;
+    bool IsSortMergeJoin;
+    bool IsPartiallySorted;
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
-    bool IsSortMergeJoin;
-    size_t CommonKeyPrefixDebug;
-
-//    std::function<std::pair<TQueryPtr, TDataRanges>(std::vector<TRow>, TRowBufferPtr)>
-//        GetForeignQuery;
-
-    size_t BatchSize;
-
     TJoinSubqueryEvaluator ExecuteForeign;
+    size_t BatchSize;
+    size_t CommonKeyPrefixDebug;
 };
 
 struct TChainedRow

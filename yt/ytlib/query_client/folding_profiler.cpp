@@ -895,7 +895,6 @@ void TQueryProfiler::Profile(
         TJoinParameters joinParameters;
         {
             const auto& foreignEquations = joinClause->ForeignEquations;
-            auto canUseSourceRanges = joinClause->CanUseSourceRanges;
             auto commonKeyPrefix = joinClause->CommonKeyPrefix;
 
             // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
@@ -957,8 +956,9 @@ void TQueryProfiler::Profile(
             joinParameters.IsLeft = joinClause->IsLeft;
             joinParameters.SelfColumns = selfColumns;
             joinParameters.ForeignColumns = foreignColumns;
-            joinParameters.IsSortMergeJoin = canUseSourceRanges && commonKeyPrefix > 0;
+            joinParameters.IsSortMergeJoin = commonKeyPrefix > 0;
             joinParameters.CommonKeyPrefixDebug = commonKeyPrefix;
+            joinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
             joinParameters.BatchSize = joinBatchSize;
             joinParameters.ExecuteForeign = joinProfiler(subquery, joinClause);
         }
@@ -982,6 +982,7 @@ void TQueryProfiler::Profile(
             fragmentInfos,
             selfKeys,
             joinClause->CommonKeyPrefix,
+            joinClause->ForeignKeyPrefix,
             ComparerManager_);
 
         MakeCodegenFragmentBodies(codegenSource, fragmentInfos);

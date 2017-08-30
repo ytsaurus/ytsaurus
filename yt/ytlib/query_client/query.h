@@ -239,7 +239,6 @@ struct TJoinClause
 
     TConstExpressionPtr Predicate;
 
-    bool CanUseSourceRanges;
     std::vector<TConstExpressionPtr> ForeignEquations;
     std::vector<std::pair<TConstExpressionPtr, bool>> SelfEquations;
 

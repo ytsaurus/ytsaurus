@@ -314,13 +314,13 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         EXPECT_EQ(query->JoinClauses.size(), 3);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 2);
         EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 4);
         EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
     }
 
@@ -335,13 +335,13 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         EXPECT_EQ(query->JoinClauses.size(), 3);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 4);
         EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
     }
 
@@ -356,13 +356,13 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         EXPECT_EQ(query->JoinClauses.size(), 3);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 4);
         EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 3);
 
-        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
     }
 }
@@ -2513,8 +2513,140 @@ TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
     EXPECT_EQ(query->JoinClauses.size(), 1);
     const auto& joinClauses = query->JoinClauses;
 
-    EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+    EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1);
     EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestPartialSortMergeJoin)
+{
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64},
+    }, 0);
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1;b=2;c=1 ",
+        "a=1;b=3;c=2 ",
+        "a=1;b=1;c=3 ",
+        "a=1;b=4;c=4 ",
+        "a=2;b=4;c=5 ",
+        "a=2;b=3;c=6 ",
+        "a=2;b=1;c=7 ",
+        "a=2;b=2;c=8 ",
+        "a=3;b=1;c=9 ",
+        "a=3;b=4;c=10",
+        "a=3;b=3;c=11",
+        "a=3;b=2;c=12",
+        "a=4;b=8;c=13",
+        "a=4;b=7;c=14"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"d", EValueType::Int64, ESortOrder::Ascending},
+        {"e", EValueType::Int64, ESortOrder::Ascending},
+        {"f", EValueType::Int64},
+    }, 1);
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "d=1;e=1;f=3 ",
+        "d=1;e=2;f=1 ",
+        "d=1;e=3;f=2 ",
+        "d=1;e=4;f=4 ",
+        "d=2;e=1;f=7 ",
+        "d=2;e=2;f=8 ",
+        "d=2;e=3;f=6 ",
+        "d=2;e=4;f=5 ",
+        "d=3;e=1;f=9 ",
+        "d=3;e=2;f=12",
+        "d=3;e=3;f=11",
+        "d=3;e=4;f=10",
+        "d=4;e=7;f=14",
+        "d=4;e=8;f=13",
+
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64},
+        {"d", EValueType::Int64},
+        {"e", EValueType::Int64},
+        {"f", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "a=1;b=1;c=3 ;d=1;e=1;f=3 ",
+        "a=1;b=2;c=1 ;d=1;e=2;f=1 ",
+        "a=1;b=3;c=2 ;d=1;e=3;f=2 ",
+        "a=1;b=4;c=4 ;d=1;e=4;f=4 ",
+        "a=2;b=1;c=7 ;d=2;e=1;f=7 ",
+        "a=2;b=2;c=8 ;d=2;e=2;f=8 ",
+        "a=2;b=3;c=6 ;d=2;e=3;f=6 ",
+        "a=2;b=4;c=5 ;d=2;e=4;f=5 ",
+        "a=3;b=1;c=9 ;d=3;e=1;f=9 ",
+        "a=3;b=2;c=12;d=3;e=2;f=12",
+        "a=3;b=3;c=11;d=3;e=3;f=11",
+        "a=3;b=4;c=10;d=3;e=4;f=10",
+        "a=4;b=7;c=14;d=4;e=7;f=14",
+        "a=4;b=8;c=13;d=4;e=8;f=13",
+    }, resultSplit);
+
+    {
+        auto query = Evaluate("a, b, c, d, e, f FROM [//left] join [//right] on (a, b) = (d, e)",
+            splits,
+            sources,
+            ResultMatcher(result));
+
+        EXPECT_EQ(query->JoinClauses.size(), 1);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 2);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+    }
+
+    {
+        auto rightSplit = MakeSplit({
+            {"d", EValueType::Int64, ESortOrder::Ascending},
+            {"e", EValueType::Int64},
+            {"f", EValueType::Int64},
+        }, 1);
+        splits["//right"] = rightSplit;
+        sources[1] = {
+            "d=1;e=4;f=4 ",
+            "d=1;e=1;f=3 ",
+            "d=1;e=3;f=2 ",
+            "d=1;e=2;f=1 ",
+            "d=2;e=2;f=8 ",
+            "d=2;e=4;f=5 ",
+            "d=2;e=1;f=7 ",
+            "d=2;e=3;f=6 ",
+            "d=3;e=2;f=12",
+            "d=3;e=3;f=11",
+            "d=3;e=4;f=10",
+            "d=3;e=1;f=9 ",
+            "d=4;e=7;f=14",
+            "d=4;e=8;f=13"
+        };
+
+        auto query = Evaluate("a, b, c, d, e, f FROM [//left] join [//right] on (a, b) = (d, e)",
+            splits,
+            sources,
+            ResultMatcher(result));
+
+        EXPECT_EQ(query->JoinClauses.size(), 1);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+    }
 
     SUCCEED();
 }
