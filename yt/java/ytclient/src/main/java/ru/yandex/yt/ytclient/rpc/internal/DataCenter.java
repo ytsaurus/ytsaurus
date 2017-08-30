@@ -1,7 +1,5 @@
 package ru.yandex.yt.ytclient.rpc.internal;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.SharedMetricRegistries;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,7 +8,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
