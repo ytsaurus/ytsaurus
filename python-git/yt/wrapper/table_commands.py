@@ -429,14 +429,17 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
             return params
 
-
         def iterate(self, response):
-            format_name = format.name()
+            format_for_raw_load = deepcopy(format)
+            if isinstance(format_for_raw_load, YsonFormat) and format_for_raw_load.attributes["lazy"]:
+                format_for_raw_load.attributes["lazy"] = False
+
+            format_for_raw_load_name = format_for_raw_load.name()
 
             def is_control_row(row):
-                if format_name == "yson":
+                if format_for_raw_load_name == "yson":
                     return row.endswith(b"#;")
-                elif format_name == "json":
+                elif format_for_raw_load_name == "json":
                     if b"$value" not in row:
                         return False
                     loaded_row = json.loads(row)
@@ -445,17 +448,17 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     return False
 
             def load_control_row(row):
-                if format_name == "yson":
+                if format_for_raw_load_name == "yson":
                     return next(yson.loads(row, yson_type="list_fragment"))
-                elif format_name == "json":
+                elif format_for_raw_load_name == "json":
                     return yson.json_to_yson(json.loads(row))
                 else:
                     assert False, "Incorrect format"
 
             def dump_control_row(row):
-                if format_name == "yson":
+                if format_for_raw_load_name == "yson":
                     return yson.dumps([row], yson_type="list_fragment")
-                elif format_name == "json":
+                elif format_for_raw_load_name == "json":
                     row = json.dumps(yson.yson_to_json(row))
                     if PY3:
                         row = row.encode("utf-8")
@@ -470,7 +473,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 self.next_row_index = response.response_parameters.get("start_row_index", None)
                 self.started = True
 
-            for row in format.load_rows(response, raw=True):
+            for row in format_for_raw_load.load_rows(response, raw=True):
                 chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
                 if chaos_monkey_enabled and random.randint(1, 5) == 1:
                     raise YtRetriableError()

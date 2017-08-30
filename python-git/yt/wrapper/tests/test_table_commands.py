@@ -9,6 +9,7 @@ from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.common import parse_bool
 
 from yt.local import start, stop
+from yt.yson import YsonMap
 
 import yt.zip as zip
 
@@ -875,3 +876,13 @@ class TestTableCommands(object):
         finally:
             if instance is not None:
                 stop(instance.id, path=dir)
+
+    def test_lazy_read(self):
+        table = TEST_DIR + "/test_lazy_read_table"
+        yt.write_table(table, [{"x": "abacaba", "y": 1}, {"z": 2}])
+        stream = yt.read_table(table, format="<lazy=%true>yson")
+        result = list(stream)
+
+        assert not isinstance(result[0], (YsonMap, dict))
+        assert result[0]["x"] == "abacaba"
+        assert result[1]["z"] == 2

@@ -17,6 +17,7 @@ from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder
 from yt.local import start, stop
+from yt.yson import YsonMap
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
 
@@ -1669,3 +1670,23 @@ if __name__ == "__main__":
         operation = operations[0]
         assert operation["state"] == "completed"
         assert operation["type"] == "map"
+
+    def test_lazy_yson(self):
+        def mapper(row):
+            assert not isinstance(row, (YsonMap, dict))
+            row["z"] = row["y"] + 1
+            yield row
+
+        def reducer(key, rows):
+            result = {"x": key["x"], "res": 0}
+            for row in rows:
+                assert not isinstance(row, (YsonMap, dict))
+                result["res"] += row["z"]
+            yield result
+
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 2}, {"x": 1, "y": 3}, {"x": 3, "y": 4}])
+        yt.run_map_reduce(mapper, reducer, table, output_table, format="<lazy=%true>yson", reduce_by="x")
+
+        assert list(yt.read_table(output_table)) == [{"x": 1, "res": 7}, {"x": 3, "res": 5}]
