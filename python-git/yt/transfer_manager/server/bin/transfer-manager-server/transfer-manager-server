@@ -1113,7 +1113,7 @@ class Application(object):
                         token=token, user=user,
                         dry_run=dry_run,
                         make_precheck=False))
-            return jsonify(ids)
+            return Response(json.dumps(ids), mimetype="application/json")
         else:
             enable_early_precheck = self._config.get("enable_early_precheck", True)
             id = self._create_task(
@@ -1122,7 +1122,8 @@ class Application(object):
                 user=user,
                 dry_run=dry_run,
                 make_precheck=enable_early_precheck)
-            return jsonify(id)
+            # TODO(ignat): migrate to JSON format.
+            return Response(id, mimetype="text/plain")
 
     def abort_task(self, id):
         if id not in self._tasks:
