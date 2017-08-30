@@ -549,6 +549,8 @@ class TestSchedulerRevive(YTEnvSetup):
 
         assert "aborted" == get("//sys/operations/" + op.id + "/@state")
 
+    # NB: we hope that complete finish first phase before we kill scheduler. But we cannot guarantee that this happen.
+    @flaky(max_runs=3)
     def test_completing(self):
         self._prepare_tables()
 
