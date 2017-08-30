@@ -58,6 +58,7 @@ const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = 16 * MB;
 const i64 MaxAnyValueLength = 16 * MB;
+const i64 MaxVersionedRowDataWeight = 512 * MB;
 
 // Only for static tables.
 const i64 MaxRowWeightLimit = 128 * MB;
