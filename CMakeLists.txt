@@ -319,6 +319,22 @@ if(YT_CAN_BUILD_PACKAGE)
     COMMENT "Updating changelog..."
   )
 
+  find_package(Git)
+  if (NOT GIT_FOUND)
+    message(FATAL_ERROR "Git is required for packaging")
+  endif()
+
+  add_custom_target(srcs
+      COMMAND ${CMAKE_SOURCE_DIR}/debian/prepare_sources.py ${GIT_EXECUTABLE} ${CMAKE_SOURCE_DIR}
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  )
+
+  install(
+    DIRECTORY ${CMAKE_BINARY_DIR}/src
+    DESTINATION share/yandex-yt
+    COMPONENT sources
+  )
+
   add_custom_target(package touch package-stamp
     COMMAND debuild
       -e SOURCE_DIR=${CMAKE_SOURCE_DIR}
@@ -331,7 +347,7 @@ if(YT_CAN_BUILD_PACKAGE)
       ${CMAKE_BINARY_DIR}/ARTIFACTS
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Packaging YT..."
-    DEPENDS changelog
+    DEPENDS srcs changelog
   )
 
   add_custom_target(python-package touch python-package-stamp
@@ -363,6 +379,7 @@ if(YT_CAN_BUILD_PACKAGE)
   # 2) debian/control
   # 3) debian/rules
   hook_for_debian(yandex-yt Unspecified)
+  hook_for_debian(yandex-yt-src sources)
   hook_for_debian(yandex-yt-standalone standalone)
   hook_for_debian(yandex-yt-http-proxy nodejs)
   hook_for_debian(yandex-yt-perl perl-module)
