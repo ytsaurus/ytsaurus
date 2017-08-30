@@ -27,6 +27,7 @@
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/pipe.h>
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -539,7 +540,7 @@ TQueryStatistics DoExecuteQuery(
     TConstQueryPtr query,
     ISchemafulWriterPtr writer,
     const TQueryBaseOptions& options,
-    TExecuteQueryCallback executeCallback = nullptr)
+    TJoinSubqueryProfiler joinProfiler = nullptr)
 {
     std::vector<TOwningRow> owningSource;
     std::vector<TRow> sourceRows;
@@ -571,7 +572,7 @@ TQueryStatistics DoExecuteQuery(
         query,
         readerMock,
         writer,
-        executeCallback,
+        joinProfiler,
         functionProfilers,
         aggregateProfilers,
         options);
@@ -838,20 +839,30 @@ protected:
                 fetchFunctions);
             const auto& primaryQuery = fragment->Query;
 
-            auto executeCallback = [&] (
-                const TQueryPtr& subquery,
-                TDataRanges dataRanges,
-                ISchemafulWriterPtr writer) mutable
-            {
-                return MakeFuture(DoExecuteQuery(
-                    owningSources[sourceGuids[dataRanges.Id]],
-                    FunctionProfilers_,
-                    AggregateProfilers_,
-                    failureLocation,
-                    subquery,
-                    writer,
-                    options));
+            auto profileCallback = [&] (TQueryPtr subquery, TConstJoinClausePtr joinClause) mutable {
+                return [&, subquery, joinClause] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) mutable {
+                    TDataRanges dataSource;
+                    std::tie(subquery, dataSource) = GetForeignQuery(
+                        subquery,
+                        joinClause,
+                        std::move(keys),
+                        permanentBuffer);
+
+                    auto pipe = New<NTableClient::TSchemafulPipe>();
+
+                    DoExecuteQuery(
+                        owningSources[sourceGuids[dataSource.Id]],
+                        FunctionProfilers_,
+                        AggregateProfilers_,
+                        failureLocation,
+                        subquery,
+                        pipe->GetWriter(),
+                        options);
+
+                    return pipe->GetReader();
+                };
             };
+
 
             ISchemafulWriterPtr writer;
             TFuture<IUnversionedRowsetPtr> asyncResultRowset;
@@ -866,7 +877,7 @@ protected:
                 primaryQuery,
                 writer,
                 options,
-                executeCallback);
+                profileCallback);
 
             auto resultRowset = WaitFor(asyncResultRowset)
                 .ValueOrThrow();

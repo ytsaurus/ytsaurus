@@ -519,7 +519,11 @@ public:
         TTableSchema schema,
         bool isMerge);
 
-    void Profile(TCodegenSource* codegenSource, TConstQueryPtr query, size_t* slotCount);
+    void Profile(
+        TCodegenSource* codegenSource,
+        TConstQueryPtr query,
+        size_t* slotCount,
+        TJoinSubqueryProfiler joinProfiler);
 
     void Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr query, size_t* slotCount);
 
@@ -831,7 +835,11 @@ void TQueryProfiler::Profile(
     MakeCodegenWriteOp(codegenSource, resultSlot);
 }
 
-void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query, size_t* slotCount)
+void TQueryProfiler::Profile(
+    TCodegenSource* codegenSource,
+    TConstQueryPtr query,
+    size_t* slotCount,
+    TJoinSubqueryProfiler joinProfiler)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
@@ -884,11 +892,78 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
             joinBatchSize = query->Limit;
         }
 
-        int index = Variables_->AddOpaque<TJoinParameters>(GetJoinEvaluator(
-            *joinClause,
-            schema,
-            joinBatchSize,
-            query->IsOrdered()));
+        TJoinParameters joinParameters;
+        {
+            const auto& foreignEquations = joinClause->ForeignEquations;
+            auto canUseSourceRanges = joinClause->CanUseSourceRanges;
+            auto commonKeyPrefix = joinClause->CommonKeyPrefix;
+
+            // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
+            auto subquery = New<TQuery>();
+
+            subquery->OriginalSchema = joinClause->OriginalSchema;
+            subquery->SchemaMapping = joinClause->SchemaMapping;
+
+            // (join key... , other columns...)
+            auto projectClause = New<TProjectClause>();
+            std::vector<TConstExpressionPtr> joinKeyExprs;
+
+            for (const auto& column : foreignEquations) {
+                projectClause->AddProjection(column, InferName(column));
+            }
+
+            subquery->ProjectClause = projectClause;
+            subquery->WhereClause = joinClause->Predicate;
+
+            auto selfColumnNames = joinClause->SelfJoinedColumns;
+            std::sort(selfColumnNames.begin(), selfColumnNames.end());
+
+            const auto& selfTableColumns = schema.Columns();
+
+            std::vector<size_t> selfColumns;
+            for (size_t index = 0; index < selfTableColumns.size(); ++index) {
+                if (std::binary_search(
+                    selfColumnNames.begin(),
+                    selfColumnNames.end(),
+                    selfTableColumns[index].Name))
+                {
+                    selfColumns.push_back(index);
+                }
+            }
+
+            auto foreignColumnNames = joinClause->ForeignJoinedColumns;
+            std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
+
+            auto joinRenamedTableColumns = joinClause->GetRenamedSchema().Columns();
+
+            std::vector<size_t> foreignColumns;
+            for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
+                if (std::binary_search(
+                    foreignColumnNames.begin(),
+                    foreignColumnNames.end(),
+                    joinRenamedTableColumns[index].Name))
+                {
+                    foreignColumns.push_back(projectClause->Projections.size());
+
+                    projectClause->AddProjection(
+                        New<TReferenceExpression>(
+                            joinRenamedTableColumns[index].Type,
+                            joinRenamedTableColumns[index].Name),
+                        joinRenamedTableColumns[index].Name);
+                }
+            };
+
+            joinParameters.IsOrdered = query->IsOrdered();
+            joinParameters.IsLeft = joinClause->IsLeft;
+            joinParameters.SelfColumns = selfColumns;
+            joinParameters.ForeignColumns = foreignColumns;
+            joinParameters.IsSortMergeJoin = canUseSourceRanges && commonKeyPrefix > 0;
+            joinParameters.CommonKeyPrefixDebug = commonKeyPrefix;
+            joinParameters.BatchSize = joinBatchSize;
+            joinParameters.ExecuteForeign = joinProfiler(subquery, joinClause);
+        }
+
+        int index = Variables_->AddOpaque<TJoinParameters>(joinParameters);
 
         Fold(index);
 
@@ -1008,6 +1083,7 @@ TCGQueryCallbackGenerator Profile(
     TConstBaseQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
+    TJoinSubqueryProfiler joinProfiler,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers)
 {
@@ -1017,7 +1093,7 @@ TCGQueryCallbackGenerator Profile(
     TCodegenSource codegenSource = &CodegenEmptyOp;
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
-        profiler.Profile(&codegenSource, derivedQuery, &slotCount);
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfiler);
     } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
         profiler.Profile(&codegenSource, derivedQuery, &slotCount);
     } else {
