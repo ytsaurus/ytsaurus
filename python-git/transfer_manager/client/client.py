@@ -1,14 +1,12 @@
-from yt.common import YtError, YtResponseError
 from yt.wrapper.common import get_value, require, update, generate_uuid, bool_to_string
 from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
 from yt.wrapper.errors import hide_token
+from yt.wrapper.retries import Retrier
 from yt.wrapper import YtClient
-import yt.logger as logger
 
-try:
-    from yt.wrapper.common import run_with_retries
-except ImportError:
-    from yt.wrapper.retries import run_with_retries
+from yt.common import YtError, YtResponseError
+
+import yt.logger as logger
 
 import yt.packages.requests as requests
 import yt.packages.simplejson as json
@@ -22,11 +20,6 @@ from copy import deepcopy
 
 TM_BACKEND_URL = "http://transfer-manager.yt.yandex.net/api/v1"
 TM_TASK_URL_PATTERN = "https://transfer-manager.yt.yandex-team.ru/task?id={id}&tab=details&backend={backend_tag}"
-
-TM_HEADERS = {
-    "Accept-Type": "application/json",
-    "Content-Type": "application/json"
-}
 
 FAILED_TASKS_SHARE_TO_DISABLE_AUTORESTART = 0.6
 
@@ -64,6 +57,77 @@ def _raise_for_status(response):
                       inner_errors=[YtError(error.message)])
 
     raise YtError(**response_json)
+
+class HTTPRequestRetrier(Retrier):
+    def __init__(self, request_timeout, enable_retries, retry_count, token, force_ipv4, force_ipv6):
+        config = {
+            "enable": enable_retries,
+            "count": retry_count,
+            "backoff": {
+                "policy": "exponential",
+                "exponential_policy": {
+                    "start_timeout": 2000,
+                    "base": 2,
+                    "max_timeout": 20000
+                }
+            }
+        }
+        retriable_errors = get_retriable_errors() + (TransferManagerUnavailableError,
+                                                     RequestIsBeingProcessedError)
+        super(HTTPRequestRetrier, self).__init__(config, request_timeout, exceptions=retriable_errors)
+
+        self.token = token
+        self.session = requests.Session()
+        configure_ip(self.session, force_ipv4=force_ipv4, force_ipv6=force_ipv6)
+
+        self.method = None
+        self.url = None
+        self.params = None
+        self.headers = None
+        self.is_mutating = None
+        self.data = None
+
+    def except_action(self, exception, attempt):
+        logger.warning('HTTP %s request %s failed with error %s, message: "%s", headers: %s',
+            self.method, self.url, str(exception), str(type(exception)), str(hide_token(self.headers)))
+
+        if self.is_mutating:
+            if isinstance(exception, TransferManagerUnavailableError):
+                self.params["mutation_id"] = generate_uuid()
+                self.params["retry"] = bool_to_string(False)
+            else:
+                self.params["retry"] = bool_to_string(True)
+
+    def action(self):
+        update(self.headers, {"X-TM-Parameters": json.dumps(self.params)})
+        response = self.session.request(self.method, self.url, headers=self.headers,
+                                        timeout=self.timeout / 1000.0, data=self.data)
+        _raise_for_status(response)
+        return response
+
+    def make_request(self, method, url, params=None, data=None, is_mutating=False):
+        params = get_value(params, {})
+        if is_mutating:
+            params["mutation_id"] = generate_uuid()
+            params["retry"] = bool_to_string(False)
+
+        headers = {
+            "Accept-Type": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Transfer Manager client " + get_version()
+        }
+        if method == "POST":
+            require(self.token is not None, lambda: YtError("YT token is not specified"))
+            headers["Authorization"] = "OAuth " + self.token
+
+        self.method = method
+        self.url = url
+        self.params = params
+        self.headers = headers
+        self.is_mutating = is_mutating
+        self.data = data
+
+        return self.run()
 
 class Poller(object):
     def __init__(self, client, poll_period, running_tasks_limit,
@@ -133,8 +197,6 @@ class Poller(object):
         if error.contains_text("died silently"):
             return True
         if error.contains_text("Failed jobs limit exceeded"):
-            return True
-        if error.contains_text("Master is not responding"):
             return True
         return False
 
@@ -253,14 +315,14 @@ class TransferManager(object):
         else:
             self.backend_url = "http://{0}".format(backend_url)
 
-        self.session = requests.Session()
-        configure_ip(self.session, force_ipv4=force_ipv4, force_ipv6=force_ipv6)
-
         self.token = get_token(token=token)
-
-        self.http_request_timeout = http_request_timeout
-        self.enable_retries = enable_retries
-        self.retry_count = retry_count
+        self.retrier = HTTPRequestRetrier(
+            http_request_timeout,
+            enable_retries,
+            retry_count,
+            self.token,
+            force_ipv4,
+            force_ipv6)
 
         self._backend_config = self.get_backend_config()
         self._backend_tag = self._backend_config["backend_tag"]
@@ -278,23 +340,23 @@ class TransferManager(object):
         return self.add_tasks_from_src_dst_pairs(src_dst_pairs, source_cluster, destination_cluster, **kwargs)
 
     def abort_task(self, task_id):
-        self._make_request(
+        self.retrier.make_request(
             "POST",
             "{0}/tasks/{1}/abort/".format(self.backend_url, task_id),
             is_mutating=True)
 
     def restart_task(self, task_id):
-        self._make_request(
+        self.retrier.make_request(
             "POST",
             "{0}/tasks/{1}/restart/".format(self.backend_url, task_id),
             is_mutating=True)
 
     def get_task_info(self, task_id):
-        return self._make_request("GET", "{0}/tasks/{1}/".format(self.backend_url, task_id)).json()
+        return self.retrier.make_request("GET", "{0}/tasks/{1}/".format(self.backend_url, task_id)).json()
 
     def ping_task_and_get(self, task_id):
         url = "{0}/tasks/{1}/ping_and_get/".format(self.backend_url, task_id)
-        return self._make_request("POST", url).json()
+        return self.retrier.make_request("POST", url).json()
 
     def get_tasks(self, user=None, fields=None):
         params = {}
@@ -303,10 +365,10 @@ class TransferManager(object):
         if fields is not None:
             params["fields[]"] = deepcopy(fields)
 
-        return self._make_request("GET", "{0}/tasks/".format(self.backend_url), params=params).json()
+        return self.retrier.make_request("GET", "{0}/tasks/".format(self.backend_url), params=params).json()
 
     def get_backend_config(self):
-        return self._make_request("GET", "{0}/config/".format(self.backend_url)).json()
+        return self.retrier.make_request("GET", "{0}/config/".format(self.backend_url)).json()
 
     def match_src_dst_pattern(self, source_cluster, source_table, destination_cluster, destination_table,
                               include_files=False):
@@ -318,59 +380,11 @@ class TransferManager(object):
             "include_files": include_files,
         }
 
-        return self._make_request(
+        return self.retrier.make_request(
             "POST",
             self.backend_url + "/match/",
             is_mutating=False,
             data=json.dumps(data)).json()
-
-    def _make_request(self, method, url, is_mutating=False, **kwargs):
-        headers = kwargs.get("headers", {})
-        update(headers, TM_HEADERS)
-
-        headers["User-Agent"] = "Transfer Manager client " + get_version()
-
-        if method == "POST":
-            require(self.token is not None, lambda: YtError("YT token is not specified"))
-            headers["Authorization"] = "OAuth " + self.token
-
-        params = {}
-        if is_mutating:
-            params["mutation_id"] = generate_uuid()
-            params["retry"] = bool_to_string(False)
-
-        def except_action(error):
-            if is_mutating:
-                if isinstance(error, TransferManagerUnavailableError):
-                    params["mutation_id"] = generate_uuid()
-                    params["retry"] = bool_to_string(False)
-                else:
-                    params["retry"] = bool_to_string(True)
-
-        def backoff_action(error, iteration, sleep_backoff):
-            logger.warning('HTTP %s request %s failed with error %s, message: "%s", headers: %s',
-                           method, url, error.message, str(type(error)), str(hide_token(headers)))
-            logger.warning("Sleep for %.2lf seconds before next retry (%d)", sleep_backoff, iteration + 1)
-
-        def make_request():
-            update(headers, {"X-TM-Parameters": json.dumps(params)})
-            response = self.session.request(
-                method,
-                url,
-                headers=headers,
-                timeout=self.http_request_timeout / 1000.0,
-                **kwargs)
-
-            _raise_for_status(response)
-            return response
-
-        if self.enable_retries:
-            retriable_errors = get_retriable_errors() + (TransferManagerUnavailableError,
-                                                         RequestIsBeingProcessedError)
-            return run_with_retries(make_request, self.retry_count, exceptions=retriable_errors,
-                                    except_action=except_action, backoff_action=backoff_action)
-
-        return make_request()
 
     def _start_one_task(self, source_table, source_cluster, destination_table, destination_cluster,
                         params=None):
@@ -385,10 +399,13 @@ class TransferManager(object):
         if destination_table is not None:
             data["destination_table"] = destination_table
 
-        return self._make_request("POST",
-                                  self.backend_url + "/tasks/",
-                                  is_mutating=True,
-                                  data=json.dumps(data)).text
+        rsp = self.retrier.make_request(
+            "POST",
+            self.backend_url + "/tasks/",
+            is_mutating=True,
+            data=json.dumps(data))
+
+        return rsp.text
 
     def add_tasks_from_src_dst_pairs(self, src_dst_pairs, source_cluster, destination_cluster, params=None,
                                      sync=None, poll_period=None, attached=False, running_tasks_limit=None,

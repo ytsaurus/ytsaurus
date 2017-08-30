@@ -27,23 +27,20 @@ def test_copy_between_clusters(backend_url):
     table = hahn_client.create_temp_table()
     hahn_client.write_table(table, ["a\tb\n", "c\td\n", "e\tf\n"], format="yamr", raw=True)
 
-    client.add_task("hahn", table, "banach", "//tmp/tm_client_test_table", sync=True)
-
-    task_id = client.add_task("hahn", table, "titan", "tmp/yt/tm_client_test_table",
-                              params={"mr_user": "imgdev"})
+    task_id = client.add_task("hahn", table, "banach", "//tmp/tm_client_test_table", sync=True)
     time.sleep(0.5)
     assert task_id in [task["id"] for task in client.get_tasks()]
-    _wait_task(task_id, client)
 
-    task_id = client.add_task("titan", "tmp/yt/tm_client_test_table", "hahn", "//tmp/tm_client_test_table",
+    task_id = client.add_task("banach", "//tmp/tm_client_test_table", "hahn", table,
                               sync=True, poll_period=10, params={"pool": "ignat"})
 
     assert client.get_task_info(task_id)["state"] == "completed"
     assert client.get_task_info(task_id)["pool"] == "ignat"
-    assert hahn_client.read_table("//tmp/tm_client_test_table", format="yamr", raw=True).read() == "a\tb\nc\td\ne\tf\n"
+    assert hahn_client.read_table(table, format="yamr", raw=True).read() == "a\tb\nc\td\ne\tf\n"
 
     # Abort/restart
-    task_id = client.add_task("titan", "tmp/yt/tm_client_test_table", "hahn", "//tmp/tm_client_test_table")
+    task_id = client.add_task("banach", "//tmp/tm_client_test_table", "hahn", table,
+                              params={"copy_method": "proxy"})
     client.abort_task(task_id)
     time.sleep(0.5)
     assert client.get_task_info(task_id)["state"] == "aborted"

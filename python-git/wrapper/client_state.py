@@ -1,7 +1,6 @@
 from .system_random import SystemRandom
 
 from copy import deepcopy
-import random
 
 class ClientState(object):
     def __init__(self, other=None):
@@ -13,8 +12,7 @@ class ClientState(object):
     def _init_state(self):
         self.COMMAND_PARAMS = {
             "transaction_id": "0-0-0-0",
-            "ping_ancestor_transactions": False,
-            "retry": False
+            "ping_ancestor_transactions": False
         }
         self._ENABLE_READ_TABLE_CHAOS_MONKEY = False
         self._ENABLE_HTTP_CHAOS_MONKEY = False
@@ -54,12 +52,3 @@ class ClientState(object):
         for attr in filter(lambda attr: not attr.startswith("__"), ClientState().__dict__):
             result[attr] = getattr(self, attr)
         return result
-
-    def init_pseudo_random_generator(self):
-        """Changes client random generator to pseudo random generator,
-           initialized with seed from system generator.
-        """
-        # This implementation works incorrectky if process forked.
-        seed = random.SystemRandom().randint(0, 2**63)
-        self._random_generator = random.random()
-        self._random_generator.seed(seed)

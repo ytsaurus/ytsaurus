@@ -21,6 +21,8 @@ import string
 # Standard YT time representation
 YT_DATETIME_FORMAT_STRING = "%Y-%m-%dT%H:%M:%S.%fZ"
 
+YT_NULL_TRANSACTION_ID = "0-0-0-0"
+
 class YtError(Exception):
     """Base class for all YT errors."""
     def __init__(self, message="", code=1, inner_errors=None, attributes=None):

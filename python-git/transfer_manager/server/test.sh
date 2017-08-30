@@ -652,7 +652,7 @@ EOF
     local proxy=$(cat "$TM_CONFIG" | jq .yt_backend_options.proxy | tr -d "\"")
 
     yt2 abort-tx $(yt2 get $path/lock/@locks/0/transaction_id --proxy $proxy | tr -d "\"") --proxy $proxy
-    bin/transfer-manager-server --config $(realpath $TM_CONFIG) &
+    bin/transfer-manager-server/transfer-manager-server --config $(realpath $TM_CONFIG) &
 
     _ensure_transfer_manager_is_running
 

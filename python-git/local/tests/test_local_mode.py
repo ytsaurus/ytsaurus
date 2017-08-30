@@ -28,7 +28,7 @@ import time
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", os.path.join(TESTS_LOCATION, "sandbox"))
 LOCAL_MODE_TESTS_SANDBOX = os.path.join(TESTS_SANDBOX, "TestLocalMode")
-YT_LOCAL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt_local")
+YT_LOCAL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt_local", "yt_local")
 
 def _get_instance_path(instance_id):
     return os.path.join(LOCAL_MODE_TESTS_SANDBOX, instance_id)

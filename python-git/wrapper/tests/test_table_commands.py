@@ -64,6 +64,30 @@ class TestTableCommands(object):
         with set_config_option("tabular_data_format", yt.DsvFormat()):
             yt.write_table(table, [b"x=1\n"], raw=True)
 
+        with set_config_option("read_retries/change_proxy_period", 1):
+            yt.write_table(table, [{"y": i} for i in xrange(100)])
+            check([{"y": i} for i in xrange(100)], yt.read_table(table))
+
+        file = TEST_DIR + "/test_file"
+        yt.create("file", file)
+        with pytest.raises(yt.YtError):
+            yt.read_table(file)
+
+        yt.write_table(table, [{"x": i} for i in xrange(10)])
+        with set_config_option("read_parallel/max_thread_count", 2):
+            with set_config_option("proxy/request_timeout", 100):
+                iterator = yt.read_table(table)
+
+                for transaction in yt.search("//sys/transactions", attributes=["tittle"]):
+                    attributes = yt.get(transaction + "/@")
+                    if attributes.get("title", "").startswith("Python wrapper: read"):
+                        yt.abort_transaction(attributes["id"])
+
+                time.sleep(1)
+                with pytest.raises(yt.YtError):
+                    for _ in iterator:
+                        pass
+
     def test_table_path(self, yt_env):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
         assert path.attributes["my_attr"] == 10
@@ -114,6 +138,10 @@ class TestTableCommands(object):
 
     def test_read_write_without_retries(self):
         with set_config_option("write_retries/enable", False):
+            self._test_read_write()
+
+    def test_read_parallel(self):
+        with set_config_option("read_parallel/enable", True):
             self._test_read_write()
 
     def test_empty_table(self):
@@ -315,6 +343,10 @@ class TestTableCommands(object):
             rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), raw=True)
             assert rsp.response_parameters == {"approximate_row_count": 0}
 
+    def test_start_row_index_parallel(self):
+        with set_config_option("read_parallel/enable", True):
+            self.test_start_row_index()
+
     def test_table_index(self):
         dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
         schemaful_dsv = yt.format.SchemafulDsvFormat(columns=["1", "2", "3"],
@@ -421,6 +453,10 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             TablePath("abc")
 
+    def test_read_parallel_with_table_path(self, yt_env):
+        with set_config_option("read_parallel/enable", True):
+            self.test_read_with_table_path(yt_env)
+
     def test_huge_table(self):
         table = TEST_DIR + "/table"
         power = 3
@@ -436,6 +472,10 @@ class TestTableCommands(object):
         for _ in yt.read_table(table):
             row_count += 1
         assert row_count == 10 ** power
+
+    def test_read_parallel_huge_table(self):
+        with set_config_option("read_parallel/enable", True):
+            self.test_huge_table()
 
     def test_remove_locks(self):
         from yt.wrapper.table_helpers import _remove_locks
@@ -561,10 +601,9 @@ class TestTableCommands(object):
     def test_trim_rows(self):
         def remove_control_attributes(rows):
             for row in rows:
-                if "$tablet_index" in row:
-                    del row["$tablet_index"]
-                if "$row_index" in row:
-                    del row["$row_index"]
+                for x in ["$tablet_index", "$row_index"]:
+                    if x in row:
+                        del row[x]
 
         with set_config_option("tabular_data_format", None):
             table = TEST_DIR + "/test_trimmed_table"
@@ -661,6 +700,9 @@ class TestTableCommands(object):
         stream = yt.read_blob_table(table + "[test0]", part_size=6)
         assert stream.read() == b"data00data10data20"
 
+        stream = yt.read_blob_table(table + "[test0:test1]", part_size=6)
+        assert stream.read() == b"data00data10data20"
+
         stream = yt.read_blob_table(table + "[test1]", part_size=6)
         assert stream.read() == b"data01data11data21"
 
@@ -668,10 +710,14 @@ class TestTableCommands(object):
             yt.read_blob_table(table, part_size=6)
 
         with pytest.raises(yt.YtError):
-            yt.read_blob_table(table + "[test0]", part_size=7)
+            stream = yt.read_blob_table(table + "[test0]", part_size=7)
+            stream.read()
 
         with pytest.raises(yt.YtError):
             yt.read_blob_table(table + "[test0]")
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[test0, test1]", part_size=6)
 
         yt.set(table + "/@part_size", 6)
         stream = yt.read_blob_table(table + "[test0:#1]")
@@ -697,6 +743,34 @@ class TestTableCommands(object):
         stream = yt.read_blob_table(table + "[test5]")
         assert stream.read() == b""
 
+        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 3, "data": "ab"}])
+        stream = yt.read_blob_table(table + "[test]")
+        assert stream.read() == b"data0data1data2ab"
+
+        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 4, "data": "data4"}])
+        with pytest.raises(yt.YtError):
+            stream = yt.read_blob_table(table + "[test]")
+            stream.read()
+
+        yt.write_table(table, [{"key": "test",
+                                "part_index": j,
+                                "data": "data" + str(j)} for j in xrange(3)])
+        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 3, "data": "data03"}])
+        with pytest.raises(yt.YtError):
+            stream = yt.read_blob_table(table + "[test]")
+            stream.read()
+
+        yt.remove(table)
+        yt.create("table", table, attributes={"schema": [{"name": "part_index", "type": "int64",
+                                                          "sort_order": "ascending"},
+                                                         {"name": "data", "type": "string"}]})
+
+        yt.write_table(table, [{"part_index": i, "data": "data" + str(i)}
+                               for i in xrange(3)])
+
+        stream = yt.read_blob_table(table, part_size=5)
+        assert stream.read() == b"data0data1data2"
+
     def test_read_blob_table_with_retries(self):
         with set_config_option("read_retries/enable", True):
             with set_config_option("read_buffer_size", 10):
@@ -711,3 +785,65 @@ class TestTableCommands(object):
     def test_read_blob_table_without_retries(self):
         with set_config_option("read_retries/enable", False):
             self._test_read_blob_table()
+
+    def test_transform(self):
+        table = TEST_DIR + "/test_transform_table"
+        other_table = TEST_DIR + "/test_transform_table2"
+
+        assert not yt.transform(table)
+
+        yt.create("table", table)
+        assert not yt.transform(table)
+
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        yt.transform(table)
+        check([{"x": 1}, {"x": 2}], yt.read_table(table))
+
+        yt.transform(table, other_table)
+        check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
+
+        yt.remove(other_table)
+        assert yt.transform(table, other_table, compression_codec="zlib_6")
+        assert yt.get(other_table + "/@compression_codec") == "zlib_6"
+        assert not yt.transform(other_table, other_table, compression_codec="zlib_6", check_codecs=True)
+
+        assert yt.transform(table, other_table, optimize_for="scan")
+        assert yt.get(other_table + "/@optimize_for") == "scan"
+
+        assert not yt.transform(other_table, other_table, erasure_codec="none", check_codecs=True)
+
+    def test_read_lost_chunk(self):
+        mode = yt.config["backend"]
+        if mode != "native":
+            mode = yt.config["api_version"]
+
+        test_name = "TestYtWrapper" + mode.capitalize()
+        dir = os.path.join(TESTS_SANDBOX, test_name)
+        id = "run_" + uuid.uuid4().hex[:8]
+        try:
+            instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True)
+            client = instance.create_client()
+            client.config["driver_config"] = instance.configs["driver"]
+            client.config["backend"] = yt.config["backend"]
+            client.config["read_retries"]["backoff"]["constant_time"] = 5000
+            client.config["read_retries"]["backoff"]["policy"] = "constant_time"
+
+            table = TEST_DIR + "/test_lost_chunk_table"
+            client.create("table", table, recursive=True)
+            client.set(table + "/@erasure_codec", "reed_solomon_6_3")
+            client.write_table(table, [{"x": 1}])
+            client.write_table("<append=%true>" + table, [{"x": 2}])
+
+            chunk_ids = client.get(table + "/@chunk_ids")
+            chunk_id = chunk_ids[1]
+            replicas = client.get("#%s/@stored_replicas" % chunk_id)
+            address = str(replicas[0])
+
+            client.set("//sys/nodes/{0}/@banned".format(address), True)
+            while client.get("//sys/nodes/{0}/@state".format(address)) != "offline":
+                time.sleep(0.1)
+
+            assert list(client.read_table(table)) == [{"x": 1}, {"x": 2}]
+        finally:
+            stop(instance.id, path=dir)

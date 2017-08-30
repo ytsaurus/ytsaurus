@@ -168,6 +168,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--timeout", type=int,
                         help="time in seconds after which local YT will be stopped automatically "
                              "(applies only to sync mode)")
+    parser.add_argument("--cell-tag", type=int, default=0,
+                        help="cluster cell tag")
 
     # Compatibility options
     parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)

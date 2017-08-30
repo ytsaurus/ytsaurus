@@ -217,10 +217,11 @@ class Zip(object):
                 continue
             if library_filter is not None and not library_filter(library):
                 continue
-            self.zip.write(library, os.path.join("_shared", os.path.basename(library)))
+            relpath = os.path.join("_shared", os.path.basename(library))
+            self.zip.write(library, relpath)
             self.dynamic_libraries.add(library)
             self.size += get_disk_size(library)
-            self.hash = merge_md5(self.hash, calc_md5_from_file(library))
+            self.update_hash(relpath, library)
 
     def append(self, filepath, relpath):
         if relpath.endswith(".egg"):
@@ -230,7 +231,11 @@ class Zip(object):
 
         self.zip.write(filepath, relpath)
         self.size += get_disk_size(filepath)
-        self.hash = merge_md5(self.hash, calc_md5_from_file(filepath))
+        self.update_hash(relpath, filepath)
+
+    def update_hash(self, relpath, filepath):
+        hash_pair = [calc_md5_from_string(relpath), calc_md5_from_file(filepath)]
+        self.hash = merge_md5(self.hash, calc_md5_from_string(hex_md5(hash_pair)))
 
     def __exit__(self, type, value, traceback):
         self.zip.__exit__(type, value, traceback)
@@ -268,6 +273,9 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
         if module_filter is not None and not module_filter(module):
             continue
         if hasattr(module, "__file__"):
+            if module.__file__ is None:
+                continue
+
             if custom_python_used:
                 # NB: Ignore frozen and compiled in binary modules.
                 if module.__name__ in extra_modules or module.__name__ + ".__init__"  in extra_modules:

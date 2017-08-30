@@ -2,6 +2,7 @@ from .helpers import TEST_DIR
 
 from yt.wrapper.common import parse_bool
 from yt.wrapper.batch_helpers import create_batch_client
+from yt.wrapper.batch_response import apply_function_to_result
 from yt.wrapper.batch_execution import YtBatchRequestFailedError
 
 import yt.wrapper as yt
@@ -223,3 +224,30 @@ class TestBatchExecution(object):
             assert not yt.exists(TEST_DIR + "/batch_retries")
         finally:
             yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
+
+    def test_batch_response(self):
+        table = TEST_DIR + "/test_batch_response_table"
+
+        client = create_batch_client()
+        create_result = client.create("table", table, recursive=True)
+
+        with pytest.raises(yt.YtError):
+            create_result.get_result()
+
+        with pytest.raises(yt.YtError):
+            create_result.get_error()
+
+        with pytest.raises(yt.YtError):
+            create_result.is_ok()
+
+        result = []
+        def test_result_function(output, error):
+            assert error is None
+            result.append(output)
+            return output, error
+
+        apply_function_to_result(test_result_function, create_result, include_error=True)
+        client.commit_batch()
+
+        create_result.get_result()
+        assert result[0] is not None

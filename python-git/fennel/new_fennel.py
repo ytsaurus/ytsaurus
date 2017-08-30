@@ -393,18 +393,20 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
             session_index, seqno, ranges = tasks[0]
             pipe_from_yt_to_logbroker(yt_client, logbroker, table_path, ranges, session_index, session_count, seqno)
         else:
-            with yt_client.TempTable() as input_table, yt_client.TempTable() as output_table:
-                rows = []
-                for task in tasks:
-                    session_index, seqno, ranges = task
-                    rows.append({"table_path": table_path, "ranges": ranges, "session_index": session_index, "session_count": session_count, "seqno": seqno})
-                yt_client.write_table(input_table, rows)
+            with yt_client.TempTable() as input_table:
+                with yt_client.TempTable() as output_table:
+                    rows = []
+                    for task in tasks:
+                        session_index, seqno, ranges = task
+                        rows.append({"table_path": table_path, "ranges": ranges, "session_index": session_index,
+                                     "session_count": session_count, "seqno": seqno})
+                    yt_client.write_table(input_table, rows)
 
-                logger.info("Starting push operation (input: %s, output: %s, task_count: %d)", input_table, output_table, len(tasks))
-                yt_client.config["allow_http_requests_to_yt_from_job"] = True
-                yt_client.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "raven" in module.__file__
-                yt_client.run_map(PushMapper(yt_client, logbroker), input_table, output_table, spec={"data_size_per_job": 1})
-                logger.info("Push operation successfully finished (pushed_row_count: %d)", pushed_row_count)
+                    logger.info("Starting push operation (input: %s, output: %s, task_count: %d)", input_table, output_table, len(tasks))
+                    yt_client.config["allow_http_requests_to_yt_from_job"] = True
+                    yt_client.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "raven" in module.__file__
+                    yt_client.run_map(PushMapper(yt_client, logbroker), input_table, output_table, spec={"data_size_per_job": 1})
+                    logger.info("Push operation successfully finished (pushed_row_count: %d)", pushed_row_count)
 
     for iter in xrange(ATTRIBUTES_UPDATE_ATTEMPTS):
         try:
