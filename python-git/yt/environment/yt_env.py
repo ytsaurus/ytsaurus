@@ -805,7 +805,7 @@ class YTInstance(object):
                     raise
                 return False, err
 
-        self._wait_or_skip(self._wait_for(schedulers_ready, "scheduler"), sync)
+        self._wait_or_skip(lambda: self._wait_for(schedulers_ready, "scheduler"), sync)
 
     def create_client(self):
         if self.has_proxy:
@@ -962,7 +962,7 @@ class YTInstance(object):
 
             return True
 
-        self._wait_or_skip(self._wait_for(proxy_ready, "proxy", max_wait_time=20), sync)
+        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "proxy", max_wait_time=20), sync)
 
     def _validate_process_is_running(self, process, name, number=None):
         if number is not None:
