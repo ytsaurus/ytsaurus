@@ -52,7 +52,7 @@
 #include <yt/core/ytree/ypath_proxy.h>
 
 #include <array>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -1744,7 +1744,7 @@ void TChunkReplicator::OnRefresh()
 {
     int totalCount = 0;
     int aliveCount = 0;
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
 
     LOG_DEBUG("Incremental chunk refresh iteration started");
 
@@ -1753,7 +1753,7 @@ void TChunkReplicator::OnRefresh()
         while (totalCount < Config_->MaxChunksPerRefresh &&
                RefreshScanner_->HasUnscannedChunk(deadline))
         {
-            if (timer.GetElapsed() > Config_->MaxTimePerRefresh) {
+            if (timer.GetElapsedTime() > Config_->MaxTimePerRefresh) {
                 break;
             }
 
@@ -1985,7 +1985,7 @@ void TChunkReplicator::OnPropertiesUpdate()
 
     int totalCount = 0;
     int aliveCount = 0;
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
 
     LOG_DEBUG("Chunk properties update iteration started");
 
@@ -1993,7 +1993,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         while (totalCount < Config_->MaxChunksPerPropertiesUpdate &&
                PropertiesUpdateScanner_->HasUnscannedChunk())
         {
-            if (timer.GetElapsed() > Config_->MaxTimePerPropertiesUpdate) {
+            if (timer.GetElapsedTime() > Config_->MaxTimePerPropertiesUpdate) {
                 break;
             }
 

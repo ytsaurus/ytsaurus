@@ -13,7 +13,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
@@ -231,7 +231,7 @@ private:
         grpc_completion_queue* const CompletionQueue_;
         const NLogging::TLogger& Logger;
 
-        NProfiling::TScopedTimer Timer_;
+        NProfiling::TWallTimer Timer_;
 
         TGrpcCallPtr Call_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
@@ -408,7 +408,7 @@ private:
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),
-                Timer_.GetElapsed());
+                Timer_.GetElapsedTime());
 
             ResponseHandler_->HandleResponse(std::move(message));
         }

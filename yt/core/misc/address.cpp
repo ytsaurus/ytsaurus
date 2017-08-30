@@ -14,7 +14,7 @@
 #include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <util/generic/singleton.h>
 

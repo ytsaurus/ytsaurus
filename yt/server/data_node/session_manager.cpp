@@ -21,7 +21,7 @@
 #include <yt/core/misc/fs.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -4,6 +4,8 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <yt/core/concurrency/scheduler.h>
+
 namespace NYT {
 namespace NProfiling {
 
@@ -41,6 +43,69 @@ TDuration ValueToDuration(TValue value);
 
 //! Converts a CPU duration into TValue suitable for profiling.
 TValue CpuDurationToValue(TCpuDuration duration);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Continuously tracks the wall time passed since construction.
+class TWallTimer
+{
+public:
+    TWallTimer();
+
+    TInstant GetStartTime() const;
+    TDuration GetElapsedTime() const;
+    TValue GetElapsedValue() const;
+
+    void Start();
+    void Stop();
+    void Restart();
+
+private:
+    TCpuDuration GetCurrentDuration() const;
+
+    TCpuInstant StartTime_;
+    TCpuDuration Duration_;
+
+};
+
+//! Similar to TWallTimer but excludes the time passed while the fiber was inactive.
+class TCpuTimer
+    : public TWallTimer
+    , private NConcurrency::TContextSwitchGuard
+{
+public:
+    TCpuTimer();
+
+};
+
+//! Upon destruction, increments the value by the wall time passed since construction.
+class TAggregatingTimingGuard
+{
+public:
+    explicit TAggregatingTimingGuard(TDuration* value);
+    ~TAggregatingTimingGuard();
+
+private:
+    TDuration* const Value_;
+    const TCpuInstant StartInstant_;
+
+};
+
+//! Upon destruction, increments the counter by the wall time passed since construction.
+class TProfilingTimingGuard
+{
+public:
+    TProfilingTimingGuard(
+        const TProfiler& profiler,
+        TSimpleCounter* counter);
+    ~TProfilingTimingGuard();
+
+private:
+    const TProfiler& Profiler_;
+    TSimpleCounter* const Counter_;
+    const TCpuInstant StartInstant_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

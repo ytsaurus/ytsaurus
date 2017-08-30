@@ -17,7 +17,7 @@
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/rpc.pb.h>
 
@@ -825,13 +825,13 @@ private:
         TDelayedExecutorCookie TimeoutCookie_;
         IClientResponseHandlerPtr ResponseHandler_;
 
-        NProfiling::TScopedTimer Timer_;
+        NProfiling::TWallTimer Timer_;
         TDuration TotalTime_;
 
 
         TDuration DoProfile(NProfiling::TAggregateCounter& counter)
         {
-            auto elapsed = Timer_.GetElapsed();
+            auto elapsed = Timer_.GetElapsedTime();
             Profiler.Update(counter, NProfiling::DurationToValue(elapsed));
             return elapsed;
         }

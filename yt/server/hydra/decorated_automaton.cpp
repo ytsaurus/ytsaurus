@@ -24,7 +24,7 @@
 #include <yt/core/pipes/async_reader.h>
 #include <yt/core/pipes/pipe.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/response_keeper.h>
@@ -960,7 +960,7 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 {
     TForbidContextSwitchGuard contextSwitchGuard;
 
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
             auto& pendingMutation = PendingMutations_.front();
@@ -989,7 +989,7 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 
             MaybeStartSnapshotBuilder();
 
-            if (mayYield && timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
+            if (mayYield && timer.GetElapsedTime() > Config_->MaxCommitBatchDuration) {
                 EpochContext_->EpochUserAutomatonInvoker->Invoke(
                     BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), true));
                 break;
@@ -1056,7 +1056,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         auto* descriptor = GetTypeDescriptor(mutationType);
 
         TMutationContextGuard contextGuard(context);
-        NProfiling::TScopedTimer timer;
+        NProfiling::TWallTimer timer;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
             automatonVersion,
@@ -1071,7 +1071,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 
         Profiler.Increment(
             descriptor->CumulativeTimeCounter,
-            NProfiling::DurationToValue(timer.GetElapsed()));
+            NProfiling::DurationToValue(timer.GetElapsedTime()));
 
         if (Options_.ResponseKeeper && mutationId) {
             if (State_ == EPeerState::Leading) {

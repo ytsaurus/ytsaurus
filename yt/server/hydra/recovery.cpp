@@ -13,7 +13,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/response_keeper.h>
 
@@ -333,9 +333,9 @@ void TLeaderRecovery::DoRun()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
     RecoverToVersion(EpochContext_->ReachableVersion);
-    auto elapsedTime = timer.GetElapsed();
+    auto elapsedTime = timer.GetElapsedTime();
 
     if (Config_->DisableLeaderLeaseGraceDelay) {
         LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");

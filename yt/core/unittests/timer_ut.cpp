@@ -2,7 +2,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/misc/lazy_ptr.h>
 
@@ -38,7 +38,7 @@ TEST_F(TTimerTest, CpuEmpty)
     TValue cpu = 0;
     BIND([&] () {
         TCpuTimer cpuTimer;
-        cpu = cpuTimer.GetCpuValue();
+        cpu = cpuTimer.GetElapsedValue();
     })
     .AsyncVia(invoker).Run()
     .Get();
@@ -53,12 +53,12 @@ TEST_F(TTimerTest, CpuWallCompare)
     TValue wall = 0;
     BIND([&] () {
         TCpuTimer cpuTimer;
-        TScopedTimer wallTimer;
+        TWallTimer wallTimer;
 
         WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
             .ThrowOnError();
 
-        cpu = cpuTimer.GetCpuValue();
+        cpu = cpuTimer.GetElapsedValue();
         wall = wallTimer.GetElapsedValue();
     })
     .AsyncVia(invoker).Run()

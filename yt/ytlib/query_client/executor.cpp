@@ -23,7 +23,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/compression/codec.h>
 
