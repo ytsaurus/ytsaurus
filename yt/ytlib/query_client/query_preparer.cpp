@@ -2387,27 +2387,17 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             }
         }
 
-        // Check that there are no join equations from keyPrefix to foreignKeyColumnsCount
-        bool canUseSourceRanges = lastEmptyIndex == keyPrefix;
-
         keyForeignEquations.resize(lastEmptyIndex);
         keySelfEquations.resize(lastEmptyIndex);
 
-        joinClause->CanUseSourceRanges = canUseSourceRanges;
         joinClause->SelfEquations = std::move(keySelfEquations);
         joinClause->ForeignEquations = std::move(keyForeignEquations);
         joinClause->ForeignKeyPrefix = keyPrefix;
-
-        if (!canUseSourceRanges) {
-            commonKeyPrefix = 0;
-        }
-
         joinClause->CommonKeyPrefix = commonKeyPrefix;
 
-        LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v, CanUseSourceRanges: %v)",
-                commonKeyPrefix,
-                keyPrefix,
-                canUseSourceRanges);
+        LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
+            commonKeyPrefix,
+            keyPrefix);
 
         if (join.Predicate) {
             joinClause->Predicate = BuildPredicate(

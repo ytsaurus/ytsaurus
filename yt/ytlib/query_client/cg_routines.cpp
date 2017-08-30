@@ -304,21 +304,26 @@ public:
         const std::vector<TChainedRow>& chainedRows,
         TComparerFunction* fullEqComparer,
         TComparerFunction* fullLessComparer,
+        TComparerFunction* foreignPrefixEqComparer,
+        TComparerFunction* foreignSuffixLessComparer,
+        bool isPartiallySorted,
         const ISchemafulReaderPtr& reader,
         bool isLeft)
     {
+        std::vector<TRow> sortedForeignSequence;
+        size_t unsortedOffset = 0;
+        TRow lastForeignKey;
+
+
         std::vector<TRow> foreignRows;
         foreignRows.reserve(RowsetProcessingSize);
 
         // Sort-merge join
         auto currentKey = keysToRows.begin();
         auto lastJoined = keysToRows.end();
-        while (currentKey != keysToRows.end()) {
-            bool hasMoreData = reader->Read(&foreignRows);
-            bool shouldWait = foreignRows.empty();
 
-            auto foreignIt = foreignRows.begin();
-            while (foreignIt != foreignRows.end() && currentKey != keysToRows.end()) {
+        auto processSortedForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
+            while (foreignIt != endForeignIt && currentKey != keysToRows.end()) {
                 int startIndex = currentKey->second;
                 if (fullEqComparer(currentKey->first, *foreignIt)) {
                     JoinRows(chainedRows, startIndex, *foreignIt);
@@ -334,8 +339,43 @@ public:
                     ++foreignIt;
                 }
             }
-
             ConsumeJoinedRows();
+        };
+
+        auto processForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
+            while (foreignIt != endForeignIt) {
+                if (!lastForeignKey || !foreignPrefixEqComparer(*foreignIt, lastForeignKey)) {
+                    std::sort(
+                        sortedForeignSequence.begin() + unsortedOffset,
+                        sortedForeignSequence.end(),
+                        foreignSuffixLessComparer);
+                    unsortedOffset = sortedForeignSequence.size();
+
+                    if (unsortedOffset >= RowsetProcessingSize) {
+                        processSortedForeignSequence(
+                            sortedForeignSequence.begin(),
+                            sortedForeignSequence.end());
+                        sortedForeignSequence.clear();
+                        unsortedOffset = 0;
+                    }
+                    lastForeignKey = *foreignIt;
+                }
+
+                sortedForeignSequence.push_back(*foreignIt);
+                IntermediateBuffer->Capture(*foreignIt);
+                ++foreignIt;
+            }
+        };
+
+        while (currentKey != keysToRows.end()) {
+            bool hasMoreData = reader->Read(&foreignRows);
+            bool shouldWait = foreignRows.empty();
+
+            if (isPartiallySorted) {
+                processForeignSequence(foreignRows.begin(), foreignRows.end());
+            } else {
+                processSortedForeignSequence(foreignRows.begin(), foreignRows.end());
+            }
 
             foreignRows.clear();
 
@@ -348,6 +388,18 @@ public:
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
+        }
+
+        if (isPartiallySorted) {
+            std::sort(
+                sortedForeignSequence.begin() + unsortedOffset,
+                sortedForeignSequence.end(),
+                foreignSuffixLessComparer);
+            processSortedForeignSequence(
+                sortedForeignSequence.begin(),
+                sortedForeignSequence.end());
+            sortedForeignSequence.clear();
+            unsortedOffset = 0;
         }
 
         if (isLeft) {
@@ -440,6 +492,8 @@ void JoinOpHelper(
     TComparerFunction* lookupEqComparer,
     TComparerFunction* sortLessComparer,
     TComparerFunction* prefixEqComparer,
+    TComparerFunction* foreignPrefixEqComparer,
+    TComparerFunction* foreignSuffixLessComparer,
     TComparerFunction* fullEqComparer,
     TComparerFunction* fullLessComparer,
     int keySize,
@@ -511,6 +565,9 @@ void JoinOpHelper(
                     chainedRows,
                     fullEqComparer,
                     fullLessComparer,
+                    foreignPrefixEqComparer,
+                    foreignSuffixLessComparer,
+                    parameters->IsPartiallySorted,
                     reader,
                     isLeft);
             } else {
@@ -530,19 +587,6 @@ void JoinOpHelper(
                 lookupEqComparer);
 
             {
-//                ISchemafulWriterPtr writer;
-//                TFuture<NApi::IUnversionedRowsetPtr> rowsetFuture;
-//                // Any schema, it is not used.
-//                std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(TTableSchema());
-//                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
-//
-//                WaitFor(executeForeign(std::move(keys), writer))
-//                    .ThrowOnError();
-//
-//                YCHECK(rowsetFuture.IsSet());
-//                rowset = rowsetFuture.Get()
-//                    .ValueOrThrow();
-
                 auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
 
                 std::vector<TRow> rows;
@@ -551,7 +595,7 @@ void JoinOpHelper(
                 while (true) {
                     bool hasMoreData;
                     {
-                        //NProfiling::TAggregatingTimingGuard timingGuard(&statistics->ReadTime);
+                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->ReadTime);
                         hasMoreData = reader->Read(&rows);
                     }
 
@@ -567,14 +611,12 @@ void JoinOpHelper(
                     }
 
                     if (shouldWait) {
-                        //NProfiling::TAggregatingTimingGuard timingGuard(&statistics->AsyncTime);
+                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
                     }
                 }
             }
-
-            //auto foreignRows = rowset->GetRows();
 
             LOG_DEBUG("Got %v foreign rows", foreignLookup.size());
             LOG_DEBUG("Joining started");

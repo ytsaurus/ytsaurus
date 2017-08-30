@@ -2141,6 +2141,7 @@ size_t MakeCodegenJoinOp(
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<std::pair<size_t, bool>> equations,
     size_t commonKeyPrefix,
+    size_t foreignKeyPrefix,
     TComparerManagerPtr comparerManager)
 {
     size_t consumerSlot = (*slotCount)++;
@@ -2151,6 +2152,7 @@ size_t MakeCodegenJoinOp(
         MOVE(fragmentInfos),
         MOVE(equations),
         commonKeyPrefix,
+        foreignKeyPrefix,
         MOVE(comparerManager),
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
@@ -2253,10 +2255,14 @@ size_t MakeCodegenJoinOp(
                 builder.GetOpaqueValue(index),
 
                 comparerManager->GetHasher(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+
                 comparerManager->GetEqComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
                 comparerManager->GetLessComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
-
                 comparerManager->GetEqComparer(lookupKeyTypes, module, 0, commonKeyPrefix),
+
+                comparerManager->GetEqComparer(lookupKeyTypes, module, 0, foreignKeyPrefix),
+                comparerManager->GetLessComparer(lookupKeyTypes, module, foreignKeyPrefix, lookupKeyTypes.size()),
+
                 comparerManager->GetEqComparer(lookupKeyTypes, module),
                 comparerManager->GetLessComparer(lookupKeyTypes, module),
 

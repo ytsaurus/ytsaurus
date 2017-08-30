@@ -196,12 +196,22 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
     TDataRanges dataSource;
     dataSource.Id = joinClause->ForeignDataId;
 
-    if (joinClause->CanUseSourceRanges) {
-        LOG_DEBUG("Using join via source ranges");
+    if (foreignKeyPrefix > 0) {
+        if (foreignKeyPrefix == foreignEquations.size()) {
+            LOG_DEBUG("Using join via source ranges");
+            dataSource.Keys = MakeSharedRange(std::move(keys), std::move(permanentBuffer));
+        } else {
+            LOG_DEBUG("Using join via prefix ranges");
+            std::vector<TRow> prefixKeys;
+            for (auto key : keys) {
+                prefixKeys.push_back(permanentBuffer->Capture(key.Begin(), foreignKeyPrefix, false));
+            }
+            prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
+            dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(permanentBuffer));
+        }
 
-        dataSource.Keys = MakeSharedRange(std::move(keys), std::move(permanentBuffer));
-        for (const auto& item : foreignEquations) {
-            dataSource.Schema.push_back(item->Type);
+        for (size_t index = 0; index < foreignKeyPrefix; ++index) {
+            dataSource.Schema.push_back(foreignEquations[index]->Type);
         }
 
         subquery->InferRanges = false;
@@ -210,23 +220,6 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
             // COMPAT(lukyan): Use ordered read without modification of protocol
             subquery->Limit = std::numeric_limits<i64>::max() - 1;
         }
-    } else if (foreignKeyPrefix > 0) {
-        LOG_DEBUG("Using join via prefix ranges");
-
-        std::vector<TRow> prefixKeys;
-
-        for (auto key : keys) {
-            prefixKeys.push_back(permanentBuffer->Capture(key.Begin(), foreignKeyPrefix, false));
-        }
-
-        prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
-
-        dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(permanentBuffer));
-        for (size_t index = 0; index < foreignKeyPrefix; ++index) {
-            dataSource.Schema.push_back(foreignEquations[index]->Type);
-        }
-        subquery->WhereClause = foreignPredicate;
-        subquery->InferRanges = false;
     } else {
         TRowRanges ranges;
 
