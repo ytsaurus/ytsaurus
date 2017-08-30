@@ -19,7 +19,7 @@ public:
         TConstBaseQueryPtr fragment,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        TExecuteQueryCallback executeCallback,
+        TJoinSubqueryProfiler joinProfiler,
         TConstFunctionProfilerMapPtr functionProfilers,
         TConstAggregateProfilerMapPtr aggregateProfilers,
         const TQueryBaseOptions& options);

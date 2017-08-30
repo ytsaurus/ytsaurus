@@ -192,6 +192,7 @@ message TDataRanges
     optional bool lookup_supported = 4 [default = true];
 
     optional bytes keys = 5;
+    optional uint64 key_width = 6 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -734,6 +734,7 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
         ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter.Finish()));
     }
     serialized->set_lookup_supported(original.LookupSupported);
+    serialized->set_key_width(original.KeyWidth);
 }
 
 void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
@@ -766,6 +767,7 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
         original->Keys = keysReader.ReadSchemafulRowset(schemaData, true);
     }
     original->LookupSupported = serialized.lookup_supported();
+    original->KeyWidth = serialized.key_width();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

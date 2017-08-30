@@ -110,10 +110,12 @@ struct TJoinParameters
     bool IsSortMergeJoin;
     size_t CommonKeyPrefixDebug;
 
-    std::function<std::pair<TQueryPtr, TDataRanges>(std::vector<TRow>, TRowBufferPtr)>
-        GetForeignQuery;
+//    std::function<std::pair<TQueryPtr, TDataRanges>(std::vector<TRow>, TRowBufferPtr)>
+//        GetForeignQuery;
 
     size_t BatchSize;
+
+    TJoinSubqueryEvaluator ExecuteForeign;
 };
 
 struct TChainedRow
@@ -202,8 +204,6 @@ struct TExecutionContext
 
     // Limit from LIMIT clause.
     i64 Limit;
-
-    TExecuteQueryCallback ExecuteCallback;
 
     TExecutionContext()
     {
@@ -325,11 +325,11 @@ struct TCGAggregateCallbacks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJoinParameters GetJoinEvaluator(
-    const TJoinClause& joinClause,
-    const TTableSchema& selfTableSchema,
-    size_t batchSize,
-    bool isOrdered);
+std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
+    TQueryPtr subquery,
+    TConstJoinClausePtr joinClause,
+    std::vector<TRow> keys,
+    TRowBufferPtr permanentBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

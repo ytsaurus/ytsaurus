@@ -94,6 +94,8 @@ struct TDataRanges
     TSharedRange<TRow> Keys;
     //! If |true|, these ranges could be reclassified into a set of discrete lookup keys.
     bool LookupSupported = true;
+
+    size_t KeyWidth = 0;
 };
 
 struct TQueryBaseOptions

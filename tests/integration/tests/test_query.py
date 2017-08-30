@@ -282,6 +282,56 @@ class TestQuery(YTEnvSetup):
              where (l.a, l.b) in ((2, 1))""")
         assert expected == actual
 
+    def test_join_common_prefix(self):
+        self.sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/jl",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"}],
+            [
+                {"a": 1, "b": 2, "c": 80 },
+                {"a": 1, "b": 3, "c": 71 },
+                {"a": 1, "b": 4, "c": 62 },
+                {"a": 2, "b": 1, "c": 53 },
+                {"a": 2, "b": 2, "c": 44 },
+                {"a": 2, "b": 3, "c": 35 },
+                {"a": 2, "b": 4, "c": 26 },
+                {"a": 3, "b": 1, "c": 17 }
+            ],
+            "scan");
+
+
+        self._create_table(
+            "//tmp/jr",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+                {"name": "d", "type": "int64"}],
+            [
+                {"a": 1, "b": 2, "d": 80 },
+                {"a": 1, "b": 4, "d": 62 },
+                {"a": 2, "b": 1, "d": 53 },
+                {"a": 2, "b": 3, "d": 35 },
+                {"a": 3, "b": 1, "d": 17 }
+            ],
+            "scan");
+
+        expected = [
+            {"a": 1, "b": 2, "c": 80, "d": 80},
+            {"a": 1, "b": 3, "c": 71, "d": None},
+            {"a": 1, "b": 4, "c": 62, "d": 62},
+            {"a": 2, "b": 1, "c": 53, "d": 53},
+            {"a": 2, "b": 2, "c": 44, "d": None},
+            {"a": 2, "b": 3, "c": 35, "d": 35},
+            {"a": 2, "b": 4, "c": 26, "d": None},
+            {"a": 3, "b": 1, "c": 17, "d": 17}]
+
+        actual = select_rows("* from [//tmp/jl] left join [//tmp/jr] using a, b")
+        assert sorted(expected) == sorted(actual)
+
     def test_join_many(self):
         self.sync_create_cells(1)
 

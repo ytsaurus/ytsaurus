@@ -468,14 +468,6 @@ void JoinOpHelper(
             });
     };
 
-    auto executeForeign = [&] (std::vector<TRow> keys, ISchemafulWriterPtr writer) {
-        TQueryPtr foreignQuery;
-        TDataRanges dataSource;
-
-        std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(std::move(keys), closure.Buffer);
-        return context->ExecuteCallback(foreignQuery, dataSource, writer);
-    };
-
     closure.ProcessJoinBatch = [&] () {
         closure.ProcessSegment();
 
@@ -507,21 +499,9 @@ void JoinOpHelper(
         auto isLeft = parameters->IsLeft;
 
         if (!parameters->IsOrdered) {
-            auto pipe = New<NTableClient::TSchemafulPipe>();
-
-            executeForeign(std::move(keys), pipe->GetWriter())
-                .Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
-                    if (!error.IsOK()) {
-                        pipe->Fail(error);
-                    }
-                }));
+            auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
 
             LOG_DEBUG("Joining started");
-
-            std::vector<TRow> foreignRows;
-            foreignRows.reserve(RowsetProcessingSize);
-
-            auto reader = pipe->GetReader();
 
             if (parameters->IsSortMergeJoin) {
                 // Sort-merge join
@@ -539,34 +519,64 @@ void JoinOpHelper(
         } else {
             NApi::IUnversionedRowsetPtr rowset;
 
-            {
-                ISchemafulWriterPtr writer;
-                TFuture<NApi::IUnversionedRowsetPtr> rowsetFuture;
-                // Any schema, it is not used.
-                std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(TTableSchema());
-                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+            auto foreignRowsBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
 
-                WaitFor(executeForeign(std::move(keys), writer))
-                    .ThrowOnError();
-
-                YCHECK(rowsetFuture.IsSet());
-                rowset = rowsetFuture.Get()
-                    .ValueOrThrow();
-            }
-
-            auto foreignRows = rowset->GetRows();
-
-            LOG_DEBUG("Got %v foreign rows", foreignRows.Size());
+            std::vector<TRow> foreignRows;
+            foreignRows.reserve(RowsetProcessingSize);
 
             TJoinLookupRows foreignLookup(
                 InitialGroupOpHashtableCapacity,
                 lookupHasher,
                 lookupEqComparer);
 
-            for (auto row : foreignRows) {
-                foreignLookup.insert(row);
+            {
+//                ISchemafulWriterPtr writer;
+//                TFuture<NApi::IUnversionedRowsetPtr> rowsetFuture;
+//                // Any schema, it is not used.
+//                std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(TTableSchema());
+//                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+//
+//                WaitFor(executeForeign(std::move(keys), writer))
+//                    .ThrowOnError();
+//
+//                YCHECK(rowsetFuture.IsSet());
+//                rowset = rowsetFuture.Get()
+//                    .ValueOrThrow();
+
+                auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
+
+                std::vector<TRow> rows;
+                rows.reserve(RowsetProcessingSize);
+
+                while (true) {
+                    bool hasMoreData;
+                    {
+                        //NProfiling::TAggregatingTimingGuard timingGuard(&statistics->ReadTime);
+                        hasMoreData = reader->Read(&rows);
+                    }
+
+                    bool shouldWait = foreignRows.empty();
+
+                    for (auto row : rows) {
+                        foreignLookup.insert(foreignRowsBuffer->Capture(row));
+                    }
+                    rows.clear();
+
+                    if (!hasMoreData) {
+                        break;
+                    }
+
+                    if (shouldWait) {
+                        //NProfiling::TAggregatingTimingGuard timingGuard(&statistics->AsyncTime);
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                    }
+                }
             }
 
+            //auto foreignRows = rowset->GetRows();
+
+            LOG_DEBUG("Got %v foreign rows", foreignLookup.size());
             LOG_DEBUG("Joining started");
 
             for (const auto& item : chainedRows) {
