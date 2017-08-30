@@ -1282,7 +1282,7 @@ if __name__ == "__main__":
 
         time.sleep(0.5)
         os.kill(process.pid, signal.SIGINT)
-        process.wait(2)
+        process.wait(3)
 
     @add_failed_operation_stderrs_to_error_message
     def test_module_filter(self):
