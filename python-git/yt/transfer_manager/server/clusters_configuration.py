@@ -1,8 +1,7 @@
 from yt.transfer_manager.server.helpers import filter_out_keys
 from yt.transfer_manager.server.yt_client import YtClientWithNotifications
-
-from yt.tools.hadoop import Airflow, Hdfs, Hive, HBase
-from yt.tools.remote_copy_tools import Kiwi
+from yt.transfer_manager.server.hadoop import Airflow, Hdfs, Hive, HBase
+from yt.transfer_manager.server.remote_copy_tools import Kiwi
 
 from yt.wrapper.common import update
 
