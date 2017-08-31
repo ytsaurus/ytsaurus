@@ -17,14 +17,13 @@ static const auto& Logger = NJobProxy::JobProxyLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyProgram
-    : public TProgram
+    : public TYTProgram
     , public TProgramConfigMixin<NJobProxy::TJobProxyConfig>
     , public TProgramCgroupMixin
 {
 public:
     TJobProxyProgram()
-        : TProgram()
-        , TProgramConfigMixin(Opts_, false)
+        : TProgramConfigMixin(Opts_, false)
         , TProgramCgroupMixin(Opts_)
     {
         // TODO(sandello): IDs here are optional due to tool mixin.

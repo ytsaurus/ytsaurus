@@ -24,7 +24,7 @@ public:
     TFuture<TValue> Get(const TKey& key);
     TFuture<TCombinedValue> Get(const std::vector<TKey>& keys);
 
-    bool TryRemove(const TKey& key);
+    void Invalidate(const TKey& key);
 
     void Clear();
 

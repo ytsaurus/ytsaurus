@@ -92,7 +92,7 @@ public:
 
     void Run(
         const std::function<void(TVersionedRow)>& onPartialRow,
-        const std::function<size_t()>& onRow)
+        const std::function<std::pair<bool, size_t>()>& onRow)
     {
         LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v)",
             TabletSnapshot_->TabletId,
@@ -238,7 +238,7 @@ private:
         const TPartitionSnapshotPtr& partitionSnapshot,
         const TSharedRange<TKey>& keys,
         const std::function<void(TVersionedRow)>& onPartialRow,
-        const std::function<size_t()>& onRow)
+        const std::function<std::pair<bool, size_t>()>& onRow)
     {
         if (keys.Empty() || !partitionSnapshot) {
             return;
@@ -256,8 +256,9 @@ private:
             processSessions(PartitionSessions_);
             processSessions(EdenSessions_);
 
-            FoundDataWeight_ += onRow();
-            ++FoundRowCount_;
+            auto statistics = onRow();
+            FoundRowCount_ += statistics.first;
+            FoundDataWeight_ += statistics.second;
         }
     }
 };
@@ -294,15 +295,6 @@ void LookupRows(
     auto schemaData = TWireProtocolReader::GetSchemaData(tabletSnapshot->PhysicalSchema.ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
 
-    TLookupSession session(
-        tabletSnapshot,
-        timestamp,
-        user,
-        false,
-        columnFilter,
-        workloadDescriptor,
-        std::move(lookupKeys));
-
     TSchemafulRowMerger merger(
         New<TRowBuffer>(TLookupSessionBufferTag()),
         tabletSnapshot->PhysicalSchema.Columns().size(),
@@ -310,12 +302,21 @@ void LookupRows(
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
+    TLookupSession session(
+        std::move(tabletSnapshot),
+        timestamp,
+        user,
+        false,
+        columnFilter,
+        workloadDescriptor,
+        std::move(lookupKeys));
+
     session.Run(
         [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },
         [&] {
             auto mergedRow = merger.BuildMergedRow();
             writer->WriteSchemafulRow(mergedRow);
-            return GetDataWeight(mergedRow);
+            return std::make_pair(static_cast<bool>(mergedRow),GetDataWeight(mergedRow));
         });
 }
 
@@ -324,6 +325,7 @@ void VersionedLookupRows(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
@@ -336,8 +338,19 @@ void VersionedLookupRows(
     auto schemaData = TWireProtocolReader::GetSchemaData(tabletSnapshot->PhysicalSchema.ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
 
+    TVersionedRowMerger merger(
+        New<TRowBuffer>(TLookupSessionBufferTag()),
+        tabletSnapshot->PhysicalSchema.GetColumnCount(),
+        tabletSnapshot->PhysicalSchema.GetKeyColumnCount(),
+        columnFilter,
+        std::move(retentionConfig),
+        timestamp,
+        MinTimestamp,
+        tabletSnapshot->ColumnEvaluator,
+        true);
+
     TLookupSession session(
-        tabletSnapshot,
+        std::move(tabletSnapshot),
         timestamp,
         user,
         true,
@@ -345,22 +358,12 @@ void VersionedLookupRows(
         workloadDescriptor,
         std::move(lookupKeys));
 
-    TVersionedRowMerger merger(
-        New<TRowBuffer>(TLookupSessionBufferTag()),
-        tabletSnapshot->PhysicalSchema.GetColumnCount(),
-        tabletSnapshot->PhysicalSchema.GetKeyColumnCount(),
-        columnFilter,
-        tabletSnapshot->Config,
-        timestamp,
-        MinTimestamp,
-        tabletSnapshot->ColumnEvaluator);
-
     session.Run(
         [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },
         [&] {
             auto mergedRow = merger.BuildMergedRow();
             writer->WriteVersionedRow(mergedRow);
-            return GetDataWeight(mergedRow);
+            return std::make_pair(static_cast<bool>(mergedRow), GetDataWeight(mergedRow));
         });
 }
 

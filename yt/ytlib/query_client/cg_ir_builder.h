@@ -1,9 +1,11 @@
 #pragma once
 
+#include <llvm/IR/IRBuilder.h>
+
 #include <unordered_map>
 #include <unordered_set>
 
-#include <llvm/IR/IRBuilder.h>
+#include <yt/core/codegen/llvm_migrate_helpers.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -34,10 +36,18 @@ public:
 };
 
 class TCGIRBuilder
+#if LLVM_TEST(4, 0)
+    : public llvm::IRBuilder<llvm::ConstantFolder, TContextTrackingInserter>
+#else
     : public llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter>
+#endif
 {
 private:
+#if LLVM_TEST(4, 0)
+    typedef llvm::IRBuilder<llvm::ConstantFolder, TContextTrackingInserter> TBase;
+#else
     typedef llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter> TBase;
+#endif
 
     //! Builder associated with the parent context.
     TCGIRBuilder* Parent_;
@@ -48,6 +58,8 @@ private:
 
     //! Translates captured values in the parent context into their indexes in the closure.
     std::unordered_map<llvm::Value*, std::pair<llvm::Value*, int>> Mapping_;
+
+    std::vector<llvm::Type*> Types_;
 
     llvm::BasicBlock* EntryBlock_;
 

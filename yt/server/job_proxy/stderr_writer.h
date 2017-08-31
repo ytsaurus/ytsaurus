@@ -32,13 +32,14 @@ class TStderrWriter
 {
 public:
     TStderrWriter(
-        NApi::TFileWriterConfigPtr config,
-        NChunkClient::TMultiChunkWriterOptionsPtr options,
-        NApi::INativeClientPtr client,
-        const NObjectClient::TTransactionId& transactionId,
         size_t sizeLimit = std::numeric_limits<size_t>::max());
 
     NChunkClient::TChunkId GetChunkId() const;
+    void Upload(
+        NApi::TFileWriterConfigPtr config,
+        NChunkClient::TMultiChunkWriterOptionsPtr options,
+        NApi::INativeClientPtr client,
+        const NObjectClient::TTransactionId& transactionId);    
 
     size_t GetCurrentSize() const;
     TString GetCurrentData() const;
@@ -46,18 +47,16 @@ public:
 private:
     virtual void DoWrite(const void* buf, size_t len) override;
 
-    virtual void DoFinish() override;
-
     void SaveCurrentDataTo(TOutputStream* output) const;
 
 private:
-    NFileClient::TFileChunkOutput FileChunkOutput_;
-
     // Limit for the head or for the tail part.
     const size_t PartLimit_;
 
     TBlobOutput Head_;
     TNullable<TTailBuffer> Tail_;
+
+    NChunkClient::TChunkId ChunkId_ = NChunkClient::NullChunkId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

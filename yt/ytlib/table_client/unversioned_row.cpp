@@ -281,9 +281,7 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
         default:
             Y_UNREACHABLE();
     }
-
     return output.Buf() - buffer;
-
 }
 
 TString ToString(const TUnversionedValue& value)
@@ -292,6 +290,7 @@ TString ToString(const TUnversionedValue& value)
     if (value.Aggregate) {
         builder.AppendChar('%');
     }
+    builder.AppendFormat("%v#", value.Id);
     switch (value.Type) {
         case EValueType::Null:
         case EValueType::Min:

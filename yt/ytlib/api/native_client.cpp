@@ -57,6 +57,7 @@
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
 #include <yt/ytlib/security_client/helpers.h>
 
+#include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
@@ -70,6 +71,7 @@
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 #include <yt/ytlib/tablet_client/table_replica_ypath.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/core/compression/codec.h>
@@ -308,7 +310,7 @@ public:
         TTimestamp timestamp) override
     {
         return BIND(&TQueryPreparer::DoGetInitialSplit, MakeStrong(this))
-            .AsyncVia(Connection_->GetLightInvoker())
+            .AsyncVia(Connection_->GetInvoker())
             .Run(path, timestamp);
     }
 
@@ -420,7 +422,7 @@ public:
             Connection_->GetConfig()->UdfRegistryPath,
             Connection_->GetConfig()->FunctionRegistryCache,
             MakeWeak(this),
-            Connection_->GetLightInvoker());
+            Connection_->GetInvoker());
 
         Logger.AddTag("ClientId: %v", TGuid::Create());
     }
@@ -845,13 +847,6 @@ private:
             return MakeFuture<T>(TError(EErrorCode::TooManyConcurrentRequests, "Too many concurrent requests"));
         }
 
-        // XXX(sandello): Deprecate me in 19.x ; remove two separate thread pools, use just one.
-        auto invoker = Connection_->GetLightInvoker();
-        if (commandName == "SelectRows" || commandName == "LookupRows" || commandName == "VersionedLookupRows" ||
-            commandName == "GetJobStderr") {
-            invoker = Connection_->GetHeavyInvoker();
-        }
-
         return
             BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this), guard = std::move(guard)] () {
                 auto client = this_.Lock();
@@ -869,7 +864,7 @@ private:
                     throw;
                 }
             })
-            .AsyncVia(Connection_->GetLightInvoker())
+            .AsyncVia(Connection_->GetInvoker())
             .Run()
             .WithTimeout(options.Timeout);
     }
@@ -887,38 +882,24 @@ private:
                 error = ex.Error();
             }
 
-            auto config = Connection_->GetConfig();
-            if (++retryCount <= config->TableMountCache->OnErrorRetryCount) {
-                bool retry = false;
-                std::vector<NTabletClient::EErrorCode> retriableCodes = {
-                    NTabletClient::EErrorCode::NoSuchTablet,
-                    NTabletClient::EErrorCode::TabletNotMounted,
-                    NTabletClient::EErrorCode::InvalidMountRevision};
+            const auto& config = Connection_->GetConfig();
+            const auto& tableMountCache = Connection_->GetTableMountCache();
+            bool retry;
+            TTabletInfoPtr tabletInfo;
+            std::tie(retry, tabletInfo) = tableMountCache->InvalidateOnError(error);
 
-                for (const auto& errCode : retriableCodes) {
-                    if (auto err = error.FindMatching(errCode)) {
-                        error = err.Get();
-                        retry = true;
-                        break;
+            if (retry && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
+                LOG_DEBUG(error, "Got error, will retry");
+
+                if (tabletInfo) {
+                    auto now = Now();
+                    auto retryTime = tabletInfo->UpdateTime + config->TableMountCache->OnErrorSlackPeriod;
+                    if (retryTime > now) {
+                        WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
+                            .ThrowOnError();
                     }
                 }
-
-                if (retry) {
-                    LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
-                    auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
-                    const auto& tableMountCache = Connection_->GetTableMountCache();
-                    auto tabletInfo = tableMountCache->FindTablet(tabletId);
-                    if (tabletInfo) {
-                        tableMountCache->InvalidateTablet(tabletInfo);
-                        auto now = Now();
-                        auto retryTime = tabletInfo->UpdateTime + config->TableMountCache->OnErrorSlackPeriod;
-                        if (retryTime > now) {
-                            WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
-                                .ThrowOnError();
-                        }
-                    }
-                    continue;
-                }
+                continue;
             }
 
             THROW_ERROR error;
@@ -1005,8 +986,8 @@ private:
     {
         if (options.ReadFrom == EMasterChannelKind::Cache) {
             auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-            cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
-            cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
         }
     }
 
@@ -1060,6 +1041,7 @@ private:
             const TCellId& cellId,
             const TLookupRowsOptionsBase& options,
             TTableMountInfoPtr tableInfo,
+            const TNullable<TString>& retentionConfig,
             TEncoder encoder,
             TDecoder decoder)
             : Config_(std::move(config))
@@ -1067,6 +1049,7 @@ private:
             , CellId_(cellId)
             , Options_(options)
             , TableInfo_(std::move(tableInfo))
+            , RetentionConfig_(retentionConfig)
             , Encoder_(std::move(encoder))
             , Decoder_(std::move(decoder))
         { }
@@ -1130,6 +1113,7 @@ private:
         const TCellId CellId_;
         const TLookupRowsOptionsBase Options_;
         const TTableMountInfoPtr TableInfo_;
+        const TNullable<TString> RetentionConfig_;
         const TEncoder Encoder_;
         const TDecoder Decoder_;
 
@@ -1169,6 +1153,9 @@ private:
             req->set_request_codec(static_cast<int>(Config_->LookupRequestCodec));
             req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
             req->Attachments().push_back(batch->RequestData);
+            if (RetentionConfig_) {
+                req->set_retention_config(*RetentionConfig_);
+            }
 
             req->Invoke().Subscribe(
                 BIND(&TTabletCellLookupSession::OnResponse, MakeStrong(this)));
@@ -1264,6 +1251,7 @@ private:
                 nameTable,
                 keys,
                 options,
+                Null,
                 encoder,
                 decoder,
                 fallbackHandler);
@@ -1307,12 +1295,18 @@ private:
             return replicaClient->VersionedLookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
         };
 
+        TNullable<TString> retentionConfig;
+        if (options.RetentionConfig) {
+            retentionConfig = ConvertToYsonString(options.RetentionConfig).GetData();
+        }
+
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
             return DoLookupRowsOnce<IVersionedRowsetPtr, TVersionedRow>(
                 path,
                 nameTable,
                 keys,
                 options,
+                retentionConfig,
                 encoder,
                 decoder,
                 fallbackHandler);
@@ -1527,6 +1521,61 @@ private:
         return replicaConnection->CreateClient(Options_);
     }
 
+    void RemapValueIds(
+        TVersionedRow /*row*/,
+        std::vector<TTypeErasedRow>& rows,
+        const std::vector<int>& mapping)
+    {
+        for (auto untypedRow : rows) {
+            auto row = TMutableVersionedRow(untypedRow);
+            if (!row) {
+                continue;
+            }
+            for (int index = 0; index < row.GetKeyCount(); ++index) {
+                auto id = row.BeginKeys()[index].Id;
+                YCHECK(id < mapping.size() && mapping[id] != -1);
+                row.BeginKeys()[index].Id = mapping[id];
+            }
+            for (int index = 0; index < row.GetValueCount(); ++index) {
+                auto id = row.BeginValues()[index].Id;
+                YCHECK(id < mapping.size() && mapping[id] != -1);
+                row.BeginValues()[index].Id = mapping[id];
+            }
+        }
+
+    }
+
+    void RemapValueIds(
+        TUnversionedRow /*row*/,
+        std::vector<TTypeErasedRow>& rows,
+        const std::vector<int>& mapping)
+    {
+        for (auto untypedRow : rows) {
+            auto row = TMutableUnversionedRow(untypedRow);
+            if (!row) {
+                continue;
+            }
+            for (int index = 0; index < row.GetCount(); ++index) {
+                auto id = row[index].Id;
+                YCHECK(id < mapping.size() && mapping[id] != -1);
+                row[index].Id = mapping[id];
+            }
+        }
+    }
+
+    std::vector<int> BuildResponseIdMaping(const NTableClient::TColumnFilter& remappedColumnFilter)
+    {
+        std::vector<int> mapping;
+        for (int index = 0; index < remappedColumnFilter.Indexes.size(); ++index) {
+            int id = remappedColumnFilter.Indexes[index];
+            if (id >= mapping.size()) {
+                mapping.resize(id + 1, -1);
+            }
+            mapping[id] = index;
+        }
+
+        return mapping;
+    }
 
     template <class TRowset, class TRow>
     TRowset DoLookupRowsOnce(
@@ -1534,6 +1583,7 @@ private:
         const TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
         const TLookupRowsOptionsBase& options,
+        const TNullable<TString> retentionConfig,
         TEncoderWithMapping encoderWithMapping,
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TRowset> replicaFallbackHandler)
@@ -1610,6 +1660,7 @@ private:
                         cellId,
                         options,
                         tableInfo,
+                        retentionConfig,
                         boundEncoder,
                         boundDecoder);
                     it = cellIdToSession.insert(std::make_pair(cellId, std::move(session))).first;
@@ -1641,6 +1692,11 @@ private:
         for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
             session->ParseResponse(outputRowBuffer, &uniqueResultRows);
+        }
+
+        if (!remappedColumnFilter.All) {
+            auto mapping = BuildResponseIdMaping(remappedColumnFilter);
+            RemapValueIds(TRow(), uniqueResultRows, mapping);
         }
 
         std::vector<TTypeErasedRow> resultRows;
@@ -1721,8 +1777,6 @@ private:
             queryPreparer.Get(),
             *parsedQuery,
             fetchFunctions,
-            inputRowLimit,
-            outputRowLimit,
             options.Timestamp);
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
@@ -1734,6 +1788,8 @@ private:
         queryOptions.EnableCodeCache = options.EnableCodeCache;
         queryOptions.MaxSubqueries = options.MaxSubqueries;
         queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
+        queryOptions.InputRowLimit = inputRowLimit;
+        queryOptions.OutputRowLimit = outputRowLimit;
 
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -1880,6 +1936,10 @@ private:
             ToProto(req->mutable_cell_id(), options.CellId);
         }
         req->set_freeze(options.Freeze);
+
+        auto mountTimestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+        req->set_mount_timestamp(mountTimestamp);
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
@@ -2468,7 +2528,7 @@ private:
                 // NB: Replicate upload transaction to each secondary cell since we have
                 // no idea as of where the chunks we're about to attach may come from.
                 ToProto(req->mutable_upload_transaction_secondary_cell_tags(), Connection_->GetSecondaryMasterCellTags());
-                req->set_upload_transaction_timeout(ToProto(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto<i64>(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
                 NRpc::GenerateMutationId(req);
                 SetTransactionId(req, options, true);
 
@@ -2495,7 +2555,7 @@ private:
                 auto teleporter = New<TChunkTeleporter>(
                     Connection_->GetConfig(),
                     this,
-                    Connection_->GetLightInvoker(),
+                    Connection_->GetInvoker(),
                     uploadTransactionId,
                     Logger);
 
@@ -3085,7 +3145,7 @@ private:
         });
 
         auto locateChunksResult = WaitFor(locateChunks
-            .AsyncVia(GetConnection()->GetHeavyInvoker())
+            .AsyncVia(GetConnection()->GetInvoker())
             .Run());
 
         if (!locateChunksResult.IsOK()) {
@@ -3098,12 +3158,12 @@ private:
         auto userJobReader = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
-            GetConnection()->GetHeavyInvoker(),
+            GetConnection()->GetInvoker(),
             NNodeTrackerClient::TNodeDescriptor(),
             BIND([] { }),
             Null);
 
-        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetHeavyInvoker());
+        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetInvoker());
         jobInputReader->Open();
         return jobInputReader;
     }
@@ -3372,7 +3432,7 @@ private:
         if (options.IncludeArchive) {
             TString conditions = Format("(operation_id_hi, operation_id_lo) = (%vu, %vu)",
                 operationId.Parts64[0], operationId.Parts64[1]);
-        
+
             if (options.JobType) {
                 conditions = Format("%v and type = %Qv", conditions, FormatEnum(*options.JobType));
             }
@@ -3554,7 +3614,7 @@ private:
                 if (options.HasStderr) {
                     if (*options.HasStderr && stderrSize <= 0) {
                         continue;
-                    } 
+                    }
                     if (!(*options.HasStderr) && stderrSize > 0) {
                         continue;
                     }
@@ -3735,7 +3795,7 @@ private:
         auto req = JobProberProxy_->AbortJob();
         ToProto(req->mutable_job_id(), jobId);
         if (options.InterruptTimeout) {
-            req->set_interrupt_timeout(ToProto(*options.InterruptTimeout));
+            req->set_interrupt_timeout(ToProto<i64>(*options.InterruptTimeout));
         }
 
         WaitFor(req->Invoke())

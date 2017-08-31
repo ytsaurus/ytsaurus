@@ -197,11 +197,6 @@ public:
         for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
             JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
-
-        FairShareLoggingExecutor = New<TPeriodicExecutor>(
-            GetControlInvoker(),
-            BIND(&TImpl::LogOperationsFairShare, MakeStrong(this)),
-            Config_->OperationLogFairSharePeriod);
     }
 
     void Initialize()
@@ -1119,8 +1114,6 @@ private:
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
-    TPeriodicExecutorPtr FairShareLoggingExecutor;
-
 
     TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
 
@@ -1673,6 +1666,11 @@ private:
 
             ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
             ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
+        
+            LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
+            PendingEventLogRowsFlushExecutor_->SetPeriod(Config_->PendingEventLogRowsFlushPeriod);
+            UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->UpdateExecNodeDescriptorsPeriod);
+            ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
         }
     }
 

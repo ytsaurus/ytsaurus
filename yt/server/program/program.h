@@ -18,11 +18,9 @@ class TProgram
 {
 public:
     TProgram();
-
     ~TProgram();
 
     TProgram(const TProgram&) = delete;
-
     TProgram(TProgram&&) = delete;
 
     int Run(int argc, const char** argv);
@@ -38,11 +36,17 @@ protected:
 
     virtual void OnError(const TString& message) const noexcept;
 
-private:
-    class TOptsParseResult; // Custom handler for option parsing errors.
+    virtual const char* GetVersion() = 0;
+    virtual const char* GetBuildHost() = 0;
+    virtual const char* GetBuildMachine() = 0;
+    virtual const char* GetBuildTime() = 0;
 
-    void BeforeRun();
-    void AfterRun();
+private:
+    // Custom handler for option parsing errors.
+    class TOptsParseResult;
+
+    void PrintVersionAndExit();
+    void PrintBuildAndExit();
 };
 
 //! The simplest exception possible.
@@ -58,6 +62,19 @@ public:
 
 private:
     const TString What_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYTProgram
+    : public TProgram
+{
+protected:
+    virtual const char* GetVersion() override;
+    virtual const char* GetBuildHost() override;
+    virtual const char* GetBuildMachine() override;
+    virtual const char* GetBuildTime() override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

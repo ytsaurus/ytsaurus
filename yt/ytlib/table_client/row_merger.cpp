@@ -164,9 +164,7 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
             }
 
             for (int valueIndex = begin; valueIndex <= index; ++valueIndex) {
-                TUnversionedValue tmpValue;
-                ColumnEvaluator_->MergeAggregate(id, &tmpValue, state, AggregateValues_[valueIndex], RowBuffer_);
-                state = tmpValue;
+                ColumnEvaluator_->MergeAggregate(id, &state, AggregateValues_[valueIndex], RowBuffer_);
             }
 
             state.Aggregate = false;
@@ -258,10 +256,10 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
         if (partialValue.Aggregate) {
             YCHECK(ColumnEvaluator_->IsAggregate(id));
-            TUnversionedValue tmpValue;
-            ColumnEvaluator_->MergeAggregate(id, &tmpValue, MergedRow_[id], partialValue, RowBuffer_);
-            tmpValue.Aggregate = MergedRow_[id].Aggregate;
-            MergedRow_[id] = tmpValue;
+
+            bool isAggregate = MergedRow_[id].Aggregate;
+            ColumnEvaluator_->MergeAggregate(id, &MergedRow_[id], partialValue, RowBuffer_);
+            MergedRow_[id].Aggregate = isAggregate;
         } else {
             MergedRow_[id] = partialValue;
         }
@@ -349,13 +347,15 @@ TVersionedRowMerger::TVersionedRowMerger(
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
-    TColumnEvaluatorPtr columnEvaluator)
+    TColumnEvaluatorPtr columnEvaluator,
+    bool lookup)
     : RowBuffer_(std::move(rowBuffer))
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
     , MajorTimestamp_(majorTimestamp)
     , ColumnEvaluator_(std::move(columnEvaluator))
+    , Lookup_(lookup)
 {
     size_t mergedKeyColumnCount = 0;
     if (columnFilter.All) {
@@ -375,8 +375,18 @@ TVersionedRowMerger::TVersionedRowMerger(
         }
     }
 
+    ColumnIdToIndex_.resize(columnCount);
+    for (int id = 0; id < columnCount; ++id) {
+        ColumnIdToIndex_[id] = -1;
+    }
+    for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+        int id = ColumnIds_[index];
+        if (id >= KeyColumnCount_) {
+            ColumnIdToIndex_[id] = index;
+        }
+    }
+
     Keys_.resize(mergedKeyColumnCount);
-    std::sort(ColumnIds_.begin(), ColumnIds_.end());
 
     Cleanup();
 }
@@ -409,10 +419,11 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
         }
     }
 
-    PartialValues_.insert(
-        PartialValues_.end(),
-        row.BeginValues(),
-        row.EndValues());
+    for (auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
+        if (ColumnIdToIndex_[value->Id] != -1) {
+            PartialValues_.push_back(*value);
+        }
+    }
 
     DeleteTimestamps_.insert(
         DeleteTimestamps_.end(),
@@ -436,8 +447,10 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     std::sort(
         PartialValues_.begin(),
         PartialValues_.end(),
-        [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
-            return std::tie(lhs.Id, lhs.Timestamp) < std::tie(rhs.Id, rhs.Timestamp);
+        [&] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+            auto lhsIndex = ColumnIdToIndex_[lhs.Id];
+            auto rhsIndex = ColumnIdToIndex_[rhs.Id];
+            return std::tie(lhsIndex, lhs.Timestamp) < std::tie(rhsIndex, rhs.Timestamp);
         });
     PartialValues_.erase(
         std::unique(
@@ -461,10 +474,10 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         }
 
         // Skip values if the current column is filtered out.
-        while (columnIdsBeginIt != columnIdsEndIt && *columnIdsBeginIt < partialValueIt->Id) {
+        while (columnIdsBeginIt != columnIdsEndIt && *columnIdsBeginIt != partialValueIt->Id) {
             ++columnIdsBeginIt;
         }
-        if (columnIdsBeginIt == columnIdsEndIt || *columnIdsBeginIt > partialValueIt->Id) {
+        if (columnIdsBeginIt == columnIdsEndIt) {
             partialValueIt = columnEndIt;
             continue;
         }
@@ -497,40 +510,43 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         }
 #endif
 
-        // Compute safety limit by MinDataVersions.
-        auto safetyEndIt = ColumnValues_.begin();
-        if (ColumnValues_.size() > Config_->MinDataVersions) {
-            safetyEndIt = ColumnValues_.end() - Config_->MinDataVersions;
-        }
+        auto retentionBeginIt = ColumnValues_.begin();
 
-        // Adjust safety limit by MinDataTtl.
-        while (safetyEndIt != ColumnValues_.begin()) {
-            auto timestamp = (safetyEndIt - 1)->Timestamp;
-            if (CurrentTimestamp_ < MaxTimestamp &&
-                timestamp < CurrentTimestamp_ &&
-                TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MinDataTtl)
-            {
-                break;
-            }
-            --safetyEndIt;
-        }
-
-        // Compute retention limit by MaxDataVersions and MaxDataTtl.
-        auto retentionBeginIt = safetyEndIt;
-        while (retentionBeginIt != ColumnValues_.begin()) {
-            if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions) {
-                break;
+        // Apply retention config if present.
+        if (Config_) {
+            // Compute safety limit by MinDataVersions.
+            if (ColumnValues_.size() > Config_->MinDataVersions) {
+                retentionBeginIt = ColumnValues_.end() - Config_->MinDataVersions;
             }
 
-            auto timestamp = (retentionBeginIt - 1)->Timestamp;
-            if (CurrentTimestamp_ < MaxTimestamp &&
-                timestamp < CurrentTimestamp_ &&
-                TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MaxDataTtl)
-            {
-                break;
+            // Adjust safety limit by MinDataTtl.
+            while (retentionBeginIt != ColumnValues_.begin()) {
+                auto timestamp = (retentionBeginIt - 1)->Timestamp;
+                if (CurrentTimestamp_ < MaxTimestamp &&
+                    timestamp < CurrentTimestamp_ &&
+                    TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MinDataTtl)
+                {
+                    break;
+                }
+                --retentionBeginIt;
             }
 
-            --retentionBeginIt;
+            // Compute retention limit by MaxDataVersions and MaxDataTtl.
+            while (retentionBeginIt != ColumnValues_.begin()) {
+                if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions) {
+                    break;
+                }
+
+                auto timestamp = (retentionBeginIt - 1)->Timestamp;
+                if (CurrentTimestamp_ < MaxTimestamp &&
+                    timestamp < CurrentTimestamp_ &&
+                    TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MaxDataTtl)
+                {
+                    break;
+                }
+
+                --retentionBeginIt;
+            }
         }
 
         // For aggregate columns merge values before MajorTimestamp_ and leave other values.
@@ -556,9 +572,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                     auto state = MakeUnversionedSentinelValue(EValueType::Null, id);
 
                     for (auto valueIt = aggregateBeginIt; valueIt <= retentionBeginIt; ++valueIt) {
-                        TUnversionedValue tmpValue;
-                        ColumnEvaluator_->MergeAggregate(id, &tmpValue, state, *valueIt, RowBuffer_);
-                        state = tmpValue;
+                        ColumnEvaluator_->MergeAggregate(id, &state, *valueIt, RowBuffer_);
                     }
 
                     TUnversionedValue& value = *retentionBeginIt;
@@ -605,7 +619,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         DeleteTimestamps_.erase(it, DeleteTimestamps_.end());
     }
 
-    if (MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
+    if (!Lookup_ && MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
         Cleanup();
         return TVersionedRow();
     }

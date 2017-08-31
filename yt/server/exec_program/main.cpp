@@ -26,14 +26,13 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecProgram
-    : public TProgram
+    : public TYTProgram
     , public TProgramConfigMixin<NJobProxy::TJobSatelliteConnectionConfig>
     , public TProgramCgroupMixin
 {
 public:
     TExecProgram()
-        : TProgram()
-        , TProgramConfigMixin(Opts_, false)
+        : TProgramConfigMixin(Opts_, false)
         , TProgramCgroupMixin(Opts_)
     {
         Opts_

@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <yt/core/logging/log.h>
-
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/fs.h>
 
@@ -22,6 +20,8 @@ using namespace NHydra::NProto;
 DECLARE_REFCOUNTED_CLASS(TLocalChangelogStore)
 DECLARE_REFCOUNTED_CLASS(TLocalChangelogStoreFactory)
 DECLARE_REFCOUNTED_CLASS(TLocalChangelogStoreLock)
+DECLARE_REFCOUNTED_CLASS(TCachedLocalChangelog)
+DECLARE_REFCOUNTED_CLASS(TEpochBoundLocalChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,20 +57,17 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreLock)
 
-class TCachedLocalChangelog
-    : public TAsyncCacheValueBase<int, TCachedLocalChangelog>
-    , public IChangelog
+class TEpochBoundLocalChangelog
+    : public IChangelog
 {
 public:
-    TCachedLocalChangelog(
-        int id,
+    TEpochBoundLocalChangelog(
         ui64 epoch,
         TLocalChangelogStoreLockPtr lock,
         IChangelogPtr underlyingChangelog)
-        : TAsyncCacheValueBase(id)
-        , Epoch_(epoch)
-        , Lock_(lock)
-        , UnderlyingChangelog_(underlyingChangelog)
+        : Epoch_(epoch)
+        , Lock_(std::move(lock))
+        , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
 
     virtual const TChangelogMeta& GetMeta() const override
@@ -98,6 +95,9 @@ public:
 
     virtual TFuture<void> Flush() override
     {
+        if (auto future = CheckLock()) {
+            return future;
+        }
         return UnderlyingChangelog_->Flush();
     }
 
@@ -119,6 +119,9 @@ public:
 
     virtual TFuture<void> Close() override
     {
+        if (auto future = CheckLock()) {
+            return future;
+        }
         return UnderlyingChangelog_->Close();
     }
 
@@ -138,6 +141,70 @@ private:
         */
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TEpochBoundLocalChangelog)
+
+class TCachedLocalChangelog
+    : public TAsyncCacheValueBase<int, TCachedLocalChangelog>
+    , public IChangelog
+{
+public:
+    TCachedLocalChangelog(
+        int id,
+        IChangelogPtr underlyingChangelog)
+        : TAsyncCacheValueBase(id)
+        , UnderlyingChangelog_(std::move(underlyingChangelog))
+    { }
+
+    virtual const TChangelogMeta& GetMeta() const override
+    {
+        return UnderlyingChangelog_->GetMeta();
+    }
+
+    virtual int GetRecordCount() const override
+    {
+        return UnderlyingChangelog_->GetRecordCount();
+    }
+
+    virtual i64 GetDataSize() const override
+    {
+        return UnderlyingChangelog_->GetDataSize();
+    }
+
+    virtual TFuture<void> Append(const TSharedRef& data) override
+    {
+        return UnderlyingChangelog_->Append(data);
+    }
+
+    virtual TFuture<void> Flush() override
+    {
+        return UnderlyingChangelog_->Flush();
+    }
+
+    virtual TFuture<std::vector<TSharedRef>> Read(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
+    }
+
+    virtual TFuture<void> Truncate(int recordCount) override
+    {
+        return UnderlyingChangelog_->Truncate(recordCount);
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return UnderlyingChangelog_->Close();
+    }
+
+private:
+    const IChangelogPtr UnderlyingChangelog_;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachedLocalChangelog)
 
 class TLocalChangelogStoreFactory
     : public TAsyncSlruCacheBase<int, TCachedLocalChangelog>
@@ -208,15 +275,16 @@ private:
 
         try {
             auto underlyingChangelog = Dispatcher_->CreateChangelog(path, meta, Config_);
-            auto cachedChangelog = New<TCachedLocalChangelog>(id, epoch, Lock_, underlyingChangelog);
+            auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error creating changelog %v",
                 path);
         }
 
-        return WaitFor(cookie.GetValue())
+        auto cachedChangelog = WaitFor(cookie.GetValue())
             .ValueOrThrow();
+        return New<TEpochBoundLocalChangelog>(epoch, Lock_, std::move(cachedChangelog));
     }
 
     IChangelogPtr DoOpenChangelog(int id, ui64 epoch)
@@ -232,7 +300,7 @@ private:
             } else {
                 try {
                     auto underlyingChangelog = Dispatcher_->OpenChangelog(path, Config_);
-                    auto cachedChangelog = New<TCachedLocalChangelog>(id, epoch, Lock_, underlyingChangelog);
+                    auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
                     LOG_FATAL(ex, "Error opening changelog %v",
@@ -241,8 +309,9 @@ private:
             }
         }
 
-        return WaitFor(cookie.GetValue())
+        auto cachedChangelog = WaitFor(cookie.GetValue())
             .ValueOrThrow();
+        return New<TEpochBoundLocalChangelog>(epoch, Lock_, std::move(cachedChangelog));
     }
 
     IChangelogStorePtr DoLock()

@@ -49,19 +49,25 @@ using namespace NCypressClient;
 
 namespace {
 
+bool HasTrivialAcd(const TCypressNodeBase* node)
+{
+    const auto& acd = node->Acd();
+    return acd.GetInherit() && acd.Acl().Entries.empty();
+}
+
 bool CheckItemReadPermissions(
-    TCypressNodeBase* node,
+    TCypressNodeBase* parent,
+    TCypressNodeBase* child,
     const TSecurityManagerPtr& securityManager)
 {
     // Fast path.
-    const auto& acd = node->Acd();
-    if (acd.GetInherit() && acd.Acl().Entries.empty()) {
+    if ((!parent || HasTrivialAcd(parent)) && HasTrivialAcd(child)) {
         return true;
     }
 
     // Slow path.
     auto* user = securityManager->GetAuthenticatedUser();
-    return securityManager->CheckPermission(node, user, EPermission::Read).Action == ESecurityAction::Allow;
+    return securityManager->CheckPermission(child, user, EPermission::Read).Action == ESecurityAction::Allow;
 }
 
 } // namespace
@@ -633,7 +639,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
     if (key == "user_attribute_keys") {
         std::vector<TAttributeDescriptor> systemAttributes;
-        ListSystemAttributes(&systemAttributes);
+        ReserveAndListSystemAttributes(&systemAttributes);
 
         auto customAttributes = GetCustomAttributes()->List();
         yhash_set<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
@@ -713,7 +719,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
 
         void Run(TCypressNodeBase* root)
         {
-            VisitAny(root, true);
+            VisitAny(nullptr, root);
         }
 
         TFuture<TYsonString> Finish()
@@ -730,30 +736,30 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         TAsyncYsonWriter Writer_;
 
 
-        void VisitAny(TCypressNodeBase* trunkNode, bool isRoot = false)
+        void VisitAny(TCypressNodeBase* trunkParent, TCypressNodeBase* trunkChild)
         {
-            if (!isRoot && !CheckItemReadPermissions(trunkNode, SecurityManager_)) {
+            if (!CheckItemReadPermissions(trunkParent, trunkChild, SecurityManager_)) {
                 Writer_.OnEntity();
                 return;
             }
 
-            auto proxy = CypressManager_->GetNodeProxy(trunkNode, Transaction_);
+            auto proxy = CypressManager_->GetNodeProxy(trunkChild, Transaction_);
             proxy->WriteAttributes(&Writer_, AttributeKeys_, false);
 
-            if (!isRoot && trunkNode->GetOpaque()) {
+            if (trunkParent && trunkChild->GetOpaque()) {
                 Writer_.OnEntity();
                 return;
             }
 
-            switch (trunkNode->GetNodeType()) {
+            switch (trunkChild->GetNodeType()) {
                 case ENodeType::List:
-                    VisitList(trunkNode->As<TListNode>());
+                    VisitList(trunkChild->As<TListNode>());
                     break;
                 case ENodeType::Map:
-                    VisitMap(trunkNode->As<TMapNode>());
+                    VisitMap(trunkChild->As<TMapNode>());
                     break;
                 default:
-                    VisitOther(trunkNode);
+                    VisitOther(trunkChild);
                     break;
             }
         }
@@ -792,7 +798,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
                 Transaction_);
             for (auto* child : childList) {
                 Writer_.OnListItem();
-                VisitAny(child);
+                VisitAny(node, child);
             }
             Writer_.OnEndList();
         }
@@ -808,7 +814,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
                 &keyToChildMapStorage);
             for (const auto& pair : keyToChildMap) {
                 Writer_.OnKeyedItem(pair.first);
-                VisitAny(pair.second);
+                VisitAny(node, pair.second);
             }
             Writer_.OnEndMap();
         }
@@ -1343,8 +1349,9 @@ TIntrusivePtr<ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsCompo
 
 void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    descriptors->push_back("count");
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);
+
+    descriptors->push_back("count");
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
@@ -1679,11 +1686,11 @@ void TMapNodeProxy::ListSelf(
     writer.OnBeginList();
     for (const auto& pair : keyToChildMap) {
         const auto& key = pair.first;
-        auto* trunkNode = pair.second;
+        auto* trunkChild  = pair.second;
         writer.OnListItem();
 
-        if (CheckItemReadPermissions(trunkNode, securityManager)) {
-            auto proxy = cypressManager->GetNodeProxy(trunkNode, Transaction);
+        if (CheckItemReadPermissions(TrunkNode, trunkChild, securityManager)) {
+            auto proxy = cypressManager->GetNodeProxy(trunkChild, Transaction);
             proxy->WriteAttributes(&writer, attributeKeys, false);
         }
 

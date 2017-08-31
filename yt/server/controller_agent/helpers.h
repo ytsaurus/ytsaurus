@@ -4,7 +4,11 @@
 
 #include "serialize.h"
 
+#include <yt/server/chunk_pools/chunk_stripe_key.h>
+
 #include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/misc/phoenix.h>
 
@@ -115,6 +119,13 @@ struct TLockedUserObject
 {
     virtual TString GetPath() const override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
+    const NScheduler::NProto::TOutputResult& boundaryKeys,
+    const TOutputTable& outputTable,
+    const NTableClient::TRowBufferPtr& rowBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

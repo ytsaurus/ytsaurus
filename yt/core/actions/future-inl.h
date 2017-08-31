@@ -38,6 +38,13 @@ class TFutureState
     : public TRefCountedBase
 {
 public:
+    ~TFutureState() noexcept
+    {
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        FinalizeTracking();
+#endif
+    }
+
     typedef TCallback<void(const TErrorOr<T>&)> TResultHandler;
     typedef SmallVector<TResultHandler, 8> TResultHandlers;
 

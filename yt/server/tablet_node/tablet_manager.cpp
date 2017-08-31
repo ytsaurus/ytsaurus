@@ -243,7 +243,8 @@ public:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::NoSuchTablet,
                 "No such tablet %v",
-                id);
+                id)
+                << TErrorAttribute("tablet_id", id);
         }
         return tablet;
     }
@@ -254,6 +255,7 @@ public:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -268,6 +270,7 @@ public:
                 timestamp,
                 user,
                 workloadDescriptor,
+                retentionConfig,
                 reader,
                 writer);
         }
@@ -366,7 +369,7 @@ public:
                 TReqWriteRows hydraRequest;
                 ToProto(hydraRequest.mutable_transaction_id(), transactionId);
                 hydraRequest.set_transaction_start_timestamp(transactionStartTimestamp);
-                hydraRequest.set_transaction_timeout(ToProto(transactionTimeout));
+                hydraRequest.set_transaction_timeout(ToProto<i64>(transactionTimeout));
                 ToProto(hydraRequest.mutable_tablet_id(), tabletId);
                 hydraRequest.set_mount_revision(tablet->GetMountRevision());
                 hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
@@ -2434,6 +2437,7 @@ private:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -2455,6 +2459,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    std::move(retentionConfig),
                     reader,
                     writer);
                 break;
@@ -2848,7 +2853,8 @@ private:
                 NTabletClient::EErrorCode::TabletNotMounted,
                 "Tablet %v is not in %Qlv state",
                 tablet->GetId(),
-                ETabletState::Mounted);
+                ETabletState::Mounted)
+                << TErrorAttribute("tablet_id", tablet->GetId());
         }
     }
 
@@ -3243,6 +3249,7 @@ void TTabletManager::Read(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
@@ -3251,6 +3258,7 @@ void TTabletManager::Read(
         timestamp,
         user,
         workloadDescriptor,
+        std::move(retentionConfig),
         reader,
         writer);
 }

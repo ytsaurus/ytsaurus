@@ -21,6 +21,7 @@ option(YT_BUILD_ENABLE_PYTHON_2_7         "Build Python 2.7 bindings" TRUE)
 option(YT_BUILD_ENABLE_PYTHON_SKYNET      "Build Python Skynet bindings" FALSE)
 option(YT_BUILD_ENABLE_PYTHON_3_4         "Build Python 3.4 bindings" FALSE)
 option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
+option(YT_BUILD_ENABLE_CPP_TESTS          "Build C++ integration tests" TRUE)
 option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
 option(YT_BUILD_HAVE_CYTHON               "Do you have Cython 2.5?" TRUE)
@@ -206,6 +207,22 @@ if(YT_BUILD_HAVE_CYTHON)
 endif()
 
 ################################################################################
+# Configure includes.
+
+include_directories(
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/contrib/tclap # header-only library
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src # header-only library
+  ${CMAKE_SOURCE_DIR}/contrib/libs/re2 # re2 contains relative includes
+  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf # protobuf contains relative includes
+  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/google/protobuf # protobuf contains relative includes
+  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include # openssl contains relative includes
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/include
+)
+
+################################################################################
 # Assemble project.
 
 add_subdirectory(cmake/deps-arcadia-contrib-libs-base64)
@@ -252,6 +269,11 @@ add_subdirectory(cmake/deps-yt-contrib-zstd-legacy)
 add_subdirectory(cmake/deps-contrib-benchmark)
 add_subdirectory(python)
 add_subdirectory(yt)
+add_subdirectory(yp)
+
+if (YT_BUILD_ENABLE_CPP_TESTS)
+  add_subdirectory(tests/cpp)
+endif()
 
 if(YT_BUILD_ENABLE_PERL)
   add_subdirectory(perl)
@@ -368,7 +390,7 @@ add_custom_target(version
 )
 
 if(CMAKE_VERSION VERSION_GREATER "3.0")
-  file(LOCK ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py)
+  file(LOCK ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py GUARD FILE)
 endif()
 file(WRITE ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py "BUILD_TYPE = \"${CMAKE_BUILD_TYPE}\"")
 

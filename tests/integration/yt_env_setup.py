@@ -280,6 +280,13 @@ class YTEnvSetup(object):
         if not os.path.exists(cls.path_to_run):
             return
 
+        # XXX(dcherednik): Delete named pipes
+        subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
+        # XXX(asaitgalin): Unmount everything
+        subprocess.check_call(["find", cls.path_to_run, "-type", "d", "-exec",
+                               "mountpoint", "-q", "{}", ";", "-exec", "sudo",
+                               "umount", "{}", ";"])
+
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
@@ -290,13 +297,6 @@ class YTEnvSetup(object):
             if p.returncode != 0:
                 print >>sys.stderr, stderr
                 raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
-
-            # XXX(dcherednik): Delete named pipes
-            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
-            # XXX(asaitgalin): Unmount everything
-            subprocess.check_call(["find", cls.path_to_run, "-type", "d", "-exec",
-                                   "mountpoint", "-q", "{}", ";", "-exec", "sudo",
-                                   "umount", "{}", ";"])
 
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
             if os.path.exists(destination_path):
@@ -355,7 +355,7 @@ class YTEnvSetup(object):
 
             yt_commands.gc_collect(driver=driver)
             yt_commands.clear_metadata_caches(driver=driver)
-            
+
     def set_node_banned(self, address, flag, driver=None):
         yt_commands.set("//sys/nodes/%s/@banned" % address, flag, driver=driver)
         ban, state = ("banned", "offline") if flag else ("unbanned", "online")
@@ -570,8 +570,8 @@ class YTEnvSetup(object):
             yt_commands.remove_tablet_action(action, driver=driver)
 
     def _reenable_tablet_balancer(self, driver=None):
-        if yt_commands.exists("//sys/@disable_tablet_balancer", driver=driver):
-            yt_commands.remove("//sys/@disable_tablet_balancer", driver=driver)
+        if yt_commands.exists("//sys/@enable_tablet_balancer", driver=driver):
+            yt_commands.remove("//sys/@enable_tablet_balancer", driver=driver)
 
     def _find_ut_file(self, file_name):
         unittester_path = find_executable("unittester-ytlib")

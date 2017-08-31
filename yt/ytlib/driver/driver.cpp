@@ -223,12 +223,8 @@ public:
             entry.Descriptor,
             request);
 
-        auto invoker = entry.Descriptor.Heavy
-            ? Connection_->GetHeavyInvoker()
-            : Connection_->GetLightInvoker();
-
         return BIND(&TDriver::DoExecute, entry.Execute, context)
-            .AsyncVia(invoker)
+            .AsyncVia(Connection_->GetInvoker())
             .Run();
     }
 

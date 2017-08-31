@@ -376,8 +376,6 @@ public:
     //! be larger.
     TNullable<i64> DataWeightPerJob;
 
-    bool ConsiderOnlyPrimarySize;
-
     TNullable<int> JobCount;
     TNullable<int> MaxJobCount;
 
@@ -549,6 +547,8 @@ public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     NTableClient::TKeyColumns JoinBy;
+
+    bool ConsiderOnlyPrimarySize;
 
     TReduceOperationSpecBase();
 

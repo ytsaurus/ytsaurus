@@ -80,7 +80,7 @@ public:
     NChunkClient::TChunkListId CoreTableChunkListId;
 
     virtual void Persist(const TPersistenceContext& context) override;
-    void SendJobMetrics(const NJobTrackerClient::TStatistics& jobStatistics, bool flush);
+    void SendJobMetrics(const NScheduler::TJobSummary& jobSummary, bool flush);
 private:
     std::unique_ptr<TJobMetricsUpdater> JobMetricsUpdater_;
 };

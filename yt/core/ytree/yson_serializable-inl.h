@@ -487,7 +487,7 @@ DEFINE_VALIDATOR(
 DEFINE_VALIDATOR(
     NonEmpty(),
     actual.size() > 0,
-    TError("Expected non-empty collection")
+    TError("Value must not be empty")
 )
 
 #undef DEFINE_VALIDATOR

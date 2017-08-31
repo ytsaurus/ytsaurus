@@ -224,6 +224,7 @@ public:
 
         auto* cellBundle = TabletCellBundleMap_.Insert(id, std::move(cellBundleHolder));
         YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
+        cellBundle->FillProfilingTag();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
@@ -415,6 +416,7 @@ public:
                 replica->GetReplicaPath() == replicaPath)
             {
                 THROW_ERROR_EXCEPTION("Replica table %v at cluster %Qv already exists",
+                    NTabletClient::EErrorCode::TableReplicaAlreadyExists,
                     replicaPath,
                     clusterName);
             }
@@ -1253,7 +1255,8 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCell* hintCell,
-        bool freeze)
+        bool freeze,
+        TTimestamp mountTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
@@ -1316,7 +1319,7 @@ public:
         }
 
         // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "mount_table");
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1345,9 +1348,8 @@ public:
             serializedMountConfig,
             serializedReaderConfig,
             serializedWriterConfig,
-            serializedWriterOptions);
-
-        CommitTabletStaticMemoryUpdate(table);
+            serializedWriterOptions,
+            mountTimestamp);
     }
 
     void DoMountTablet(
@@ -1392,7 +1394,8 @@ public:
         const TYsonString& serializedMountConfig,
         const TYsonString& serializedReaderConfig,
         const TYsonString& serializedWriterConfig,
-        const TYsonString& serializedWriterOptions)
+        const TYsonString& serializedWriterOptions,
+        TTimestamp mountTimestamp = NullTimestamp)
     {
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1417,6 +1420,9 @@ public:
 
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
+            if (mountTimestamp != NullTimestamp) {
+                tablet->NodeStatistics().set_unflushed_timestamp(mountTimestamp);
+            }
 
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
 
@@ -1496,6 +1502,8 @@ public:
                 replicaInfo.SetState(ETableReplicaState::Enabled);
             }
         }
+
+        CommitTabletStaticMemoryUpdate(table);
     }
 
     void UnmountTable(
@@ -1643,7 +1651,7 @@ public:
         }
 
         // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "freeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1705,7 +1713,7 @@ public:
         }
 
         // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unfreeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -2464,6 +2472,7 @@ private:
         for (const auto& pair : TabletCellBundleMap_) {
             auto* cellBundle = pair.second;
             YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
+            cellBundle->FillProfilingTag();
         }
 
         AddressToCell_.clear();
@@ -3234,6 +3243,18 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
+        auto copyTabletChunkList = [&] (const TChunkList* oldTabletChunkList) {
+            auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
+            newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
+            chunkManager->AttachToChunkList(
+                newTabletChunkList,
+                oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
+                oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
+            newTabletChunkList->Statistics().LogicalRowCount = oldTabletChunkList->Statistics().LogicalRowCount;
+            newTabletChunkList->Statistics().LogicalChunkCount = oldTabletChunkList->Statistics().LogicalChunkCount;
+            return newTabletChunkList;
+        };
+
         if (objectManager->GetObjectRefCounter(oldRootChunkList) > 1) {
             auto statistics = oldRootChunkList->Statistics();
             auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
@@ -3243,13 +3264,7 @@ private:
                 chunkLists.data() + firstTabletIndex);
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
-                auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
-                newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
-                chunkManager->AttachToChunkList(
-                    newTabletChunkList,
-                    oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
-                    oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
+                auto* newTabletChunkList = copyTabletChunkList(chunkLists[index]->AsChunkList());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
             }
 
@@ -3271,12 +3286,7 @@ private:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
                 if (objectManager->GetObjectRefCounter(oldTabletChunkList) > 1) {
-                    auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
-                    newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
-                    chunkManager->AttachToChunkList(
-                        newTabletChunkList,
-                        oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
-                        oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
+                    auto* newTabletChunkList = copyTabletChunkList(oldTabletChunkList);
                     chunkLists[index] = newTabletChunkList;
 
                     // TODO(savrus): make a helper to replace a tablet chunk list.
@@ -4346,14 +4356,16 @@ void TTabletManager::MountTable(
     int firstTabletIndex,
     int lastTabletIndex,
     TTabletCell* hintCell,
-    bool freeze)
+    bool freeze,
+    TTimestamp mountTimestamp)
 {
     Impl_->MountTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
         hintCell,
-        freeze);
+        freeze,
+        mountTimestamp);
 }
 
 void TTabletManager::UnmountTable(

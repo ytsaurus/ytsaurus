@@ -295,6 +295,10 @@ public:
         : TVersionedRow(header)
     { }
 
+    explicit TMutableVersionedRow(TTypeErasedRow row)
+        : TVersionedRow(reinterpret_cast<const TVersionedRowHeader*>(row.OpaqueHeader))
+    { }
+
     static TMutableVersionedRow Allocate(
         TChunkedMemoryPool* pool,
         int keyCount,

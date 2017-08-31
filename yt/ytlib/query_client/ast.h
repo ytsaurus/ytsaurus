@@ -360,7 +360,8 @@ TString FormatReference(const TReference& ref);
 TString FormatExpression(const TExpression& expr);
 TString FormatExpression(const TExpressionList& exprs);
 TString FormatQuery(const TQuery& query);
-TString InferName(const TExpression& expr);
+TString InferColumnName(const TExpression& expr);
+TString InferColumnName(const TReference& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 

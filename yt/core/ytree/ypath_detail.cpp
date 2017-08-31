@@ -260,7 +260,7 @@ std::vector<TString> TSupportsAttributes::TCombinedAttributeDictionary::List() c
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
         std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
-        provider->ListSystemAttributes(&descriptors);
+        provider->ReserveAndListSystemAttributes(&descriptors);
         for (const auto& descriptor : descriptors) {
             if (descriptor.Present && !descriptor.Custom && !descriptor.Opaque) {
                 keys.push_back(descriptor.Key);

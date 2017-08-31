@@ -54,6 +54,77 @@ static const auto ResolveRetryTimeout = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TErrorOr<TString> ResolveBinaryPath(const TString& binary)
+{
+    std::vector<TError> accumulatedErrors;
+
+    auto test = [&] (const char* path) {
+        if (access(path, R_OK | X_OK) == 0) {
+            return true;
+        } else {
+            auto error = TError("No capabilities to run %Qlv", path) << TError::FromSystem();
+            accumulatedErrors.push_back(std::move(error));
+            return false;
+        }
+    };
+
+    auto done = [&] () {
+        auto error = TError(
+            EProcessErrorCode::CannotResolveBinary,
+            "Cannot resolve binary %Qlv",
+            binary);
+        error.InnerErrors().swap(accumulatedErrors);
+        return error;
+    };
+
+    if (test(binary.c_str())) {
+        return binary;
+    }
+
+    // If this is an absolute path, stop here.
+    if (binary.empty() || binary[0] == '/') {
+        return done();
+    }
+
+    // XXX(sandello): Sometimes we drop PATH from environment when spawning isolated processes.
+    // In this case, try to locate somewhere nearby.
+    {
+        auto probe = TString::Join(GetDirName(GetExecPath()), "/", binary);
+        if (test(probe.c_str())) {
+            return probe;
+        }
+    }
+
+    std::array<char, MAX_PATH> buffer;
+
+    auto envPathStr = GetEnv("PATH");
+    TStringBuf envPath(envPathStr);
+    TStringBuf envPathItem;
+
+    while (envPath.NextTok(':', envPathItem)) {
+        if (buffer.size() < 2 + envPathItem.size() + binary.size()) {
+            continue;
+        }
+
+        size_t index = 0;
+        std::copy(envPathItem.begin(), envPathItem.end(), buffer.begin() + index);
+        index += envPathItem.size();
+        buffer[index] = '/';
+        index += 1;
+        std::copy(binary.begin(), binary.end(), buffer.begin() + index);
+        index += binary.size();
+        buffer[index] = 0;
+
+        if (test(buffer.data())) {
+            return TString(buffer.data(), index);
+        }
+    }
+
+    return done();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 #ifdef _unix_
@@ -144,99 +215,12 @@ bool TryResetSignals()
 
 } // namespace
 
-TErrorOr<TString> ResolveBinaryPath(const TString& binary)
-{
-    std::vector<TError> accumulatedErrors;
-
-    auto test = [&] (const char* path) {
-        if (access(path, R_OK | X_OK) == 0) {
-            return true;
-        } else {
-            auto error = TError("No capabilities to run %Qlv", path) << TError::FromSystem();
-            accumulatedErrors.push_back(std::move(error));
-            return false;
-        }
-    };
-
-    auto done = [&] () {
-        auto error = TError(
-            EProcessErrorCode::CannotResolveBinary,
-            "Cannot resolve binary %Qlv",
-            binary);
-        error.InnerErrors().swap(accumulatedErrors);
-        return error;
-    };
-
-    if (test(binary.c_str())) {
-        return binary;
-    }
-
-    // If this is an absolute path, stop here.
-    if (binary.length() == 0 || binary[0] == '/') {
-        return done();
-    }
-
-    // XXX(sandello): Sometimes we drop PATH from environment when spawning isolated processes.
-    // In this case, try to locate somewhere nearby.
-    {
-        auto probe = TString::Join(GetDirName(GetExecPath()), "/", binary);
-        if (test(probe.c_str())) {
-            return probe;
-        }
-    }
-
-    std::array<char, MAX_PATH> buffer;
-
-    auto envPathStr = GetEnv("PATH");
-    TStringBuf envPath(envPathStr);
-    TStringBuf envPathItem;
-
-    while (envPath.NextTok(':', envPathItem)) {
-        if (buffer.size() < 2 + envPathItem.size() + binary.size()) {
-            continue;
-        }
-
-        size_t i = 0;
-        std::copy(envPathItem.begin(), envPathItem.end(), buffer.begin() + i);
-        i += envPathItem.size();
-        buffer[i] = '/';
-        i += 1;
-        std::copy(binary.begin(), binary.end(), buffer.begin() + i);
-        i += binary.size();
-        buffer[i] = 0;
-
-        if (test(buffer.data())) {
-            return TString(buffer.data(), i);
-        }
-    }
-
-    return done();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TProcessBase::TProcessBase(const TString& path)
      : Path_(path)
      , ProcessId_(InvalidProcessId)
 { }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSimpleProcess::TSimpleProcess(const TString& path, bool copyEnv, TDuration pollPeriod)
-    // TString is guaranteed to be zero-terminated.
-    // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/TStringAndTStringBuf#sobstvennosimvoly
-    : TProcessBase(path)
-    , PollPeriod_(pollPeriod)
-    , PipeFactory_(3)
-{
-    AddArgument(NFS::GetFileName(path));
-
-    if (copyEnv) {
-        for (char** envIt = environ; *envIt; ++envIt) {
-            Env_.push_back(Capture(*envIt));
-        }
-    }
-}
 
 void TProcessBase::AddArgument(TStringBuf arg)
 {
@@ -269,6 +253,24 @@ void TProcessBase::AddArguments(const std::vector<TString>& args)
 void TProcessBase::SetWorkingDirectory(const TString& path)
 {
     WorkingDirectory_ = path;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSimpleProcess::TSimpleProcess(const TString& path, bool copyEnv, TDuration pollPeriod)
+    // TString is guaranteed to be zero-terminated.
+    // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/TStringAndTStringBuf#sobstvennosimvoly
+    : TProcessBase(path)
+    , PollPeriod_(pollPeriod)
+    , PipeFactory_(3)
+{
+    AddArgument(NFS::GetFileName(path));
+
+    if (copyEnv) {
+        for (char** envIt = environ; *envIt; ++envIt) {
+            Env_.push_back(Capture(*envIt));
+        }
+    }
 }
 
 void TSimpleProcess::AddDup2FileAction(int oldFD, int newFD)

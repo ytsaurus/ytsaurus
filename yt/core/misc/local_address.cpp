@@ -40,7 +40,7 @@ static std::atomic_flag LocalHostNameLock = ATOMIC_FLAG_INIT;
 
 const char* ReadLocalHostName() noexcept
 {
-    // Writer-side imposes AcqRel ordering, so all preceeding writes must be visible.
+    // Writer-side imposes AcqRel ordering, so all preceding writes must be visible.
     char* ptr = LocalHostNamePtr.load(std::memory_order_relaxed);
     return ptr ? ptr : LocalHostNameData;
 }

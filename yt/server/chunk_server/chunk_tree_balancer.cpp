@@ -87,7 +87,9 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     YCHECK(newStatistics.LogicalRowCount == oldStatistics.LogicalRowCount);
     YCHECK(newStatistics.UncompressedDataSize == oldStatistics.UncompressedDataSize);
     YCHECK(newStatistics.CompressedDataSize == oldStatistics.CompressedDataSize);
-    YCHECK(newStatistics.DataWeight == oldStatistics.DataWeight);
+    YCHECK(newStatistics.DataWeight == -1 ||
+        oldStatistics.DataWeight == -1 ||
+        newStatistics.DataWeight == oldStatistics.DataWeight);
     YCHECK(newStatistics.RegularDiskSpace == oldStatistics.RegularDiskSpace);
     YCHECK(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
     YCHECK(newStatistics.ChunkCount == oldStatistics.ChunkCount);

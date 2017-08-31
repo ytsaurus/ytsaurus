@@ -42,8 +42,7 @@ protected:
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
     virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
-
-    void AlterTable(const TAlterTableOptions& options);
+    virtual bool RemoveBuiltinAttribute(const TString& key) override;
 
     virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
     virtual void ValidateCustomAttributeUpdate(
@@ -65,6 +64,9 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Reshard);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
+
+private:
+    void AlterTable(const TAlterTableOptions& options);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

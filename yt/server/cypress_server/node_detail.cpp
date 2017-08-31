@@ -171,6 +171,9 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
     // Copy builtin attributes.
     clonedNode->SetOpaque(sourceNode->GetOpaque());
+    if (mode == ENodeCloneMode::Move) {
+        clonedNode->SetCreationTime(sourceNode->GetCreationTime());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

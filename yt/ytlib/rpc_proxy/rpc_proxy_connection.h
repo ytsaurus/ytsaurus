@@ -29,8 +29,7 @@ public:
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
-    virtual const IInvokerPtr& GetLightInvoker() override;
-    virtual const IInvokerPtr& GetHeavyInvoker() override;
+    virtual const IInvokerPtr& GetInvoker() override;
 
     virtual NApi::IAdminPtr CreateAdmin(const NApi::TAdminOptions& options) override;
     virtual NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override;
@@ -50,14 +49,18 @@ private:
 
     TSpinLock SpinLock_;
     yhash_set<TWeakPtr<TRpcProxyTransaction>> Transactions_;
+    NTransactionClient::ITimestampProviderPtr TimestampProvider_;
 
     NConcurrency::TPeriodicExecutorPtr PingExecutor_;
 
 protected:
     friend class TRpcProxyClient;
     friend class TRpcProxyTransaction;
+    friend class TRpcProxyTimestampProvider;
 
     // Implementation-specific methods.
+
+    NRpc::IChannelPtr GetRandomPeerChannel();
 
     void RegisterTransaction(TRpcProxyTransaction* transaction);
     void UnregisterTransaction(TRpcProxyTransaction* transaction);

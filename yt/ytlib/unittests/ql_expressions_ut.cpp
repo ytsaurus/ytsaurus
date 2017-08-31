@@ -821,6 +821,12 @@ INSTANTIATE_TEST_CASE_P(
         std::tuple<TConstExpressionPtr, const char*>(
             New<TInOpExpression>(
                 std::initializer_list<TConstExpressionPtr>({
+                    Make<TLiteralExpression>(MakeInt64(4))}),
+                MakeRows("1; 2; 3")),
+            "4 in (1, 2u, 3.0)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInOpExpression>(
+                std::initializer_list<TConstExpressionPtr>({
                     Make<TReferenceExpression>("ki")}),
                 MakeRows("1; 2; 3")),
             "ki in (1, 2u, 3.0)"),
@@ -1348,28 +1354,25 @@ TEST_P(TEvaluateAggregationTest, Basic)
 
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue tmp;
     TUnversionedValue state1;
     callbacks.Init(buffer.Get(), &state1);
     EXPECT_EQ(EValueType::Null, state1.Type);
 
-    callbacks.Update(buffer.Get(), &tmp, &state1, &value1);
-    state1 = tmp;
+    callbacks.Update(buffer.Get(), &state1, &value1);
     EXPECT_EQ(value1, state1);
 
     TUnversionedValue state2;
     callbacks.Init(buffer.Get(), &state2);
     EXPECT_EQ(EValueType::Null, state2.Type);
 
-    callbacks.Update(buffer.Get(), &tmp, &state2, &value2);
-    state2 = tmp;
+    callbacks.Update(buffer.Get(), &state2, &value2);
     EXPECT_EQ(value2, state2);
 
-    callbacks.Merge(buffer.Get(), &tmp, &state1, &state2);
-    EXPECT_EQ(expected, tmp);
+    callbacks.Merge(buffer.Get(), &state1, &state2);
+    EXPECT_EQ(expected, state1);
 
     TUnversionedValue result;
-    callbacks.Finalize(buffer.Get(), &result, &tmp);
+    callbacks.Finalize(buffer.Get(), &result, &state1);
     EXPECT_EQ(expected, result);
 }
 
@@ -1502,7 +1505,7 @@ INSTANTIATE_TEST_CASE_P(
             "uint64(i1)",
             MakeUint64(0)),
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "u1=0",
+            "u1=0u",
             "int64(u1)",
             MakeInt64(0)),
         std::tuple<const char*, const char*, TUnversionedValue>(

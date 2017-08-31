@@ -236,11 +236,14 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
                 EValueType::Uint64,
                 EValueType::Double});
         case NAst::TLiteralValue::TagOf<double>():
-            return TTypeSet({EValueType::Double});
+            return TTypeSet({
+                EValueType::Double});
         case NAst::TLiteralValue::TagOf<bool>():
-            return TTypeSet({EValueType::Boolean});
+            return TTypeSet({
+                EValueType::Boolean});
         case NAst::TLiteralValue::TagOf<TString>():
-            return TTypeSet({EValueType::String});
+            return TTypeSet({
+                EValueType::String});
         default:
             Y_UNREACHABLE();
     }
@@ -797,6 +800,54 @@ struct TNotExpressionPropagator
     }
 };
 
+struct TCastEliminator
+    : TRewriter<TCastEliminator>
+{
+    using TBase = TRewriter<TCastEliminator>;
+
+    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
+    {
+        if (IsUserCastFunction(functionExpr->FunctionName)) {
+            YCHECK(functionExpr->Arguments.size() == 1);
+
+            if (functionExpr->Type == functionExpr->Arguments[0]->Type) {
+                return Visit(functionExpr->Arguments[0]);
+            }
+        }
+
+        return TBase::OnFunction(functionExpr);
+    }
+};
+
+struct TExpressionSimplifier
+    : TCastEliminator
+{
+    using TBase = TCastEliminator;
+
+    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
+    {
+        if (functionExpr->FunctionName == "if") {
+            if (auto functionCondition = functionExpr->Arguments[0]->As<TFunctionExpression>()) {
+                auto reference1 = functionExpr->Arguments[2]->As<TReferenceExpression>();
+                if (functionCondition->FunctionName == "is_null" && reference1) {
+                    auto reference0 = functionCondition->Arguments[0]->As<TReferenceExpression>();
+                    if (reference0 && reference1->ColumnName == reference0->ColumnName) {
+                        return New<TFunctionExpression>(
+                            functionExpr->Type,
+                            "if_null",
+                            std::vector<TConstExpressionPtr>{
+                                functionCondition->Arguments[0],
+                                functionExpr->Arguments[1]});
+
+                    }
+                }
+            }
+        }
+
+        return TBase::OnFunction(functionExpr);
+    }
+};
+
 struct TTypedExpressionBuilder;
 
 typedef std::function<TConstExpressionPtr(EValueType)> TExpressionGenerator;
@@ -974,7 +1025,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
         EBinaryOp::Divide})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double}),
+            TTypeSet({EValueType::Int64, EValueType::Uint64, EValueType::Double}),
             Null
         };
     }
@@ -987,7 +1038,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
         EBinaryOp::BitAnd})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64}),
+            TTypeSet({EValueType::Int64, EValueType::Uint64}),
             Null
         };
     }
@@ -997,7 +1048,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
         EBinaryOp::Or})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Boolean}),
+            TTypeSet({EValueType::Boolean}),
             EValueType::Boolean
         };
     }
@@ -1012,12 +1063,12 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
     {
         result[op] = {
             TTypeSet({
-                EValueType::Null,
                 EValueType::Int64,
                 EValueType::Uint64,
                 EValueType::Double,
                 EValueType::Boolean,
-                EValueType::String}),
+                EValueType::String,
+                EValueType::Any}),
             EValueType::Boolean
         };
     }
@@ -1040,18 +1091,18 @@ TEnumIndexedVector<TOperatorTyper, EUnaryOp> BuildUnaryOperatorTypers()
         EUnaryOp::Minus})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double}),
+            TTypeSet({EValueType::Int64, EValueType::Uint64, EValueType::Double}),
             Null
         };
     }
 
     result[EUnaryOp::BitNot] = {
-        TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64}),
+        TTypeSet({EValueType::Int64, EValueType::Uint64}),
         Null
     };
 
     result[EUnaryOp::Not] = {
-        TTypeSet({EValueType::Null, EValueType::Boolean}),
+        TTypeSet({EValueType::Boolean}),
         Null
     };
 
@@ -1072,6 +1123,10 @@ TTypeSet InferBinaryExprTypes(
     const TStringBuf& lhsSource,
     const TStringBuf& rhsSource)
 {
+    if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
+        return TTypeSet{EValueType::Boolean};
+    }
+
     const auto& binaryOperators = GetBinaryOperatorTypers();
 
     *genericAssignments = binaryOperators[opCode].Constraint;
@@ -1107,8 +1162,27 @@ TTypeSet InferBinaryExprTypes(
 std::pair<EValueType, EValueType> RefineBinaryExprTypes(
     EBinaryOp opCode,
     EValueType resultType,
-    TTypeSet* genericAssignments)
+    const TTypeSet& lhsTypes,
+    const TTypeSet& rhsTypes,
+    TTypeSet* genericAssignments,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource)
 {
+    if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
+        // empty intersersection (Any, alpha) || (alpha, Any), where alpha = {bool, int, uint, double, string}
+        if (lhsTypes.Get(EValueType::Any)) {
+            return std::make_pair(EValueType::Any, rhsTypes.GetFront());
+        }
+
+        if (rhsTypes.Get(EValueType::Any)) {
+            return std::make_pair(lhsTypes.GetFront(), EValueType::Any);
+        }
+
+        THROW_ERROR_EXCEPTION("Type mismatch in expression")
+            << TErrorAttribute("lhs_source", lhsSource)
+            << TErrorAttribute("rhs_source", rhsSource);
+    }
+
     const auto& binaryOperators = GetBinaryOperatorTypers();
 
     EValueType argType;
@@ -1206,7 +1280,7 @@ struct TTypedExpressionBuilder
             }
 
             THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-                NAst::FormatReference(reference));
+                NAst::InferColumnName(reference));
         }
 
         TTypeSet resultTypes({column->Type});
@@ -1242,7 +1316,7 @@ struct TTypedExpressionBuilder
             const auto& descriptor = Functions->GetFunction(functionName);
 
             if (const auto* aggregateFunction = descriptor->As<TAggregateTypeInferrer>()) {
-                auto subexprName = InferName(*functionExpr);
+                auto subexprName = InferColumnName(*functionExpr);
 
                 try {
                     if (functionExpr->Arguments.size() != 1) {
@@ -1355,13 +1429,17 @@ struct TTypedExpressionBuilder
                 TNullable<size_t> offset) -> TUntypedExpression
             {
                 TTypeSet genericAssignments;
+
+                auto lhsSource = offset ? binaryExpr->Lhs[*offset]->GetSource(Source) : "";
+                auto rhsSource = offset ? binaryExpr->Rhs[*offset]->GetSource(Source) : "";
+
                 auto resultTypes = InferBinaryExprTypes(
                     op,
                     lhs.FeasibleTypes,
                     rhs.FeasibleTypes,
                     &genericAssignments,
-                    offset ? binaryExpr->Lhs[*offset]->GetSource(Source) : "",
-                    offset ? binaryExpr->Rhs[*offset]->GetSource(Source) : "");
+                    lhsSource,
+                    rhsSource);
 
                 if (lhs.IsConstant && rhs.IsConstant) {
                     auto lhsValue = lhs.Generator(lhs.FeasibleTypes.GetFront());
@@ -1376,11 +1454,22 @@ struct TTypedExpressionBuilder
                     }
                 }
 
-                TExpressionGenerator generator = [op, lhs, rhs, genericAssignments] (EValueType type) mutable {
+                TExpressionGenerator generator = [
+                    op,
+                    lhs,
+                    rhs,
+                    genericAssignments,
+                    lhsSource,
+                    rhsSource
+                ] (EValueType type) mutable {
                     auto argTypes = RefineBinaryExprTypes(
                         op,
                         type,
-                        &genericAssignments);
+                        lhs.FeasibleTypes,
+                        rhs.FeasibleTypes,
+                        &genericAssignments,
+                        lhsSource,
+                        rhsSource);
 
                     return New<TBinaryOpExpression>(
                         type,
@@ -1408,11 +1497,7 @@ struct TTypedExpressionBuilder
                     auto next = gen(offset + 1, keySize, op);
                     auto eq = makeBinaryExpr(
                         EBinaryOp::And,
-                        makeBinaryExpr(
-                            EBinaryOp::Equal,
-                            untypedLhs,
-                            untypedRhs,
-                            offset),
+                        makeBinaryExpr(EBinaryOp::Equal, untypedLhs, untypedRhs, offset),
                         std::move(next),
                         Null);
                     if (op == EBinaryOp::Less || op == EBinaryOp::LessOrEqual) {
@@ -1435,12 +1520,7 @@ struct TTypedExpressionBuilder
                 }
             };
 
-            if (binaryExpr->Opcode == EBinaryOp::Less
-                || binaryExpr->Opcode == EBinaryOp::LessOrEqual
-                || binaryExpr->Opcode == EBinaryOp::Greater
-                || binaryExpr->Opcode == EBinaryOp::GreaterOrEqual
-                || binaryExpr->Opcode == EBinaryOp::Equal) {
-
+            if (IsRelationalBinaryOp(binaryExpr->Opcode)) {
                 if (binaryExpr->Lhs.size() != binaryExpr->Rhs.size()) {
                     THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
                         binaryExpr->Lhs.size(),
@@ -1480,10 +1560,6 @@ struct TTypedExpressionBuilder
             for (const auto& argument : inExpr->Expr) {
                 auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
 
-                if (untypedArgument.FeasibleTypes.GetSize() != 1) {
-                    THROW_ERROR_EXCEPTION("Cannot infer argument type for IN operator")
-                        << TErrorAttribute("source", argument->GetSource(Source));
-                }
                 EValueType argType = untypedArgument.FeasibleTypes.GetFront();
                 auto typedArgument = untypedArgument.Generator(argType);
 
@@ -1524,7 +1600,9 @@ struct TTypedExpressionBuilder
     {
         auto expressionTyper = BuildUntypedExpression(expr, schema);
         YCHECK(!expressionTyper.FeasibleTypes.IsEmpty());
-        return TNotExpressionPropagator().Visit(expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront()));
+        return TCastEliminator().Visit(
+            TNotExpressionPropagator().Visit(
+                expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront())));
     }
 
 };
@@ -1640,7 +1718,7 @@ public:
         auto column = SourceTableSchema_.FindColumn(reference.ColumnName);
 
         if (column) {
-            auto formattedName = NAst::FormatReference(reference);
+            auto formattedName = NAst::InferColumnName(reference);
             if (size_t collisionIndex = ColumnsCollisions_.emplace(reference.ColumnName, 0).first->second++) {
                 formattedName = Format("%v#%v", formattedName, collisionIndex);
             }
@@ -1697,7 +1775,7 @@ public:
                 Foreign_->GetColumnPtr(reference))
             {
                 THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables",
-                    NAst::FormatReference(reference));
+                    NAst::InferColumnName(reference));
             }
             SelfJoinedColumns_->push_back(column->Name);
             return column;
@@ -1815,7 +1893,10 @@ public:
                 effectiveStateType = argType;
             }
 
-            auto typedOperand = untypedOperand.Generator(argType);
+            auto typedOperand = TCastEliminator().Visit(
+                TNotExpressionPropagator().Visit(
+                    untypedOperand.Generator(argType)));
+
             CheckExpressionDepth(typedOperand);
 
             AggregateItems_->emplace_back(
@@ -1876,7 +1957,7 @@ TConstGroupClausePtr BuildGroupClause(
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
         CheckExpressionDepth(typedExpr);
-        groupClause->AddGroupItem(typedExpr, InferName(*expressionAst));
+        groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
     }
 
     schemaProxy = New<TGroupSchemaProxy>(
@@ -1922,7 +2003,7 @@ TConstProjectClausePtr BuildProjectClause(
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
         CheckExpressionDepth(typedExpr);
-        projectClause->AddProjection(typedExpr, InferName(*expressionAst));
+        projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
     }
 
     schemaProxy = New<TScanSchemaProxy>(projectClause->GetTableSchema(), Null);
@@ -2056,16 +2137,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
     const TFunctionsFetcher& functionsFetcher,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
     TTimestamp timestamp)
 {
     return PreparePlanFragment(
         callbacks,
         *ParseSource(source, EParseMode::Query),
         functionsFetcher,
-        inputRowLimit,
-        outputRowLimit,
         timestamp);
 }
 
@@ -2073,11 +2150,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
     const TFunctionsFetcher& functionsFetcher,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
     TTimestamp timestamp)
 {
-    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
+    auto query = New<TQuery>(TGuid::Create());
 
     auto Logger = MakeQueryLogger(query);
 
@@ -2125,6 +2200,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
 
+    std::vector<TJoinClausePtr> joinClauses;
     for (size_t joinIndex = 0; joinIndex < ast.Joins.size(); ++joinIndex) {
         const auto& join = ast.Joins[joinIndex];
         const auto& foreignDataSplit = dataSplits[joinIndex + 1];
@@ -2152,12 +2228,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
             if (!selfColumn || !foreignColumn) {
                 THROW_ERROR_EXCEPTION("Column %Qv not found",
-                    NAst::FormatReference(referenceExpr->Reference));
+                    NAst::InferColumnName(referenceExpr->Reference));
             }
 
             if (selfColumn->Type != foreignColumn->Type) {
                 THROW_ERROR_EXCEPTION("Column %Qv type mismatch",
-                    NAst::FormatReference(referenceExpr->Reference))
+                    NAst::InferColumnName(referenceExpr->Reference))
                     << TErrorAttribute("self_type", selfColumn->Type)
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
             }
@@ -2200,7 +2276,6 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         std::vector<std::pair<TConstExpressionPtr, bool>> keySelfEquations(foreignKeyColumnsCount);
         std::vector<TConstExpressionPtr> keyForeignEquations(foreignKeyColumnsCount);
 
-        bool canUseSourceRanges = true;
         for (size_t equationIndex = 0; equationIndex < foreignEquations.size(); ++equationIndex) {
             const auto& expr = foreignEquations[equationIndex];
 
@@ -2213,8 +2288,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                     continue;
                 }
             }
-            canUseSourceRanges = false;
-            break;
+
+            keySelfEquations.push_back(selfEquations[equationIndex]);
+            keyForeignEquations.push_back(foreignEquations[equationIndex]);
         }
 
         size_t keyPrefix = 0;
@@ -2299,28 +2375,39 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             }
         }
 
-        // Check that there are no join equations from keyPrefix to foreignKeyColumnsCount
-        for (size_t index = keyPrefix; index < keyForeignEquations.size() && canUseSourceRanges; ++index) {
+        YCHECK(keyForeignEquations.size() == keySelfEquations.size());
+
+        size_t lastEmptyIndex = keyPrefix;
+        for (size_t index = keyPrefix; index < keyForeignEquations.size(); ++index) {
             if (keyForeignEquations[index]) {
                 YCHECK(keySelfEquations[index].first);
-                canUseSourceRanges = false;
+                keyForeignEquations[lastEmptyIndex] = std::move(keyForeignEquations[index]);
+                keySelfEquations[lastEmptyIndex] = std::move(keySelfEquations[index]);
+                ++lastEmptyIndex;
             }
         }
 
+        // Check that there are no join equations from keyPrefix to foreignKeyColumnsCount
+        bool canUseSourceRanges = lastEmptyIndex == keyPrefix;
+
+        keyForeignEquations.resize(lastEmptyIndex);
+        keySelfEquations.resize(lastEmptyIndex);
+
         joinClause->CanUseSourceRanges = canUseSourceRanges;
-        if (canUseSourceRanges) {
-            keyForeignEquations.resize(keyPrefix);
-            keySelfEquations.resize(keyPrefix);
-            joinClause->SelfEquations = std::move(keySelfEquations);
-            joinClause->ForeignEquations = std::move(keyForeignEquations);
-            joinClause->CommonKeyPrefix = commonKeyPrefix;
-            LOG_DEBUG("Creating join via source ranges (CommonKeyPrefix: %v)", commonKeyPrefix);
-        } else {
-            joinClause->SelfEquations = std::move(selfEquations);
-            joinClause->ForeignEquations = std::move(foreignEquations);
-            LOG_DEBUG("Creating join via IN clause");
+        joinClause->SelfEquations = std::move(keySelfEquations);
+        joinClause->ForeignEquations = std::move(keyForeignEquations);
+        joinClause->ForeignKeyPrefix = keyPrefix;
+
+        if (!canUseSourceRanges) {
             commonKeyPrefix = 0;
         }
+
+        joinClause->CommonKeyPrefix = commonKeyPrefix;
+
+        LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v, CanUseSourceRanges: %v)",
+                commonKeyPrefix,
+                keyPrefix,
+                canUseSourceRanges);
 
         if (join.Predicate) {
             joinClause->Predicate = BuildPredicate(
@@ -2337,10 +2424,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             schemaProxy,
             foreignSourceProxy);
 
-        query->JoinClauses.push_back(std::move(joinClause));
+        joinClauses.push_back(std::move(joinClause));
     }
 
     PrepareQuery(query, ast, schemaProxy, builder);
+
+    query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
 
     if (auto groupClause = query->GroupClause) {
         auto keyColumns = query->GetKeyColumns();
@@ -2445,10 +2534,7 @@ TQueryPtr PrepareJobQuery(
         THROW_ERROR_EXCEPTION("GROUP BY is not supported in map-reduce queries");
     }
 
-    auto query = New<TQuery>(
-        std::numeric_limits<i64>::max(),
-        std::numeric_limits<i64>::max(),
-        TGuid::Create());
+    auto query = New<TQuery>(TGuid::Create());
     query->OriginalSchema = tableSchema;
 
     TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(

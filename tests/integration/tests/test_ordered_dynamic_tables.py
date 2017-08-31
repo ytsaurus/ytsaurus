@@ -629,6 +629,21 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         copy("//tmp/t", "//tmp/t2")
         reshard_table("//tmp/t", 1)
 
+    def test_copy_trimmed_yt_7422(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 0}])
+        self.sync_flush_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 1)
+        self.sync_freeze_table("//tmp/t")
+        copy("//tmp/t", "//tmp/t2")
+        self.sync_unfreeze_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 1}])
+        self.sync_freeze_table("//tmp/t")
+        assert get("//tmp/t/@tablets/0/flushed_row_count") == 2
+
+
 ##################################################################
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):

@@ -14,12 +14,17 @@ struct IFunctionCodegen
     : public TRefCounted
 {
     virtual TCodegenExpression Profile(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const {
+        return true;
+    }
 
 };
 
@@ -44,17 +49,18 @@ DEFINE_REFCOUNTED_TYPE(IAggregateCodegen)
 struct ICallingConvention
     : public TRefCounted
 {
-    virtual TCodegenExpression MakeCodegenFunctionCall(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
-        std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
+    virtual TCGValue MakeCodegenFunctionCall(
+        TCGBaseContext& baseBuilder,
+        std::vector<TCodegenValue> codegenArguments,
+        std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
         EValueType type,
         const TString& name) const = 0;
 
     virtual llvm::FunctionType* GetCalleeType(
-        TCGExprContext& builder,
+        TCGBaseContext& builder,
         std::vector<EValueType> argumentTypes,
-        EValueType resultType) const = 0;
+        EValueType resultType,
+        bool useFunctionContext) const = 0;
 
 };
 
@@ -64,47 +70,47 @@ class TUnversionedValueCallingConvention
     : public ICallingConvention
 {
 public:
-    TUnversionedValueCallingConvention(int repeatedArgIndex, bool useFunctionContext = false);
+    TUnversionedValueCallingConvention(int repeatedArgIndex);
 
-    virtual TCodegenExpression MakeCodegenFunctionCall(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
-        std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
+    virtual TCGValue MakeCodegenFunctionCall(
+        TCGBaseContext& baseBuilder,
+        std::vector<TCodegenValue> codegenArguments,
+        std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
         EValueType type,
         const TString& name) const override;
 
     virtual llvm::FunctionType* GetCalleeType(
-        TCGExprContext& builder,
+        TCGBaseContext& builder,
         std::vector<EValueType> argumentTypes,
-        EValueType resultType) const override;
+        EValueType resultType,
+        bool useFunctionContext) const override;
 
 private:
     int RepeatedArgIndex_;
-    bool UseFunctionContext_;
 };
 
 class TSimpleCallingConvention
     : public ICallingConvention
 {
 public:
-    virtual TCodegenExpression MakeCodegenFunctionCall(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
-        std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
+    virtual TCGValue MakeCodegenFunctionCall(
+        TCGBaseContext& baseBuilder,
+        std::vector<TCodegenValue> codegenArguments,
+        std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
         EValueType type,
         const TString& name) const override;
 
     virtual llvm::FunctionType* GetCalleeType(
-        TCGExprContext& builder,
+        TCGBaseContext& builder,
         std::vector<EValueType> argumentTypes,
-        EValueType resultType) const override;
+        EValueType resultType,
+        bool useFunctionContext) const override;
 };
 
 ICallingConventionPtr GetCallingConvention(
     ECallingConvention callingConvention,
     int repeatedArgIndex,
-    TType repeatedArgType,
-    bool useFunctionContext);
+    TType repeatedArgType);
 
 ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention);
 
@@ -119,12 +125,14 @@ public:
         const TString& symbolName,
         TSharedRef implementationFile,
         ICallingConventionPtr callingConvention,
-        TSharedRef fingerprint)
+        TSharedRef fingerprint,
+        bool useFunctionContext = false)
         : FunctionName_(functionName)
         , SymbolName_(symbolName)
         , ImplementationFile_(implementationFile)
         , CallingConvention_(callingConvention)
         , Fingerprint_(fingerprint)
+        , UseFunctionContext_(useFunctionContext)
     { }
 
     TExternalFunctionCodegen(
@@ -140,13 +148,15 @@ public:
             functionName,
             symbolName,
             implementationFile,
-            GetCallingConvention(callingConvention, repeatedArgIndex, repeatedArgType, useFunctionContext),
-            fingerprint)
+            GetCallingConvention(callingConvention, repeatedArgIndex, repeatedArgType),
+            fingerprint,
+            useFunctionContext)
     { }
 
     virtual TCodegenExpression Profile(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
@@ -158,6 +168,7 @@ private:
     TSharedRef ImplementationFile_;
     ICallingConventionPtr CallingConvention_;
     TSharedRef Fingerprint_;
+    bool UseFunctionContext_;
 
 };
 

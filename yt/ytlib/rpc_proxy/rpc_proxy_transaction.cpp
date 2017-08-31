@@ -162,6 +162,9 @@ void TRpcProxyTransaction::ModifyRows(
     ToProto(req->mutable_transaction_id(), TransactionId_);
     req->set_path(path);
 
+    req->set_require_sync_replica(options.RequireSyncReplica);
+    ToProto(req->mutable_upstream_replica_id(), options.UpstreamReplicaId);
+
     std::vector<TUnversionedRow> rows;
     rows.reserve(modifications.Size());
     for (auto& modification : modifications) {

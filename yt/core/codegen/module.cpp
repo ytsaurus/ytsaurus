@@ -2,14 +2,12 @@
 #include "private.h"
 #include "init.h"
 #include "routine_registry.h"
+#include "llvm_migrate_helpers.h"
 
 #include <llvm/ADT/Triple.h>
 
-#define LLVM_TEST(major, minor) (\
-    defined(LLVM_VERSION_MAJOR) && LLVM_VERSION_MAJOR == (major) && \
-    defined(LLVM_VERSION_MINOR) && LLVM_VERSION_MINOR == (minor))
-#if !(LLVM_TEST(3, 7) || LLVM_TEST(3, 9))
-#error "LLVM 3.7 or 3.9 is required."
+#if !(LLVM_TEST(3, 7) || LLVM_TEST(3, 9) || LLVM_TEST(4, 0))
+#error "LLVM 3.7 or 3.9 or 4.0 is required."
 #endif
 
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
@@ -331,8 +329,10 @@ private:
     static const char* DiagnosticKindToString(llvm::DiagnosticKind kind)
     {
         switch (kind) {
+#if !(LLVM_TEST(4, 0))
             case llvm::DK_Bitcode:
                 return "DK_Bitcode";
+#endif
             case llvm::DK_InlineAsm:
                 return "DK_InlineAsm";
             case llvm::DK_StackSize:

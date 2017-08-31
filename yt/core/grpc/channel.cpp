@@ -349,12 +349,7 @@ private:
                 TError error;
                 auto serializedError = ResponseFinalMetdata_.Find(ErrorMetadataKey);
                 if (serializedError) {
-                    try {
-                        error = ConvertTo<TError>(TYsonString(TString(serializedError)));
-                    } catch (const std::exception& ex) {
-                        error = TError("Error deserializing response error")
-                            << ex;
-                    }
+                    error = DeserializeError(serializedError);
                 } else {
                     error = TError(NRpc::EErrorCode::TransportError, "GRPC error")
                         << TErrorAttribute("details", TString(ResponseStatusDetails_));

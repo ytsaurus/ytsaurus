@@ -21,97 +21,33 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_TRIVIAL_PROTO_CONVERSIONS(type)                   \
-    inline void ToProto(type* serialized, type original)         \
-    {                                                            \
-        *serialized = original;                                  \
-    }                                                            \
-                                                                 \
-    inline void FromProto(type* original, type serialized)       \
-    {                                                            \
-        *original = serialized;                                  \
-    }
-
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(TString)
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(i8)
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui8)
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(i16)
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui16)
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(i32)
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui32)
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(i64)
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui64)
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(bool)
-
-#undef DEFINE_TRIVIAL_PROTO_CONVERSIONS
+inline void ToProto(::google::protobuf::int64* serialized, TDuration original);
+inline void FromProto(TDuration* original, ::google::protobuf::int64 serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void ToProto(::google::protobuf::int64* serialized, TDuration original)
-{
-    *serialized = original.MicroSeconds();
-}
-
-inline ::google::protobuf::int64 ToProto(TDuration original)
-{
-    return original.MicroSeconds();
-}
-
-inline void FromProto(TDuration* original, ::google::protobuf::int64 serialized)
-{
-    *original = TDuration::MicroSeconds(serialized);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline void ToProto(::google::protobuf::int64* serialized, TInstant original)
-{
-    *serialized = original.MicroSeconds();
-}
-
-inline ::google::protobuf::int64 ToProto(TInstant original)
-{
-    return original.MicroSeconds();
-}
-
-inline void FromProto(TInstant* original, ::google::protobuf::int64 serialized)
-{
-    *original = TInstant::MicroSeconds(serialized);
-}
+inline void ToProto(::google::protobuf::int64* serialized, TInstant original);
+inline void FromProto(TInstant* original, ::google::protobuf::int64 serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type ToProto(
     T* serialized,
-    const T& original)
-{
-    *serialized = original;
-}
-
+    const T& original);
 template <class T>
 typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type FromProto(
     T* original,
-    const T& serialized)
-{
-    *original = serialized;
-}
+    const T& serialized);
 
 template <class T>
 typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type ToProto(
     int* serialized,
-    T original)
-{
-    *serialized = static_cast<int>(original);
-}
-
+    T original);
 template <class T>
 typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type FromProto(
     T* original,
-    int serialized)
-{
-    *original = T(serialized);
-}
+    int serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 

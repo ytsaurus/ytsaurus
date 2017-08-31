@@ -70,17 +70,11 @@ using NYT::ToProto;
 using NYT::FromProto;
 using NYT::TRange;
 
-static const i64 PartitionRowCountThreshold = (i64)1000 * 1000;
+static const i64 PartitionRowCountThreshold = 1000 * 1000;
 static const i64 PartitionRowCountLimit = std::numeric_limits<i32>::max() - PartitionRowCountThreshold;
+static const i64 MinRowRangeDataWeight = 64 * KB;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-const i64 MinRowRangeDataWeight = (i64) 64 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkTimestamps::TChunkTimestamps()
-{ }
 
 TChunkTimestamps::TChunkTimestamps(TTimestamp minTimestamp, TTimestamp maxTimestamp)
     : MinTimestamp(minTimestamp)
@@ -1625,7 +1619,7 @@ private:
                 req->set_update_mode(static_cast<int>(TableUploadOptions_.UpdateMode));
                 req->set_lock_mode(static_cast<int>(TableUploadOptions_.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v", path));
-                req->set_upload_transaction_timeout(ToProto(Config_->UploadTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto<i64>(Config_->UploadTransactionTimeout));
                 SetTransactionId(req, Transaction_);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "begin_upload");

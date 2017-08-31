@@ -19,10 +19,16 @@ public:
             .NonEmpty();
         RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("timestamp_provider_rpc_timeout", TimestampProviderRpcTimeout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("timestamp_provider_update_period", TimestampProviderUpdatePeriod)
+            .Default(TDuration::Seconds(3));
     }
 
     std::vector<TString> Addresses;
     TDuration PingPeriod;
+    TDuration TimestampProviderRpcTimeout;
+    TDuration TimestampProviderUpdatePeriod;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRpcProxyConnectionConfig)

@@ -167,7 +167,7 @@ public:
                 : &TQueryExecutor::DoExecute;
 
             return BIND(execute, MakeStrong(this))
-                .AsyncVia(Connection_->GetHeavyInvoker())
+                .AsyncVia(Connection_->GetInvoker())
                 .Run(
                     std::move(query),
                     std::move(externalCGInfo),
@@ -411,17 +411,21 @@ private:
                 [&] (auto startShardIt, auto endShardIt, auto keysIt) {
                     TRow currentBound = *keysIt;
 
-                    auto* subsource = addSubsource(*startShardIt++);
+                    auto targetTabletInfo = *startShardIt++;
 
                     for (auto it = startShardIt; it != endShardIt; ++it) {
                         const auto& tabletInfo = *it;
                         auto nextBound = rowBuffer->Capture(tabletInfo->PivotKey.Get());
-                        subsource->Ranges = MakeSharedRange(
-                            SmallVector<TRowRange, 1>{TRowRange{currentBound, nextBound}},
-                            rowBuffer,
-                            keys.GetHolder());
 
-                        subsource = addSubsource(tabletInfo);
+                        // Fix case when key is equal to pivot key of tablet.
+                        if (currentBound < nextBound) {
+                            addSubsource(targetTabletInfo)->Ranges = MakeSharedRange(
+                                SmallVector<TRowRange, 1>{TRowRange{currentBound, nextBound}},
+                                rowBuffer,
+                                keys.GetHolder());
+                        }
+
+                        targetTabletInfo = tabletInfo;
                         currentBound = nextBound;
                     }
 
@@ -432,7 +436,7 @@ private:
                     }
                     upperBound[bound.GetCount()] = MakeUnversionedSentinelValue(EValueType::Max);
 
-                    subsource->Ranges = MakeSharedRange(
+                    addSubsource(targetTabletInfo)->Ranges = MakeSharedRange(
                         SmallVector<TRowRange, 1>{TRowRange{currentBound, upperBound}},
                         rowBuffer,
                         keys.GetHolder());
@@ -493,7 +497,7 @@ private:
                     std::move(writer),
                     functionGenerators,
                     aggregateGenerators,
-                    options.EnableCodeCache);
+                    options);
             });
     }
 
@@ -616,6 +620,8 @@ private:
             {
                 NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
                 ToProto(req->mutable_query(), query);
+                req->mutable_query()->set_input_row_limit(options.InputRowLimit);
+                req->mutable_query()->set_output_row_limit(options.OutputRowLimit);
                 ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
                 externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
                 ToProto(req->mutable_options(), options);

@@ -346,13 +346,17 @@ private:
                         foreignExecuteCallback,
                         functionGenerators,
                         aggregateGenerators,
-                        Options_.EnableCodeCache);
+                        Options_);
 
-                asyncStatistics.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TQueryStatistics>& result) -> TErrorOr<TQueryStatistics>{
+                asyncStatistics = asyncStatistics.Apply(BIND([
+                    =,
+                    this_ = MakeStrong(this)
+                ] (const TErrorOr<TQueryStatistics>& result) -> TFuture<TQueryStatistics>
+                {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                         LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
-                        return result;
+                        return MakeFuture(result);
                     } else {
                         TQueryStatistics statistics = result.Value();
 
@@ -364,7 +368,7 @@ private:
                             statistics += subqueryStatistics;
                         }
 
-                        return statistics;
+                        return MakeFuture(statistics);
                     }
                 }));
 
@@ -378,7 +382,7 @@ private:
                     std::move(writer),
                     functionGenerators,
                     aggregateGenerators,
-                    Options_.EnableCodeCache);
+                    Options_);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             });
@@ -786,28 +790,28 @@ private:
                 auto currentBound = lowerBound;
 
                 size_t sampleCount = std::distance(startSampleIt, endSampleIt);
-                size_t savedSampleCount = currentSampleCount;
-                currentSampleCount += sampleCount;
+                size_t nextGroupSampleCount = currentSampleCount + sampleCount;
 
-                YCHECK(nextSampleCount >= savedSampleCount);
+                YCHECK(nextSampleCount >= currentSampleCount);
 
                 auto it = startSampleIt;
-                while (nextSampleCount < currentSampleCount) {
-                    size_t step = nextSampleCount - savedSampleCount;
+                while (nextSampleCount < nextGroupSampleCount) {
+                    size_t step = nextSampleCount - currentSampleCount;
                     it += step;
-                    savedSampleCount += step;
 
                     auto nextBound = rowBuffer->Capture(*it);
                     group.emplace_back(currentBound, nextBound);
                     currentBound = nextBound;
 
                     addGroup();
+                    currentSampleCount += step;
                     incrementSampleIndex();
                 }
 
                 group.emplace_back(currentBound, upperBound);
 
                 addGroup();
+                currentSampleCount = nextGroupSampleCount;
             });
 
         return groupedSplits;

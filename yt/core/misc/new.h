@@ -107,7 +107,7 @@ inline TIntrusivePtr<T> NewWithLocation(
     friend ::NYT::TIntrusivePtr<T> NYT::NDetail::NewImpl( \
         ::NYT::TRefCountedTypeCookie cookie, \
         size_t extraSpaceSize, \
-        As&& ... args) noexcept
+        As&& ... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 

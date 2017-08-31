@@ -63,7 +63,7 @@ public:
         const TExecuteQueryCallback& executeCallback,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
-        bool enableCodeCache)
+        const TQueryBaseOptions& options)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", query->Id);
@@ -90,7 +90,7 @@ public:
                     functionProfilers,
                     aggregateProfilers,
                     statistics,
-                    enableCodeCache);
+                    options.EnableCodeCache);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -99,10 +99,10 @@ public:
                 executionContext.Reader = reader;
                 executionContext.Writer = writer;
                 executionContext.Statistics = &statistics;
-                executionContext.InputRowLimit = query->InputRowLimit;
-                executionContext.OutputRowLimit = query->OutputRowLimit;
-                executionContext.GroupRowLimit = query->OutputRowLimit;
-                executionContext.JoinRowLimit = query->OutputRowLimit;
+                executionContext.InputRowLimit = options.InputRowLimit;
+                executionContext.OutputRowLimit = options.OutputRowLimit;
+                executionContext.GroupRowLimit = options.OutputRowLimit;
+                executionContext.JoinRowLimit = options.OutputRowLimit;
                 executionContext.Limit = query->Limit;
                 executionContext.IsOrdered = query->IsOrdered();
 
@@ -228,7 +228,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     TExecuteQueryCallback executeCallback,
     TConstFunctionProfilerMapPtr functionProfilers,
     TConstAggregateProfilerMapPtr aggregateProfilers,
-    bool enableCodeCache)
+    const TQueryBaseOptions& options)
 {
     return Impl_->Run(
         std::move(query),
@@ -237,7 +237,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
         std::move(executeCallback),
         functionProfilers,
         aggregateProfilers,
-        enableCodeCache);
+        options);
 }
 
 TQueryStatistics TEvaluator::Run(
@@ -246,7 +246,7 @@ TQueryStatistics TEvaluator::Run(
     ISchemafulWriterPtr writer,
     TConstFunctionProfilerMapPtr functionProfilers,
     TConstAggregateProfilerMapPtr aggregateProfilers,
-    bool enableCodeCache)
+    const TQueryBaseOptions& options)
 {
     return RunWithExecutor(
         std::move(query),
@@ -255,7 +255,7 @@ TQueryStatistics TEvaluator::Run(
         nullptr,
         std::move(functionProfilers),
         std::move(aggregateProfilers),
-        enableCodeCache);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

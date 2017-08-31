@@ -642,6 +642,15 @@ class TestAcls(YTEnvSetup):
     def test_no_owner_auth(self):
         with pytest.raises(YtError): get("//tmp", authenticated_user="owner")
 
+    def test_list_with_attr_yt_7165(self):
+        create_user("u")
+        create("map_node", "//tmp/x")
+        set("//tmp/x/@acl", [make_ace("allow", "u", "read", "object_only")])
+        set("//tmp/x/@inherit_acl", False)
+        create("map_node", "//tmp/x/y")
+        set("//tmp/x/y/@attr", "value")
+        assert "attr" not in ls("//tmp/x", attributes=["attr"], authenticated_user="u")[0].attributes
+
 ##################################################################
 
 class TestAclsMulticell(TestAcls):

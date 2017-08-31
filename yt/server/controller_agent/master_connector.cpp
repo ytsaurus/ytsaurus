@@ -456,6 +456,7 @@ private:
             req->set_value(progress.GetData());
             batchReq->AddRequest(req, "update_op_node");
         }
+
         // Set brief progress.
         {
             auto progress = controller->GetBriefProgress();
@@ -500,7 +501,9 @@ private:
             }
         }
 
-        LOG_INFO("Created %v job nodes (OperationId: %v)", jobRequests.size(), operationId);
+        LOG_INFO("Job nodes created (Count: %v, OperationId: %v)",
+            jobRequests.size(),
+            operationId);
     }
 
     void AttachLivePreviewChunks(

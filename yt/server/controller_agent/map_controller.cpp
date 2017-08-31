@@ -183,7 +183,7 @@ protected:
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(joblet, joblet->JobIndex, jobSummary);
+            RegisterOutput(jobSummary.Result, joblet->ChunkListIds);
 
             if (jobSummary.InterruptReason != EInterruptReason::None) {
                 SplitByRowsAndReinstall(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);

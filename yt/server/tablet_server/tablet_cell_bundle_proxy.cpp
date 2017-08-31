@@ -61,6 +61,10 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetPresent(!cellBundle->NodeTagFilter().IsEmpty()));
+        attributes->push_back(TAttributeDescriptor("enable_tablet_balancer")
+            .SetWritable(true)
+            .SetReplicated(true)
+            .SetMandatory(true));
         attributes->push_back("tablet_cell_count");
         attributes->push_back(TAttributeDescriptor("tablet_cell_ids")
             .SetOpaque(true));
@@ -105,6 +109,12 @@ private:
             return true;
         }
 
+        if (key == "enable_tablet_balancer") {
+            BuildYsonFluently(consumer)
+                .Value(cellBundle->GetEnableTabletBalancer());
+            return true;
+        }
+
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
@@ -133,6 +143,11 @@ private:
         if (key == "node_tag_filter") {
             auto formula = ConvertTo<TString>(value);
             cellBundle->NodeTagFilter() = MakeBooleanFormula(formula);
+            return true;
+        }
+
+        if (key == "enable_tablet_balancer") {
+            cellBundle->SetEnableTabletBalancer(ConvertTo<bool>(value));
             return true;
         }
 

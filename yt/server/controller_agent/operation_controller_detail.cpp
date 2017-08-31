@@ -431,6 +431,7 @@ void TOperationControllerBase::InitializeStructures()
             RowCountLimit = rowCountLimit.Get();
         }
 
+        Sinks_.emplace_back(std::make_unique<TSink>(this, OutputTables_.size()));
         OutputTables_.push_back(table);
     }
 
@@ -655,7 +656,7 @@ void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-void TOperationControllerBase::SafeRevive()
+void TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
@@ -1453,7 +1454,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
     UpdateJobStatistics(joblet, *jobSummary);
-    joblet->SendJobMetrics(statistics, true);
+    joblet->SendJobMetrics(*jobSummary, true);
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary, joblet);
@@ -1525,7 +1526,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
         .Item("error").Value(error);
 
-    joblet->SendJobMetrics(*jobSummary->Statistics, true);
+    joblet->SendJobMetrics(*jobSummary, true);
     UpdateJobStatistics(joblet, *jobSummary);
 
     joblet->Task->OnJobFailed(joblet, *jobSummary);
@@ -1578,7 +1579,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
         UpdateJobStatistics(joblet, *jobSummary);
     }
-    joblet->SendJobMetrics(statistics, true);
+    joblet->SendJobMetrics(*jobSummary, true);
 
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
@@ -1618,7 +1619,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
         joblet->StatisticsYson = jobSummary->StatisticsYson;
         ParseStatistics(jobSummary.get());
 
-        joblet->SendJobMetrics(*jobSummary->Statistics, false);
+        joblet->SendJobMetrics(*jobSummary, false);
 
         if (JobSplitter_) {
             JobSplitter_->OnJobRunning(*jobSummary);
@@ -3068,6 +3069,15 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
     }
 }
 
+std::vector<IChunkPoolInput*> TOperationControllerBase::GetSinks()
+{
+    std::vector<IChunkPoolInput*> sinks(Sinks_.size());
+    for (int index = 0; index < Sinks_.size(); ++index) {
+        sinks[index] = Sinks_[index].get();
+    }
+    return sinks;
+}
+
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
 {
     OnOperationFailed(TError("Exception thrown in operation controller that led to operation failure")
@@ -4206,6 +4216,8 @@ void TOperationControllerBase::WriteInputQueryToJobSpec(
 {
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), InputQuery->Query);
+    querySpec->mutable_query()->set_input_row_limit(std::numeric_limits<i64>::max());
+    querySpec->mutable_query()->set_output_row_limit(std::numeric_limits<i64>::max());
     ToProto(querySpec->mutable_external_functions(), InputQuery->ExternalCGInfo->Functions);
 }
 
@@ -4752,6 +4764,13 @@ bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
     return false;
 }
 
+void TOperationControllerBase::AttachToIntermediateLivePreview(TChunkId chunkId)
+{
+    if (IsIntermediateLivePreviewSupported()) {
+        AttachToLivePreview(chunkId, IntermediateTable.LivePreviewTableId);
+    }
+}
+
 void TOperationControllerBase::AttachToLivePreview(TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId)
 {
     MasterConnector->AttachToLivePreview(
@@ -4783,7 +4802,7 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
     if (boundaryKeys.empty()) {
         return;
     }
-    auto key = BuildChunkTreeKeyFromBoundaryKeys(boundaryKeys, *StderrTable_);
+    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, *StderrTable_, RowBuffer);
     StderrTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 
     LOG_DEBUG("Stderr chunk tree registered (ChunkListId: %v)",
@@ -4819,33 +4838,8 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     if (boundaryKeys.empty()) {
         return;
     }
-    auto key = BuildChunkTreeKeyFromBoundaryKeys(boundaryKeys, *CoreTable_);
+    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, *CoreTable_, RowBuffer);
     CoreTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
-}
-
-TOutputChunkTreeKey TOperationControllerBase::BuildChunkTreeKeyFromBoundaryKeys(
-    const TOutputResult& boundaryKeys,
-    const TOutputTable& outputTable)
-{
-    YCHECK(!boundaryKeys.empty());
-    YCHECK(boundaryKeys.sorted());
-    YCHECK(!outputTable.Options->ValidateUniqueKeys || boundaryKeys.unique_keys());
-
-    auto trimAndCaptureKey = [&] (const TOwningKey& key) {
-        int limit = outputTable.TableUploadOptions.TableSchema.GetKeyColumnCount();
-        if (key.GetCount() > limit) {
-            // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
-            YCHECK(!outputTable.Options->ValidateUniqueKeys);
-            return RowBuffer->Capture(key.Begin(), limit);
-        } else {
-            return RowBuffer->Capture(key.Begin(), key.GetCount());
-        }
-    };
-
-    return TBoundaryKeys {
-        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.min())),
-        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.max())),
-    };
 }
 
 const TTransactionId& TOperationControllerBase::GetTransactionIdForOutputTable(const TOutputTable& table)
@@ -4864,7 +4858,7 @@ const TTransactionId& TOperationControllerBase::GetTransactionIdForOutputTable(c
 
 void TOperationControllerBase::RegisterTeleportChunk(
     TInputChunkPtr chunkSpec,
-    TOutputChunkTreeKey key,
+    TChunkStripeKey key,
     int tableIndex)
 {
     auto& table = OutputTables_[tableIndex];
@@ -4881,7 +4875,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
         ToProto(resultBoundaryKeys.mutable_min(), chunkSpec->BoundaryKeys()->MinKey);
         ToProto(resultBoundaryKeys.mutable_max(), chunkSpec->BoundaryKeys()->MaxKey);
 
-        key = BuildChunkTreeKeyFromBoundaryKeys(resultBoundaryKeys, table);
+        key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, table, RowBuffer);
     }
 
     table.OutputChunkTreeIds.emplace_back(key, chunkSpec->ChunkId());
@@ -4894,50 +4888,6 @@ void TOperationControllerBase::RegisterTeleportChunk(
         tableIndex,
         chunkSpec->ChunkId(),
         key);
-}
-
-void TOperationControllerBase::RegisterOutput(
-    const TJobletPtr& joblet,
-    const TOutputChunkTreeKey& key,
-    const TCompletedJobSummary& jobSummary)
-{
-    RegisterOutput(joblet->ChunkListIds, key, jobSummary);
-}
-
-void TOperationControllerBase::RegisterOutput(
-    const std::vector<TChunkListId>& chunkListIds,
-    TOutputChunkTreeKey key,
-    const TCompletedJobSummary& jobSummary)
-{
-    const auto& result = jobSummary.Result;
-    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-    for (int tableIndex = 0; tableIndex < OutputTables_.size(); ++tableIndex) {
-        if (!chunkListIds[tableIndex]) {
-            continue;
-        }
-        auto& table = OutputTables_[tableIndex];
-
-        auto currentKey = key;
-        if (table.TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput() && !jobSummary.Abandoned) {
-            YCHECK(tableIndex < schedulerResultExt.output_boundary_keys_size());
-            const auto& boundaryKeys = schedulerResultExt.output_boundary_keys(tableIndex);
-            if (boundaryKeys.empty()) {
-                continue;
-            }
-            currentKey = BuildChunkTreeKeyFromBoundaryKeys(boundaryKeys, table);
-        }
-
-        if (IsOutputLivePreviewSupported()) {
-            AttachToLivePreview(chunkListIds[tableIndex], table.LivePreviewTableId);
-        }
-        table.OutputChunkTreeIds.emplace_back(currentKey, chunkListIds[tableIndex]);
-
-        LOG_DEBUG("Output chunk tree registered (Table: %v, ChunkId: %v, Key: %v)",
-            tableIndex,
-            chunkListIds[tableIndex],
-            key);
-    }
 }
 
 void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe, const TTaskPtr& task)
@@ -4979,23 +4929,23 @@ void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe
     }
 }
 
-void TOperationControllerBase::RegisterIntermediate(
-    const TJobletPtr& joblet,
+void TOperationControllerBase::RegisterRecoveryInfo(
     const TCompletedJobPtr& completedJob,
-    const TChunkStripePtr& stripe,
-    bool attachToLivePreview)
+    const TChunkStripePtr& stripe)
 {
+    YCHECK(!stripe->DataSlices.empty());
     for (const auto& dataSlice : stripe->DataSlices) {
         // NB: intermediate slice must be trivial.
         const auto& chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
-        YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
-
-        if (attachToLivePreview && IsIntermediateLivePreviewSupported()) {
-            AttachToLivePreview(chunkId, IntermediateTable.LivePreviewTableId);
-        }
+        YCHECK(ChunkOriginMap.emplace(chunkId, completedJob).second);
     }
 
     IntermediateChunkScraper->Restart();
+}
+
+TRowBufferPtr TOperationControllerBase::GetRowBuffer()
+{
+    return RowBuffer;
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable)
@@ -5080,7 +5030,6 @@ void TOperationControllerBase::BuildSpec(IYsonConsumer* consumer) const
 
     Serialize(Spec_, consumer);
 }
-
 
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
 {
@@ -5631,6 +5580,10 @@ void TOperationControllerBase::InitUserJobSpec(
         }
     }
 
+    if (StderrCount_ >= Spec_->MaxStderrCount) {
+        jobSpec->set_upload_stderr_if_completed(false);
+    }
+
     if (joblet->StderrTableChunkListId) {
         AddStderrOutputSpecs(jobSpec, joblet);
     }
@@ -6006,52 +5959,29 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputRowCount);
     Persist(context, TotalEstimatedInputCompressedDataSize);
     Persist(context, TotalEstimatedInputDataWeight);
-
     Persist(context, UnavailableInputChunkCount);
-
     Persist(context, JobCounter);
-
     Persist(context, InputNodeDirectory_);
-
     Persist(context, InputTables);
-
     Persist(context, OutputTables_);
-
     Persist(context, StderrTable_);
-
     Persist(context, CoreTable_);
-
     Persist(context, IntermediateTable);
-
     Persist(context, Files);
-
     Persist(context, Tasks);
-
     Persist(context, TaskGroups);
-
     Persist(context, InputChunkMap);
-
     Persist(context, IntermediateOutputCellTag);
-
     Persist(context, CellTagToOutputRequiredChunkList);
-
     Persist(context, CachedPendingJobCount);
-
     Persist(context, CachedNeededResources);
-
     Persist(context, ChunkOriginMap);
-
     Persist(context, JobletMap);
-
     Persist(context, JobIndexGenerator);
-
     Persist(context, JobStatistics);
-
     Persist(context, ScheduleJobStatistics_);
-
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);
-
     Persist<
         TMapSerializer<
             TDefaultSerializer,
@@ -6059,7 +5989,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
             TUnsortedTag
         >
     >(context, JobProxyMemoryDigests_);
-
     Persist<
         TMapSerializer<
             TDefaultSerializer,
@@ -6067,10 +5996,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
             TUnsortedTag
         >
     >(context, UserJobMemoryDigests_);
-
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
-
     Persist(context, CurrentInputDataSliceTag_);
 
     if (context.IsLoad()) {
@@ -6083,6 +6010,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrCount_);
     Persist(context, JobNodeCount_);
     Persist(context, FinishedJobs_);
+    Persist(context, Sinks_);
 }
 
 TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
@@ -6109,6 +6037,64 @@ TNullable<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
     return Null;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationControllerBase::TSink::TSink(TOperationControllerBase* controller, int outputTableIndex)
+    : Controller_(controller)
+    , OutputTableIndex_(outputTableIndex)
+{ }
+
+IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr stripe, TChunkStripeKey key)
+{
+    YCHECK(stripe->ChunkListId);
+    auto& table = Controller_->OutputTables_[OutputTableIndex_];
+    auto chunkListId = stripe->ChunkListId;
+
+    if (table.TableUploadOptions.TableSchema.IsSorted() && Controller_->ShouldVerifySortedOutput()) {
+        // We override the key suggested by the task with the one formed by the stripe boundary keys.
+        YCHECK(stripe->BoundaryKeys);
+        key = stripe->BoundaryKeys;
+    }
+
+    if (Controller_->IsOutputLivePreviewSupported()) {
+        Controller_->AttachToLivePreview(chunkListId, table.LivePreviewTableId);
+    }
+    table.OutputChunkTreeIds.emplace_back(key, chunkListId);
+
+    const auto& Logger = Controller_->Logger;
+    LOG_DEBUG("Output stripe registered (Table: %v, ChunkListId: %v, Key: %v)",
+        OutputTableIndex_,
+        chunkListId,
+        key);
+
+    return IChunkPoolInput::NullCookie;
+}
+
+void TOperationControllerBase::TSink::Suspend(TCookie cookie)
+{
+    Y_UNREACHABLE();
+}
+
+void TOperationControllerBase::TSink::Resume(TCookie cookie, TChunkStripePtr stripe)
+{
+    Y_UNREACHABLE();
+}
+
+void TOperationControllerBase::TSink::Finish()
+{
+    Y_UNREACHABLE();
+}
+
+void TOperationControllerBase::TSink::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Controller_);
+    Persist(context, OutputTableIndex_);
+}
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationControllerBase::TSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 

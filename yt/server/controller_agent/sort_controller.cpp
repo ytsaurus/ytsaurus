@@ -1,6 +1,7 @@
 #include "sort_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
+#include "chunk_pool_adapters.h"
 #include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
@@ -129,6 +130,7 @@ public:
 
         Persist(context, PartitionPool);
         Persist(context, ShufflePool);
+        Persist(context, ShufflePoolInput);
         Persist(context, SimpleSortPool);
 
         Persist(context, PartitionTaskGroup);
@@ -308,6 +310,7 @@ protected:
 
     std::unique_ptr<IChunkPool> PartitionPool;
     std::unique_ptr<IShuffleChunkPool> ShufflePool;
+    std::unique_ptr<IChunkPoolInput> ShufflePoolInput;
     std::unique_ptr<IChunkPool> SimpleSortPool;
 
     TTaskGroupPtr PartitionTaskGroup;
@@ -492,10 +495,9 @@ protected:
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
 
             RegisterIntermediate(
-                joblet,
                 stripe,
-                Controller->ShufflePool->GetInput(),
-                true);
+                Controller->ShufflePoolInput.get(),
+                joblet);
 
             // Kick-start sort and unordered merge tasks.
             // Compute sort data size delta.
@@ -789,15 +791,16 @@ protected:
                 }
 
                 RegisterIntermediate(
-                    joblet,
                     stripe,
-                    Partition->SortedMergeTask,
-                    false);
+                    Partition->SortedMergeTask->GetChunkPoolInput(),
+                    joblet);
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
 
-                // Sort outputs in small partitions go directly to the output.
-                RegisterOutput(joblet, Partition->Index, jobSummary);
+                Controller->AccountRows(jobSummary.Statistics);
+
+                RegisterOutput(jobSummary.Result, joblet->ChunkListIds);
+
                 Controller->OnPartitionCompleted(Partition);
             }
 
@@ -1019,6 +1022,7 @@ protected:
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
             , ChunkPool_(controller->CreateSortedMergeChunkPool())
+            , ChunkPoolInput_(CreateHintAddingAdapter(ChunkPool_.get(), this))
         {
             SetupCallbacks();
         }
@@ -1051,7 +1055,7 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ChunkPool_.get();
+            return ChunkPoolInput_.get();
         }
 
         virtual void Persist(const TPersistenceContext& context) override
@@ -1060,6 +1064,7 @@ protected:
 
             using NYT::Persist;
             Persist(context, ChunkPool_);
+            Persist(context, ChunkPoolInput_);
             Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, ActiveJoblets_);
             Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, InvalidatedJoblets_);
             Persist(context, JobOutputs_);
@@ -1105,6 +1110,7 @@ protected:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
         std::unique_ptr<IChunkPool> ChunkPool_;
+        std::unique_ptr<IChunkPoolInput> ChunkPoolInput_;
 
         yhash_set<TJobletPtr> ActiveJoblets_;
         yhash_set<TJobletPtr> InvalidatedJoblets_;
@@ -1157,7 +1163,8 @@ protected:
         void RegisterAllOutputs()
         {
             for (auto& jobOutput : JobOutputs_) {
-                Controller->RegisterOutput(jobOutput.ChunkListIds, jobOutput.PartitionIndex, jobOutput.JobSummary);
+                Controller->AccountRows(jobOutput.JobSummary.Statistics);
+                RegisterOutput(jobOutput.JobSummary.Result, jobOutput.ChunkListIds);
             }
         }
 
@@ -1335,7 +1342,9 @@ protected:
             TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->UnorderedMergeJobCounter.Completed(1);
-            RegisterOutput(joblet, Partition->Index, jobSummary);
+
+            Controller->AccountRows(jobSummary.Statistics);
+            RegisterOutput(jobSummary.Result, joblet->ChunkListIds);
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -1499,6 +1508,8 @@ protected:
         ShufflePool = CreateShuffleChunkPool(
             static_cast<int>(Partitions.size()),
             Spec->DataWeightPerShuffleJob);
+
+        ShufflePoolInput = CreateIntermediateLivePreviewAdapter(ShufflePool->GetInput(), this);
 
         for (auto partition : Partitions) {
             partition->ChunkPoolOutput = ShufflePool->GetOutput(partition->Index);
@@ -1897,16 +1908,6 @@ protected:
         Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
     }
 
-    virtual void RegisterOutput(
-        const std::vector<TChunkListId>& chunkListIds,
-        TOutputChunkTreeKey key,
-        const TCompletedJobSummary& jobSummary) override
-    {
-        YCHECK(jobSummary.Statistics);
-        TotalOutputRowCount += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
-        TOperationControllerBase::RegisterOutput(chunkListIds, key, jobSummary);
-    }
-
     void InitJobIOConfigs()
     {
         PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
@@ -1968,6 +1969,12 @@ protected:
                 GetOutputTablePaths().size());
             return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
         }
+    }
+
+    void AccountRows(const TNullable<NJobTrackerClient::TStatistics>& statistics)
+    {
+        YCHECK(statistics);
+        TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
     }
 
     virtual EJobType GetPartitionJobType() const = 0;

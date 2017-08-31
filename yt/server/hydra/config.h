@@ -318,7 +318,7 @@ public:
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("automaton_thread_log_batching_period", AutomatonThreadLogBatchingPeriod)
-            .Default(TDuration::Zero());
+            .Default(TDuration::MilliSeconds(100));
 
         RegisterValidator([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {

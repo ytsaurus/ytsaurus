@@ -5,6 +5,8 @@
 #include "user_job_synchronizer.h"
 #include "private.h"
 
+#include <yt/server/exec_agent/public.h>
+
 #include <yt/server/shell/shell_manager.h>
 
 #include <yt/core/bus/config.h>
@@ -62,6 +64,7 @@ using NYTree::INodePtr;
 using NJobTrackerClient::TJobId;
 using NYson::TYsonString;
 using NJobProberClient::IJobProbe;
+using NExecAgent::EJobEnvironmentType;
 
 static const NLogging::TLogger JobSatelliteLogger("JobSatellite");
 static const auto& Logger = JobSatelliteLogger;
@@ -133,7 +136,7 @@ public:
         pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
-        bool useContainer);
+        EJobEnvironmentType environmentType);
 
     TYsonString StraceJob();
     void SignalJob(const TString& signalName);
@@ -153,7 +156,7 @@ private:
     TJobProbeTools(pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
-        bool useContainer);
+        EJobEnvironmentType environmentType);
     void Init(const TJobId& jobId);
 
     DECLARE_NEW_FRIEND();
@@ -167,17 +170,22 @@ TJobProbeTools::TJobProbeTools(
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
-    bool useContainer)
-    : UseCGroup_(!useContainer)
+    EJobEnvironmentType environmentType)
+    : UseCGroup_(environmentType == EJobEnvironmentType::Cgroups)
     , RootPid_(rootPid)
     , Uid_(uid)
     , Environment_(env)
     , AuxQueue_(New<TActionQueue>("JobAux"))
 { }
 
-TJobProbeToolsPtr TJobProbeTools::Create(const TJobId& jobId, pid_t rootPid, int uid, const std::vector<TString>& env, bool useContainer)
+TJobProbeToolsPtr TJobProbeTools::Create(
+    const TJobId& jobId,
+    pid_t rootPid,
+    int uid,
+    const std::vector<TString>& env,
+    EJobEnvironmentType environmentType)
 {
-    auto tools = New<TJobProbeTools>(rootPid, uid, env, useContainer);
+    auto tools = New<TJobProbeTools>(rootPid, uid, env, environmentType);
     try {
         tools->Init(jobId);
     } catch (const std::exception& ex) {
@@ -220,9 +228,11 @@ void TJobProbeTools::Init(const TJobId& jobId)
 
 TJobProbeTools::~TJobProbeTools()
 {
-    BIND(&IShellManager::Terminate, ShellManager_, TError())
-        .Via(AuxQueue_->GetInvoker())
-        .Run();
+    if (ShellManager_) {
+        BIND(&IShellManager::Terminate, ShellManager_, TError())
+            .Via(AuxQueue_->GetInvoker())
+            .Run();
+    }
 }
 
 TYsonString TJobProbeTools::StraceJob()
@@ -305,7 +315,7 @@ public:
         int uid,
         const std::vector<TString>& env,
         const TJobId& jobId,
-        bool useContainer);
+        EJobEnvironmentType environmentType);
     void GracefulShutdown(const TError& error);
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
@@ -321,7 +331,7 @@ private:
     const int Uid_;
     const std::vector<TString> Env_;
     const TJobId JobId_;
-    const bool UseContainer_;
+    const EJobEnvironmentType EnvironmentType_;
 
     const NLogging::TLogger Logger;
 
@@ -335,12 +345,12 @@ TJobSatelliteWorker::TJobSatelliteWorker(
     int uid,
     const std::vector<TString>& env,
     const TJobId& jobId,
-    bool useContainer)
+    EJobEnvironmentType environmentType)
     : RootPid_(rootPid)
     , Uid_(uid)
     , Env_(env)
     , JobId_(jobId)
-    , UseContainer_(useContainer)
+    , EnvironmentType_(environmentType)
     , Logger(NLogging::TLogger(JobSatelliteLogger)
         .AddTag("JobId: %v", JobId_))
 {
@@ -351,7 +361,7 @@ TJobSatelliteWorker::TJobSatelliteWorker(
 void TJobSatelliteWorker::EnsureJobProbe()
 {
     if (!JobProbe_) {
-        JobProbe_ = TJobProbeTools::Create(JobId_, RootPid_, Uid_, Env_, UseContainer_);
+        JobProbe_ = TJobProbeTools::Create(JobId_, RootPid_, Uid_, Env_, EnvironmentType_);
     }
 }
 
@@ -458,7 +468,7 @@ void TJobSatellite::Run()
         Uid_,
         Env_,
         JobId_,
-        SatelliteConnectionConfig_->UseContainer
+        SatelliteConnectionConfig_->EnvironmentType
     );
 
     RpcServer_->RegisterService(CreateJobProberService(jobSatelliteService, JobSatelliteMainThread_->GetInvoker()));
