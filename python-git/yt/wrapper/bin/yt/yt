@@ -934,8 +934,7 @@ def add_run_job_shell_parser(add_parser):
 def add_abort_job_parser(add_parser):
     parser = add_parser("abort-job", yt.abort_job)
     parser.add_argument("job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
-    parser.add_argument("--timeout", type=int, help="try to interrupt job before abort during timeout, "
-                                                    "by default 10000 milliseconds")
+    parser.add_argument("--interrupt-timeout", type=int, help="try to interrupt job before abort during timeout (in ms)")
 
 @copy_docstring_from(yt.get_job_stderr)
 def get_job_stderr(**args):
