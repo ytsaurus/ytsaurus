@@ -11,6 +11,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSourceLocation;
+
 class TRefCountedBase;
 
 template <bool EnableWeak>
@@ -37,6 +39,32 @@ using TRefCountedTypeCookie = int;
 const int NullRefCountedTypeCookie = -1;
 
 using TRefCountedTypeKey = const void*;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Used to avoid including heavy ref_counted_tracker.h
+class TRefCountedTrackerFacade
+{
+public:
+    static TRefCountedTypeCookie GetCookie(
+        TRefCountedTypeKey typeKey,
+        size_t instanceSize,
+        const NYT::TSourceLocation& location);
+
+    static void AllocateInstance(TRefCountedTypeCookie cookie);
+    static void FreeInstance(TRefCountedTypeCookie cookie);
+
+    static void AllocateTagInstance(TRefCountedTypeCookie cookie);
+    static void FreeTagInstance(TRefCountedTypeCookie cookie);
+
+    static void AllocateSpace(TRefCountedTypeCookie cookie, size_t size);
+    static void FreeSpace(TRefCountedTypeCookie cookie, size_t size);
+    static void ReallocateSpace(TRefCountedTypeCookie cookie, size_t freedSize, size_t allocatedSize);
+
+    // Typically invoked from GDB console.
+    // Dumps the ref-counted statistics sorted by "bytes alive".
+    static void Dump();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -231,26 +259,6 @@ public:
 private:
     mutable NDetail::TRefCounter<EnableWeak> RefCounter_;
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Used to avoid including heavy ref_counted_tracker.h
-struct TRefCountedTrackerFacade
-{
-    static void AllocateInstance(TRefCountedTypeCookie cookie);
-    static void FreeInstance(TRefCountedTypeCookie cookie);
-
-    static void AllocateTagInstance(TRefCountedTypeCookie cookie);
-    static void FreeTagInstance(TRefCountedTypeCookie cookie);
-
-    static void AllocateSpace(TRefCountedTypeCookie cookie, size_t size);
-    static void FreeSpace(TRefCountedTypeCookie cookie, size_t size);
-    static void ReallocateSpace(TRefCountedTypeCookie cookie, size_t freedSize, size_t allocatedSize);
-
-    // Typically invoked from GDB console.
-    // Dumps the ref-counted statistics sorted by "bytes alive".
-    static void Dump();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -340,15 +340,21 @@ TRefCountedProto<TProto>::~TRefCountedProto()
 template <class TProto>
 void TRefCountedProto<TProto>::RegisterExtraSpace()
 {
+    auto spaceUsed = TProto::SpaceUsed();
+    Y_ASSERT(spaceUsed >= sizeof(TProto));
     Y_ASSERT(ExtraSpace_ == 0);
     ExtraSpace_ = TProto::SpaceUsed() - sizeof (TProto);
-    TRefCountedTrackerFacade::AllocateSpace(TypeCookie_, ExtraSpace_);
+    auto cookie = GetRefCountedTypeCookie<TRefCountedProtoTag<TProto>>();
+    TRefCountedTrackerFacade::AllocateSpace(cookie, ExtraSpace_);
 }
 
 template <class TProto>
 void TRefCountedProto<TProto>::UnregisterExtraSpace()
 {
-    TRefCountedTrackerFacade::FreeSpace(TypeCookie_, ExtraSpace_);
+	if (ExtraSpace_ != 0) {
+        auto cookie = GetRefCountedTypeCookie<TRefCountedProtoTag<TProto>>();
+        TRefCountedTrackerFacade::FreeSpace(cookie, ExtraSpace_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

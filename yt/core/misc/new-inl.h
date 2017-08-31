@@ -21,17 +21,12 @@ TRefCountedTypeKey GetRefCountedTypeKey()
     return &typeid(T);
 }
 
-TRefCountedTypeCookie GetRefCountedTypeCookie(
-    TRefCountedTypeKey typeKey,
-    size_t instanceSize,
-    const TSourceLocation& location);
-
 template <class T>
 Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 {
     static auto cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
-        cookie = GetRefCountedTypeCookie(
+        cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),
             sizeof(T),
             NYT::TSourceLocation());
@@ -44,7 +39,7 @@ Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const T
 {
     static auto cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
-        cookie = GetRefCountedTypeCookie(
+        cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),
             sizeof(T),
             location);

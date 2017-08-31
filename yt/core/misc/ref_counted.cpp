@@ -5,6 +5,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRefCountedTypeCookie TRefCountedTrackerFacade::GetCookie(
+    TRefCountedTypeKey typeKey,
+    size_t instanceSize,
+    const TSourceLocation& location)
+{
+    return TRefCountedTracker::Get()->GetCookie(
+        typeKey,
+        instanceSize,
+        location);
+}
+
 void TRefCountedTrackerFacade::AllocateInstance(TRefCountedTypeCookie cookie)
 {
     TRefCountedTracker::Get()->AllocateInstance(cookie);
