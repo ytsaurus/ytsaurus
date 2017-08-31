@@ -22,7 +22,7 @@ public:
         TExecuteQueryCallback executeCallback,
         TConstFunctionProfilerMapPtr functionProfilers,
         TConstAggregateProfilerMapPtr aggregateProfilers,
-        bool enableCodeCache);
+        const TQueryBaseOptions& options);
 
     TQueryStatistics Run(
         TConstBaseQueryPtr fragment,
@@ -30,7 +30,7 @@ public:
         ISchemafulWriterPtr writer,
         TConstFunctionProfilerMapPtr functionProfilers,
         TConstAggregateProfilerMapPtr aggregateProfilers,
-        bool enableCodeCache);
+        const TQueryBaseOptions& options);
 
 private:
     class TImpl;

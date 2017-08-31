@@ -50,6 +50,8 @@ TReadTableCommand::TReadTableCommand()
         .DefaultNew();
     RegisterParameter("unordered", Unordered)
         .Default(false);
+    RegisterParameter("start_row_index_only", StartRowIndexOnly)
+        .Default(false);
 }
 
 void TReadTableCommand::OnLoaded()
@@ -61,13 +63,20 @@ void TReadTableCommand::OnLoaded()
 
 void TReadTableCommand::DoExecute(ICommandContextPtr context)
 {
-    LOG_DEBUG("Executing \"read_table\" command (Path: %v)",
-        Path);
+    LOG_DEBUG("Executing \"read_table\" command (Path: %v, Unordered: %v, StartRowIndexOnly: %v)",
+        Path,
+        Unordered,
+        StartRowIndexOnly);
 
     Options.Ping = true;
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->TableReader,
         TableReader);
+
+    if (StartRowIndexOnly) {
+        Options.Config->WindowSize = 1;
+        Options.Config->GroupSize = 1;
+    }
 
     auto reader = WaitFor(context->GetClient()->CreateTableReader(
         Path,
@@ -81,6 +90,10 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
     } else {
         BuildYsonMapFluently(context->Request().ResponseParametersConsumer)
             .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+    }
+
+    if (StartRowIndexOnly) {
+        return;
     }
 
     auto writer = CreateSchemalessWriterForFormat(

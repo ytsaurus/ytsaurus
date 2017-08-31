@@ -234,7 +234,9 @@ private:
         virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
             TTask::OnJobCompleted(joblet, jobSummary);
-            RegisterOutput(joblet, Index_, jobSummary);
+
+            auto stripe = New<TChunkStripe>(joblet->ChunkListIds[0 /* tableIndex */]);
+            DestinationPoolInputs_[0 /* tableIndex */]->Add(std::move(stripe), Index_);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override

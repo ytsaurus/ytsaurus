@@ -51,7 +51,7 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     auto req = proxy.StartTransaction();
     req->set_type(NProto::ETransactionType(type));
     if (options.Timeout) {
-        req->set_timeout(NYT::ToProto(*options.Timeout));
+        req->set_timeout(NYT::ToProto<i64>(*options.Timeout));
     }
     if (options.Id) {
         ToProto(req->mutable_id(), options.Id);

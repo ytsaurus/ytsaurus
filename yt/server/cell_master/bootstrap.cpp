@@ -572,7 +572,6 @@ void TBootstrap::DoInitialize()
         "/config",
         ConfigNode_);
 
-    // TODO(ignat): does this registration still necessary?
     HttpServer_->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));

@@ -518,6 +518,7 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     proto->set_is_left(original->IsLeft);
     proto->set_can_use_source_ranges(original->CanUseSourceRanges);
     proto->set_common_key_prefix(original->CommonKeyPrefix);
+    proto->set_foreign_key_prefix(original->ForeignKeyPrefix);
 
     if (original->Predicate) {
         ToProto(proto->mutable_predicate(), original->Predicate);
@@ -537,6 +538,7 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->IsLeft, serialized.is_left());
     FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
     FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix());
+    FromProto(&result->ForeignKeyPrefix, serialized.foreign_key_prefix());
 
     if (serialized.has_predicate()) {
         FromProto(&result->Predicate, serialized.predicate());
@@ -613,9 +615,6 @@ void FromProto(TConstOrderClausePtr* original, const NProto::TOrderClause& seria
 
 void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
 {
-    serialized->set_input_row_limit(original->InputRowLimit);
-    serialized->set_output_row_limit(original->OutputRowLimit);
-
     ToProto(serialized->mutable_id(), original->Id);
 
     serialized->set_limit(original->Limit);
@@ -651,10 +650,7 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
 
 void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 {
-    auto result = New<TQuery>(
-        serialized.input_row_limit(),
-        serialized.output_row_limit(),
-        FromProto<TGuid>(serialized.id()));
+    auto result = New<TQuery>(FromProto<TGuid>(serialized.id()));
 
     result->Limit = serialized.limit();
     result->UseDisjointGroupBy = serialized.use_disjoint_group_by();

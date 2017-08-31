@@ -3,6 +3,7 @@
 #include "functions.h"
 #include "functions_cg.h"
 #include "query_helpers.h"
+#include "llvm_folding_set.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -68,6 +69,7 @@ protected:
     void Fold(int numeric);
     void Fold(size_t numeric);
     void Fold(const char* str);
+    void Fold(const llvm::FoldingSetNodeID& id);
 
     llvm::FoldingSetNodeID* Id_;
 
@@ -94,6 +96,13 @@ void TSchemaProfiler::Fold(const char* str)
     }
 }
 
+void TSchemaProfiler::Fold(const llvm::FoldingSetNodeID& id)
+{
+    if (Id_) {
+        Id_->AddNodeID(id);
+    }
+}
+
 void TSchemaProfiler::Profile(const TTableSchema& tableSchema)
 {
     const auto& columns = tableSchema.Columns();
@@ -115,6 +124,182 @@ void TSchemaProfiler::Profile(const TTableSchema& tableSchema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDebugInfo
+{
+    TConstExpressionPtr Expr;
+    std::vector<size_t> Args;
+
+    TDebugInfo(const TConstExpressionPtr& expr, const std::vector<size_t>& args)
+        : Expr(expr)
+        , Args(args)
+    { }
+
+};
+
+TString InferName(
+    size_t id,
+    const std::vector<TDebugInfo>& debugExpressions,
+    const std::vector<TCodegenFragmentInfo>& expressions);
+
+TString InferNameArg(
+    size_t id,
+    const std::vector<TDebugInfo>& debugExpressions,
+    const std::vector<TCodegenFragmentInfo>& expressions)
+{
+    if (expressions[id].IsOutOfLine()) {
+        return Format("$%v", id);
+    }
+
+    return InferName(id, debugExpressions, expressions);
+}
+
+TString InferName(
+    size_t id,
+    const std::vector<TDebugInfo>& debugExpressions,
+    const std::vector<TCodegenFragmentInfo>& expressions)
+{
+    const auto& expr = debugExpressions[id].Expr;
+    const auto& args = debugExpressions[id].Args;
+
+    bool newTuple = true;
+    auto comma = [&] {
+        bool isNewTuple = newTuple;
+        newTuple = false;
+        return TString(isNewTuple ? "" : ", ");
+    };
+    auto canOmitParenthesis = [&] (size_t id) {
+        const auto& expr = debugExpressions[id].Expr;
+        return
+            expr->As<TLiteralExpression>() ||
+            expr->As<TReferenceExpression>() ||
+            expr->As<TFunctionExpression>();
+    };
+
+    if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        return ToString(static_cast<TValue>(literalExpr->Value));
+    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+        auto columnName = referenceExpr->ColumnName;
+        if (columnName.size() > 40) {
+            columnName.resize(40);
+            columnName.Transform([] (size_t index, char c) {
+                if (c == '(' || c == ')') {
+                    return '_';
+                }
+                return c;
+            });
+
+            return Format("[%x%v]", FarmFingerprint(columnName.data(), columnName.size()), columnName);
+        }
+
+        return Format("[%v]", columnName);
+    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+        auto str = functionExpr->FunctionName + "(";
+        for (const auto& argument : args) {
+            str += comma() + InferNameArg(argument, debugExpressions, expressions);
+        }
+        return str + ")";
+    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
+        auto rhsName = InferNameArg(args[0], debugExpressions, expressions);
+        if (!canOmitParenthesis(args[0])) {
+            rhsName = "(" + rhsName + ")";
+        }
+        return TString() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
+    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
+        auto lhsName = InferNameArg(args[0], debugExpressions, expressions);
+        if (!canOmitParenthesis(args[0])) {
+            lhsName = "(" + lhsName + ")";
+        }
+        auto rhsName = InferNameArg(args[1], debugExpressions, expressions);
+        if (!canOmitParenthesis(args[1])) {
+            rhsName = "(" + rhsName + ")";
+        }
+        return
+            lhsName +
+            " " + GetBinaryOpcodeLexeme(binaryOp->Opcode) + " " +
+            rhsName;
+    } else if (auto inOp = expr->As<TInOpExpression>()) {
+        TString str;
+        for (const auto& argument : args) {
+            str += comma() + InferNameArg(argument, debugExpressions, expressions);
+        }
+        if (inOp->Arguments.size() > 1) {
+            str = "(" + str + ")";
+        }
+        str += " IN (";
+        newTuple = true;
+        for (const auto& row : inOp->Values) {
+            str += comma() + ToString(row);
+        }
+        return str + ")";
+    } else {
+        Y_UNREACHABLE();
+    }
+}
+
+static bool IsDumpExprsEnabled()
+{
+    static bool result = (getenv("DUMP_EXPRS") != nullptr);
+    return result;
+}
+
+struct TExpressionFragments
+{
+    std::vector<TCodegenFragmentInfo> Items;
+    yhash<llvm::FoldingSetNodeID, size_t> Fingerprints;
+    std::vector<TDebugInfo> DebugInfos;
+
+    TCodegenFragmentInfosPtr ToFragmentInfos(const TString& namePrefix)
+    {
+        if (IsDumpExprsEnabled()) {
+            Cerr << "\n" << namePrefix << "\n";
+        }
+
+        auto result = New<TCodegenFragmentInfos>();
+        result->Items.assign(Items.begin(), Items.end());
+        result->NamePrefix = namePrefix;
+
+        size_t functionCount = 0;
+        for (size_t id = 0; id < result->Items.size(); ++id) {
+            if (result->Items[id].IsOutOfLine()) {
+                result->Items[id].Index = functionCount++;
+
+                if (IsDumpExprsEnabled()) {
+                    Cerr << Format(
+                        "$%v %v:= %v\n",
+                        id,
+                        result->Items[id].Nullable ? "nullable " : "",
+                        InferName(id, DebugInfos, Items));
+                }
+            }
+        }
+
+        result->Functions.resize(functionCount, nullptr);
+
+        return result;
+    }
+
+    void DumpArgs(const std::vector<size_t>& ids)
+    {
+        if (!IsDumpExprsEnabled()) {
+            return;
+        }
+        for (size_t index = 0; index < ids.size(); ++index) {
+            Cerr << Format("arg%v := %v\n", index, InferNameArg(ids[index], DebugInfos, Items));
+        }
+    }
+
+    void DumpArgs(const std::vector<std::pair<size_t, bool>>& ids)
+    {
+        if (!IsDumpExprsEnabled()) {
+            return;
+        }
+        for (size_t index = 0; index < ids.size(); ++index) {
+            Cerr << Format("arg%v := %v\n", index, InferNameArg(ids[index].first, DebugInfos, Items));
+        }
+    }
+
+};
+
 class TExpressionProfiler
     : public TSchemaProfiler
 {
@@ -126,91 +311,184 @@ public:
         : TSchemaProfiler(id)
         , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
+        , ComparerManager_(MakeComparerManager())
     {
         YCHECK(variables);
     }
 
-    TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& schema);
+    size_t Profile(TConstExpressionPtr expr, const TTableSchema& schema, TExpressionFragments* fragments);
 
 protected:
     TCGVariables* Variables_;
-
     TConstFunctionProfilerMapPtr FunctionProfilers_;
+    TComparerManagerPtr ComparerManager_;
 };
 
-TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const TTableSchema& schema)
+size_t TExpressionProfiler::Profile(
+    TConstExpressionPtr expr,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments)
 {
-    Fold(static_cast<ui16>(expr->Type));
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<ui16>(expr->Type));
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        Fold(static_cast<int>(EFoldingObjectType::LiteralExpr));
-        Fold(static_cast<ui16>(TValue(literalExpr->Value).Type));
+        id.AddInteger(static_cast<int>(EFoldingObjectType::LiteralExpr));
 
-        int index = Variables_->AddOpaque<TOwningValue>(literalExpr->Value);
+        auto savedId = id;
+        id.AddString(ToString(TValue(literalExpr->Value)).c_str());
 
-        return MakeCodegenLiteralExpr(index, literalExpr->Type);
+        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+        if (emplaced.second) {
+            Fold(savedId);
+
+            int index = Variables_->AddOpaque<TOwningValue>(literalExpr->Value);
+            Fold(index);
+            Fold(TValue(literalExpr->Value).Type == EValueType::Null);
+
+            fragments->DebugInfos.emplace_back(expr, std::vector<size_t>());
+            fragments->Items.emplace_back(
+                MakeCodegenLiteralExpr(index, literalExpr->Type),
+                expr->Type,
+                TValue(literalExpr->Value).Type == EValueType::Null,
+                true);
+        }
+        return emplaced.first->second;
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        Fold(static_cast<int>(EFoldingObjectType::ReferenceExpr));
+        id.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
         auto indexInSchema = schema.GetColumnIndexOrThrow(referenceExpr->ColumnName);
-        Fold(indexInSchema);
+        id.AddInteger(indexInSchema);
 
-        return MakeCodegenReferenceExpr(
-            indexInSchema,
-            referenceExpr->Type,
-            referenceExpr->ColumnName);
+        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+        if (emplaced.second) {
+            Fold(id);
+            fragments->DebugInfos.emplace_back(expr, std::vector<size_t>());
+            fragments->Items.emplace_back(
+                MakeCodegenReferenceExpr(
+                    indexInSchema,
+                    referenceExpr->Type,
+                    referenceExpr->ColumnName),
+                expr->Type,
+                true,
+                true);
+        }
+        return emplaced.first->second;
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        Fold(static_cast<int>(EFoldingObjectType::FunctionExpr));
-        Fold(functionExpr->FunctionName.c_str());
+        id.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
+        id.AddString(functionExpr->FunctionName.c_str());
 
-        std::vector<TCodegenExpression> codegenArgs;
+        std::vector<size_t> argIds;
         std::vector<EValueType> argumentTypes;
-        std::vector<bool> literalArgs;
+        auto literalArgs = std::make_unique<bool[]>(functionExpr->Arguments.size());
+        size_t index = 0;
         for (const auto& argument : functionExpr->Arguments) {
-            codegenArgs.push_back(Profile(argument, schema));
+            argIds.push_back(Profile(argument, schema, fragments));
+            id.AddInteger(argIds.back());
             argumentTypes.push_back(argument->Type);
-            literalArgs.push_back(argument->As<TLiteralExpression>() != nullptr);
+            literalArgs[index++] = argument->As<TLiteralExpression>() != nullptr;
         }
 
-        int index = Variables_->AddOpaque<TFunctionContext>(std::move(literalArgs));
+        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+        if (emplaced.second) {
+            Fold(id);
+            const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
 
-        const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
+            std::vector<bool> nullableArgs;
+            for (size_t argId : argIds) {
+                ++fragments->Items[argId].UseCount;
+                nullableArgs.push_back(fragments->Items[argId].Nullable);
+            }
 
-        return function->Profile(
-            MakeCodegenFunctionContext(index),
-            std::move(codegenArgs),
-            std::move(argumentTypes),
-            functionExpr->Type,
-            "{" + InferName(functionExpr, true) + "}",
-            Id_);
+            fragments->DebugInfos.emplace_back(expr, argIds);
+            fragments->Items.emplace_back(
+                function->Profile(
+                    Variables_,
+                    std::move(argIds),
+                    std::move(literalArgs),
+                    std::move(argumentTypes),
+                    functionExpr->Type,
+                    "{" + InferName(functionExpr, true) + "}",
+                    Id_),
+                expr->Type,
+                function->IsNullable(nullableArgs));
+        }
+        return emplaced.first->second;
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        Fold(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
-        Fold(static_cast<int>(unaryOp->Opcode));
+        id.AddInteger(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
+        id.AddInteger(static_cast<int>(unaryOp->Opcode));
 
-        return MakeCodegenUnaryOpExpr(
-            unaryOp->Opcode,
-            Profile(unaryOp->Operand, schema),
-            unaryOp->Type,
-            "{" + InferName(unaryOp, true) + "}");
+        size_t operand = Profile(unaryOp->Operand, schema, fragments);
+        id.AddInteger(operand);
+
+        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+        if (emplaced.second) {
+            Fold(id);
+            ++fragments->Items[operand].UseCount;
+            fragments->DebugInfos.emplace_back(expr, std::vector<size_t>{operand});
+            fragments->Items.emplace_back(MakeCodegenUnaryOpExpr(
+                unaryOp->Opcode,
+                operand,
+                unaryOp->Type,
+                "{" + InferName(unaryOp, true) + "}"),
+                expr->Type,
+                fragments->Items[operand].Nullable);
+        }
+        return emplaced.first->second;
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        Fold(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
-        Fold(static_cast<int>(binaryOp->Opcode));
+        id.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
+        id.AddInteger(static_cast<int>(binaryOp->Opcode));
 
-        return MakeCodegenBinaryOpExpr(
-            binaryOp->Opcode,
-            Profile(binaryOp->Lhs, schema),
-            Profile(binaryOp->Rhs, schema),
-            binaryOp->Type,
-            "{" + InferName(binaryOp, true) + "}");
+        size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments);
+        id.AddInteger(lhsOperand);
+        size_t rhsOperand = Profile(binaryOp->Rhs, schema, fragments);
+        id.AddInteger(rhsOperand);
+
+        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+        if (emplaced.second) {
+            Fold(id);
+            ++fragments->Items[lhsOperand].UseCount;
+            ++fragments->Items[rhsOperand].UseCount;
+            fragments->DebugInfos.emplace_back(expr, std::vector<size_t>{lhsOperand, rhsOperand});
+            bool nullable = IsRelationalBinaryOp(binaryOp->Opcode)
+                ? false
+                : fragments->Items[lhsOperand].Nullable || fragments->Items[rhsOperand].Nullable;
+            fragments->Items.emplace_back(MakeCodegenBinaryOpExpr(
+                binaryOp->Opcode,
+                lhsOperand,
+                rhsOperand,
+                binaryOp->Type,
+                "{" + InferName(binaryOp, true) + "}"),
+                expr->Type,
+                nullable);
+        }
+        return emplaced.first->second;
     } else if (auto inOp = expr->As<TInOpExpression>()) {
-        Fold(static_cast<int>(EFoldingObjectType::InOpExpr));
+        id.AddInteger(static_cast<int>(EFoldingObjectType::InOpExpr));
 
-        std::vector<TCodegenExpression> codegenArgs;
+        std::vector<size_t> argIds;
         for (const auto& argument : inOp->Arguments) {
-            codegenArgs.push_back(Profile(argument, schema));
+            argIds.push_back(Profile(argument, schema, fragments));
+            id.AddInteger(argIds.back());
         }
 
-        int index = Variables_->AddOpaque<TSharedRange<TRow>>(inOp->Values);
+        for (const auto& value : inOp->Values) {
+            id.AddString(ToString(value).c_str());
+        }
 
-        return MakeCodegenInOpExpr(codegenArgs, index);
+        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+        if (emplaced.second) {
+            Fold(id);
+            for (size_t argId : argIds) {
+                ++fragments->Items[argId].UseCount;
+            }
+
+            int index = Variables_->AddOpaque<TSharedRange<TRow>>(inOp->Values);
+            fragments->DebugInfos.emplace_back(expr, argIds);
+            fragments->Items.emplace_back(
+                MakeCodegenInOpExpr(argIds, index, ComparerManager_),
+                expr->Type,
+                false);
+        }
+        return emplaced.first->second;
     }
 
     Y_UNREACHABLE();
@@ -246,7 +524,7 @@ public:
     void Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr query, size_t* slotCount);
 
 protected:
-    TCodegenExpression Profile(const TNamedItem& namedExpression, const TTableSchema& schema);
+    size_t Profile(const TNamedItem& namedExpression, const TTableSchema& schema, TExpressionFragments* fragments);
 
     TConstAggregateProfilerMapPtr AggregateProfilers_;
 };
@@ -277,17 +555,19 @@ void TQueryProfiler::Profile(
     if (auto groupClause = query->GroupClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
 
-        std::vector<TCodegenExpression> codegenGroupExprs;
-        std::vector<TCodegenExpression> codegenAggregateExprs;
+        std::vector<size_t> groupExprIds;
+        std::vector<size_t> aggregateExprIds;
         std::vector<TCodegenAggregate> codegenAggregates;
 
         std::vector<EValueType> keyTypes;
 
+        TExpressionFragments groupFragments;
         for (const auto& groupItem : groupClause->GroupItems) {
-            codegenGroupExprs.push_back(Profile(groupItem, schema));
+            groupExprIds.push_back(Profile(groupItem, schema, &groupFragments));
             keyTypes.push_back(groupItem.Expression->Type);
         }
 
+        TExpressionFragments aggregateFragments;
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
             Fold(aggregateItem.AggregateFunction.c_str());
@@ -296,9 +576,8 @@ void TQueryProfiler::Profile(
             const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
 
             if (!isMerge) {
-                codegenAggregateExprs.push_back(TExpressionProfiler::Profile(aggregateItem.Expression, schema));
+                aggregateExprIds.push_back(Profile(aggregateItem, schema, &aggregateFragments));
             }
-
             codegenAggregates.push_back(aggregate->Profile(
                 aggregateItem.Expression->Type,
                 aggregateItem.StateType,
@@ -313,9 +592,13 @@ void TQueryProfiler::Profile(
             codegenAggregates,
             keySize);
 
+        auto aggregateFragmentInfos = aggregateFragments.ToFragmentInfos("aggregateExpression");
+        aggregateFragments.DumpArgs(aggregateExprIds);
+
         auto aggregate = MakeCodegenEvaluateAggregateArgs(
             keySize,
-            codegenAggregateExprs);
+            aggregateFragmentInfos,
+            aggregateExprIds);
 
         auto update = MakeCodegenAggregateUpdate(
             codegenAggregates,
@@ -326,23 +609,40 @@ void TQueryProfiler::Profile(
             codegenAggregates,
             keySize);
 
+        auto groupFragmentsInfos = groupFragments.ToFragmentInfos("groupExpression");
+        groupFragments.DumpArgs(groupExprIds);
+
         intermediateSlot = MakeCodegenGroupOp(
             codegenSource,
             slotCount,
             intermediateSlot,
             initialize,
-            MakeCodegenEvaluateGroups(codegenGroupExprs),
+            MakeCodegenEvaluateGroups(
+                groupFragmentsInfos,
+                groupExprIds),
             aggregate,
             update,
             keyTypes,
             isMerge,
             keySize + codegenAggregates.size(),
-            groupClause->TotalsMode != ETotalsMode::None);
+            groupClause->TotalsMode != ETotalsMode::None,
+            ComparerManager_);
 
         Fold(static_cast<int>(EFoldingObjectType::TotalsMode));
         Fold(static_cast<int>(groupClause->TotalsMode));
 
         schema = groupClause->GetTableSchema(query->IsFinal);
+
+        TCodegenFragmentInfosPtr havingFragmentsInfos;
+
+        size_t havingPredicateId;
+        if (query->HavingClause) {
+            TExpressionFragments havingExprFragments;
+            havingPredicateId = TExpressionProfiler::Profile(query->HavingClause, schema, &havingExprFragments);
+
+            havingFragmentsInfos = havingExprFragments.ToFragmentInfos("havingExpression");
+            havingExprFragments.DumpArgs(std::vector<size_t>{havingPredicateId});
+        }
 
         if (useDisjointGroupBy && !isMerge || isFinal) {
             intermediateSlot = MakeCodegenFinalizeOp(
@@ -365,13 +665,14 @@ void TQueryProfiler::Profile(
                     totalsSlotNew);
             }
 
-            if (query->HavingClause) {
+            if (query->HavingClause && !IsTrue(query->HavingClause)) {
                 Fold(static_cast<int>(EFoldingObjectType::HavingOp));
                 intermediateSlot = MakeCodegenFilterOp(
                     codegenSource,
                     slotCount,
                     intermediateSlot,
-                    TExpressionProfiler::Profile(query->HavingClause, schema));
+                    havingFragmentsInfos,
+                    havingPredicateId);
             }
 
             if (groupClause->TotalsMode == ETotalsMode::AfterHaving && !isIntermediate) {
@@ -403,14 +704,16 @@ void TQueryProfiler::Profile(
                 totalsSlot,
                 initialize,
                 MakeCodegenEvaluateGroups( // Codegen nulls here
-                    std::vector<TCodegenExpression>(),
+                    New<TCodegenFragmentInfos>(),
+                    std::vector<size_t>(),
                     keyTypes),
                 aggregate,
                 update,
                 keyTypes,
                 true,
                 keySize + codegenAggregates.size(),
-                false);
+                false,
+                ComparerManager_);
 
             if (isFinal) {
                 totalsSlot = MakeCodegenFinalizeOp(
@@ -419,15 +722,21 @@ void TQueryProfiler::Profile(
                     totalsSlot,
                     finalize);
 
-                if (groupClause->TotalsMode == ETotalsMode::BeforeHaving && query->HavingClause) {
+                if (groupClause->TotalsMode == ETotalsMode::BeforeHaving && query->HavingClause && !IsTrue(query->HavingClause)) {
                     Fold(static_cast<int>(EFoldingObjectType::HavingOp));
                     totalsSlot = MakeCodegenFilterOp(
                         codegenSource,
                         slotCount,
                         totalsSlot,
-                        TExpressionProfiler::Profile(query->HavingClause, schema));
+                        havingFragmentsInfos,
+                        havingPredicateId);
                 }
             }
+        }
+        MakeCodegenFragmentBodies(codegenSource, groupFragmentsInfos);
+        MakeCodegenFragmentBodies(codegenSource, aggregateFragmentInfos);
+        if (havingFragmentsInfos) {
+            MakeCodegenFragmentBodies(codegenSource, havingFragmentsInfos);
         }
     } else {
         finalSlot = MakeCodegenMergeOp(
@@ -441,38 +750,54 @@ void TQueryProfiler::Profile(
     if (auto orderClause = query->OrderClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::OrderOp));
 
-        std::vector<TCodegenExpression> codegenOrderExprs;
+        std::vector<size_t> orderExprIds;
         std::vector<bool> isDesc;
         std::vector<EValueType> orderColumnTypes;
-
+        TExpressionFragments orderExprFragments;
         for (const auto& item : orderClause->OrderItems) {
-            codegenOrderExprs.push_back(TExpressionProfiler::Profile(item.first, schema));
+            orderExprIds.push_back(TExpressionProfiler::Profile(item.first, schema, &orderExprFragments));
             Fold(item.second);
             isDesc.push_back(item.second);
             orderColumnTypes.push_back(item.first->Type);
+        }
+
+        auto orderFragmentsInfos = orderExprFragments.ToFragmentInfos("orderExpression");
+        orderExprFragments.DumpArgs(orderExprIds);
+
+        auto schemaTypes = GetTypesFromSchema(schema);
+
+        for (auto type : schemaTypes) {
+            Fold(static_cast<ui16>(type));
         }
 
         finalSlot = MakeCodegenOrderOp(
             codegenSource,
             slotCount,
             finalSlot,
-            std::move(codegenOrderExprs),
+            orderFragmentsInfos,
+            orderExprIds,
             std::move(orderColumnTypes),
-            GetTypesFromSchema(schema),
+            schemaTypes,
             std::move(isDesc));
+        MakeCodegenFragmentBodies(codegenSource, orderFragmentsInfos);
     }
 
     if (auto projectClause = query->ProjectClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::ProjectOp));
 
-        std::vector<TCodegenExpression> codegenProjectExprs;
-
+        std::vector<size_t> projectExprIds;
+        TExpressionFragments projectExprFragments;
         for (const auto& item : projectClause->Projections) {
-            codegenProjectExprs.push_back(Profile(item, schema));
+            projectExprIds.push_back(Profile(item, schema, &projectExprFragments));
         }
 
-        finalSlot = MakeCodegenProjectOp(codegenSource, slotCount, finalSlot, codegenProjectExprs);
-        totalsSlot = MakeCodegenProjectOp(codegenSource, slotCount, totalsSlot, codegenProjectExprs);
+        auto projectFragmentsInfos = projectExprFragments.ToFragmentInfos("projectExpression");
+        projectExprFragments.DumpArgs(projectExprIds);
+
+        finalSlot = MakeCodegenProjectOp(codegenSource, slotCount, finalSlot, projectFragmentsInfos, projectExprIds);
+        totalsSlot = MakeCodegenProjectOp(codegenSource, slotCount, totalsSlot, projectFragmentsInfos, projectExprIds);
+
+        MakeCodegenFragmentBodies(codegenSource, projectFragmentsInfos);
 
         schema = projectClause->GetTableSchema();
     }
@@ -520,26 +845,37 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
     for (const auto& joinClause : query->JoinClauses) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
-        std::vector<std::pair<TCodegenExpression, bool>> selfKeys;
+        std::vector<std::pair<size_t, bool>> selfKeys;
 
+        TExpressionFragments selfEquationFragments;
         for (const auto& column : joinClause->SelfEquations) {
             TConstExpressionPtr expression;
             bool isEvaluated;
             std::tie(expression, isEvaluated) = column;
 
             const auto& expressionSchema = isEvaluated ? joinClause->OriginalSchema : schema;
-            selfKeys.emplace_back(TExpressionProfiler::Profile(expression, expressionSchema), isEvaluated);
+            selfKeys.emplace_back(
+                TExpressionProfiler::Profile(expression, expressionSchema, &selfEquationFragments),
+                isEvaluated);
         }
 
         TConstExpressionPtr selfFilter;
         std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, schema);
 
-        if (selfFilter) {
+        if (selfFilter && !IsTrue(selfFilter)) {
+            Fold(static_cast<int>(EFoldingObjectType::FilterOp));
+            TExpressionFragments filterExprFragments;
+            size_t predicateId = TExpressionProfiler::Profile(selfFilter, schema, &filterExprFragments);
+            auto fragmentInfos = filterExprFragments.ToFragmentInfos("selfFilter");
+            filterExprFragments.DumpArgs(std::vector<size_t>{predicateId});
+
             currentSlot = MakeCodegenFilterOp(
                 codegenSource,
                 slotCount,
                 currentSlot,
-                TExpressionProfiler::Profile(selfFilter, schema));
+                fragmentInfos,
+                predicateId);
+            MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
         }
 
         size_t joinBatchSize = std::numeric_limits<size_t>::max();
@@ -548,52 +884,52 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
             joinBatchSize = query->Limit;
         }
 
-        TConstExpressionPtr joinPredicate = joinClause->Predicate;
-        if (!joinClause->IsLeft) {
-            TConstExpressionPtr foreignPredicate;
-            std::tie(foreignPredicate, whereClause) = SplitPredicateByColumnSubset(
-                whereClause,
-                joinClause->GetRenamedSchema());
-
-            if (joinPredicate) {
-                joinPredicate = MakeAndExpression(joinPredicate, foreignPredicate);
-            } else {
-                joinPredicate = foreignPredicate;
-            }
-        }
-
         int index = Variables_->AddOpaque<TJoinParameters>(GetJoinEvaluator(
             *joinClause,
-            joinPredicate,
             schema,
-            query->InputRowLimit,
-            query->OutputRowLimit,
             joinBatchSize,
             query->IsOrdered()));
+
+        Fold(index);
 
         YCHECK(joinClause->CommonKeyPrefix < 1000);
 
         Fold(joinClause->CommonKeyPrefix);
+
+        auto fragmentInfos = selfEquationFragments.ToFragmentInfos("selfEquation");
+        selfEquationFragments.DumpArgs(selfKeys);
 
         currentSlot = MakeCodegenJoinOp(
             codegenSource,
             slotCount,
             currentSlot,
             index,
+            fragmentInfos,
             selfKeys,
-            joinClause->CommonKeyPrefix);
+            joinClause->CommonKeyPrefix,
+            ComparerManager_);
+
+        MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
 
         schema = joinClause->GetTableSchema(schema);
         TSchemaProfiler::Profile(schema);
     }
 
-    if (whereClause) {
+    if (whereClause && !IsTrue(whereClause)) {
         Fold(static_cast<int>(EFoldingObjectType::FilterOp));
+        TExpressionFragments filterExprFragments;
+        size_t predicateId = TExpressionProfiler::Profile(whereClause, schema, &filterExprFragments);
+
+        auto fragmentInfos = filterExprFragments.ToFragmentInfos("filterExpression");
+        filterExprFragments.DumpArgs(std::vector<size_t>{predicateId});
+
         currentSlot = MakeCodegenFilterOp(
             codegenSource,
             slotCount,
             currentSlot,
-            TExpressionProfiler::Profile(whereClause, schema));
+            fragmentInfos,
+            predicateId);
+        MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
     }
 
     size_t dummySlot = (*slotCount)++;
@@ -624,12 +960,17 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr 
     Profile(codegenSource, query, slotCount, finalSlot, intermediateSlot, totalsSlot, schema, true);
 }
 
-TCodegenExpression TQueryProfiler::Profile(const TNamedItem& namedExpression, const TTableSchema& schema)
+size_t TQueryProfiler::Profile(
+    const TNamedItem& namedExpression,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments)
 {
     Fold(static_cast<int>(EFoldingObjectType::NamedExpression));
-    Fold(namedExpression.Name.c_str());
 
-    return TExpressionProfiler::Profile(namedExpression.Expression, schema);
+    size_t resultId = TExpressionProfiler::Profile(namedExpression.Expression, schema, fragments);
+    ++fragments->Items[resultId].UseCount;
+
+    return resultId;
 }
 
 } // namespace
@@ -652,14 +993,14 @@ TCGExpressionCallbackGenerator Profile(
     const TConstFunctionProfilerMapPtr& functionProfilers)
 {
     TExpressionProfiler profiler(id, variables, functionProfilers);
-
-    auto codegenExpr = profiler.Profile(expr, schema);
+    TExpressionFragments fragments;
+    auto exprId = profiler.Profile(expr, schema, &fragments);
 
     return [
-            MOVE(codegenExpr),
-            opaqueValuesCount = variables->GetOpaqueCount()
+            fragmentInfos = fragments.ToFragmentInfos("fragment"),
+            MOVE(exprId)
         ] () {
-            return CodegenExpression(std::move(codegenExpr), opaqueValuesCount);
+            return CodegenStandaloneExpression(fragmentInfos, exprId);
         };
 }
 
@@ -685,10 +1026,9 @@ TCGQueryCallbackGenerator Profile(
 
     return [
             MOVE(codegenSource),
-            slotCount,
-            opaqueValuesCount = variables->GetOpaqueCount()
+            slotCount
         ] () {
-            return CodegenEvaluate(&codegenSource, slotCount, opaqueValuesCount);
+            return CodegenEvaluate(&codegenSource, slotCount);
         };
 }
 

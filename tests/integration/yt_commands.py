@@ -121,6 +121,8 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     if "path" in parameters and command_name != "parse_ypath":
         parameters["path"] = prepare_path(parameters["path"])
 
+    response_parameters = parameters.pop("response_parameters", None)
+
     yson_format = yson.to_yson_type("yson", attributes={"format": "text"})
     description = driver.get_command_descriptor(command_name)
     if description.input_type() != "null" and parameters.get("input_format") is None:
@@ -157,6 +159,12 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         return
 
     response.wait()
+
+    if response_parameters is not None:
+        response_params = response.response_parameters()
+        print >>sys.stderr, response_params
+        response_parameters.update(response_params)
+
     if not response.is_ok():
         error = YtResponseError(response.error())
         if verbose_error:
@@ -1090,3 +1098,60 @@ def get_statistics(statistics, complex_key):
             result = result[part]
     return result
 
+##################################################################
+
+def check_all_stderrs(op, expected_content, expected_count, substring=False):
+    jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+    assert get(jobs_path + "/@count") == expected_count
+    for job_id in ls(jobs_path):
+        stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
+        if is_multicell:
+            assert get(stderr_path + "/@external")
+        actual_content = read_file(stderr_path)
+        assert get(stderr_path + "/@uncompressed_data_size") == len(actual_content)
+        if substring:
+            assert expected_content in actual_content
+        else:
+            assert actual_content == expected_content
+
+##################################################################
+
+def set_banned_flag(value, nodes=None):
+    if value:
+        flag = True
+        state = "offline"
+    else:
+        flag = False
+        state = "online"
+
+    if not nodes:
+        nodes = get("//sys/nodes").keys()
+
+    for address in nodes:
+        set("//sys/nodes/{0}/@banned".format(address), flag)
+
+    for iter in xrange(50):
+        ok = True
+        for address in nodes:
+            if get("//sys/nodes/{0}/@state".format(address)) != state:
+                ok = False
+                break
+        if ok:
+            for address in nodes:
+                print >>sys.stderr, "Node {0} is {1}".format(address, state)
+            break
+
+        time.sleep(0.1)
+
+##################################################################
+
+class PrepareTables(object):
+    def _create_table(self, table):
+        create("table", table)
+        set(table + "/@replication_factor", 1)
+
+    def _prepare_tables(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        self._create_table("//tmp/t_out")

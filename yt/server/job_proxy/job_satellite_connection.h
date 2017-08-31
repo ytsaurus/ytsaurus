@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/exec_agent/public.h>
+
 #include <yt/core/bus/config.h>
 
 #include <yt/core/concurrency/public.h>
@@ -25,7 +27,7 @@ public:
     NBus::TTcpBusServerConfigPtr SatelliteRpcServerConfig;
     //Job -> JobSatellite -> JobProxy synchronization.
     NBus::TTcpBusClientConfigPtr JobProxyRpcClientConfig;
-    bool UseContainer;
+    NExecAgent::EJobEnvironmentType EnvironmentType;
 
     TJobSatelliteConnectionConfig()
     {
@@ -33,8 +35,8 @@ public:
             .DefaultNew();
         RegisterParameter("job_proxy_rpc_client", JobProxyRpcClientConfig)
             .DefaultNew();
-        RegisterParameter("use_container_managment", UseContainer)
-            .Default(false);
+        RegisterParameter("environment_type", EnvironmentType)
+            .Default(NExecAgent::EJobEnvironmentType::Simple);
     }
 };
 
@@ -48,7 +50,7 @@ public:
     TJobSatelliteConnection(
         const NJobTrackerClient::TJobId& jobId,
         NBus::TTcpBusServerConfigPtr jobProxyRpcServerConfig,
-        bool useContainer);
+        NExecAgent::EJobEnvironmentType environmentType);
     TString GetConfigPath() const;
     NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
     const NJobTrackerClient::TJobId& GetJobId() const;

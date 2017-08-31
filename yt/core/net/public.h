@@ -1,0 +1,17 @@
+#pragma once
+
+#include <yt/core/misc/intrusive_ptr.h>
+
+namespace NYT {
+namespace NNet {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IConnection)
+DECLARE_REFCOUNTED_STRUCT(IListener)
+DECLARE_REFCOUNTED_STRUCT(IDialer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NNet
+} // namespace NYT

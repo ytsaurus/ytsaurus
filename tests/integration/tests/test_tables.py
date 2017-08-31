@@ -24,16 +24,25 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table") == []
         assert get("//tmp/table/@row_count") == 0
         assert get("//tmp/table/@chunk_count") == 0
+        assert get("//tmp/table/@uncompressed_data_size") == 0
+        assert get("//tmp/table/@compressed_data_size") == 0
+        assert get("//tmp/table/@data_weight") == 0
 
         write_table("//tmp/table", {"b": "hello"})
         assert read_table("//tmp/table") == [{"b":"hello"}]
         assert get("//tmp/table/@row_count") == 1
         assert get("//tmp/table/@chunk_count") == 1
+        assert get("//tmp/table/@uncompressed_data_size") == 13
+        assert get("//tmp/table/@compressed_data_size") == 39
+        assert get("//tmp/table/@data_weight") == 6
 
         write_table("<append=true>//tmp/table", [{"b": "2", "a": "1"}, {"x": "10", "y": "20", "a": "30"}])
         assert read_table("//tmp/table") == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get("//tmp/table/@row_count") == 3
         assert get("//tmp/table/@chunk_count") == 2
+        assert get("//tmp/table/@uncompressed_data_size") == 46
+        assert get("//tmp/table/@compressed_data_size") == 99
+        assert get("//tmp/table/@data_weight") == 16
 
     def test_sorted_write_table(self):
         create("table", "//tmp/table")
@@ -1106,6 +1115,18 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/t/@table_chunk_format_statistics/{0}/chunk_count".format(chunk_format)) == 1
         chunk = get("//tmp/t/@chunk_ids")[0]
         assert get("#{0}/@table_chunk_format".format(chunk)) == chunk_format
+
+    def test_get_start_row_index(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+            })
+        write_table("//tmp/t", [{"key": 1, "value": "a"}, {"key": 1, "value": "b"}])
+        write_table("<append=%true>//tmp/t", [{"key": 1, "value": "c"}, {"key": 2, "value": "a"}])
+        response_parameters={}
+        read_table("//tmp/t[(2)]", start_row_index_only=True, response_parameters=response_parameters)
+        assert response_parameters["start_row_index"] == 3
 
 ##################################################################
 

@@ -24,6 +24,7 @@ struct TSnapshotJob
     : public TIntrinsicRefCounted
 {
     NScheduler::TOperationPtr Operation;
+    NControllerAgent::IOperationControllerPtr Controller;
     NPipes::TAsyncReaderPtr Reader;
     std::unique_ptr<TFile> OutputFile;
     bool Suspended = false;

@@ -213,7 +213,7 @@ protected:
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(joblet, 0, jobSummary);
+            RegisterOutput(jobSummary.Result, joblet->ChunkListIds);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -301,7 +301,7 @@ protected:
                         DataWeightRatio,
                         PrimaryInputDataWeight,
                         std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
-                        ForeignInputDataWeight);
+                        GetForeignInputDataWeight());
             }
         };
 
@@ -430,6 +430,8 @@ protected:
 
     virtual i64 GetUserJobMemoryReserve() const = 0;
 
+    virtual i64 GetForeignInputDataWeight() const = 0;
+
     virtual void PrepareOutputTables() override
     {
         // NB: we need to do this after locking input tables but before preparing ouput tables.
@@ -510,6 +512,7 @@ protected:
         jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
         jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        jobOptions.MaxDataWeightPerJob = Spec_->MaxDataWeightPerJob;
         jobOptions.EnablePeriodicYielder = true;
 
         if (Spec_->NightlyOptions) {
@@ -708,6 +711,11 @@ public:
             default:
                 Y_UNREACHABLE();
         }
+    }
+
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return 0;
     }
 
 protected:
@@ -920,6 +928,11 @@ public:
     virtual bool IsOutputLivePreviewSupported() const override
     {
         return true;
+    }
+
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
 protected:
@@ -1168,6 +1181,11 @@ public:
         if (GetOutputTeleportTableIndex()) {
             THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
         }
+    }
+
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
 protected:

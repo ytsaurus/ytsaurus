@@ -1,6 +1,8 @@
 #pragma once
 
 #include "private.h"
+#include "chunk_stripe.h"
+#include "chunk_stripe_key.h"
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/progress_counter.h>
@@ -11,7 +13,6 @@
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/public.h>
 
-#include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/core/misc/small_vector.h>
@@ -21,95 +22,13 @@ namespace NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkStripeStatistics
-{
-    int ChunkCount = 0;
-    i64 DataWeight = 0;
-    i64 RowCount = 0;
-    i64 MaxBlockSize = 0;
-
-    void Persist(const TPersistenceContext& context);
-};
-
-TChunkStripeStatistics operator + (
-    const TChunkStripeStatistics& lhs,
-    const TChunkStripeStatistics& rhs);
-
-TChunkStripeStatistics& operator += (
-    TChunkStripeStatistics& lhs,
-    const TChunkStripeStatistics& rhs);
-
-typedef SmallVector<TChunkStripeStatistics, 1> TChunkStripeStatisticsVector;
-
-//! Adds up input statistics and returns a single-item vector with the sum.
-TChunkStripeStatisticsVector AggregateStatistics(
-    const TChunkStripeStatisticsVector& statistics);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TChunkStripe
-    : public TIntrinsicRefCounted
-{
-    TChunkStripe(bool foreign = false, bool solid = false);
-    explicit TChunkStripe(NChunkClient::TInputDataSlicePtr dataSlice, bool foreign = false);
-
-    TChunkStripeStatistics GetStatistics() const;
-    int GetChunkCount() const;
-
-    int GetTableIndex() const;
-
-    int GetInputStreamIndex() const;
-
-    void Persist(const TPersistenceContext& context);
-
-    SmallVector<NChunkClient::TInputDataSlicePtr, 1> DataSlices;
-    int WaitingChunkCount = 0;
-    bool Foreign = false;
-    bool Solid = false;
-};
-
-DEFINE_REFCOUNTED_TYPE(TChunkStripe)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TChunkStripeList
-    : public TIntrinsicRefCounted
-{
-    TChunkStripeList() = default;
-    TChunkStripeList(int stripeCount);
-
-    TChunkStripeStatisticsVector GetStatistics() const;
-    TChunkStripeStatistics GetAggregateStatistics() const;
-
-    void Persist(const TPersistenceContext& context);
-
-    std::vector<TChunkStripePtr> Stripes;
-
-    TNullable<int> PartitionTag;
-
-    //! If True then TotalDataWeight and TotalRowCount are approximate (and are hopefully upper bounds).
-    bool IsApproximate = false;
-
-    i64 TotalDataWeight = 0;
-    i64 LocalDataWeight = 0;
-
-    i64 TotalRowCount = 0;
-
-    int TotalChunkCount = 0;
-    int LocalChunkCount = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(TChunkStripeList)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IChunkPoolInput
     : public virtual IPersistent
 {
-    typedef int TCookie;
+    using TCookie = TIntCookie;
     static const TCookie NullCookie = -1;
 
-    virtual TCookie Add(TChunkStripePtr stripe) = 0;
+    virtual TCookie Add(TChunkStripePtr stripe, TChunkStripeKey key = TChunkStripeKey()) = 0;
 
     virtual void Suspend(TCookie cookie) = 0;
     virtual void Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
@@ -123,15 +42,20 @@ class TChunkPoolInputBase
 {
 public:
     // IChunkPoolInput implementation.
-
     virtual void Finish() override;
 
-    // IPersistent implementation.
+    //! This implementation checks that key is not set (that is true for all standard
+    //! chunk pools) and that `stripe` contains data slices, after that it
+    //! forwards the call to the internal `Add` method.
+    virtual TCookie Add(TChunkStripePtr stripe, TChunkStripeKey key) override;
 
+    // IPersistent implementation.
     virtual void Persist(const TPersistenceContext& context) override;
 
 protected:
     bool Finished = false;
+
+    virtual TCookie Add(TChunkStripePtr stripe) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +63,7 @@ protected:
 struct IChunkPoolOutput
     : public virtual IPersistent
 {
-    typedef int TCookie;
+    using TCookie = TIntCookie;
     static constexpr TCookie NullCookie = -1;
 
     virtual i64 GetTotalDataWeight() const = 0;
@@ -223,42 +147,6 @@ protected:
     NControllerAgent::TProgressCounter JobCounter;
 
     std::vector<NChunkClient::TInputChunkPtr> TeleportChunks_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSuspendableStripe
-{
-public:
-    DEFINE_BYVAL_RW_PROPERTY(IChunkPoolOutput::TCookie, ExtractedCookie);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Teleport, false);
-
-public:
-    TSuspendableStripe();
-    explicit TSuspendableStripe(TChunkStripePtr stripe);
-
-    const TChunkStripePtr& GetStripe() const;
-    const TChunkStripeStatistics& GetStatistics() const;
-    void Suspend();
-    bool IsSuspended() const;
-    void Resume(TChunkStripePtr stripe);
-
-    //! Resume chunk and return a hashmap that defines the correspondence between
-    //! the old and new chunks. If building such mapping is impossible (for example,
-    //! the new stripe contains more data slices, or the new data slices have different
-    //! read limits or boundary keys), exception is thrown.
-    yhash<NChunkClient::TInputChunkPtr, NChunkClient::TInputChunkPtr> ResumeAndBuildChunkMapping(TChunkStripePtr stripe);
-
-    //! Replaces the original stripe with the current stripe.
-    void ReplaceOriginalStripe();
-
-    void Persist(const TPersistenceContext& context);
-
-private:
-    TChunkStripePtr Stripe_;
-    TChunkStripePtr OriginalStripe_ = nullptr;
-    bool Suspended_ = false;
-    TChunkStripeStatistics Statistics_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -275,9 +275,9 @@ private:
                 std::move(responseHandler));
 
             auto& header = request->Header();
-            header.set_start_time(ToProto(TInstant::Now()));
+            header.set_start_time(ToProto<i64>(TInstant::Now()));
             if (options.Timeout) {
-                header.set_timeout(ToProto(*options.Timeout));
+                header.set_timeout(ToProto<i64>(*options.Timeout));
                 auto timeoutCookie = TDelayedExecutor::Submit(
                     BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
                     *options.Timeout);

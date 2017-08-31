@@ -1,15 +1,5 @@
 include_directories(
-  ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include # for udfs
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/tclap # header-only library
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src # header-only library
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2 # re2 contains relative includes
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf # protobuf contains relative includes
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/google/protobuf # protobuf contains relative includes
-  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include # openssl contains relative includes
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/include
 )
 
 add_subdirectory(build)

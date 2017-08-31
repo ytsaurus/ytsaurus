@@ -94,11 +94,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuInstant GetCpuInstant()
-{
-    return GetCycleCount();
-}
-
 TInstant GetInstant()
 {
     return CpuInstantToInstant(GetCpuInstant());

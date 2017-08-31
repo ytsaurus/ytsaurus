@@ -120,8 +120,14 @@ private:
             followerId,
             state);
 
-        if (state == EPeerState::Following && Owner_->CellManager_->GetPeerConfig(followerId).Voting) {
-            OnSuccess();
+        if (Owner_->CellManager_->GetPeerConfig(followerId).Voting) {
+            if (state == EPeerState::Following) {
+                OnSuccess();
+            } else {
+                PingErrors_.push_back(TError("Follower %v is in %Qlv state",
+                    followerId,
+                    state));
+            }
         }
     }
 

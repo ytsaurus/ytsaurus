@@ -117,6 +117,12 @@ public:
         SetProperty("cwd", cwd);
     }
 
+    virtual void SetCoreDumpHandler(const TString& handler) override
+    {
+        SetProperty("core_command", handler);
+        SetProperty("ulimit", "core: unlimited");
+    }
+
     virtual void Kill(int signal) override
     {
         auto error = WaitFor(Executor_->Kill(Name_, signal));

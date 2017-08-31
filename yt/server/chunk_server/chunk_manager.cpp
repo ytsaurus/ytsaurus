@@ -1097,6 +1097,7 @@ private:
     int TotalReplicaCount_ = 0;
 
     bool NeedToRecomputeStatistics_ = false;
+    bool NeedResetDataWeight_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1787,6 +1788,8 @@ private:
         if (context.GetVersion() >= 400) {
             MediumMap_.LoadValues(context);
         }
+        //COMPAT(savrus)
+        NeedResetDataWeight_ = context.GetVersion() < 612;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -1794,11 +1797,28 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedToRecomputeStatistics_ = false;
+        NeedResetDataWeight_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        //COMPAT(savrus)
+        if (NeedResetDataWeight_) {
+            for (const auto& pair : ChunkListMap_) {
+                auto* chunkList = pair.second;
+                chunkList->Statistics().DataWeight = -1;
+            }
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                if (auto* node = dynamic_cast<TChunkOwnerBase*>(pair.second)) {
+                    node->SnapshotStatistics().set_data_weight(-1);
+                    node->DeltaStatistics().set_data_weight(-1);
+                }
+            }
+        }
 
         // Populate nodes' chunk replica sets.
         // Compute chunk replica count.

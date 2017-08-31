@@ -244,6 +244,7 @@ struct TJoinClause
     std::vector<std::pair<TConstExpressionPtr, bool>> SelfEquations;
 
     size_t CommonKeyPrefix = 0;
+    size_t ForeignKeyPrefix = 0;
 
     bool IsLeft = false;
 
@@ -332,7 +333,7 @@ struct TGroupClause
         }
 
         for (const auto& item : AggregateItems) {
-            result.emplace_back(item.Name, isFinal ? item.Expression->Type : item.StateType);
+            result.emplace_back(item.Name, isFinal ? item.ResultType : item.StateType);
         }
 
         return TTableSchema(result);
@@ -385,19 +386,12 @@ DEFINE_REFCOUNTED_TYPE(TProjectClause)
 struct TBaseQuery
     : public TIntrinsicRefCounted
 {
-    TBaseQuery(
-        i64 inputRowLimit,
-        i64 outputRowLimit,
-        const TGuid& id = TGuid::Create())
-        : InputRowLimit(inputRowLimit)
-        , OutputRowLimit(outputRowLimit)
-        , Id(id)
+    explicit TBaseQuery(const TGuid& id = TGuid::Create())
+        : Id(id)
     { }
 
     TBaseQuery(const TBaseQuery& other)
-        : InputRowLimit(other.InputRowLimit)
-        , OutputRowLimit(other.OutputRowLimit)
-        , Id(TGuid::Create())
+        : Id(TGuid::Create())
         , IsFinal(other.IsFinal)
         , GroupClause(other.GroupClause)
         , HavingClause(other.HavingClause)
@@ -408,8 +402,6 @@ struct TBaseQuery
         , InferRanges(other.InferRanges)
     { }
 
-    i64 InputRowLimit;
-    i64 OutputRowLimit;
     TGuid Id;
 
     // Merge and Final
@@ -446,11 +438,8 @@ DEFINE_REFCOUNTED_TYPE(TBaseQuery)
 struct TQuery
     : public TBaseQuery
 {
-    TQuery(
-        i64 inputRowLimit,
-        i64 outputRowLimit,
-        const TGuid& id = TGuid::Create())
-        : TBaseQuery(inputRowLimit, outputRowLimit, id)
+    explicit TQuery(const TGuid& id = TGuid::Create())
+        : TBaseQuery(id)
     { }
 
     TQuery(const TQuery& other)
@@ -537,11 +526,8 @@ DEFINE_REFCOUNTED_TYPE(TQuery)
 struct TFrontQuery
     : public TBaseQuery
 {
-    TFrontQuery(
-        i64 inputRowLimit,
-        i64 outputRowLimit,
-        const TGuid& id = TGuid::Create())
-        : TBaseQuery(inputRowLimit, outputRowLimit, id)
+    explicit TFrontQuery(const TGuid& id = TGuid::Create())
+        : TBaseQuery(id)
     { }
 
     TFrontQuery(const TFrontQuery& other)

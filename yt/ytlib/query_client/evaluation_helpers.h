@@ -289,11 +289,6 @@ public:
         return OpaquePointers_.data();
     }
 
-    size_t GetOpaqueCount() const
-    {
-        return OpaqueValues_.size();
-    }
-
     void Clear()
     {
         OpaquePointers_.clear();
@@ -309,8 +304,8 @@ private:
 typedef void (TCGQuerySignature)(void* const*, TExecutionContext*);
 typedef void (TCGExpressionSignature)(void* const*, TValue*, TRow, TExpressionContext*);
 typedef void (TCGAggregateInitSignature)(TExpressionContext*, TValue*);
-typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const TValue*, const TValue*);
-typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*, const TValue*);
+typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const TValue*);
+typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*);
 typedef void (TCGAggregateFinalizeSignature)(TExpressionContext*, TValue*, const TValue*);
 
 using TCGQueryCallback = NCodegen::TCGFunction<TCGQuerySignature>;
@@ -332,15 +327,15 @@ struct TCGAggregateCallbacks
 
 TJoinParameters GetJoinEvaluator(
     const TJoinClause& joinClause,
-    TConstExpressionPtr predicate,
     const TTableSchema& selfTableSchema,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
     size_t batchSize,
     bool isOrdered);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExpressionClosure;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT
-

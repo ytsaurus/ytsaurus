@@ -18,6 +18,8 @@ public:
     DEFINE_RPC_PROXY(TApiServiceProxy, RPC_PROXY_DESC(ApiService)
         .SetProtocolVersion(1));
 
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GenerateTimestamps);
+
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StartTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PingTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CommitTransaction);

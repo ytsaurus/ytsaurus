@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/assert.h>
 
+#include <vector>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -10,7 +12,7 @@ namespace NQueryClient {
 class TFunctionContext::TImpl
 {
 public:
-    TImpl(std::vector<bool> literalArgs)
+    TImpl(std::unique_ptr<bool[]> literalArgs)
         : LiteralArgs_(std::move(literalArgs))
     { }
 
@@ -37,19 +39,19 @@ public:
 
     bool IsLiteralArg(int argIndex) const
     {
-        Y_ASSERT(argIndex >= 0 && argIndex < LiteralArgs_.size());
+        Y_ASSERT(argIndex >= 0);
         return LiteralArgs_[argIndex];
     }
 
 private:
-    std::vector<bool> LiteralArgs_;
+    std::unique_ptr<bool[]> LiteralArgs_;
 
     std::vector<std::unique_ptr<void, void(*)(void*)>> Objects_;
 
     void* PrivateData_ = nullptr;
 };
 
-TFunctionContext::TFunctionContext(std::vector<bool> literalArgs)
+TFunctionContext::TFunctionContext(std::unique_ptr<bool[]> literalArgs)
     : Impl_(std::make_unique<TImpl>(std::move(literalArgs)))
 { }
 

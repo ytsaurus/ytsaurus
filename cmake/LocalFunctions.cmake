@@ -302,6 +302,7 @@ function(RESOLVE_SRCS srcs output)
       list(APPEND _o_ "${_s_}")
     elseif(_s_ MATCHES "\\.proto$")
       protoc("${_s_}" _o_)
+      protoc_python("${_s_}" _o_ "${CMAKE_SOURCE_DIR}")
     elseif(_s_ MATCHES "\\.S$")
       list(APPEND _o_ "${_s_}")
       set_source_files_properties("${_s_}" PROPERTIES LANGUAGE C)
@@ -360,8 +361,6 @@ function (CYTHON source)
 
   set(_input ${source}.pyx)
   set(_c_source ${CMAKE_CURRENT_BINARY_DIR}/${_basename}.c)
-
-  MESSAGE("_c_source ${_c_source}")
 
   add_custom_command(
     OUTPUT

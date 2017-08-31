@@ -39,6 +39,12 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, EnablePeriodicYielder);
     Persist(context, PivotKeys);
     Persist(context, UseNewEndpointKeys);
+
+    // COMPAT(max42): remove this when snapshots older than v200564 are
+    // not supported.
+    if (context.GetVersion() >= 200564) {
+        Persist(context, MaxDataWeightPerJob);
+    }
 }
 
 void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
@@ -215,6 +221,15 @@ public:
         AttachForeignSlices();
         for (auto& job : Jobs_) {
             job->Finalize(true /* sortByPosition */);
+
+            if (job->GetDataWeight() > Options_.MaxDataWeightPerJob) {
+                THROW_ERROR_EXCEPTION(
+                    "Maximum allowed data weight violated for a sorted job: %v > %v",
+                    job->GetDataWeight(),
+                    Options_.MaxDataWeightPerJob)
+                    << TErrorAttribute("lower_key", job->LowerPrimaryKey())
+                    << TErrorAttribute("upper_key", job->UpperPrimaryKey());
+            }
         }
         return std::move(Jobs_);
     }
@@ -240,7 +255,7 @@ private:
 
     void SortEndpoints()
     {
-        LOG_DEBUG("Sorting %v endpoints", static_cast<int>(Endpoints_.size()));
+        LOG_DEBUG("Sorting endpoints (Count: %v)", Endpoints_.size());
         std::sort(
             Endpoints_.begin(),
             Endpoints_.end(),
@@ -1098,7 +1113,9 @@ private:
             totalTeleportChunkSize += teleportChunk->GetUncompressedDataSize();
         }
 
-        LOG_DEBUG("Teleported %v chunks of total size %v", TeleportChunks_.size(), totalTeleportChunkSize);
+        LOG_DEBUG("Chunks teleported (ChunkCount: %v, TotalSize: %v)",
+            TeleportChunks_.size(),
+            totalTeleportChunkSize);
     }
 
     void PrepareForeignDataSlices(const TSortedJobBuilderPtr& builder)

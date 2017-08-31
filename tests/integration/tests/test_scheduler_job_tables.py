@@ -1,4 +1,5 @@
-from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, \
+    require_ytserver_root_privileges, porto_env_only, skip_if_porto
 from yt_commands import *
 
 from flaky import flaky
@@ -12,6 +13,20 @@ import subprocess
 import time
 import threading
 from multiprocessing import Queue
+
+##################################################################
+
+porto_delta_node_config = {
+    "exec_agent": {
+        "slot_manager": {
+            "enforce_job_control": True,
+            "job_environment" : {
+                # >= 19.2
+                "type" : "porto",
+            },
+        }
+    }
+}
 
 ##################################################################
 
@@ -591,6 +606,7 @@ class TestCoreTable(YTEnvSetup):
             content[row["job_id"]][row["core_id"]] += row["data"]
         return content
 
+    @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
     def test_no_cores(self):
@@ -602,6 +618,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {}
         assert self._get_core_table_content() == {}
 
+    @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
     def test_simple(self):
@@ -621,6 +638,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict["core_data"]]}
 
+    @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
     def test_large_core(self):
@@ -640,6 +658,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
         assert self._get_core_table_content(assert_rows_number_geq=2) == {job: [ret_dict["core_data"]]}
 
+    @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
     def test_core_order(self):
@@ -682,6 +701,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict1["core_info"], ret_dict2["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict1["core_data"], ret_dict2["core_data"]]}
 
+    @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
     def test_operation_fails(self):
@@ -702,6 +722,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict["core_data"]]}
 
+    @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
     def test_writing_core_to_fallback_path(self):
@@ -713,6 +734,7 @@ class TestCoreTable(YTEnvSetup):
         assert ret_dict["return_code"] == 0
         assert open(temp_file_path).read() == "core_data"
 
+    @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
     def test_cores_with_job_revival(self):
@@ -766,6 +788,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict2["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict2["core_data"]]}
 
+    @skip_if_porto
     @require_ytserver_root_privileges
     @unix_only
     def test_timeout_while_receiving_core(self):
@@ -815,6 +838,7 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job: [ret_dict["core_data"]]}
 
+    @skip_if_porto
     @require_enabled_core_dump
     @require_ytserver_root_privileges
     @unix_only
@@ -838,3 +862,28 @@ class TestCoreTable(YTEnvSetup):
         assert core_info["process_id"] == -1
         assert not "size" in core_info
         assert "error" in core_info
+
+@porto_env_only
+class TestCoreTablePorto(TestCoreTable):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_core_when_user_job_was_killed(self):
+        op, correspondence_file_path = self._start_operation(1, kill_self=True, max_failed_job_count=1)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        op.resume_jobs()
+
+        time.sleep(2)
+
+        with pytest.raises(YtError):
+            op.track()
+
+        core_info = self._get_core_infos(op)[job][0]
+        assert core_info["executable_name"] == "bash"
+        assert int(core_info["size"]) > 100000
+        assert int(core_info["process_id"]) != -1

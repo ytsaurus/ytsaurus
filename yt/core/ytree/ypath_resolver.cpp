@@ -2,8 +2,9 @@
 
 #include <yt/core/ypath/tokenizer.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/core/yson/forwarding_consumer.h>
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/writer.h>
 
 #include <yt/core/misc/error.h>
 
@@ -14,6 +15,7 @@ using NYPath::ETokenType;
 using NYPath::TTokenizer;
 
 using NYson::IYsonConsumer;
+using NYson::TForwardingYsonConsumer;
 using NYson::EYsonType;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,44 +46,49 @@ public:
 };
 
 class TYPathResolver
-    : public IYsonConsumer
+    : public TForwardingYsonConsumer
 {
 public:
-    explicit TYPathResolver(const TYPath& path)
+    explicit TYPathResolver(const TYPath& path, bool isAny)
         : Tokenizer_(path)
+        , IsAny_(isAny)
     {
+        if (isAny) {
+            ResultWriter_ = std::make_unique<NYson::TBufferedBinaryYsonWriter>(&ResultStream_);
+        }
+
         NextToken();
     }
 
-    virtual void OnStringScalar(const TStringBuf& value) override
+    virtual void OnMyStringScalar(const TStringBuf& value) override
     {
         OnStringValue(value);
     }
 
-    virtual void OnInt64Scalar(i64 value) override
+    virtual void OnMyInt64Scalar(i64 value) override
     {
         OnValue(value);
     }
 
-    virtual void OnUint64Scalar(ui64 value) override
+    virtual void OnMyUint64Scalar(ui64 value) override
     {
         OnValue(value);
     }
 
-    virtual void OnDoubleScalar(double value) override
+    virtual void OnMyDoubleScalar(double value) override
     {
         OnValue(value);
     }
 
-    virtual void OnBooleanScalar(bool value) override
+    virtual void OnMyBooleanScalar(bool value) override
     {
         OnValue(value);
     }
 
-    virtual void OnEntity() override
+    virtual void OnMyEntity() override
     { }
 
-    virtual void OnBeginList() override
+    virtual void OnMyBeginList() override
     {
         if (CurrentDepth_++ == PathDepth_) {
             switch (Expected_) {
@@ -106,7 +113,7 @@ public:
         }
     }
 
-    virtual void OnListItem() override
+    virtual void OnMyListItem() override
     {
         if (CurrentDepth_ == PathDepth_) {
             if (Expected_ != EExpectedItem::ListItem) {
@@ -121,12 +128,12 @@ public:
         }
     }
 
-    virtual void OnEndList() override
+    virtual void OnMyEndList() override
     {
         OnDecDepth();
     }
 
-    virtual void OnBeginMap() override
+    virtual void OnMyBeginMap() override
     {
         if (CurrentDepth_++ == PathDepth_) {
             switch (Expected_) {
@@ -145,7 +152,7 @@ public:
         }
     }
 
-    virtual void OnKeyedItem(const TStringBuf& key) override
+    virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         if (CurrentDepth_ == PathDepth_) {
             if (Expected_ != EExpectedItem::Key) {
@@ -157,12 +164,12 @@ public:
         }
     }
 
-    virtual void OnEndMap() override
+    virtual void OnMyEndMap() override
     {
         OnDecDepth();
     }
 
-    virtual void OnBeginAttributes() override
+    virtual void OnMyBeginAttributes() override
     {
         if (CurrentDepth_++ == PathDepth_) {
             switch (Expected_) {
@@ -180,16 +187,17 @@ public:
         }
     }
 
-    virtual void OnEndAttributes() override
+    virtual void OnMyEndAttributes() override
     {
         OnDecDepth();
     }
 
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+    virtual void OnMyRaw(const TStringBuf& yson, EYsonType type) override
     { }
 
 private:
     TTokenizer Tokenizer_;
+    bool IsAny_ = false;
 
     EExpectedItem Expected_ = EExpectedItem::Initial;
     TString Literal_;
@@ -197,6 +205,9 @@ private:
     int CurrentListIndex_ = 0;
     int CurrentDepth_ = 0;
     int PathDepth_ = 0;
+
+    TStringStream ResultStream_;
+    std::unique_ptr<NYson::IFlushableYsonConsumer> ResultWriter_;
 
     void OnDecDepth()
     {
@@ -220,6 +231,12 @@ private:
         }
     }
 
+    void OnForwardingFinished()
+    {
+        ResultWriter_->Flush();
+        throw TCompleteParsingWithResultException<TString>(ResultStream_.Str());
+    }
+
     void NextToken()
     {
         Expected_ = EExpectedItem::Initial;
@@ -232,7 +249,12 @@ private:
                             "Unexpected YPath ending while parsing %Qv",
                             Tokenizer_.GetPrefix());
                     }
-                    Expected_ = EExpectedItem::Value;
+
+                    if (IsAny_) {
+                        Forward(ResultWriter_.get(), BIND(&TYPathResolver::OnForwardingFinished, this));
+                    } else {
+                        Expected_ = EExpectedItem::Value;
+                    }
                     return;
 
                 case ETokenType::Slash:
@@ -274,10 +296,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TNullable<T> TryGetValue(const TStringBuf& yson, const TYPath& ypath)
+TNullable<T> TryGetValue(const TStringBuf& yson, const TYPath& ypath, bool isAny = false)
 {
     try {
-        TYPathResolver resolver(ypath);
+        TYPathResolver resolver(ypath, isAny);
         ParseYsonStringBuffer(
             yson,
             EYsonType::Node,
@@ -314,6 +336,11 @@ TNullable<double> TryGetDouble(const TStringBuf& yson, const TYPath& ypath)
 TNullable<TString> TryGetString(const TStringBuf& yson, const TYPath& ypath)
 {
     return TryGetValue<TString>(yson, ypath);
+}
+
+TNullable<TString> TryGetAny(const TStringBuf& yson, const TYPath& ypath)
+{
+    return TryGetValue<TString>(yson, ypath, true);
 }
 
 } // namespace NYTree

@@ -6,7 +6,6 @@
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
-#include "output_chunk_tree.h"
 #include "serialize.h"
 #include "helpers.h"
 #include "master_connector.h"
@@ -17,6 +16,7 @@
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/public.h>
+#include <yt/server/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/server/chunk_server/public.h>
 
@@ -145,7 +145,6 @@ private: \
 
     IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
     IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
-    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
 
     IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker), true)
     IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<NScheduler::TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
@@ -187,6 +186,10 @@ public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
     // If some of these methods still fails due to unnoticed YCHECK, consider
     // moving it to the section above.
+
+    // NB(max42): Don't make Revive safe! It may lead to either destroying all
+    // operations on a cluster, or to a scheduler crash.
+    virtual void Revive() override;
 
     virtual void Initialize() override;
     virtual TOperationControllerInitializeResult GetInitializeResult() const override;
@@ -302,16 +305,11 @@ public:
 
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
 
-    virtual void RegisterIntermediate(
-        const TJobletPtr& joblet,
+    virtual void RegisterRecoveryInfo(
         const TCompletedJobPtr& completedJob,
-        const NChunkPools::TChunkStripePtr& stripe,
-        bool attachToLivePreview);
+        const NChunkPools::TChunkStripePtr& stripe);
 
-    virtual void RegisterOutput(
-        const TJobletPtr& joblet,
-        const TOutputChunkTreeKey& key,
-        const NScheduler::TCompletedJobSummary& jobSummary);
+    virtual NTableClient::TRowBufferPtr GetRowBuffer() override;
 
 protected:
     TSchedulerConfigPtr Config;
@@ -706,22 +704,15 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
-    TOutputChunkTreeKey BuildChunkTreeKeyFromBoundaryKeys(
-        const NScheduler::NProto::TOutputResult& boundaryKeys,
-        const TOutputTable& outputTable);
-
     const NObjectClient::TTransactionId& GetTransactionIdForOutputTable(const TOutputTable& table);
+
+    virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
 
     void AttachToLivePreview(NChunkClient::TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId);
 
-    virtual void RegisterOutput(
-        const std::vector<NChunkClient::TChunkListId>& chunkListIds,
-        TOutputChunkTreeKey key,
-        const NScheduler::TCompletedJobSummary& jobSummary);
-
     void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunkSpec,
-        TOutputChunkTreeKey key,
+        NChunkPools::TChunkStripeKey key,
         int tableIndex);
 
     bool HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable);
@@ -816,6 +807,8 @@ protected:
     virtual NScheduler::TJobSplitterConfigPtr GetJobSplitterConfig() const;
 
     void CheckFailedJobsStatusReceived();
+
+    virtual std::vector<NChunkPools::IChunkPoolInput*> GetSinks() override;
 
 private:
     typedef TOperationControllerBase TThis;
@@ -924,6 +917,9 @@ private:
 
     yhash<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
 
+    class TSink;
+    std::vector<std::unique_ptr<TSink>> Sinks_;
+
     void BuildAndSaveProgress();
 
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
@@ -1000,6 +996,32 @@ private:
         i64 suspiciousCpuUsageThreshold,
         double suspiciousInputPipeIdleTimeFraction,
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
+
+    //! Helper class that implements IChunkPoolInput interface for output tables.
+    class TSink
+        : public NChunkPools::IChunkPoolInput
+        , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    {
+    public:
+        //! Used only for persistense.
+        TSink() = default;
+
+        TSink(TThis* controller, int outputTableIndex);
+
+        virtual TCookie Add(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
+
+        virtual void Suspend(TCookie cookie) override;
+        virtual void Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe) override;
+        virtual void Finish() override;
+
+        void Persist(const TPersistenceContext& context);
+
+    private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TSink, 0x7fb74a90);
+
+        TThis* Controller_;
+        int OutputTableIndex_ = -1;
+    };
 };
 
 ////////////////////////////////////////////////////////////////////////////////

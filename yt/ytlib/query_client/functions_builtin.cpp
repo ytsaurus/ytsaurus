@@ -23,6 +23,7 @@
 #include "udf/sum.h" // Y_IGNORE
 #include "udf/dates.h" // Y_IGNORE
 #include "udf/ypath_get.h" // Y_IGNORE
+#include "udf/to_any.h" // Y_IGNORE
 #endif
 
 namespace NYT {
@@ -39,65 +40,77 @@ class TIfFunctionCodegen
 public:
     static TCGValue CodegenValue(
         TCGExprContext& builder,
-        const std::vector<TCodegenExpression>& codegenArgs,
+        std::vector<size_t> argIds,
         EValueType type,
-        const TString& name,
-        Value* row)
+        const TString& name)
     {
         auto nameTwine = Twine(name.c_str());
 
-        YCHECK(codegenArgs.size() == 3);
-        auto condition = codegenArgs[0](builder, row);
+        YCHECK(argIds.size() == 3);
+        auto condition = CodegenFragment(builder, argIds[0]);
 
+        // TODO(lukyan): Remove this
         if (condition.GetStaticType() == EValueType::Null) {
             return TCGValue::CreateNull(builder, type);
         }
 
         YCHECK(condition.GetStaticType() == EValueType::Boolean);
 
-        return CodegenIf<TCGExprContext, TCGValue>(
-            builder,
-            condition.IsNull(),
-            [&] (TCGExprContext& builder) {
-                return TCGValue::CreateNull(builder, type);
-            },
-            [&] (TCGExprContext& builder) {
-                return CodegenIf<TCGExprContext, TCGValue>(
-                    builder,
-                    builder->CreateICmpNE(
-                        builder->CreateZExtOrBitCast(condition.GetData(), builder->getInt64Ty()),
-                        builder->getInt64(0)),
-                    [&] (TCGExprContext& builder) {
-                        return codegenArgs[1](builder, row).Cast(builder, type);
-                    },
-                    [&] (TCGExprContext& builder) {
-                        return codegenArgs[2](builder, row).Cast(builder, type);
-                    });
-            },
-            nameTwine);
+        auto codegenIf = [&] (TCGExprContext& builder) {
+            return CodegenIf<TCGExprContext, TCGValue>(
+                builder,
+                builder->CreateIsNotNull(condition.GetData(builder)),
+                [&] (TCGExprContext& builder) {
+                    return CodegenFragment(builder, argIds[1]).Cast(builder, type);
+                },
+                [&] (TCGExprContext& builder) {
+                    return CodegenFragment(builder, argIds[2]).Cast(builder, type);
+                },
+                nameTwine);
+        };
+
+        if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
+            return CodegenIf<TCGExprContext, TCGValue>(
+                builder,
+                condition.IsNull(builder),
+                [&] (TCGExprContext& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                codegenIf,
+                nameTwine);
+        } else {
+            return codegenIf(builder);
+        }
     }
 
     virtual TCodegenExpression Profile(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
         return [
-            MOVE(codegenArgs),
+            MOVE(argIds),
             type,
             name
-        ] (TCGExprContext& builder, Value* row) {
+        ] (TCGExprContext& builder) {
             return CodegenValue(
                 builder,
-                codegenArgs,
+                argIds,
                 type,
-                name,
-                row);
+                name);
         };
     }
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    {
+        YCHECK(nullableArgs.size() == 3);
+        return nullableArgs[0] || nullableArgs[1] || nullableArgs[2];
+    }
+
 };
 
 TKeyTriePtr IsPrefixRangeExtractor(
@@ -149,31 +162,94 @@ class TIsNullCodegen
 {
 public:
     virtual TCodegenExpression Profile(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
-        YCHECK(codegenArgs.size() == 1);
+        YCHECK(argIds.size() == 1);
 
         return [
-            MOVE(codegenArgs),
+            MOVE(argIds),
             type,
             name
-        ] (TCGExprContext& builder, Value* row) {
-            auto argValue = codegenArgs[0](builder, row);
-            return TCGValue::CreateFromValue(
-                builder,
-                builder->getInt1(false),
-                nullptr,
-                builder->CreateZExtOrBitCast(
-                    argValue.IsNull(),
-                    TDataTypeBuilder::TBoolean::get(builder->getContext())),
-                type);
+        ] (TCGExprContext& builder) {
+            if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
+                auto argValue = CodegenFragment(builder, argIds[0]);
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder->getFalse(),
+                    nullptr,
+                    builder->CreateZExtOrBitCast(
+                        argValue.IsNull(builder),
+                        TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                    type);
+            } else {
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder->getFalse(),
+                    nullptr,
+                    builder->CreateZExtOrBitCast(
+                        builder->getFalse(),
+                        TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                    type);
+            }
         };
     }
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    {
+        return false;
+    }
+
+};
+
+class TIfNullCodegen
+    : public IFunctionCodegen
+{
+public:
+    virtual TCodegenExpression Profile(
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> literalArgs,
+        std::vector<EValueType> argumentTypes,
+        EValueType type,
+        const TString& name,
+        llvm::FoldingSetNodeID* id) const override
+    {
+        YCHECK(argIds.size() == 2);
+
+        return [
+            MOVE(argIds),
+            type,
+            name
+        ] (TCGExprContext& builder) {
+            if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
+                auto argValue = CodegenFragment(builder, argIds[0]);
+                auto constant = CodegenFragment(builder, argIds[1]);
+
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder->CreateSelect(
+                        argValue.IsNull(builder),
+                        constant.GetValue(builder, true),
+                        argValue.GetValue(builder, true)),
+                    type);
+            } else {
+                return CodegenFragment(builder, argIds[0]);
+            }
+        };
+    }
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    {
+        YCHECK(nullableArgs.size() == 2);
+        return nullableArgs[1];
+    }
+
 };
 
 class TUserCastCodegen
@@ -185,26 +261,294 @@ public:
     { }
 
     virtual TCodegenExpression Profile(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
-        YCHECK(codegenArgs.size() == 1);
+        YCHECK(argIds.size() == 1);
 
         return [
-            MOVE(codegenArgs),
+            MOVE(argIds),
             type,
             name
-        ] (TCGExprContext& builder, Value* row) {
-            return codegenArgs[0](builder, row).Cast(builder, type);
+        ] (TCGExprContext& builder) {
+            return CodegenFragment(builder, argIds[0]).Cast(builder, type);
         };
+    }
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    {
+        YCHECK(nullableArgs.size() == 1);
+        return nullableArgs[0];
+    }
+
+};
+
+
+class TSimpleAggregateCodegen
+    : public IAggregateCodegen
+{
+public:
+    TSimpleAggregateCodegen(const TString& function)
+        : Function(function)
+    { }
+
+    TString Function;
+
+    virtual TCodegenAggregate Profile(
+        EValueType argumentType,
+        EValueType stateType,
+        EValueType resultType,
+        const TString& name,
+        llvm::FoldingSetNodeID* id) const override
+    {
+        if (id) {
+            id->AddString(ToStringRef(Function + "_aggregate"));
+        }
+
+        auto iteration = [
+            this_ = MakeStrong(this),
+            argumentType,
+            stateType,
+            name
+        ] (TCGBaseContext& builder, Value* buffer, Value* aggStatePtr, Value* newValuePtr)
+        {
+            auto newValue = TCGValue::CreateFromLlvmValue(
+                builder,
+                newValuePtr,
+                argumentType);
+
+            CodegenIf<TCGBaseContext>(
+                builder,
+                builder->CreateNot(newValue.IsNull(builder)),
+                [&] (TCGBaseContext& builder) {
+                    auto aggregateValue = TCGValue::CreateFromLlvmValue(
+                        builder,
+                        aggStatePtr,
+                        stateType);
+
+                    Value* valueLength = nullptr;
+                    if (argumentType == EValueType::String) {
+                        valueLength = newValue.GetLength(builder);
+                    }
+                    Value* newData = newValue.GetData(builder);
+
+                    CodegenIf<TCGBaseContext, TCGValue>(
+                        builder,
+                        aggregateValue.IsNull(builder),
+                        [&] (TCGBaseContext& builder) {
+                            if (argumentType == EValueType::String) {
+                                Value* permanentData = builder->CreateCall(
+                                    builder.Module->GetRoutine("AllocateBytes"),
+                                    {
+                                        buffer,
+                                        builder->CreateZExt(valueLength, builder->getInt64Ty())
+                                    });
+                                builder->CreateMemCpy(
+                                    permanentData,
+                                    newData,
+                                    valueLength,
+                                    1);
+                                return TCGValue::CreateFromValue(
+                                    builder,
+                                    builder->getFalse(),
+                                    valueLength,
+                                    permanentData,
+                                    stateType);
+                            } else {
+                                return newValue;
+                            }
+                        },
+                        [&] (TCGBaseContext& builder) {
+                            Value* aggregateData = aggregateValue.GetData(builder);
+                            Value* resultData = nullptr;
+                            Value* resultLength = nullptr;
+
+                            if (this_->Function == "sum") {
+                                switch (argumentType) {
+                                    case EValueType::Int64:
+                                    case EValueType::Uint64:
+                                        resultData = builder->CreateAdd(
+                                            aggregateData,
+                                            newData);
+                                        break;
+                                    case EValueType::Double:
+                                        resultData = builder->CreateFAdd(
+                                            aggregateData,
+                                            newData);
+                                        break;
+                                    default:
+                                        Y_UNIMPLEMENTED();
+                                }
+                            } else if (this_->Function == "min") {
+                                Value* compareResult = nullptr;
+                                switch (argumentType) {
+                                    case EValueType::Int64:
+                                        compareResult = builder->CreateICmpSLT(newData, aggregateData);
+                                        break;
+                                    case EValueType::Uint64:
+                                        compareResult = builder->CreateICmpULT(newData, aggregateData);
+                                        break;
+                                    case EValueType::Double:
+                                        compareResult = builder->CreateFCmpULT(newData, aggregateData);
+                                        break;
+                                    case EValueType::String: {
+                                        compareResult = CodegenLexicographicalCompare(
+                                            builder,
+                                            newData,
+                                            valueLength,
+                                            aggregateData,
+                                            aggregateValue.GetLength(builder));
+
+                                        newData = CodegenIf<TCGBaseContext, Value*>(
+                                            builder,
+                                            compareResult,
+                                            [&] (TCGBaseContext& builder) {
+                                                Value* permanentData = builder->CreateCall(
+                                                    builder.Module->GetRoutine("AllocateBytes"),
+                                                    {
+                                                        buffer,
+                                                        builder->CreateZExt(valueLength, builder->getInt64Ty())
+                                                    });
+                                                builder->CreateMemCpy(
+                                                    permanentData,
+                                                    newData,
+                                                    valueLength,
+                                                    1);
+                                                return permanentData;
+                                            },
+                                            [&] (TCGBaseContext& builder) {
+                                                return newData;
+                                            });
+                                        break;
+                                    }
+                                    default:
+                                        Y_UNIMPLEMENTED();
+                                }
+
+                                if (argumentType == EValueType::String) {
+                                    resultLength = builder->CreateSelect(
+                                        compareResult,
+                                        valueLength,
+                                        aggregateValue.GetLength(builder));
+                                }
+
+                                resultData = builder->CreateSelect(
+                                    compareResult,
+                                    newData,
+                                    aggregateData);
+                            } else if (this_->Function == "max") {
+                                Value* compareResult = nullptr;
+                                switch (argumentType) {
+                                    case EValueType::Int64:
+                                        compareResult = builder->CreateICmpSGT(newData, aggregateData);
+                                        break;
+                                    case EValueType::Uint64:
+                                        compareResult = builder->CreateICmpUGT(newData, aggregateData);
+                                        break;
+                                    case EValueType::Double:
+                                        compareResult = builder->CreateFCmpUGT(newData, aggregateData);
+                                        break;
+                                    case EValueType::String: {
+                                        compareResult = CodegenLexicographicalCompare(
+                                            builder,
+                                            aggregateData,
+                                            aggregateValue.GetLength(builder),
+                                            newData,
+                                            valueLength);
+
+                                        newData = CodegenIf<TCGBaseContext, Value*>(
+                                            builder,
+                                            compareResult,
+                                            [&] (TCGBaseContext& builder) {
+                                                Value* permanentData = builder->CreateCall(
+                                                    builder.Module->GetRoutine("AllocateBytes"),
+                                                    {
+                                                        buffer,
+                                                        builder->CreateZExt(valueLength, builder->getInt64Ty())
+                                                    });
+                                                builder->CreateMemCpy(
+                                                    permanentData,
+                                                    newData,
+                                                    valueLength,
+                                                    1);
+                                                return permanentData;
+                                            },
+                                            [&] (TCGBaseContext& builder) {
+                                                return newData;
+                                            });
+                                        break;
+                                    }
+                                    default:
+                                        Y_UNIMPLEMENTED();
+                                }
+
+                                if (argumentType == EValueType::String) {
+                                    resultLength = builder->CreateSelect(
+                                        compareResult,
+                                        valueLength,
+                                        aggregateValue.GetLength(builder));
+                                }
+
+                                resultData = builder->CreateSelect(
+                                    compareResult,
+                                    newData,
+                                    aggregateData);
+                            } else {
+                                Y_UNIMPLEMENTED();
+                            }
+
+                            return TCGValue::CreateFromValue(
+                                builder,
+                                builder->getFalse(),
+                                resultLength,
+                                resultData,
+                                stateType);
+                        })
+                        .StoreToValue(builder, aggStatePtr);
+                });
+
+            return TCGValue::CreateNull(builder, stateType);
+        };
+
+        TCodegenAggregate codegenAggregate;
+        codegenAggregate.Initialize = [
+            this_ = MakeStrong(this),
+            stateType,
+            name
+        ] (TCGBaseContext& builder, Value* buffer) {
+            return TCGValue::CreateNull(builder, stateType);
+        };
+
+        codegenAggregate.Update = iteration;
+        codegenAggregate.Merge = iteration;
+
+        codegenAggregate.Finalize = [
+            this_ = MakeStrong(this),
+            stateType,
+            resultType,
+            name
+        ] (TCGBaseContext& builder, Value* buffer, Value* aggState) {
+            return TCGValue::CreateFromLlvmValue(
+                builder,
+                aggState,
+                stateType);
+        };
+
+        return codegenAggregate;
     }
 };
 
 } // namespace NBuiltins
+
+bool IsUserCastFunction(const TString& name)
+{
+    return name == "int64" || name == "uint64" || name == "double";
+}
 
 namespace {
 
@@ -313,6 +657,18 @@ void RegisterBuiltinFunctions(
         functionProfilers->emplace("double", New<NBuiltins::TUserCastCodegen>());
     }
 
+    if (typeInferrers) {
+        typeInferrers->emplace("if_null", New<TFunctionTypeInferrer>(
+            std::unordered_map<TTypeArgument, TUnionType>(),
+            std::vector<TType>{0, 0},
+            0));
+    }
+
+    if (functionProfilers) {
+        functionProfilers->emplace("if_null", New<NBuiltins::TIfNullCodegen>());
+    }
+
+
     builder.RegisterFunction(
         "regex_full_match",
         "regex_full_match",
@@ -321,7 +677,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::Boolean,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_partial_match",
@@ -331,7 +688,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::Boolean,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_replace_first",
@@ -341,7 +699,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::String,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_replace_all",
@@ -351,7 +710,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::String,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_extract",
@@ -361,7 +721,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::String,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     builder.RegisterFunction(
         "regex_escape",
@@ -371,7 +732,8 @@ void RegisterBuiltinFunctions(
         EValueType::Null,
         EValueType::String,
         UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1, true));
+        New<TUnversionedValueCallingConvention>(-1),
+        true);
 
     auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
     constraints[typeArg] = std::vector<EValueType>{
@@ -401,30 +763,33 @@ void RegisterBuiltinFunctions(
         typeArg,
         UDF_BC(first),
         ECallingConvention::UnversionedValue);
-    builder.RegisterAggregate(
-        "sum",
-        sumConstraints,
-        typeArg,
-        typeArg,
-        typeArg,
-        UDF_BC(sum),
-        ECallingConvention::UnversionedValue);
-    builder.RegisterAggregate(
-        "min",
-        constraints,
-        typeArg,
-        typeArg,
-        typeArg,
-        UDF_BC(min),
-        ECallingConvention::UnversionedValue);
-    builder.RegisterAggregate(
-        "max",
-        constraints,
-        typeArg,
-        typeArg,
-        typeArg,
-        UDF_BC(max),
-        ECallingConvention::UnversionedValue);
+
+    if (typeInferrers) {
+        typeInferrers->emplace("sum", New<TAggregateTypeInferrer>(
+            sumConstraints,
+            typeArg,
+            typeArg,
+            typeArg));
+    }
+
+    if (aggregateProfilers) {
+        aggregateProfilers->emplace("sum", New<NBuiltins::TSimpleAggregateCodegen>("sum"));
+    }
+
+    for (const auto& name : {"min", "max"}) {
+        if (typeInferrers) {
+            typeInferrers->emplace(name, New<TAggregateTypeInferrer>(
+                constraints,
+                typeArg,
+                typeArg,
+                typeArg));
+        }
+
+        if (aggregateProfilers) {
+            aggregateProfilers->emplace(name, New<NBuiltins::TSimpleAggregateCodegen>(name));
+        }
+    }
+
     builder.RegisterAggregate(
         "avg",
         std::unordered_map<TTypeArgument, TUnionType>(),
@@ -480,7 +845,9 @@ void RegisterBuiltinFunctions(
         {"try_get_boolean", EValueType::Boolean},
         {"get_boolean", EValueType::Boolean},
         {"try_get_string", EValueType::String},
-        {"get_string", EValueType::String}};
+        {"get_string", EValueType::String},
+        {"try_get_any", EValueType::Any},
+        {"get_any", EValueType::Any}};
 
     for (const auto& fns : ypathGetFunctions) {
         auto&& name = fns.first;
@@ -492,6 +859,21 @@ void RegisterBuiltinFunctions(
             UDF_BC(ypath_get),
             ECallingConvention::UnversionedValue);
     }
+
+    builder.RegisterFunction(
+        "to_any",
+        std::vector<TType>{
+            TUnionType{
+                EValueType::String,
+                EValueType::Uint64,
+                EValueType::Int64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::Any}},
+        EValueType::Any,
+        UDF_BC(to_any),
+        ECallingConvention::UnversionedValue);
+
 }
 
 } // namespace

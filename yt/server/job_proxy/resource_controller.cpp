@@ -108,8 +108,9 @@ public:
         return New<TCGroupResourceController>(CGroupsConfig_, Path_ + name);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) override
     {
+        YCHECK(!coreDumpHandler);
         auto process = New<TSimpleProcess>(path, false);
         try {
             {
@@ -284,8 +285,13 @@ public:
         return New<TPortoResourceController>(ContainerManager_, instance, BlockIOWatchdogPeriod_, UseResourceLimits_);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) override
     {
+        if (coreDumpHandler) {
+            LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
+                coreDumpHandler.Get());
+            Container_->SetCoreDumpHandler(coreDumpHandler.Get());
+        }
         return New<TPortoProcess>(path, Container_, false);
     }
 

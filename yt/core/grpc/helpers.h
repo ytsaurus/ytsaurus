@@ -110,6 +110,9 @@ private:
 TSharedRef ByteBufferToEnvelopedMessage(grpc_byte_buffer* buffer);
 TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data);
 
+TString SerializeError(const TError& error);
+TError DeserializeError(const TStringBuf& serializedError);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NGrpc

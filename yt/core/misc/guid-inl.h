@@ -51,6 +51,16 @@ Y_FORCE_INLINE void FromProto(TGuid* guid, const NYT::NProto::TGuid& protoGuid)
     guid->Parts64[1] = protoGuid.second();
 }
 
+Y_FORCE_INLINE void ToProto(TProtoStringType* protoGuid, const TGuid& guid)
+{
+    *protoGuid = guid ? ToString(guid) : TString();
+}
+
+Y_FORCE_INLINE void FromProto(TGuid* guid, const TProtoStringType& protoGuid)
+{
+    *guid = protoGuid ? TGuid::FromString(protoGuid) : TGuid();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE bool operator == (const TGuid& lhs, const TGuid& rhs)

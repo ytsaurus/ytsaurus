@@ -166,7 +166,7 @@ void TChunkReplicator::Stop()
 
     for (const auto& queue : ChunkRepairQueues_) {
         for (auto chunkWithIndexes : queue) {
-            chunkWithIndexes.GetPtr()->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), Null);
+            chunkWithIndexes.GetPtr()->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), TChunkRepairQueueIterator());
         }
     }
 
@@ -177,11 +177,11 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
         auto repairIt = chunk->GetRepairQueueIterator(mediumIndex);
-        if (!repairIt) {
+        if (repairIt == TChunkRepairQueueIterator()) {
             continue;
         }
         auto& chunkRepairQueue = ChunkRepairQueues_[mediumIndex];
-        chunkRepairQueue.erase(*repairIt);
+        chunkRepairQueue.erase(repairIt);
         TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
         auto newRepairIt = chunkRepairQueue.insert(chunkRepairQueue.begin(), chunkWithIndexes);
         chunk->SetRepairQueueIterator(mediumIndex, newRepairIt);
@@ -1352,7 +1352,7 @@ void TChunkReplicator::ScheduleNewJobs(
                 auto* chunk = chunkWithIndexes.GetPtr();
                 TJobPtr job;
                 if (CreateRepairJob(node, chunkWithIndexes, &job)) {
-                    chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), Null);
+                    chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), TChunkRepairQueueIterator());
                     chunkRepairQueue.erase(chunkIt);
                     if (job) {
                         ChunkRepairQueueBalancer_.AddWeight(
@@ -2167,7 +2167,7 @@ void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndex
     Y_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
-    YCHECK(!chunk->GetRepairQueueIterator(mediumIndex));
+    YCHECK(chunk->GetRepairQueueIterator(mediumIndex) == TChunkRepairQueueIterator());
     auto& chunkRepairQueue = ChunkRepairQueues_[mediumIndex];
     auto it = chunkRepairQueue.insert(chunkRepairQueue.end(), chunkWithIndexes);
     chunk->SetRepairQueueIterator(mediumIndex, it);
@@ -2179,9 +2179,9 @@ void TChunkReplicator::RemoveFromChunkRepairQueue(TChunkPtrWithIndexes chunkWith
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
     auto it = chunk->GetRepairQueueIterator(mediumIndex);
-    if (it) {
-        ChunkRepairQueues_[mediumIndex].erase(*it);
-        chunk->SetRepairQueueIterator(mediumIndex, Null);
+    if (it != TChunkRepairQueueIterator()) {
+        ChunkRepairQueues_[mediumIndex].erase(it);
+        chunk->SetRepairQueueIterator(mediumIndex, TChunkRepairQueueIterator());
     }
 }
 

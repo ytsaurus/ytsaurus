@@ -46,6 +46,7 @@ protected:
         ChunkSliceFetcher_ = New<StrictMock<TMockChunkSliceFetcher>>();
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
+        Options_.SortedJobOptions.MaxDataWeightPerJob = Inf64;
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataWeight_ = Inf64;
@@ -2665,6 +2666,30 @@ TEST_F(TSortedChunkPoolTest, ExtractByDataSize)
     }
     EXPECT_GT(stripeListDataSizes[0], stripeListDataSizes[1]);
     EXPECT_GT(stripeListDataSizes[1], stripeListDataSizes[2]);
+}
+
+TEST_F(TSortedChunkPoolTest, MaximumDataWeightPerJobViolation)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.MaxDataWeightPerJob = 10 * KB;
+    InitTables(
+        {false, false} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = 5 * KB;
+    auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 7 * KB);
+    auto chunkB1 = CreateChunk(BuildRow({3}), BuildRow({8}), 0, 7 * KB);
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddChunk(chunkA1);
+    AddChunk(chunkB1);
+
+    EXPECT_THROW(ChunkPool_->Finish(), std::exception);
 }
 
 TEST_F(TSortedChunkPoolTest, CartesianProductViaJoinReduce)

@@ -140,6 +140,11 @@ void TPeriodicExecutor::OnCallbackFailure()
     PostDelayedCallback(Period_);
 }
 
+void TPeriodicExecutor::SetPeriod(TDuration period)
+{
+    Period_ = period;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency
