@@ -8,10 +8,7 @@ def main():
     scripts, data_files = prepare_files([
         "yt/tools/bin/add_user/yt_add_user.py",
         "yt/tools/bin/set_account/yt_set_account.py",
-        "yt/tools/bin/convert_to_erasure/yt_convert_to_erasure.py",
-        "yt/tools/bin/transform/yt_transform.py",
         "yt/tools/bin/lock/yt_lock.py",
-        "yt/tools/bin/doctor/yt_doctor.py",
         "yt/tools/bin/checksum/yt_checksum.py",
         "yt/tools/bin/dump_restore_erase/yt_dump_restore_erase.py"])
 
