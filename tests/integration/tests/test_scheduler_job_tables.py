@@ -815,6 +815,7 @@ class TestCoreTable(YTEnvSetup):
         assert not "size" in core_info
         assert "error" in core_info
 
+    @skip_if_porto
     @require_enabled_core_dump
     @require_ytserver_root_privileges
     @unix_only
@@ -870,7 +871,7 @@ class TestCoreTablePorto(YTEnvSetup):
 
     @require_ytserver_root_privileges
     @unix_only
-    def test_core_when_user_job_was_killed(self):
+    def test_core_when_user_job_was_killed_porto(self):
         op, correspondence_file_path = self._start_operation(1, kill_self=True, max_failed_job_count=1)
         job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
 
