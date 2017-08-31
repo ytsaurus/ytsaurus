@@ -140,6 +140,13 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                        {"action": "allow", "subjects": ["admin_snapshots"], "permissions": ["read"]}
                    ])
 
+    client.create("map_node", "//sys/admin/odin", ignore_existing=True)
+
+    client.set("//sys/admin/odin/@acl",
+               [
+                   {"action": "allow", "subjects": ["odin"], "permissions": ["write", "remove", "read"]}
+               ])
+
     # add_acl to schemas
     for schema in ["user", "group", "tablet_cell"]:
         if client.exists("//sys/schemas/%s" % schema):
