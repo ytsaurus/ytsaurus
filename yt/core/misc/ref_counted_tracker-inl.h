@@ -7,19 +7,19 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A nifty counter initializer for TRefCountedTracker.
-class TRefCountedTrackerInitializer
-{
-public:
-    TRefCountedTrackerInitializer();
-};
-
 // Never destroyed.
 extern TRefCountedTracker* RefCountedTrackerInstance;
 
 Y_FORCE_INLINE TRefCountedTracker* TRefCountedTracker::Get()
 {
-    static TRefCountedTrackerInitializer refCountedTrackerInitializer;
+    static struct TInitializer
+    {
+        TInitializer()
+        {
+            RefCountedTrackerInstance = new TRefCountedTracker();
+        }
+
+    } initializer;
     return RefCountedTrackerInstance;
 }
 
@@ -62,6 +62,7 @@ Y_FORCE_INLINE void TRefCountedTracker::ReallocateSpace(TRefCountedTypeCookie co
 
 Y_FORCE_INLINE TRefCountedTracker::TAnonymousSlot* TRefCountedTracker::GetPerThreadSlot(TRefCountedTypeCookie cookie)
 {
+    Y_ASSERT(cookie >= 0);
     if (cookie >= CurrentThreadStatisticsSize) {
         PreparePerThreadSlot(cookie);
     }

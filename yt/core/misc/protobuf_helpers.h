@@ -251,6 +251,10 @@ void FilterProtoExtensions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+struct TRefCountedProtoTag
+{ };
+
 //! Wrapper that makes proto message ref-counted.
 template <class TProto>
 class TRefCountedProto
@@ -270,7 +274,6 @@ private:
 
     void RegisterExtraSpace();
     void UnregisterExtraSpace();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

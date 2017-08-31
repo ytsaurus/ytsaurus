@@ -74,11 +74,6 @@ struct TRefCountedTypeTag { };
 template <class T>
 TRefCountedTypeKey GetRefCountedTypeKey();
 
-TRefCountedTypeCookie GetRefCountedTypeCookie(
-    TRefCountedTypeKey typeKey,
-    size_t instanceSize,
-    const TSourceLocation& location);
-
 template <class T>
 TRefCountedTypeCookie GetRefCountedTypeCookie();
 

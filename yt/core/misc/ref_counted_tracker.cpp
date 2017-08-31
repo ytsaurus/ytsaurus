@@ -420,15 +420,7 @@ void TRefCountedTracker::FlushPerThreadStatistics(TStatisticsHolder* holder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static int RefCountedTrackerInitializerCounter; // = 0
-TRefCountedTracker* RefCountedTrackerInstance;  // = nullptr
-
-TRefCountedTrackerInitializer::TRefCountedTrackerInitializer()
-{
-    if (RefCountedTrackerInitializerCounter++ == 0) {
-        RefCountedTrackerInstance = new TRefCountedTracker();
-    }
-}
+TRefCountedTracker* RefCountedTrackerInstance;
 
 ////////////////////////////////////////////////////////////////////////////////
 
