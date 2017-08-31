@@ -72,7 +72,6 @@ def test_ypath_dirname():
     assert ypath_dirname("//a") == "/"
     assert ypath_dirname("//a/b") == "//a"
     assert ypath_dirname("//a/b/c/d/e/f") == "//a/b/c/d/e"
-    assert ypath_dirname("") == ""
     assert ypath_dirname("//a/b\\/c") == "//a"
     with pytest.raises(yt.YtError):
         ypath_dirname("//a/")
