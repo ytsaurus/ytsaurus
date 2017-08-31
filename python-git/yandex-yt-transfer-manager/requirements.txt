@@ -1,5 +1,4 @@
 yandex-yt>=0.8.12-0
-yandex-yt-tools>=0.2.124-0
 yandex-yt-yson-bindings>=0.3.7-0
 flask==0.10.1
 python-prctl==1.6.1

@@ -14,8 +14,7 @@ from yt.transfer_manager.server.precheck import perform_precheck
 from yt.transfer_manager.server.helpers import log_yt_exception, get_token_and_user, \
                                                SafeThread, get_cluster_version, configure_logger, filter_out_keys
 from yt.transfer_manager.server.task_executor import TaskExecutorProcess, TaskProcessClient
-
-from yt.tools.logging_server import LogRecordSocketReceiver
+from yt.transfer_manager.server.logging_server import LogRecordSocketReceiver
 
 from yt.common import remove_file
 from yt.wrapper.common import generate_uuid, get_value, update, parse_bool
