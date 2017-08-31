@@ -199,6 +199,8 @@ public:
     virtual TCpuStatistics GetCpuStatistics() const override
     {
         UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
         auto error = CheckErrors(ResourceUsage_,
             EStatField::CpuUsageSystem,
             EStatField::CpuUsageUser);
@@ -213,6 +215,8 @@ public:
     virtual TBlockIOStatistics GetBlockIOStatistics() const override
     {
         UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
         auto error = CheckErrors(ResourceUsage_,
             EStatField::IOReadByte,
             EStatField::IOWriteByte,
@@ -228,6 +232,8 @@ public:
     virtual TMemoryStatistics GetMemoryStatistics() const override
     {
         UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
         auto error = CheckErrors(ResourceUsage_,
             EStatField::Rss,
             EStatField::MappedFiles,
@@ -243,6 +249,8 @@ public:
     virtual i64 GetMaxMemoryUsage() const override
     {
         UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
         auto error = CheckErrors(ResourceUsage_,
             EStatField::MaxMemoryUsage);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get max memory usage");
@@ -296,6 +304,7 @@ public:
     }
 
 private:
+    TSpinLock SpinLock_;
     IContainerManagerPtr ContainerManager_;
     IInstancePtr Container_;
     mutable TInstant LastUpdateTime_ = TInstant::Zero();
@@ -328,7 +337,7 @@ private:
     {
         auto now = TInstant::Now();
         if (now > LastUpdateTime_ && now - LastUpdateTime_ > StatUpdatePeriod_) {
-            ResourceUsage_ = Container_->GetResourceUsage({
+            auto resourceUsage = Container_->GetResourceUsage({
                 EStatField::CpuUsageUser,
                 EStatField::CpuUsageSystem,
                 EStatField::IOReadByte,
@@ -339,6 +348,9 @@ private:
                 EStatField::MajorFaults,
                 EStatField::MaxMemoryUsage
             });
+
+            auto guard = Guard(SpinLock_);
+            ResourceUsage_ = resourceUsage;
             LastUpdateTime_ = now;
         }
     }
