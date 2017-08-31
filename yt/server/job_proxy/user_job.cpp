@@ -673,7 +673,7 @@ private:
     void ValidatePrepared()
     {
         if (!Prepared_) {
-            THROW_ERROR_EXCEPTION("Cannot operate on job: job has not been prepared yet");
+            THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been prepared yet");
         }
     }
 
