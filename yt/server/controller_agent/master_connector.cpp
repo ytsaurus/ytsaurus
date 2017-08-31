@@ -499,6 +499,10 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
+        if (jobRequests.empty()) {
+            return;
+        }
+
         auto batchReq = StartObjectBatchRequest();
 
         for (const auto& request : jobRequests) {
@@ -777,6 +781,10 @@ private:
     void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        if (files.empty()) {
+            return;
+        }
 
         auto client = Bootstrap_->GetMasterClient();
         auto connection = client->GetNativeConnection();
