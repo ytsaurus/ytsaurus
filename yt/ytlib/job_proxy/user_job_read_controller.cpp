@@ -190,10 +190,19 @@ TNullable<TDataStatistics> TUserJobReadController::GetDataStatistics() const
 
 void TUserJobReadController::InterruptReader()
 {
+    if (!Initialized_) {
+        THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt uninitialized reader");
+    }
+
     if (JobSpecHelper_->IsReaderInterruptionSupported() && !Interrupted_) {
         YCHECK(Reader_);
-        Reader_->Interrupt();
         Interrupted_ = true;
+
+        if (Reader_->GetDataStatistics().row_count() > 0) {
+            Reader_->Interrupt();
+        } else {
+            THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt reader that didn't start reading");
+        }
     }
 }
 

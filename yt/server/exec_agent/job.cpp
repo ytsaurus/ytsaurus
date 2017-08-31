@@ -23,6 +23,8 @@
 #include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
+#include <yt/ytlib/job_proxy/public.h>
+
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -432,13 +434,23 @@ public:
     virtual void Interrupt() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
-        ValidateJobRunning();
+
+        if (JobPhase_ < EJobPhase::Running) {
+            Abort(TError("Interrupting job that has not started yet"));
+            return;
+        }
 
         try {
             Slot_->GetJobProberClient()->Interrupt();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error interrupting job on job proxy")
+            auto error = TError("Error interrupting job on job proxy")
                 << ex;
+
+            if (error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)) {
+                Abort(error);
+            } else {
+                THROW_ERROR error;
+            }
         }
     }
 
