@@ -1012,6 +1012,8 @@ private:
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+
+        LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
     }
 
     void DoUpdateOperationNode(TOperationPtr operation)

@@ -100,10 +100,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates(IInvokerPtr invoke
             updatesToRemove.push_back(key);
         } else {
             LOG_DEBUG("Updating item (Key: %v)", key);
-            asyncResults.push_back(
-                DoExecuteUpdate(&updateRecord).Apply(
-                    BIND(&TUpdateExecutor<TKey, TUpdateParameters>::OnUpdateExecuted, MakeStrong(this), key)
-                        .AsyncVia(invoker)));
+            asyncResults.push_back(DoExecuteUpdate(&updateRecord));
         }
     }
 
@@ -151,14 +148,6 @@ TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::DoExecuteUpdate(TUpdateR
         CreateUpdateAction_(updateRecord->Key, &updateRecord->UpdateParameters));
     updateRecord->LastUpdateFuture = std::move(lastUpdateFuture);
     return updateRecord->LastUpdateFuture;
-}
-
-template <class TKey, class TUpdateParameters>
-void TUpdateExecutor<TKey, TUpdateParameters>::OnUpdateExecuted(const TKey& key)
-{
-    VERIFY_THREAD_AFFINITY(UpdateThread);
-
-    LOG_DEBUG("Item updated (Key: %v)", key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

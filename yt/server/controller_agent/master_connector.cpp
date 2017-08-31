@@ -443,6 +443,8 @@ private:
                 operationId)
                 << ex;
         }
+
+        LOG_DEBUG("Operation node updated (OperationId: %v)", operationId);
     }
 
     TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& operationId, TOperationNodeUpdate* update)
