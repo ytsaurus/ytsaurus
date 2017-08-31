@@ -42,8 +42,8 @@ import ru.yandex.yt.ytclient.misc.YtGuid;
 public class DefaultRpcBusClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(DefaultRpcBusClient.class);
     private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
-    private static final Histogram requestsAckHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack"));
-    private static final Histogram requestsResponseHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response"));
+    private static final Histogram requestsAckHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", "total"));
+    private static final Histogram requestsResponseHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", "total"));
     private static final Counter errorCounter = metrics.counter(MetricRegistry.name(DefaultRpcBusClient.class, "error"));
 
     private final BusFactory busFactory;
@@ -51,6 +51,23 @@ public class DefaultRpcBusClient implements RpcClient {
     private Session currentSession;
     private boolean closed;
     private final String name; // for debug
+
+    private final class Statistics {
+        Histogram requestsAckHistogramLocal;
+        Histogram requestsResponseHistogramLocal;
+
+        void updateAck(long millis) {
+            requestsResponseHistogramLocal.update(millis);
+            requestsResponseHistogram.update(millis);
+        }
+
+        void updateResponse(long millis) {
+            requestsResponseHistogramLocal.update(millis);
+            requestsResponseHistogram.update(millis);
+        }
+    }
+
+    private final Statistics stats;
 
     /**
      * Предотвращает дальнейшее использование session
@@ -193,15 +210,17 @@ public class DefaultRpcBusClient implements RpcClient {
         private final RpcClientResponseHandler handler;
         private final YtGuid requestId;
         private Instant started;
+        private final Statistics stat;
 
         // Подписка на событие с таймаутом, если он есть
         private ScheduledFuture<?> timeoutFuture;
 
-        public Request(Session session, RpcClientRequest request, RpcClientResponseHandler handler) {
+        public Request(Session session, RpcClientRequest request, RpcClientResponseHandler handler, Statistics stat) {
             this.session = Objects.requireNonNull(session);
             this.request = Objects.requireNonNull(request);
             this.handler = Objects.requireNonNull(handler);
             this.requestId = request.getRequestId();
+            this.stat = stat;
         }
 
         /**
@@ -235,7 +254,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 logger.debug("({}) starting request `{}`", session, requestId);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
-                    requestsAckHistogram.update(elapsed.toMillis());
+                    stat.updateAck(elapsed.toMillis());
                     if (exception != null) {
                         error(exception);
                         logger.debug("({}) request `{}` acked in {} ms with error `{}`", session, requestId, elapsed.toMillis(), exception.toString());
@@ -374,7 +393,7 @@ public class DefaultRpcBusClient implements RpcClient {
          */
         public void response(List<byte[]> attachments) {
             Duration elapsed = Duration.between(started, Instant.now());
-            requestsResponseHistogram.update(elapsed.toMillis());
+            stat.updateResponse(elapsed.toMillis());
             logger.debug("({}) request `{}` finished in {} ms", session, requestId, elapsed.toMillis());
 
             lock.lock();
@@ -408,6 +427,11 @@ public class DefaultRpcBusClient implements RpcClient {
     public DefaultRpcBusClient(BusFactory busFactory) {
         this.busFactory = Objects.requireNonNull(busFactory);
         this.name = String.format("%s@%d", busFactory.destinationName(), System.identityHashCode(this));
+
+
+        this.stats = new Statistics();
+        stats.requestsAckHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", destinationName()));
+        stats.requestsResponseHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", destinationName()));
     }
 
     public String destinationName() {
@@ -454,7 +478,7 @@ public class DefaultRpcBusClient implements RpcClient {
 
     @Override
     public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
-        Request pendingRequest = new Request(getSession(), request, handler);
+        Request pendingRequest = new Request(getSession(), request, handler, stats);
         pendingRequest.start();
         return pendingRequest;
     }
