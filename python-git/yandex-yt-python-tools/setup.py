@@ -12,8 +12,6 @@ def main():
         "yt/tools/bin/checksum/yt_checksum.py",
         "yt/tools/bin/dump_restore_erase/yt_dump_restore_erase.py"])
 
-    data_files.append(("/etc/yandex_yt_python_tools", ["yt/tools/version"]))
-
     setup(
         name = "yandex-yt-tools",
         version = get_version(),
