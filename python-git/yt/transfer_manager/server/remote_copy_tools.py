@@ -1,7 +1,6 @@
 from yt.wrapper.common import round_up_to, bool_to_string, MB, GB, update, get_disk_size
 from yt.wrapper.local_mode import enable_local_files_usage_in_job
 from yt.wrapper.ypath import ypath_join
-from yt.tools.conversion_tools import transform
 from yt.common import get_value, set_pdeathsig
 
 import yt.yson as yson
@@ -391,8 +390,8 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
                         raise
 
         if erasure_codec is not None or compression_codec is not None:
-            transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec,
-                      yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
+            destination_client.transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec,
+                                         spec=postprocess_spec_template, check_codecs=True)
 
     copy_additional_attributes(source_client, destination_client, src, dst, additional_attributes)
 

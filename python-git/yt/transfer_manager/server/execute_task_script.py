@@ -5,13 +5,13 @@ from yt.transfer_manager.server.logger import TaskIdLogger
 from yt.transfer_manager.server.helpers import log_yt_exception, configure_logger
 from yt.transfer_manager.server.precheck import perform_precheck
 from yt.transfer_manager.server.clusters_configuration import get_clusters_configuration_from_config
-
-from yt.tools.remote_copy_tools import (copy_yt_to_kiwi,
-                                        copy_yt_to_yt,
-                                        copy_yt_to_yt_through_proxy,
-                                        copy_file_yt_to_yt,
-                                        copy_hive_to_yt,
-                                        copy_hadoop_to_hadoop_with_airflow)
+from yt.transfer_manager.server.remote_copy_tools import (
+    copy_yt_to_kiwi,
+    copy_yt_to_yt,
+    copy_yt_to_yt_through_proxy,
+    copy_file_yt_to_yt,
+    copy_hive_to_yt,
+    copy_hadoop_to_hadoop_with_airflow)
 
 import yt.logger as yt_logger
 from yt.wrapper.common import update, get_value
