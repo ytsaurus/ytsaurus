@@ -506,10 +506,9 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            transform(
+            destination_client.transform(
                 str(dst_table),
                 erasure_codec=erasure_codec,
-                yt_client=destination_client,
                 spec=postprocess_spec_template,
                 check_codecs=True)
 
@@ -838,8 +837,8 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
             ordered=True)
 
         postprocess_spec = deepcopy(get_value(postprocess_spec_template, {}))
-        transform(destination_table, erasure_codec=erasure_codec, yt_client=yt_client,
-                  spec=postprocess_spec, check_codecs=True)
+        yt_client.transform(destination_table, erasure_codec=erasure_codec,
+                            spec=postprocess_spec, check_codecs=True)
 
 def copy_hadoop_to_hadoop_with_airflow(task_type, airflow_client, source_path, source_cluster,
                                        destination_path, destination_cluster, user):
