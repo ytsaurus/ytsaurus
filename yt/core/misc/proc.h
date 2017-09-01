@@ -30,6 +30,10 @@ std::vector<int> GetPidsByUid(int uid = -1);
  */
 i64 GetProcessRss(int pid = -1);
 
+int GetCurrentThreadId();
+
+void SetThreadPriority(int tid, int priority);
+
 TString GetProcessName(int pid);
 std::vector<TString> GetProcessCommandLine(int pid);
 
@@ -151,6 +155,31 @@ DEFINE_REFCOUNTED_TYPE(TUmountConfig)
 struct TUmountAsRootTool
 {
     void operator()(TUmountConfigPtr config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSetThreadPriorityConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int ThreadId;
+    int Priority;
+
+    TSetThreadPriorityConfig()
+    {
+        RegisterParameter("thread_id", ThreadId);
+        RegisterParameter("priority", Priority);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSetThreadPriorityConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSetThreadPriorityAsRootTool
+{
+    void operator()(TSetThreadPriorityConfigPtr config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,6 +18,7 @@ REGISTER_TOOL(TRemoveDirAsRootTool)
 REGISTER_TOOL(TRemoveDirContentAsRootTool)
 REGISTER_TOOL(TMountTmpfsAsRootTool)
 REGISTER_TOOL(TUmountAsRootTool)
+REGISTER_TOOL(TSetThreadPriorityAsRootTool)
 REGISTER_TOOL(TFSQuotaTool)
 
 namespace NCGroup {

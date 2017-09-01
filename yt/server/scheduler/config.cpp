@@ -340,6 +340,8 @@ TOperationAlertsConfig::TOperationAlertsConfig()
 
 TSchedulerConfig::TSchedulerConfig()
 {
+    RegisterParameter("control_thread_priority", ControlThreadPriority)
+        .Default();
     RegisterParameter("controller_thread_count", ControllerThreadCount)
         .Default(4)
         .GreaterThan(0);
