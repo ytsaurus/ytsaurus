@@ -436,7 +436,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         if (JobPhase_ < EJobPhase::Running) {
-            Abort(TError("Interrupting job that has not started yet"));
+            Abort(TError(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet"));
             return;
         } else if (JobPhase_ > EJobPhase::Running) {
             // We're done with this job, no need to interrupt.
@@ -1103,6 +1103,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
+            resultError.FindMatching(NJobProxy::EErrorCode::JobNotPrepared) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {
             return EAbortReason::Other;
