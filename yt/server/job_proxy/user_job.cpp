@@ -340,7 +340,7 @@ public:
 
         auto jobError = innerErrors.empty()
             ? TError()
-            : TError("User job failed") << innerErrors;
+            : TError(EErrorCode::UserJobFailed, "User job failed") << innerErrors;
 
         ToProto(result.mutable_error(), jobError);
 
