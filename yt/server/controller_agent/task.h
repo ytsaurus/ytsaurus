@@ -83,7 +83,7 @@ public:
     virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary);
     virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary);
     virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary);
-    virtual void OnJobLost(TJobletPtr joblet, TCompletedJobPtr completedJob);
+    virtual void OnJobLost(TCompletedJobPtr completedJob);
 
     // First checks against a given node, then against all nodes if needed.
     void CheckResourceDemandSanity(

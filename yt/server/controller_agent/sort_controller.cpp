@@ -516,9 +516,9 @@ protected:
             Controller->CheckMergeStartThreshold();
         }
 
-        virtual void OnJobLost(TJobletPtr joblet, TCompletedJobPtr completedJob) override
+        virtual void OnJobLost(TCompletedJobPtr completedJob) override
         {
-            TTask::OnJobLost(joblet, completedJob);
+            TTask::OnJobLost(completedJob);
 
             UpdateNodeDataWeight(completedJob->NodeDescriptor, -completedJob->DataWeight);
 
@@ -844,13 +844,13 @@ protected:
             TTask::OnJobAborted(joblet, jobSummary);
         }
 
-        virtual void OnJobLost(TJobletPtr joblet, TCompletedJobPtr completedJob) override
+        virtual void OnJobLost(TCompletedJobPtr completedJob) override
         {
             Controller->IntermediateSortJobCounter.Lost(1);
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataWeightCounter.Lost(stripeList->TotalDataWeight);
 
-            TTask::OnJobLost(joblet, completedJob);
+            TTask::OnJobLost(completedJob);
 
             if (!Partition->Completed && Controller->PartitionTask) {
                 Controller->AddTaskPendingHint(this);
@@ -945,14 +945,14 @@ protected:
             TSortTask::OnJobStarted(joblet);
         }
 
-        virtual void OnJobLost(TJobletPtr joblet, TCompletedJobPtr completedJob) override
+        virtual void OnJobLost(TCompletedJobPtr completedJob) override
         {
             auto nodeId = completedJob->NodeDescriptor.Id;
             YCHECK((Partition->NodeIdToLocality[nodeId] -= completedJob->DataWeight) >= 0);
 
             Controller->ResetTaskLocalityDelays();
 
-            TSortTask::OnJobLost(joblet, completedJob);
+            TSortTask::OnJobLost(completedJob);
         }
     };
 
