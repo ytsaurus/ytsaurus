@@ -79,6 +79,10 @@ void TLockRequest::Persist(TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, Mode);
     Persist(context, Key);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 618)  {
+        Persist(context, Timestamp);
+    }
 }
 
 bool TLockRequest::operator==(const TLockRequest& other) const

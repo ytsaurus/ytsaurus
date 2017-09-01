@@ -2297,6 +2297,9 @@ private:
         if (options.AttributeKey) {
             req->set_attribute_key(*options.AttributeKey);
         }
+        auto timestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+        req->set_timestamp(timestamp);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())

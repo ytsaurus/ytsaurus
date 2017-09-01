@@ -4,8 +4,6 @@
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell_bundle.h>
 
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
-
 namespace NYT {
 namespace NTableServer {
 
@@ -336,11 +334,11 @@ bool TTableNode::IsEmpty() const
 }
 
 TTimestamp TTableNode::GetCurrentUnflushedTimestamp(
-    ITimestampProviderPtr timestampProvider) const
+    TTimestamp latestTimestamp) const
 {
     return UnflushedTimestamp_ != NullTimestamp
         ? UnflushedTimestamp_
-        : CalculateUnflushedTimestamp(std::move(timestampProvider));
+        : CalculateUnflushedTimestamp(latestTimestamp);
 }
 
 TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
@@ -351,14 +349,13 @@ TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
 }
 
 TTimestamp TTableNode::CalculateUnflushedTimestamp(
-    ITimestampProviderPtr timestampProvider) const
+    TTimestamp latestTimestamp) const
 {
     auto* trunkNode = GetTrunkNode();
     if (!trunkNode->IsDynamic()) {
         return NullTimestamp;
     }
 
-    auto latestTimestamp = timestampProvider->GetLatestTimestamp();
     auto result = MaxTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
         auto timestamp = tablet->GetState() != ETabletState::Unmounted
