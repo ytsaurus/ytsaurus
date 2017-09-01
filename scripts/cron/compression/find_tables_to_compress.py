@@ -11,7 +11,7 @@ from yt.packages.six.moves import xrange
 
 import yt.wrapper as yt
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from copy import deepcopy
 import argparse
 import time
@@ -189,6 +189,7 @@ def find_tables_to_compress(root):
                                              "queue", "pool"])
 
     tasks = []
+    paths_to_walk = deque([(root, None)])
 
     def walk(path, object, compression_settings=None):
         if path in ignore_nodes:
@@ -224,7 +225,8 @@ def find_tables_to_compress(root):
             tasks.append(task)
         elif object.attributes["type"] == "map_node":
             if parse_bool(object.attributes.get("opaque", "false")):
-                object = safe_get(path, attributes=requested_attributes)
+                paths_to_walk.append((path, compression_settings))
+                return
 
             compression_settings = object.attributes.get("nightly_compression_settings",
                                                          compression_settings)
@@ -234,8 +236,11 @@ def find_tables_to_compress(root):
         else:
             logger.debug("Skipping %s %s", object.attributes["type"], path)
 
-    root_obj = safe_get(root, attributes=requested_attributes)
-    walk(root, root_obj)
+    while paths_to_walk:
+        path, compression_settings = paths_to_walk.popleft()
+        obj = safe_get(path, attributes=requested_attributes)
+        obj.attributes["opaque"] = False
+        walk(path, obj, compression_settings)
 
     logger.info("Total task count before filtering: %d", len(tasks))
 
