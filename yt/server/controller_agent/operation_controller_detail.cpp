@@ -2002,7 +2002,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     completedJob->Lost = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
     completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
-    auto joblet = GetJoblet(completedJob->JobId);
+    auto joblet = FindJoblet(completedJob->JobId);
     completedJob->SourceTask->OnJobLost(std::move(joblet), completedJob);
     AddTaskPendingHint(completedJob->SourceTask);
     return true;
