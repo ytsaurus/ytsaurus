@@ -873,6 +873,7 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             THROW_ERROR_EXCEPTION(message)
                 << TErrorAttribute("lock", LockIndexToName_[lockIndex])
                 << TErrorAttribute("tablet_id", TabletId_)
+                << TErrorAttribute("table_path", Tablet_->GetTablePath())
                 << TErrorAttribute("key", RowToKey(row))
                 << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime);
         };
@@ -1390,6 +1391,7 @@ TError TSortedDynamicStore::CheckRowLocks(
             return TError("Multiple modifications to a row within a single transaction are not allowed")
                 << TErrorAttribute("transaction_id", transaction->GetId())
                 << TErrorAttribute("tablet_id", TabletId_)
+                << TErrorAttribute("table_path", Tablet_->GetTablePath())
                 << TErrorAttribute("key", RowToKey(row));
         }
 
@@ -1407,6 +1409,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                     << TErrorAttribute("loser_transaction_id", transaction->GetId())
                     << TErrorAttribute("winner_transaction_id", lock->Transaction->GetId())
                     << TErrorAttribute("tablet_id", TabletId_)
+                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
                     << TErrorAttribute("key", RowToKey(row))
                     << TErrorAttribute("lock", LockIndexToName_[index]);
             }
@@ -1419,6 +1422,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                     << TErrorAttribute("loser_transaction_id", transaction->GetId())
                     << TErrorAttribute("winner_transaction_commit_timestamp", lastCommitTimestamp)
                     << TErrorAttribute("tablet_id", TabletId_)
+                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
                     << TErrorAttribute("key", RowToKey(row))
                     << TErrorAttribute("lock", LockIndexToName_[index]);
             }

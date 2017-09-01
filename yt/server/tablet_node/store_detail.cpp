@@ -851,6 +851,7 @@ bool TChunkStoreBase::ValidateBlockCachePreloaded()
     if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
         THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
             << TErrorAttribute("tablet_id", TabletId_)
+            << TErrorAttribute("table_path", Tablet_->GetTablePath())
             << TErrorAttribute("store_id", StoreId_);
     }
 
