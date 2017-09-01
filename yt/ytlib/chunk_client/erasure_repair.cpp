@@ -35,7 +35,11 @@ public:
         , WorkloadDescriptor_(workloadDescriptor)
         , BlocksToSave_(blocksToSave)
         , SavedBlocks_(blocksToSave.size())
-    { }
+    {
+        for (size_t index = 0; index < blocksToSave.size(); ++index) {
+            BlockIndexToBlocksToSaveIndex_[blocksToSave[index]] = index;
+        }
+    }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
@@ -63,9 +67,9 @@ public:
                 for (int index = 0; index < blockIndexesToRequest.size(); ++index) {
                     auto blockIndex = blockIndexesToRequest[index];
                     auto block = blocks[index];
-                    auto it = std::lower_bound(BlocksToSave_.begin(), BlocksToSave_.end(), blockIndex);
-                    if (it != BlocksToSave_.end() && *it == blockIndex) {
-                        SavedBlocks_[it - BlocksToSave_.begin()] = block;
+                    auto it = BlockIndexToBlocksToSaveIndex_.find(blockIndex);
+                    if (it != BlockIndexToBlocksToSaveIndex_.end()) {
+                        SavedBlocks_[it->second] = block;
                     }
                     CachedBlocks_.push_back(std::make_pair(blockIndex, block));
                 }
@@ -112,6 +116,7 @@ private:
     const IChunkReaderPtr UnderlyingReader_;
     const TWorkloadDescriptor WorkloadDescriptor_;
     const std::vector<int> BlocksToSave_;
+    yhash<int, int> BlockIndexToBlocksToSaveIndex_;
 
     std::vector<TNullable<TBlock>> SavedBlocks_;
     std::deque<std::pair<int, TBlock>> CachedBlocks_;
