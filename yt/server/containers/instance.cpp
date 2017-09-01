@@ -120,7 +120,6 @@ public:
     virtual void SetCoreDumpHandler(const TString& handler) override
     {
         SetProperty("core_command", handler);
-        SetProperty("ulimit", "core: unlimited");
     }
 
     virtual void Kill(int signal) override
@@ -221,6 +220,8 @@ public:
 
         LOG_DEBUG("Executing porto container (Command: %v)", command);
 
+        // Enable core dumps for all container instances.
+        SetProperty("ulimit", "core: unlimited");
         SetProperty("controllers", "freezer;memory;cpu;cpuacct;net_cls;blkio;devices");
         SetProperty("command", command);
         SetProperty("isolate", "true");
