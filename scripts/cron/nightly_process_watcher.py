@@ -15,6 +15,7 @@ import random
 import signal
 import argparse
 import subprocess
+import logging.handlers
 from multiprocessing import Process, Queue
 
 class BoundProcess(Process):
@@ -231,6 +232,7 @@ def main():
                         help="root path for all worker processes tasks")
     parser.add_argument("--watcher-root", required=True,
                         help="root path for watcher stuff")
+    parser.add_argument("--log-path", help="log path. stderr will be used if not specified")
     # Collector settings
     parser.add_argument("--collector-command", required=True,
                         help="command to run periodically to update worker tasks")
@@ -240,6 +242,11 @@ def main():
                         help="path to collector log")
 
     args = parser.parse_args()
+
+    if args.log_path is not None:
+        handler = logging.handlers.WatchedFileHandler(args.log_path)
+        handler.setFormatter(logger.BASIC_FORMATTER)
+        logger.LOGGER.handlers = [handler]
 
     logger.info("Nightly process watcher started")
 
