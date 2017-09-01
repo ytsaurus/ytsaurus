@@ -34,7 +34,7 @@ protected:
     virtual void DoBranch(
         const TImpl* originatingNode,
         TImpl* branchedNode,
-        NCypressClient::ELockMode mode) override;
+        const NCypressServer::TLockRequest& lockRequest) override;
     virtual void DoMerge(
         TImpl* originatingNode,
         TImpl* branchedNode) override;

@@ -12,6 +12,7 @@ message TReqLock
     optional bool waitable = 2 [default = false];
     optional string child_key = 3;
     optional string attribute_key = 4;
+    optional uint64 timestamp = 5 [default = 0];
 }
 
 message TRspLock

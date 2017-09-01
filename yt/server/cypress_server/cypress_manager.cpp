@@ -1749,13 +1749,13 @@ private:
 
         if (request.Mode == ELockMode::Snapshot) {
             // Branch at requested transaction only.
-            return BranchNode(originatingNode, transaction, request.Mode);
+            return BranchNode(originatingNode, transaction, request);
         } else {
             // Branch at all intermediate transactions.
             std::reverse(intermediateTransactions.begin(), intermediateTransactions.end());
             auto* currentNode = originatingNode;
             for (auto* transactionToBranch : intermediateTransactions) {
-                currentNode = BranchNode(currentNode, transactionToBranch, request.Mode);
+                currentNode = BranchNode(currentNode, transactionToBranch, request);
             }
             return currentNode;
         }
@@ -1960,7 +1960,7 @@ private:
     TCypressNodeBase* BranchNode(
         TCypressNodeBase* originatingNode,
         TTransaction* transaction,
-        ELockMode mode)
+        const TLockRequest& request)
     {
         YCHECK(originatingNode);
         YCHECK(transaction);
@@ -1973,12 +1973,12 @@ private:
 
         // Create a branched node and initialize its state.
         const auto& handler = GetHandler(originatingNode);
-        auto branchedNodeHolder = handler->Branch(originatingNode, transaction, mode);
+        auto branchedNodeHolder = handler->Branch(originatingNode, transaction, request);
 
         TVersionedNodeId versionedId(id, transaction->GetId());
         auto* branchedNode = NodeMap_.Insert(versionedId, std::move(branchedNodeHolder));
 
-        YCHECK(branchedNode->GetLockMode() == mode);
+        YCHECK(branchedNode->GetLockMode() == request.Mode);
 
         // Register the branched node with the transaction.
         transaction->BranchedNodes().push_back(branchedNode);

@@ -24,6 +24,8 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/serialize.h>
@@ -289,7 +291,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
 
     if (key == "unflushed_timestamp" && isDynamic && isSorted) {
         BuildYsonFluently(consumer)
-            .Value(table->GetCurrentUnflushedTimestamp(timestampProvider));
+            .Value(table->GetCurrentUnflushedTimestamp(timestampProvider->GetLatestTimestamp()));
         return true;
     }
 

@@ -112,12 +112,12 @@ public:
 
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
-        NTransactionClient::ITimestampProviderPtr timestampProvider) const;
+        NTransactionClient::TTimestamp latestTimestamp) const;
 
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
-        NTransactionClient::ITimestampProviderPtr timestampProvider) const;
+        NTransactionClient::TTimestamp latestTimestamp) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
