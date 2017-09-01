@@ -4,7 +4,7 @@ from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set
 from .errors import YtResponseError
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
-from .ypath import YPath, escape_ypath_literal, ypath_join
+from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
 from .format import create_format
 from .batch_response import apply_function_to_result
 
@@ -13,7 +13,6 @@ import yt.logger as logger
 from yt.packages.six import iteritems
 from yt.packages.six.moves import builtins, map as imap, filter as ifilter
 
-import os
 import string
 from copy import deepcopy
 
@@ -538,8 +537,8 @@ def remove_with_empty_dirs(path, force=True, client=None):
                 break
             else:
                 raise
-        # TODO(ignat): introduce ypath_dirname and use it here.
-        path = YPath(os.path.dirname(str(path)), simplify=False)
+
+        path = ypath_dirname(path)
         try:
             if str(path) == "//" or not exists(path, client=client) or list(path, client=client) or get(path + "/@acl", client=client):
                 break

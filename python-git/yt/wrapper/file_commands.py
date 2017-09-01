@@ -5,7 +5,7 @@ from .errors import YtError, YtResponseError
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
                                create, link, get, set)
-from .ypath import FilePath, ypath_join
+from .ypath import FilePath, ypath_join, ypath_dirname
 from .local_mode import is_local_mode
 
 from yt.yson import to_yson_type
@@ -279,7 +279,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         else:
             if placement_strategy in ["hash", "random"]:
                 raise YtError("Destination should not be specified if strategy is hash or random")
-            mkdir(os.path.dirname(destination), recursive=True, client=client)
+            mkdir(ypath_dirname(destination), recursive=True, client=client)
             if yt_filename is None:
                 yt_filename = os.path.basename(destination)
 
