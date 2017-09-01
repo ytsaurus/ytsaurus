@@ -170,14 +170,6 @@ class CachedYtClient(yt.wrapper.client.Yt):
         error = yt.wrapper.YtError(message="No such node: " + path, code=500)
         return yt.wrapper.YtResponseError(error.simplify())
 
-    @staticmethod
-    def _ypath_dirname(path):
-        """Find parent directory for given YPath."""
-        parent_path = os.path.dirname(path)
-        if parent_path == u"//":
-            parent_path = u"/"
-        return parent_path
-
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def get_attributes(self, path, attributes, use_list_optimization=True):
         """Get a subset of node's attributes."""
@@ -194,7 +186,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             pass
 
         # Check parent children list
-        parent_path = CachedYtClient._ypath_dirname(path)
+        parent_path = yt.wrapper.ypath_dirname(path)
         if path != parent_path:
             parent_cache_entry = self._cache.get(parent_path)
             if parent_cache_entry is not None \
@@ -270,7 +262,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             ignore_existing=ignore_existing, attributes=attributes
         )
         self._cache.pop(path)
-        parent = self._cache.get(CachedYtClient._ypath_dirname(path))
+        parent = self._cache.get(yt.wrapper.ypath_dirname(path))
         if parent is not None and parent.children is not None:
             parent.children.add(os.path.basename(path))
 
@@ -280,7 +272,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             path, recursive=recursive, force=force
         )
         self._cache.pop(path)
-        parent = self._cache.get(CachedYtClient._ypath_dirname(path))
+        parent = self._cache.get(yt.wrapper.ypath_dirname(path))
         if parent is not None and parent.children is not None:
             parent.children.remove(os.path.basename(path))
 

@@ -836,7 +836,7 @@ Examples:
     if args.upload is not None:
         if yt.exists(args.upload) and yt.get_type(args.upload) == "file":
             remove_with_empty_dirs(args.upload)
-        yt.mkdir(os.path.dirname(args.upload))
+        yt.mkdir(yt.ypath_dirname(args.upload))
         yt.write_file(args.upload, get_binary_std_stream(sys.stdin))
         if args.executable:
             yt.set_attribute(args.upload, "executable", bool_to_string(True))
