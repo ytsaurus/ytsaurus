@@ -340,12 +340,12 @@ class TestJobStderr(YTEnvSetup):
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(110)])
+        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(20)])
 
-        # All jobs with index < 109 will successfuly finish on "exit 0;"
-        # The job with index 109 will be waiting because of wait_for_jobs=True
+        # All jobs with index < 19 will successfuly finish on "exit 0;"
+        # The job with index 19 will be waiting because of wait_for_jobs=True
         # until it is manualy resumed.
-        command = """grep -v row_109 > /dev/null;
+        command = """grep -v row_19 > /dev/null;
                 IS_FAILING_JOB=$?;
                 echo stderr 1>&2;
                 if [ $IS_FAILING_JOB -eq 1 ]; then
@@ -362,15 +362,15 @@ class TestJobStderr(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=command,
-            spec={"max_failed_job_count": 1, "max_stderr_count": 100, "job_count": 110})
+            spec={"max_failed_job_count": 1, "max_stderr_count": 10, "job_count": 20})
 
         with pytest.raises(YtError):
             op.resume_jobs()
             op.track()
 
-        # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
+        # The default number of stderr is 10. We check that we have 11-st stderr of failed job,
         # that is last one.
-        check_all_stderrs(op, "stderr\n", 101)
+        check_all_stderrs(op, "stderr\n", 11)
 
     def test_stderr_with_missing_tmp_quota(self):
         create_account("test_account")
