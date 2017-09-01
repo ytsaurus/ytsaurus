@@ -2819,6 +2819,7 @@ private:
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Too many stores in tablet, all writes disabled")
                 << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
                 << TErrorAttribute("store_count", storeCount)
                 << TErrorAttribute("store_limit", storeLimit);
         }
@@ -2830,6 +2831,7 @@ private:
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Too many overlapping stores in tablet, all writes disabled")
                 << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
                 << TErrorAttribute("overlapping_store_count", overlappingStoreCount)
                 << TErrorAttribute("overlapping_store_limit", overlappingStoreLimit);
         }
@@ -2854,7 +2856,8 @@ private:
                 "Tablet %v is not in %Qlv state",
                 tablet->GetId(),
                 ETabletState::Mounted)
-                << TErrorAttribute("tablet_id", tablet->GetId());
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath());
         }
     }
 
