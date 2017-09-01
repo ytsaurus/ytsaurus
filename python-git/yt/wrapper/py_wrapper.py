@@ -408,7 +408,12 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
 
     if is_standalone_binary:
         use_py_runner = False
-        arguments = [file_argument_builder(sys.argv[0], caller=True)]
+        executable = None
+        if hasattr(sys, 'frozen'):
+            executable = sys.executable
+        else:
+            executable = sys.argv[0]
+        arguments = [file_argument_builder(executable, caller=True)]
     else:
         use_py_runner = True
 
