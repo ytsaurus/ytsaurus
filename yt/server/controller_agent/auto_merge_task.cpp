@@ -28,6 +28,51 @@ TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
 
 IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe, TChunkStripeKey key)
 {
+    ProcessStripe(stripe);
+
+    if (stripe->DataSlices.empty()) {
+        return IChunkPoolInput::NullCookie;
+    } else {
+        auto cookie = TChunkPoolInputAdapterBase::Add(stripe, key);
+        if (CookieChunkCount_.size() <= cookie) {
+            CookieChunkCount_.resize(cookie + 1);
+        }
+        CookieChunkCount_[cookie] = stripe->GetChunkCount();
+        return cookie;
+    }
+}
+
+void TAutoMergeChunkPoolAdapter::Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe)
+{
+    ProcessStripe(stripe);
+
+    if (stripe->DataSlices.empty()) {
+        return;
+    } else {
+        CookieChunkCount_[cookie] = stripe->GetChunkCount();
+        return TChunkPoolInputAdapterBase::Resume(cookie, stripe);
+    }
+}
+
+void TAutoMergeChunkPoolAdapter::Suspend(TCookie cookie)
+{
+    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(-CookieChunkCount_[cookie]);
+    Task_->CurrentChunkCount_ -= CookieChunkCount_[cookie];
+}
+
+void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
+{
+    TChunkPoolInputAdapterBase::Persist(context);
+
+    using NYT::Persist;
+
+    Persist(context, Task_);
+    Persist(context, TeleportChunkSize_);
+    Persist(context, CookieChunkCount_);
+}
+
+void TAutoMergeChunkPoolAdapter::ProcessStripe(const TChunkStripePtr& stripe) const
+{
     // We perform an in-place filtration of all large chunks.
     int firstUnusedIndex = 0;
     for (auto& slice : stripe->DataSlices) {
@@ -40,24 +85,8 @@ IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe,
     }
     stripe->DataSlices.resize(firstUnusedIndex);
 
-    Task_->GetTaskHost()->GetAutoMergeDirector()->OnMergeInputProcessed(firstUnusedIndex /* intermediateChunkCount */);
-
-    if (!stripe->DataSlices.empty()) {
-        Task_->CurrentChunkCount_ += firstUnusedIndex;
-        return TChunkPoolInputAdapterBase::Add(stripe, key);
-    } else {
-        return IChunkPoolInput::NullCookie;
-    }
-}
-
-void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
-{
-    TChunkPoolInputAdapterBase::Persist(context);
-
-    using NYT::Persist;
-
-    Persist(context, Task_);
-    Persist(context, TeleportChunkSize_);
+    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(firstUnusedIndex /* intermediateChunkCount */);
+    Task_->CurrentChunkCount_ += firstUnusedIndex;
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter);

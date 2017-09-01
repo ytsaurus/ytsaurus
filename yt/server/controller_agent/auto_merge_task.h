@@ -28,12 +28,19 @@ public:
         NChunkPools::TChunkStripePtr stripe,
         NChunkPools::TChunkStripeKey key) override;
 
+    virtual void Suspend(TCookie cookie);
+
+    virtual void Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe);
+
     void Persist(const TPersistenceContext& context);
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0xfb888bac);
 
+    void ProcessStripe(const NChunkPools::TChunkStripePtr& stripe) const;
+
     TAutoMergeTask* Task_;
     i64 TeleportChunkSize_;
+    std::vector<int> CookieChunkCount_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

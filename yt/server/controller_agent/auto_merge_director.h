@@ -37,10 +37,11 @@ public:
     void OnTaskJobFinished(int intermediateChunkCountEstimate);
 
     //! This method is called by auto-merge task after teleporting all large chunks with the actual
-    //! count of intermediate chunks that should be processed.
+    //! count of intermediate chunks that should be processed when new stripe is added or resumed.
+    //! It is also called during stripe suspension to discount lost chunks.
     //! NB: this method should be called right after the OnTaskJobFinished method in order to not
     //! have situation when intermediate chunks are undercounted.
-    void OnMergeInputProcessed(int intermediateChunkCount);
+    void AccountMergeInputChunks(int intermediateChunkCount);
 
     //! Method that is called when auto merge job is started.
     void OnMergeJobStarted();

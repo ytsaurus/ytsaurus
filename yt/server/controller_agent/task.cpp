@@ -521,7 +521,7 @@ void TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary
     ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}));
 }
 
-void TTask::OnJobLost(TJobletPtr joblet, TCompletedJobPtr completedJob)
+void TTask::OnJobLost(TCompletedJobPtr completedJob)
 {
     YCHECK(LostJobCookieMap.insert(std::make_pair(
         completedJob->OutputCookie,

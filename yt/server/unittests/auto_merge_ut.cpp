@@ -24,7 +24,7 @@ TEST(TAutoMergeTest, SimpleScenario)
     director.OnTaskJobStarted(5);
     director.OnTaskJobFinished(5);
     // Actually there were 4 chunks produced instead of 5 (or maybe one of them was a large chunk).
-    director.OnMergeInputProcessed(4);
+    director.AccountMergeInputChunks(4);
 
     // There are currently 4 intermediate chunks in auto-merge task, but it is too early to merge them.
     EXPECT_FALSE(director.CanScheduleMergeJob(4));
@@ -32,13 +32,13 @@ TEST(TAutoMergeTest, SimpleScenario)
     EXPECT_TRUE(director.CanScheduleTaskJob(7));
     director.OnTaskJobStarted(7);
     director.OnTaskJobFinished(7);
-    director.OnMergeInputProcessed(7);
+    director.AccountMergeInputChunks(7);
 
     EXPECT_TRUE(director.CanScheduleTaskJob(6));
     director.OnTaskJobStarted(6);
     director.OnTaskJobFinished(6);
     // It may actually happen that the initial estimate was smaller than the actual chunk count.
-    director.OnMergeInputProcessed(7);
+    director.AccountMergeInputChunks(7);
 
     EXPECT_TRUE(director.CanScheduleMergeJob(17));
     director.OnMergeJobStarted();
@@ -62,7 +62,7 @@ TEST(TAutoMergeTest, SimpleScenario)
     EXPECT_TRUE(director.CanScheduleTaskJob(4));
     director.OnTaskJobStarted(4);
     director.OnTaskJobFinished(4);
-    director.OnMergeInputProcessed(2);
+    director.AccountMergeInputChunks(2);
 
     EXPECT_FALSE(director.CanScheduleMergeJob(4));
     director.OnTaskCompleted();
@@ -87,7 +87,7 @@ TEST(TAutoMergeTest, ForceFlush)
     EXPECT_TRUE(director.CanScheduleTaskJob(12));
     director.OnTaskJobStarted(12);
     director.OnTaskJobFinished(12);
-    director.OnMergeInputProcessed(12);
+    director.AccountMergeInputChunks(12);
 
     // Suppose these 12 chunks are evenly distributed across 3 auto-merge tasks.
     // They will perform 3 following calls to check if they have to merge their chunks.
@@ -124,7 +124,7 @@ TEST(TAutoMergeTest, BypassMarginalJobs)
     EXPECT_TRUE(director.CanScheduleTaskJob(12));
     director.OnTaskJobStarted(12);
     director.OnTaskJobFinished(12);
-    director.OnMergeInputProcessed(12);
+    director.AccountMergeInputChunks(12);
 
     // Suppose these 12 chunks are evenly distributed across 3 auto-merge tasks.
     // They will perform 3 following calls to check if they have to merge their chunks.
@@ -164,7 +164,7 @@ TEST(TAutoMergeTest, JobFailure)
     EXPECT_TRUE(director.CanScheduleTaskJob(10));
     director.OnTaskJobStarted(10);
     director.OnTaskJobFinished(10);
-    director.OnMergeInputProcessed(10);
+    director.AccountMergeInputChunks(10);
 
     EXPECT_TRUE(director.CanScheduleMergeJob(10));
     director.OnMergeJobStarted();

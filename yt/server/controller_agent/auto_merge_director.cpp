@@ -98,9 +98,9 @@ void TAutoMergeDirector::OnTaskJobFinished(int intermediateChunkCountEstimate)
     StateChanged_.Fire();
 }
 
-void TAutoMergeDirector::OnMergeInputProcessed(int intermediateChunkCount)
+void TAutoMergeDirector::AccountMergeInputChunks(int intermediateChunkCountDelta)
 {
-    CurrentIntermediateChunkCount_ += intermediateChunkCount;
+    CurrentIntermediateChunkCount_ += intermediateChunkCountDelta;
     StateChanged_.Fire();
 }
 

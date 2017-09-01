@@ -75,13 +75,6 @@ public:
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
     }
 
-    virtual void OnJobLost(TJobletPtr joblet, TCompletedJobPtr completedJob) override
-    {
-        TUnderlyingTask::OnJobLost(joblet, completedJob);
-
-        this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
-    }
-
     virtual void SetupCallbacks() override
     {
         TUnderlyingTask::SetupCallbacks();
