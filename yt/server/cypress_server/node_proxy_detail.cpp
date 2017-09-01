@@ -1082,6 +1082,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         lockRequest = TLockRequest(mode);
     }
 
+    lockRequest.Timestamp = static_cast<TTimestamp>(request->timestamp());
+
     context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
         mode,
         lockRequest.Key,

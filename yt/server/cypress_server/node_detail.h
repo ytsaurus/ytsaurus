@@ -51,7 +51,7 @@ protected:
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode,
         NTransactionServer::TTransaction* transaction,
-        ELockMode mode);
+        const TLockRequest& lockRequest);
 
     void MergeCore(
         TCypressNodeBase* originatingNode,
@@ -129,7 +129,7 @@ public:
     virtual std::unique_ptr<TCypressNodeBase> Branch(
         TCypressNodeBase* originatingNode,
         NTransactionServer::TTransaction* transaction,
-        ELockMode mode) override
+        const TLockRequest& lockRequest) override
     {
         // Instantiate a branched copy.
         auto originatingId = originatingNode->GetVersionedId();
@@ -139,11 +139,11 @@ public:
 
         // Run core stuff.
         auto* typedOriginatingNode = originatingNode->As<TImpl>();
-        BranchCore(typedOriginatingNode, typedBranchedNode, transaction, mode);
+        BranchCore(typedOriginatingNode, typedBranchedNode, transaction, lockRequest);
 
         // Run custom stuff.
-        DoBranch(typedOriginatingNode, typedBranchedNode, mode);
-        DoLogBranch(typedOriginatingNode, typedBranchedNode, mode);
+        DoBranch(typedOriginatingNode, typedBranchedNode, lockRequest);
+        DoLogBranch(typedOriginatingNode, typedBranchedNode, lockRequest);
 
         return std::move(branchedNodeHolder);
     }
@@ -251,21 +251,22 @@ protected:
     virtual void DoBranch(
         const TImpl* /*originatingNode*/,
         TImpl* /*branchedNode*/,
-        ELockMode mode)
+        const TLockRequest& /*lockRequest*/)
     { }
 
     virtual void DoLogBranch(
         const TImpl* originatingNode,
         TImpl* branchedNode,
-        ELockMode mode)
+        const TLockRequest& lockRequest)
     {
         const auto& Logger = CypressServerLogger;
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v)",
+            "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v, LockTimestamp: %llx)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
-            mode);
+            lockRequest.Mode,
+            lockRequest.Timestamp);
     }
 
     virtual void DoMerge(
@@ -423,9 +424,9 @@ protected:
     virtual void DoBranch(
         const TScalarNode<TValue>* originatingNode,
         TScalarNode<TValue>* branchedNode,
-        ELockMode mode) override
+        const TLockRequest& lockRequest) override
     {
-        TBase::DoBranch(originatingNode, branchedNode, mode);
+        TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
         branchedNode->Value() = originatingNode->Value();
     }
@@ -501,7 +502,7 @@ private:
     virtual void DoBranch(
         const TMapNode* originatingNode,
         TMapNode* branchedNode,
-        ELockMode mode) override;
+        const TLockRequest& lockRequest) override;
 
     virtual void DoMerge(
         TMapNode* originatingNode,
@@ -562,7 +563,7 @@ private:
     virtual void DoBranch(
         const TListNode* originatingNode,
         TListNode* branchedNode,
-        ELockMode mode) override;
+        const TLockRequest& lockRequest) override;
 
     virtual void DoMerge(
         TListNode* originatingNode,
@@ -623,7 +624,7 @@ private:
     virtual void DoBranch(
         const TLinkNode* originatingNode,
         TLinkNode* branchedNode,
-        ELockMode mode) override;
+        const TLockRequest& lockRequest) override;
 
     virtual void DoMerge(
         TLinkNode* originatingNode,
@@ -676,7 +677,7 @@ private:
     virtual void DoBranch(
         const TDocumentNode* originatingNode,
         TDocumentNode* branchedNode,
-        ELockMode mode) override;
+        const TLockRequest& lockRequest) override;
 
     virtual void DoMerge(
         TDocumentNode* originatingNode,

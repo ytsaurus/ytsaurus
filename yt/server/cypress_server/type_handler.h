@@ -60,7 +60,7 @@ struct INodeTypeHandler
     virtual std::unique_ptr<TCypressNodeBase> Branch(
         TCypressNodeBase* originatingNode,
         NTransactionServer::TTransaction* transaction,
-        ELockMode mode) = 0;
+        const TLockRequest& lockRquest) = 0;
 
     //! Called on transaction commit to merge the changes made in the branched node back into the originating one.
     /*!

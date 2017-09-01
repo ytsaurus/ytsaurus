@@ -155,9 +155,9 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
     const TChunkOwner* originatingNode,
     TChunkOwner* branchedNode,
-    NCypressServer::ELockMode mode)
+    const NCypressServer::TLockRequest& lockRequest)
 {
-    TBase::DoBranch(originatingNode, branchedNode, mode);
+    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
     if (!originatingNode->IsExternal()) {
         auto* chunkList = originatingNode->GetChunkList();
@@ -178,20 +178,21 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
     const TChunkOwner* originatingNode,
     TChunkOwner* branchedNode,
-    NCypressServer::ELockMode mode)
+    const NCypressServer::TLockRequest& lockRequest)
 {
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
         "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-        "Mode: %v, PrimaryMedium: %v, Properties: %v)",
+        "PrimaryMedium: %v, Properties: %v, Mode: %v, LockTimestamp: %llx)",
         originatingNode->GetVersionedId(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
         primaryMedium->GetName(),
         originatingNode->Properties(),
-        mode);
+        lockRequest.Mode,
+        lockRequest.Timestamp);
 }
 
 template <class TChunkOwner>
