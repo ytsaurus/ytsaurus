@@ -410,6 +410,9 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             self.ignore_resolve_error = ignore_resolve_error
             self.content = content
             self.force_search = force_search
+            self.yield_path = True
+            # It is necessary to avoid infinite recursion.
+            self.followed_by_link = False
 
     def process_response_error(error, node):
         node.content = None
@@ -467,18 +470,18 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             logger.warning("Access to %s is denied", node.path)
             return
 
-        if is_opaque(node.content) and not node.ignore_opaque:
-            node.ignore_opaque = True
-            nodes_to_request.append(node)
-            return
-
         object_type = node.content.attributes["type"]
-        if object_type == "link" and follow_links:
-            node.ignore_opaque = False
-            nodes_to_request.append(node)
-            return
 
-        if (node_type is None or object_type in flatten(node_type)) and \
+        should_add = False
+        if is_opaque(node.content) and not node.ignore_opaque and object_type != "link":
+            should_add = True
+
+        if object_type == "link" and follow_links and not node.followed_by_link:
+            node.followed_by_link = True
+            should_add = True
+
+        if node.yield_path and \
+                (node_type is None or object_type in flatten(node_type)) and \
                 (object_filter is None or object_filter(node.content)) and \
                 (path_filter is None or path_filter(node.path)):
             yson_path_attributes = dict(ifilter(lambda item: item[0] in attributes,
@@ -506,6 +509,11 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                 path = ypath_join(node.path, str(index))
                 for yson_path in process_node(CompositeNode(path, node.depth + 1, value), nodes_to_request):
                     yield yson_path
+
+        if should_add:
+            node.ignore_opaque = True
+            node.yield_path = False
+            nodes_to_request.append(node)
 
     nodes_to_request = []
     nodes_to_request.append(CompositeNode(root, 0, ignore_opaque=True, ignore_resolve_error=ignore_root_path_resolve_error))
