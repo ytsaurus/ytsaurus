@@ -11,6 +11,7 @@ import yt.yson as yson
 
 import yt.wrapper as yt
 
+import sys
 import time
 import pytest
 
@@ -157,7 +158,46 @@ class TestCypressCommands(object):
         yt.link(TEST_DIR + "/search_test/search_test_table", TEST_DIR + "/search_test/link_to_table")
         yt.remove(TEST_DIR + "/search_test/search_test_table")
 
-        assert list(yt.search(TEST_DIR + "/search_test", follow_links=True)) == [TEST_DIR + "/search_test"]
+        assert list(yt.search(TEST_DIR + "/search_test", follow_links=True)) == \
+            [TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table"]
+        assert list(yt.search(TEST_DIR + "/search_test", follow_links=False)) == \
+            [TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table"]
+
+        yt.mkdir(TEST_DIR + "/search_test/test_dir")
+        yt.create_table(TEST_DIR + "/search_test/test_dir/table")
+        yt.link(TEST_DIR + "/search_test/test_dir", TEST_DIR + "/search_test/test_dir_link")
+
+        for opaque in (True, False):
+            for link_opaque in (True, False):
+                print("OPAQUE", opaque, "LINK_OPAQUE", link_opaque, file=sys.stderr)
+                yt.set(TEST_DIR + "/search_test/test_dir/@opaque", opaque)
+                yt.set(TEST_DIR + "/search_test/test_dir_link&/@opaque", link_opaque)
+
+                correct_result = [
+                    TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table",
+                    TEST_DIR + "/search_test/test_dir", TEST_DIR + "/search_test/test_dir/table",
+                    TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link/table"]
+                if opaque:
+                    correct_result[3:5] = correct_result[4:2:-1]
+                assert list(yt.search(TEST_DIR + "/search_test", follow_links=True)) == correct_result
+
+                correct_result = [
+                    TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table",
+                    TEST_DIR + "/search_test/test_dir", TEST_DIR + "/search_test/test_dir/table",
+                    TEST_DIR + "/search_test/test_dir_link"]
+                if opaque:
+                    correct_result[3:5] = correct_result[4:2:-1]
+                assert list(yt.search(TEST_DIR + "/search_test", follow_links=False)) == correct_result
+
+        assert list(yt.search(TEST_DIR + "/search_test/test_dir_link", follow_links=True)) == \
+            [TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link/table"]
+        assert list(yt.search(TEST_DIR + "/search_test/test_dir_link", follow_links=False)) == \
+            [TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link/table"]
+
+        assert list(yt.search(TEST_DIR + "/search_test/test_dir_link&", follow_links=True)) == \
+            [TEST_DIR + "/search_test/test_dir_link&"]
+        assert list(yt.search(TEST_DIR + "/search_test/test_dir_link&", follow_links=False)) == \
+            [TEST_DIR + "/search_test/test_dir_link&"]
 
         assert list(yt.search())
 
