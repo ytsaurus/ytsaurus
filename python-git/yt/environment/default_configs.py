@@ -120,6 +120,10 @@ b"""
         };
     };
 
+    node_directory_synchronizer = {
+        sync_period = 100;
+    };
+
     response_keeper = {
         enable_warmup = %false;
         expiration_time = 25000;
