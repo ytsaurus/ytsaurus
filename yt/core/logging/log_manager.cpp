@@ -948,7 +948,7 @@ private:
     TForkAwareSpinLock SpinLock_;
     // Version forces this very module's Logger object to update to our own
     // default configuration (default level etc.).
-    std::atomic<int> Version_ = {-1};
+    std::atomic<int> Version_ = {0};
     TLogConfigPtr Config_;
     yhash<const char*, std::unique_ptr<TLoggingCategory>> NameToCategory_;
     const TLoggingCategory* SystemCategory_;
