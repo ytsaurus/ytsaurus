@@ -132,6 +132,7 @@ DEFINE_ENUM(EProcessErrorCode,
 
 DECLARE_REFCOUNTED_CLASS(TMountTmpfsConfig)
 DECLARE_REFCOUNTED_CLASS(TUmountConfig)
+DECLARE_REFCOUNTED_CLASS(TSetThreadPriorityConfig)
 DECLARE_REFCOUNTED_CLASS(TFSQuotaConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

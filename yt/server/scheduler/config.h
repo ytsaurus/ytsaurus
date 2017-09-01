@@ -407,6 +407,9 @@ class TSchedulerConfig
     , public NChunkClient::TChunkTeleporterConfig
 {
 public:
+    //! Priority of control thread.
+    TNullable<int> ControlThreadPriority;
+
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 

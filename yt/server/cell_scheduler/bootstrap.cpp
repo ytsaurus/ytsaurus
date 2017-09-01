@@ -51,6 +51,7 @@
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/lfalloc_helpers.h>
+#include <yt/core/misc/proc.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -59,6 +60,8 @@
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/server.h>
+
+#include <yt/core/tools/tools.h>
 
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
@@ -114,6 +117,18 @@ void TBootstrap::DoRun()
 {
     LOG_INFO("Starting scheduler (MasterAddresses: %v)",
         Config_->ClusterConnection->PrimaryMaster->Addresses);
+
+    if (Config_->Scheduler->ControlThreadPriority) {
+        WaitFor(BIND([priority = *Config_->Scheduler->ControlThreadPriority] {
+                auto config = New<TSetThreadPriorityConfig>();
+                config->ThreadId = GetCurrentThreadId();
+                config->Priority = priority;
+                NTools::RunTool<TSetThreadPriorityAsRootTool>(config);
+            })
+            .AsyncVia(GetControlInvoker())
+            .Run())
+            .ThrowOnError();
+    }
 
     TNativeConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
