@@ -290,12 +290,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         for job_count in xrange(976, 950, -1):
             op = map(
-                wait_for_jobs=True,
                 dont_track=True,
                 in_="//tmp/input",
                 out="//tmp/output",
                 command="sleep 100",
                 spec={"job_count": job_count})
+
+            running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+            wait(lambda: exists(running_jobs_path) and len(ls(running_jobs_path)) > 1)
 
             assert op.get_job_count("total") == job_count
             op.abort()
