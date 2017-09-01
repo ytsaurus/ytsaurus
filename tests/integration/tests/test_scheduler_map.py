@@ -289,12 +289,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/output", ignore_existing=True)
 
         for job_count in xrange(976, 950, -1):
-            op = map(dont_track=True,
-                     in_="//tmp/input",
-                     out="//tmp/output",
-                     command="sleep 100",
-                     spec={"job_count": job_count})
-            time.sleep(2)
+            op = map(
+                wait_for_jobs=True,
+                dont_track=True,
+                in_="//tmp/input",
+                out="//tmp/output",
+                command="sleep 100",
+                spec={"job_count": job_count})
+
             assert op.get_job_count("total") == job_count
             op.abort()
 
