@@ -211,7 +211,7 @@ class TestRetries(object):
                 raise yt.YtError()
             return 1
 
-        assert 1 == run_with_retries(action, backoff=0.1)
+        assert 1 == run_with_retries(action, retry_count=10, backoff=0.01)
 
     def test_read_with_retries(self):
         old_value = yt.config["read_retries"]["enable"]
