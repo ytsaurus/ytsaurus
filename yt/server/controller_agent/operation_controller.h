@@ -406,7 +406,19 @@ struct IOperationController
     virtual void BuildSpec(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
-     *  \note Invoker affinity: Controller invoker
+     *  \note Invoker affinity: any.
+     */
+    //! Marks that progress was dumped to cypress.
+    virtual void SetProgressUpdated() = 0;
+
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    //! Check that progress has changed and should be dumped to the cypress.
+    virtual bool ShouldUpdateProgress() const = 0;
+
+    /*!
+     *  \note Invoker affinity: any.
      */
     //! Returns |true| when controller can build it's progress.
     virtual bool HasProgress() const = 0;
