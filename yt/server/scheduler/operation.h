@@ -53,11 +53,44 @@ struct IOperationStrategyHost
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 };
 
+#define DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(type, name, ...) \
+protected: \
+    type name##_ { __VA_ARGS__ }; \
+    \
+public: \
+    Y_FORCE_INLINE type Get##name() const \
+    { \
+        return name##_; \
+    } \
+    \
+    Y_FORCE_INLINE void Set##name(type value) \
+    { \
+        name##_ = value; \
+        ShouldFlush_ = true; \
+    } \
+
+#define DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(type, name, ...) \
+protected: \
+    type name##_ { __VA_ARGS__ }; \
+    \
+public: \
+    Y_FORCE_INLINE type& name() \
+    { \
+        ShouldFlush_ = true; \
+        return name##_; \
+    } \
+    \
+    Y_FORCE_INLINE const type& name() const \
+    { \
+        return name##_; \
+    }
+
 class TOperation
     : public TIntrinsicRefCounted
     , public IOperationStrategyHost
 {
 public:
+
     using TAlertsArray = TEnumIndexedVector<TError, EOperationAlertType>;
 
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
@@ -67,7 +100,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
 
     DEFINE_BYVAL_RO_PROPERTY(EOperationState, State);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
+    DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(bool, Suspended);
 
     // By default, all new operations are not activated.
     // When operation passes admission control and scheduler decides
@@ -90,25 +123,28 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(std::vector<TString>, Owners);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
+    DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(TNullable<TInstant>, FinishTime);
 
     //! List of events that happened to operation.
     DEFINE_BYVAL_RO_PROPERTY(std::vector<TOperationEvent>, Events);
 
     //! List of operation alerts.
-    DEFINE_BYREF_RW_PROPERTY(TAlertsArray, Alerts);
+    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlertsArray, Alerts);
 
     //! Controller that owns the operation.
     DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
 
     //! Operation result, becomes set when the operation finishes.
-    DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);
+    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);
 
     //! Stores statistics about operation preparation and schedule job timings.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
     //! Numeric index of operation in pool.
     DEFINE_BYVAL_RW_PROPERTY(int, SlotIndex);
+
+    //! Mark that operation attributes should be flushed to cypress.
+    DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
@@ -178,6 +214,9 @@ private:
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 
 };
+
+#undef DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH
+#undef DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH
 
 DEFINE_REFCOUNTED_TYPE(TOperation)
 

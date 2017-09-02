@@ -5066,6 +5066,16 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
     YCHECK(JobletMap.erase(jobId) == 1);
 }
 
+void TOperationControllerBase::SetProgressUpdated()
+{
+    ShouldUpdateProgressInCypress_.store(false);
+}
+
+bool TOperationControllerBase::ShouldUpdateProgress() const
+{
+    return HasProgress() && ShouldUpdateProgressInCypress_;
+}
+
 bool TOperationControllerBase::HasProgress() const
 {
     return IsPrepared() && ProgressString_ && BriefProgressString_;
@@ -5163,6 +5173,11 @@ void TOperationControllerBase::BuildAndSaveProgress()
 
     {
         TGuard<TSpinLock> guard(ProgressLock_);
+        if (!ProgressString_ || ProgressString_ != progressString ||
+            !BriefProgressString_ || BriefProgressString_ != briefProgressString)
+        {
+            ShouldUpdateProgressInCypress_.store(true);
+        }
         ProgressString_ = progressString;
         BriefProgressString_ = briefProgressString;
     }

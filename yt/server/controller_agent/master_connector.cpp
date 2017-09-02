@@ -188,7 +188,7 @@ public:
             .AsyncVia(Invoker_)
             .Run();
     }
-    
+
     void AddChunksToUnstageList(std::vector<TChunkId> chunkIds)
     {
         BIND(&TImpl::DoAddChunksToUnstageList,
@@ -275,6 +275,8 @@ private:
     TPeriodicExecutorPtr UnstageExecutor_;
 
     yhash<TCellTag, std::vector<TChunkId>> CellTagToChunkUnstageList_;
+
+    const TCallback<TFuture<void>()> VoidCallback_ = BIND([] {return VoidFuture;});
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -454,13 +456,18 @@ private:
 
     TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& operationId, TOperationNodeUpdate* update)
     {
-        return BIND(&TImpl::DoUpdateOperationNode,
-            MakeStrong(this),
-            operationId,
-            update->TransactionId,
-            Passed(std::move(update->JobRequests)),
-            Passed(std::move(update->LivePreviewRequests)))
-            .AsyncVia(Invoker_);
+        auto controller = GetOperationController(operationId);
+        if (controller && (!update->JobRequests.empty() || !update->LivePreviewRequests.empty() || controller->ShouldUpdateProgress())) {
+            return BIND(&TImpl::DoUpdateOperationNode,
+                MakeStrong(this),
+                operationId,
+                update->TransactionId,
+                Passed(std::move(update->JobRequests)),
+                Passed(std::move(update->LivePreviewRequests)))
+                .AsyncVia(Invoker_);
+        } else {
+            return VoidCallback_;
+        }
     }
 
     void UpdateOperationNodeAttributes(const TOperationId& operationId)
@@ -473,6 +480,8 @@ private:
         if (!controller || !controller->HasProgress()) {
             return;
         }
+
+        controller->SetProgressUpdated();
 
         GenerateMutationId(batchReq);
 
@@ -995,7 +1004,7 @@ private:
     {
         return !GetOperationController(update->OperationId);
     }
-    
+
     void DoAddChunksToUnstageList(std::vector<TChunkId> chunkIds)
     {
         for (const auto& chunkId : chunkIds) {

@@ -313,6 +313,8 @@ private:
 
     NControllerAgent::TMasterConnectorPtr ControllerAgentMasterConnector;
 
+    const TCallback<TFuture<void>()> VoidCallback_ = BIND([] {return VoidFuture;});
+
     struct TOperationNodeUpdate
     {
         explicit TOperationNodeUpdate(const TOperationPtr& operation)
@@ -958,6 +960,8 @@ private:
 
     void UpdateOperationNodeAttributes(TOperationPtr operation)
     {
+        operation->SetShouldFlush(false);
+
         auto batchReq = StartObjectBatchRequest();
         auto operationPath = GetOperationPath(operation->GetId());
 
@@ -1037,10 +1041,14 @@ private:
 
     TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId&, TOperationNodeUpdate* update)
     {
-        return BIND(&TImpl::DoUpdateOperationNode,
-            MakeStrong(this),
-            update->Operation)
-            .AsyncVia(CancelableControlInvoker);
+        if (update->Operation->GetShouldFlush()) {
+            return BIND(&TImpl::DoUpdateOperationNode,
+                MakeStrong(this),
+                update->Operation)
+                .AsyncVia(CancelableControlInvoker);
+        } else {
+            return VoidCallback_;
+        }
     }
 
     void OnOperationNodeCreated(

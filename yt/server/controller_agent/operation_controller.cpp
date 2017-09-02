@@ -217,6 +217,16 @@ public:
         Underlying_->UpdateConfig(std::move(config));
     }
 
+    virtual bool ShouldUpdateProgress() const override
+    {
+        return Underlying_->ShouldUpdateProgress();
+    }
+
+    virtual void SetProgressUpdated() override
+    {
+        Underlying_->SetProgressUpdated();
+    }
+
     virtual bool HasProgress() const override
     {
         return Underlying_->HasProgress();

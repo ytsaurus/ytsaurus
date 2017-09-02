@@ -215,6 +215,9 @@ public:
     virtual bool IsForgotten() const override;
     virtual bool IsRevivedFromSnapshot() const override;
 
+    virtual void SetProgressUpdated() override;
+    virtual bool ShouldUpdateProgress() const override;
+
     virtual bool HasProgress() const override;
     virtual bool HasJobSplitterInfo() const override;
 
@@ -921,6 +924,7 @@ private:
     const NProfiling::TCpuDuration LogProgressBackoff;
     NProfiling::TCpuInstant NextLogProgressDeadline = 0;
 
+    std::atomic<bool> ShouldUpdateProgressInCypress_ = {true};
     NYson::TYsonString ProgressString_;
     NYson::TYsonString BriefProgressString_;
 
