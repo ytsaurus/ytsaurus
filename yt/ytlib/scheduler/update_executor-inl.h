@@ -38,6 +38,12 @@ void TUpdateExecutor<TKey, TUpdateParameters>::StopPeriodicUpdates()
 }
 
 template <class TKey, class TUpdateParameters>
+void TUpdateExecutor<TKey, TUpdateParameters>::SetPeriod(TDuration updatePeriod)
+{
+    UpdateExecutor_->SetPeriod(updatePeriod);
+}
+
+template <class TKey, class TUpdateParameters>
 TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::AddUpdate(const TKey& key, const TUpdateParameters& parameters)
 {
     VERIFY_THREAD_AFFINITY(UpdateThread);

@@ -227,6 +227,11 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Config_ = config;
+
+        OperationNodesUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
+        TransactionRefreshExecutor_->SetPeriod(Config_->TransactionsRefreshPeriod);
+        SnapshotExecutor_->SetPeriod(Config_->SnapshotPeriod);
+        UnstageExecutor_->SetPeriod(Config_->ChunkUnstagePeriod);
     }
 
 private:

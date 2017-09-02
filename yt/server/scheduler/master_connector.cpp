@@ -268,7 +268,12 @@ public:
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         Config = config;
-        OnConfigUpdated();
+
+        OperationNodesUpdateExecutor_->SetPeriod(Config->OperationsUpdatePeriod);
+        WatchersExecutor->SetPeriod(Config->WatchersUpdatePeriod);
+        AlertsExecutor->SetPeriod(Config->AlertsUpdatePeriod);
+
+        ScheduleTestingDisconnection();
 
         // NB: this method could be called in disconnected state during registration pipeline.
         // In such situation ControllersMasterConnector is not initialized.
@@ -326,11 +331,6 @@ private:
     yhash<TOperationId, TWatcherList> WatcherLists;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-    void OnConfigUpdated()
-    {
-        ScheduleTestingDisconnection();
-    }
 
     void ScheduleTestingDisconnection()
     {
