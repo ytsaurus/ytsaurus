@@ -621,7 +621,7 @@ public:
         , Options_(config->MapOperationOptions)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
     }
 
     virtual void Persist(const TPersistenceContext& context) override

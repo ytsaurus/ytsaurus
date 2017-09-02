@@ -801,7 +801,7 @@ protected:
 
     const std::vector<NScheduler::TExecNodeDescriptor>& GetExecNodeDescriptors();
 
-    virtual void RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor);
+    virtual void RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor, double minMemoryReserveFactor);
     IDigest* GetUserJobMemoryDigest(EJobType jobType);
 
     virtual void RegisterJobProxyMemoryDigest(EJobType jobType, const TLogDigestConfigPtr& config);

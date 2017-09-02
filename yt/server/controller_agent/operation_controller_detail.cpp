@@ -5851,11 +5851,12 @@ void TOperationControllerBase::BuildMemoryDigestStatistics(IYsonConsumer* consum
         });
 }
 
-void TOperationControllerBase::RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor)
+void TOperationControllerBase::RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor, double minMemoryReserveFactor)
 {
     YCHECK(UserJobMemoryDigests_.find(jobType) == UserJobMemoryDigests_.end());
     auto config = New<TLogDigestConfig>();
-    config->LowerBound = memoryReserveFactor;
+    config->LowerBound = minMemoryReserveFactor;
+    config->DefaultValue = memoryReserveFactor;
     config->UpperBound = 1.0;
     config->RelativePrecision = Config->UserJobMemoryDigestPrecision;
     UserJobMemoryDigests_[jobType] = CreateLogDigest(config);
