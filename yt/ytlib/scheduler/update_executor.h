@@ -22,6 +22,8 @@ public:
     void StartPeriodicUpdates(const IInvokerPtr& invoker, TDuration updatePeriod);
     void StopPeriodicUpdates();
 
+    void SetPeriod(TDuration updatePeriod);
+
     TUpdateParameters* AddUpdate(const TKey& key, const TUpdateParameters& parameters);
     void RemoveUpdate(const TKey& key);
 
