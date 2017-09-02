@@ -307,7 +307,8 @@ public:
     double CpuLimit;
     TNullable<TDuration> JobTimeLimit;
     i64 MemoryLimit;
-    double MemoryReserveFactor;
+    double UserJobMemoryDigestDefaultValue;
+    double UserJobMemoryDigestLowerBound;
 
     bool IncludeMemoryMappedFiles;
 

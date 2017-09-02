@@ -493,7 +493,7 @@ public:
         , Options(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::Map, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::Map, spec->Mapper->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::Map, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
     }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override

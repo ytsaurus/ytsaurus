@@ -2717,23 +2717,23 @@ public:
     {
         if (spec->Mapper) {
             RegisterJobProxyMemoryDigest(EJobType::PartitionMap, spec->PartitionJobProxyMemoryDigest);
-            RegisterUserJobMemoryDigest(EJobType::PartitionMap, spec->Mapper->MemoryReserveFactor);
+            RegisterUserJobMemoryDigest(EJobType::PartitionMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
         } else {
             RegisterJobProxyMemoryDigest(EJobType::Partition, spec->PartitionJobProxyMemoryDigest);
         }
 
         if (spec->ReduceCombiner) {
             RegisterJobProxyMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombinerJobProxyMemoryDigest);
-            RegisterUserJobMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombiner->MemoryReserveFactor);
+            RegisterUserJobMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombiner->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
         } else {
             RegisterJobProxyMemoryDigest(EJobType::IntermediateSort, spec->SortJobProxyMemoryDigest);
         }
 
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->SortedReduceJobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
 
         RegisterJobProxyMemoryDigest(EJobType::PartitionReduce, spec->PartitionReduceJobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::PartitionReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::PartitionReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
     }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override

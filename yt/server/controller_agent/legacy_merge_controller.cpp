@@ -740,7 +740,7 @@ public:
         , Options(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
     }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
@@ -2310,7 +2310,7 @@ public:
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
     }
 
     // Persistence.
@@ -2655,7 +2655,7 @@ public:
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
     }
 
     // Persistence.

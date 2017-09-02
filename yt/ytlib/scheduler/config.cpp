@@ -209,8 +209,13 @@ TUserJobSpec::TUserJobSpec()
         .Default(512_MB)
         .GreaterThan(0)
         .LessThanOrEqual(1_TB);
-    RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
+    RegisterParameter("user_job_memory_digest_default_value", UserJobMemoryDigestDefaultValue)
+        .Alias("memory_reserve_factor")
         .Default(0.5)
+        .GreaterThan(0.)
+        .LessThanOrEqual(1.);
+    RegisterParameter("user_job_memory_digest_lower_bound", UserJobMemoryDigestLowerBound)
+        .Default(0.05)
         .GreaterThan(0.)
         .LessThanOrEqual(1.);
     RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
@@ -250,8 +255,10 @@ TUserJobSpec::TUserJobSpec()
         // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
         if (TmpfsPath) {
             i64 tmpfsSize = TmpfsSize ? *TmpfsSize : MemoryLimit;
-            MemoryReserveFactor = std::min(1.0, std::max(MemoryReserveFactor, double(tmpfsSize) / MemoryLimit));
+            UserJobMemoryDigestDefaultValue = std::min(1.0, std::max(UserJobMemoryDigestDefaultValue, double(tmpfsSize) / MemoryLimit));
+            UserJobMemoryDigestLowerBound = std::min(1.0, std::max(UserJobMemoryDigestLowerBound, double(tmpfsSize) / MemoryLimit));
         }
+        UserJobMemoryDigestDefaultValue = std::max(UserJobMemoryDigestLowerBound, UserJobMemoryDigestDefaultValue);
     });
 
     RegisterValidator([&] () {
