@@ -44,6 +44,9 @@ struct IInstance
     virtual void SetCpuShare(double cores) = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual TString GetName() const = 0;
+
+    //! Returns externally visible pid of the root proccess inside container.
+    //! Throws if container is not running.
     virtual pid_t GetPid() const = 0;
     virtual TFuture<int> Exec(
         const std::vector<const char*>& argv,
