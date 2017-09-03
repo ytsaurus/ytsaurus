@@ -57,6 +57,7 @@ using namespace NRpc;
 using namespace NApi;
 using namespace NSecurityClient;
 using namespace NConcurrency;
+using namespace NCellScheduler;
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
 
@@ -85,7 +86,7 @@ public:
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
             ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
-                .Via(Bootstrap->GetControlInvoker()));
+                .Via(Bootstrap->GetControlInvoker(EControlQueue::MasterConnector)));
     }
 
     void Start()
@@ -375,7 +376,8 @@ private:
         Connected.store(true);
 
         CancelableContext = New<TCancelableContext>();
-        CancelableControlInvoker = CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker());
+        CancelableControlInvoker = CancelableContext->CreateInvoker(
+            Bootstrap->GetControlInvoker(EControlQueue::MasterConnector));
 
         const auto& result = resultOrError.Value();
         for (auto operationReport : result.OperationReports) {
