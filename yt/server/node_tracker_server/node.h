@@ -224,7 +224,6 @@ public:
     void RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);
 
     void ClearSessionHints();
-
     void AddSessionHint(NChunkClient::ESessionType sessionType);
 
     int GetSessionCount(NChunkClient::ESessionType sessionType) const;
