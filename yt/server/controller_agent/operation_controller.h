@@ -4,6 +4,8 @@
 
 #include "private.h"
 
+#include <yt/server/cell_scheduler/bootstrap.h>
+
 #include <yt/server/scheduler/scheduling_context.h>
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/job_metrics.h>
@@ -91,7 +93,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual IInvokerPtr GetControlInvoker() const = 0;
+    virtual IInvokerPtr GetControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const = 0;
 
     //! Returns invoker for statistics analyzer.
     /*!

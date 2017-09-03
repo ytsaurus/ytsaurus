@@ -234,7 +234,7 @@ public:
         MasterConnector_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingUpdatePeriod);
         ProfilingExecutor_->Start();
@@ -260,19 +260,19 @@ public:
             .Item("address").Value(ServiceAddress_);
 
         LoggingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::OnLogging, MakeWeak(this)),
             Config_->ClusterInfoLoggingPeriod);
         LoggingExecutor_->Start();
 
         PendingEventLogRowsFlushExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::OnPendingEventLogRowsFlush, MakeWeak(this)),
             Config_->PendingEventLogRowsFlushPeriod);
         PendingEventLogRowsFlushExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->UpdateExecNodeDescriptorsPeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
@@ -282,11 +282,11 @@ public:
     {
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
-            ->Via(GetControlInvoker())
+            ->Via(GetControlInvoker(EControlQueue::Orchid))
             ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
 
         auto dynamicOrchidService = GetDynamicOrchidService()
-            ->Via(GetControlInvoker());
+            ->Via(GetControlInvoker(EControlQueue::Orchid));
 
         return New<TServiceCombiner>(std::vector<IYPathServicePtr> {
             staticOrchidService,
@@ -657,7 +657,7 @@ public:
             user,
             operationSpec->Owners,
             TInstant::Now(),
-            GetControlInvoker());
+            GetControlInvoker(EControlQueue::Operation));
         operation->SetState(EOperationState::Initializing);
 
         WaitFor(Strategy_->ValidateOperationStart(operation))
@@ -964,9 +964,9 @@ public:
         return Bootstrap_->GetNodeDirectory();
     }
 
-    virtual IInvokerPtr GetControlInvoker() const override
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const
     {
-        return Bootstrap_->GetControlInvoker();
+        return Bootstrap_->GetControlInvoker(queue);
     }
 
     virtual IInvokerPtr CreateOperationControllerInvoker() override
@@ -2665,7 +2665,7 @@ private:
             TJobId jobId = TJobId::FromString(key);
             auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);
             auto jobYPathService = IYPathService::FromProducer(buildJobYsonCallback)
-                ->Via(Scheduler_->GetControlInvoker());
+                ->Via(Scheduler_->GetControlInvoker(EControlQueue::Orchid));
             return jobYPathService;
         }
 
