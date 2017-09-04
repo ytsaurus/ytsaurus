@@ -65,7 +65,12 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         cancelation = new ArrayList<>();
         timeoutFuture = CompletableFuture.completedFuture(0);
         step = 0;
-        send();
+
+        if (clients.isEmpty()) {
+            f.completeExceptionally(new RuntimeException("empty destinations list"));
+        } else {
+            send();
+        }
     }
 
     private void send() {
