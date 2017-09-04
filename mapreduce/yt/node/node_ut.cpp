@@ -235,4 +235,15 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_EXCEPTION(TNode(INFINITY).ConvertTo<ui64>(), TNode::TTypeError);
         UNIT_ASSERT_EXCEPTION(TNode(INFINITY).ConvertTo<i64>(), TNode::TTypeError);
     }
+
+    SIMPLE_UNIT_TEST(TestConvertToBool) {
+        UNIT_ASSERT_VALUES_EQUAL(TNode("true").ConvertTo<bool>(), true);
+        UNIT_ASSERT_VALUES_EQUAL(TNode("TRUE").ConvertTo<bool>(), true);
+        UNIT_ASSERT_VALUES_EQUAL(TNode("false").ConvertTo<bool>(), false);
+        UNIT_ASSERT_VALUES_EQUAL(TNode("FALSE").ConvertTo<bool>(), false);
+        UNIT_ASSERT_VALUES_EQUAL(TNode(1).ConvertTo<bool>(), true);
+        UNIT_ASSERT_VALUES_EQUAL(TNode(0).ConvertTo<bool>(), false);
+        UNIT_ASSERT_EXCEPTION(TNode("random").ConvertTo<bool>(), TFromStringException);
+        UNIT_ASSERT_EXCEPTION(TNode("").ConvertTo<bool>(), TFromStringException);
+   }
 }
