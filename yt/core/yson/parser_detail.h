@@ -57,7 +57,7 @@ public:
             while (!(TBase::IsFinished() && TBase::IsEmpty())) {
                 if (TBase::template SkipSpaceAndGetChar<true>() != EndSymbol) {
                     THROW_ERROR_EXCEPTION("Stray %Qv found",
-                        *TBase::Begin())
+                        *TBase::Current())
                         << *this;
                 } else if (!TBase::IsEmpty()) {
                     TBase::Advance(1);
