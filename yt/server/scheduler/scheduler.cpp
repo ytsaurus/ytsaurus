@@ -462,14 +462,14 @@ public:
         operation->Alerts()[alertType] = alert;
     }
 
-    virtual void SetOperationAlert(
+    virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert)
+        return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert)
             .AsyncVia(GetControlInvoker())
             .Run();
     }

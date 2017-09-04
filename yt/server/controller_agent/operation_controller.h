@@ -191,7 +191,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual void SetOperationAlert(
+    virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) = 0;
