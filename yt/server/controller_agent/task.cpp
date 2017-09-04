@@ -713,7 +713,8 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     return result;
 }
 
-void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics) {
+void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics)
+{
     auto maxUsedTmpfsSize = FindNumericValue(
         statistics,
         "/user_job/max_tmpfs_size");
