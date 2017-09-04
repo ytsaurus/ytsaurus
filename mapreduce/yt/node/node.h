@@ -7,6 +7,8 @@
 #include <util/generic/yexception.h>
 #include <util/string/cast.h>
 
+#include <cmath>
+
 class IInputStream;
 class IOutputStream;
 
@@ -275,7 +277,7 @@ inline ui64 TNode::ConvertTo<ui64>() const {
             return IntCast<ui64>();
         case NYT::TNode::DOUBLE:
             // >= because of (1<<64) + 1
-            if (AsDouble() < std::numeric_limits<ui64>::min() || AsDouble() >= std::numeric_limits<ui64>::max()) {
+            if (AsDouble() < std::numeric_limits<ui64>::min() || AsDouble() >= std::numeric_limits<ui64>::max() || !std::isfinite(AsDouble())) {
                 ythrow TTypeError() << AsDouble() << " can't be converted to ui64";
             }
             return AsDouble();
@@ -299,7 +301,7 @@ inline i64 TNode::ConvertTo<i64>() const {
             return IntCast<i64>();
         case NYT::TNode::DOUBLE:
             // >= because of (1<<63) + 1
-            if (AsDouble() < std::numeric_limits<i64>::min() || AsDouble() >= std::numeric_limits<i64>::max()) {
+            if (AsDouble() < std::numeric_limits<i64>::min() || AsDouble() >= std::numeric_limits<i64>::max() || !std::isfinite(AsDouble())) {
                 ythrow TTypeError() << AsDouble() << " can't be converted to i64";
             }
             return AsDouble();

@@ -229,5 +229,10 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
             UNIT_ASSERT_EXCEPTION(node.ConvertTo<i64>(), TNode::TTypeError);
             UNIT_ASSERT_EXCEPTION(node.ConvertTo<ui64>(), TNode::TTypeError);
         }
+        UNIT_ASSERT_EXCEPTION(TNode(NAN).ConvertTo<ui64>(), TNode::TTypeError);
+        UNIT_ASSERT_EXCEPTION(TNode(NAN).ConvertTo<i64>(), TNode::TTypeError);
+
+        UNIT_ASSERT_EXCEPTION(TNode(INFINITY).ConvertTo<ui64>(), TNode::TTypeError);
+        UNIT_ASSERT_EXCEPTION(TNode(INFINITY).ConvertTo<i64>(), TNode::TTypeError);
     }
 }
