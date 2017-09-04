@@ -476,15 +476,19 @@ protected:
 
     void CheckAvailableExecNodes();
 
-    virtual void AnalyzePartitionHistogram() const;
-    void AnalyzeTmpfsUsage() const;
-    void AnalyzeIntermediateJobsStatistics() const;
-    void AnalyzeInputStatistics() const;
-    void AnalyzeAbortedJobs() const;
-    void AnalyzeJobsIOUsage() const;
-    void AnalyzeJobsDuration() const;
+    virtual TFuture<void> AnalyzePartitionHistogram() const;
+    TFuture<void> AnalyzeTmpfsUsage() const;
+    TFuture<void> AnalyzeIntermediateJobsStatistics() const;
+    TFuture<void> AnalyzeInputStatistics() const;
+    TFuture<void> AnalyzeAbortedJobs() const;
+    TFuture<void> AnalyzeJobsIOUsage() const;
+    TFuture<void> AnalyzeJobsDuration() const;
+    TFuture<void> AnalyzeScheduleJobStatistics() const;
+
     void AnalyzeOperationProgess() const;
-    void AnalyzeScheduleJobStatistics() const;
+    TFuture<void> DoAnalyzeOperationProgress() const;
+
+    void FlushOperationNode(bool checkFlushResult);
 
     void CheckMinNeededResourcesSanity();
     void UpdateCachedMaxAvailableExecNodeResources();

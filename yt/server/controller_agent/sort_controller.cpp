@@ -1913,7 +1913,7 @@ protected:
             .Item("partition_size_histogram").Value(*sizeHistogram);
     }
 
-    virtual void AnalyzePartitionHistogram() const override
+    virtual TFuture<void> AnalyzePartitionHistogram() const override
     {
         TError error;
 
@@ -1932,7 +1932,7 @@ protected:
             }
         }
 
-        Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
+        return Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
     }
 
     void InitJobIOConfigs()

@@ -2115,8 +2115,8 @@ void TOperationControllerBase::SafeAbort()
     // since controller methods can use this transactions.
     CancelableContext->Cancel();
 
-    // NB: Error ignored since we cannot do anything with it.
-    WaitFor(MasterConnector->FlushOperationNode(OperationId));
+    // NB: Errors ignored since we cannot do anything with it.
+    FlushOperationNode(/* checkFlushResult */ false);
 
     AreTransactionsActive = false;
 
@@ -2226,10 +2226,10 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 }
 
-void TOperationControllerBase::AnalyzeTmpfsUsage() const
+TFuture<void> TOperationControllerBase::AnalyzeTmpfsUsage() const
 {
     if (!Config->EnableTmpfs) {
-        return;
+        return VoidFuture;
     }
 
     yhash<EJobType, i64> maximumUsedTmfpsSizePerJobType;
@@ -2289,13 +2289,13 @@ void TOperationControllerBase::AnalyzeTmpfsUsage() const
             minUnusedSpaceRatio * 100.0) << innerErrors;
     }
 
-    Host->SetOperationAlert(
+    return Host->SetOperationAlert(
         OperationId,
         EOperationAlertType::UnusedTmpfsSpace,
         error);
 }
 
-void TOperationControllerBase::AnalyzeInputStatistics() const
+TFuture<void> TOperationControllerBase::AnalyzeInputStatistics() const
 {
     TError error;
     if (GetUnavailableInputChunkCount() > 0) {
@@ -2304,10 +2304,10 @@ void TOperationControllerBase::AnalyzeInputStatistics() const
             "the relevant parts of computation will be suspended");
     }
 
-    Host->SetOperationAlert(OperationId, EOperationAlertType::LostInputChunks, error);
+    return Host->SetOperationAlert(OperationId, EOperationAlertType::LostInputChunks, error);
 }
 
-void TOperationControllerBase::AnalyzeIntermediateJobsStatistics() const
+TFuture<void> TOperationControllerBase::AnalyzeIntermediateJobsStatistics() const
 {
     TError error;
     if (JobCounter.GetLost() > 0) {
@@ -2316,13 +2316,15 @@ void TOperationControllerBase::AnalyzeIntermediateJobsStatistics() const
             "operation will take longer than usual");
     }
 
-    Host->SetOperationAlert(OperationId, EOperationAlertType::LostIntermediateChunks, error);
+    return Host->SetOperationAlert(OperationId, EOperationAlertType::LostIntermediateChunks, error);
 }
 
-void TOperationControllerBase::AnalyzePartitionHistogram() const
-{ }
+TFuture<void> TOperationControllerBase::AnalyzePartitionHistogram() const
+{
+    return VoidFuture;
+}
 
-void TOperationControllerBase::AnalyzeAbortedJobs() const
+TFuture<void> TOperationControllerBase::AnalyzeAbortedJobs() const
 {
     auto aggregateTimeForJobState = [&] (EJobState state) {
         i64 sum = 0;
@@ -2356,10 +2358,10 @@ void TOperationControllerBase::AnalyzeAbortedJobs() const
                 << TErrorAttribute("aborted_jobs_time_ratio", abortedJobsTimeRatio);
     }
 
-    Host->SetOperationAlert(OperationId, EOperationAlertType::LongAbortedJobs, error);
+    return Host->SetOperationAlert(OperationId, EOperationAlertType::LongAbortedJobs, error);
 }
 
-void TOperationControllerBase::AnalyzeJobsIOUsage() const
+TFuture<void> TOperationControllerBase::AnalyzeJobsIOUsage() const
 {
     std::vector<TError> innerErrors;
 
@@ -2379,13 +2381,13 @@ void TOperationControllerBase::AnalyzeJobsIOUsage() const
             << innerErrors;
     }
 
-    Host->SetOperationAlert(OperationId, EOperationAlertType::ExcessiveDiskUsage, error);
+    return Host->SetOperationAlert(OperationId, EOperationAlertType::ExcessiveDiskUsage, error);
 }
 
-void TOperationControllerBase::AnalyzeJobsDuration() const
+TFuture<void> TOperationControllerBase::AnalyzeJobsDuration() const
 {
     if (OperationType == EOperationType::RemoteCopy || OperationType == EOperationType::Erase) {
-        return;
+        return VoidFuture;
     }
 
     auto operationDuration = TInstant::Now() - StartTime;
@@ -2427,10 +2429,10 @@ void TOperationControllerBase::AnalyzeJobsDuration() const
             << innerErrors;
     }
 
-    Host->SetOperationAlert(OperationId, EOperationAlertType::ShortJobsDuration, error);
+    return Host->SetOperationAlert(OperationId, EOperationAlertType::ShortJobsDuration, error);
 }
 
-void TOperationControllerBase::AnalyzeScheduleJobStatistics() const
+TFuture<void> TOperationControllerBase::AnalyzeScheduleJobStatistics() const
 {
     auto jobSpecThrottlerActivationCount = ScheduleJobStatistics_->Failed[EScheduleJobFailReason::JobSpecThrottling];
     auto activationCountThreshold = Config->OperationAlertsConfig->JobSpecThrottlingAlertActivationCountThreshold;
@@ -2442,21 +2444,32 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics() const
             "significatly less than fair share ratio")
                 << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
     }
-    Host->SetOperationAlert(OperationId, EOperationAlertType::ExcessiveJobSpecThrottling, error);
+    return Host->SetOperationAlert(OperationId, EOperationAlertType::ExcessiveJobSpecThrottling, error);
+}
+
+TFuture<void> TOperationControllerBase::DoAnalyzeOperationProgress() const
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    std::vector<TFuture<void>> analysisFutures = {
+        AnalyzeTmpfsUsage(),
+        AnalyzeInputStatistics(),
+        AnalyzeIntermediateJobsStatistics(),
+        AnalyzePartitionHistogram(),
+        AnalyzeAbortedJobs(),
+        AnalyzeJobsIOUsage(),
+        AnalyzeJobsDuration(),
+        AnalyzeScheduleJobStatistics()
+    };
+
+    return Combine(analysisFutures);
 }
 
 void TOperationControllerBase::AnalyzeOperationProgess() const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    AnalyzeTmpfsUsage();
-    AnalyzeInputStatistics();
-    AnalyzeIntermediateJobsStatistics();
-    AnalyzePartitionHistogram();
-    AnalyzeAbortedJobs();
-    AnalyzeJobsIOUsage();
-    AnalyzeJobsDuration();
-    AnalyzeScheduleJobStatistics();
+    DoAnalyzeOperationProgress();
 }
 
 void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
@@ -3088,6 +3101,24 @@ i64 TOperationControllerBase::ComputeUserJobMemoryReserve(EJobType jobType, TUse
     }
 }
 
+void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
+{
+    // Some statistics are reported only on operation end so
+    // we need to synchronously check everything and set
+    // appropriate alerts before flushing operation node.
+    auto analyzeFuture = BIND(&TOperationControllerBase::DoAnalyzeOperationProgress, MakeStrong(this))
+        .AsyncVia(GetCancelableInvoker())
+        .Run();
+    auto analyzeResult = WaitFor(analyzeFuture);
+    YCHECK(analyzeResult.IsOK());
+
+    auto flushResult = WaitFor(MasterConnector->FlushOperationNode(OperationId));
+    if (checkFlushResult && !flushResult.IsOK()) {
+        // We do not want to complete operation if progress flush has failed.
+        OnOperationFailed(flushResult, /* flush */ false);
+    }
+}
+
 void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -3099,12 +3130,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     }
 
     BuildAndSaveProgress();
-
-    auto flushResult = WaitFor(MasterConnector->FlushOperationNode(OperationId));
-    // We do not want to complete operation if progress flush has failed.
-    if (!flushResult.IsOK()) {
-        OnOperationFailed(flushResult, /* flush */ false);
-    }
+    FlushOperationNode(/* checkFlushResult */ true);
 
     LogProgress(/* force */ true);
 
@@ -3125,7 +3151,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
     if (flush) {
         // NB: Error ignored since we cannot do anything with it.
-        WaitFor(MasterConnector->FlushOperationNode(OperationId));
+        FlushOperationNode(/* checkFlushResult */ false);
     }
 
     Host->OnOperationFailed(OperationId, error);
