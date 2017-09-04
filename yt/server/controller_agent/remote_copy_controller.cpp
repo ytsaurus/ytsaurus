@@ -240,7 +240,7 @@ private:
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet, TChunkStripeKey(Index_));
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
