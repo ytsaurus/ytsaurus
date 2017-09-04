@@ -270,9 +270,15 @@ public:
     {
         Config = config;
 
-        OperationNodesUpdateExecutor_->SetPeriod(Config->OperationsUpdatePeriod);
-        WatchersExecutor->SetPeriod(Config->WatchersUpdatePeriod);
-        AlertsExecutor->SetPeriod(Config->AlertsUpdatePeriod);
+        if (Connected) {
+            OperationNodesUpdateExecutor_->SetPeriod(Config->OperationsUpdatePeriod);
+        }
+        if (WatchersExecutor) {
+            WatchersExecutor->SetPeriod(Config->WatchersUpdatePeriod);
+        }
+        if (AlertsExecutor) {
+            AlertsExecutor->SetPeriod(Config->AlertsUpdatePeriod);
+        }
 
         ScheduleTestingDisconnection();
 
