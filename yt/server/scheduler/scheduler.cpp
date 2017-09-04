@@ -8,6 +8,7 @@
 #include "node_shard.h"
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
+#include "cache.h"
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>
@@ -149,6 +150,14 @@ public:
             Config_->ChunkLocationThrottler,
             SchedulerLogger))
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
+        , CachedExecNodeDescriptorsByTags_(New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
+            BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            GetControlInvoker()))
+        , CachedExecNodeMemoryDistributionByTags_(New<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
+            BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            GetControlInvoker()))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , MainNodesResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/main_nodes_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -397,45 +406,7 @@ public:
             return CachedExecNodeDescriptors_;
         }
 
-        auto now = NProfiling::GetCpuInstant();
-
-        {
-            TReaderGuard guard(ExecNodeDescriptorsByTagLock_);
-
-            auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-            if (it != CachedExecNodeDescriptorsByTags_.end()) {
-                auto& entry = it->second;
-                if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
-                    entry.LastAccessTime = now;
-                    return entry.ExecNodeDescriptors;
-                }
-            }
-        }
-
-        auto result = New<TExecNodeDescriptorList>();
-
-        {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
-
-            for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
-                if (filter.CanSchedule(descriptor.Tags)) {
-                    result->Descriptors.push_back(descriptor);
-                }
-            }
-        }
-
-        {
-            TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
-
-            auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-            if (it != CachedExecNodeDescriptorsByTags_.end()) {
-                it->second = TExecNodeDescriptorsEntry({now, now, result});
-            } else {
-                CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, now, result}));
-            }
-        }
-
-        return result;
+        return CachedExecNodeDescriptorsByTags_->Get(filter);
     }
 
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
@@ -443,46 +414,12 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (filter.IsEmpty()) {
-            TReaderGuard guard(ExecNodeMemoryDistributionByTagLock_);
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
 
             return CachedExecNodeMemoryDistribution_;
         }
 
-        auto now = NProfiling::GetCpuInstant();
-
-        {
-            TReaderGuard guard(ExecNodeMemoryDistributionByTagLock_);
-
-            auto it = CachedExecNodeMemoryDistributionByTags_.find(filter);
-            if (it != CachedExecNodeMemoryDistributionByTags_.end()) {
-                auto& entry = it->second;
-                if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
-                    entry.LastAccessTime = now;
-                    return entry.ExecNodeMemoryDistribution;
-                }
-            }
-        }
-
-        TMemoryDistribution result;
-
-        {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
-
-            result = CalculateMemoryDistribution(CachedExecNodeDescriptors_, filter);
-        }
-
-        {
-            TWriterGuard guard(ExecNodeMemoryDistributionByTagLock_);
-
-            auto it = CachedExecNodeMemoryDistributionByTags_.find(filter);
-            if (it != CachedExecNodeMemoryDistributionByTags_.end()) {
-                it->second = TMemoryDistributionEntry({now, now, result});
-            } else {
-                CachedExecNodeMemoryDistributionByTags_.emplace(filter, TMemoryDistributionEntry({now, now, result}));
-            }
-        }
-
-        return result;
+        return CachedExecNodeMemoryDistributionByTags_->Get(filter);
     }
 
     virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) override
@@ -1113,32 +1050,10 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
-
-
-    TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
-
-    struct TExecNodeDescriptorsEntry
-    {
-        NProfiling::TCpuInstant LastAccessTime;
-        NProfiling::TCpuInstant LastUpdateTime;
-        TExecNodeDescriptorListPtr ExecNodeDescriptors;
-    };
-
-    mutable yhash<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
-
-
-    TReaderWriterSpinLock ExecNodeMemoryDistributionByTagLock_;
-
-    struct TMemoryDistributionEntry
-    {
-        NProfiling::TCpuInstant LastAccessTime;
-        NProfiling::TCpuInstant LastUpdateTime;
-        TMemoryDistribution ExecNodeMemoryDistribution;
-    };
+    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>> CachedExecNodeDescriptorsByTags_;
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
-
-    mutable yhash<TSchedulingTagFilter, TMemoryDistributionEntry> CachedExecNodeMemoryDistributionByTags_;
+    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
 
     TProfiler TotalResourceLimitsProfiler_;
@@ -1354,8 +1269,22 @@ private:
         WaitFor(registerFuture)
             .ThrowOnError();
 
+        {
+            std::vector<TFuture<void>> nodeShardFutures;
+            for (auto& nodeShard : NodeShards_) {
+                nodeShardFutures.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard)
+                    .AsyncVia(nodeShard->GetInvoker())
+                    .Run());
+            }
+            WaitFor(Combine(nodeShardFutures))
+                .ThrowOnError();
+        }
+
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
+
+        CachedExecNodeDescriptorsByTags_->Start();
+        CachedExecNodeMemoryDistributionByTags_->Start();
 
         IsConnected_.store(true);
 
@@ -1384,6 +1313,9 @@ private:
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
 
+        CachedExecNodeDescriptorsByTags_->Stop();
+        CachedExecNodeMemoryDistributionByTags_->Stop();
+
         LogEventFluently(ELogEventType::MasterDisconnected)
             .Item("address").Value(ServiceAddress_);
 
@@ -1400,8 +1332,7 @@ private:
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run(error));
             }
-            Combine(abortFutures)
-                .Get()
+            WaitFor(Combine(abortFutures))
                 .ThrowOnError();
         }
 
@@ -1428,8 +1359,7 @@ private:
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
-            Combine(nodeShardFutures)
-                .Get()
+            WaitFor(Combine(nodeShardFutures))
                 .ThrowOnError();
         }
 
@@ -1666,7 +1596,7 @@ private:
 
             ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
             ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
-        
+
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             PendingEventLogRowsFlushExecutor_->SetPeriod(Config_->PendingEventLogRowsFlushPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->UpdateExecNodeDescriptorsPeriod);
@@ -1702,83 +1632,46 @@ private:
             std::swap(CachedExecNodeDescriptors_, result);
         }
 
+        auto execNodeMemoryDistribution = CalculateMemoryDistribution(EmptySchedulingTagFilter);
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
 
-            CachedExecNodeMemoryDistribution_ = CalculateMemoryDistribution(result, EmptySchedulingTagFilter);
-        }
-
-        // Remove outdated cached exec node descriptor lists.
-        {
-            auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout);
-            std::vector<TSchedulingTagFilter> toRemove;
-            {
-                TReaderGuard guard(ExecNodeDescriptorsLock_);
-                for (const auto& pair : CachedExecNodeDescriptorsByTags_) {
-                    if (pair.second.LastAccessTime < deadline) {
-                        toRemove.push_back(pair.first);
-                    }
-                }
-            }
-            if (!toRemove.empty()) {
-                {
-                    TWriterGuard guard(ExecNodeDescriptorsLock_);
-                    for (const auto& filter : toRemove) {
-                        auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-                        if (it->second.LastAccessTime < deadline) {
-                            CachedExecNodeDescriptorsByTags_.erase(it);
-                        }
-                    }
-                }
-                {
-                    for (const auto& filter : toRemove) {
-                        for (auto& nodeShard : NodeShards_) {
-                            BIND(&TNodeShard::RemoveOutdatedSchedulingTagFilter, nodeShard, filter)
-                                .AsyncVia(nodeShard->GetInvoker())
-                                .Run();
-                        }
-                    }
-                }
-            }
-        }
-
-        // TODO(ignat): refactor to avoid copy/paste of caching code for CachedExecNodeDescriptorsByTags_ and CachedExecNodeMemoryDistributionByTags_
-        // Remove outdated memory distribution entries.
-        {
-            auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout);
-            std::vector<TSchedulingTagFilter> toRemove;
-            {
-                TReaderGuard guard(ExecNodeMemoryDistributionByTagLock_);
-                for (const auto& pair : CachedExecNodeMemoryDistributionByTags_) {
-                    if (pair.second.LastAccessTime < deadline) {
-                        toRemove.push_back(pair.first);
-                    }
-                }
-            }
-            if (!toRemove.empty()) {
-                {
-                    TWriterGuard guard(ExecNodeMemoryDistributionByTagLock_);
-                    for (const auto& filter : toRemove) {
-                        auto it = CachedExecNodeMemoryDistributionByTags_.find(filter);
-                        if (it->second.LastAccessTime < deadline) {
-                            CachedExecNodeMemoryDistributionByTags_.erase(it);
-                        }
-                    }
-                }
-            }
+            CachedExecNodeMemoryDistribution_ = execNodeMemoryDistribution;
         }
     }
 
-    TMemoryDistribution CalculateMemoryDistribution(const TExecNodeDescriptorListPtr& execNodesList, const TSchedulingTagFilter& filter) const
+    TExecNodeDescriptorListPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
-        TMemoryDistribution result;
-        for (const auto& descriptor : execNodesList->Descriptors) {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+        auto result = New<TExecNodeDescriptorList>();
+        for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
             if (filter.CanSchedule(descriptor.Tags)) {
-                ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), 1_GB)];
+                result->Descriptors.push_back(descriptor);
             }
         }
-        result = FilterLargestValues(result, Config_->MemoryDistributionDifferentNodeTypesThreshold);
         return result;
+    }
+
+    TMemoryDistribution CalculateMemoryDistribution(const TSchedulingTagFilter& filter) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TMemoryDistribution result;
+
+        {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+            for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
+                if (filter.CanSchedule(descriptor.Tags)) {
+                    ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), 1_GB)];
+                }
+            }
+        }
+
+        return FilterLargestValues(result, Config_->MemoryDistributionDifferentNodeTypesThreshold);
     }
 
     void DoStartOperation(TOperationPtr operation)
