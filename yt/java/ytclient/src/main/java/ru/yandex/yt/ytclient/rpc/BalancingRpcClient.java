@@ -177,7 +177,7 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     private void pingDataCenters() {
-        // logger.info("ping");
+        logger.debug("ping");
 
         CompletableFuture<Void> futures[] = new CompletableFuture[dataCenters.length];
         int i = 0;
@@ -185,9 +185,7 @@ public class BalancingRpcClient implements RpcClient {
             futures[i++] = entry.ping(executorService, pingTimeout);
         }
 
-        CompletableFuture.allOf(futures).whenComplete((a, b) -> {
-            schedulePing();
-        });
+        schedulePing();
     }
 
     @Override
