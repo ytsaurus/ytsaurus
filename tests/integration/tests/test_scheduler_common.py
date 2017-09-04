@@ -2007,7 +2007,7 @@ class TestMaxTotalSliceCount(YTEnvSetup):
 
 ##################################################################
 
-class TestNewPoolMetrics(YTEnvSetup):
+class TestPoolMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2115,7 +2115,7 @@ class TestNewPoolMetrics(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
         op = map(
-            command='cat; if [ "$YT_JOB_INDEX" = "0" ]; then sleep 1; else sleep 100500; fi',
+            command='cat; if [ "$YT_JOB_INDEX" = "0" ]; then sleep 2; else sleep 100500; fi',
             in_="//tmp/t_input",
             out="//tmp/t_output",
             dont_track=True,
@@ -2124,13 +2124,10 @@ class TestNewPoolMetrics(YTEnvSetup):
 
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
 
-        def running_jobs_exists():
-            return exists(orchid_path) and len(ls(orchid_path)) == 2
-
-        wait(running_jobs_exists)
-
-        # Give jobs some time to run.
-        time.sleep(3.0)
+        # Wait until both jobs started.
+        wait(lambda: exists(orchid_path) and len(ls(orchid_path)) == 2)
+        # Wait until short job is completed.
+        wait(lambda: len(ls(orchid_path)) == 1)
 
         running_jobs = ls(orchid_path)
         assert len(running_jobs) == 1
