@@ -66,6 +66,14 @@ TNodeShard::TNodeShard(
     , Host_(host)
     , Bootstrap_(bootstrap)
     , Logger(SchedulerLogger)
+    , CachedExecNodeDescriptorsRefresher_(New<TPeriodicExecutor>(
+        GetInvoker(),
+        BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
+        Config_->NodeShardExecNodesCacheUpdatePeriod))
+    , CachedResourceLimitsByTags_(New<TExpiringCache<TSchedulingTagFilter, TJobResources>>(
+        BIND(&TNodeShard::CalculateResourceLimits, MakeStrong(this)),
+        Config_->SchedulingTagFilterExpireTimeout,
+        GetInvoker()))
 {
     Logger.AddTag("NodeShardId: %v", Id_);
 }
@@ -82,9 +90,20 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
     Config_ = config;
 }
 
+void TNodeShard::OnMasterConnected()
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    CachedExecNodeDescriptorsRefresher_->Start();
+    CachedResourceLimitsByTags_->Start();
+}
+
 void TNodeShard::OnMasterDisconnected()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    CachedExecNodeDescriptorsRefresher_->Stop();
+    CachedResourceLimitsByTags_->Stop();
 
     for (const auto& pair : IdToNode_) {
         auto node = pair.second;
@@ -267,6 +286,16 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
 
 TExecNodeDescriptorListPtr TNodeShard::GetExecNodeDescriptors()
 {
+    UpdateExecNodeDescriptors();
+
+    {
+        TReaderGuard guard(CachedExecNodeDescriptorsLock_);
+        return CachedExecNodeDescriptors_;
+    }
+}
+
+void TNodeShard::UpdateExecNodeDescriptors()
+{
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     auto result = New<TExecNodeDescriptorList>();
@@ -281,18 +310,7 @@ TExecNodeDescriptorListPtr TNodeShard::GetExecNodeDescriptors()
     {
         TWriterGuard guard(CachedExecNodeDescriptorsLock_);
         CachedExecNodeDescriptors_ = result;
-        CachedExecNodeDescriptorsLastUpdateTime_ = NProfiling::GetCpuInstant();
     }
-
-    return result;
-}
-
-void TNodeShard::RemoveOutdatedSchedulingTagFilter(const TSchedulingTagFilter& filter)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    TWriterGuard guard(ResourcesLock_);
-    SchedulingTagFilterToResources_.erase(filter);
 }
 
 void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INodePtr>>& nodeMaps)
@@ -327,8 +345,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         auto execNode = IdToNode_[nodeId];
         auto oldState = execNode->GetMasterState();
 
-        auto tags = attributes.Get<std::vector<TString>>("tags");
-        UpdateNodeTags(execNode, tags);
+        execNode->Tags() = attributes.Get<yhash_set<TString>>("tags");
 
         if (oldState != newState) {
             if (oldState == ENodeState::Online && newState != ENodeState::Online) {
@@ -708,16 +725,6 @@ TJobResources TNodeShard::CalculateResourceLimits(const TSchedulingTagFilter& fi
         }
     }
 
-    {
-        TWriterGuard guard(ResourcesLock_);
-        SchedulingTagFilterToResources_[filter] = resources;
-    }
-
-    auto delay = NProfiling::DurationToCpuDuration(Config_->NodeShardUpdateExecNodesInformationDelay);
-    if (CachedExecNodeDescriptorsLastUpdateTime_ + delay < NProfiling::GetCpuInstant()) {
-        GetInvoker()->Invoke(BIND(&TNodeShard::GetExecNodeDescriptors, MakeStrong(this)));
-    }
-
     return resources;
 }
 
@@ -729,17 +736,7 @@ TJobResources TNodeShard::GetResourceLimits(const TSchedulingTagFilter& filter)
         return TotalResourceLimits_;
     }
 
-    {
-        TReaderGuard guard(ResourcesLock_);
-
-        auto it = SchedulingTagFilterToResources_.find(filter);
-        if (it == SchedulingTagFilterToResources_.end()) {
-            guard.Release();
-            return CalculateResourceLimits(filter);
-        } else {
-            return it->second;
-        }
-    }
+    return CachedResourceLimitsByTags_->Get(filter);
 }
 
 int TNodeShard::GetActiveJobCount()
@@ -1109,29 +1106,6 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     return job;
 }
 
-void TNodeShard::UpdateNodeTags(TExecNodePtr node, const std::vector<TString>& tagsList)
-{
-    yhash_set<TString> newTags(tagsList.begin(), tagsList.end());
-
-    if (node->GetMasterState() == ENodeState::Online) {
-        TWriterGuard guard(ResourcesLock_);
-
-        for (auto& pair : SchedulingTagFilterToResources_) {
-            const auto& filter = pair.first;
-            bool oldCanSchedule = filter.CanSchedule(node->Tags());
-            bool newCanSchedule = filter.CanSchedule(newTags);
-            if (oldCanSchedule && !newCanSchedule) {
-                pair.second -= node->GetResourceLimits();
-            }
-            if (!oldCanSchedule && newCanSchedule) {
-                pair.second += node->GetResourceLimits();
-            }
-        }
-    }
-
-    node->Tags() = newTags;
-}
-
 void TNodeShard::SubtractNodeResources(TExecNodePtr node)
 {
     TWriterGuard guard(ResourcesLock_);
@@ -1141,12 +1115,6 @@ void TNodeShard::SubtractNodeResources(TExecNodePtr node)
     TotalNodeCount_ -= 1;
     if (node->GetResourceLimits().GetUserSlots() > 0) {
         ExecNodeCount_ -= 1;
-    }
-
-    for (auto& pair : SchedulingTagFilterToResources_) {
-        if (node->CanSchedule(pair.first)) {
-            pair.second -= node->GetResourceLimits();
-        }
     }
 }
 
@@ -1163,12 +1131,6 @@ void TNodeShard::AddNodeResources(TExecNodePtr node)
     } else {
         // Check that we succesfully reset all resource limits to zero for node with zero user slots.
         YCHECK(node->GetResourceLimits() == ZeroJobResources());
-    }
-
-    for (auto& pair : SchedulingTagFilterToResources_) {
-        if (node->CanSchedule(pair.first)) {
-            pair.second += node->GetResourceLimits();
-        }
     }
 }
 
@@ -1197,13 +1159,6 @@ void TNodeShard::UpdateNodeResources(TExecNodePtr node, const TJobResources& lim
 
         TotalResourceLimits_ -= oldResourceLimits;
         TotalResourceLimits_ += node->GetResourceLimits();
-        for (auto& pair : SchedulingTagFilterToResources_) {
-            if (node->CanSchedule(pair.first)) {
-                auto& resources = pair.second;
-                resources -= oldResourceLimits;
-                resources += node->GetResourceLimits();
-            }
-        }
 
         TotalResourceUsage_ -= oldResourceUsage;
         TotalResourceUsage_ += node->GetResourceUsage();

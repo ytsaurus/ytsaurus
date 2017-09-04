@@ -554,8 +554,9 @@ public:
     //! for scheduling tag filter without access.
     TDuration SchedulingTagFilterExpireTimeout;
 
-    //! Time between two consecutive calls in node shard to calculate exec nodes list.
-    TDuration NodeShardUpdateExecNodesInformationDelay;
+    //! Timeout to store cached value of exec nodes information
+    //! for scheduling tag filter without access.
+    TDuration NodeShardExecNodesCacheUpdatePeriod;
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
