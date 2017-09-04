@@ -66,8 +66,8 @@ struct TFairShareContext
         int treeSize,
         const std::vector<TSchedulingTagFilter>& filter);
 
-    TDynamicAttributes& DynamicAttributes(TSchedulerElement* element);
-    const TDynamicAttributes& DynamicAttributes(TSchedulerElement* element) const;
+    TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element);
+    const TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element) const;
 
     std::vector<bool> CanSchedule;
     const ISchedulingContextPtr SchedulingContext;
@@ -125,8 +125,10 @@ class TSchedulerElementSharedState
 {
 public:
     TJobResources GetResourceUsage();
+    TJobResources GetResourceUsagePrecommit();
     TJobMetrics GetJobMetrics();
     void IncreaseResourceUsage(const TJobResources& delta);
+    void IncreaseResourceUsagePrecommit(const TJobResources& delta);
     void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
     double GetResourceUsageRatio(NNodeTrackerClient::EResourceType dominantResource, double dominantResourceLimit);
@@ -139,6 +141,7 @@ public:
 
 private:
     TJobResources ResourceUsage_;
+    TJobResources ResourceUsagePrecommit_;
     TJobMetrics JobMetrics_;
     NConcurrency::TReaderWriterSpinLock ResourceUsageLock_;
     NConcurrency::TReaderWriterSpinLock JobMetricsLock_;
@@ -218,12 +221,15 @@ public:
     virtual void CheckForStarvation(TInstant now) = 0;
 
     TJobResources GetResourceUsage() const;
+    TJobResources GetResourceUsagePrecommit() const;
     TJobMetrics GetJobMetrics() const;
     double GetResourceUsageRatio() const;
 
     void IncreaseLocalResourceUsage(const TJobResources& delta);
+    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
     void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
     virtual void IncreaseResourceUsage(const TJobResources& delta) = 0;
+    virtual void IncreaseResourceUsagePrecommit(const TJobResources& delta) = 0;
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) = 0;
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
@@ -316,6 +322,7 @@ public:
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
+    virtual void IncreaseResourceUsagePrecommit(const TJobResources& delta) override;
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
     virtual bool IsRoot() const;
@@ -691,6 +698,7 @@ public:
     bool IsPreemptionAllowed(const TFairShareContext& context) const;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
+    virtual void IncreaseResourceUsagePrecommit(const TJobResources& delta) override;
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
     void IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta);
