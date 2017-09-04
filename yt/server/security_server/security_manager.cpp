@@ -514,7 +514,11 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
-        return DoCreateUser(id, name);
+        auto user = DoCreateUser(id, name);
+        if (user) {
+            LOG_DEBUG("User %Qv created", name);
+        }
+        return user;
     }
 
     void DestroyUser(TUser* user)
@@ -590,7 +594,11 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Group, hintId);
-        return DoCreateGroup(id, name);
+        auto group = DoCreateGroup(id, name);
+        if (group) {
+            LOG_DEBUG("Group %Qv created", name);
+        }
+        return group;
     }
 
     void DestroyGroup(TGroup* group)
