@@ -1146,6 +1146,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         banned_peers = self._decommission_all_peers(cells[1])
+        wait(lambda: get("#{0}/@health".format(cells[1])) != "good")
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
