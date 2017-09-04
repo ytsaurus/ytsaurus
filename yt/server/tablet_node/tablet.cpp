@@ -1131,6 +1131,7 @@ void TTablet::Initialize()
 
 void TTablet::FillProfilerTags(const TCellId& cellId)
 {
+    ProfilerTags_.clear();
     if (!Config_->EnableProfiling) {
         return;
     }
@@ -1149,17 +1150,20 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
 
 void TTablet::UpdateReplicaCounters()
 {
-    if (!IsProfilingEnabled()) {
-        return;
-    }
-    for (auto& replica : Replicas_) {
+    auto getCounters = [&] (TReplicaMap::const_reference replica) -> TReplicaCounters* {
+        if (!IsProfilingEnabled()) {
+            return nullptr;
+        }
         auto replicaTags = ProfilerTags_;
-        // replica_id must be the last tag. See tablet_profiling.cpp for details.
         replicaTags.append({
+            // replica_id must be the last tag. See tablet_profiling.cpp for details.
             TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
             TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
             TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
-        replica.second.SetCounters(&GetGloballyCachedValue<TReplicaProfilerTrait>(replicaTags));
+        return &GetGloballyCachedValue<TReplicaProfilerTrait>(replicaTags);
+    };
+    for (auto& replica : Replicas_) {
+        replica.second.SetCounters(getCounters(replica));
     }
 }
 

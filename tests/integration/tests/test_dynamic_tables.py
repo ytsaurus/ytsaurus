@@ -102,16 +102,39 @@ class TestDynamicTablesBase(YTEnvSetup):
         for addr in addresses:
             self.set_node_decommissioned(addr, decomission)
 
-    def _get_tablet_addresses(self, table):
-        return [get("#%s/@peers/0/address" % tablet["cell_id"]) for tablet in get("//tmp/t/@tablets")]
+    def _get_profiling(self, table, filter=None):
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 1
+        tablet = tablets[0]
+        address = get("#%s/@peers/0/address" % tablet["cell_id"])
+        filter_value = (filter, tablet[filter]) if filter else None
 
-    def _get_tablet_node_profiling_counter(self, node, counter_name, default=0):
-        try:
-            return get("//sys/nodes/%s/orchid/profiling/tablet_node/%s" % (node, counter_name))[-1]["value"]
-        except YtResponseError as error:
-            if error.is_resolve_error():
-                return default
-            raise
+        class Profiling:
+            def __init__(self):
+                self._shifts = {}
+
+            def _get_counter_impl(self, counter_name):
+                try:
+                    last_counter = get("//sys/nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))[-1]
+                    return (
+                        0
+                        if filter_value and last_counter["tags"][filter_value[0]] != filter_value[1]
+                        else last_counter["value"])
+                except YtResponseError as error:
+                    if error.is_resolve_error():
+                        return 0
+                    raise
+
+            def get_counter(self, counter_name):
+                result = self._get_counter_impl(counter_name)
+                if counter_name not in self._shifts:
+                    self._shifts[counter_name] = result
+                return result - self._shifts[counter_name]
+
+        return Profiling()
+
+    def _get_tablet_profiling(self, table):
+        return self._get_profiling(table, "tablet_id")
 
 ##################################################################
 
