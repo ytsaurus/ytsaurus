@@ -3,6 +3,7 @@
 #include "public.h"
 #include "scheduler.h"
 #include "scheduling_tag.h"
+#include "cache.h"
 
 #include <yt/server/controller_agent/operation_controller.h>
 
@@ -100,6 +101,7 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
+    void OnMasterConnected();
     void OnMasterDisconnected();
 
     void RegisterOperation(const TOperationId& operationId, const NControllerAgent::IOperationControllerPtr& operationController);
@@ -108,7 +110,7 @@ public:
     void ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
 
     TExecNodeDescriptorListPtr GetExecNodeDescriptors();
-    void RemoveOutdatedSchedulingTagFilter(const TSchedulingTagFilter& filter);
+    void UpdateExecNodeDescriptors();
 
     void HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
@@ -163,6 +165,13 @@ private:
     const int Id_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
 
+    const NObjectClient::TCellTag PrimaryMasterCellTag_;
+    TSchedulerConfigPtr Config_;
+    INodeShardHost* const Host_;
+    NCellScheduler::TBootstrap* const Bootstrap_;
+
+    NLogging::TLogger Logger;
+
     int ConcurrentHeartbeatCount_ = 0;
 
     std::atomic<int> ActiveJobCount_ = {0};
@@ -171,11 +180,12 @@ private:
     TJobResources TotalResourceLimits_ = ZeroJobResources();
     TJobResources TotalResourceUsage_ = ZeroJobResources();
 
-    NProfiling::TCpuInstant CachedExecNodeDescriptorsLastUpdateTime_ = 0;
+    NConcurrency::TPeriodicExecutorPtr CachedExecNodeDescriptorsRefresher_;
+
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
-    yhash<TSchedulingTagFilter, TJobResources> SchedulingTagFilterToResources_;
+    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TJobResources>> CachedResourceLimitsByTags_;
 
     // Exec node is the node that is online and has user slots.
     std::atomic<int> ExecNodeCount_ = {0};
@@ -209,13 +219,6 @@ private:
     typedef yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
     TExecNodeByIdMap IdToNode_;
 
-    const NObjectClient::TCellTag PrimaryMasterCellTag_;
-    TSchedulerConfigPtr Config_;
-    INodeShardHost* const Host_;
-    NCellScheduler::TBootstrap* const Bootstrap_;
-
-    NLogging::TLogger Logger;
-
 
     NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address);
 
@@ -241,8 +244,6 @@ private:
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TJobStatus* jobStatus,
         bool forceJobsLogging);
-
-    void UpdateNodeTags(TExecNodePtr node, const std::vector<TString>& tagsList);
 
     void SubtractNodeResources(TExecNodePtr node);
     void AddNodeResources(TExecNodePtr node);

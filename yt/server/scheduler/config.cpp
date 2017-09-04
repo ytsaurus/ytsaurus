@@ -500,7 +500,9 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(30));
 
     RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
-        .Default(TDuration::Hours(1));
+        .Default(TDuration::Seconds(10));
+    RegisterParameter("node_shard_exec_nodes_cache_update_period", NodeShardExecNodesCacheUpdatePeriod)
+        .Default(TDuration::Seconds(10));
 
     RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
         .GreaterThan(0)
