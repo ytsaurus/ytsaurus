@@ -1006,6 +1006,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(mountConfig, readerConfig, writerConfig, writerOptions);
 
+        tablet->FillProfilerTags(Slot_->GetCellId());
+        tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
@@ -3035,7 +3037,6 @@ private:
         }
 
         tablet->UpdateReplicaCounters();
-
         UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "

@@ -107,7 +107,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
 
-        sleep(1)
+        sleep(2)
 
         addresses = self._get_tablet_addresses("//tmp/t")
         assert len(addresses) == 1
@@ -142,13 +142,13 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             return get_counter("replica/lag_time") / 1e6 # conversion from us to s
 
         self.sync_enable_table_replica(replica_id)
-        sleep(1.0)
+        sleep(2)
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
 
         insert_rows("//tmp/t", [{"key": 0, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(1.0)
+        sleep(2)
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
@@ -156,19 +156,19 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self.sync_unmount_table("//tmp/r", driver=self.replica_driver)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(2.0)
+        sleep(2)
 
         assert get_lag_row_count() == 1
-        assert 0 < get_lag_time() < 7
+        assert 1 < get_lag_time() < 7
 
         insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(1.0)
+        sleep(2)
 
         assert get_lag_row_count() == 2
-        assert 0 < get_lag_time() < 8
+        assert 2 < get_lag_time() < 8
 
         self.sync_mount_table("//tmp/r", driver=self.replica_driver)
-        sleep(2.0)
+        sleep(2)
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
