@@ -552,6 +552,24 @@ TEST(TYsonTest, ContextInExceptions_ContextAtTheVeryBeginning)
     GTEST_FAIL() << "Expected exception to be thrown";
 }
 
+TEST(TYsonTest, ContextInExceptions_Margin)
+{
+    try {
+        TYsonParser parser(GetNullYsonConsumer(), EYsonType::Node);
+        parser.Read("{fo");
+        parser.Read(TString(100, 'o'));  // try to overflow 64 byte context
+        parser.Read("a");
+        parser.Read("b");
+        parser.Read("c");
+        parser.Read("d bar = 580}");
+        parser.Finish();
+    } catch (const std::exception& ex) {
+        EXPECT_THAT(ex.what(), testing::HasSubstr("oabcd bar = 580}"));
+        return;
+    }
+    GTEST_FAIL() << "Expected exception to be thrown";
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
