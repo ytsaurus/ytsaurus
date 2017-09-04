@@ -340,15 +340,15 @@ class YTEnvSetup(object):
         if not os.path.exists(cls.path_to_run):
             return
 
-        # XXX(dcherednik): Delete named pipes
-        subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
-        # XXX(asaitgalin): Unmount everything
-        subprocess.check_call(["find", cls.path_to_run, "-type", "d", "-exec",
-                               "mountpoint", "-q", "{}", ";", "-exec", "sudo",
-                               "umount", "{}", ";"])
-
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
+
+            # XXX(dcherednik): Delete named pipes
+            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
+            # XXX(asaitgalin): Unmount everything
+            subprocess.check_call(["find", cls.path_to_run, "-type", "d", "-exec",
+                                   "mountpoint", "-q", "{}", ";", "-exec", "sudo",
+                                   "umount", "{}", ";"])
 
             # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
             chown_command = ["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run]
