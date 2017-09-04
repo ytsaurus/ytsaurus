@@ -362,7 +362,7 @@ class UserJobSpecBuilder(object):
         file_paths += flatten(files)
         file_paths += flatten(prepare_result.files)
         if "file_paths" in spec:
-            file_paths += list(imap(lambda path: TablePath(path, client=client), spec["file_paths"]))
+            file_paths += list(imap(lambda path: TablePath(path, client=client), flatten(spec["file_paths"])))
         if file_paths:
             spec["file_paths"] = file_paths
 
