@@ -295,7 +295,7 @@ struct TJoinClause
     {
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].Type);
+            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].GetLogicalType());
         }
 
         return TTableSchema(result);
@@ -504,7 +504,7 @@ struct TQuery
         for (const auto& item : GetOrderedSchemaMapping()) {
             result.emplace_back(
                 OriginalSchema.Columns()[item.Index].Name,
-                OriginalSchema.Columns()[item.Index].Type);
+                OriginalSchema.Columns()[item.Index].GetLogicalType());
         }
 
         return TTableSchema(result);
@@ -514,7 +514,7 @@ struct TQuery
     {
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].Type);
+            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].GetLogicalType());
         }
 
         return TTableSchema(result);

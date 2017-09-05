@@ -365,7 +365,7 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
         return;
     }
 
-    auto type = ChunkSchema_.Columns()[id].Type;
+    auto type = ChunkSchema_.Columns()[id].GetPhysicalType();
     value->Type = type;
 
     switch (type) {
@@ -402,7 +402,7 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
         return;
     }
 
-    auto type = ChunkSchema_.Columns()[chunkSchemaId].Type;
+    auto type = ChunkSchema_.Columns()[chunkSchemaId].GetPhysicalType();
     value->Type = type;
 
     switch (type) {

@@ -28,6 +28,10 @@ struct TColumnSchema
         const TString& name,
         EValueType type,
         TNullable<ESortOrder> SortOrder = Null);
+    TColumnSchema(
+        const TString& name,
+        ELogicalValueType type,
+        TNullable<ESortOrder> SortOrder = Null);
 
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema(TColumnSchema&&) = default;
@@ -40,9 +44,12 @@ struct TColumnSchema
     TColumnSchema& SetExpression(const TNullable<TString>& value);
     TColumnSchema& SetAggregate(const TNullable<TString>& value);
     TColumnSchema& SetGroup(const TNullable<TString>& value);
+    TColumnSchema& SetLogicalType(ELogicalValueType valueType);
+
+    EValueType GetPhysicalType() const;
 
     TString Name;
-    EValueType Type;
+    DEFINE_BYVAL_RO_PROPERTY(ELogicalValueType, LogicalType);
     TNullable<ESortOrder> SortOrder;
     TNullable<TString> Lock;
     TNullable<TString> Expression;
@@ -176,6 +183,11 @@ bool operator == (const TTableSchema& lhs, const TTableSchema& rhs);
 bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Returns true if #lhs type is subtype of #rhs type.
+//! We say that #lhs type is subtype of #rhs type
+//! iff every value that belongs to #lhs type also belongs to #rhs type.
+bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs);
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns);

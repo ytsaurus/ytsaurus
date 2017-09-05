@@ -445,7 +445,7 @@ protected:
 
     TUnversionedValue CreateValue(int rowIndex, int id, const TColumnSchema& columnSchema)
     {
-        switch (columnSchema.Type) {
+        switch (columnSchema.GetPhysicalType()) {
             case EValueType::Int64:
                 return CreateInt64(rowIndex, id);
             case EValueType::Uint64:

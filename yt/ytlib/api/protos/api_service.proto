@@ -95,6 +95,7 @@ message TRowsetDescriptor
     {
         optional string name = 1;
         optional int32 type = 2;
+        optional int32 logical_type = 3;
     }
 
     // Specifies column names and types.

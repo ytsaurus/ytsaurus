@@ -69,7 +69,7 @@ public:
                     // if the schema has "any" type. For schemaful reader, this is not an expected behavior
                     // so we have to convert such values back into YSON.
                     // Cf. YT-5396
-                    if (ReaderSchema_.Columns()[valueIndex].Type == EValueType::Any &&
+                    if (ReaderSchema_.Columns()[valueIndex].GetPhysicalType() == EValueType::Any &&
                         value.Type != EValueType::Any &&
                         value.Type != EValueType::Null)
                     {

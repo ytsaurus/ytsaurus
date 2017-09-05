@@ -49,7 +49,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
     int keyOffset = KeyStream_.GetSize();
     for (const auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
         const auto& value = *it;
-        Y_ASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].Type);
+        Y_ASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].GetPhysicalType());
         WriteValue(KeyStream_, KeyNullFlags_, nullAggregateFlags, value);
     }
 
@@ -80,7 +80,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
     ui32 valueCount = 0;
     while (valueCount < row.GetValueCount()) {
         const auto& value = row.BeginValues()[valueCount];
-        Y_ASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].Type);
+        Y_ASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].GetPhysicalType());
         Y_ASSERT(lastId <= value.Id);
         if (lastId < value.Id) {
             WritePod(KeyStream_, valueCount);

@@ -30,7 +30,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnSchema::TColumnSchema()
-    : Type(EValueType::Null)
+    : LogicalType_(ELogicalValueType::Null)
 { }
 
 TColumnSchema::TColumnSchema(
@@ -38,7 +38,16 @@ TColumnSchema::TColumnSchema(
     EValueType type,
     TNullable<ESortOrder> SortOrder)
     : Name(name)
-    , Type(type)
+    , LogicalType_(NTableClient::GetLogicalType(type))
+    , SortOrder(SortOrder)
+{ }
+
+TColumnSchema::TColumnSchema(
+    const TString& name,
+    ELogicalValueType type,
+    TNullable<ESortOrder> SortOrder)
+    : Name(name)
+    , LogicalType_(type)
     , SortOrder(SortOrder)
 { }
 
@@ -72,6 +81,17 @@ TColumnSchema& TColumnSchema::SetAggregate(const TNullable<TString>& value)
     return *this;
 }
 
+TColumnSchema& TColumnSchema::SetLogicalType(ELogicalValueType valueType)
+{
+    LogicalType_ = valueType;
+    return *this;
+}
+
+EValueType TColumnSchema::GetPhysicalType() const
+{
+    return NTableClient::GetPhysicalType(GetLogicalType());
+}
+
 struct TSerializableColumnSchema
     : public TYsonSerializableLite
     , public TColumnSchema
@@ -80,7 +100,7 @@ struct TSerializableColumnSchema
     {
         RegisterParameter("name", Name)
             .NonEmpty();
-        RegisterParameter("type", Type);
+        RegisterParameter("type", LogicalType_);
         RegisterParameter("lock", Lock)
             .Default();
         RegisterParameter("expression", Expression)
@@ -99,9 +119,6 @@ struct TSerializableColumnSchema
             }
 
             try {
-               // Type
-                ValidateSchemaValueType(Type);
-
                 // Lock
                 if (Lock && Lock->empty()) {
                     THROW_ERROR_EXCEPTION("Lock name cannot be empty");
@@ -137,7 +154,8 @@ void Deserialize(TColumnSchema& schema, INodePtr node)
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
 {
     protoSchema->set_name(schema.Name);
-    protoSchema->set_type(static_cast<int>(schema.Type));
+    protoSchema->set_type(static_cast<int>(schema.GetPhysicalType()));
+    protoSchema->set_logical_type(static_cast<int>(schema.GetLogicalType()));
     if (schema.Lock) {
         protoSchema->set_lock(*schema.Lock);
     }
@@ -158,7 +176,12 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 {
     schema->Name = protoSchema.name();
-    schema->Type = EValueType(protoSchema.type());
+    if (protoSchema.has_logical_type()) {
+        schema->SetLogicalType(static_cast<ELogicalValueType>(protoSchema.logical_type()));
+        YCHECK(schema->GetPhysicalType() == static_cast<EValueType>(protoSchema.type()));
+    } else {
+        schema->SetLogicalType(GetLogicalType(static_cast<EValueType>(protoSchema.type())));
+    }
     schema->Lock = protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null;
     schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
     schema->Aggregate = protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null;
@@ -339,7 +362,7 @@ TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
     TTableSchema schema;
     for (const auto& columnName : keyColumns) {
         schema.Columns_.push_back(
-            TColumnSchema(columnName, EValueType::Any)
+            TColumnSchema(columnName, ELogicalValueType::Any)
                 .SetSortOrder(ESortOrder::Ascending));
     }
     schema.KeyColumnCount_ = keyColumns.size();
@@ -353,9 +376,9 @@ TTableSchema TTableSchema::ToQuery() const
         return *this;
     } else {
         std::vector<TColumnSchema> columns {
-            TColumnSchema(TabletIndexColumnName, EValueType::Int64)
+            TColumnSchema(TabletIndexColumnName, ELogicalValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema(RowIndexColumnName, EValueType::Int64)
+            TColumnSchema(RowIndexColumnName, ELogicalValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
         };
         columns.insert(columns.end(), Columns_.begin(), Columns_.end());
@@ -373,7 +396,7 @@ TTableSchema TTableSchema::ToWrite() const
             }
         }
     } else {
-        columns.push_back(TColumnSchema(TabletIndexColumnName, EValueType::Int64)
+        columns.push_back(TColumnSchema(TabletIndexColumnName, ELogicalValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending));
         for (const auto& column : Columns_) {
             if (column.Name != TimestampColumnName) {
@@ -426,7 +449,7 @@ TTableSchema TTableSchema::ToStrippedColumnAttributes() const
 {
     std::vector<TColumnSchema> strippedColumns;
     for (auto& column : Columns_) {
-        strippedColumns.emplace_back(column.Name, column.Type);
+        strippedColumns.emplace_back(column.Name, column.GetLogicalType());
     }
     return TTableSchema(strippedColumns, Strict_, false);
 }
@@ -435,7 +458,7 @@ TTableSchema TTableSchema::ToSortedStrippedColumnAttributes() const
 {
     std::vector<TColumnSchema> strippedColumns;
     for (auto& column : Columns_) {
-        strippedColumns.emplace_back(column.Name, column.Type, column.SortOrder);
+        strippedColumns.emplace_back(column.Name, column.GetLogicalType(), column.SortOrder);
     }
     return TTableSchema(strippedColumns, Strict_, UniqueKeys_);
 }
@@ -491,14 +514,14 @@ TTableSchema TTableSchema::ToReplicationLog() const
 {
     YCHECK(IsSorted());
     std::vector<TColumnSchema> columns;
-    columns.push_back(TColumnSchema(TimestampColumnName, EValueType::Uint64));
-    columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, EValueType::Int64));
+    columns.push_back(TColumnSchema(TimestampColumnName, ELogicalValueType::Uint64));
+    columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, ELogicalValueType::Int64));
     for (const auto& column : Columns_) {
         if (column.SortOrder) {
-            columns.push_back(TColumnSchema(TReplicationLogTable::KeyColumnNamePrefix + column.Name, column.Type));
+            columns.push_back(TColumnSchema(TReplicationLogTable::KeyColumnNamePrefix + column.Name, column.GetLogicalType()));
         } else {
-            columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name, column.Type));
-            columns.push_back(TColumnSchema(TReplicationLogTable::FlagsColumnNamePrefix + column.Name, EValueType::Uint64));
+            columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name, column.GetLogicalType()));
+            columns.push_back(TColumnSchema(TReplicationLogTable::FlagsColumnNamePrefix + column.Name, ELogicalValueType::Uint64));
         }
     }
     return TTableSchema(std::move(columns), true, false);
@@ -583,7 +606,7 @@ void FromProto(
 bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs)
 {
     return lhs.Name == rhs.Name
-           && lhs.Type == rhs.Type
+           && lhs.GetLogicalType() == rhs.GetLogicalType()
            && lhs.SortOrder == rhs.SortOrder
            && lhs.Aggregate == rhs.Aggregate
            && lhs.Expression == rhs.Expression;
@@ -607,6 +630,43 @@ bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs)
+{
+    if (lhs == rhs) {
+        return true;
+    }
+    if (rhs == ELogicalValueType::Any) {
+        return true;
+    }
+
+    auto leftPhysicalType = GetPhysicalType(lhs);
+    auto rightPhysicalType = GetPhysicalType(rhs);
+    if (leftPhysicalType != rightPhysicalType) {
+        return false;
+    }
+
+    if (leftPhysicalType == EValueType::Uint64 || leftPhysicalType == EValueType::Int64) {
+        static const std::vector<ELogicalValueType> order = {
+            ELogicalValueType::Uint8,
+            ELogicalValueType::Int8,
+            ELogicalValueType::Uint16,
+            ELogicalValueType::Int16,
+            ELogicalValueType::Uint32,
+            ELogicalValueType::Int32,
+            ELogicalValueType::Uint64,
+            ELogicalValueType::Int64,
+        };
+
+        auto lit = std::find(order.begin(), order.end(), lhs);
+        auto rit = std::find(order.begin(), order.end(), rhs);
+        Y_ASSERT(lit != order.end());
+        Y_ASSERT(rit != order.end());
+
+        return lit <= rit;
+    }
+    return false;
+}
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns)
 {
@@ -689,7 +749,7 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic
             }
         }
 
-        ValidateSchemaValueType(columnSchema.Type);
+        ValidateSchemaValueType(columnSchema.GetPhysicalType());
 
         if (columnSchema.Expression && !columnSchema.SortOrder && isTableDynamic) {
             THROW_ERROR_EXCEPTION("Non-key column cannot be computed");
@@ -723,11 +783,11 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
 {
     YCHECK(oldColumn.Name == newColumn.Name);
-    if (newColumn.Type != oldColumn.Type) {
+    if (oldColumn.GetLogicalType() != newColumn.GetLogicalType()) {
         THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: old %Qlv, new %Qlv",
             oldColumn.Name,
-            oldColumn.Type,
-            newColumn.Type);
+            oldColumn.GetLogicalType(),
+            newColumn.GetLogicalType());
     }
 
     if (newColumn.SortOrder.HasValue() && newColumn.SortOrder != oldColumn.SortOrder) {
@@ -776,9 +836,9 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
     }
 
     for (const auto& column : schema.Columns()) {
-        if (column.SortOrder && column.Type == EValueType::Any) {
+        if (column.SortOrder && column.GetPhysicalType() == EValueType::Any) {
             THROW_ERROR_EXCEPTION("Invalid dynamic table key column type: %Qv",
-                column.Type);
+                column.GetPhysicalType());
         }
     }
 }
@@ -915,11 +975,11 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             }
             yhash_set<TString> references;
             auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, BuiltinTypeInferrersMap, &references);
-            if (expr->Type != columnSchema.Type) {
+            if (expr->Type != columnSchema.GetPhysicalType()) {
                 THROW_ERROR_EXCEPTION(
                     "Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
                     columnSchema.Name,
-                    columnSchema.Type,
+                    columnSchema.GetPhysicalType(),
                     expr->Type);
             }
 
@@ -940,6 +1000,11 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
     }
 }
 
+static bool IsPhysicalType(ELogicalValueType logicalType)
+{
+    return static_cast<ui32>(logicalType) == static_cast<ui32>(GetPhysicalType(logicalType));
+}
+
 //! Validates aggregated columns.
 /*!
  *  Validates that:
@@ -955,6 +1020,11 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             if (index < schema.GetKeyColumnCount()) {
                 THROW_ERROR_EXCEPTION("Key column %Qv cannot be aggregated", columnSchema.Name);
             }
+            if (!IsPhysicalType(columnSchema.GetLogicalType())) {
+                THROW_ERROR_EXCEPTION("Aggregated column %Qv is forbiden to have logical type %Qlv",
+                    columnSchema.Name,
+                    columnSchema.GetLogicalType());
+            }
 
             const auto& name = *columnSchema.Aggregate;
             if (auto descriptor = BuiltinTypeInferrersMap->GetFunction(name)->As<TAggregateTypeInferrer>()) {
@@ -963,28 +1033,28 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
                 TNullable<EValueType> resultType;
 
                 descriptor->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
-                if (!constraint.Get(columnSchema.Type)) {
-                    THROW_ERROR_EXCEPTION("Argument type mismatch in aggregate function %Qv from column %Qv: expected %Qv, got %Qv",
+                if (!constraint.Get(columnSchema.GetPhysicalType())) {
+                    THROW_ERROR_EXCEPTION("Argument type mismatch in aggregate function %Qv from column %Qv: expected %Qlv, got %Qlv",
                         columnSchema.Aggregate.Get(),
                         columnSchema.Name,
                         constraint,
-                        columnSchema.Type);
+                        columnSchema.GetPhysicalType());
                 }
 
-                if (stateType && *stateType != columnSchema.Type) {
-                    THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qv differs from column %Qv type %Qv",
+                if (stateType && *stateType != columnSchema.GetPhysicalType()) {
+                    THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qlv differs from column %Qv type %Qlv",
                         columnSchema.Aggregate.Get(),
-                        columnSchema.Type,
+                        stateType,
                         columnSchema.Name,
-                        stateType);
+                        columnSchema.GetPhysicalType());
                 }
 
-                if (resultType && *resultType != columnSchema.Type) {
-                    THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qv differs from column %Qv type %Qv",
+                if (resultType && *resultType != columnSchema.GetPhysicalType()) {
+                    THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qlv differs from column %Qv type %Qlv",
                         columnSchema.Aggregate.Get(),
-                        columnSchema.Type,
+                        resultType,
                         columnSchema.Name,
-                        resultType);
+                        columnSchema.GetPhysicalType());
                 }
             } else {
                 THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",
@@ -1014,7 +1084,7 @@ void ValidateTimestampColumn(const TTableSchema& schema)
             TimestampColumnName);
     }
 
-    if (column->Type != EValueType::Uint64) {
+    if (column->GetLogicalType() != ELogicalValueType::Uint64) {
         THROW_ERROR_EXCEPTION("%Qv column must have %Qlv type",
             TimestampColumnName,
             EValueType::Uint64);
@@ -1116,11 +1186,11 @@ void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema)
     }
 
     for (int index = 0; index < pivotKey.GetCount(); ++index) {
-        if (pivotKey[index].Type != EValueType::Null && pivotKey[index].Type != schema.Columns()[index].Type) {
+        if (pivotKey[index].Type != EValueType::Null && pivotKey[index].Type != schema.Columns()[index].GetPhysicalType()) {
             THROW_ERROR_EXCEPTION(
                 "Mismatched type of column %Qv in pivot key: expected %Qlv, found %Qlv",
                 schema.Columns()[index].Name,
-                schema.Columns()[index].Type,
+                schema.Columns()[index].GetPhysicalType(),
                 pivotKey[index].Type);
         }
     }
@@ -1223,15 +1293,15 @@ void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tabl
 
         // Validate column type consistency in two schemas.
         const auto& tableColumn = *tableColumnPtr;
-        if (readColumn.Type != EValueType::Any &&
-            tableColumn.Type != EValueType::Any &&
-            readColumn.Type != tableColumn.Type)
+        if (readColumn.GetPhysicalType() != EValueType::Any &&
+            tableColumn.GetPhysicalType() != EValueType::Any &&
+            readColumn.GetPhysicalType() != tableColumn.GetPhysicalType())
         {
             THROW_ERROR_EXCEPTION(
                 "Mismatched type of column %Qv in read schema: expected %Qlv, found %Qlv",
                 readColumn.Name,
-                tableColumn.Type,
-                readColumn.Type);
+                tableColumn.GetPhysicalType(),
+                readColumn.GetPhysicalType());
         }
 
         // Validate that order of key columns intersection hasn't been changed.
@@ -1293,9 +1363,11 @@ TError ValidateTableSchemaCompatibility(
     // Check that columns are the same.
     for (const auto& outputColumn : outputSchema.Columns()) {
         if (auto inputColumn = inputSchema.FindColumn(outputColumn.Name)) {
-            if (inputColumn->Type != outputColumn.Type && outputColumn.Type != EValueType::Any) {
-                return addAttributes(TError("Column %Qv input type is incompatible with the output type",
-                    inputColumn->Name));
+            if (!IsSubtypeOf(inputColumn->GetLogicalType(), outputColumn.GetLogicalType())) {
+                return addAttributes(TError("Column %Qv input type %Qlv is incompatible with the output type %Qlv",
+                    inputColumn->Name,
+                    inputColumn->GetLogicalType(),
+                    outputColumn.GetLogicalType()));
             }
             if (outputColumn.Expression && inputColumn->Expression != outputColumn.Expression) {
                 return addAttributes(TError("Column %Qv expression mismatch",

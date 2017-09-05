@@ -339,7 +339,7 @@ TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpress
 
     TUnversionedValue one;
     one.Id = 0;
-    one.Type = columns[keyIndex].Type;
+    one.Type = columns[keyIndex].GetPhysicalType();
     one.Data.Int64 = 1;
 
     if (auto referenceExpr = expr->As<TReferenceExpression>()) {

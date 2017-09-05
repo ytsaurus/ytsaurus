@@ -90,11 +90,11 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     columnFilter.All = false;
     for (const auto& column : desiredSchema.Columns()) {
         const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
-        if (tabletColumn.Type != column.Type) {
+        if (tabletColumn.GetPhysicalType() != column.GetPhysicalType()) {
             THROW_ERROR_EXCEPTION("Mismatched type of column %Qv in schema: expected %Qlv, found %Qlv",
                 column.Name,
-                tabletColumn.Type,
-                column.Type);
+                tabletColumn.GetPhysicalType(),
+                column.GetPhysicalType());
         }
         columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
     }
@@ -588,7 +588,7 @@ private:
 
         std::vector<EValueType> keySchema;
         for (size_t index = 0; index < keySize; ++index) {
-            keySchema.push_back(Query_->OriginalSchema.Columns()[index].Type);
+            keySchema.push_back(Query_->OriginalSchema.Columns()[index].GetPhysicalType());
         }
 
         size_t rangesCount = 0;

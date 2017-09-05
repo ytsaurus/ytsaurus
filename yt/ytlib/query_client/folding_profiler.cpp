@@ -48,7 +48,7 @@ std::vector<EValueType> GetTypesFromSchema(const TTableSchema& tableSchema)
     std::vector<EValueType> result;
 
     for (const auto& column : tableSchema.Columns()) {
-        result.push_back(column.Type);
+        result.push_back(column.GetPhysicalType());
     }
 
     return result;
@@ -110,7 +110,7 @@ void TSchemaProfiler::Profile(const TTableSchema& tableSchema)
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
     for (int index = 0; index < columns.size(); ++index) {
         const auto& column = columns[index];
-        Fold(static_cast<ui16>(column.Type));
+        Fold(static_cast<ui16>(column.GetPhysicalType()));
         Fold(column.Name.c_str());
         int aux = (column.Expression ? 1 : 0) | ((column.Aggregate ? 1 : 0) << 1);
         Fold(aux);
@@ -982,7 +982,7 @@ void TQueryProfiler::Profile(
 
                     projectClause->AddProjection(
                         New<TReferenceExpression>(
-                            joinRenamedTableColumns[index].Type,
+                            joinRenamedTableColumns[index].GetPhysicalType(),
                             joinRenamedTableColumns[index].Name),
                         joinRenamedTableColumns[index].Name);
                 }
