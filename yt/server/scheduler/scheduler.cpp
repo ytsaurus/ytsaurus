@@ -1306,6 +1306,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        TForbidContextSwitchGuard contextSwitchGuard;
+
         LOG_INFO("Starting scheduler state cleanup");
 
         IsConnected_.store(false);
@@ -1332,8 +1334,8 @@ private:
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run(error));
             }
-            WaitFor(Combine(abortFutures))
-                .ThrowOnError();
+            Combine(abortFutures)
+                .Get();
         }
 
         auto operations = IdToOperation_;
@@ -1359,8 +1361,8 @@ private:
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
-            WaitFor(Combine(nodeShardFutures))
-                .ThrowOnError();
+            Combine(nodeShardFutures)
+                .Get();
         }
 
         Strategy_->ResetState();
