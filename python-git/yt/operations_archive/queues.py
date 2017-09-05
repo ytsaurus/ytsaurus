@@ -128,10 +128,13 @@ def batching_queue_worker(queue, worker_cls, args=(), batch_size=32, failed_item
                 queue.task_done(len(values))
 
 def run_workers(worker, args, thread_count):
-    for _ in range(thread_count):
-       thread = Thread(target=worker, args=args)
-       thread.daemon = True
-       thread.start()
+    if thread_count == 0:
+        worker(args)
+    else:
+        for _ in range(thread_count):
+            thread = Thread(target=worker, args=args)
+            thread.daemon = True
+            thread.start()
 
 def run_queue_workers(queue, worker_cls, thread_count, args=()):
     run_workers(queue_worker, (queue, worker_cls, args), thread_count)
