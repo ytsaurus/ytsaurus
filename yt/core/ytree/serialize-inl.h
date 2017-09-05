@@ -13,6 +13,7 @@
 
 #include <yt/core/yson/stream.h>
 #include <yt/core/yson/string.h>
+#include <yt/core/yson/protobuf_interop.h>
 
 #include <numeric>
 
@@ -267,9 +268,10 @@ void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer)
 
 // Enums
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type Serialize(
+void Serialize(
     T value,
-    NYson::IYsonConsumer* consumer)
+    NYson::IYsonConsumer* consumer,
+    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
     consumer->OnStringScalar(FormatEnum(value));
 }
@@ -367,6 +369,20 @@ void Serialize(const TEnumIndexedVector<T, E, Min, Max>& value, NYson::IYsonCons
     consumer->OnEndMap();
 }
 
+void SerializeProtobufMessage(
+    const google::protobuf::Message& message,
+    const NYson::TProtobufMessageType* type,
+    NYson::IYsonConsumer* consumer);
+
+template <class T>
+void Serialize(
+    const T& message,
+    NYson::IYsonConsumer* consumer,
+    typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type*)
+{
+    SerializeProtobufMessage(message, NYson::ReflectProtobufMessageType<T>(), consumer);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -389,9 +405,10 @@ void Deserialize(std::unique_ptr<T>& value, INodePtr node)
 
 // Enums
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type Deserialize(
+void Deserialize(
     T& value,
-    INodePtr node)
+    INodePtr node,
+    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
     auto stringValue = node->AsString()->GetValue();
     value = ParseEnum<T>(stringValue);
@@ -463,6 +480,20 @@ template <template<typename...> class C, class... T, class K>
 void Deserialize(C<T...>& value, INodePtr node)
 {
     DeserializeAssociative(value, node);
+}
+
+void DeserializeProtobufMessage(
+    google::protobuf::Message& message,
+    const NYson::TProtobufMessageType* type,
+    const INodePtr& node);
+
+template <class T>
+void Deserialize(
+    T& message,
+    const INodePtr& node,
+    typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
+{
+    DeserializeProtobufMessage(message, NYson::ReflectProtobufMessageType<T>(), node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
