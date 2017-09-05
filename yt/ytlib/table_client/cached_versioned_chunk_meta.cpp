@@ -141,7 +141,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
             YCHECK(chunkColumn.SortOrder);
 
             if (chunkColumn.Name != column.Name ||
-                chunkColumn.Type != column.Type ||
+                chunkColumn.GetPhysicalType() != column.GetPhysicalType() ||
                 chunkColumn.SortOrder != column.SortOrder)
             {
                 throwIncompatibleKeyColumns();
@@ -165,10 +165,10 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
             continue;
         }
 
-        if (chunkColumn->Type != column.Type) {
+        if (chunkColumn->GetPhysicalType() != column.GetPhysicalType()) {
             THROW_ERROR_EXCEPTION(
                 "Incompatible type %Qlv for column %Qv in chunk schema %v",
-                column.Type,
+                column.GetPhysicalType(),
                 column.Name,
                 ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).GetData());
         }

@@ -19,7 +19,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     int columnIndex,
     int columnId)
 {
-    switch (schema.Type) {
+    switch (schema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnReader(meta, columnIndex, columnId);
 
@@ -50,7 +50,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
     const TColumnMeta& meta,
     int columnId)
 {
-    switch (schema.Type) {
+    switch (schema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnReader(
                 meta,

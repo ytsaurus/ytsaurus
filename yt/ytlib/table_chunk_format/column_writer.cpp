@@ -17,7 +17,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     int columnIndex,
     TDataBlockWriter* blockWriter)
 {
-    switch (columnSchema.Type) {
+    switch (columnSchema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnWriter(columnIndex, blockWriter);
 
@@ -48,7 +48,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
     int id,
     TDataBlockWriter* blockWriter)
 {
-    switch (columnSchema.Type) {
+    switch (columnSchema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnWriter(
                 id,

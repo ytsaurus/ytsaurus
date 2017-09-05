@@ -960,12 +960,77 @@ void ValidateValueType(
     const TTableSchema& schema,
     int schemaId)
 {
-    if (value.Type != EValueType::Null && value.Type != schema.Columns()[schemaId].Type) {
-        THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-            schema.Columns()[schemaId].Name,
-            schema.Columns()[schemaId].Type,
-            EValueType::Null,
-            value.Type);
+    ValidateValueType(value, schema.Columns()[schemaId]);
+}
+
+template <typename T>
+static inline void ValidateIntegerRange(const TUnversionedValue& value, const TString& columnName)
+{
+    static_assert(std::is_integral<T>::value, "type must be integral");
+
+    if (std::is_signed<T>::value) {
+        Y_ASSERT(value.Type == EValueType::Int64);
+        const auto intValue = value.Data.Int64;
+        if (intValue < Min<T>() || intValue > Max<T>()) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Value %v of column %Qv is out of allowed range [%v, %v]",
+                intValue,
+                columnName,
+                Min<T>(),
+                Max<T>());
+        }
+    } else {
+        Y_ASSERT(value.Type == EValueType::Uint64);
+        if (value.Data.Uint64 > Max<T>()) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Value %v of column %Qv is out of allowed range [%v, %v]",
+                value.Data.Uint64,
+                columnName,
+                Min<T>(),
+                Max<T>());
+        }
+    }
+}
+
+void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& columnSchema)
+{
+    if (value.Type == EValueType::Null) {
+        return;
+    }
+
+    if (columnSchema.GetPhysicalType() != value.Type) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
+                columnSchema.Name,
+                columnSchema.GetPhysicalType(),
+                EValueType::Null,
+                value.Type);
+    }
+
+    switch (columnSchema.GetLogicalType()) {
+        case ELogicalValueType::Int8:
+            ValidateIntegerRange<i8>(value, columnSchema.Name);
+            break;
+        case ELogicalValueType::Int16:
+            ValidateIntegerRange<i16>(value, columnSchema.Name);
+            break;
+        case ELogicalValueType::Int32:
+            ValidateIntegerRange<i32>(value, columnSchema.Name);
+            break;
+        case ELogicalValueType::Uint8:
+            ValidateIntegerRange<ui8>(value, columnSchema.Name);
+            break;
+        case ELogicalValueType::Uint16:
+            ValidateIntegerRange<ui16>(value, columnSchema.Name);
+            break;
+        case ELogicalValueType::Uint32:
+            ValidateIntegerRange<ui32>(value, columnSchema.Name);
+            break;
+        default:
+            break;
     }
 }
 

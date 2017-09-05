@@ -926,17 +926,9 @@ protected:
                 if (id < Schema_.Columns().size()) {
                     // Validate schema column types.
                     const auto& column = Schema_.Columns()[id];
-                    if (valueIt->Type != column.Type &&
-                        valueIt->Type != EValueType::Null &&
-                        column.Type != EValueType::Any)
-                    {
-                        THROW_ERROR_EXCEPTION(
-                            EErrorCode::SchemaViolation,
-                            "Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                            column.Name,
-                            column.Type,
-                            EValueType::Null,
-                            valueIt->Type);
+                    const auto& value = *valueIt;
+                    if (column.GetPhysicalType() != EValueType::Any) {
+                        ValidateValueType(value, column);
                     }
 
                     mutableRow[id] = *valueIt;

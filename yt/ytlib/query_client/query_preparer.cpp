@@ -1710,7 +1710,7 @@ public:
                     size_t(SourceTableSchema_.GetColumnIndex(*column))});
             }
 
-            return TBaseColumn(formattedName, column->Type);
+            return TBaseColumn(formattedName, column->GetPhysicalType());
         } else {
             return Null;
         }

@@ -62,7 +62,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
 
         if (schema.Columns()[index].Aggregate) {
             const auto& aggregateName = schema.Columns()[index].Aggregate.Get();
-            auto type = schema.Columns()[index].Type;
+            auto type = schema.Columns()[index].GetPhysicalType();
             column.Aggregate = CodegenAggregate(
                 BuiltinAggregateCG->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName));
             isAggregate[index] = true;
