@@ -1,6 +1,6 @@
 from .clear_operations import (JobsCountGetter, OperationArchiver, StderrDownloader,
                                StderrInserter, OperationCleaner, Operation,
-                               OPERATIONS_ARCHIVE_PATH,
+                               OPERATIONS_ARCHIVE_PATH, clean_operations,
                                get_filter_factors, datestr_to_timestamp_legacy,
                                id_to_parts_old, id_to_parts_new, id_to_parts)
 
