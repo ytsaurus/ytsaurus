@@ -139,6 +139,8 @@ b"""
         fair_share_update_period = 500;
         watchers_update_period = 100;
         update_exec_node_descriptors_period = 100;
+        scheduling_tag_filter_expire_timeout = 100;
+        node_shard_exec_nodes_cache_update_period = 100;
         chunk_list_release_batch_delay = 100;
         connect_grace_delay = 0;
         forbid_immediate_operations_in_root = %false;
