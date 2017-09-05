@@ -6,15 +6,14 @@ import yt.wrapper as yt
 import yt.yson as yson
 import yt.json as json
 
-import yt.packages.requests as requests
-
+from collections import namedtuple
+# Import is necessary due to: http://bugs.python.org/issue7980
 import _strptime
 from datetime import datetime, timedelta
-from logging import Formatter
 
-import argparse
 from time import mktime
-from collections import namedtuple
+
+import yt.packages.requests as requests
 
 OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive"
 BY_ID_ARCHIVE_PATH = "{}/ordered_by_id".format(OPERATIONS_ARCHIVE_PATH)
@@ -22,7 +21,7 @@ BY_START_TIME_ARCHIVE_PATH = "{}/ordered_by_start_time".format(OPERATIONS_ARCHIV
 STDERRS_PATH = "{}/stderrs".format(OPERATIONS_ARCHIVE_PATH)
 JOBS_PATH = "{}/jobs".format(OPERATIONS_ARCHIVE_PATH)
 
-Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
+Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state"])
 
 def get_filter_factors(op, attributes):
     brief_spec = attributes.get("brief_spec", {})
