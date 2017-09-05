@@ -1947,7 +1947,9 @@ class TestSafeAssertionsMode(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
+        # Note that exception in on job completed is not a failed assertion, so it doesn't affect this counter.
+        # TODO(max42): uncomment this when metrics are exported properly (after Ignat's scheduler resharding).
+        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
 
         op = map(
             dont_track=True,
@@ -1958,8 +1960,6 @@ class TestSafeAssertionsMode(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        # Note that exception in on job completed is not a failed assertion, so it doesn't affect this counter.
-        # TODO(max42): uncomment this when metrics are exported properly (after Ignat's scheduler resharding).
         # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
 
         op = map(
@@ -1971,7 +1971,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 2
+        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 2
 
 ##################################################################
 
