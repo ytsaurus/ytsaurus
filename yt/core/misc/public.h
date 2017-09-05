@@ -10,6 +10,7 @@ namespace protobuf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class Descriptor;
 class MessageLite;
 class Message;
 
@@ -17,6 +18,13 @@ template <class Element>
 class RepeatedField;
 template <class Element>
 class RepeatedPtrField;
+
+namespace io {
+
+class ZeroCopyInputStream;
+class ZeroCopyOutputStream;
+
+} // namespace io
 
 ////////////////////////////////////////////////////////////////////////////////
 
