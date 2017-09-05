@@ -1146,10 +1146,10 @@ void TTcpConnection::RearmPoller(bool hasUnsentData)
     // arming the poller in read-only mode in presence of queued messages.
     bool forWrite;
     do {
-        forWrite = hasUnsentData || !QueuedMessages_.IsEmpty();
+        forWrite = hasUnsentData || ArmedForQueuedMessages_.load();
         Poller_->Arm(Socket_, this, EPollControl::Read | (forWrite ? EPollControl::Write : EPollControl::None));
         LOG_TRACE("Poller rearmed (ForWrite: %v)", forWrite);
-    } while (!forWrite && !QueuedMessages_.IsEmpty());
+    } while (!forWrite && ArmedForQueuedMessages_.load());
 }
 
 int TTcpConnection::GetSocketError() const
