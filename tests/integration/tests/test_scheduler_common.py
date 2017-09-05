@@ -1959,7 +1959,8 @@ class TestSafeAssertionsMode(YTEnvSetup):
             op.track()
 
         # Note that exception in on job completed is not a failed assertion, so it doesn't affect this counter.
-        assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
+        # TODO(max42): uncomment this when metrics are exported properly (after Ignat's scheduler resharding).
+        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
 
         op = map(
             dont_track=True,
