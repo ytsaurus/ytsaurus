@@ -58,6 +58,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
     def setup(self):
         self.replica_driver = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
+        self.primary_driver = get_driver(cluster="primary")
 
 
     def _get_table_attributes(self, schema):
@@ -73,12 +74,14 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         if mount:
             self.sync_mount_table(path)
 
-    def _create_replica_table(self, path, replica_id, schema=SIMPLE_SCHEMA, mount=True):
+    def _create_replica_table(self, path, replica_id, schema=SIMPLE_SCHEMA, mount=True, replica_driver=None):
+        if not replica_driver:
+            replica_driver = self.replica_driver
         attributes = self._get_table_attributes(schema)
         attributes["upstream_replica_id"] = replica_id
-        create("table", path, attributes=attributes, driver=self.replica_driver)
+        create("table", path, attributes=attributes, driver=replica_driver)
         if mount:
-            self.sync_mount_table(path, driver=self.replica_driver)
+            self.sync_mount_table(path, driver=replica_driver)
 
     def _create_cells(self):
         self.sync_create_cells(1)
@@ -769,6 +772,19 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         alter_table_replica(replica_id2, mode="async")
         sleep(1.0)
         with pytest.raises(YtError): select_rows("* from [//tmp/t]")
+
+    def test_local_sync_replica_yt_7571(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", "primary", "//tmp/r", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id, replica_driver=self.primary_driver)
+        self.sync_enable_table_replica(replica_id)
+
+        rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        assert_items_equal(select_rows("key, value1 from [//tmp/t]", driver=self.primary_driver), rows)
+        assert_items_equal(select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver), rows)
 
 ##################################################################
 

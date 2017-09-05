@@ -297,7 +297,6 @@ class YTEnvSetup(object):
                 if driver is None:
                     continue
                 yt_commands.set("//sys/clusters", clusters, driver=driver)
-                yt_commands.remove("//sys/clusters/" + cls.get_cluster_name(cluster_index), driver=driver)
 
             sleep(1.0)
 
