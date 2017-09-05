@@ -427,7 +427,7 @@ private:
                     index,
                     endpoint.Key,
                     endpoint.RowIndex,
-                    (endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
+                    (endpoint.DataSlice && endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
                     ? MakeNullable(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
                     : Null,
                     endpoint.Type,
