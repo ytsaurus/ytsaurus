@@ -5,6 +5,8 @@ from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_timestamp_mcs
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 
+from operations_archive import clean_operations
+
 import __builtin__
 import datetime
 import itertools
@@ -183,30 +185,7 @@ class TestListJobs(YTEnvSetup):
 
         validate_address_filter(op, False, True, False)
 
-        jobs_archive_path = "//sys/operations_archive/jobs"
-
-        rows = []
-
-        for job_id, job in jobs.iteritems():
-            op_id_hi, op_id_lo = id_to_parts(op.id)
-            id_hi, id_lo = id_to_parts(job_id)
-            row = {}
-            row["operation_id_hi"] = yson.YsonUint64(op_id_hi)
-            row["operation_id_lo"] = yson.YsonUint64(op_id_lo)
-            row["job_id_hi"] = yson.YsonUint64(id_hi)
-            row["job_id_lo"] = yson.YsonUint64(id_lo)
-            row["type"] = job.attributes["job_type"]
-            row["state"] = job.attributes["state"]
-            row["start_time"] = date_string_to_timestamp_mcs(job.attributes["start_time"])
-            row["finish_time"] = date_string_to_timestamp_mcs(job.attributes["finish_time"])
-            row["address"] = job.attributes["address"]
-            if "stderr" in job:
-                row["stderr_size"] = job["stderr"].attributes["uncompressed_data_size"]
-            rows.append(row)
-
-        insert_rows(jobs_archive_path, rows)
-
-        remove("//sys/operations/{}".format(op.id))
+        clean_operations(self.Env.create_native_client())
 
         sleep(1)  # statistics_reporter
         res = list_jobs(op.id)["jobs"]
