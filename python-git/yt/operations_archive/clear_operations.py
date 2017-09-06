@@ -455,7 +455,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         operation_archiving_time_limit = datetime.utcnow() + (archiving_time_limit - datetime.utcnow()) / 2
 
         logger.info("Archiving %d operations", len(operations_to_archive))
-        version = yt.get("{}/@".format(OPERATIONS_ARCHIVE_PATH)).get("version", 0)
+        version = client.get("{}/@".format(OPERATIONS_ARCHIVE_PATH)).get("version", 0)
 
         archive_jobs = archive_jobs and version >= 3
 
