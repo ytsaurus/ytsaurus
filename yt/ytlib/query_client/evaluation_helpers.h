@@ -48,6 +48,7 @@ static const size_t InitialGroupOpHashtableCapacity = 1024;
 
 using THasherFunction = ui64(TRow);
 using TComparerFunction = char(TRow, TRow);
+using TTernaryComparerFunction = int(TRow, TRow);
 
 namespace NDetail {
 class TGroupHasher
