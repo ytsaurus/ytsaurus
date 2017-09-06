@@ -265,12 +265,19 @@ class StderrDownloader(object):
         op_id, job_id = element
         token = get_token()
         proxy_url = get_proxy_url(self.yt.config["proxy"]["url"])
-        path = "http://{}/api/v3/read_file?path=//sys/operations/{}/jobs/{}/stderr".format(proxy_url, op_id, job_id)
+        stderr = ""
 
-        rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
+        if proxy_url is not None:
+            path = "http://{}/api/v3/read_file?path=//sys/operations/{}/jobs/{}/stderr".format(proxy_url, op_id, job_id)
 
-        if not rsp.content:
-            return
+            rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
+
+            if not rsp.content:
+                return
+
+            stderr = rsp.content
+        else:
+            stderr = self.yt.read_file("//sys/operations/{}/jobs/{}/stderr".format(op_id, job_id)).read()
 
         op_id_hi, op_id_lo = id_to_parts(op_id, self.version)
         id_hi, id_lo = id_to_parts(job_id, self.version)
@@ -280,7 +287,7 @@ class StderrDownloader(object):
         row["operation_id_lo"] = yson.YsonUint64(op_id_lo)
         row["job_id_hi"] = yson.YsonUint64(id_hi)
         row["job_id_lo"] = yson.YsonUint64(id_lo)
-        row["stderr"] = rsp.content
+        row["stderr"] = stderr
         self.insert_queue.put(row)
 
 class StderrInserter(object):
