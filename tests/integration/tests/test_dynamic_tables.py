@@ -1139,6 +1139,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
+    @flaky(max_runs=5)
     def test_action_failed_after_cell_destroyed(self, skip_freezing, freeze):
         set("//sys/@enable_tablet_balancer", False)
         cells = self.sync_create_cells(2)
@@ -1146,7 +1147,6 @@ class TestTabletActions(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         banned_peers = self._decommission_all_peers(cells[1])
-        wait(lambda: get("#{0}/@health".format(cells[1])) != "good")
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
