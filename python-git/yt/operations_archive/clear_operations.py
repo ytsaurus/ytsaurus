@@ -264,7 +264,7 @@ class StderrDownloader(object):
     def __call__(self, element):
         op_id, job_id = element
         token = get_token()
-        proxy_url = get_proxy_url(self.yt.config.config["proxy"]["url"])
+        proxy_url = get_proxy_url(self.yt.config["proxy"]["url"])
         path = "http://{}/api/v3/read_file?path=//sys/operations/{}/jobs/{}/stderr".format(proxy_url, op_id, job_id)
 
         rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
