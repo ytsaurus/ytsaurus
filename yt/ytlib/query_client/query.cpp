@@ -521,7 +521,8 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     // COMPAT(lukyan)
     bool canUseSourceRanges = original->ForeignKeyPrefix == original->ForeignEquations.size();
     proto->set_can_use_source_ranges(canUseSourceRanges);
-    proto->set_common_key_prefix(original->CommonKeyPrefix);
+    proto->set_common_key_prefix(canUseSourceRanges ? original->CommonKeyPrefix : 0);
+    proto->set_common_key_prefix_new(original->CommonKeyPrefix);
     proto->set_foreign_key_prefix(original->ForeignKeyPrefix);
 
     if (original->Predicate) {
@@ -541,6 +542,10 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
     FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix());
+
+    if (serialized.has_common_key_prefix_new()) {
+        FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix_new());
+    }
 
     // COMPAT(lukyan)
     if (serialized.can_use_source_ranges()) {
