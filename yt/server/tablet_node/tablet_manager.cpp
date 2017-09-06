@@ -2837,6 +2837,16 @@ private:
                 << TErrorAttribute("overlapping_store_count", overlappingStoreCount)
                 << TErrorAttribute("overlapping_store_limit", overlappingStoreLimit);
         }
+
+        auto overflow = tablet->GetStoreManager()->CheckOverflow();
+        if (!overflow.IsOK()) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::AllWritesDisabled,
+                "Active store is overflown, all writes disabled")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
+                << overflow;
+        }
     }
 
 

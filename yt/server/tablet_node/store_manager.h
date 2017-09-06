@@ -45,6 +45,7 @@ struct IStoreManager
         TWriteContext* context) = 0;
 
     virtual bool IsOverflowRotationNeeded() const = 0;
+    virtual TError CheckOverflow() const = 0;
     virtual bool IsPeriodicRotationNeeded() const = 0;
     virtual bool IsRotationPossible() const = 0;
     virtual bool IsForcedRotationPossible() const = 0;

@@ -23,6 +23,10 @@ TOwningKey RowToKey(
     const TTableSchema& schema,
     TSortedDynamicRow row)
 {
+    if (!row) {
+        return TOwningKey();
+    }
+
     TUnversionedOwningRowBuilder builder;
     ui32 nullKeyBit = 1;
     ui32 nullKeyMask = row.GetNullKeyMask();

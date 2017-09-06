@@ -221,11 +221,11 @@ protected:
 
     static void ValidateRowDataWeight(TVersionedRow row, i64 dataWeight)
     {
-        if (dataWeight > MaxVersionedRowDataWeight) {
+        if (dataWeight > MaxServerVersionedRowDataWeight) {
             THROW_ERROR_EXCEPTION("Versioned row data weight is too large")
                 << TErrorAttribute("key", RowToKey(row))
                 << TErrorAttribute("actual_data_weight", dataWeight)
-                << TErrorAttribute("max_data_weight", MaxVersionedRowDataWeight);
+                << TErrorAttribute("max_data_weight", MaxServerVersionedRowDataWeight);
         }
     }
 };

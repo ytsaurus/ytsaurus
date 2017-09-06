@@ -665,6 +665,34 @@ void TSortedStoreManager::WaitOnBlockedRow(
     WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
 }
 
+bool TSortedStoreManager::IsOverflowRotationNeeded() const
+{
+    if (!IsRotationPossible()) {
+        return false;
+    }
+
+    const auto& config = Tablet_->GetConfig();
+    if (ActiveStore_->GetMaxDataWeight() >= config->MaxDynamicStoreRowDataWeight) {
+        return true;
+    }
+
+    return TStoreManagerBase::IsOverflowRotationNeeded();
+}
+
+TError TSortedStoreManager::CheckOverflow() const
+{
+    const auto& config = Tablet_->GetConfig();
+    if (ActiveStore_ && ActiveStore_->GetMaxDataWeight() >= config->MaxDynamicStoreRowDataWeight) {
+        return TError("Maximum row data weight limit reached")
+            << TErrorAttribute("store_id", ActiveStore_->GetId())
+            << TErrorAttribute("key", RowToKey(Tablet_->PhysicalSchema(), ActiveStore_->GetMaxDataWeightWitnessKey()))
+            << TErrorAttribute("data_weight", ActiveStore_->GetMaxDataWeight())
+            << TErrorAttribute("data_weight_limit", config->MaxDynamicStoreRowDataWeight);
+    }
+
+    return TStoreManagerBase::CheckOverflow();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
