@@ -1345,11 +1345,13 @@ TJobResources TPool::ComputeResourceLimits() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationElementFixedState::TOperationElementFixedState(IOperationStrategyHost* operation)
-    : Controller_(operation->GetControllerStrategyHost())
-    , OperationId_(operation->GetId())
+TOperationElementFixedState::TOperationElementFixedState(
+    IOperationStrategyHost* operation,
+    TFairShareStrategyOperationControllerConfigPtr controllerConfig)
+    : OperationId_(operation->GetId())
     , Schedulable_(operation->IsSchedulable())
     , Operation_(operation)
+    , ControllerConfig_(controllerConfig)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1539,29 +1541,6 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
     return resourceUsage;
 }
 
-void TOperationElementSharedState::SetMinNeededJobResources(std::vector<TJobResources> jobResourcesList)
-{
-    TWriterGuard guard(CachedMinNeededJobResourcesLock_);
-    CachedMinNeededJobResourcesList_ = std::move(jobResourcesList);
-
-    CachedMinNeededJobResources_ = InfiniteJobResources();
-    for (const auto& jobResources : CachedMinNeededJobResourcesList_) {
-        CachedMinNeededJobResources_ = Min(CachedMinNeededJobResources_, jobResources);
-    }
-}
-
-std::vector<TJobResources> TOperationElementSharedState::GetMinNeededJobResourcesList() const
-{
-    TReaderGuard guard(CachedMinNeededJobResourcesLock_);
-    return CachedMinNeededJobResourcesList_;
-}
-
-TJobResources TOperationElementSharedState::GetMinNeededJobResources() const
-{
-    TReaderGuard guard(CachedMinNeededJobResourcesLock_);
-    return CachedMinNeededJobResources_;
-}
-
 TJobResources TOperationElement::Finalize()
 {
     return SharedState_->Finalize();
@@ -1597,39 +1576,17 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
     return resourceUsage;
 }
 
-bool TOperationElementSharedState::IsBlocked(
-    NProfiling::TCpuInstant now,
-    int maxConcurrentScheduleJobCalls,
-    NProfiling::TCpuDuration scheduleJobFailBackoffTime) const
-{
-    return
-        ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
-        LastScheduleJobFailTime_ + scheduleJobFailBackoffTime > now;
-}
-
-void TOperationElementSharedState::IncreaseConcurrentScheduleJobCalls()
-{
-    ++ConcurrentScheduleJobCalls_;
-}
-
-void TOperationElementSharedState::DecreaseConcurrentScheduleJobCalls()
-{
-    --ConcurrentScheduleJobCalls_;
-}
-
-void TOperationElementSharedState::SetLastScheduleJobFailTime(NProfiling::TCpuInstant now)
-{
-    LastScheduleJobFailTime_ = now;
-}
-
 bool TOperationElement::TryStartScheduleJob(
     NProfiling::TCpuInstant now,
-    int maxConcurrentScheduleJobCalls,
-    NProfiling::TCpuDuration scheduleJobFailBackoffTime,
     const TJobResources& jobLimits,
     const TJobResources& minNeededResources)
 {
-    if (SharedState_->IsBlocked(now, maxConcurrentScheduleJobCalls, scheduleJobFailBackoffTime)) {
+    auto isBlocked = Controller_->IsBlocked(
+        now,
+        ControllerConfig_->MaxConcurrentControllerScheduleJobCalls,
+        ControllerConfig_->ScheduleJobFailBackoffTime);
+
+    if (isBlocked) {
         return false;
     }
 
@@ -1639,7 +1596,7 @@ bool TOperationElement::TryStartScheduleJob(
 
     IncreaseResourceUsagePrecommit(minNeededResources);
 
-    SharedState_->IncreaseConcurrentScheduleJobCalls();
+    Controller_->IncreaseConcurrentScheduleJobCalls();
 
     return true;
 }
@@ -1649,10 +1606,10 @@ void TOperationElement::FinishScheduleJob(
     NProfiling::TCpuInstant now,
     const TJobResources& minNeededResources)
 {
-    SharedState_->DecreaseConcurrentScheduleJobCalls();
+    Controller_->DecreaseConcurrentScheduleJobCalls();
 
     if (enableBackoff) {
-        SharedState_->SetLastScheduleJobFailTime(now);
+        Controller_->SetLastScheduleJobFailTime(now);
     }
 
     IncreaseResourceUsagePrecommit(-minNeededResources);
@@ -1692,14 +1649,16 @@ TOperationElement::TOperationElement(
     TFairShareStrategyConfigPtr strategyConfig,
     TStrategyOperationSpecPtr spec,
     TOperationRuntimeParamsPtr runtimeParams,
+    TFairShareStrategyOperationControllerPtr controller,
     ISchedulerStrategyHost* host,
     IOperationStrategyHost* operation)
     : TSchedulerElement(host, strategyConfig)
-    , TOperationElementFixedState(operation)
+    , TOperationElementFixedState(operation, strategyConfig)
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
     , SharedState_(New<TOperationElementSharedState>())
+    , Controller_(controller)
 { }
 
 TOperationElement::TOperationElement(
@@ -1711,6 +1670,7 @@ TOperationElement::TOperationElement(
     , Spec_(other.Spec_)
     , SchedulingTagFilter_(other.SchedulingTagFilter_)
     , SharedState_(other.SharedState_)
+    , Controller_(other.Controller_)
 { }
 
 double TOperationElement::GetFairShareStarvationTolerance() const
@@ -1779,7 +1739,7 @@ TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limi
 
 bool TOperationElement::HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const
 {
-    for (const auto& jobResources : SharedState_->GetMinNeededJobResourcesList()) {
+    for (const auto& jobResources : Controller_->GetMinNeededJobResourcesList()) {
         if (context.SchedulingContext->CanStartJob(jobResources)) {
             return true;
         }
@@ -1796,21 +1756,19 @@ void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicA
     TSchedulerElement::UpdateDynamicAttributes(dynamicAttributesList);
 }
 
-void TOperationElement::UpdateMinNeededJobResources()
+void TOperationElement::InvokeMinNeededJobResourcesUpdate()
 {
     YCHECK(!Cloned_);
 
-    BIND(&NControllerAgent::IOperationController::GetMinNeededJobResources, Controller_)
-        .AsyncVia(Controller_->GetCancelableInvoker())
-        .Run()
-        .Subscribe(
-            BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TJobResources>>& resultOrError) {
-                if (!resultOrError.IsOK()) {
-                    LOG_WARNING(resultOrError, "Failed to update min needed resources from controller");
-                    return;
-                }
-                SharedState_->SetMinNeededJobResources(std::move(resultOrError.Value()));
-        }));
+    if (IsSchedulable()) {
+        Controller_->InvokeMinNeededJobResourcesUpdate();
+    }
+}
+
+void TOperationElement::UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
+{
+    YCHECK(!Cloned_);
+    ControllerConfig_ = config;
 }
 
 void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled)
@@ -1897,11 +1855,9 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     }
 
     auto jobLimits = GetHierarchicalResourceLimits(context);
-    auto minNeededResources = SharedState_->GetMinNeededJobResources();
+    auto minNeededResources = Controller_->GetMinNeededJobResources();
     if (!TryStartScheduleJob(
         now,
-        StrategyConfig_->MaxConcurrentControllerScheduleJobCalls,
-        NProfiling::DurationToCpuDuration(StrategyConfig_->ControllerScheduleJobFailBackoffTime),
         jobLimits,
         minNeededResources))
     {
@@ -2142,13 +2098,12 @@ bool TOperationElement::IsSchedulable() const
 
 bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
 {
-    return
-        !Schedulable_ ||
+    return !Schedulable_ ||
         GetPendingJobCount() == 0 ||
-        SharedState_->IsBlocked(
+        Controller_->IsBlocked(
             now,
-            StrategyConfig_->MaxConcurrentControllerScheduleJobCalls,
-            NProfiling::DurationToCpuDuration(StrategyConfig_->ControllerScheduleJobFailBackoffTime));
+            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls,
+            ControllerConfig_->ScheduleJobFailBackoffTime);
 }
 
 TJobResources TOperationElement::GetHierarchicalResourceLimits(const TFairShareContext& context) const
@@ -2177,51 +2132,15 @@ TJobResources TOperationElement::GetHierarchicalResourceLimits(const TFairShareC
     return limits;
 }
 
-TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits, const TJobResources& jobResourceDiscount)
+TScheduleJobResultPtr TOperationElement::DoScheduleJob(
+    TFairShareContext& context,
+    const TJobResources& jobLimits,
+    const TJobResources& jobResourceDiscount)
 {
-    auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationControllerStrategyHost::ScheduleJob, Controller_)
-        .AsyncVia(Controller_->GetCancelableInvoker())
-        .Run(context.SchedulingContext, jobLimits);
-
-    auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
-        .WithTimeout(StrategyConfig_->ControllerScheduleJobTimeLimit);
-
-    auto scheduleJobResultWithTimeoutOrError = WaitFor(scheduleJobResultFutureWithTimeout);
-
-    if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
-        auto scheduleJobResult = New<TScheduleJobResult>();
-        if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
-            auto error = TError(
-                "Scheduling job in controller of operation %v timed out; "
-                "it means that either scheduler is under heavy load or operation is too heavy",
-                OperationId_);
-
-            LOG_WARNING(error);
-            SetOperationAlert(OperationId_, EOperationAlertType::ScheduleJobTimedOut, error);
-
-            ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
-            // If ScheduleJob was not canceled we need to abort created job.
-            scheduleJobResultFuture.Subscribe(
-                BIND([this_ = MakeStrong(this)] (const TErrorOr<TScheduleJobResultPtr>& scheduleJobResultOrError) {
-                    if (scheduleJobResultOrError.IsOK()) {
-                        const auto& scheduleJobResult = scheduleJobResultOrError.Value();
-                        if (scheduleJobResult->JobStartRequest) {
-                            const auto& jobId = scheduleJobResult->JobStartRequest->Id;
-                            LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
-                                jobId,
-                                this_->OperationId_);
-                            this_->Controller_->OnJobAborted(
-                                std::make_unique<TAbortedJobSummary>(
-                                    jobId,
-                                    EAbortReason::SchedulingTimeout));
-                        }
-                    }
-            }));
-        }
-        return scheduleJobResult;
-    }
-
-    auto scheduleJobResult = scheduleJobResultWithTimeoutOrError.Value();
+    auto scheduleJobResult = Controller_->ScheduleJob(
+        context.SchedulingContext,
+        jobLimits,
+        ControllerConfig_->ScheduleJobTimeLimit);
 
     // Discard the job in case of resource overcommit.
     if (scheduleJobResult->JobStartRequest) {
@@ -2235,16 +2154,22 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
                 jobId,
                 OperationId_);
 
-            Controller_->GetCancelableInvoker()->Invoke(BIND(
-                &NControllerAgent::IOperationControllerStrategyHost::OnJobAborted,
-                Controller_,
-                Passed(std::make_unique<TAbortedJobSummary>(
-                    jobId,
-                    EAbortReason::SchedulingResourceOvercommit))));
+            Controller_->AbortJob(
+                std::make_unique<TAbortedJobSummary>(jobId, EAbortReason::SchedulingResourceOvercommit));
 
             // Reset result.
             scheduleJobResult = New<TScheduleJobResult>();
             ++scheduleJobResult->Failed[EScheduleJobFailReason::ResourceOvercommit];
+        }
+    } else {
+        if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
+            auto error = TError(
+                "Scheduling job in controller of operation %v timed out; "
+                "it means that either scheduler is under heavy load or operation is too heavy",
+                OperationId_);
+
+            LOG_WARNING(error);
+            SetOperationAlert(OperationId_, EOperationAlertType::ScheduleJobTimedOut, error);
         }
     }
 
