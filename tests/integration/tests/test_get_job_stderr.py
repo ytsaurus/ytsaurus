@@ -4,6 +4,8 @@ import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_timestamp_mcs
 
+from operations_archive import *
+
 import __builtin__
 import datetime
 import itertools
@@ -57,24 +59,8 @@ class TestGetJobStderr(YTEnvSetup):
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
 
-        stderrs_archive_path = "//sys/operations_archive/stderrs"
-
-        op_id_hi, op_id_lo = id_to_parts(op.id)
-        id_hi, id_lo = id_to_parts(job_id)
-
-        row = {}
-        row["operation_id_hi"] = yson.YsonUint64(op_id_hi)
-        row["operation_id_lo"] = yson.YsonUint64(op_id_lo)
-        row["job_id_hi"] = yson.YsonUint64(id_hi)
-        row["job_id_lo"] = yson.YsonUint64(id_lo)
-        row["stderr"] =  res
-
-        insert_rows(stderrs_archive_path, [row])
-
-        remove("//sys/operations/{}".format(op.id))
+        clean_operations(self.Env.create_native_client())
 
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
-        self.sync_unmount_table(stderrs_archive_path)
-        remove(stderrs_archive_path) 
 
