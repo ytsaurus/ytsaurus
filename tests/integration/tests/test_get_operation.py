@@ -5,6 +5,8 @@ import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_timestamp_mcs
 
+from operations_archive import clean_operations
+
 import __builtin__
 import datetime
 import itertools
@@ -74,26 +76,7 @@ class TestGetOperation(YTEnvSetup):
         op.resume_jobs()
         op.track() 
 
-        res_cypress = get("//sys/operations/{0}/@".format(op.id))
-
-        index_columns = ["state", "authenticated_user", "operation_type"]
-        value_columns = ["progress", "brief_progress", "spec", "brief_spec", "result", "filter_factors", "events"]
-
-        by_id_row = {}
-        for key in index_columns + value_columns:
-            if key in res_cypress.keys():
-                by_id_row[key] = res_cypress.get(key)
-
-        id_hi, id_lo = id_to_parts(op.id)
-
-        by_id_row["id_hi"] = yson.YsonUint64(id_hi)
-        by_id_row["id_lo"] = yson.YsonUint64(id_lo)
-        by_id_row["start_time"] = date_string_to_timestamp_mcs(res_cypress["start_time"])
-        by_id_row["finish_time"] = date_string_to_timestamp_mcs(res_cypress["finish_time"])
-
-        insert_rows("//sys/operations_archive/ordered_by_id", [by_id_row])
-
-        remove("//sys/operations/{0}".format(op.id))
+        clean_operations(self.Env.create_native_client())
 
         res_get_operation_archive = get_operation(op.id)
 
