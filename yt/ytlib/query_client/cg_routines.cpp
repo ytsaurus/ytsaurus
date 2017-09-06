@@ -300,8 +300,7 @@ public:
         TExecutionContext* context,
         const std::vector<std::pair<TRow, int>>& keysToRows,
         const std::vector<TChainedRow>& chainedRows,
-        TComparerFunction* fullEqComparer,
-        TComparerFunction* fullLessComparer,
+        TTernaryComparerFunction* fullTernaryComparer,
         TComparerFunction* foreignPrefixEqComparer,
         TComparerFunction* foreignSuffixLessComparer,
         bool isPartiallySorted,
@@ -323,11 +322,12 @@ public:
         auto processSortedForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
             while (foreignIt != endForeignIt && currentKey != keysToRows.end()) {
                 int startIndex = currentKey->second;
-                if (fullEqComparer(currentKey->first, *foreignIt)) {
+                int cmpResult = fullTernaryComparer(currentKey->first, *foreignIt);
+                if (cmpResult == 0) {
                     JoinRows(chainedRows, startIndex, *foreignIt);
                     ++foreignIt;
                     lastJoined = currentKey;
-                } else if (fullLessComparer(currentKey->first, *foreignIt)) {
+                } else if (cmpResult < 0) {
                     if (isLeft && lastJoined != currentKey) {
                         JoinRowsNull(chainedRows, startIndex);
                         lastJoined = currentKey;
@@ -492,8 +492,7 @@ void JoinOpHelper(
     TComparerFunction* prefixEqComparer,
     TComparerFunction* foreignPrefixEqComparer,
     TComparerFunction* foreignSuffixLessComparer,
-    TComparerFunction* fullEqComparer,
-    TComparerFunction* fullLessComparer,
+    TTernaryComparerFunction* fullTernaryComparer,
     int keySize,
     void** collectRowsClosure,
     void (*collectRows)(
@@ -561,8 +560,7 @@ void JoinOpHelper(
                     context,
                     keysToRows,
                     chainedRows,
-                    fullEqComparer,
-                    fullLessComparer,
+                    fullTernaryComparer,
                     foreignPrefixEqComparer,
                     foreignSuffixLessComparer,
                     parameters->IsPartiallySorted,

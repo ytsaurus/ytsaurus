@@ -502,14 +502,25 @@ TValueTypeLabels CodegenEqComparerBody(
     };
 };
 
+void DefaultOnEqual(TCGBaseContext& builder)
+{
+    builder->CreateRet(builder->getInt8(false));
+}
+
+void DefaultOnNotEqual(TCGBaseContext& builder, Value* result, Value* index)
+{
+    builder->CreateRet(builder->CreateZExt(result, builder->getInt8Ty()));
+}
+
 TValueTypeLabels CodegenLessComparerBody(
     TCGBaseContext& builder,
     Value* labelsArray,
-    Value* isDesc,
     Value* lhsValues,
     Value* rhsValues,
     Value* startIndex,
-    Value* finishIndex)
+    Value* finishIndex,
+    std::function<void(TCGBaseContext& builder)> onEqual,
+    std::function<void(TCGBaseContext& builder, Value* result, Value* index)> onNotEqual)
 {
     auto* entryBB = builder->GetInsertBlock();
     auto* gotoCmpBB = builder->CreateBBHere("gotoCmp");
@@ -527,20 +538,13 @@ TValueTypeLabels CodegenLessComparerBody(
     BasicBlock* returnEqualBB = builder->CreateBBHere("returnEqual");
     builder->CreateCondBr(builder->CreateICmpSLT(nextIndex, finishIndex), gotoCmpBB, returnEqualBB);
     builder->SetInsertPoint(returnEqualBB);
-    builder->CreateRet(builder->getInt8(false));
+    onEqual(builder);
 
     BasicBlock* returnBB = builder->CreateBBHere("return");
     builder->SetInsertPoint(returnBB);
     PHINode* resultPhi = builder->CreatePHI(builder->getInt1Ty(), 2, "resultPhi");
 
-    Value* notEqualResult = builder->CreateZExt(resultPhi, builder->getInt8Ty());
-    if (isDesc) {
-        notEqualResult = builder->CreateXor(
-            notEqualResult,
-            builder->CreateLoad(builder->CreateGEP(isDesc, indexPhi)));
-    }
-
-    builder->CreateRet(notEqualResult);
+    onNotEqual(builder, resultPhi, indexPhi);
 
     // indexPhi, resultPhi, returnBB, gotoNextBB
 
@@ -772,9 +776,13 @@ struct TComparerManager
     Function* LessComparer;
     TValueTypeLabels LessLables;
 
+    Function* TernaryComparer;
+    TValueTypeLabels TernaryLables;
+
     yhash<llvm::FoldingSetNodeID, Function*> Hashers;
     yhash<llvm::FoldingSetNodeID, Function*> EqComparers;
     yhash<llvm::FoldingSetNodeID, Function*> LessComparers;
+    yhash<llvm::FoldingSetNodeID, Function*> TernaryComparers;
 
     Function* GetHasher(
         const std::vector<EValueType>& types,
@@ -803,6 +811,16 @@ struct TComparerManager
         size_t finish);
 
     Function* GetLessComparer(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module);
+
+    Function* GetTernaryComparer(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module,
+        size_t start,
+        size_t finish);
+
+    Function* GetTernaryComparer(
         const std::vector<EValueType>& types,
         const TCGModulePtr& module);
 };
@@ -1043,11 +1061,12 @@ Function* TComparerManager::GetLessComparer(
                 LessLables = CodegenLessComparerBody(
                     builder,
                     labelsArray,
-                    nullptr,
                     lhsValues,
                     rhsValues,
                     startIndex,
-                    finishIndex);
+                    finishIndex,
+                    DefaultOnEqual,
+                    DefaultOnNotEqual);
             });
         }
 
@@ -1089,6 +1108,91 @@ Function* TComparerManager::GetLessComparer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Function* TComparerManager::GetTernaryComparer(
+    const std::vector<EValueType>& types,
+    const TCGModulePtr& module,
+    size_t start,
+    size_t finish)
+{
+    YCHECK(finish <= types.size());
+
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(start);
+    id.AddInteger(finish);
+    for (size_t index = start; index < finish; ++index)  {
+        id.AddInteger(static_cast<ui16>(types[index]));
+    }
+
+    auto emplaced = TernaryComparers.emplace(id, nullptr);
+    if (emplaced.second) {
+        if (!TernaryComparer) {
+            TernaryComparer = MakeFunction<int(char**, TRow, TRow, size_t, size_t)>(module, "TernaryComparerImpl",
+             [&] (
+                TCGBaseContext& builder,
+                Value* labelsArray,
+                Value* lhsRow,
+                Value* rhsRow,
+                Value* startIndex,
+                Value* finishIndex
+            ) {
+                Value* lhsValues = CodegenValuesPtrFromRow(builder, lhsRow);
+                Value* rhsValues = CodegenValuesPtrFromRow(builder, rhsRow);
+
+                TernaryLables = CodegenLessComparerBody(
+                    builder,
+                    labelsArray,
+                    lhsValues,
+                    rhsValues,
+                    startIndex,
+                    finishIndex,
+                    [&] (TCGBaseContext& builder) {
+                        builder->CreateRet(builder->getInt32(0));
+                    },
+                    [&] (TCGBaseContext& builder, Value* result, Value* index) {
+                        builder->CreateRet(
+                            builder->CreateSelect(result, builder->getInt32(-1), builder->getInt32(1)));
+                    });
+            });
+        }
+
+        emplaced.first->second = MakeFunction<int(TRow, TRow)>(module, "TernaryComparer", [&] (
+            TCGBaseContext& builder,
+            Value* lhsRow,
+            Value* rhsRow
+        ) {
+            Value* result;
+            if (start == finish) {
+                result = builder->getInt32(0);
+            } else {
+                result = builder->CreateCall(
+                    TernaryComparer,
+                    {
+                        builder->CreatePointerCast(
+                            GetLabelsArray(builder, types, TernaryLables),
+                            TypeBuilder<char**, false>::get(builder->getContext())),
+                        lhsRow,
+                        rhsRow,
+                        builder->getInt64(start),
+                        builder->getInt64(finish)
+                    });
+            }
+
+            builder->CreateRet(result);
+        });
+    }
+
+    return emplaced.first->second;
+}
+
+Function* TComparerManager::GetTernaryComparer(
+    const std::vector<EValueType>& types,
+    const TCGModulePtr& module)
+{
+    return GetTernaryComparer(types, module, 0, types.size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Function* CodegenOrderByComparerFunction(
     const std::vector<EValueType>& types,
     const TCGModulePtr& module,
@@ -1113,11 +1217,21 @@ Function* CodegenOrderByComparerFunction(
         lables = CodegenLessComparerBody(
             builder,
             labelsArray,
-            isDesc,
             lhsValues,
             rhsValues,
             builder->getInt64(0),
-            builder->getInt64(types.size()));
+            builder->getInt64(types.size()),
+            DefaultOnEqual,
+            [&] (TCGBaseContext& builder, Value* result, Value* index) {
+                Value* notEqualResult = builder->CreateZExt(result, builder->getInt8Ty());
+                if (isDesc) {
+                    notEqualResult = builder->CreateXor(
+                        notEqualResult,
+                        builder->CreateLoad(builder->CreateGEP(isDesc, index)));
+                }
+
+                builder->CreateRet(notEqualResult);
+            });
     });
 
     return MakeFunction<char(TRow, TRow)>(module, "OrderByComparer", [&] (
@@ -2263,8 +2377,7 @@ size_t MakeCodegenJoinOp(
                 comparerManager->GetEqComparer(lookupKeyTypes, module, 0, foreignKeyPrefix),
                 comparerManager->GetLessComparer(lookupKeyTypes, module, foreignKeyPrefix, lookupKeyTypes.size()),
 
-                comparerManager->GetEqComparer(lookupKeyTypes, module),
-                comparerManager->GetLessComparer(lookupKeyTypes, module),
+                comparerManager->GetTernaryComparer(lookupKeyTypes, module),
 
                 builder->getInt32(lookupKeySize),
 
