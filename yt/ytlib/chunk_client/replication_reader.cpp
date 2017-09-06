@@ -616,13 +616,13 @@ protected:
             RetryIndex_ + 1,
             reader->Config_->RetryCount);
 
+        PassIndex_ = 0;
+        BannedPeers_.clear();
+
         SeedsFuture_ = reader->AsyncGetSeeds();
         SeedsFuture_.Subscribe(
             BIND(&TSessionBase::OnGotSeeds, MakeStrong(this))
                 .Via(SessionInvoker_));
-
-        PassIndex_ = 0;
-        BannedPeers_.clear();
     }
 
     void OnRetryFailed()
