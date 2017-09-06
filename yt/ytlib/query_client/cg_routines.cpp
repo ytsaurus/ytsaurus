@@ -205,9 +205,7 @@ void InsertJoinRow(
         startIndex = chainIndex;
     }
 
-    if (closure->ChainedRows.size() >= closure->BatchSize ||
-        2 * (closure->KeysToRows.size() + closure->Lookup.size()) > NTableClient::MaxRowsPerRowset)
-    {
+    if (closure->ChainedRows.size() >= closure->BatchSize) {
         closure->ProcessJoinBatch();
         *keyPtr = closure->Buffer->AllocateUnversioned(closure->KeySize);
     }
