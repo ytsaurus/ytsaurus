@@ -4,6 +4,7 @@
 #include "config.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
+#include "fair_share_strategy_operation_controller.h"
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -168,10 +169,13 @@ public:
 
         auto spec = ParseSpec(operation, operation->GetSpec());
         auto params = BuildInitialRuntimeParams(spec);
+        auto controller = New<TFairShareStrategyOperationController>(operation.Get());
+
         auto operationElement = New<TOperationElement>(
             Config,
             spec,
             params,
+            controller,
             Host,
             operation.Get());
 
@@ -534,6 +538,11 @@ public:
         Config = config;
         RootElement->UpdateStrategyConfig(Config);
 
+        for (const auto& pair : OperationIdToElement) {
+            const auto& element = pair.second;
+            element->UpdateControllerConfig(config);
+        }
+
         FairShareUpdateExecutor_->SetPeriod(Config->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config->FairShareLogPeriod);
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
@@ -889,10 +898,7 @@ private:
         LOG_INFO("Starting min needed job resources update");
         for (const auto& pair : OperationIdToElement) {
             const auto& operationElement = pair.second;
-            if (!operationElement->IsSchedulable()) {
-                continue;
-            }
-            operationElement->UpdateMinNeededJobResources();
+            operationElement->InvokeMinNeededJobResourcesUpdate();
         }
         LOG_INFO("Min needed job resources successfully updated");
     }
@@ -1313,7 +1319,7 @@ private:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& operationElement = GetOperationElement(operationId);
-        operationElement->UpdateMinNeededJobResources();
+        operationElement->InvokeMinNeededJobResourcesUpdate();
 
         auto* parent = operationElement->GetParent();
         parent->EnableChild(operationElement);
