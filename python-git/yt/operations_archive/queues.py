@@ -129,7 +129,8 @@ def batching_queue_worker(queue, worker_cls, args=(), batch_size=32, failed_item
 
 def run_workers(worker, args, thread_count):
     if thread_count == 0:
-        worker(args)
+        args[0].activate()
+        worker(*args)
     else:
         for _ in range(thread_count):
             thread = Thread(target=worker, args=args)
