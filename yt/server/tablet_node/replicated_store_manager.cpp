@@ -102,6 +102,11 @@ bool TReplicatedStoreManager::IsOverflowRotationNeeded() const
     return LogStoreManager_->IsOverflowRotationNeeded();
 }
 
+TError TReplicatedStoreManager::CheckOverflow() const
+{
+    return LogStoreManager_->CheckOverflow();
+}
+
 bool TReplicatedStoreManager::IsPeriodicRotationNeeded() const
 {
     return LogStoreManager_->IsPeriodicRotationNeeded();

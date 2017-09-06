@@ -89,8 +89,8 @@ protected:
 
     void SetMemoryUsage(i64 value);
 
-    TOwningKey RowToKey(TUnversionedRow row);
-    TOwningKey RowToKey(TSortedDynamicRow row);
+    TOwningKey RowToKey(TUnversionedRow row) const;
+    TOwningKey RowToKey(TSortedDynamicRow row) const;
 
 private:
     i64 MemoryUsage_ = 0;

@@ -112,6 +112,9 @@ public:
     virtual TOwningKey GetMinKey() const override;
     virtual TOwningKey GetMaxKey() const override;
 
+    size_t GetMaxDataWeight() const;
+    TOwningKey GetMaxDataWeightWitnessKey() const;
+
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<NTableClient::TRowRange> bounds,
@@ -163,6 +166,9 @@ private:
     // Reused between ModifyRow calls.
     std::vector<ui32> WriteRevisions_;
 
+    size_t MaxDataWeight_ = 0;
+    TSortedDynamicRow MaxDataWeightWitness_;
+
     virtual void OnSetPassive() override;
 
     TSortedDynamicRow AllocateRow();
@@ -196,6 +202,7 @@ private:
     void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
     void SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys);
     void SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow srcRow);
+    void CommitValue(TSortedDynamicRow row, TValueList list, int index);
 
     struct TLoadScratchData
     {

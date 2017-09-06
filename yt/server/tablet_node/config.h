@@ -53,6 +53,7 @@ public:
     int MaxDynamicStoreRowCount;
     int MaxDynamicStoreValueCount;
     i64 MaxDynamicStorePoolSize;
+    size_t MaxDynamicStoreRowDataWeight;
 
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
@@ -113,6 +114,12 @@ public:
         RegisterParameter("max_dynamic_store_pool_size", MaxDynamicStorePoolSize)
             .GreaterThan(0)
             .Default(1_GB);
+        RegisterParameter("max_dynamic_store_row_data_weight", MaxDynamicStoreRowDataWeight)
+            .GreaterThan(0)
+            .Default(NTableClient::MaxClientVersionedRowDataWeight)
+            // NB: This limit is important: it ensures that store is flushable.
+            // Please consult savrus@ before chaging.
+            .LessThanOrEqual(NTableClient::MaxServerVersionedRowDataWeight / 2);
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default(320_MB)

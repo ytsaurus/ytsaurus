@@ -135,12 +135,12 @@ void TStoreBase::SetMemoryUsage(i64 value)
     }
 }
 
-TOwningKey TStoreBase::RowToKey(TUnversionedRow row)
+TOwningKey TStoreBase::RowToKey(TUnversionedRow row) const
 {
     return NTableClient::RowToKey(Schema_, row);
 }
 
-TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row)
+TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row) const
 {
     return NTabletNode::RowToKey(Schema_, row);
 }

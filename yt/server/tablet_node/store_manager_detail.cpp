@@ -467,6 +467,38 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
         activeStore->GetPoolCapacity() >= config->MaxDynamicStorePoolSize;
 }
 
+TError TStoreManagerBase::CheckOverflow() const
+{
+    const auto& config = Tablet_->GetConfig();
+    const auto* activeStore = GetActiveStore();
+    if (!activeStore) {
+        return TError();
+    }
+
+    if (activeStore->GetRowCount() >= config->MaxDynamicStoreRowCount) {
+        return TError("Dynamic store row count limit reached")
+            << TErrorAttribute("store_id", activeStore->GetId())
+            << TErrorAttribute("row_count", activeStore->GetRowCount())
+            << TErrorAttribute("row_count_limit", config->MaxDynamicStoreRowCount);
+    }
+
+    if (activeStore->GetValueCount() >= config->MaxDynamicStoreValueCount) {
+        return TError("Dynamic store value count limit reached")
+            << TErrorAttribute("store_id", activeStore->GetId())
+            << TErrorAttribute("value_count", activeStore->GetValueCount())
+            << TErrorAttribute("value_count_limit", config->MaxDynamicStoreValueCount);
+    }
+
+    if (activeStore->GetRowCount() >= config->MaxDynamicStoreRowCount) {
+        return TError("Dynamic store pool size limit reached")
+            << TErrorAttribute("store_id", activeStore->GetId())
+            << TErrorAttribute("pool_size", activeStore->GetPoolCapacity())
+            << TErrorAttribute("pool_size_limit", config->MaxDynamicStorePoolSize);
+    }
+
+    return TError();
+}
+
 bool TStoreManagerBase::IsPeriodicRotationNeeded() const
 {
     if (!IsRotationPossible()) {
@@ -487,6 +519,10 @@ bool TStoreManagerBase::IsRotationPossible() const
     }
 
     if (Tablet_->GetOverlappingStoreCount() >= Tablet_->GetConfig()->MaxOverlappingStoreCount) {
+        return false;
+    }
+
+    if (Tablet_->GetConfig()->DisableCompactionAndPartitioning) {
         return false;
     }
 

@@ -320,6 +320,13 @@ void ValidateClientDataRow(
 
         ValidateDataValue(value);
     }
+
+    auto dataWeight = GetDataWeight(row);
+    if (dataWeight >= MaxClientVersionedRowDataWeight) {
+        THROW_ERROR_EXCEPTION("Row is too large: data weight %v, limit %v",
+            dataWeight,
+            MaxClientVersionedRowDataWeight);
+    }
 }
 
 TOwningKey RowToKey(TVersionedRow row)
