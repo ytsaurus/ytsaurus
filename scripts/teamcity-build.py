@@ -484,6 +484,18 @@ def run_cpp_integration_tests(options, build_context):
     run_pytest(options, "cpp_integration", "{0}/tests/cpp".format(options.checkout_directory))
 
 @build_step
+def run_yp_integration_tests(options, build_context):
+    if options.disable_tests:
+        teamcity_message("YP integration tests are skipped since all tests are disabled")
+        return
+    
+    node_path = os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
+    run_pytest(options, "yp_integration", "{0}/yp/python".format(options.checkout_directory),
+               env={
+                   "NODE_PATH": node_path
+               })
+
+@build_step
 def run_python_libraries_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Python tests are skipped since all tests are disabled")

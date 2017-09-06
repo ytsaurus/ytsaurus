@@ -2,8 +2,8 @@ include(Sources.txt)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
-udf_bc(${CMAKE_CURRENT_LIST_DIR}/udf/malloc_udf.c YT_SRCS_RESOLVED)
-udf_bc(${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
+udf_bc_header(${CMAKE_CURRENT_LIST_DIR}/udf/malloc_udf.c YT_SRCS_RESOLVED)
+udf_bc_header(${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
   YT_SRCS_RESOLVED
   SYMBOLS
     seventyfive
@@ -20,7 +20,7 @@ udf_bc(${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
     avg_udaf_finalize
 )
 
-udf_bc(${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_fc.cpp
+udf_bc_header(${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_fc.cpp
   YT_SRCS_RESOLVED
   SYMBOLS
     udf_with_function_context
