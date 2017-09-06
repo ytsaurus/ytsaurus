@@ -493,6 +493,8 @@ void JoinOpHelper(
     TComparerFunction* foreignPrefixEqComparer,
     TComparerFunction* foreignSuffixLessComparer,
     TTernaryComparerFunction* fullTernaryComparer,
+    THasherFunction* fullHasher,
+    TComparerFunction* fullEqComparer,
     int keySize,
     void** collectRowsClosure,
     void (*collectRows)(
@@ -579,8 +581,8 @@ void JoinOpHelper(
 
             TJoinLookupRows foreignLookup(
                 InitialGroupOpHashtableCapacity,
-                lookupHasher,
-                lookupEqComparer);
+                fullHasher,
+                fullEqComparer);
 
             {
                 auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
