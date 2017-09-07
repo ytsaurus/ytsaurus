@@ -157,17 +157,9 @@ def configure(options, build_context):
 
 
 @build_step
-def fast_build(options, build_context):
+def build(options, build_context):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
-    try:
-        run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
-    except ChildHasNonZeroExitCode:
-        teamcity_message("(ignoring child failure to provide meaningful diagnostics in `slow_build`)")
-
-
-@build_step
-def slow_build(options, build_context):
-    run(["make"], cwd=options.working_directory)
+    run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
 
 @build_step
 def set_suid_bit(options, build_context):
