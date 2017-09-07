@@ -402,7 +402,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_overflow_row_data_weight(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        set("//tmp/t/@disable_compaction_and_partitioning", True)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
         set("//tmp/t/@max_dynamic_store_row_data_weight", 100)
         self.sync_mount_table("//tmp/t")
         rows = [{"key": 0, "value": "A" * 100}]
@@ -882,7 +882,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_reshard_single_chunk(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", disable_compaction_and_partitioning=True)
+        self._create_simple_table("//tmp/t", enable_compaction_and_partitioning=False)
         self.sync_mount_table("//tmp/t")
 
         def reshard(pivots):
@@ -2130,7 +2130,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
 
     def test_metadata_cache_invalidation(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t1", disable_compaction_and_partitioning=True)
+        self._create_simple_table("//tmp/t1", enable_compaction_and_partitioning=False)
         self.sync_mount_table("//tmp/t1")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]

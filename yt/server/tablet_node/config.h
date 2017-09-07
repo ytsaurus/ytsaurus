@@ -98,7 +98,7 @@ public:
 
     bool EnableProfiling;
 
-    bool DisableCompactionAndPartitioning;
+    bool EnableCompactionAndPartitioning;
 
     TTableMountConfig()
     {
@@ -210,8 +210,8 @@ public:
         RegisterParameter("enable_profiling", EnableProfiling)
             .Default(false);
 
-        RegisterParameter("disable_compaction_and_partitioning", DisableCompactionAndPartitioning)
-            .Default(false);
+        RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
