@@ -15,7 +15,7 @@ void TChunkPoolInputBase::Finish()
     Finished = true;
 }
 
-IChunkPoolInput::TCookie TChunkPoolInputBase::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
+IChunkPoolInput::TCookie TChunkPoolInputBase::Add(TChunkStripePtr stripe, TChunkStripeKey key)
 {
     // `key` argument should be set to something non-trivial only for sink chunk pool inputs,
     // so for all classes that are inherited from this `key` should never be set.

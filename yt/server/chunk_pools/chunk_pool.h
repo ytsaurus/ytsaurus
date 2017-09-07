@@ -28,16 +28,11 @@ struct IChunkPoolInput
     using TCookie = TIntCookie;
     static const TCookie NullCookie = -1;
 
-    virtual TCookie Add(TChunkStripePtr stripe) = 0;
-
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) {
-        return Add(stripe);
-    }
+    virtual TCookie Add(TChunkStripePtr stripe, TChunkStripeKey key = TChunkStripeKey()) = 0;
 
     virtual void Suspend(TCookie cookie) = 0;
     virtual void Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
     virtual void Finish() = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,13 +47,15 @@ public:
     //! This implementation checks that key is not set (that is true for all standard
     //! chunk pools) and that `stripe` contains data slices, after that it
     //! forwards the call to the internal `Add` method.
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override;
+    virtual TCookie Add(TChunkStripePtr stripe, TChunkStripeKey key) override;
 
     // IPersistent implementation.
     virtual void Persist(const TPersistenceContext& context) override;
 
 protected:
     bool Finished = false;
+
+    virtual TCookie Add(TChunkStripePtr stripe) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

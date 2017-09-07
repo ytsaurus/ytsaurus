@@ -13,14 +13,9 @@ TChunkPoolInputAdapterBase::TChunkPoolInputAdapterBase(IChunkPoolInput* underlyi
     : UnderlyingInput_(underlyingInput)
 { }
 
-IChunkPoolInput::TCookie TChunkPoolInputAdapterBase::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
+IChunkPoolInput::TCookie TChunkPoolInputAdapterBase::Add(TChunkStripePtr stripe, TChunkStripeKey key)
 {
-    return UnderlyingInput_->AddWithKey(std::move(stripe), key);
-}
-
-IChunkPoolInput::TCookie TChunkPoolInputAdapterBase::Add(TChunkStripePtr stripe)
-{
-    return UnderlyingInput_->Add(std::move(stripe));
+    return UnderlyingInput_->Add(std::move(stripe), key);
 }
 
 void TChunkPoolInputAdapterBase::Suspend(IChunkPoolInput::TCookie cookie)
@@ -58,19 +53,14 @@ public:
         , TaskHost_(taskHost)
     { }
 
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
+    virtual TCookie Add(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
         YCHECK(!stripe->DataSlices.empty());
         for (const auto& dataSlice : stripe->DataSlices) {
             auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
             TaskHost_->AttachToIntermediateLivePreview(chunk->ChunkId());
         }
-        return TChunkPoolInputAdapterBase::AddWithKey(std::move(stripe), key);
-    }
-
-    virtual TCookie Add(TChunkStripePtr stripe) override
-    {
-        return AddWithKey(stripe, TChunkStripeKey());
+        return TChunkPoolInputAdapterBase::Add(std::move(stripe), key);
     }
 
     void Persist(const TPersistenceContext& context)
@@ -110,17 +100,12 @@ public:
         , Task_(task)
     { }
 
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
+    virtual TCookie Add(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
         Task_->GetTaskHost()->AddTaskLocalityHint(stripe, Task_);
         Task_->AddPendingHint();
 
-        return TChunkPoolInputAdapterBase::AddWithKey(std::move(stripe), key);
-    }
-
-    virtual TCookie Add(TChunkStripePtr stripe) override
-    {
-        return AddWithKey(stripe, TChunkStripeKey());
+        return TChunkPoolInputAdapterBase::Add(std::move(stripe), key);
     }
 
     void Persist(const TPersistenceContext& context)
