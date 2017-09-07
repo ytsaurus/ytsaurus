@@ -522,7 +522,7 @@ bool TStoreManagerBase::IsRotationPossible() const
         return false;
     }
 
-    if (Tablet_->GetConfig()->DisableCompactionAndPartitioning) {
+    if (!Tablet_->GetConfig()->EnableCompactionAndPartitioning) {
         return false;
     }
 

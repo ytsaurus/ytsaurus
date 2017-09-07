@@ -236,7 +236,7 @@ private:
         }
 
         const auto& config = tablet->GetConfig();
-        if (config->DisableCompactionAndPartitioning) {
+        if (!config->EnableCompactionAndPartitioning) {
             return;
         }
 
