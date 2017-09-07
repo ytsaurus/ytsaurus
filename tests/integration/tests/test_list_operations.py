@@ -1,24 +1,13 @@
 import yt.environment.init_operation_archive as init_operation_archive
-from yt_env_setup import wait, YTEnvSetup
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
-from yt.wrapper.common import uuid_hash_pair
-from yt.common import date_string_to_timestamp_mcs
-from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.yson import json_to_yson
-from operations_archive import *
 
-from yt.packages.six import text_type, binary_type, integer_types, iteritems, PY3
-import __builtin__
-import datetime
-import itertools
+from operations_archive import clean_operations
+
 import pytest
-import shutil
 import os
 import json
-import yaml
-
-from time import sleep
-from collections import defaultdict
 
 CYPRESS_NODES = [
     "19b5c14-c41a6620-7fa0d708-29a241d2",
