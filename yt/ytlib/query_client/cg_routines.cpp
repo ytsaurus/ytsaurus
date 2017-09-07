@@ -443,7 +443,6 @@ void JoinOpHelper(
     TComparerFunction* fullEqComparer,
     TComparerFunction* fullLessComparer,
     THasherFunction* fullHasher,
-    TComparerFunction* fullEqComparer,
     int keySize,
     void** collectRowsClosure,
     void (*collectRows)(
