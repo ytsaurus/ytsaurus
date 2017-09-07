@@ -5,8 +5,6 @@ set(SRCS
   ${BASE}/lib/zstd.c
 )
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
-
 set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
 
 include_directories(${BASE}/lib ${BASE}/lib/legacy)

@@ -1,9 +1,5 @@
 #pragma once
 
-#ifdef __GNUC__
-#pragma GCC diagnostic warning "-Wconversion-null"
-#endif
-
 #include <yt/core/concurrency/execution_context.h>
 #include <yt/core/actions/public.h>
 

@@ -24,12 +24,9 @@ public:
         TAutoMergeTask* task,
         i64 teleportChunkSize);
 
-    virtual NChunkPools::IChunkPoolInput::TCookie AddWithKey(
+    virtual NChunkPools::IChunkPoolInput::TCookie Add(
         NChunkPools::TChunkStripePtr stripe,
         NChunkPools::TChunkStripeKey key) override;
-
-    virtual NChunkPools::IChunkPoolInput::TCookie Add(
-        NChunkPools::TChunkStripePtr stripe) override;
 
     virtual void Suspend(TCookie cookie);
 

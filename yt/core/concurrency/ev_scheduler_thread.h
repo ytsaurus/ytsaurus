@@ -2,10 +2,6 @@
 
 #include "scheduler_thread.h"
 
-#if defined(__clang__) && __clang_major__ == 4
-#pragma GCC diagnostic warning "-Wc++1z-compat"
-#endif
-
 #include <yt/contrib/libev/ev++.h>
 
 namespace NYT {
