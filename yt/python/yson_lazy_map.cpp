@@ -2,6 +2,10 @@
 
 #include <structmember.h>
 
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#endif
+
 namespace NYT {
 namespace NYTree {
 

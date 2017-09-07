@@ -2,6 +2,8 @@ set(NAME deps-arcadia-contrib-libs-protobuf)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf)
 set(GRPC_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/grpc)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
+
 set(SRCS_PROTOBUF
   ${BASE}/stubs/atomicops_internals_x86_gcc.cc
   ${BASE}/stubs/bytestream.cc

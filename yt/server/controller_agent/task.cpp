@@ -790,7 +790,7 @@ void TTask::RegisterStripe(
         IChunkPoolInput::TCookie inputCookie;
         auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
         if (lostIt == LostJobCookieMap.end()) {
-            inputCookie = destinationPool->Add(stripe, key);
+            inputCookie = destinationPool->AddWithKey(stripe, key);
         } else {
             inputCookie = lostIt->second;
             destinationPool->Resume(inputCookie, stripe);
@@ -811,7 +811,7 @@ void TTask::RegisterStripe(
             completedJob,
             stripe);
     } else {
-        destinationPool->Add(stripe, key);
+        destinationPool->AddWithKey(stripe, key);
     }
 }
 

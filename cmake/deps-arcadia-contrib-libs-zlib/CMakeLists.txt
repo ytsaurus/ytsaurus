@@ -1,5 +1,8 @@
 set(NAME deps-arcadia-contrib-libs-zlib)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/zlib)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
+
 set(SRCS
   ${BASE}/adler32.c
   ${BASE}/compress.c
