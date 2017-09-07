@@ -38,6 +38,7 @@ DEFINE_ENUM(EFormatType,
     (YamredDsv)
     (SchemafulDsv)
     (Protobuf)
+    (WebJson)
 );
 
 class TFormat
