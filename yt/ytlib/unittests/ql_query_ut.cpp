@@ -815,12 +815,9 @@ protected:
         i64 outputRowLimit,
         EFailureLocation failureLocation)
     {
-        yhash<TGuid, size_t> sourceGuids;
-        size_t index = 0;
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first, _))
                 .WillOnce(Return(MakeFuture(dataSplit.second)));
-            sourceGuids.emplace(NYT::FromProto<TGuid>(dataSplit.second.chunk_id()), index++);
         }
 
         auto fetchFunctions = [&] (const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
@@ -830,6 +827,8 @@ protected:
         TQueryBaseOptions options;
         options.InputRowLimit = inputRowLimit;
         options.OutputRowLimit = outputRowLimit;
+
+        size_t sourceIndex = 1;
 
         auto prepareAndExecute = [&] () {
             auto fragment = PreparePlanFragment(
@@ -844,7 +843,7 @@ protected:
                 ISchemafulWriterPtr writer) mutable
             {
                 return MakeFuture(DoExecuteQuery(
-                    owningSources[sourceGuids[dataRanges.Id]],
+                    owningSources[sourceIndex++],
                     FunctionProfilers_,
                     AggregateProfilers_,
                     failureLocation,
@@ -2306,7 +2305,12 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
 
     splits["//left"] = leftSplit;
     sources.push_back({
-        "a=1;ut=123456;b=10"
+        "a=1;ut=1;b=30",
+        "a=1;ut=2;b=20",
+        "a=2;ut=3;b=10",
+        "a=2;ut=4;b=30",
+        "a=3;ut=5;b=20",
+        "a=4;ut=6;b=10"
     });
 
     auto rightSplit = MakeSplit({
@@ -2316,7 +2320,9 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
 
     splits["//right"] = rightSplit;
     sources.push_back({
-        "b=10;c=100"
+        "b=10;c=100",
+        "b=20;c=200",
+        "b=30;c=300"
     });
 
     auto resultSplit = MakeSplit({
@@ -2327,14 +2333,95 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
     });
 
     auto result = YsonToRows({
-        "\"a.ut\"=123456;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10"
+        "\"a.ut\"=1;\"b.c\"=300;\"a.b\"=30;\"b.b\"=30",
+        "\"a.ut\"=2;\"b.c\"=200;\"a.b\"=20;\"b.b\"=20",
+        "\"a.ut\"=3;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10",
+        "\"a.ut\"=4;\"b.c\"=300;\"a.b\"=30;\"b.b\"=30",
+        "\"a.ut\"=5;\"b.c\"=200;\"a.b\"=20;\"b.b\"=20",
+        "\"a.ut\"=6;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10"
+
     }, resultSplit);
 
-    Evaluate(
-        "a.ut, b.c, a.b, b.b FROM [//left] a join [//right] b on a.b=b.b limit 1",
-        splits,
-        sources,
-        ResultMatcher(result));
+    for (size_t limit = 1; limit <= 6; ++limit) {
+        std::vector<TOwningRow> currentResult(result.begin(), result.begin() + limit);
+        Evaluate(
+            Format("a.ut, b.c, a.b, b.b FROM [//left] a join [//right] b on a.b=b.b limit %v", limit),
+            splits,
+            sources,
+            ResultMatcher(currentResult));
+    }
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinLimit5)
+{
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"publisherId", EValueType::String, ESortOrder::Ascending},
+        {"itemId", EValueType::Int64}
+    }, 0);
+
+    splits["//publishers"] = leftSplit;
+    sources.push_back({
+        "publisherId=\"5903739ad7d0a6e07ad1fb93\";itemId=3796616032221332447",
+        "publisherId=\"5908961de3cda81ba288b664\";itemId=847311080463071787",
+        "publisherId=\"5909bd2dd7d0a68351e66077\";itemId=-3463642079005455542",
+        "publisherId=\"5912f1e27ddde8c264b56f0c\";itemId=2859920047593648390",
+        "publisherId=\"5912f1f88e557d5b22ff7077\";itemId=-5478070133262294529",
+        "publisherId=\"591446067ddde805266009b5\";itemId=-5089939500492155348",
+        "publisherId=\"591464507ddde805266009b8\";itemId=3846436484159153735",
+        "publisherId=\"591468bce3cda8db9996fa89\";itemId=2341245309580180142",
+        "publisherId=\"5914c6678e557dcf3bf713cf\";itemId=-6844788529441593571",
+        "publisherId=\"5915869a7ddde805266009bb\";itemId=-6883609521883689",
+        "publisherId=\"5918c7f8e3cda83873187c37\";itemId=-896633843529240754",
+        "publisherId=\"591939f67ddde8632415d4ce\";itemId=-2679935711711852631",
+        "publisherId=\"59195b327ddde8632415d4d1\";itemId=8410938732504570842"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"publisherId", EValueType::String, ESortOrder::Ascending},
+        {"timestamp", EValueType::Uint64}
+    }, 1);
+
+    splits["//draft"] = rightSplit;
+    sources.push_back({
+        "publisherId=\"591446067ddde805266009b5\";timestamp=1504706169u",
+        "publisherId=\"591468bce3cda8db9996fa89\";timestamp=1504706172u",
+        "publisherId=\"5914c6678e557dcf3bf713cf\";timestamp=1504706178u",
+        "publisherId=\"5918c7f8e3cda83873187c37\";timestamp=1504706175u",
+    });
+
+    auto resultSplit = MakeSplit({
+        {"publisherId", EValueType::String}
+    });
+
+    auto result = YsonToRows({
+        "publisherId=\"5903739ad7d0a6e07ad1fb93\"",
+        "publisherId=\"5908961de3cda81ba288b664\"",
+        "publisherId=\"5909bd2dd7d0a68351e66077\"",
+        "publisherId=\"5912f1e27ddde8c264b56f0c\"",
+        "publisherId=\"5912f1f88e557d5b22ff7077\"",
+        "publisherId=\"591446067ddde805266009b5\"",
+        "publisherId=\"591464507ddde805266009b8\"",
+        "publisherId=\"591468bce3cda8db9996fa89\"",
+        "publisherId=\"5914c6678e557dcf3bf713cf\"",
+        "publisherId=\"5915869a7ddde805266009bb\"",
+        "publisherId=\"5918c7f8e3cda83873187c37\"",
+        "publisherId=\"591939f67ddde8632415d4ce\"",
+        "publisherId=\"59195b327ddde8632415d4d1\""
+    }, resultSplit);
+
+    for (size_t limit = 1; limit <= 13; ++limit) {
+        std::vector<TOwningRow> currentResult(result.begin(), result.begin() + limit);
+        Evaluate(
+            Format("[publisherId] FROM [//publishers] LEFT JOIN [//draft] USING [publisherId] LIMIT %v", limit),
+            splits,
+            sources,
+            ResultMatcher(currentResult));
+    }
 
     SUCCEED();
 }

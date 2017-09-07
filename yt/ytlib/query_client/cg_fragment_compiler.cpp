@@ -2260,6 +2260,9 @@ size_t MakeCodegenJoinOp(
                 comparerManager->GetEqComparer(lookupKeyTypes, module),
                 comparerManager->GetLessComparer(lookupKeyTypes, module),
 
+                comparerManager->GetHasher(lookupKeyTypes, module),
+                comparerManager->GetEqComparer(lookupKeyTypes, module),
+
                 builder->getInt32(lookupKeySize),
 
                 collectRows.ClosurePtr,
