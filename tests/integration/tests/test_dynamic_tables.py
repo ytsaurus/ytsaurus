@@ -740,6 +740,22 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         assert get("//tmp/@recursive_resource_usage/tablet_count") == 1
         assert get("//tmp/@recursive_resource_usage/tablet_static_memory") == data_size
 
+    def test_insert_during_tablet_static_memory_limit_violation(self):
+        create_account("test_account")
+        self.sync_create_cells(1)
+        self._create_sorted_table("//tmp/t1", account="test_account", in_memory_mode="compressed")
+        self.sync_mount_table("//tmp/t1")
+        insert_rows("//tmp/t1", [{"key": 0, "value": "0"}])
+        self.sync_flush_table("//tmp/t1")
+        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") > 0
+        assert get("//sys/accounts/test_account/@violated_resource_limits/tablet_static_memory")
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t1", [{"key": 1, "value": "1"}])
+
+        self._create_sorted_table("//tmp/t2", account="test_account")
+        self.sync_mount_table("//tmp/t2")
+        insert_rows("//tmp/t2", [{"key": 2, "value": "2"}])
+
 ##################################################################
 
 class TestDynamicTableStateTransitions(TestDynamicTablesBase):
