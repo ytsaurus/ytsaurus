@@ -126,11 +126,11 @@ public:
         , BlockCache_(blockCache)
         , Throttler_(throttler)
         , Networks_(client->GetNativeConnection()->GetNetworks())
-        , InitialSeedReplicas_(seedReplicas)
         , LocateChunksInvoker_(CreateFixedPriorityInvoker(
             TDispatcher::Get()->GetCompressionPoolInvoker(),
             // We locate chunks with batch workload category.
             TWorkloadDescriptor(EWorkloadCategory::UserBatch).GetPriority()))
+        , InitialSeedReplicas_(seedReplicas)
         , SeedsTimestamp_(TInstant::Zero())
     {
         Logger.AddTag("ChunkId: %v", ChunkId_);

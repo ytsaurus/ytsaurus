@@ -6203,7 +6203,7 @@ TOperationControllerBase::TSink::TSink(TOperationControllerBase* controller, int
     , OutputTableIndex_(outputTableIndex)
 { }
 
-IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr stripe, TChunkStripeKey key)
+IChunkPoolInput::TCookie TOperationControllerBase::TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
     YCHECK(stripe->ChunkListId);
     auto& table = Controller_->OutputTables_[OutputTableIndex_];
@@ -6227,6 +6227,11 @@ IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr st
         key);
 
     return IChunkPoolInput::NullCookie;
+}
+
+IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr stripe)
+{
+    return AddWithKey(stripe, TChunkStripeKey());
 }
 
 void TOperationControllerBase::TSink::Suspend(TCookie cookie)

@@ -1171,6 +1171,8 @@ int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
             THROW_ERROR_EXCEPTION("Values of type %Qlv are not comparable",
                 tokenType);
     }
+
+    Y_UNREACHABLE();
 }
 
 

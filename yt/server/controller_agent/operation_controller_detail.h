@@ -1034,7 +1034,9 @@ private:
 
         TSink(TThis* controller, int outputTableIndex);
 
-        virtual TCookie Add(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
+        virtual TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
+
+        virtual TCookie Add(NChunkPools::TChunkStripePtr stripe) override;
 
         virtual void Suspend(TCookie cookie) override;
         virtual void Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe) override;

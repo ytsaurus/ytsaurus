@@ -26,20 +26,25 @@ TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
     , TeleportChunkSize_(teleportChunkSize)
 { }
 
-IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe, TChunkStripeKey key)
+IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
     ProcessStripe(stripe);
 
     if (stripe->DataSlices.empty()) {
         return IChunkPoolInput::NullCookie;
     } else {
-        auto cookie = TChunkPoolInputAdapterBase::Add(stripe, key);
+        auto cookie = TChunkPoolInputAdapterBase::AddWithKey(stripe, key);
         if (CookieChunkCount_.size() <= cookie) {
             CookieChunkCount_.resize(cookie + 1);
         }
         CookieChunkCount_[cookie] = stripe->GetChunkCount();
         return cookie;
     }
+}
+
+IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe)
+{
+    return AddWithKey(stripe, TChunkStripeKey());
 }
 
 void TAutoMergeChunkPoolAdapter::Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe)
