@@ -50,8 +50,8 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategyConfig
-    : public TFairShareStrategyOperationControllerConfig
+class TFairShareStrategyTreeConfig
+    : virtual public NYTree::TYsonSerializable
 {
 public:
     // The following settings can be overridden in operation spec.
@@ -63,16 +63,8 @@ public:
     TDuration FairSharePreemptionTimeoutLimit;
     double FairShareStarvationToleranceLimit;
 
-    TDuration FairShareUpdatePeriod;
-    TDuration FairShareProfilingPeriod;
-    TDuration FairShareLogPeriod;
-
     //! Any operation with less than this number of running jobs cannot be preempted.
     int MaxUnpreemptableRunningJobCount;
-
-    //! Limit on number of operations in cluster.
-    int MaxRunningOperationCount;
-    int MaxOperationCount;
 
     //! Limit on number of operations in pool.
     int MaxOperationCountPerPool;
@@ -102,9 +94,6 @@ public:
     //! Backoff for printing tree scheduling info in heartbeat.
     TDuration HeartbeatTreeSchedulingInfoLogBackoff;
 
-    //! How often min needed resources for jobs are retrieved from controller.
-    TDuration MinNeededResourcesUpdatePeriod;
-
     //! Maximum number of ephemeral pools that can be created by user.
     int MaxEphemeralPoolsPerUser;
 
@@ -118,11 +107,35 @@ public:
     //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
     double ThresholdToEnableMaxPossibleUsageRegularization;
 
+    //! Limit on number of operations in tree.
+    int MaxRunningOperationCount;
+    int MaxOperationCount;
+
     //! Delay before starting considering total resource limits after scheduler connection.
     TDuration TotalResourceLimitsConsiderDelay;
-    
+
     //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
     TDuration PreemptiveSchedulingBackoff;
+
+    TFairShareStrategyTreeConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyTreeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareStrategyConfig
+    : public TFairShareStrategyOperationControllerConfig
+    , public TFairShareStrategyTreeConfig
+{
+public:
+    //! How often to update, log, profile fair share in fair share trees.
+    TDuration FairShareUpdatePeriod;
+    TDuration FairShareProfilingPeriod;
+    TDuration FairShareLogPeriod;
+
+    //! How often min needed resources for jobs are retrieved from controller.
+    TDuration MinNeededResourcesUpdatePeriod;
 
     TFairShareStrategyConfig();
 };

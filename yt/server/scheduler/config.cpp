@@ -23,7 +23,7 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyConfig::TFairShareStrategyConfig()
+TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 {
     RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
         .Default(TDuration::Seconds(15));
@@ -40,18 +40,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
         .InRange(0.0, 1.0)
         .Default(0.8);
-
-    RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
-        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-        .Default(TDuration::MilliSeconds(1000));
-
-    RegisterParameter("fair_share_profiling_period", FairShareProfilingPeriod)
-        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-        .Default(TDuration::MilliSeconds(5000));
-
-    RegisterParameter("fair_share_log_period", FairShareLogPeriod)
-        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-        .Default(TDuration::MilliSeconds(1000));
 
     RegisterParameter("max_unpreemptable_running_job_count", MaxUnpreemptableRunningJobCount)
         .Default(10);
@@ -102,9 +90,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("heartbeat_tree_scheduling_info_log_period", HeartbeatTreeSchedulingInfoLogBackoff)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
-        .Default(TDuration::Seconds(3));
-
     RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
         .GreaterThanOrEqual(1)
         .Default(5);
@@ -132,6 +117,26 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
                 << TErrorAttribute("threshold", PreemptionSatisfactionThreshold);
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareStrategyConfig::TFairShareStrategyConfig()
+{
+    RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
+        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
+        .Default(TDuration::MilliSeconds(1000));
+
+    RegisterParameter("fair_share_profiling_period", FairShareProfilingPeriod)
+        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
+        .Default(TDuration::MilliSeconds(5000));
+
+    RegisterParameter("fair_share_log_period", FairShareLogPeriod)
+        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
+        .Default(TDuration::MilliSeconds(1000));
+
+    RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
+        .Default(TDuration::Seconds(3));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
