@@ -183,6 +183,14 @@ public:
         return 0;
     }
 
+    virtual void SetSlotIndex(int /* slotIndex */)
+    { }
+
+    virtual TString GetAuthenticatedUser() const
+    {
+        return "root";
+    }
+
     virtual TOperationId GetId() const
     {
         return Id_;
@@ -253,6 +261,7 @@ TEST(FairShareTree, TestAttributes)
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
         operationControllerX,
+        config,
         host.Get(),
         operationX.Get());
 
@@ -301,6 +310,7 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
         operationControllerX,
+        config,
         host.Get(),
         operationX.Get());
 
@@ -365,6 +375,7 @@ TEST(FairShareTree, TestBestAllocationRatio)
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
         operationControllerX,
+        config,
         host.Get(),
         operationX.Get());
 
