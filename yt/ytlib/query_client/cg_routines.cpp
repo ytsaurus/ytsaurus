@@ -442,6 +442,8 @@ void JoinOpHelper(
     TComparerFunction* prefixEqComparer,
     TComparerFunction* fullEqComparer,
     TComparerFunction* fullLessComparer,
+    THasherFunction* fullHasher,
+    TComparerFunction* fullEqComparer,
     int keySize,
     void** collectRowsClosure,
     void (*collectRows)(
@@ -560,8 +562,8 @@ void JoinOpHelper(
 
             TJoinLookupRows foreignLookup(
                 InitialGroupOpHashtableCapacity,
-                lookupHasher,
-                lookupEqComparer);
+                fullHasher,
+                fullEqComparer);
 
             for (auto row : foreignRows) {
                 foreignLookup.insert(row);
