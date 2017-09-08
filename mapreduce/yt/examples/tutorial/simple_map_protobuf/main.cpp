@@ -1,6 +1,7 @@
+#include <mapreduce/yt/examples/tutorial/simple_map_protobuf/data.pb.h>
+
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/examples/tutorial/simple_map_protobuf/data.pb.h>
 
 #include <util/stream/output.h>
 #include <util/system/user.h>
