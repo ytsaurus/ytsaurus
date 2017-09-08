@@ -922,17 +922,49 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
     AutoMergeTaskGroup->MinNeededResources.SetCpu(1);
 
     RegisterTaskGroup(AutoMergeTaskGroup);
-    AutoMergeTasks.reserve(OutputTables_.size());
 
-    i64 maxIntermediateChunkCount = Spec_->AutoMerge->MaxIntermediateChunkCount.Get(
-        std::max(500, static_cast<int>(2.5 * sqrt(outputChunkCountEstimate))));
-    i64 maxChunkCountPerMergeJob = std::min(
+    const auto& autoMergeSpec = Spec_->AutoMerge;
+    auto mode = autoMergeSpec->Mode;
+    if (outputChunkCountEstimate <= 1) {
+        LOG_INFO("Output chunk count estimate does not exceed 1, force disabling auto merge "
+            "(OutputChunkCountEstimate: %v)",
+            outputChunkCountEstimate);
+        return;
+    }
+
+    if (mode == EAutoMergeMode::Disabled) {
+        return;
+    }
+
+    AutoMergeTasks.reserve(OutputTables_.size());
+    i64 maxIntermediateChunkCount;
+    i64 chunkCountPerMergeJob;
+    switch (mode) {
+        case EAutoMergeMode::Relaxed:
+            maxIntermediateChunkCount = std::numeric_limits<int>::max();
+            chunkCountPerMergeJob = 500;
+            break;
+        case EAutoMergeMode::Economic:
+            maxIntermediateChunkCount = std::max(500, static_cast<int>(2.5 * sqrt(outputChunkCountEstimate)));
+            chunkCountPerMergeJob = maxIntermediateChunkCount / 10;
+            break;
+        case EAutoMergeMode::Manual:
+            maxIntermediateChunkCount = *Spec_->AutoMerge->MaxIntermediateChunkCount;
+            chunkCountPerMergeJob = *Spec_->AutoMerge->ChunkCountPerMergeJob;
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
+    LOG_INFO("Auto merge parameters calculated "
+        "(Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v)",
+        mode,
+        outputChunkCountEstimate,
         maxIntermediateChunkCount,
-        Spec_->AutoMerge->ChunkCountPerMergeJob.Get(maxIntermediateChunkCount / 10));
+        chunkCountPerMergeJob);
 
     AutoMergeDirector_ = std::make_unique<TAutoMergeDirector>(
         maxIntermediateChunkCount,
-        maxChunkCountPerMergeJob,
+        chunkCountPerMergeJob,
         OperationId);
 
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
@@ -950,7 +982,7 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
             auto task = New<TAutoMergeTask>(
                 this /* taskHost */,
                 index,
-                maxChunkCountPerMergeJob,
+                chunkCountPerMergeJob,
                 Spec_->AutoMerge->JobIO->TableWriter->DesiredChunkSize,
                 dataWeightPerJob,
                 edgeDescriptor);
@@ -5102,7 +5134,14 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
         .Item("debug_output_transaction_id").Value(DebugOutputTransaction ? DebugOutputTransaction->GetId() : NullTransactionId)
-        .Item("user_transaction_id").Value(UserTransactionId);
+        .Item("user_transaction_id").Value(UserTransactionId)
+        .DoIf(static_cast<bool>(AutoMergeDirector_), [=] (TFluentMap fluent) {
+            fluent
+                .Item("auto_merge").BeginMap()
+                    .Item("max_intermediate_chunk_count").Value(AutoMergeDirector_->GetMaxIntermediateChunkCount())
+                    .Item("chunk_count_per_merge_job").Value(AutoMergeDirector_->GetChunkCountPerMergeJob())
+                .EndMap();
+        });
 }
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const

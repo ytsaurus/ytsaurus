@@ -183,7 +183,7 @@ public:
     virtual int GetTotalJobCount() const override
     {
         return Mode == EUnorderedChunkPoolMode::AutoMerge
-            ? 1 + JobCounter.GetRunning() + JobCounter.GetCompletedTotal()
+            ? GetPendingJobCount() + JobCounter.GetRunning() + JobCounter.GetCompletedTotal()
             : JobCounter.GetTotal();
     }
 

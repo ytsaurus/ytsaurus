@@ -120,6 +120,13 @@ DEFINE_ENUM(EFifoSortParameter,
     (PendingJobCount)
 );
 
+DEFINE_ENUM(EAutoMergeMode,
+    (Disabled)
+    (Relaxed)
+    (Economic)
+    (Manual)
+)
+
 class TSchedulerServiceProxy;
 
 DECLARE_REFCOUNTED_CLASS(TJobIOConfig)
