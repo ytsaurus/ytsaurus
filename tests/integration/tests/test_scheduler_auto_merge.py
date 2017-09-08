@@ -74,6 +74,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 command="cat",
                 spec={
                     "auto_merge": {
+                        "mode": "manual",
                         "max_intermediate_chunk_count": max_intermediate_chunk_count,
                         "chunk_count_per_merge_job": chunk_count_per_merge_job
                     },
@@ -101,6 +102,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             command="cat",
             spec={
                 "auto_merge": {
+                    "mode": "manual",
                     "max_intermediate_chunk_count": 35,
                     "chunk_count_per_merge_job": 20,
                 },
@@ -129,6 +131,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             format="<columns=[a]>schemaful_dsv",
             spec={
                 "auto_merge": {
+                    "mode": "manual",
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
                 },
@@ -161,6 +164,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             command="read x; if [[ $(($x % 10)) == 0 ]]; then echo $x >&1; else echo $x >&4; fi",
             spec={
                 "auto_merge": {
+                    "mode": "manual",
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
                 },
@@ -196,6 +200,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             command="cat",
             spec={
                 "auto_merge": {
+                    "mode": "manual",
                     "max_intermediate_chunk_count": 4,
                     "chunk_count_per_merge_job": 2,
                 },
@@ -223,6 +228,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             command="read x; if [[ $(($x % 2)) == 0 ]]; then head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n'; else echo $x; fi",
             spec={
                 "auto_merge": {
+                    "mode": "manual",
                     "max_intermediate_chunk_count": 50,
                     "chunk_count_per_merge_job": 50,
                     "job_io": {"table_writer": {"desired_chunk_size": 100 * 1024}},

@@ -203,6 +203,7 @@ public:
 
     TNullable<i64> MaxIntermediateChunkCount;
     TNullable<i64> ChunkCountPerMergeJob;
+    EAutoMergeMode Mode;
 
     TAutoMergeConfig();
 };

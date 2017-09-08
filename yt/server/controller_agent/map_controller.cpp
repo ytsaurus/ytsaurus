@@ -357,12 +357,17 @@ protected:
                     std::move(jobSizeConstraints),
                     GetJobSizeAdjusterConfig());
 
-                auto edgeDescriptors = GetStandardEdgeDescriptors();
+
                 bool requiresAutoMerge = false;
-                for (int index = 0; index < edgeDescriptors.size(); ++index) {
-                    if (AutoMergeTasks[index]) {
-                        edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
-                        requiresAutoMerge = true;
+
+                auto edgeDescriptors = GetStandardEdgeDescriptors();
+                if (GetAutoMergeDirector()) {
+                    YCHECK(AutoMergeTasks.size() == edgeDescriptors.size());
+                    for (int index = 0; index < edgeDescriptors.size(); ++index) {
+                        if (AutoMergeTasks[index]) {
+                            edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
+                            requiresAutoMerge = true;
+                        }
                     }
                 }
                 if (requiresAutoMerge) {

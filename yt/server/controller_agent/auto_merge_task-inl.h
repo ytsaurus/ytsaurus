@@ -18,7 +18,13 @@ public:
 
     virtual int GetPendingJobCount() const override
     {
-        return CanScheduleJob_ ? TUnderlyingTask::GetPendingJobCount() : 0;
+        if (CanScheduleJob_) {
+            return std::min(
+                TUnderlyingTask::GetPendingJobCount(),
+                this->TaskHost_->GetAutoMergeDirector()->GetTaskPendingJobCountLimit());
+        } else {
+            return 0;
+        }
     }
 
     virtual bool CanScheduleJob(NScheduler::ISchedulingContext* context, const TJobResources& jobLimits) override

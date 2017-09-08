@@ -15,22 +15,22 @@ TChunkPoolInputAdapterBase::TChunkPoolInputAdapterBase(IChunkPoolInput* underlyi
 
 IChunkPoolInput::TCookie TChunkPoolInputAdapterBase::Add(TChunkStripePtr stripe, TChunkStripeKey key)
 {
-    return UnderlyingInput_->Add(std::move(stripe), key);
+    return UnderlyingInput_->Add(std::move(stripe), std::move(key));
 }
 
 void TChunkPoolInputAdapterBase::Suspend(IChunkPoolInput::TCookie cookie)
 {
-    UnderlyingInput_->Suspend(cookie);
+    return UnderlyingInput_->Suspend(cookie);
 }
 
 void TChunkPoolInputAdapterBase::Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe)
 {
-    UnderlyingInput_->Resume(cookie, std::move(stripe));
+    return UnderlyingInput_->Resume(cookie, std::move(stripe));
 }
 
 void TChunkPoolInputAdapterBase::Finish()
 {
-    UnderlyingInput_->Finish();
+    return UnderlyingInput_->Finish();
 }
 
 void TChunkPoolInputAdapterBase::Persist(const TPersistenceContext& context)

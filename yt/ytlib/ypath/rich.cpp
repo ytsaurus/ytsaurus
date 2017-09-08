@@ -562,7 +562,7 @@ TNullable<NErasure::ECodec> TRichYPath::GetErasureCodec() const
 
 bool TRichYPath::GetAutoMerge() const
 {
-    return GetAttribute<bool>(*this, "auto_merge", false);
+    return GetAttribute<bool>(*this, "auto_merge", true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

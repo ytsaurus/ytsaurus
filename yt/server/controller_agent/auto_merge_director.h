@@ -14,6 +14,13 @@ namespace NControllerAgent {
 class TAutoMergeDirector
 {
 public:
+    //! Upper limit for maximum intermediate chunk count.
+    DEFINE_BYVAL_RO_PROPERTY(int, MaxIntermediateChunkCount);
+
+    //! Maximum number of chunks per each merge job.
+    DEFINE_BYVAL_RO_PROPERTY(int, ChunkCountPerMergeJob);
+
+public:
     //! Used only for persistence.
     TAutoMergeDirector() = default;
 
@@ -54,16 +61,13 @@ public:
     //! that we should flush all remaining intermediate chunks.
     void OnTaskCompleted();
 
+    //! Return maximum number of new task jobs that may be started in current situation.
+    int GetTaskPendingJobCountLimit();
+
     void Persist(const TPersistenceContext& context);
 
     DEFINE_SIGNAL(void(), StateChanged);
 private:
-    //! Upper limit for maximum intermediate chunk count.
-    int MaxIntermediateChunkCount_;
-
-    //! Maximum number of chunks per each merge job.
-    int ChunkCountPerMergeJob_;
-
     //! Id of the operation this auto-merge director belongs to.
     TOperationId OperationId_;
 
