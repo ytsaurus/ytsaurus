@@ -480,6 +480,17 @@ public:
         return meta;
     }
 
+    virtual i64 GetMetaSize() const override
+    {
+        i64 metaSize = 0;
+        for (const auto& valueColumnWriter : ValueColumnWriters_) {
+            metaSize += valueColumnWriter->GetMetaSize();
+        }
+        metaSize += TimestampWriter_->GetMetaSize();
+
+        return metaSize + TVersionedChunkWriterBase::GetMetaSize();
+    }
+
 private:
     std::vector<std::unique_ptr<TDataBlockWriter>> BlockWriters_;
     std::vector<std::unique_ptr<IValueColumnWriter>> ValueColumnWriters_;
