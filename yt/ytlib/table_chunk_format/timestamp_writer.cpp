@@ -111,6 +111,11 @@ public:
         return MaxTimestamp_;
     }
 
+    virtual i64 GetMetaSize() const
+    {
+        return MetaSize_;
+    }
+
 private:
     TTimestamp MinTimestamp_ = MaxTimestamp;
     TTimestamp MaxTimestamp_ = MinTimestamp;
@@ -132,6 +137,7 @@ private:
     TDataBlockWriter* BlockWriter_;
 
     i64 RowCount_ = 0;
+    i64 MetaSize_ = 0;
 
 
     ui32 RegisterTimestamp(TTimestamp timestamp)
@@ -216,6 +222,9 @@ private:
         meta->set_min_timestamp(MinSegmentTimestamp_);
         meta->set_expected_writes_per_row(expectedWritesPerRow);
         meta->set_expected_deletes_per_row(expectedDeletesPerRow);
+
+        // This is a rough approximation, but we don't want to pay for additional ByteSize call.
+        MetaSize_ += sizeof(TSegmentMeta);
 
         CurrentBlockSegments_.push_back(segmentMeta);
 
