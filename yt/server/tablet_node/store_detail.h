@@ -75,7 +75,7 @@ protected:
 
     const TTabletPerformanceCountersPtr PerformanceCounters_;
     const TTabletId TabletId_;
-    const TString TablePath_;
+    const NYPath::TYPath TablePath_;
     const NTableClient::TTableSchema Schema_;
     const int KeyColumnCount_;
     const int SchemaColumnCount_;
