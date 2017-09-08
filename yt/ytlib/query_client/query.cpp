@@ -194,6 +194,18 @@ bool Compare(
         for (size_t index = 0; index < inLhs->Values.Size(); ++index) {
             CHECK(inLhs->Values[index] == inRhs->Values[index])
         }
+    } else if (auto transformLhs = lhs->As<TTransformExpression>()) {
+        auto transformRhs = rhs->As<TTransformExpression>();
+        CHECK(transformRhs)
+        CHECK(transformLhs->Arguments.size() == transformRhs->Arguments.size())
+        for (size_t index = 0; index < transformLhs->Arguments.size(); ++index) {
+            CHECK(Compare(transformLhs->Arguments[index], lhsSchema, transformRhs->Arguments[index], rhsSchema, maxIndex))
+        }
+
+        CHECK(transformLhs->Values.Size() == transformRhs->Values.Size())
+        for (size_t index = 0; index < transformLhs->Values.Size(); ++index) {
+            CHECK(transformLhs->Values[index] == transformRhs->Values[index])
+        }
     } else {
         Y_UNREACHABLE();
     }
@@ -201,7 +213,6 @@ bool Compare(
 
     return true;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,6 +311,14 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         NTabletClient::TWireProtocolWriter writer;
         writer.WriteUnversionedRowset(inOpExpr->Values);
         ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
+    } else if (auto transformOpExpr = original->As<TTransformExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::TransformOp));
+        auto* proto = serialized->MutableExtension(NProto::TTransformExpression::transform_op_expression);
+        ToProto(proto->mutable_arguments(), transformOpExpr->Arguments);
+
+        NTabletClient::TWireProtocolWriter writer;
+        writer.WriteUnversionedRowset(transformOpExpr->Values);
+        ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
     }
 }
 
@@ -378,6 +397,18 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             NTabletClient::TWireProtocolReader reader(
                 TSharedRef::FromString(ext.values()),
                 New<TRowBuffer>(TInOpExpressionValuesTag()));
+            result->Values = reader.ReadUnversionedRowset(true);
+            *original = result;
+            return;
+        }
+
+        case EExpressionKind::TransformOp: {
+            auto result = New<TTransformExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TTransformExpression::transform_op_expression);
+            FromProto(&result->Arguments, ext.arguments());
+            NTabletClient::TWireProtocolReader reader(
+                TSharedRef::FromString(ext.values()),
+                New<TRowBuffer>());
             result->Values = reader.ReadUnversionedRowset(true);
             *original = result;
             return;

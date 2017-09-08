@@ -1118,6 +1118,63 @@ TEST_F(TQueryEvaluateTest, SimpleInWithNull)
     Evaluate("a, b FROM [//t] where (a, b) in ((null, 1), (2, null))", split, source, ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, SimpleTransform)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "a=4",
+        "a=-10",
+        "a=15"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=13",
+        "x=17",
+        "",
+    }, resultSplit);
+
+    Evaluate("transform(a, (4.0, -10), (13, 17)) as x FROM [//t]", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, SimpleTransform2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String}
+    });
+
+    std::vector<TString> source = {
+        "a=4;b=p",
+        "a=-10;b=q",
+        "a=-10;b=s",
+        "a=15"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=13",
+        "",
+        "x=17",
+        "",
+    }, resultSplit);
+
+    Evaluate(
+        "transform((a, b), ((4.0, 'p'), (-10, 's')), (13, 17)) as x FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
 {
     auto split = MakeSplit({

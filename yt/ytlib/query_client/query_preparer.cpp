@@ -50,6 +50,8 @@ void ExtractFunctionNames(
         ExtractFunctionNames(binaryExpr->Rhs, functions);
     } else if (auto inExpr = expr->As<NAst::TInOpExpression>()) {
         ExtractFunctionNames(inExpr->Expr, functions);
+    } else if (auto inExpr = expr->As<NAst::TTransformExpression>()) {
+        ExtractFunctionNames(inExpr->Expr, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (expr->As<NAst::TAliasExpression>()) {
@@ -118,7 +120,17 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
         THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
     }
 
-    if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>() || op->As<TInOpExpression>()) {
+    if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>()) {
+        return;
+    } if (auto inExpr = op->As<TInOpExpression>()) {
+        for (const auto& argument : inExpr->Arguments) {
+            CheckExpressionDepth(argument, depth + 1);
+        }
+        return;
+    } if (auto transformExpr = op->As<TTransformExpression>()) {
+        for (const auto& argument : transformExpr->Arguments) {
+            CheckExpressionDepth(argument, depth + 1);
+        }
         return;
     } else if (auto functionExpr = op->As<TFunctionExpression>()) {
         for (const auto& argument : functionExpr->Arguments) {
@@ -281,7 +293,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
     std::vector<TRow> rows;
     for (const auto& tuple : literalTuples) {
         if (tuple.size() != argTypes.size()) {
-            THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
+            THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
                 << TErrorAttribute("source", source);
         }
         for (int i = 0; i < tuple.size(); ++i) {
@@ -294,7 +306,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
                 if (IsArithmeticType(valueType) && IsArithmeticType(argTypes[i])) {
                     value = CastValueWithCheck(value, argTypes[i]);
                 } else {
-                    THROW_ERROR_EXCEPTION("IN operator types mismatch")
+                    THROW_ERROR_EXCEPTION("Types mismatch in tuple")
                     << TErrorAttribute("source", source)
                     << TErrorAttribute("actual_type", valueType)
                     << TErrorAttribute("expected_type", argTypes[i]);
@@ -1424,6 +1436,115 @@ struct TTypedExpressionBuilder
                 return result;
             };
             return TUntypedExpression{resultTypes, std::move(generator), false};
+        } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
+            std::vector<TConstExpressionPtr> typedArguments;
+            std::unordered_set<TString> columnNames;
+            std::vector<EValueType> argTypes;
+
+            auto source = transformExpr->GetSource(Source);
+
+            for (const auto& argument : transformExpr->Expr) {
+                auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
+
+                EValueType argType = untypedArgument.FeasibleTypes.GetFront();
+                auto typedArgument = untypedArgument.Generator(argType);
+
+                typedArguments.push_back(typedArgument);
+                argTypes.push_back(argType);
+                if (auto reference = typedArgument->As<TReferenceExpression>()) {
+                    if (!columnNames.insert(reference->ColumnName).second) {
+                        THROW_ERROR_EXCEPTION("TRANSFORM operator has multiple references to column %Qv",
+                        reference->ColumnName)
+                            << TErrorAttribute("source", source);
+                    }
+                }
+            }
+
+            if (transformExpr->From.size() != transformExpr->To.size()) {
+                THROW_ERROR_EXCEPTION("Size mismatch for source and result arrays in TRANSFORM operator")
+                    << TErrorAttribute("source", source);
+            }
+
+            TTypeSet resultTypes({
+                EValueType::Null,
+                EValueType::Int64,
+                EValueType::Uint64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::String,
+                EValueType::Any});
+
+            for (const auto& tuple : transformExpr->To) {
+                if (tuple.size() != 1) {
+                    THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                        << TErrorAttribute("source", source);
+                }
+
+                auto valueTypes = GetTypes(tuple.front());
+
+                if (!Unify(&resultTypes, valueTypes)) {
+                    THROW_ERROR_EXCEPTION("Types mismatch in tuple")
+                        << TErrorAttribute("source", source)
+                        << TErrorAttribute("actual_type", ToString(valueTypes))
+                        << TErrorAttribute("expected_type", ToString(resultTypes));
+                }
+            }
+
+            auto resultType = resultTypes.GetFront();
+
+            auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
+            TUnversionedRowBuilder rowBuilder;
+            std::vector<TRow> rows;
+
+            for (size_t index = 0; index < transformExpr->From.size(); ++index) {
+                const auto& sourceTuple = transformExpr->From[index];
+                if (sourceTuple.size() != argTypes.size()) {
+                    THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
+                        << TErrorAttribute("source", source);
+                }
+                for (int i = 0; i < sourceTuple.size(); ++i) {
+                    auto valueType = GetType(sourceTuple[i]);
+                    auto value = GetValue(sourceTuple[i]);
+
+                    if (valueType == EValueType::Null) {
+                        value = MakeUnversionedSentinelValue(EValueType::Null);
+                    } else if (valueType != argTypes[i]) {
+                        if (IsArithmeticType(valueType) && IsArithmeticType(argTypes[i])) {
+                            value = CastValueWithCheck(value, argTypes[i]);
+                        } else {
+                            THROW_ERROR_EXCEPTION("Types mismatch in tuple")
+                            << TErrorAttribute("source", source)
+                            << TErrorAttribute("actual_type", valueType)
+                            << TErrorAttribute("expected_type", argTypes[i]);
+                        }
+                    }
+                    rowBuilder.AddValue(value);
+                }
+
+                const auto& resultTuple = transformExpr->To[index];
+
+                YCHECK(resultTuple.size() == 1);
+                auto value = CastValueWithCheck(GetValue(resultTuple.front()), resultType);
+                rowBuilder.AddValue(value);
+
+                rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
+                rowBuilder.Reset();
+            }
+
+            std::sort(rows.begin(), rows.end(), [argCount = argTypes.size()] (TRow lhs, TRow rhs) {
+                return CompareRows(lhs, rhs, argCount) < 0;
+            });
+
+            auto capturedRows =  MakeSharedRange(std::move(rows), std::move(rowBuffer));
+            auto result = New<TTransformExpression>(
+                resultType,
+                std::move(typedArguments),
+                std::move(capturedRows));
+
+            TExpressionGenerator generator = [result] (EValueType type) mutable {
+                return result;
+            };
+            return TUntypedExpression{TTypeSet({resultType}), std::move(generator), false};
         }
 
         Y_UNREACHABLE();

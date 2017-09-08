@@ -34,6 +34,7 @@ DEFINE_ENUM(EExpressionKind,
     (UnaryOp)
     (BinaryOp)
     (InOp)
+    (TransformOp)
 );
 
 struct TExpression
@@ -169,6 +170,26 @@ struct TInOpExpression
         std::vector<TConstExpressionPtr> arguments,
         TSharedRange<TRow> values)
         : TExpression(EValueType::Boolean)
+        , Arguments(std::move(arguments))
+        , Values(std::move(values))
+    { }
+
+    std::vector<TConstExpressionPtr> Arguments;
+    TSharedRange<TRow> Values;
+};
+
+struct TTransformExpression
+    : public TExpression
+{
+    explicit TTransformExpression(EValueType type)
+        : TExpression(type)
+    { }
+
+    TTransformExpression(
+        EValueType type,
+        std::vector<TConstExpressionPtr> arguments,
+        TSharedRange<TRow> values)
+        : TExpression(type)
         , Arguments(std::move(arguments))
         , Values(std::move(values))
     { }
@@ -586,6 +607,8 @@ struct TAbstractVisitor
             return Derived()->OnFunction(functionExpr, args...);
         } else if (auto inExpr = expr->template As<TInOpExpression>()) {
             return Derived()->OnIn(inExpr, args...);
+        } else if (auto transformExpr = expr->template As<TTransformExpression>()) {
+            return Derived()->OnTransform(transformExpr, args...);
         }
         Y_UNREACHABLE();
     }
@@ -638,6 +661,13 @@ struct TVisitor
     void OnIn(const TInOpExpression* inExpr)
     {
         for (auto argument : inExpr->Arguments) {
+            Visit(argument);
+        }
+    }
+
+    void OnTransform(const TTransformExpression* transformExpr)
+    {
+        for (auto argument : transformExpr->Arguments) {
             Visit(argument);
         }
     }
@@ -729,6 +759,25 @@ struct TRewriter
         return New<TInOpExpression>(
             std::move(newArguments),
             inExpr->Values);
+    }
+
+    TConstExpressionPtr OnTransform(const TTransformExpression* transformExpr)
+    {
+        std::vector<TConstExpressionPtr> newArguments;
+        bool allEqual = true;
+        for (auto argument : transformExpr->Arguments) {
+            auto newArgument = Visit(argument);
+            allEqual = allEqual && newArgument == argument;
+            newArguments.push_back(newArgument);
+        }
+
+        if (allEqual) {
+            return transformExpr;
+        }
+
+        return New<TInOpExpression>(
+            std::move(newArguments),
+            transformExpr->Values);
     }
 
 };
@@ -868,16 +917,65 @@ struct TAbstractExpressionPrinter
         if (OmitValues) {
             Builder->AppendString("??");
         } else {
-            bool needComma = false;
-            for (const auto& row : inExpr->Values) {
-                if (needComma) {
-                    Builder->AppendString(", ");
-                }
-                Builder->AppendString(ToString(row));
-                needComma = true;
-            }
+            JoinToString(
+                Builder,
+                inExpr->Values.begin(),
+                inExpr->Values.end(),
+                [&] (TStringBuilder* builder, const TRow& row) {
+                    builder->AppendString(ToString(row));
+                });
         }
         Builder->AppendChar(')');
+    }
+
+    void OnTransform(const TTransformExpression* transformExpr, TArgs... args)
+    {
+        Builder->AppendString("TRANSFORM(");
+        size_t argumentCount = transformExpr->Arguments.size();
+        auto needParenthesis = argumentCount > 1;
+        if (needParenthesis) {
+            Builder->AppendChar('(');
+        }
+        Derived()->OnArguments(transformExpr, args...);
+        if (needParenthesis) {
+            Builder->AppendChar(')');
+        }
+
+        Builder->AppendString(", (");
+        if (OmitValues) {
+            Builder->AppendString("??");
+        } else {
+            JoinToString(
+                Builder,
+                transformExpr->Values.begin(),
+                transformExpr->Values.end(),
+                [&] (TStringBuilder* builder, const TRow& row) {
+                    builder->AppendChar('[');
+                    JoinToString(
+                        builder,
+                        row.Begin(),
+                        row.Begin() + argumentCount,
+                        [] (TStringBuilder* builder, const TValue& value) {
+                            builder->AppendString(ToString(value));
+                        });
+                    builder->AppendChar(']');
+                });
+        }
+        Builder->AppendString("), (");
+
+        if (OmitValues) {
+            Builder->AppendString("??");
+        } else {
+            JoinToString(
+                Builder,
+                transformExpr->Values.begin(),
+                transformExpr->Values.end(),
+                [&] (TStringBuilder* builder, const TRow& row) {
+                    builder->AppendString(ToString(row[argumentCount]));
+                });
+        }
+
+        Builder->AppendString("))");
     }
 
 };

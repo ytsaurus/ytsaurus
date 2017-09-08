@@ -97,6 +97,8 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("a in ((1), (2))");
     TestExpression("a in ((1, 2), (2, 3))");
     TestExpression("(a,b) in ((1, 2), (2, 3))");
+    TestExpression("transform(a, (1, 2), (2, 3))");
+    TestExpression("transform((a, b), ((1, 2), (2, 3)), (\"x\", \"y\"))");
     TestExpression("a * (b + c)");
     TestExpression("a * b + c");
     TestExpression("0");
