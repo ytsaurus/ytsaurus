@@ -672,7 +672,8 @@ bool TSortedStoreManager::IsOverflowRotationNeeded() const
     }
 
     const auto& config = Tablet_->GetConfig();
-    if (ActiveStore_->GetMaxDataWeight() >= config->MaxDynamicStoreRowDataWeight) {
+    auto threshold = config->DynamicStoreOverflowThreshold;
+    if (ActiveStore_->GetMaxDataWeight() >= threshold * config->MaxDynamicStoreRowDataWeight) {
         return true;
     }
 

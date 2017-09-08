@@ -55,6 +55,8 @@ public:
     i64 MaxDynamicStorePoolSize;
     size_t MaxDynamicStoreRowDataWeight;
 
+    double DynamicStoreOverflowThreshold;
+
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
     i64 MinPartitionDataSize;
@@ -120,6 +122,11 @@ public:
             // NB: This limit is important: it ensures that store is flushable.
             // Please consult savrus@ before chaging.
             .LessThanOrEqual(NTableClient::MaxServerVersionedRowDataWeight / 2);
+
+        RegisterParameter("dynamic_store_overflow_threshold", DynamicStoreOverflowThreshold)
+            .GreaterThan(0.0)
+            .Default(0.9)
+            .LessThanOrEqual(1.0);
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default(320_MB)
