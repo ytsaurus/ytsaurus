@@ -15,20 +15,17 @@ public:
         for (; reader->IsValid(); reader->Next()) {
             const auto& curRow = reader->GetRow();
 
-            // У нас есть информация о том из какой таблицы пришла запись.
             auto tableIndex = reader->GetTableIndex();
             if (tableIndex == 0) {
-                // Таблица с логинами.
                 loginRow = curRow;
             } else if (tableIndex == 1) {
                 isRobot = curRow["is_robot"].AsBool();
             } else {
-                // Какая-то фигня, такого индекса быть не может.
                 Y_FAIL();
             }
         }
 
-        // Второй аргумент метода `AddRow' указывает, в какую таблицу писать.
+        // Второй аргумент метода `AddRow' указывает, в какую таблицу будет записано значение.
         if (isRobot) {
             writer->AddRow(loginRow, 0);
         } else {
