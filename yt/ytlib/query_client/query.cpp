@@ -37,75 +37,21 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& colum
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExpressionPrinter
+    : TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>
+{
+    using TBase = TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>;
+    TExpressionPrinter(TStringBuilder* builder, bool omitValues)
+        : TBase(builder, omitValues)
+    { }
+};
+
 TString InferName(TConstExpressionPtr expr, bool omitValues)
 {
-    bool newTuple = true;
-    auto comma = [&] {
-        bool isNewTuple = newTuple;
-        newTuple = false;
-        return TString(isNewTuple ? "" : ", ");
-    };
-    auto canOmitParenthesis = [] (TConstExpressionPtr expr) {
-        return
-            expr->As<TLiteralExpression>() ||
-            expr->As<TReferenceExpression>() ||
-            expr->As<TFunctionExpression>();
-    };
-
-    if (!expr) {
-        return TString();
-    } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return omitValues
-            ? ToString("?")
-            : ToString(static_cast<TUnversionedValue>(literalExpr->Value));
-    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        return referenceExpr->ColumnName;
-    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        auto str = functionExpr->FunctionName + "(";
-        for (const auto& argument : functionExpr->Arguments) {
-            str += comma() + InferName(argument, omitValues);
-        }
-        return str + ")";
-    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        auto rhsName = InferName(unaryOp->Operand, omitValues);
-        if (!canOmitParenthesis(unaryOp->Operand)) {
-            rhsName = "(" + rhsName + ")";
-        }
-        return TString() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
-    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        auto lhsName = InferName(binaryOp->Lhs, omitValues);
-        if (!canOmitParenthesis(binaryOp->Lhs)) {
-            lhsName = "(" + lhsName + ")";
-        }
-        auto rhsName = InferName(binaryOp->Rhs, omitValues);
-        if (!canOmitParenthesis(binaryOp->Rhs)) {
-            rhsName = "(" + rhsName + ")";
-        }
-        return
-            lhsName +
-            " " + GetBinaryOpcodeLexeme(binaryOp->Opcode) + " " +
-            rhsName;
-    } else if (auto inOp = expr->As<TInOpExpression>()) {
-        TString str;
-        for (const auto& argument : inOp->Arguments) {
-            str += comma() + InferName(argument, omitValues);
-        }
-        if (inOp->Arguments.size() > 1) {
-            str = "(" + str + ")";
-        }
-        str += " IN (";
-        if (omitValues) {
-            str += "??";
-        } else {
-            newTuple = true;
-            for (const auto& row : inOp->Values) {
-                str += comma() + ToString(row);
-            }
-        }
-        return str + ")";
-    } else {
-        Y_UNREACHABLE();
-    }
+    TStringBuilder builder;
+    TExpressionPrinter expressionPrinter(&builder, omitValues);
+    expressionPrinter.Visit(expr);
+    return builder.Flush();
 }
 
 TString InferName(TConstBaseQueryPtr query, bool omitValues)
