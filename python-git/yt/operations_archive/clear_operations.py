@@ -39,7 +39,7 @@ def get_filter_factors(op, attributes):
         brief_spec.get("pool", ""),
         brief_spec.get("title", ""),
         str(brief_spec.get("input_table_paths", [""])[0]),
-        str(brief_spec.get("input_table_paths", [""])[0])
+        str(brief_spec.get("output_table_paths", [""])[0])
     ]).lower()
 
 def datestr_to_timestamp_legacy(time_str):
