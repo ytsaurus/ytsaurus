@@ -353,6 +353,9 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
     if schema_inference_mode is not None:
         copy_spec_template["schema_inference_mode"] = schema_inference_mode
 
+    if copy_spec_template is not None and "network_name" in copy_spec_template:
+        network_name = copy_spec_template["network_name"]
+
     src = yt.TablePath(src, client=source_client)
 
     _force_parent_dir(yt.ypath_dirname(dst), client=destination_client)
