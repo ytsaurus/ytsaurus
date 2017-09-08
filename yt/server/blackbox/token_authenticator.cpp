@@ -31,13 +31,13 @@ public:
         const TTokenCredentials& credentials) override
     {
         const auto& token = credentials.Token;
-        const auto& userIp = credentials.UserIp;
+        const auto& userIP = credentials.UserIP;
         auto tokenMD5 = ComputeMD5(token);
         LOG_DEBUG(
             "Authenticating user via token (TokenMD5: %v, UserIP: %v)",
             tokenMD5,
-            userIp);
-        return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIp}})
+            userIP);
+        return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIP}})
             .Apply(BIND(
                 &TBlackboxTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
@@ -136,8 +136,7 @@ public:
     TCachingTokenAuthenticator(TExpiringCacheConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
         : TExpiringCache(std::move(config))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
-    {
-    }
+    { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
