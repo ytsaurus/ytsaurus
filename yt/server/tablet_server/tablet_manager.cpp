@@ -3392,7 +3392,7 @@ private:
 
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid mount revision on tablet stores update commit; ignored "
+            LOG_DEBUG_UNLESS(IsRecovery(), "Invalid mount revision on tablet stores update commit; ignored "
                 "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
                 tabletId,
                 transaction->GetId(),
@@ -3402,7 +3402,7 @@ private:
         }
 
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: tablet stores update commit for an improperly unprepared tablet; ignored "
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
                 "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
                 tabletId,
                 transaction->GetId(),
