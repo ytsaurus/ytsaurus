@@ -1794,7 +1794,7 @@ protected:
             auto uncompressedSortedChunkSize = static_cast<i64>(Spec->SortJobIO->TableWriter->DesiredChunkSize / InputCompressionRatio);
             uncompressedSortedChunkSize = std::max<i64>(1, uncompressedSortedChunkSize);
             auto maxInputStreamsPerPartition = std::max<i64>(1, Spec->MaxDataWeightPerJob / uncompressedSortedChunkSize);
-            auto maxPartitionDataWeight = static_cast<i64>(0.9 * maxInputStreamsPerPartition * Spec->DataWeightPerShuffleJob);
+            auto maxPartitionDataWeight = std::max<i64>(Options->MinPartitionWeight, static_cast<i64>(0.9 * maxInputStreamsPerPartition * Spec->DataWeightPerShuffleJob));
 
             if (dataWeightAfterPartition / result > maxPartitionDataWeight) {
                 result = dataWeightAfterPartition / maxPartitionDataWeight;
