@@ -10,8 +10,7 @@ class TComputeEmailsMapper
 public:
     virtual void Do(TReader* reader, TWriter* writer) override
     {
-        for (; reader->IsValid(); reader->Next())
-        {
+        for (; reader->IsValid(); reader->Next()) {
             const auto& row = reader->GetRow();
 
             TNode outRow;
