@@ -28,12 +28,8 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
-
-static NProfiling::TAggregateCounter FairShareUpdateTimeCounter("/fair_share_update_time");
-static NProfiling::TAggregateCounter FairShareLogTimeCounter("/fair_share_log_time");
-static NProfiling::TAggregateCounter AnalyzePreemptableJobsTimeCounter("/analyze_preemptable_jobs_time");
+static const TString DefaultTreeId = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,6 +96,8 @@ struct TOperationRegistrationUnregistrationResult
 
 TStrategyOperationSpecPtr ParseSpec(const TOperationPtr& operation, INodePtr specNode)
 {
+    const auto& Logger = SchedulerLogger;
+
     try {
         return ConvertTo<TStrategyOperationSpecPtr>(specNode);
     } catch (const std::exception& ex) {
@@ -121,15 +119,23 @@ public:
         TFairShareStrategyTreeConfigPtr config,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* host,
-        const std::vector<IInvokerPtr>& feasibleInvokers)
+        const std::vector<IInvokerPtr>& feasibleInvokers,
+        const TString& treeId)
         : Config(config)
         , ControllerConfig(controllerConfig)
         , Host(host)
         , FeasibleInvokers(feasibleInvokers)
-        , NonPreemptiveProfilingCounters("/non_preemptive")
-        , PreemptiveProfilingCounters("/preemptive")
+        , TreeId(treeId)
+        , TreeIdProfilingTag(TProfileManager::Get()->RegisterTag("tree", TreeId))
+        , Logger(SchedulerLogger)
+        , NonPreemptiveProfilingCounters("/non_preemptive", {TreeIdProfilingTag})
+        , PreemptiveProfilingCounters("/preemptive", {TreeIdProfilingTag})
+        , FairShareUpdateTimeCounter("/fair_share_update_time", {TreeIdProfilingTag})
+        , FairShareLogTimeCounter("/fair_share_log_time", {TreeIdProfilingTag})
+        , AnalyzePreemptableJobsTimeCounter("/analyze_preemptable_jobs_time", {TreeIdProfilingTag})
     {
-        RootElement = New<TRootElement>(Host, config, GetPoolProfilingTag(RootPoolName));
+        Logger.AddTag("TreeId: %v", treeId);
+        RootElement = New<TRootElement>(Host, config, GetPoolProfilingTag(RootPoolName), TreeId);
     }
 
     TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext)
@@ -183,7 +189,8 @@ public:
             state->GetController(),
             ControllerConfig,
             Host,
-            state->GetHost());
+            state->GetHost(),
+            TreeId);
 
         int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(spec->SchedulingTagFilter));
         operationElement->SetSchedulingTagFilterIndex(index);
@@ -199,7 +206,15 @@ public:
         auto poolId = spec->Pool ? *spec->Pool : userName;
         auto pool = FindPool(poolId);
         if (!pool) {
-            pool = New<TPool>(Host, poolId, New<TPoolConfig>(), /* defaultConfigured */ true, Config, GetPoolProfilingTag(poolId));
+            pool = New<TPool>(
+                Host,
+                poolId,
+                New<TPoolConfig>(),
+                /* defaultConfigured */ true,
+                Config,
+                GetPoolProfilingTag(poolId),
+                TreeId);
+
             pool->SetUserName(userName);
             UserToEphemeralPools[userName].insert(poolId);
             RegisterPool(pool);
@@ -402,7 +417,14 @@ public:
                             YCHECK(orphanPoolIds.erase(childId) == 1);
                         } else {
                             // Create new pool.
-                            pool = New<TPool>(Host, childId, poolConfig, /* defaultConfigured */ false, Config, GetPoolProfilingTag(childId));
+                            pool = New<TPool>(
+                                Host,
+                                childId,
+                                poolConfig,
+                                /* defaultConfigured */ false,
+                                Config,
+                                GetPoolProfilingTag(childId),
+                                TreeId);
                             RegisterPool(pool, parent);
                         }
                         SetPoolParent(pool, parent);
@@ -622,7 +644,7 @@ public:
         LOG_INFO("Starting fair share update");
 
         // Run periodic update.
-        PROFILE_AGGREGATED_TIMING (FairShareUpdateTimeCounter) {
+        PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter) {
             // The root element gets the whole cluster.
             RootElement->Update(GlobalDynamicAttributes_);
 
@@ -680,7 +702,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        PROFILE_AGGREGATED_TIMING (FairShareLogTimeCounter) {
+        PROFILE_AGGREGATED_TIMING(FairShareLogTimeCounter) {
             // Log pools information.
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Do(BIND(&TFairShareTree::BuildFairShareInfo, Unretained(this)));
@@ -802,6 +824,11 @@ private:
 
     INodePtr LastPoolsNodeUpdate;
 
+    const TString TreeId;
+    const TTagId TreeIdProfilingTag;
+
+    mutable NLogging::TLogger Logger;
+
     using TPoolMap = yhash<TString, TPoolPtr>;
     TPoolMap Pools;
 
@@ -859,18 +886,21 @@ private:
 
     struct TProfilingCounters
     {
-        TProfilingCounters(const TString& prefix)
-            : PrescheduleJobTimeCounter(prefix + "/preschedule_job_time")
-            , TotalControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/total")
-            , ExecControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/exec")
-            , StrategyScheduleJobTimeCounter(prefix + "/strategy_schedule_job_time")
-            , ScheduleJobCallCounter(prefix + "/schedule_job_count")
+        TProfilingCounters(const TString& prefix, const TTagId& treeIdProfilingTag)
+            : PrescheduleJobTimeCounter(prefix + "/preschedule_job_time", {treeIdProfilingTag})
+            , TotalControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/total", {treeIdProfilingTag})
+            , ExecControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/exec", {treeIdProfilingTag})
+            , StrategyScheduleJobTimeCounter(prefix + "/strategy_schedule_job_time", {treeIdProfilingTag})
+            , ScheduleJobCallCounter(prefix + "/schedule_job_count", {treeIdProfilingTag})
         {
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues())
             {
+                auto tags = GetFailReasonProfilingTags(reason);
+                tags.push_back(treeIdProfilingTag);
+
                 ControllerScheduleJobFailCounter[reason] = TSimpleCounter(
                     prefix + "/controller_schedule_job_fail",
-                    GetFailReasonProfilingTags(reason));
+                    tags);
             }
         }
 
@@ -885,6 +915,10 @@ private:
 
     TProfilingCounters NonPreemptiveProfilingCounters;
     TProfilingCounters PreemptiveProfilingCounters;
+
+    TAggregateCounter FairShareUpdateTimeCounter;
+    TAggregateCounter FairShareLogTimeCounter;
+    TAggregateCounter AnalyzePreemptableJobsTimeCounter;
 
     TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
@@ -960,7 +994,7 @@ private:
         LOG_TRACE("Looking for preemptable jobs");
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
-        PROFILE_AGGREGATED_TIMING (AnalyzePreemptableJobsTimeCounter) {
+        PROFILE_AGGREGATED_TIMING(AnalyzePreemptableJobsTimeCounter) {
             for (const auto& job : context.SchedulingContext->RunningJobs()) {
                 auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
@@ -1806,13 +1840,13 @@ private:
         auto poolTag = element->GetParent()->GetProfilingTag();
         auto slotIndexTag = GetSlotIndexProfilingTag(element->GetSlotIndex());
 
-        ProfileSchedulerElement(element, "/operations", {poolTag, slotIndexTag});
+        ProfileSchedulerElement(element, "/operations", {poolTag, slotIndexTag, TreeIdProfilingTag});
     }
 
     void ProfileCompositeSchedulerElement(TCompositeSchedulerElementPtr element) const
     {
         auto tag = element->GetProfilingTag();
-        ProfileSchedulerElement(element, "/pools", {tag});
+        ProfileSchedulerElement(element, "/pools", {tag, TreeIdProfilingTag});
 
         Profiler.Enqueue(
             "/running_operation_count",
@@ -1893,9 +1927,10 @@ public:
         : Config(config)
         , Host(host)
         , FeasibleInvokers(feasibleInvokers)
+        , Logger(SchedulerLogger)
         , LastProfilingTime_(TInstant::Zero())
     {
-        FairShareTree_ = New<TFairShareTree>(Config, Config, Host, FeasibleInvokers);
+        FairShareTree_ = New<TFairShareTree>(Config, Config, Host, FeasibleInvokers, DefaultTreeId);
 
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
             GetCurrentInvoker(),
@@ -2138,6 +2173,8 @@ private:
     ISchedulerStrategyHost* const Host;
 
     std::vector<IInvokerPtr> FeasibleInvokers;
+
+    mutable NLogging::TLogger Logger;
 
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;

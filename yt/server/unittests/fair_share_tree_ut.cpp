@@ -230,7 +230,8 @@ TEST(FairShareTree, TestAttributes)
         host.Get(),
         config,
         // TODO(ignat): eliminate profiling from test.
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     auto poolA = New<TPool>(
         host.Get(),
@@ -238,7 +239,8 @@ TEST(FairShareTree, TestAttributes)
         New<TPoolConfig>(),
         true,
         config,
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"),
+        "default");
 
     auto poolB = New<TPool>(
         host.Get(),
@@ -246,7 +248,8 @@ TEST(FairShareTree, TestAttributes)
         New<TPoolConfig>(),
         true,
         config,
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", "B"));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", "B"),
+        "default");
 
     rootElement->AddChild(poolA);
     poolA->SetParent(rootElement.Get());
@@ -263,7 +266,8 @@ TEST(FairShareTree, TestAttributes)
         operationControllerX,
         config,
         host.Get(),
-        operationX.Get());
+        operationX.Get(),
+        "default");
 
     poolA->AddChild(operationElementX);
     operationElementX->SetParent(poolA.Get());
@@ -301,7 +305,8 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
         host.Get(),
         config,
         // TODO(ignat): eliminate profiling from test.
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResources>(10, jobResources));
     auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
@@ -312,7 +317,8 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
         operationControllerX,
         config,
         host.Get(),
-        operationX.Get());
+        operationX.Get(),
+        "default");
 
     rootElement->AddChild(operationElementX);
     operationElementX->SetParent(rootElement.Get());
@@ -366,7 +372,8 @@ TEST(FairShareTree, TestBestAllocationRatio)
         host.Get(),
         config,
         // TODO(ignat): eliminate profiling from test.
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResources>(3, jobResources));
     auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
@@ -377,7 +384,8 @@ TEST(FairShareTree, TestBestAllocationRatio)
         operationControllerX,
         config,
         host.Get(),
-        operationX.Get());
+        operationX.Get(),
+        "default");
 
     rootElement->AddChild(operationElementX);
     operationElementX->SetParent(rootElement.Get());
@@ -400,7 +408,8 @@ TEST(FairShareTree, TestOperationCountLimits)
         host.Get(),
         config,
         // TODO(ignat): eliminate profiling from test.
-        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
+        "default");
 
     TPoolPtr pools[3];
     for (int i = 0; i < 3; ++i) {
@@ -410,7 +419,8 @@ TEST(FairShareTree, TestOperationCountLimits)
             poolConfig,
             true, /* defaultConfigured */
             config,
-            NProfiling::TProfileManager::Get()->RegisterTag("pool", "pool" + ToString(i)));
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", "pool" + ToString(i)),
+            "default");
     }
 
     rootElement->AddChild(pools[0], /* enabled */ true);
