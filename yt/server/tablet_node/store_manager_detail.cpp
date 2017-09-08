@@ -461,10 +461,11 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
 
     const auto* activeStore = GetActiveStore();
     const auto& config = Tablet_->GetConfig();
+    auto threshold = config->DynamicStoreOverflowThreshold;
     return
-        activeStore->GetRowCount() >= config->MaxDynamicStoreRowCount ||
-        activeStore->GetValueCount() >= config->MaxDynamicStoreValueCount ||
-        activeStore->GetPoolCapacity() >= config->MaxDynamicStorePoolSize;
+        activeStore->GetRowCount() >= threshold * config->MaxDynamicStoreRowCount ||
+        activeStore->GetValueCount() >= threshold * config->MaxDynamicStoreValueCount ||
+        activeStore->GetPoolCapacity() >= threshold * config->MaxDynamicStorePoolSize;
 }
 
 TError TStoreManagerBase::CheckOverflow() const
