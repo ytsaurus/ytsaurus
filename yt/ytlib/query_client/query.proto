@@ -88,6 +88,16 @@ message TInOpExpression
     required bytes values = 2;
 }
 
+message TTransformExpression
+{
+    extend TExpression
+    {
+        optional TTransformExpression transform_op_expression = 109;
+    }
+    repeated TExpression arguments = 1;
+    required bytes values = 2;
+}
+
 message TNamedItem
 {
     required TExpression expression = 1;

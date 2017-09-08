@@ -2134,6 +2134,45 @@ TCodegenExpression MakeCodegenInOpExpr(
     };
 }
 
+TCodegenExpression MakeCodegenTransformOpExpr(
+    std::vector<size_t> argIds,
+    int arrayIndex,
+    EValueType resultType,
+    TComparerManagerPtr comparerManager)
+{
+    return [
+        MOVE(argIds),
+        MOVE(arrayIndex),
+        resultType,
+        MOVE(comparerManager)
+    ] (TCGExprContext& builder) {
+        size_t keySize = argIds.size();
+
+        Value* newRow = CodegenAllocateRow(builder, keySize);
+        Value* newValues = CodegenValuesPtrFromRow(builder, newRow);
+
+        std::vector<EValueType> keyTypes;
+        for (int index = 0; index < keySize; ++index) {
+            auto value = CodegenFragment(builder, argIds[index]);
+            keyTypes.push_back(value.GetStaticType());
+            value.StoreToValues(builder, newValues, index);
+        }
+
+        Value* result = builder->CreateCall(
+            builder.Module->GetRoutine("TransformTuple"),
+            {
+                comparerManager->GetLessComparer(keyTypes, builder.Module),
+                newRow,
+                builder.GetOpaqueValue(arrayIndex)
+            });
+
+        return TCGValue::CreateFromValue(
+            builder,
+            builder->CreateLoad(result),
+            resultType);
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Operators
 //

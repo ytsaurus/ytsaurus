@@ -802,12 +802,22 @@ char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char IsRowInArray(
-    TComparerFunction* comparer,
-    TRow row,
-    TSharedRange<TRow>* rows)
+char IsRowInArray(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* rows)
 {
     return std::binary_search(rows->Begin(), rows->End(), row, comparer);
+}
+
+// LLVM calling convention for aggregate types is incompatible with C++
+static const TValue NullValue = MakeUnversionedSentinelValue(EValueType::Null);
+const TValue* TransformTuple(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* rows)
+{
+    auto found = std::lower_bound(rows->Begin(), rows->End(), row, comparer);
+
+    if (found != rows->End() && !comparer(row, *found)) {
+        return &(*found)[row.GetCount()];
+    }
+
+    return &NullValue;
 }
 
 size_t StringHash(
@@ -1308,6 +1318,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(IsRowInArray);
+    REGISTER_ROUTINE(TransformTuple);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);
     REGISTER_ROUTINE(AddRow);

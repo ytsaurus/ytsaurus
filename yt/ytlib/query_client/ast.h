@@ -22,6 +22,7 @@ DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
 DECLARE_REFCOUNTED_STRUCT(TUnaryOpExpression)
 DECLARE_REFCOUNTED_STRUCT(TBinaryOpExpression)
 DECLARE_REFCOUNTED_STRUCT(TInOpExpression)
+DECLARE_REFCOUNTED_STRUCT(TTransformExpression)
 
 using TIdentifierList = std::vector<TReferenceExpressionPtr>;
 using TExpressionList = std::vector<TExpressionPtr>;
@@ -250,6 +251,28 @@ DEFINE_REFCOUNTED_TYPE(TInOpExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransformExpression
+    : public TExpression
+{
+    TTransformExpression(
+        const TSourceLocation& sourceLocation,
+        TExpressionList expression,
+        const TLiteralValueTupleList& from,
+        const TLiteralValueTupleList& to)
+        : TExpression(sourceLocation)
+        , Expr(std::move(expression))
+        , From(from)
+        , To(to)
+    { }
+
+    TExpressionList Expr;
+    TLiteralValueTupleList From;
+    TLiteralValueTupleList To;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTransformExpression)
+
+////////////////////////////////////////////////////////////////////////////////
 struct TTableDescriptor
 {
     TTableDescriptor() = default;

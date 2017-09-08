@@ -116,6 +116,12 @@ TCodegenExpression MakeCodegenInOpExpr(
     int arrayIndex,
     TComparerManagerPtr comparerManager);
 
+TCodegenExpression MakeCodegenTransformOpExpr(
+    std::vector<size_t> argIds,
+    int arrayIndex,
+    EValueType resultType,
+    TComparerManagerPtr comparerManager);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void CodegenEmptyOp(TCGOperatorContext& builder);

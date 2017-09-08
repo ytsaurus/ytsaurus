@@ -27,6 +27,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (UnaryOpExpr)
     (BinaryOpExpr)
     (InOpExpr)
+    (TransformOpExpr)
 
     (NamedExpression)
     (AggregateItem)
@@ -492,6 +493,34 @@ size_t TExpressionProfiler::Profile(
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
                 MakeCodegenInOpExpr(argIds, index, ComparerManager_),
+                expr->Type,
+                false);
+        }
+        return emplaced.first->second;
+    } else if (auto transformOp = expr->As<TTransformExpression>()) {
+        id.AddInteger(static_cast<int>(EFoldingObjectType::TransformOpExpr));
+
+        std::vector<size_t> argIds;
+        for (const auto& argument : transformOp->Arguments) {
+            argIds.push_back(Profile(argument, schema, fragments));
+            id.AddInteger(argIds.back());
+        }
+
+        for (const auto& value : transformOp->Values) {
+            id.AddString(ToString(value).c_str());
+        }
+
+        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+        if (emplaced.second) {
+            Fold(id);
+            for (size_t argId : argIds) {
+                ++fragments->Items[argId].UseCount;
+            }
+
+            int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformOp->Values);
+            fragments->DebugInfos.emplace_back(expr, argIds);
+            fragments->Items.emplace_back(
+                MakeCodegenTransformOpExpr(argIds, index, transformOp->Type, ComparerManager_),
                 expr->Type,
                 false);
         }
