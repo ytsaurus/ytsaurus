@@ -1788,25 +1788,28 @@ protected:
                 // Sometimes data size can be much larger than data weight.
                 // Let's protect from such outliers and prevent simple sort in such case.
                 result = DivCeil(TotalEstimatedInputUncompressedDataSize, Spec->DataWeightPerShuffleJob);
+            } else if (result > 1) {
+                // Calculate upper limit for partition data weight.
+                auto uncompressedSortedChunkSize = static_cast<i64>(Spec->SortJobIO->TableWriter->DesiredChunkSize /
+                    InputCompressionRatio);
+                uncompressedSortedChunkSize = std::max<i64>(1, uncompressedSortedChunkSize);
+                auto maxInputStreamsPerPartition = std::max<i64>(1,
+                    Spec->MaxDataWeightPerJob / uncompressedSortedChunkSize);
+                auto maxPartitionDataWeight = std::max<i64>(Options->MinPartitionWeight,
+                    static_cast<i64>(0.9 * maxInputStreamsPerPartition * Spec->DataWeightPerShuffleJob));
+
+                if (dataWeightAfterPartition / result > maxPartitionDataWeight) {
+                    result = dataWeightAfterPartition / maxPartitionDataWeight;
+                }
+
+                LOG_DEBUG("Suggesting partition count (UncompressedBlockSize: %v, PartitionDataWeight: %v, "
+                    "MaxPartitionDataWeight: %v, PartitionCount: %v, MaxPartitionCount: %v)",
+                    uncompressedBlockSize,
+                    partitionDataWeight,
+                    maxPartitionDataWeight,
+                    result,
+                    maxPartitionCount);
             }
-
-            // Calculate upper limit for partition data weight.
-            auto uncompressedSortedChunkSize = static_cast<i64>(Spec->SortJobIO->TableWriter->DesiredChunkSize / InputCompressionRatio);
-            uncompressedSortedChunkSize = std::max<i64>(1, uncompressedSortedChunkSize);
-            auto maxInputStreamsPerPartition = std::max<i64>(1, Spec->MaxDataWeightPerJob / uncompressedSortedChunkSize);
-            auto maxPartitionDataWeight = std::max<i64>(Options->MinPartitionWeight, static_cast<i64>(0.9 * maxInputStreamsPerPartition * Spec->DataWeightPerShuffleJob));
-
-            if (dataWeightAfterPartition / result > maxPartitionDataWeight) {
-                result = dataWeightAfterPartition / maxPartitionDataWeight;
-            }
-
-            LOG_DEBUG("Suggesting partition count (UncompressedBlockSize: %v, PartitionDataWeight: %v, "
-                "MaxPartitionDataWeight: %v, PartitionCount: %v, MaxPartitionCount: %v)",
-                uncompressedBlockSize,
-                partitionDataWeight,
-                maxPartitionDataWeight,
-                result,
-                maxPartitionCount);
         }
         // Cast to int32 is safe since MaxPartitionCount is int32.
         return static_cast<int>(Clamp<i64>(result, 1, Options->MaxPartitionCount));
