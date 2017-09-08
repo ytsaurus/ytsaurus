@@ -5,7 +5,7 @@
 
 using namespace NYT;
 
-class TFilterOutRobotsReduce
+class TSplitHumanRobotsReduce
     : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
@@ -21,7 +21,6 @@ public:
                 // Таблица с логинами.
                 loginRow = curRow;
             } else if (tableIndex == 1) {
-                // Таблица про роботов.
                 isRobot = curRow["is_robot"].AsBool();
             } else {
                 // Какая-то фигня, такого индекса быть не может.
@@ -29,12 +28,15 @@ public:
             }
         }
 
+        // Второй аргумент метода `AddRow' указывает, в какую таблицу писать.
         if (isRobot) {
-            writer->AddRow(loginRow);
+            writer->AddRow(loginRow, 0);
+        } else {
+            writer->AddRow(loginRow, 1);
         }
     }
 };
-REGISTER_REDUCER(TFilterOutRobotsReduce)
+REGISTER_REDUCER(TSplitHumanRobotsReduce)
 
 int main(int argc, const char** argv) {
     NYT::Initialize(argc, argv);
@@ -43,7 +45,8 @@ int main(int argc, const char** argv) {
 
     const TString sortedLoginTable = "//tmp/" + GetUsername() + "-tutorial-login-sorted";
     const TString sortedIsRobotTable = "//tmp/" + GetUsername() + "-tutorial-is_robot-sorted";
-    const TString outputTable = "//tmp/" + GetUsername() + "-tutorial-robots";
+    const TString humanTable = "//tmp/" + GetUsername() + "-tutorial-humans";
+    const TString robotTable = "//tmp/" + GetUsername() + "-tutorial-robots";
 
     client->Sort(
         TSortOperationSpec()
@@ -60,11 +63,14 @@ int main(int argc, const char** argv) {
     client->Reduce(
         TReduceOperationSpec()
             .ReduceBy({"uid"})
-            .AddInput<TNode>(sortedLoginTable) // Таблицу с логинами мы добавляем первой, поэтому её TableIndex == 0
-            .AddInput<TNode>(sortedIsRobotTable) // Таблицу про роботов мы добавляем второй, поэтому её TableIndex == 1
-            .AddOutput<TNode>(outputTable),
-        new TFilterOutRobotsReduce);
+            .AddInput<TNode>(sortedLoginTable)
+            .AddInput<TNode>(sortedIsRobotTable)
+            .AddOutput<TNode>(robotTable)  // выходная таблица номер 0
+            .AddOutput<TNode>(humanTable), // выходная таблица номер 1
+        new TSplitHumanRobotsReduce);
 
-    Cout << "Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << outputTable << Endl;
+    Cout << "Robot table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << robotTable << Endl;
+    Cout << "Human table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << humanTable << Endl;
+
     return 0;
 }
