@@ -275,7 +275,7 @@ TError TSortedChunkStore::CheckRowLocks(
         << TErrorAttribute("transaction_id", transaction->GetId())
         << TErrorAttribute("transaction_start_time", transaction->GetStartTime())
         << TErrorAttribute("tablet_id", TabletId_)
-        << TErrorAttribute("table_path", Tablet_->GetTablePath())
+        << TErrorAttribute("table_path", TablePath_)
         << TErrorAttribute("store_id", StoreId_)
         << TErrorAttribute("key", RowToKey(row));
 }

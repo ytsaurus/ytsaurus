@@ -69,6 +69,7 @@ TStoreBase::TStoreBase(
     , Tablet_(tablet)
     , PerformanceCounters_(Tablet_->GetPerformanceCounters())
     , TabletId_(Tablet_->GetId())
+    , TablePath_(Tablet_->GetTablePath())
     , Schema_(Tablet_->PhysicalSchema())
     , KeyColumnCount_(Tablet_->PhysicalSchema().GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->PhysicalSchema().GetColumnCount())
@@ -851,7 +852,7 @@ bool TChunkStoreBase::ValidateBlockCachePreloaded()
     if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
         THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
             << TErrorAttribute("tablet_id", TabletId_)
-            << TErrorAttribute("table_path", Tablet_->GetTablePath())
+            << TErrorAttribute("table_path", TablePath_)
             << TErrorAttribute("store_id", StoreId_);
     }
 
