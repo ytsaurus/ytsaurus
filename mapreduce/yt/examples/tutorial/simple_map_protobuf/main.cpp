@@ -38,11 +38,11 @@ int main(int argc, const char** argv) {
 
     client->Map(
         TMapOperationSpec()
-            .AddInput<TNode>("//home/ermolovd/yt-tutorial/staff_unsorted")
-            .AddOutput<TNode>(outputTable),
+            .AddInput<TLoginRecord>("//home/ermolovd/yt-tutorial/staff_unsorted")
+            .AddOutput<TEmailRecord>(outputTable),
         new TComputeEmailsMapper);
 
-    Cout << "Output table: " << outputTable << Endl;
+    Cout << "Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << outputTable << Endl;
 
     return 0;
 }
