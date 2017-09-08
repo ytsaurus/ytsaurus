@@ -22,6 +22,7 @@ public:
                 // Таблица с логинами.
                 loginRow = curRow;
             } else if (tableIndex == 1) {
+                // Таблица про роботов.
                 isRobot = curRow["is_robot"].AsBool();
             } else {
                 // Какая-то фигня, такого индекса быть не может.
