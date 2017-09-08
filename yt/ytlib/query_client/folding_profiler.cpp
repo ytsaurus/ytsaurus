@@ -136,48 +136,70 @@ struct TDebugInfo
 
 };
 
-TString InferName(
-    size_t id,
-    const std::vector<TDebugInfo>& debugExpressions,
-    const std::vector<TCodegenFragmentInfo>& expressions);
-
-TString InferNameArg(
-    size_t id,
-    const std::vector<TDebugInfo>& debugExpressions,
-    const std::vector<TCodegenFragmentInfo>& expressions)
+struct TExpressionFragmentPrinter
+    : TAbstractExpressionPrinter<TExpressionFragmentPrinter, size_t, size_t>
 {
-    if (expressions[id].IsOutOfLine()) {
-        return Format("$%v", id);
+    using TBase = TAbstractExpressionPrinter<TExpressionFragmentPrinter, size_t, size_t>;
+
+    const std::vector<TDebugInfo>& DebugExpressions;
+    const std::vector<TCodegenFragmentInfo>& Expressions;
+
+    TExpressionFragmentPrinter(
+        TStringBuilder* builder,
+        const std::vector<TDebugInfo>& debugExpressions,
+        const std::vector<TCodegenFragmentInfo>& expressions)
+        : TBase(builder, false)
+        , DebugExpressions(debugExpressions)
+        , Expressions(expressions)
+    { }
+
+    const TExpression* GetExpression(size_t id)
+    {
+        return &*DebugExpressions[id].Expr;
     }
 
-    return InferName(id, debugExpressions, expressions);
-}
+    void InferNameArg(size_t id)
+    {
+        if (Expressions[id].IsOutOfLine()) {
+            Builder->AppendString(Format("$%v", id));
+        }
 
-TString InferName(
-    size_t id,
-    const std::vector<TDebugInfo>& debugExpressions,
-    const std::vector<TCodegenFragmentInfo>& expressions)
-{
-    const auto& expr = debugExpressions[id].Expr;
-    const auto& args = debugExpressions[id].Args;
+        Visit(id, id);
+    }
 
-    bool newTuple = true;
-    auto comma = [&] {
-        bool isNewTuple = newTuple;
-        newTuple = false;
-        return TString(isNewTuple ? "" : ", ");
-    };
-    auto canOmitParenthesis = [&] (size_t id) {
-        const auto& expr = debugExpressions[id].Expr;
-        return
-            expr->As<TLiteralExpression>() ||
-            expr->As<TReferenceExpression>() ||
-            expr->As<TFunctionExpression>();
-    };
+    void OnOperand(const TUnaryOpExpression* unaryExpr, size_t id)
+    {
+        auto operandId = DebugExpressions[id].Args[0];
+        Visit(operandId, operandId);
+    }
 
-    if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return ToString(static_cast<TValue>(literalExpr->Value));
-    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+    void OnLhs(const TBinaryOpExpression* binaryExpr, size_t id)
+    {
+        auto lhsId = DebugExpressions[id].Args[0];
+        Visit(lhsId, lhsId);
+    }
+
+    void OnRhs(const TBinaryOpExpression* binaryExpr, size_t id)
+    {
+        auto rhsId = DebugExpressions[id].Args[1];
+        Visit(rhsId, rhsId);
+    }
+
+    template <class T>
+    void OnArguments(const T* expr, size_t id)
+    {
+        bool needComma = false;
+        for (const auto& argument : DebugExpressions[id].Args) {
+            if (needComma) {
+                Builder->AppendString(", ");
+            }
+            InferNameArg(argument);
+            needComma = true;
+        }
+    }
+
+    void OnReference(const TReferenceExpression* referenceExpr, size_t id)
+    {
         auto columnName = referenceExpr->ColumnName;
         if (columnName.size() > 40) {
             columnName.resize(40);
@@ -188,53 +210,14 @@ TString InferName(
                 return c;
             });
 
-            return Format("[%x%v]", FarmFingerprint(columnName.data(), columnName.size()), columnName);
+            Builder->AppendString(
+                Format("[%x%v]", FarmFingerprint(columnName.data(), columnName.size()), columnName));
         }
 
-        return Format("[%v]", columnName);
-    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        auto str = functionExpr->FunctionName + "(";
-        for (const auto& argument : args) {
-            str += comma() + InferNameArg(argument, debugExpressions, expressions);
-        }
-        return str + ")";
-    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        auto rhsName = InferNameArg(args[0], debugExpressions, expressions);
-        if (!canOmitParenthesis(args[0])) {
-            rhsName = "(" + rhsName + ")";
-        }
-        return TString() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
-    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        auto lhsName = InferNameArg(args[0], debugExpressions, expressions);
-        if (!canOmitParenthesis(args[0])) {
-            lhsName = "(" + lhsName + ")";
-        }
-        auto rhsName = InferNameArg(args[1], debugExpressions, expressions);
-        if (!canOmitParenthesis(args[1])) {
-            rhsName = "(" + rhsName + ")";
-        }
-        return
-            lhsName +
-            " " + GetBinaryOpcodeLexeme(binaryOp->Opcode) + " " +
-            rhsName;
-    } else if (auto inOp = expr->As<TInOpExpression>()) {
-        TString str;
-        for (const auto& argument : args) {
-            str += comma() + InferNameArg(argument, debugExpressions, expressions);
-        }
-        if (inOp->Arguments.size() > 1) {
-            str = "(" + str + ")";
-        }
-        str += " IN (";
-        newTuple = true;
-        for (const auto& row : inOp->Values) {
-            str += comma() + ToString(row);
-        }
-        return str + ")";
-    } else {
-        Y_UNREACHABLE();
+        Builder->AppendString(Format("[%v]", columnName));
     }
-}
+
+};
 
 static bool IsDumpExprsEnabled()
 {
@@ -258,17 +241,25 @@ struct TExpressionFragments
         result->Items.assign(Items.begin(), Items.end());
         result->NamePrefix = namePrefix;
 
+        TStringBuilder builder;
+        TExpressionFragmentPrinter expressionPrinter(
+            &builder,
+            DebugInfos,
+            Items);
+
         size_t functionCount = 0;
         for (size_t id = 0; id < result->Items.size(); ++id) {
             if (result->Items[id].IsOutOfLine()) {
                 result->Items[id].Index = functionCount++;
 
                 if (IsDumpExprsEnabled()) {
+                    expressionPrinter.Visit(id, id);
+
                     Cerr << Format(
                         "$%v %v:= %v\n",
                         id,
                         result->Items[id].Nullable ? "nullable " : "",
-                        InferName(id, DebugInfos, Items));
+                        builder.Flush());
                 }
             }
         }
@@ -283,8 +274,16 @@ struct TExpressionFragments
         if (!IsDumpExprsEnabled()) {
             return;
         }
+
+        TStringBuilder builder;
+        TExpressionFragmentPrinter expressionPrinter(
+            &builder,
+            DebugInfos,
+            Items);
+
         for (size_t index = 0; index < ids.size(); ++index) {
-            Cerr << Format("arg%v := %v\n", index, InferNameArg(ids[index], DebugInfos, Items));
+            expressionPrinter.InferNameArg(ids[index]);
+            Cerr << Format("arg%v := %v\n", index, builder.Flush());
         }
     }
 
@@ -293,8 +292,16 @@ struct TExpressionFragments
         if (!IsDumpExprsEnabled()) {
             return;
         }
+
+        TStringBuilder builder;
+        TExpressionFragmentPrinter expressionPrinter(
+            &builder,
+            DebugInfos,
+            Items);
+
         for (size_t index = 0; index < ids.size(); ++index) {
-            Cerr << Format("arg%v := %v\n", index, InferNameArg(ids[index].first, DebugInfos, Items));
+            expressionPrinter.InferNameArg(ids[index].first);
+            Cerr << Format("arg%v := %v\n", index, builder.Flush());
         }
     }
 
