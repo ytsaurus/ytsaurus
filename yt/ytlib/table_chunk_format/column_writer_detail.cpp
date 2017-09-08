@@ -57,7 +57,7 @@ void TColumnWriterBase::DumpSegment(TSegmentInfo* segmentInfo)
     BlockWriter_->WriteSegment(MakeRange(segmentInfo->Data));
 }
 
-i32 TColumnWriterBase::GetMetaSize() const
+i64 TColumnWriterBase::GetMetaSize() const
 {
     return MetaSize_;
 }
