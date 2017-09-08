@@ -38,7 +38,7 @@ int main(int argc, const char** argv) {
             .AddOutput<TNode>(outputTable),
         new TComputeEmailsMapper);
 
-    Cout << "Output table: " << outputTable << Endl;
+    Cout << "Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << outputTable << Endl;
 
     return 0;
 }
