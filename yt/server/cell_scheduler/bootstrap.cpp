@@ -218,7 +218,7 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
-    RpcServer_->RegisterService(CreateJobSpecsService(this));
+    RpcServer_->RegisterService(CreateJobSpecService(this));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();

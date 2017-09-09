@@ -87,7 +87,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TJobSpecService)
 
-IServicePtr CreateJobSpecsService(TBootstrap* bootstrap)
+IServicePtr CreateJobSpecService(TBootstrap* bootstrap)
 {
     return New<TJobSpecService>(bootstrap);
 }

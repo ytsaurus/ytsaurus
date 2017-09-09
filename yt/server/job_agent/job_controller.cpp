@@ -627,14 +627,14 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         }
     } else {
         YCHECK(jobSpecsProxyChannel);
+        TJobSpecServiceProxy jobSpecServiceProxy(jobSpecsProxyChannel);
+        jobSpecServiceProxy.SetDefaultTimeout(Config_->GetJobSpecsTimeout);
 
-        TJobSpecServiceProxy jobSpecsServiceProxy(jobSpecsProxyChannel);
-
-        auto jobSpecsRequest = jobSpecsServiceProxy.GetJobSpecs();
+        auto jobSpecRequest = jobSpecServiceProxy.GetJobSpecs();
         for (const auto& info : response->jobs_to_start()) {
-            auto* jobSpecRequest = jobSpecsRequest->add_requests();
-            *jobSpecRequest->mutable_operation_id() = info.operation_id();
-            *jobSpecRequest->mutable_job_id() = info.job_id();
+            auto* subrequest = jobSpecRequest->add_requests();
+            *subrequest->mutable_operation_id() = info.operation_id();
+            *subrequest->mutable_job_id() = info.job_id();
 
             auto jobId = FromProto<TJobId>(info.job_id());
             auto operationId = FromProto<TJobId>(info.operation_id());
@@ -643,27 +643,32 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                 jobId);
         }
 
-        jobSpecsRequest->SetTimeout(Config_->GetJobSpecsTimeout);
-        auto jobSpecsResponse = WaitFor(jobSpecsRequest->Invoke())
-            .ValueOrThrow();
+        auto jobSpecResponseOrError = WaitFor(jobSpecRequest->Invoke());
+        if (!jobSpecResponseOrError.IsOK()) {
+            LOG_DEBUG(jobSpecResponseOrError, "Failed to get job specs from scheduler");
+            return;
+        }
 
+        const auto& jobSpecResponse = jobSpecResponseOrError.Value();
         for (int index = 0; index < response->jobs_to_start_size(); ++index) {
             const auto& info = response->jobs_to_start(index);
             auto jobId = FromProto<TJobId>(info.job_id());
             auto operationId = FromProto<TJobId>(info.operation_id());
             const auto& resourceLimits = info.resource_limits();
 
-            const auto& jobSpecResponse = jobSpecsResponse->mutable_responses(index);
-            if (jobSpecResponse->has_error()) {
-                auto error = FromProto<TError>(jobSpecsResponse->mutable_responses(index)->error());
+            const auto& subresponse = jobSpecResponse->mutable_responses(index);
+            if (subresponse->has_error()) {
+                auto error = FromProto<TError>(jobSpecResponse->responses(index).error());
                 if (!error.IsOK()) {
-                    LOG_DEBUG(error, "Failed to get job spec (OperationId: %v, JobId: %v)", operationId, jobId);
+                    LOG_DEBUG(error, "Failed to get job spec from scheduler (OperationId: %v, JobId: %v)",
+                        operationId,
+                        jobId);
                     continue;
                 }
             }
 
             TJobSpec spec;
-            const auto& attachment = jobSpecsResponse->Attachments()[index];
+            const auto& attachment = jobSpecResponse->Attachments()[index];
             DeserializeFromProtoWithEnvelope(&spec, attachment);
 
             CreateJob(jobId, operationId, resourceLimits, std::move(spec));
