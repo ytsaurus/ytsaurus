@@ -11,7 +11,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateJobSpecsService(NCellScheduler::TBootstrap* bootstrap);
+NRpc::IServicePtr CreateJobSpecService(NCellScheduler::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////
 
