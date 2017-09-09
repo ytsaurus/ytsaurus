@@ -149,6 +149,7 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
     *chunkSpec.mutable_chunk_meta() = CurrentSession_.TemplateWriter->GetSchedulerMeta();
     ToProto(chunkSpec.mutable_chunk_id(), CurrentSession_.UnderlyingWriter->GetChunkId());
     NYT::ToProto(chunkSpec.mutable_replicas(), CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicas());
+    chunkSpec.set_erasure_codec(static_cast<int>(Options_->ErasureCodec));
     chunkSpec.set_table_index(Options_->TableIndex);
 
     WrittenChunks_.push_back(chunkSpec);

@@ -10,7 +10,7 @@ from time import sleep
 
 class TestSchedulerAutoMerge(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 8
+    NUM_NODES = 16
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
@@ -70,7 +70,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             op = map(
                 dont_track=True,
                 in_="//tmp/t_in",
-                out="<auto_merge=%true>//tmp/t_out",
+                out="//tmp/t_out",
                 command="cat",
                 spec={
                     "auto_merge": {
@@ -98,7 +98,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         op = map(
             dont_track=True,
             in_="//tmp/t_in",
-            out="<auto_merge=%true>//tmp/t_out",
+            out="//tmp/t_out",
             command="cat",
             spec={
                 "auto_merge": {
@@ -126,7 +126,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         op = map(
             dont_track=True,
             in_="//tmp/t_in",
-            out=["<auto_merge=%true>//tmp/t_out1", "<auto_merge=%true>//tmp/t_out2"],
+            out=["//tmp/t_out1", "//tmp/t_out2"],
             command="read x; echo $x >&$(($x % 2 * 3 + 1))",
             format="<columns=[a]>schemaful_dsv",
             spec={
@@ -160,7 +160,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         op = map(
             dont_track=True,
             in_="//tmp/t_in",
-            out=["//tmp/t_out1", "<auto_merge=%true>//tmp/t_out2"],
+            out=["<auto_merge=%false>//tmp/t_out1", "//tmp/t_out2"],
             command="read x; if [[ $(($x % 10)) == 0 ]]; then echo $x >&1; else echo $x >&4; fi",
             spec={
                 "auto_merge": {
@@ -196,7 +196,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
         op = map(
             in_="//tmp/t_in",
-            out=["<auto_merge=%true; append=%true>//tmp/t_out"],
+            out=["<append=%true>//tmp/t_out"],
             command="cat",
             spec={
                 "auto_merge": {
@@ -224,7 +224,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         # For even lines output a long random string, for odd lines output a single character.
         op = map(
             in_="//tmp/t_in",
-            out=["<auto_merge=%true>//tmp/t_out"],
+            out=["//tmp/t_out"],
             command="read x; if [[ $(($x % 2)) == 0 ]]; then head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n'; else echo $x; fi",
             spec={
                 "auto_merge": {
@@ -245,3 +245,61 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             row_counts.append(get("#{0}/@row_count".format(chunk_id)))
         row_counts = sorted(row_counts)
         assert row_counts == [1, 1, 1, 1, 1, 5]
+
+    @pytest.mark.timeout(30)
+    def test_erasure_output(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        set("//tmp/t_out/@erasure_codec", "lrc_12_2_2")
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 2,
+                    "max_intermediate_chunk_count" : 100
+                },
+                "data_size_per_job": 1,
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+            })
+        assert get("//tmp/t_out/@chunk_count") == 5
+        chunk_ids = get("//tmp/t_out/@chunk_ids")
+        for chunk_id in chunk_ids:
+            assert get("#{0}/@erasure_codec".format(chunk_id)) == "lrc_12_2_2"
+
+    @pytest.mark.timeout(30)
+    def test_replicated_and_compressed_output(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        set("//tmp/t_out/@replication_factor", 5)
+        set("//tmp/t_out/@compression_codec", "zstd_17")
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 2,
+                    "max_intermediate_chunk_count" : 100
+                },
+                "data_size_per_job": 1,
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+            })
+        assert get("//tmp/t_out/@chunk_count") == 5
+        chunk_ids = get("//tmp/t_out/@chunk_ids")
+        for chunk_id in chunk_ids:
+            assert get("#{0}/@media/default/replication_factor".format(chunk_id)) == 5
+            assert get("#{0}/@compression_codec".format(chunk_id)) == "zstd_17"
