@@ -48,6 +48,9 @@ struct TExpressionPrinter
 
 TString InferName(TConstExpressionPtr expr, bool omitValues)
 {
+    if (!expr) {
+        return TString();
+    }
     TStringBuilder builder;
     TExpressionPrinter expressionPrinter(&builder, omitValues);
     expressionPrinter.Visit(expr);
