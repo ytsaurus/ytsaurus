@@ -760,7 +760,7 @@ TEST_F(TPrepareExpressionTest, Negative1)
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(TString("ki in (1, 2u, \"abc\")"), schema); },
-        HasSubstr("IN operator types mismatch"));
+        HasSubstr("Types mismatch in tuple"));
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(TString("ku = \"abc\""), schema); },
