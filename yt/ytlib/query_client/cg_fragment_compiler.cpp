@@ -1395,7 +1395,7 @@ void CodegenFragmentBodies(
 
             function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
 
-            Value* expressionClosure = function->arg_begin();
+            Value* expressionClosure = ConvertToPointer(function->arg_begin());
             {
                 TCGIRBuilder irBuilder(function);
                 auto innerBuilder = TCGExprContext::Make(
