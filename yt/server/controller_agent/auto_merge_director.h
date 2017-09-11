@@ -67,6 +67,7 @@ public:
     void Persist(const TPersistenceContext& context);
 
     DEFINE_SIGNAL(void(), StateChanged);
+
 private:
     //! Id of the operation this auto-merge director belongs to.
     TOperationId OperationId_;

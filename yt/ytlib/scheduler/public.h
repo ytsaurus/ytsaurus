@@ -123,7 +123,7 @@ DEFINE_ENUM(EFifoSortParameter,
 DEFINE_ENUM(EAutoMergeMode,
     (Disabled)
     (Relaxed)
-    (Economic)
+    (Economy)
     (Manual)
 )
 
