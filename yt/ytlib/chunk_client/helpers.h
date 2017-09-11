@@ -110,7 +110,7 @@ i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChun
 
 IChunkReaderPtr CreateRemoteReader(
     const NProto::TChunkSpec& chunkSpec,
-    TReplicationReaderConfigPtr config,
+    TErasureReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

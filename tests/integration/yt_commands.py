@@ -96,7 +96,8 @@ def prepare_parameters(parameters):
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
     return parameters
 
-def execute_command(command_name, parameters, input_stream=None, output_stream=None, verbose=None, verbose_error=None, ignore_result=False):
+def execute_command(command_name, parameters, input_stream=None, output_stream=None,
+                    verbose=None, verbose_error=None, ignore_result=False, return_response=False):
     if "verbose" in parameters:
         verbose = parameters["verbose"]
         del parameters["verbose"]
@@ -111,6 +112,11 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         ignore_result = parameters["ignore_result"]
         del parameters["ignore_result"]
     ignore_result = ignore_result is None or ignore_result
+
+    if "return_response" in parameters:
+        return_response = parameters["return_response"]
+        del parameters["return_response"]
+    return_response = return_response is None or return_response
 
     driver = _get_driver(parameters.pop("driver", None))
 
@@ -159,6 +165,9 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     if ignore_result:
         return
 
+    if return_response:
+        return response
+
     response.wait()
 
     if response_parameters is not None:
@@ -180,10 +189,13 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
 
 def execute_command_with_output_format(command_name, kwargs, input_stream=None):
     has_output_format = "output_format" in kwargs
+    return_response = "return_response" in kwargs
     if not has_output_format:
         kwargs["output_format"] = yson.loads("<format=text>yson")
-    output = StringIO()
-    execute_command(command_name, kwargs, input_stream=input_stream, output_stream=output)
+    output = kwargs.pop("output_stream", StringIO())
+    response = execute_command(command_name, kwargs, input_stream=input_stream, output_stream=output)
+    if return_response:
+        return response
     if not has_output_format:
         return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
     else:

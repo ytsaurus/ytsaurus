@@ -4843,7 +4843,7 @@ TOutputOrderPtr TOperationControllerBase::GetOutputOrder() const
 
 bool TOperationControllerBase::IsParityReplicasFetchEnabled() const
 {
-    return false;
+    return true;
 }
 
 bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const

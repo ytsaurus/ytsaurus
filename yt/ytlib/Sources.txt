@@ -81,6 +81,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/read_limit.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/read_limit.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/reader_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/repairing_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/session_id.cpp

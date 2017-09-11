@@ -138,6 +138,23 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TErasureReaderConfig
+    : public TReplicationReaderConfig
+{
+public:
+    bool EnableAutoRepair;
+
+    TErasureReaderConfig()
+    {
+        RegisterParameter("enable_auto_repair", EnableAutoRepair)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TErasureReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRemoteReaderOptions
     : public virtual NYTree::TYsonSerializable
 {
@@ -485,7 +502,7 @@ DEFINE_REFCOUNTED_TYPE(TFetchChunkSpecConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMultiChunkReaderConfig
-    : public virtual TReplicationReaderConfig
+    : public virtual TErasureReaderConfig
     , public virtual TBlockFetcherConfig
     , public virtual TFetchChunkSpecConfig
 {

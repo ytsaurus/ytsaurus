@@ -369,11 +369,11 @@ public:
 DECLARE_REFCOUNTED_TYPE(TPartBlockSaver)
 DEFINE_REFCOUNTED_TYPE(TPartBlockSaver)
 
-class TRepairingReaderSession
+class TRepairingErasureReaderSession
     : public TRefCounted
 {
 public:
-    TRepairingReaderSession(
+    TRepairingErasureReaderSession(
         ICodec* codec,
         const TPartIndexList& erasedIndices,
         const std::vector<IChunkReaderPtr>& readers,
@@ -458,11 +458,11 @@ public:
 
     TFuture<std::vector<TBlock>> Run()
     {
-        return BIND(&TRepairingReaderSession::RepairBlocks, MakeStrong(this))
+        return BIND(&TRepairingErasureReaderSession::RepairBlocks, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run()
-            .Apply(BIND(&TRepairingReaderSession::ReadRemainingBlocks, MakeStrong(this)))
-            .Apply(BIND(&TRepairingReaderSession::BuildResult, MakeStrong(this)));
+            .Apply(BIND(&TRepairingErasureReaderSession::ReadRemainingBlocks, MakeStrong(this)))
+            .Apply(BIND(&TRepairingErasureReaderSession::BuildResult, MakeStrong(this)));
     }
 
 private:
@@ -551,7 +551,7 @@ public:
     {
         return PreparePlacementMeta(workloadDescriptor).Apply(
             BIND([=, this_ = MakeStrong(this)] () {
-                auto session = New<TRepairingReaderSession>(
+                auto session = New<TRepairingErasureReaderSession>(
                     Codec_,
                     ErasedIndices_,
                     Readers_,

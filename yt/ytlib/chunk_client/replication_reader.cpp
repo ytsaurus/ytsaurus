@@ -132,6 +132,7 @@ public:
             TWorkloadDescriptor(EWorkloadCategory::UserBatch).GetPriority()))
         , InitialSeedReplicas_(seedReplicas)
         , SeedsTimestamp_(TInstant::Zero())
+        , IsFailed_(false)
     {
         Logger.AddTag("ChunkId: %v", ChunkId_);
     }
@@ -177,6 +178,16 @@ public:
         return ChunkId_;
     }
 
+    virtual bool IsValid() const override
+    {
+        return !IsFailed_;
+    }
+
+    void SetFailed()
+    {
+        IsFailed_ = true;
+    }
+
 private:
     class TSessionBase;
     class TReadBlockSetSession;
@@ -207,6 +218,8 @@ private:
     yhash_set<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
     yhash<TString, int> PeerBanCountMap_;
+
+    std::atomic<bool> IsFailed_;
 
     TFuture<TChunkReplicaList> AsyncGetSeeds()
     {
@@ -1236,6 +1249,7 @@ private:
         if (!reader)
             return;
 
+        reader->SetFailed();
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
@@ -1442,6 +1456,7 @@ private:
         if (!reader)
             return;
 
+        reader->SetFailed();
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
@@ -1594,6 +1609,7 @@ private:
         if (!reader)
             return;
 
+        reader->SetFailed();
         auto error = BuildCombinedError(TError(
             "Error fetching meta for chunk %v",
             reader->ChunkId_));

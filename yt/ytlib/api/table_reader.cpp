@@ -232,6 +232,9 @@ void TSchemalessTableReader::DoOpen()
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                if (Config_->EnableAutoRepair) {
+                    req->set_fetch_parity_replicas(true);
+                }
                 SetTransactionId(req, Transaction_);
                 SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
             },
