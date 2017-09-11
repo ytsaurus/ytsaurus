@@ -944,7 +944,7 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
             maxIntermediateChunkCount = std::numeric_limits<int>::max();
             chunkCountPerMergeJob = 500;
             break;
-        case EAutoMergeMode::Economic:
+        case EAutoMergeMode::Economy:
             maxIntermediateChunkCount = std::max(500, static_cast<int>(2.5 * sqrt(outputChunkCountEstimate)));
             chunkCountPerMergeJob = maxIntermediateChunkCount / 10;
             break;
@@ -5135,7 +5135,7 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
         .Item("debug_output_transaction_id").Value(DebugOutputTransaction ? DebugOutputTransaction->GetId() : NullTransactionId)
         .Item("user_transaction_id").Value(UserTransactionId)
-        .DoIf(static_cast<bool>(AutoMergeDirector_), [=] (TFluentMap fluent) {
+        .DoIf(static_cast<bool>(AutoMergeDirector_), [&] (TFluentMap fluent) {
             fluent
                 .Item("auto_merge").BeginMap()
                     .Item("max_intermediate_chunk_count").Value(AutoMergeDirector_->GetMaxIntermediateChunkCount())

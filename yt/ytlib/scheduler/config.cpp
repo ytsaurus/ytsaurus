@@ -64,11 +64,11 @@ TAutoMergeConfig::TAutoMergeConfig()
         if (Mode == EAutoMergeMode::Manual) {
             if (!MaxIntermediateChunkCount || !ChunkCountPerMergeJob) {
                 THROW_ERROR_EXCEPTION(
-                    "Maximum intermediate chunk count and chunk count per merge job"
+                    "Maximum intermediate chunk count and chunk count per merge job "
                     "should both be present when using relaxed mode of auto merge");
             }
             if (*MaxIntermediateChunkCount < *ChunkCountPerMergeJob) {
-                THROW_ERROR_EXCEPTION("Maximum intermediate chunk count can't be less than chunk count per merge job")
+                THROW_ERROR_EXCEPTION("Maximum intermediate chunk count cannot be less than chunk count per merge job")
                     << TErrorAttribute("max_intermediate_chunk_count", *MaxIntermediateChunkCount)
                     << TErrorAttribute("chunk_count_per_merge_job", *ChunkCountPerMergeJob);
             }
