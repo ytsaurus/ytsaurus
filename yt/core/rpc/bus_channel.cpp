@@ -854,18 +854,25 @@ class TBusChannelFactory
     : public IChannelFactory
 {
 public:
+    explicit TBusChannelFactory(TTcpBusConfigPtr config)
+        : Config_(ConvertToNode(std::move(config)))
+    { }
+
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto config = TTcpBusClientConfig::CreateTcp(address);
-        auto client = CreateTcpBusClient(config);
-        return CreateBusChannel(client);
+        config->Load(Config_, true, false);
+        auto client = CreateTcpBusClient(std::move(config));
+        return CreateBusChannel(std::move(client));
     }
 
+private:
+    const INodePtr Config_;
 };
 
-IChannelFactoryPtr GetBusChannelFactory()
+IChannelFactoryPtr CreateBusChannelFactory(TTcpBusConfigPtr config)
 {
-    return RefCountedSingleton<TBusChannelFactory>();
+    return New<TBusChannelFactory>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

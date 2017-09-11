@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/bus/config.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -26,6 +28,9 @@ public:
     //! Port to show in endpoints.
     ui16 EndpointPort;
 
+    // Bus config.
+    NBus::TTcpBusConfigPtr BusClient;
+
     TTraceManagerConfig()
     {
         RegisterParameter("address", Address)
@@ -36,6 +41,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("endpoint_port", EndpointPort)
             .Default(0);
+        RegisterParameter("bus_client", BusClient)
+            .DefaultNew();
     }
 };
 

@@ -13,6 +13,8 @@
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/ring_queue.h>
 
+#include <yt/core/net/public.h>
+
 #include <yt/core/concurrency/poller.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 
@@ -49,7 +51,6 @@ public:
         const NYTree::IAttributeDictionary& endpointAttributes,
         const TNullable<TString>& address,
         const TNullable<TString>& unixDomainName,
-        int priority,
         IMessageHandlerPtr handler,
         NConcurrency::IPollerPtr poller);
 
@@ -138,7 +139,6 @@ private:
     const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
     const TNullable<TString> Address_;
     const TNullable<TString> UnixDomainName_;
-    const int Priority_;
     const IMessageHandlerPtr Handler_;
     const NConcurrency::IPollerPtr Poller_;
 
@@ -164,6 +164,8 @@ private:
 
     bool Unregistered_ = false;
     TError CloseError_;
+
+    NNet::IAsyncDialerSessionPtr DialerSession_;
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
@@ -202,16 +204,17 @@ private:
     int GetSocketPort();
 
     void ConnectSocket(const TNetworkAddress& address);
+    void OnDialerFinished(SOCKET socket, TError error);
     void CloseSocket();
 
     void OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& result);
-    void OnAddressResolved(const TNetworkAddress& address, ETcpInterfaceType interfaceType, NConcurrency::TWriterGuard& guard);
+    void OnAddressResolved(const TNetworkAddress& address, ETcpInterfaceType interfaceType);
     void SetupInterfaceType(ETcpInterfaceType interfaceType);
 
     int GetSocketError() const;
     bool IsSocketError(ssize_t result);
 
-    void OnSocketConnected();
+    void OnSocketConnected(int socket);
 
     void OnSocketRead();
     bool HasUnreadData() const;

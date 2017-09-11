@@ -33,6 +33,7 @@ TRpcProxyConnection::TRpcProxyConnection(
     NConcurrency::TActionQueuePtr actionQueue)
     : Config_(std::move(config))
     , ActionQueue_(std::move(actionQueue))
+    , ChannelFactory_(CreateBusChannelFactory(Config_->BusClient))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddTag("ConnectionId: %v", TGuid::Create()))
 { }
@@ -135,7 +136,7 @@ void TRpcProxyConnection::Terminate()
 NRpc::IChannelPtr TRpcProxyConnection::GetRandomPeerChannel()
 {
     const auto& address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
-    return GetBusChannelFactory()->CreateChannel(address);
+    return ChannelFactory_->CreateChannel(address);
 }
 
 void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)

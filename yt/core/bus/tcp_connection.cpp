@@ -8,6 +8,8 @@
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/socket.h>
 
+#include <yt/core/net/dialer.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/profiling/timing.h>
@@ -20,15 +22,17 @@
 #include <yt/core/profiling/timing.h>
 
 #include <util/system/error.h>
+#include <util/system/guard.h>
 
 #include <cerrno>
 
 namespace NYT {
 namespace NBus {
 
+using namespace NConcurrency;
+using namespace NNet;
 using namespace NYTree;
 using namespace NYson;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +44,9 @@ static constexpr size_t MaxFragmentsPerWrite = 256;
 static constexpr size_t MaxBatchWriteSize    = 64 * 1024;
 static constexpr size_t MaxWriteCoalesceSize = 4 * 1024;
 static constexpr auto WriteTimeWarningThreshold = TDuration::MilliSeconds(100);
+
+static constexpr auto MinRto = TDuration::MilliSeconds(100);
+static constexpr auto MaxRto = TDuration::Seconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +65,6 @@ TTcpConnection::TTcpConnection(
     const IAttributeDictionary& endpointAttributes,
     const TNullable<TString>& address,
     const TNullable<TString>& unixDomainName,
-    int priority,
     IMessageHandlerPtr handler,
     IPollerPtr poller)
     : Config_(std::move(config))
@@ -68,7 +74,6 @@ TTcpConnection::TTcpConnection(
     , EndpointAttributes_(endpointAttributes.Clone())
     , Address_(address)
     , UnixDomainName_(unixDomainName)
-    , Priority_(priority)
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
     , Logger(NLogging::TLogger(BusLogger)
@@ -233,11 +238,9 @@ void TTcpConnection::ResolveAddress()
             return;
         }
 
-        TWriterGuard guard(ControlSpinLock_);
         OnAddressResolved(
             TNetworkAddress::CreateUnixDomainAddress(*UnixDomainName_),
-            ETcpInterfaceType::Local,
-            guard);
+            ETcpInterfaceType::Local);
     } else {
         TStringBuf hostName;
         try {
@@ -271,30 +274,16 @@ void TTcpConnection::OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& r
         interfaceType = ETcpInterfaceType::Local;
     }
 
-    {
-        TWriterGuard guard(ControlSpinLock_);
-        OnAddressResolved(address, interfaceType, guard);
-    }
+    OnAddressResolved(address, interfaceType);
 }
 
 void TTcpConnection::OnAddressResolved(
     const TNetworkAddress& address,
-    ETcpInterfaceType interfaceType,
-    NConcurrency::TWriterGuard& guard)
+    ETcpInterfaceType interfaceType)
 {
-    try {
-        ConnectSocket(address);
-    } catch (const std::exception& ex) {
-        guard.Release();
-        Abort(TError(ex).SetCode(NRpc::EErrorCode::TransportError));
-        return;
-    }
-
     State_ = EState::Opening;
-
     SetupInterfaceType(interfaceType);
-
-    DoArmPoller();
+    ConnectSocket(address);
 }
 
 void TTcpConnection::SetupInterfaceType(ETcpInterfaceType interfaceType)
@@ -310,8 +299,6 @@ void TTcpConnection::SetupInterfaceType(ETcpInterfaceType interfaceType)
     if (interfaceType == ETcpInterfaceType::Local) {
         GenerateChecksums_ = false;
     }
-
-    UpdateConnectionCount(true);
 }
 
 void TTcpConnection::Abort(const TError& error)
@@ -372,25 +359,24 @@ void TTcpConnection::CloseSocket()
 
 void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
 {
-    int family = address.GetSockAddr()->sa_family;
+    auto dialer = CreateAsyncDialer(
+        Config_,
+        Poller_,
+        Logger);
+    DialerSession_ = dialer->CreateSession(
+        address,
+        BIND(&TTcpConnection::OnDialerFinished, MakeWeak(this)));
+    DialerSession_->Dial();
+}
 
-    YCHECK(Socket_ == INVALID_SOCKET);
-    if (address.GetSockAddr()->sa_family == AF_UNIX) {
-        Socket_ = CreateUnixClientSocket();
+void TTcpConnection::OnDialerFinished(SOCKET socket, TError error)
+{
+    if (socket != INVALID_SOCKET) {
+        OnSocketConnected(socket);
     } else {
-        Socket_ = CreateTcpClientSocket(family);
+        Abort(std::move(error));
     }
-
-    if (Config_->EnableNoDelay && family != AF_UNIX) {
-        if (Config_->EnableNoDelay) {
-            SetSocketNoDelay(Socket_);
-        }
-
-        SetSocketPriority(Socket_, Priority_);
-        SetSocketKeepAlive(Socket_);
-    }
-
-    ::NYT::ConnectSocket(Socket_, address);
+    DialerSession_.Reset();
 }
 
 const TString& TTcpConnection::GetEndpointDescription() const
@@ -473,16 +459,17 @@ void TTcpConnection::OnEvent(EPollControl control)
             return;
         }
 
-        LOG_TRACE("Event processing started");
-
         // For client sockets the first write notification means that
-        // connection was established (either successfully or not).
+        // connection was established.
+        // This is handled here to avoid race between arming in Send() and OnSocketConnected(). 
         if (Any(control & EPollControl::Write) &&
             ConnectionType_ == EConnectionType::Client &&
             State_ == EState::Opening)
         {
-            OnSocketConnected();
+            Open();
         }
+
+        LOG_TRACE("Event processing started");
 
         ProcessQueuedMessages();
 
@@ -515,9 +502,11 @@ void TTcpConnection::OnShutdown()
     Terminated_.Fire(CloseError_);
 }
 
-void TTcpConnection::OnSocketConnected()
+void TTcpConnection::OnSocketConnected(int socket)
 {
     Y_ASSERT(State_ == EState::Opening);
+
+    Socket_ = socket;
 
     // Check if connection was established successfully.
     int error = GetSocketError();
@@ -530,7 +519,12 @@ void TTcpConnection::OnSocketConnected()
         return;
     }
 
-    Open();
+    UpdateConnectionCount(true);
+
+    {
+        NConcurrency::TReaderGuard guard(ControlSpinLock_);
+        DoArmPoller();
+    }
 }
 
 void TTcpConnection::OnSocketRead()

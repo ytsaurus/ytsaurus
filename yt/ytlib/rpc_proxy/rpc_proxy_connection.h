@@ -47,6 +47,7 @@ public:
 private:
     const TRpcProxyConnectionConfigPtr Config_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
 
     const NLogging::TLogger Logger;
 

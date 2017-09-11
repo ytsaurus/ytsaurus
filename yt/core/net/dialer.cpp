@@ -1,10 +1,13 @@
 #include "dialer.h"
 #include "connection.h"
+#include "config.h"
 
 #include <yt/core/concurrency/poller.h>
 
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/socket.h>
+
+#include <util/random/random.h>
 
 namespace NYT {
 namespace NNet {
@@ -155,6 +158,267 @@ DEFINE_REFCOUNTED_TYPE(TDialer);
 IDialerPtr CreateDialer(const IPollerPtr& poller)
 {
     return New<TDialer>(poller);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAsyncDialerSession
+    : public IAsyncDialerSession
+{
+public:
+    TAsyncDialerSession(
+        TDialerConfigPtr config,
+        IPollerPtr poller,
+        const NLogging::TLogger& logger,
+        const TNetworkAddress& address,
+        TAsyncDialerCallback onFinished)
+        : Config_(std::move(config))
+        , Poller_(std::move(poller))
+        , Address_(address)
+        , OnFinished_(std::move(onFinished))
+        , Id_(TGuid::Create())
+        , Logger(NLogging::TLogger(logger)
+            .AddTag("TAsyncDialerSession: %v", Id_))
+        , Timeout_(Config_->MinRto * GetRandomVariation())
+    { }
+
+    ~TAsyncDialerSession()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        Finished_ = true;
+        CloseSocket();
+    }
+
+    virtual void Dial() override
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        YCHECK(!Dialed_);
+        Dialed_ = true;
+
+        Connect();
+        if (Finished_) {
+            guard.Release();
+            Finish();
+        }
+    }
+
+private:
+    class TPollable
+        : public NConcurrency::IPollable
+    {
+    public:
+        TPollable(TAsyncDialerSession* owner, const TGuid& id, int socket)
+            : Owner_(MakeWeak(owner))
+            , LoggingId_(Format("TAsyncDialerSession:%v:%v", id, socket))
+        { }
+
+        virtual const TString& GetLoggingId() const override
+        {
+            return LoggingId_;
+        }
+
+        virtual void OnEvent(EPollControl control) override
+        {
+            if (auto owner = Owner_.Lock()) {
+                owner->OnConnected(this);
+            }
+        }
+
+        virtual void OnShutdown() override
+        { }
+
+    private:
+        const TWeakPtr<TAsyncDialerSession> Owner_;
+        const TString LoggingId_;
+    };
+
+    const TDialerConfigPtr Config_;
+    const IPollerPtr Poller_;
+    const TNetworkAddress Address_;
+    const TAsyncDialerCallback OnFinished_;
+    const TGuid Id_;
+    const NLogging::TLogger Logger;
+
+    SOCKET Socket_ = INVALID_SOCKET;
+    bool Dialed_ = false;
+    TError Error_;
+    std::atomic<bool> Finished_{false};
+    TSpinLock SpinLock_;
+    TDuration Timeout_;
+    NConcurrency::TDelayedExecutorCookie TimeoutCookie_;
+    TIntrusivePtr<TPollable> Pollable_;
+
+    void CloseSocket()
+    {
+        if (Socket_ != INVALID_SOCKET) {
+            close(Socket_);
+            Socket_ = INVALID_SOCKET;
+        }
+    }
+
+    void RegisterPollable()
+    {
+        Pollable_ = New<TPollable>(this, Id_, Socket_);
+        Poller_->Register(Pollable_);
+        Poller_->Arm(Socket_, Pollable_, EPollControl::Read|EPollControl::Write);
+    }
+
+    void UnregisterPollable()
+    {
+        Poller_->Unarm(Socket_);
+        Poller_->Unregister(Pollable_);
+        Pollable_.Reset();
+    }
+
+    void Connect()
+    {
+        try {
+            int family = Address_.GetSockAddr()->sa_family;
+
+            YCHECK(Socket_ == INVALID_SOCKET);
+            if (Address_.GetSockAddr()->sa_family == AF_UNIX) {
+                Socket_ = CreateUnixClientSocket();
+            } else {
+                Socket_ = CreateTcpClientSocket(family);
+            }
+
+            if (Config_->EnableNoDelay && family != AF_UNIX) {
+                if (Config_->EnableNoDelay) {
+                    SetSocketNoDelay(Socket_);
+                }
+
+                SetSocketPriority(Socket_, Config_->Priority);
+                SetSocketKeepAlive(Socket_);
+            }
+
+            if (::NYT::ConnectSocket(Socket_, Address_) == 0) {
+                Finished_ = true;
+                return;
+            }
+
+            if (Config_->EnableAggressiveReconnect) {
+               TimeoutCookie_ = NConcurrency::TDelayedExecutor::Submit(
+                        BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
+                        Timeout_);
+            }
+
+            RegisterPollable();
+        } catch (const std::exception& ex) {
+            Error_ = TError(ex);
+            CloseSocket();
+            Finished_ = true;
+        }
+    }
+
+    void Finish()
+    {
+        Y_ASSERT(Finished_);
+        if (Socket_ == INVALID_SOCKET) {
+            OnFinished_(INVALID_SOCKET, Error_);
+        } else {
+            auto socket = Socket_;
+            Socket_ = INVALID_SOCKET;
+            OnFinished_(socket, TError());
+        }
+    }
+
+    void OnConnected(TIntrusivePtr<TPollable> pollable)
+    {
+        if (Finished_.load(std::memory_order_relaxed)) {
+            return;
+        }
+
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (Finished_ || pollable != Pollable_) {
+            return;
+        }
+
+        NConcurrency::TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+        UnregisterPollable();
+        Finished_ = true;
+        Finish();
+    }
+
+    void OnTimeout()
+    {
+        if (Finished_.load(std::memory_order_relaxed)) {
+            return;
+        }
+
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (Finished_) {
+            return;
+        }
+
+        UnregisterPollable();
+        CloseSocket();
+
+        if (Timeout_ < Config_->MaxRto) {
+            Timeout_ *= Config_->RtoScale * GetRandomVariation();
+        }
+
+        LOG_DEBUG("Connect timeout, trying to reconnect (Timeout: %v)", Timeout_);
+
+        Connect();
+        if (Finished_) {
+            guard.Release();
+            Finish();
+        }
+    }
+
+    static float GetRandomVariation()
+    {
+        return (0.9 + RandomNumber<float>() / 5);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAsyncDialer
+    : public IAsyncDialer
+{
+public:
+    TAsyncDialer(
+        TDialerConfigPtr config,
+        IPollerPtr poller,
+        const NLogging::TLogger& logger)
+        : Config_(std::move(config))
+        , Poller_(std::move(poller))
+        , Logger(logger)
+    { }
+
+    virtual IAsyncDialerSessionPtr CreateSession(
+        const TNetworkAddress& address,
+        TAsyncDialerCallback onFinished) override
+    {
+        return New<TAsyncDialerSession>(
+            Config_,
+            Poller_,
+            Logger,
+            address,
+            std::move(onFinished));
+    }
+
+private:
+    const TDialerConfigPtr Config_;
+    const IPollerPtr Poller_;
+    const NLogging::TLogger Logger;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IAsyncDialerPtr CreateAsyncDialer(
+    TDialerConfigPtr config,
+    IPollerPtr poller,
+    const NLogging::TLogger& logger)
+{
+    return New<TAsyncDialer>(
+        std::move(config),
+        std::move(poller),
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
