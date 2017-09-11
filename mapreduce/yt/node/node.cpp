@@ -338,24 +338,39 @@ TNode& TNode::operator[](size_t index)
     return Value_.As<TList>()[index];
 }
 
-TNode& TNode::Add()
+TNode& TNode::Add() &
 {
     AssureList();
     return Value_.As<TList>().emplace_back();
 }
 
-TNode& TNode::Add(const TNode& node)
+TNode TNode::Add() &&
+{
+    return std::move(Add());
+}
+
+TNode& TNode::Add(const TNode& node) &
 {
     AssureList();
     Value_.As<TList>().emplace_back(node);
     return *this;
 }
 
-TNode& TNode::Add(TNode&& node)
+TNode TNode::Add(const TNode& node) &&
+{
+    return std::move(Add(node));
+}
+
+TNode& TNode::Add(TNode&& node) &
 {
     AssureList();
     Value_.As<TList>().emplace_back(std::move(node));
     return *this;
+}
+
+TNode TNode::Add(TNode&& node) &&
+{
+    return std::move(Add(std::move(node)));
 }
 
 bool TNode::HasKey(const TStringBuf key) const
@@ -364,18 +379,28 @@ bool TNode::HasKey(const TStringBuf key) const
     return Value_.As<TMap>().has(key);
 }
 
-TNode& TNode::operator()(const TString& key, const TNode& value)
+TNode& TNode::operator()(const TString& key, const TNode& value) &
 {
     AssureMap();
     Value_.As<TMap>()[key] = value;
     return *this;
 }
 
-TNode& TNode::operator()(const TString& key, TNode&& value)
+TNode TNode::operator()(const TString& key, const TNode& value) &&
+{
+    return std::move(operator()(key, value));
+}
+
+TNode& TNode::operator()(const TString& key, TNode&& value) &
 {
     AssureMap();
     Value_.As<TMap>()[key] = std::move(value);
     return *this;
+}
+
+TNode TNode::operator()(const TString& key, TNode&& value) &&
+{
+    return std::move(operator()(key, std::move(value)));
 }
 
 const TNode& TNode::operator[](const TStringBuf key) const
