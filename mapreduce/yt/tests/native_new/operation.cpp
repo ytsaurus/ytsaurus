@@ -2,6 +2,7 @@
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/library/operation_tracker/operation_tracker.h>
 
 #include <library/unittest/registar.h>
 
@@ -51,7 +52,8 @@ public:
 };
 REGISTER_REDUCER(TIdReducer);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 
 class TAlwaysFailingMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
@@ -64,7 +66,8 @@ public:
 };
 REGISTER_MAPPER(TAlwaysFailingMapper);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 
 class TMapperThatWritesStderr : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
@@ -77,7 +80,8 @@ public:
 };
 REGISTER_MAPPER(TMapperThatWritesStderr);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 
 class TMapperThatWritesToIncorrectTable : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
@@ -115,7 +119,7 @@ private:
 };
 REGISTER_MAPPER(TMapperThatChecksFile);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSleepingMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
@@ -138,7 +142,7 @@ private:
 };
 REGISTER_MAPPER(TSleepingMapper);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 SIMPLE_UNIT_TEST_SUITE(Operations)
 {
@@ -638,4 +642,178 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
     }
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+
+SIMPLE_UNIT_TEST_SUITE(OperationTracker)
+{
+    void CreateTableWithFooColumn(IClientPtr client, const TString& path)
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        writer->AddRow(TNode()("foo", "baz"));
+        writer->AddRow(TNode()("foo", "bar"));
+        writer->Finish();
+    }
+
+    IOperationPtr AsyncSortByFoo(IClientPtr client, const TString& input, const TString& output)
+    {
+        return client->Sort(
+            TSortOperationSpec().SortBy({"foo"})
+            .AddInput(input)
+            .Output(output),
+            TOperationOptions().Wait(false));
+    }
+
+    IOperationPtr AsyncAlwaysFailingMapper(IClientPtr client, const TString& input, const TString& output)
+    {
+        return client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(input)
+                .AddOutput<TNode>(output)
+                .MaxFailedJobCount(1),
+            new TAlwaysFailingMapper,
+            TOperationOptions().Wait(false));
+    }
+
+    SIMPLE_UNIT_TEST(WaitAllCompleted_OkOperations)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TOperationTracker tracker;
+
+        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        auto op2 = AsyncSortByFoo(client, "//testing/input", "//testing/output2");
+        tracker.AddOperation(op2);
+
+        tracker.WaitAllCompleted();
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), EOperationStatus::OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), EOperationStatus::OS_COMPLETED);
+    }
+
+    SIMPLE_UNIT_TEST(WaitAllCompleted_ErrorOperations)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TOperationTracker tracker;
+
+        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        auto op2 = AsyncAlwaysFailingMapper(client, "//testing/input", "//testing/output2");
+        tracker.AddOperation(op2);
+
+        UNIT_ASSERT_EXCEPTION(tracker.WaitAllCompleted(), TOperationFailedError);
+    }
+
+    SIMPLE_UNIT_TEST(WaitAllCompletedOrError_OkOperations)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TOperationTracker tracker;
+
+        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        auto op2 = AsyncSortByFoo(client, "//testing/input", "//testing/output2");
+        tracker.AddOperation(op2);
+
+        tracker.WaitAllCompletedOrError();
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), EOperationStatus::OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), EOperationStatus::OS_COMPLETED);
+    }
+
+    SIMPLE_UNIT_TEST(WaitAllCompletedOrError_ErrorOperations)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TOperationTracker tracker;
+
+        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        auto op2 = AsyncAlwaysFailingMapper(client, "//testing/input", "//testing/output2");
+        tracker.AddOperation(op2);
+
+        tracker.WaitAllCompletedOrError();
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), EOperationStatus::OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), EOperationStatus::OS_FAILED);
+    }
+
+    SIMPLE_UNIT_TEST(WaitOneCompleted_OkOperation)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TOperationTracker tracker;
+
+        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        tracker.AddOperation(op1);
+        auto op2 = AsyncSortByFoo(client, "//testing/input", "//testing/output2");
+        tracker.AddOperation(op2);
+
+        auto waited1 = tracker.WaitOneCompleted();
+        UNIT_ASSERT(waited1);
+        UNIT_ASSERT_VALUES_EQUAL(waited1->GetStatus(), OS_COMPLETED);
+
+        auto waited2 = tracker.WaitOneCompleted();
+        UNIT_ASSERT(waited2);
+        UNIT_ASSERT_VALUES_EQUAL(waited2->GetStatus(), OS_COMPLETED);
+
+        auto waited3 = tracker.WaitOneCompleted();
+        UNIT_ASSERT(!waited3);
+        UNIT_ASSERT_VALUES_EQUAL(yset<IOperation*>({op1.Get(), op2.Get()}), yset<IOperation*>({waited1.Get(), waited2.Get()}));
+    }
+
+    SIMPLE_UNIT_TEST(WaitOneCompleted_ErrorOperation)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TOperationTracker tracker;
+
+        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        tracker.AddOperation(op1);
+        auto op2 = AsyncAlwaysFailingMapper(client, "//testing/input", "//testing/output2");
+        tracker.AddOperation(op2);
+
+        auto waitByOne = [&] {
+            auto waited1 = tracker.WaitOneCompleted();
+            auto waited2 = tracker.WaitOneCompleted();
+        };
+
+        UNIT_ASSERT_EXCEPTION(waitByOne(), TOperationFailedError);
+    }
+
+    SIMPLE_UNIT_TEST(WaitOneCompletedOrError_ErrorOperation)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TOperationTracker tracker;
+
+        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        tracker.AddOperation(op1);
+        auto op2 = AsyncAlwaysFailingMapper(client, "//testing/input", "//testing/output2");
+        tracker.AddOperation(op2);
+
+        auto waited1 = tracker.WaitOneCompletedOrError();
+        UNIT_ASSERT(waited1);
+
+        auto waited2 = tracker.WaitOneCompletedOrError();
+        UNIT_ASSERT(waited2);
+
+        auto waited3 = tracker.WaitOneCompletedOrError();
+        UNIT_ASSERT(!waited3);
+
+        UNIT_ASSERT_VALUES_EQUAL(yset<IOperation*>({op1.Get(), op2.Get()}), yset<IOperation*>({waited1.Get(), waited2.Get()}));
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), OS_FAILED);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
