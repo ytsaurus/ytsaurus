@@ -21,6 +21,7 @@ namespace NYT {
 namespace NTracing {
 
 using namespace NConcurrency;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +63,7 @@ public:
 
         if (Config_->Address) {
             Endpoint_ = GetLocalEndpoint();
-            Channel_ = NRpc::GetBusChannelFactory()->CreateChannel(*Config_->Address);
+            Channel_ = CreateBusChannelFactory(Config_->BusClient)->CreateChannel(*Config_->Address);
 
             SendExecutor_ = New<TPeriodicExecutor>(
                 InvokerQueue_,
@@ -154,7 +155,7 @@ private:
 
     TTraceManagerConfigPtr Config_;
     NProto::TEndpoint Endpoint_;
-    NRpc::IChannelPtr Channel_;
+    IChannelPtr Channel_;
 
     std::vector<NProto::TTraceEvent> CurrentBatch_;
     TPeriodicExecutorPtr SendExecutor_;

@@ -124,6 +124,9 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .GreaterThan(0)
         .Default(1000);
 
+    RegisterParameter("bus_client", BusClient)
+        .DefaultNew();
+
     RegisterInitializer([&] () {
         FunctionImplCache->Capacity = 100;
     });

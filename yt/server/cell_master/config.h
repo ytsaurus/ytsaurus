@@ -32,6 +32,8 @@
 
 #include <yt/ytlib/transaction_client/config.h>
 
+#include <yt/core/bus/config.h>
+
 #include <yt/core/rpc/config.h>
 
 namespace NYT {
@@ -154,6 +156,8 @@ public:
 
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;
+
+    NBus::TTcpBusConfigPtr BusClient;
 
     TCellMasterConfig();
 };

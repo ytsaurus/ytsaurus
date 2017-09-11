@@ -231,7 +231,6 @@ protected:
                 *endpointAttributes,
                 address,
                 Null,
-                0,
                 Handler_,
                 TTcpDispatcher::TImpl::Get()->GetXferPoller());
 

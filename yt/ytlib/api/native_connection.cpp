@@ -70,6 +70,7 @@ public:
             .AddTag("PrimaryCellTag: %v, ConnectionId: %",
                 CellTagFromId(Config_->PrimaryMaster->CellId),
                 TGuid::Create()))
+        , ChannelFactory_(CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)))
     { }
 
     void Initialize()
@@ -366,7 +367,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    const NRpc::IChannelFactoryPtr ChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
 
     TCellId PrimaryMasterCellId_;
     TCellTag PrimaryMasterCellTag_;

@@ -56,6 +56,8 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("enable_provision_lock", EnableProvisionLock)
         .Default(true);
+    RegisterParameter("bus_client", BusClient)
+        .DefaultNew();
 
     RegisterValidator([&] () {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {

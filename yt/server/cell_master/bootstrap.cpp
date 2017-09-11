@@ -417,7 +417,7 @@ void TBootstrap::DoInitialize()
             localPeerId);
     }
 
-    auto channelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
+    auto channelFactory = CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient));
 
     const auto& networks = Config_->Networks;
 
