@@ -663,9 +663,9 @@ struct TCastEliminator
 };
 
 struct TExpressionSimplifier
-    : TCastEliminator
+    : TRewriter<TExpressionSimplifier>
 {
-    using TBase = TCastEliminator;
+    using TBase = TRewriter<TExpressionSimplifier>;
 
     TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
     {
@@ -1443,9 +1443,13 @@ struct TTypedExpressionBuilder
     {
         auto expressionTyper = BuildUntypedExpression(expr, schema);
         YCHECK(!expressionTyper.FeasibleTypes.IsEmpty());
-        return TCastEliminator().Visit(
-            TNotExpressionPropagator().Visit(
-                expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront())));
+
+        auto result = expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront());
+
+        result = TCastEliminator().Visit(result);
+        result = TExpressionSimplifier().Visit(result);
+        result = TNotExpressionPropagator().Visit(result);
+        return result;
     }
 
 };
@@ -1736,9 +1740,11 @@ public:
                 effectiveStateType = argType;
             }
 
-            auto typedOperand = TCastEliminator().Visit(
-                TNotExpressionPropagator().Visit(
-                    untypedOperand.Generator(argType)));
+            auto typedOperand = untypedOperand.Generator(argType);
+
+            typedOperand = TCastEliminator().Visit(typedOperand);
+            typedOperand = TExpressionSimplifier().Visit(typedOperand);
+            typedOperand = TNotExpressionPropagator().Visit(typedOperand);
 
             CheckExpressionDepth(typedOperand);
 
