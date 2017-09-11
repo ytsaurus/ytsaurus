@@ -285,6 +285,9 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
 
 void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
 {
+    if (value.Id >= Schema_.Columns().size()) {
+        return;
+    }
     auto valueCopy = value;
     const auto& columnSchema = Schema_.Columns()[valueCopy.Id];
     if (columnSchema.Aggregate) {
