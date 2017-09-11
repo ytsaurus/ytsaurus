@@ -140,7 +140,7 @@ NRpc::IChannelPtr TRpcProxyConnection::GetRandomPeerChannel()
 void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)
 {
     auto guard = Guard(SpinLock_);
-    YCHECK(Transactions_.insert(MakeWeak(transaction)).second);
+    YCHECK(Transactions_.insert(transaction).second);
 
     if (!PingExecutor_) {
         PingExecutor_ = New<TPeriodicExecutor>(
@@ -154,7 +154,7 @@ void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)
 void TRpcProxyConnection::UnregisterTransaction(TRpcProxyTransaction* transaction)
 {
     auto guard = Guard(SpinLock_);
-    Transactions_.erase(MakeWeak(transaction));
+    Transactions_.erase(transaction);
 
     if (Transactions_.empty() && PingExecutor_) {
         PingExecutor_->Stop();
@@ -169,10 +169,10 @@ void TRpcProxyConnection::OnPing()
     {
         auto guard = Guard(SpinLock_);
         activeTransactions.reserve(Transactions_.size());
-        for (const auto& transaction : Transactions_) {
-            auto activeTransaction = transaction.Lock();
-            if (activeTransaction) {
-                activeTransactions.push_back(std::move(activeTransaction));
+        for (auto* rawTransaction : Transactions_) {
+            auto transaction = TRpcProxyTransaction::DangerousGetPtr(rawTransaction);
+            if (transaction) {
+                activeTransactions.push_back(std::move(transaction));
             }
         }
     }
@@ -183,21 +183,22 @@ void TRpcProxyConnection::OnPing()
         pingResults.push_back(activeTransaction->Ping());
     }
 
-    CombineAll(pingResults).Subscribe(BIND(&TRpcProxyConnection::OnPingCompleted, MakeWeak(this)));
+    CombineAll(pingResults)
+        .Subscribe(BIND(&TRpcProxyConnection::OnPingCompleted, MakeWeak(this)));
 }
 
 void TRpcProxyConnection::OnPingCompleted(const TErrorOr<std::vector<TError>>& pingResults)
 {
     if (pingResults.IsOK()) {
-        LOG_DEBUG("Pinged %v transactions", pingResults.Value().size());
+        LOG_DEBUG("Transactions pinged (Count: %v)",
+            pingResults.Value().size());
     }
 }
 
 IConnectionPtr CreateRpcProxyConnection(TRpcProxyConnectionConfigPtr config)
 {
     auto actionQueue = New<TActionQueue>("RpcConnect");
-    auto connection = New<TRpcProxyConnection>(std::move(config), std::move(actionQueue));
-    return connection;
+    return New<TRpcProxyConnection>(std::move(config), std::move(actionQueue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
