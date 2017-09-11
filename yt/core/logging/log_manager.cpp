@@ -269,7 +269,11 @@ public:
         event.Config = std::move(config);
         LoggerQueue_.Enqueue(event);
 
-        event.Promise.ToFuture().Get();
+        auto future = event.Promise.ToFuture();
+
+        DequeueExecutor_->ScheduleOutOfBand();
+
+        future.Get();
     }
 
     void ConfigureSimple(
