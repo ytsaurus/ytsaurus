@@ -4,6 +4,7 @@
 #include <yt/ytlib/chunk_client/erasure_reader.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/erasure_writer.h>
+#include <yt/ytlib/chunk_client/repairing_reader.h>
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/session_id.h>
@@ -27,7 +28,81 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using ::ToString;
 
+class TFailingFileReader
+    : public TFileReader
+{
+public:
+    TFailingFileReader(
+        const TChunkId& chunkId,
+        const TString& fileName,
+        int period = 5,
+        bool validateBlocksChecksums = true)
+        : TFileReader(chunkId, fileName, validateBlocksChecksums)
+        , IsFailed_(false)
+        , Period_(period)
+        , Counter_(0)
+    { }
+
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<int>& blockIndexes) override
+    {
+        if (TryFail()) {
+            return MakeFuture(MakeError());
+        }
+        return TFileReader::ReadBlocks(workloadDescriptor, blockIndexes);
+    }
+
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        int firstBlockIndex,
+        int blockCount) override
+    {
+        if (TryFail()) {
+            return MakeFuture(MakeError());
+        }
+        return TFileReader::ReadBlocks(workloadDescriptor, firstBlockIndex, blockCount);
+    }
+
+    virtual bool IsValid() const override
+    {
+        return !IsFailed_;
+    }
+
+private:
+    bool IsFailed_;
+    int Period_;
+    int Counter_;
+
+    bool TryFail()
+    {
+        ++Counter_;
+        IsFailed_ = IsFailed_ || Counter_ == Period_;
+        return IsFailed_;
+    }
+
+    TErrorOr<std::vector<TBlock>> MakeError()
+    {
+        return TError("Shit happens");
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TString> GetRandomData(std::mt19937& gen, int blocksCount, int blockSize)
+{
+    std::vector<TString> result;
+    result.reserve(blocksCount);
+    std::uniform_int_distribution<char> dist('a', 'z');
+    for (int i = 0; i < blocksCount; ++i) {
+        TString curData;
+        curData.resize(blockSize);
+        for (int i = 0; i < blockSize; ++i)
+            curData[i] = dist(gen);
+        result.push_back(std::move(curData));
+    }
+    return result;
+}
 
 TEST(TErasureCodingTest, RandomText)
 {
@@ -182,15 +257,31 @@ public:
         }
     }
 
-    static IChunkReaderPtr CreateErasureReader(ICodec* codec)
+    static std::vector<IChunkReaderPtr> GetFileReaders(int partCount)
     {
         std::vector<IChunkReaderPtr> readers;
-        for (int i = 0; i < codec->GetDataPartCount(); ++i) {
+        readers.reserve(partCount);
+        for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             auto reader = NYT::New<TFileReader>(NullChunkId, filename);
             readers.push_back(reader);
         }
-        return CreateNonRepairingErasureReader(codec, readers);
+        return readers;
+    }
+
+    static IChunkReaderPtr CreateErasureReader(ICodec* codec)
+    {
+        return CreateNonRepairingErasureReader(codec, GetFileReaders(codec->GetDataPartCount()));
+    }
+
+    static TErasureReaderConfigPtr CreateErasureConfig()
+    {
+        return New<TErasureReaderConfig>();
+    }
+
+    static IChunkReaderPtr CreateOkRepairingReader(ICodec *codec)
+    {
+        return NYT::NChunkClient::CreateRepairingReader(codec, CreateErasureConfig(), GetFileReaders(codec->GetTotalPartCount()));
     }
 
     static void CheckRepairReader(
@@ -239,7 +330,7 @@ public:
             EXPECT_TRUE(result.IsOK());
             auto resultRef = result.ValueOrThrow().front();
 
-            EXPECT_EQ(ToString(ref), ToString(resultRef.Data));
+            ASSERT_EQ(ToString(ref), ToString(resultRef.Data));
         }
     }
 
@@ -251,7 +342,34 @@ public:
             NFs::Remove((filename + ".meta").c_str());
         }
     }
+
+    static std::vector<IChunkReaderPtr> CreateFailingReaders(
+        ICodec* codec,
+        ECodec codecId,
+        const std::vector<TSharedRef>& dataRefs,
+        const std::vector<int>& failingTimes)
+    {
+        int partCount = codec->GetTotalPartCount();
+        YCHECK(failingTimes.size() == partCount);
+
+        WriteErasureChunk(codecId, codec, dataRefs);
+
+        std::vector<IChunkReaderPtr> readers;
+        readers.reserve(partCount);
+        for (int i = 0; i < partCount; ++i) {
+            auto filename = "part" + ToString(i + 1);
+            if (failingTimes[i] == 0) {
+                readers.push_back(NYT::New<TFileReader>(NullChunkId, filename));
+            } else {
+                readers.push_back(NYT::New<TFailingFileReader>(NullChunkId, filename, failingTimes[i]));
+            }
+        }
+        return readers;
+    }
+
+    static std::mt19937 Gen_;
 };
+std::mt19937 TErasureMixture::Gen_(7657457);
 
 TEST_F(TErasureMixture, WriterTest)
 {
@@ -487,6 +605,92 @@ TEST_F(TErasureMixture, RepairTest4)
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
     }
+
+    Cleanup(codec);
+}
+
+TEST_F(TErasureMixture, RepairingReaderAllCorrect)
+{
+    auto codecId = ECodec::ReedSolomon_6_3;
+    auto codec = GetCodec(codecId);
+    auto data = GetRandomData(Gen_, 20, 100);
+
+    auto dataRefs = ToSharedRefs(data);
+    auto reader = CreateOkRepairingReader(codec);
+    WriteErasureChunk(codecId, codec, dataRefs);
+
+    CheckRepairResult(reader, dataRefs);
+
+    Cleanup(codec);
+}
+
+TEST_F(TErasureMixture, RepairingReaderSimultaneousFail)
+{
+    auto codecId = ECodec::ReedSolomon_6_3;
+    auto codec = GetCodec(codecId);
+    auto data = GetRandomData(Gen_, 20, 100);
+
+    auto dataRefs = ToSharedRefs(data);
+    WriteErasureChunk(codecId, codec, dataRefs);
+
+    auto config = CreateErasureConfig();
+
+    for (int i = 0; i < 10; ++i) {
+        std::vector<int> failingTimes(9);
+        failingTimes[0] = failingTimes[1] = failingTimes[2] = 1;
+        std::shuffle(failingTimes.begin(), failingTimes.end(), Gen_);
+        auto readers = CreateFailingReaders(codec, codecId, dataRefs, failingTimes);
+        auto reader = CreateRepairingReader(codec, config, readers);
+
+        CheckRepairResult(reader, dataRefs);
+    }
+
+    Cleanup(codec);
+}
+
+TEST_F(TErasureMixture, RepairingReaderSequenceFail)
+{
+    auto codecId = ECodec::Lrc_12_2_2;
+    auto codec = GetCodec(codecId);
+    auto data = GetRandomData(Gen_, 50, 5);
+    auto dataRefs = ToSharedRefs(data);
+    WriteErasureChunk(codecId, codec, dataRefs);
+
+    std::vector<int> failingTimes(16);
+    failingTimes[0] = 1;
+    failingTimes[3] = 2;
+    failingTimes[12] = 3;
+
+    auto readers = CreateFailingReaders(codec, codecId, dataRefs, failingTimes);
+    auto reader = CreateRepairingReader(codec, CreateErasureConfig(), readers);
+
+    CheckRepairResult(reader, dataRefs);
+
+    Cleanup(codec);
+}
+
+TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
+{
+    auto codecId = ECodec::ReedSolomon_6_3;
+    auto codec = GetCodec(codecId);
+    auto data = GetRandomData(Gen_, 20, 100);
+    auto dataRefs = ToSharedRefs(data);
+    WriteErasureChunk(codecId, codec, dataRefs);
+
+    std::vector<int> failingTimes(9);
+    failingTimes[1] = 1;
+    failingTimes[2] = 2;
+    failingTimes[3] = 3;
+    failingTimes[4] = 4;
+
+    auto readers = CreateFailingReaders(codec, codecId, dataRefs, failingTimes);
+    auto reader = CreateRepairingReader(codec, CreateErasureConfig(), readers);
+
+    std::vector<int> indexes(dataRefs.size());
+    std::iota(indexes.begin(), indexes.end(), 0);
+
+    auto result = reader->ReadBlocks(TWorkloadDescriptor(), indexes).Get();
+    ASSERT_FALSE(result.IsOK());
 
     Cleanup(codec);
 }

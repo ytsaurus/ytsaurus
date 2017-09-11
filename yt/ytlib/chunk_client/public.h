@@ -163,6 +163,7 @@ DEFINE_ENUM(ESessionType,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TReplicationReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TErasureReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TEncodingWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)

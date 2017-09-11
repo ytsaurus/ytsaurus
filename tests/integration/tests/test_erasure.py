@@ -1,7 +1,15 @@
 import pytest
+import re
+import os
+import os.path
 
-from yt_env_setup import YTEnvSetup, wait
+import subprocess
+
+from yt_env_setup import YTEnvSetup, wait, SANDBOX_ROOTDIR
 from yt_commands import *
+from yt_driver_bindings import Request, BufferedStream
+from yt.common import YtResponseError
+import yt.yson as yson
 
 ##################################################################
 
@@ -69,6 +77,81 @@ class TestErasure(YTEnvSetup):
             wait(lambda: self._is_chunk_ok(chunk_id))
             assert read_table("//tmp/table") == [{"b":"hello"}]
             self.set_node_banned(r, False)
+
+    def _get_blocks_count(self, chunk_id, replica, replica_index):
+        address = str(replica)
+        parts = [int(s, 16) for s in chunk_id.split("-")]
+        parts[2] = (parts[2] / 2 ** 16) * (2 ** 16) + 103 + replica_index
+        node_chunk_id = "-".join(hex(i)[2:] for i in parts)
+        return get("//sys/nodes/{0}/orchid/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
+
+    def _test_repair_on_spot(self, allow_repair):
+        for node in ls("//sys/nodes"):
+            set("//sys/nodes/{0}/@resource_limits_overrides".format(node), {"repair_slots": 0})
+
+        remove("//tmp/table", force=True)
+        create("table", "//tmp/table", attributes={"erasure_codec": "lrc_12_2_2"})
+        content = [{"a": "x" * 1024} for _ in xrange(12)]
+        write_table("//tmp/table",
+                    content,
+                    table_writer={"block_size": 1024})
+
+        # check if there is 1 chunk exactly
+        chunk_ids = get("//tmp/table/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        # check if there is exactly one block in each part
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        assert len(replicas) == 16
+        for index, replica in enumerate(replicas[:12]):
+            blocks_count = self._get_blocks_count(chunk_id, replica, index)
+            assert blocks_count == 1
+
+        replica = replicas[3]
+        window_size = 1024
+        output_stream = BufferedStream(size=window_size)
+        response = read_table("//tmp/table",
+                              table_reader={
+                                  "window_size": window_size,
+                                  "group_size": window_size,
+                                  "pass_count": 1,
+                                  "retry_count": 1,
+                                  "enable_auto_repair": allow_repair
+                              },
+                              output_stream=output_stream,
+                              return_response=True)
+
+        full_output = output_stream.read(window_size)
+
+        address_to_ban = str(replica)
+        self.set_node_banned(address_to_ban, True)
+
+        time.sleep(1)
+
+        while True:
+            bytes = output_stream.read(window_size)
+            if not bytes:
+                break
+            full_output += bytes
+
+        response.wait()
+        self.set_node_banned(address_to_ban, False)
+
+        if allow_repair:
+            if not response.is_ok():
+                error = YtResponseError(response.error())
+                assert False, str(error)
+            test_output = list(yson.loads(full_output, yson_type="list_fragment"))
+            assert test_output == content
+        else:
+            assert not response.is_ok(), "Read finished successfully, but expected to fail (due to unavailable part and disabled repairing)"
+
+    def test_repair_on_spot_successful(self):
+        self._test_repair_on_spot(True)
+
+    def test_repair_on_spot_failed(self):
+        self._test_repair_on_spot(False)
 
     def test_reed_solomon_repair(self):
         self._test_repair("reed_solomon_6_3", 9, 6)

@@ -187,6 +187,8 @@ public:
 
     virtual TChunkId GetChunkId() const override;
 
+    virtual bool IsValid() const override;
+
 protected:
     TFuture<void> PreparePlacementMeta(const TWorkloadDescriptor& workloadDescriptor);
     void OnGotPlacementMeta(const NProto::TErasurePlacementExt& placementExt);

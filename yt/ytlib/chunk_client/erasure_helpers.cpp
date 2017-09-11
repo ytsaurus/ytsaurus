@@ -607,6 +607,17 @@ TChunkId TErasureChunkReaderBase::GetChunkId() const
     return Readers_.front()->GetChunkId();
 }
 
+bool TErasureChunkReaderBase::IsValid() const
+{
+    TPartIndexList erasedIndices;
+    for (size_t i = 0; i < Readers_.size(); ++i) {
+        if (!Readers_[i]->IsValid()) {
+            erasedIndices.push_back(i);
+        }
+    }
+    return Codec_->CanRepair(erasedIndices);
+}
+
 TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TWorkloadDescriptor& workloadDescriptor)
 {
     if (!PlacementExt_.part_infos().empty()) {

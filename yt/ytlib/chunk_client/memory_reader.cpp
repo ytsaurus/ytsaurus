@@ -60,6 +60,11 @@ public:
         return NullChunkId;
     }
 
+    virtual bool IsValid() const override
+    {
+        return true;
+    }
+
 private:
     const TChunkMeta Meta_;
     const std::vector<TBlock> Blocks_;

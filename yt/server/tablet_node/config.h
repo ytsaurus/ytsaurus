@@ -276,7 +276,7 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 class TTabletChunkReaderConfig
     : public NTableClient::TChunkReaderConfig
-    , public NChunkClient::TReplicationReaderConfig
+    , public NChunkClient::TErasureReaderConfig
 {
 public:
     bool PreferLocalReplicas;
