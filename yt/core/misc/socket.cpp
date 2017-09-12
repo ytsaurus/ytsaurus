@@ -249,18 +249,17 @@ int AcceptSocket(SOCKET serverSocket, TNetworkAddress* clientAddress)
 {
     SOCKET clientSocket;
 
-    socklen_t clientAddressLen = clientAddress->GetLength();
 #ifdef _linux_
     clientSocket = accept4(
         serverSocket,
         clientAddress->GetSockAddr(),
-        &clientAddressLen,
+        clientAddress->GetLengthPtr(),
         SOCK_CLOEXEC | SOCK_NONBLOCK);
 #else
     clientSocket = accept(
         serverSocket,
         clientAddress->GetSockAddr(),
-        &clientAddressLen);
+        clientAddress->GetLengthPtr());
 #endif
 
     if (clientSocket == INVALID_SOCKET) {
@@ -326,8 +325,8 @@ int GetSocketError(SOCKET socket)
 TNetworkAddress GetSocketName(SOCKET socket)
 {
     TNetworkAddress address;
-    socklen_t length = address.GetLength();
-    int result = getsockname(socket, address.GetSockAddr(), &length);
+    auto lengthPtr = address.GetLengthPtr();
+    int result = getsockname(socket, address.GetSockAddr(), lengthPtr);
     if (result != 0) {
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::TransportError,
@@ -341,8 +340,8 @@ TNetworkAddress GetSocketName(SOCKET socket)
 TNetworkAddress GetSocketPeerName(SOCKET socket)
 {
     TNetworkAddress address;
-    socklen_t length = address.GetLength();
-    int result = getpeername(socket, address.GetSockAddr(), &length);
+    auto lengthPtr = address.GetLengthPtr();
+    int result = getpeername(socket, address.GetSockAddr(), lengthPtr);
     if (result != 0) {
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::TransportError,

@@ -234,7 +234,10 @@ void TTcpConnection::ResolveAddress()
         }
 
         TWriterGuard guard(ControlSpinLock_);
-        OnAddressResolved(GetUnixDomainAddress(*UnixDomainName_), ETcpInterfaceType::Local, guard);
+        OnAddressResolved(
+            TNetworkAddress::CreateUnixDomainAddress(*UnixDomainName_),
+            ETcpInterfaceType::Local,
+            guard);
     } else {
         TStringBuf hostName;
         try {

@@ -93,12 +93,14 @@ public:
     sockaddr* GetSockAddr();
     const sockaddr* GetSockAddr() const;
     socklen_t GetLength() const;
+    socklen_t* GetLengthPtr();
 
     static TErrorOr<TNetworkAddress> TryParse(const TStringBuf& address);
     static TNetworkAddress Parse(const TStringBuf& address);
 
     static TNetworkAddress CreateIPv6Any(int port);
     static TNetworkAddress CreateIPv6Loopback(int port);
+    static TNetworkAddress CreateUnixDomainAddress(const TString& name);
 
 private:
     sockaddr_storage Storage;
