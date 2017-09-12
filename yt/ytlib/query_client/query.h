@@ -776,6 +776,7 @@ struct TRewriter
         }
 
         return New<TTransformExpression>(
+            transformExpr->Type,
             std::move(newArguments),
             transformExpr->Values);
     }
