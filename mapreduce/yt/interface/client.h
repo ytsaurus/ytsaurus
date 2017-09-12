@@ -33,7 +33,7 @@ public:
     // e.g. lock transaction was aborted.
     virtual const NThreading::TFuture<void>& GetAcquiredFuture() const = 0;
 
-    // Convenient wrapper that waits until lock is in "aquired" state.
+    // Convenient wrapper that waits until lock is in "acquired" state.
     // Throws exception if timeout exceeded or some error occurred
     // e.g. lock transaction was aborted.
     void Wait(TDuration timeout = TDuration::Max());

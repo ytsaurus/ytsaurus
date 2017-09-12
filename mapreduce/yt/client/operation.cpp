@@ -52,12 +52,6 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Compile time option for easy rollback.
-// TODO: remove after 01.09.2017 if there are no complains
-static constexpr bool USE_NEW_OPERATION_TRACKER = true;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 ui64 RoundUpFileSize(ui64 size)
@@ -1839,12 +1833,8 @@ void TOperation::AbortOperation()
 
 TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, TClientPtr client, const TOperationOptions& options)
 {
-    if (!USE_NEW_OPERATION_TRACKER && options.Wait_) {
-        WaitForOperation(client->GetAuth(), operationId);
-    }
-
     auto operation = ::MakeIntrusive<TOperation>(operationId, client);
-    if (USE_NEW_OPERATION_TRACKER && options.Wait_) {
+    if (options.Wait_) {
         auto finishedFuture = operation->Watch();
         finishedFuture.Wait();
         finishedFuture.GetValue();
