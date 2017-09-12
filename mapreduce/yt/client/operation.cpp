@@ -471,17 +471,36 @@ yvector<TFailedJobInfo> GetFailedJobInfo(
     return result;
 }
 
-void DumpOperationStderrs(
+void DumpJobInfoForException(
     IOutputStream& output,
     const yvector<TFailedJobInfo>& failedJobInfoList)
 {
+    // Exceptions has limit to contain 65508 bytes of text, so we also limit stderr text
+    constexpr size_t MAX_SIZE = 65508 / 2;
+
+    size_t written = 0;
     for (const auto& failedJobInfo : failedJobInfoList) {
-        output << '\n';
-        output << "Error: " << failedJobInfo.Error.ShortDescription() << '\n';
-        if (!failedJobInfo.Stderr.empty()) {
-            output << "Stderr: " << Endl;
-            output << failedJobInfo.Stderr << '\n';
+        if (written >= MAX_SIZE) {
+            break;
         }
+        TStringStream nextChunk;
+        nextChunk << '\n';
+        nextChunk << "Error: " << failedJobInfo.Error.ShortDescription() << '\n';
+        if (!failedJobInfo.Stderr.empty()) {
+            nextChunk << "Stderr: " << Endl;
+            size_t tmpWritten = written + nextChunk.Str().size();
+            if (tmpWritten >= MAX_SIZE) {
+                break;
+            }
+
+            if (tmpWritten + failedJobInfo.Stderr.size() > MAX_SIZE) {
+                nextChunk << failedJobInfo.Stderr.substr(failedJobInfo.Stderr.size() - (MAX_SIZE - tmpWritten));
+            } else {
+                nextChunk << failedJobInfo.Stderr;
+            }
+        }
+        written += nextChunk.Str().size();
+        output << nextChunk.Str();
     }
     output.Flush();
 }
@@ -589,7 +608,7 @@ EOperationStatus CheckOperation(
         TStringStream jobErrors;
 
         auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
-        DumpOperationStderrs(jobErrors, failedJobInfoList);
+        DumpJobInfoForException(jobErrors, failedJobInfoList);
 
         ythrow TOperationFailedError(
             state == "aborted" ?
@@ -1752,7 +1771,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
             try {
                 auto failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(Auth_, Id_, TGetFailedJobInfoOptions());
                 TStringStream out;
-                DumpOperationStderrs(out, failedJobStderrInfo);
+                DumpJobInfoForException(out, failedJobStderrInfo);
                 additionalExceptionText = out.Str();
             } catch (const NYT::TErrorResponse& e) {
                 additionalExceptionText = "Cannot get job stderrs: ";
