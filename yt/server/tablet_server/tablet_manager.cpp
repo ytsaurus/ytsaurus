@@ -1418,6 +1418,8 @@ public:
             tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
             tablet->SetInMemoryMode(inMemoryMode);
 
+            cell->TotalStatistics() += GetTabletStatistics(tablet);
+
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
             if (mountTimestamp != NullTimestamp) {
@@ -3035,8 +3037,6 @@ private:
             tablet->GetMountRevision(),
             cell->GetId(),
             frozen);
-
-        cell->TotalStatistics() += GetTabletStatistics(tablet);
 
         tablet->SetState(frozen ? ETabletState::Frozen : ETabletState::Mounted);
 
