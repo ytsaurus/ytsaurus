@@ -12,5 +12,12 @@ else
     echo "!!! tests.sandbox already mounted as tmpfs"
 fi
 
+ulimit -c unlimited
 py.test -sv --ignore tests.sandbox "$@"
 
+echo "==========================================================="
+cores=`find tests.sandbox/ -name "core*" -printf "%C+ %p\n" | sort -r`
+if [[ "$cores" != "" ]]; then
+    echo "Core dumps in tests.sandbox (sorted by creation time)"
+    echo "$cores"
+fi
