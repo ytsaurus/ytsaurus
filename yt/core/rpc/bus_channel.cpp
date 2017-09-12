@@ -66,16 +66,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        TSessionPtr session;
+
         try {
-            auto session = GetOrCreateSession(options.MultiplexingBand);
-            return session->Send(
-                std::move(request),
-                std::move(responseHandler),
-                options);
+            session = GetOrCreateSession(options.MultiplexingBand);
         } catch (const std::exception& ex) {
             responseHandler->HandleError(TError(ex));
             return nullptr;
         }
+
+        return session->Send(
+            std::move(request),
+            std::move(responseHandler),
+            options);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
