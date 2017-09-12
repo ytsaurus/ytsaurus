@@ -351,7 +351,7 @@ private:
         {
             TNetworkAddress netAddress;
             if (Config_->UnixDomainName) {
-                netAddress = GetUnixDomainAddress(Config_->UnixDomainName.Get());
+                netAddress = TNetworkAddress::CreateUnixDomainAddress(Config_->UnixDomainName.Get());
             } else {
                 netAddress = GetLocalBusAddress(Config_->Port.Get());
             }
