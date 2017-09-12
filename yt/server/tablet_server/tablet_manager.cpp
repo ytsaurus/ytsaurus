@@ -2399,6 +2399,7 @@ private:
 
     bool UpdateChunkListsKind_ = false;
     bool RecomputeTabletCountByState_ = false;
+    bool RecomputeTabletCellStatistics_ = false;
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
@@ -2463,6 +2464,8 @@ private:
         UpdateChunkListsKind_ = (context.GetVersion() < 600);
         // COMPAT(savrus)
         RecomputeTabletCountByState_ = (context.GetVersion() <= 608);
+        // COMPAT(savrus)
+        RecomputeTabletCellStatistics_ = (context.GetVersion() <= 619);
     }
 
 
@@ -2552,7 +2555,7 @@ private:
             }
         }
 
-        //COMPAT(savrus)
+        // COMPAT(savrus)
         if (RecomputeTabletCountByState_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             for (const auto& pair : cypressManager->Nodes()) {
@@ -2569,6 +2572,17 @@ private:
                             ++table->MutableTabletCountByState()[tablet->GetState()];
                         }
                     }
+                }
+            }
+        }
+
+        // COMPAT(savrus)
+        if (RecomputeTabletCellStatistics_) {
+            for (const auto& pair : TabletCellMap_) {
+                auto* cell = pair.second;
+                cell->TotalStatistics() = TTabletCellStatistics();
+                for (const auto& tablet : cell->Tablets()) {
+                    cell->TotalStatistics() += GetTabletStatistics(tablet);
                 }
             }
         }
