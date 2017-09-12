@@ -775,7 +775,7 @@ struct TRewriter
             return transformExpr;
         }
 
-        return New<TInOpExpression>(
+        return New<TTransformExpression>(
             std::move(newArguments),
             transformExpr->Values);
     }
