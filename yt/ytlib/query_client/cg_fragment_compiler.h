@@ -111,12 +111,12 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
     EValueType type,
     TString name);
 
-TCodegenExpression MakeCodegenInOpExpr(
+TCodegenExpression MakeCodegenInExpr(
     std::vector<size_t> argIds,
     int arrayIndex,
     TComparerManagerPtr comparerManager);
 
-TCodegenExpression MakeCodegenTransformOpExpr(
+TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
     int arrayIndex,
     EValueType resultType,

@@ -48,10 +48,10 @@ void ExtractFunctionNames(
     } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
         ExtractFunctionNames(binaryExpr->Lhs, functions);
         ExtractFunctionNames(binaryExpr->Rhs, functions);
-    } else if (auto inExpr = expr->As<NAst::TInOpExpression>()) {
+    } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
         ExtractFunctionNames(inExpr->Expr, functions);
-    } else if (auto inExpr = expr->As<NAst::TTransformExpression>()) {
-        ExtractFunctionNames(inExpr->Expr, functions);
+    } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
+        ExtractFunctionNames(transformExpr->Expr, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (expr->As<NAst::TAliasExpression>()) {
@@ -122,7 +122,7 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
 
     if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>()) {
         return;
-    } if (auto inExpr = op->As<TInOpExpression>()) {
+    } if (auto inExpr = op->As<TInExpression>()) {
         for (const auto& argument : inExpr->Arguments) {
             CheckExpressionDepth(argument, depth + 1);
         }
@@ -1407,7 +1407,7 @@ struct TTypedExpressionBuilder
 
                 return makeBinaryExpr(binaryExpr->Opcode, std::move(untypedLhs), std::move(untypedRhs), 0);
             }
-        } else if (auto inExpr = expr->As<NAst::TInOpExpression>()) {
+        } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             std::vector<TConstExpressionPtr> typedArguments;
             std::unordered_set<TString> columnNames;
             std::vector<EValueType> argTypes;
@@ -1429,7 +1429,7 @@ struct TTypedExpressionBuilder
             }
 
             auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, inExpr->GetSource(Source));
-            auto result = New<TInOpExpression>(std::move(typedArguments), std::move(capturedRows));
+            auto result = New<TInExpression>(std::move(typedArguments), std::move(capturedRows));
 
             TTypeSet resultTypes({EValueType::Boolean});
             TExpressionGenerator generator = [result] (EValueType type) mutable {

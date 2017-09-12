@@ -33,8 +33,8 @@ DEFINE_ENUM(EExpressionKind,
     (Function)
     (UnaryOp)
     (BinaryOp)
-    (InOp)
-    (TransformOp)
+    (In)
+    (Transform)
 );
 
 struct TExpression
@@ -156,17 +156,17 @@ struct TBinaryOpExpression
     TConstExpressionPtr Rhs;
 };
 
-struct TInOpExpressionValuesTag
+struct TInExpressionValuesTag
 { };
 
-struct TInOpExpression
+struct TInExpression
     : public TExpression
 {
-    explicit TInOpExpression(EValueType type)
+    explicit TInExpression(EValueType type)
         : TExpression(type)
     { }
 
-    TInOpExpression(
+    TInExpression(
         std::vector<TConstExpressionPtr> arguments,
         TSharedRange<TRow> values)
         : TExpression(EValueType::Boolean)
@@ -605,7 +605,7 @@ struct TAbstractVisitor
             return Derived()->OnBinary(binaryOp, args...);
         } else if (auto functionExpr = expr->template As<TFunctionExpression>()) {
             return Derived()->OnFunction(functionExpr, args...);
-        } else if (auto inExpr = expr->template As<TInOpExpression>()) {
+        } else if (auto inExpr = expr->template As<TInExpression>()) {
             return Derived()->OnIn(inExpr, args...);
         } else if (auto transformExpr = expr->template As<TTransformExpression>()) {
             return Derived()->OnTransform(transformExpr, args...);
@@ -658,7 +658,7 @@ struct TVisitor
         }
     }
 
-    void OnIn(const TInOpExpression* inExpr)
+    void OnIn(const TInExpression* inExpr)
     {
         for (auto argument : inExpr->Arguments) {
             Visit(argument);
@@ -742,7 +742,7 @@ struct TRewriter
             std::move(newArguments));
     }
 
-    TConstExpressionPtr OnIn(const TInOpExpression* inExpr)
+    TConstExpressionPtr OnIn(const TInExpression* inExpr)
     {
         std::vector<TConstExpressionPtr> newArguments;
         bool allEqual = true;
@@ -756,7 +756,7 @@ struct TRewriter
             return inExpr;
         }
 
-        return New<TInOpExpression>(
+        return New<TInExpression>(
             std::move(newArguments),
             inExpr->Values);
     }
@@ -902,7 +902,7 @@ struct TAbstractExpressionPrinter
         Builder->AppendChar(')');
     }
 
-    void OnIn(const TInOpExpression* inExpr, TArgs... args)
+    void OnIn(const TInExpression* inExpr, TArgs... args)
     {
         auto needParenthesis = inExpr->Arguments.size() > 1;
         if (needParenthesis) {

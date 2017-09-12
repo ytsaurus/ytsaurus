@@ -26,8 +26,8 @@ DEFINE_ENUM(EFoldingObjectType,
     (FunctionExpr)
     (UnaryOpExpr)
     (BinaryOpExpr)
-    (InOpExpr)
-    (TransformOpExpr)
+    (InExpr)
+    (TransformExpr)
 
     (NamedExpression)
     (AggregateItem)
@@ -469,16 +469,16 @@ size_t TExpressionProfiler::Profile(
                 nullable);
         }
         return emplaced.first->second;
-    } else if (auto inOp = expr->As<TInOpExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::InOpExpr));
+    } else if (auto inExpr = expr->As<TInExpression>()) {
+        id.AddInteger(static_cast<int>(EFoldingObjectType::InExpr));
 
         std::vector<size_t> argIds;
-        for (const auto& argument : inOp->Arguments) {
+        for (const auto& argument : inExpr->Arguments) {
             argIds.push_back(Profile(argument, schema, fragments));
             id.AddInteger(argIds.back());
         }
 
-        for (const auto& value : inOp->Values) {
+        for (const auto& value : inExpr->Values) {
             id.AddString(ToString(value).c_str());
         }
 
@@ -489,24 +489,24 @@ size_t TExpressionProfiler::Profile(
                 ++fragments->Items[argId].UseCount;
             }
 
-            int index = Variables_->AddOpaque<TSharedRange<TRow>>(inOp->Values);
+            int index = Variables_->AddOpaque<TSharedRange<TRow>>(inExpr->Values);
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
-                MakeCodegenInOpExpr(argIds, index, ComparerManager_),
+                MakeCodegenInExpr(argIds, index, ComparerManager_),
                 expr->Type,
                 false);
         }
         return emplaced.first->second;
-    } else if (auto transformOp = expr->As<TTransformExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::TransformOpExpr));
+    } else if (auto transformExpr = expr->As<TTransformExpression>()) {
+        id.AddInteger(static_cast<int>(EFoldingObjectType::TransformExpr));
 
         std::vector<size_t> argIds;
-        for (const auto& argument : transformOp->Arguments) {
+        for (const auto& argument : transformExpr->Arguments) {
             argIds.push_back(Profile(argument, schema, fragments));
             id.AddInteger(argIds.back());
         }
 
-        for (const auto& value : transformOp->Values) {
+        for (const auto& value : transformExpr->Values) {
             id.AddString(ToString(value).c_str());
         }
 
@@ -517,10 +517,10 @@ size_t TExpressionProfiler::Profile(
                 ++fragments->Items[argId].UseCount;
             }
 
-            int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformOp->Values);
+            int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformExpr->Values);
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
-                MakeCodegenTransformOpExpr(argIds, index, transformOp->Type, ComparerManager_),
+                MakeCodegenTransformExpr(argIds, index, transformExpr->Type, ComparerManager_),
                 expr->Type,
                 false);
         }

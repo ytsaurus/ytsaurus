@@ -121,8 +121,8 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
             typedLhs->Opcode == typedRhs->Opcode &&
             typedLhs->Lhs == typedRhs->Lhs &&
             typedLhs->Rhs == typedRhs->Rhs;
-    } else if (const auto* typedLhs = lhs.As<TInOpExpression>()) {
-        const auto* typedRhs = rhs.As<TInOpExpression>();
+    } else if (const auto* typedLhs = lhs.As<TInExpression>()) {
+        const auto* typedRhs = rhs.As<TInExpression>();
         if (!typedRhs) {
             return false;
         }
@@ -349,7 +349,7 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
         builder->AppendChar('(');
         FormatExpression(builder, typedExpr->Rhs, expandAliases);
         builder->AppendChar(')');
-    } else if (auto* typedExpr = expr.As<TInOpExpression>()) {
+    } else if (auto* typedExpr = expr.As<TInExpression>()) {
         builder->AppendChar('(');
         FormatExpressions(builder, typedExpr->Expr, expandAliases);
         builder->AppendString(") IN (");
