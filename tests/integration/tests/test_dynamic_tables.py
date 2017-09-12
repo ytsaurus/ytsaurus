@@ -493,6 +493,16 @@ class TestDynamicTables(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
+    def test_cell_bundle_schema(self):
+        set("//sys/schemas/tablet_cell_bundle/@options", {
+            "changelog_read_quorum": 3,
+            "changelog_write_quorum": 3,
+            "changelog_replication_factor": 5})
+        create_tablet_cell_bundle("custom")
+        assert get("//sys/tablet_cell_bundles/custom/@options/changelog_read_quorum") == 3
+        assert get("//sys/tablet_cell_bundles/custom/@options/changelog_write_quorum") == 3
+        assert get("//sys/tablet_cell_bundles/custom/@options/changelog_replication_factor") == 5
+
     def test_tablet_count_by_state(self):
         self.sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
