@@ -13,9 +13,11 @@ template <class TKey, class TUpdateParameters>
 TUpdateExecutor<TKey, TUpdateParameters>::TUpdateExecutor(
     TCallback<TCallback<TFuture<void>()>(const TKey&, TUpdateParameters*)> createUpdateAction,
     TCallback<bool(const TUpdateParameters*)> shouldRemoveUpdateAction,
+    TCallback<void(const TError&)> onUpdateFailed,
     NLogging::TLogger logger)
     : CreateUpdateAction_(createUpdateAction)
     , ShouldRemoveUpdateAction_(shouldRemoveUpdateAction)
+    , OnUpdateFailed_(onUpdateFailed)
     , Logger(logger)
 { }
 
@@ -99,6 +101,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates(IInvokerPtr invoke
 
     std::vector<TKey> updatesToRemove;
     std::vector<TFuture<void>> asyncResults;
+    std::vector<TKey> requestKeys;
     for (auto& pair : Updates_) {
         const auto& key = pair.first;
         auto& updateRecord = pair.second;
@@ -106,6 +109,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates(IInvokerPtr invoke
             updatesToRemove.push_back(key);
         } else {
             LOG_DEBUG("Updating item (Key: %v)", key);
+            requestKeys.push_back(key);
             asyncResults.push_back(DoExecuteUpdate(&updateRecord));
         }
     }
@@ -116,9 +120,18 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates(IInvokerPtr invoke
     }
 
     auto result = NConcurrency::WaitFor(CombineAll(asyncResults));
+    YCHECK(result.IsOK());
     if (!result.IsOK()) {
-        LOG_ERROR(result, "Update failed");
+        OnUpdateFailed_(result);
         return;
+    }
+
+    for (size_t i = 0; i < requestKeys.size(); ++i) {
+        const auto& error = result.Value()[i];
+        if (!error.IsOK()) {
+            OnUpdateFailed_(TError("Update of item failed (Key: %v)", requestKeys[i]) << error);
+            return;
+        }
     }
 
     LOG_INFO("Update completed");

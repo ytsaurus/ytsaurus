@@ -2034,8 +2034,8 @@ private:
             // state is changed to Completing.
             {
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-                WaitFor(asyncResult)
-                    .ThrowOnError();
+                // Result is ignored since failure cause scheduler disconnection.
+                WaitFor(asyncResult);
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }
@@ -2208,8 +2208,8 @@ private:
         // First flush: ensure that all stderrs are attached and the
         // state is changed to its intermediate value.
         {
-            auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-            WaitFor(asyncResult);
+            // Result is ignored since failure cause scheduler disconnection.
+            WaitFor(MasterConnector_->FlushOperationNode(operation));
             if (operation->GetState() != intermediateState)
                 return;
         }
@@ -2242,8 +2242,8 @@ private:
 
         // Second flush: ensure that the state is changed to its final value.
         {
-            auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-            WaitFor(asyncResult);
+            // Result is ignored since failure cause scheduler disconnection.
+            WaitFor(MasterConnector_->FlushOperationNode(operation));
             if (operation->GetState() != finalState)
                 return;
         }
@@ -2271,8 +2271,8 @@ private:
 
         SetOperationFinalState(operation, EOperationState::Completed, TError());
 
-        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
-        YCHECK(flushResult.IsOK());
+        // Result is ignored since failure cause scheduler disconnection.
+        WaitFor(MasterConnector_->FlushOperationNode(operation));
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
@@ -2299,8 +2299,8 @@ private:
 
         SetOperationFinalState(operation, EOperationState::Aborted, TError());
 
-        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
-        YCHECK(flushResult.IsOK());
+        // Result is ignored since failure cause scheduler disconnection.
+        WaitFor(MasterConnector_->FlushOperationNode(operation));
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
