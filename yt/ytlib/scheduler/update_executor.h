@@ -17,6 +17,7 @@ public:
     TUpdateExecutor(
         TCallback<TCallback<TFuture<void>()>(const TKey&, TUpdateParameters*)> createUpdateAction,
         TCallback<bool(const TUpdateParameters*)> shouldRemoveUpdateAction,
+        TCallback<void(const TError&)> onUpdateFailed,
         NLogging::TLogger logger);
 
     void StartPeriodicUpdates(const IInvokerPtr& invoker, TDuration updatePeriod);
@@ -37,6 +38,7 @@ public:
 private:
     const TCallback<TCallback<TFuture<void>()>(const TKey&, TUpdateParameters*)> CreateUpdateAction_;
     const TCallback<bool(const TUpdateParameters*)> ShouldRemoveUpdateAction_;
+    const TCallback<void(const TError&)> OnUpdateFailed_;
     const NLogging::TLogger Logger;
 
     struct TUpdateRecord

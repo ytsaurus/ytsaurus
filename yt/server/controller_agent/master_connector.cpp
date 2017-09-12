@@ -71,6 +71,7 @@ public:
         , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Logger))
         , TransactionRefreshExecutor_(New<TPeriodicExecutor>(
             Invoker_,
@@ -1003,6 +1004,11 @@ private:
     bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
     {
         return !GetOperationController(update->OperationId);
+    }
+
+    void OnOperationUpdateFailed(const TError& error)
+    {
+        LOG_ERROR(error, "Failed to update operation node");
     }
 
     void DoAddChunksToUnstageList(std::vector<TChunkId> chunkIds)

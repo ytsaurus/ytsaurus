@@ -80,6 +80,7 @@ public:
         , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Logger))
     {
         Bootstrap
@@ -945,6 +946,14 @@ private:
         return operation->IsFinishedState();
     }
 
+    void OnOperationUpdateFailed(const TError& error)
+    {
+        YCHECK(Connected);
+        YCHECK(!error.IsOK());
+        LOG_ERROR(error, "Failed to update operation node");
+        Disconnect();
+    }
+
     void UpdateOperationNodeAttributes(TOperationPtr operation)
     {
         operation->SetShouldFlush(false);
@@ -1071,26 +1080,6 @@ private:
         LOG_INFO("Reviving operation node reset (OperationId: %v)",
             operationId);
     }
-
-    void OnOperationNodeFlushed(
-        TOperationPtr operation,
-        const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        auto operationId = operation->GetId();
-
-        if (!error.IsOK()) {
-            LOG_ERROR(error);
-            Disconnect();
-            return;
-        }
-
-        LOG_INFO("Operation node flushed (OperationId: %v)",
-            operationId);
-    }
-
 
     void UpdateWatchers()
     {
