@@ -78,11 +78,11 @@ message TBinaryOpExpression
     required TExpression rhs = 3;
 }
 
-message TInOpExpression
+message TInExpression
 {
     extend TExpression
     {
-        optional TInOpExpression in_op_expression = 108;
+        optional TInExpression in_expression = 108;
     }
     repeated TExpression arguments = 1;
     required bytes values = 2;
@@ -92,7 +92,7 @@ message TTransformExpression
 {
     extend TExpression
     {
-        optional TTransformExpression transform_op_expression = 109;
+        optional TTransformExpression transform_expression = 109;
     }
     repeated TExpression arguments = 1;
     required bytes values = 2;

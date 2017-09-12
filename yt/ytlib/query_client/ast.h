@@ -21,7 +21,7 @@ DECLARE_REFCOUNTED_STRUCT(TLiteralExpression)
 DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
 DECLARE_REFCOUNTED_STRUCT(TUnaryOpExpression)
 DECLARE_REFCOUNTED_STRUCT(TBinaryOpExpression)
-DECLARE_REFCOUNTED_STRUCT(TInOpExpression)
+DECLARE_REFCOUNTED_STRUCT(TInExpression)
 DECLARE_REFCOUNTED_STRUCT(TTransformExpression)
 
 using TIdentifierList = std::vector<TReferenceExpressionPtr>;
@@ -231,10 +231,10 @@ DEFINE_REFCOUNTED_TYPE(TBinaryOpExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInOpExpression
+struct TInExpression
     : public TExpression
 {
-    TInOpExpression(
+    TInExpression(
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
         const TLiteralValueTupleList& values)
@@ -247,7 +247,7 @@ struct TInOpExpression
     TLiteralValueTupleList Values;
 };
 
-DEFINE_REFCOUNTED_TYPE(TInOpExpression)
+DEFINE_REFCOUNTED_TYPE(TInExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 

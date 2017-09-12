@@ -1978,7 +1978,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 55:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TInOpExpression>(yylhs.location, yystack_[4].value.as< TExpressionList > (), yystack_[1].value.as< TLiteralValueTupleList > ());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TInExpression>(yylhs.location, yystack_[4].value.as< TExpressionList > (), yystack_[1].value.as< TLiteralValueTupleList > ());
         }
     break;
 

@@ -228,7 +228,7 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
             permanentBuffer->Capture(NTableClient::MinKey().Get()),
             permanentBuffer->Capture(NTableClient::MaxKey().Get()));
 
-        auto inClause = New<TInOpExpression>(foreignEquations, MakeSharedRange(std::move(keys), permanentBuffer));
+        auto inClause = New<TInExpression>(foreignEquations, MakeSharedRange(std::move(keys), permanentBuffer));
 
         dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 

@@ -182,8 +182,8 @@ bool Compare(
         CHECK(binaryLhs->Opcode == binaryRhs->Opcode)
         CHECK(Compare(binaryLhs->Lhs, lhsSchema, binaryRhs->Lhs, rhsSchema, maxIndex))
         CHECK(Compare(binaryLhs->Rhs, lhsSchema, binaryRhs->Rhs, rhsSchema, maxIndex))
-    } else if (auto inLhs = lhs->As<TInOpExpression>()) {
-        auto inRhs = rhs->As<TInOpExpression>();
+    } else if (auto inLhs = lhs->As<TInExpression>()) {
+        auto inRhs = rhs->As<TInExpression>();
         CHECK(inRhs)
         CHECK(inLhs->Arguments.size() == inRhs->Arguments.size())
         for (size_t index = 0; index < inLhs->Arguments.size(); ++index) {
@@ -303,21 +303,21 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         proto->set_opcode(static_cast<int>(binaryOpExpr->Opcode));
         ToProto(proto->mutable_lhs(), binaryOpExpr->Lhs);
         ToProto(proto->mutable_rhs(), binaryOpExpr->Rhs);
-    } else if (auto inOpExpr = original->As<TInOpExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::InOp));
-        auto* proto = serialized->MutableExtension(NProto::TInOpExpression::in_op_expression);
-        ToProto(proto->mutable_arguments(), inOpExpr->Arguments);
+    } else if (auto inExpr = original->As<TInExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::In));
+        auto* proto = serialized->MutableExtension(NProto::TInExpression::in_expression);
+        ToProto(proto->mutable_arguments(), inExpr->Arguments);
 
         NTabletClient::TWireProtocolWriter writer;
-        writer.WriteUnversionedRowset(inOpExpr->Values);
+        writer.WriteUnversionedRowset(inExpr->Values);
         ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
-    } else if (auto transformOpExpr = original->As<TTransformExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::TransformOp));
-        auto* proto = serialized->MutableExtension(NProto::TTransformExpression::transform_op_expression);
-        ToProto(proto->mutable_arguments(), transformOpExpr->Arguments);
+    } else if (auto transformExpr = original->As<TTransformExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::Transform));
+        auto* proto = serialized->MutableExtension(NProto::TTransformExpression::transform_expression);
+        ToProto(proto->mutable_arguments(), transformExpr->Arguments);
 
         NTabletClient::TWireProtocolWriter writer;
-        writer.WriteUnversionedRowset(transformOpExpr->Values);
+        writer.WriteUnversionedRowset(transformExpr->Values);
         ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
     }
 }
@@ -390,21 +390,21 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             return;
         }
 
-        case EExpressionKind::InOp: {
-            auto result = New<TInOpExpression>(type);
-            const auto& ext = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
+        case EExpressionKind::In: {
+            auto result = New<TInExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TInExpression::in_expression);
             FromProto(&result->Arguments, ext.arguments());
             NTabletClient::TWireProtocolReader reader(
                 TSharedRef::FromString(ext.values()),
-                New<TRowBuffer>(TInOpExpressionValuesTag()));
+                New<TRowBuffer>(TInExpressionValuesTag()));
             result->Values = reader.ReadUnversionedRowset(true);
             *original = result;
             return;
         }
 
-        case EExpressionKind::TransformOp: {
+        case EExpressionKind::Transform: {
             auto result = New<TTransformExpression>(type);
-            const auto& ext = serialized.GetExtension(NProto::TTransformExpression::transform_op_expression);
+            const auto& ext = serialized.GetExtension(NProto::TTransformExpression::transform_expression);
             FromProto(&result->Arguments, ext.arguments());
             NTabletClient::TWireProtocolReader reader(
                 TSharedRef::FromString(ext.values()),
