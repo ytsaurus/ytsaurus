@@ -119,6 +119,19 @@ private:
 };
 REGISTER_MAPPER(TMapperThatChecksFile);
 
+class THugeStderrMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    THugeStderrMapper() = default;
+    virtual void Do(TReader*, TWriter*) override {
+        TString err(1024 * 1024 * 10, 'a');
+        Cerr.Write(err);
+        Cerr.Flush();
+        exit(1);
+    }
+};
+REGISTER_MAPPER(THugeStderrMapper);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSleepingMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
@@ -639,6 +652,27 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         auto briefProgress = operation->GetBriefProgress();
         UNIT_ASSERT(briefProgress.Defined());
         UNIT_ASSERT(briefProgress->Total > 0);
+    }
+
+    SIMPLE_UNIT_TEST(TestHugeFailWithHugeStderr)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        auto operation = client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output"),
+            new THugeStderrMapper,
+            TOperationOptions().Wait(false));
+
+        //expect no exception
+        operation->Watch().Wait();
     }
 }
 
