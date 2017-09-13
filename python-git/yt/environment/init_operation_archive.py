@@ -9,7 +9,6 @@ import logging
 import subprocess
 
 from yt.packages.six.moves import xrange
-from yt.packages.six import iteritems
 
 
 DEFAULT_SHARD_COUNT = 100
