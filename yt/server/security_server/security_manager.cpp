@@ -11,6 +11,7 @@
 #include "user_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
@@ -812,6 +813,20 @@ public:
         }
     }
 
+    bool IsUserRootOrSuperuser(const TUser* user)
+    {
+        // NB: This is also useful for migration when "superusers" is initially created.
+        if (user == RootUser_) {
+            return true;
+        }
+
+        if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
+            return true;
+        }
+
+        return false;
+    }
+
     TPermissionCheckResult CheckPermission(
         TObjectBase* object,
         TUser* user,
@@ -819,15 +834,8 @@ public:
     {
         TPermissionCheckResult result;
 
-        // Fast lane: "root" needs to authorization.
-        // NB: This is also useful for migration when "superusers" is initially created.
-        if (user == RootUser_) {
-            result.Action = ESecurityAction::Allow;
-            return result;
-        }
-
-        // Fast lane: "superusers" need to authorization.
-        if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
+        // Fast lane: "root" and "superusers" need no autorization.
+        if (IsUserRootOrSuperuser(user)) {
             result.Action = ESecurityAction::Allow;
             return result;
         }
@@ -922,6 +930,17 @@ public:
     {
         if (IsHiveMutation()) {
             return;
+        }
+
+        if (!IsUserRootOrSuperuser(user) &&
+            permission != EPermission::Read &&
+            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+        {
+            THROW_ERROR_EXCEPTION("Access denied: cluster is in safe mode. "
+                "Check for the announces before reporting any issues")
+                << TErrorAttribute("permission", permission)
+                << TErrorAttribute("user", user->GetName())
+                << TErrorAttribute("object", object->GetId());
         }
 
         auto result = CheckPermission(object, user, permission);

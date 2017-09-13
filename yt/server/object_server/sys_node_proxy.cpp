@@ -10,6 +10,7 @@
 #include <yt/server/chunk_server/chunk_manager.h>
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 
@@ -54,6 +55,9 @@ private:
         descriptors->push_back("current_commit_revision");
         descriptors->push_back("chunk_replicator_enabled");
         descriptors->push_back("registered_master_cell_tags");
+        descriptors->push_back(TAttributeDescriptor("config")
+            .SetWritable(true)
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
@@ -104,18 +108,26 @@ private:
             return true;
         }
 
+        if (key == "config") {
+            const auto& configManager = Bootstrap_->GetConfigManager();
+            BuildYsonFluently(consumer)
+                .Value(configManager->GetConfig());
+            return true;
+        }
+
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual void ValidateCustomAttributeUpdate(
-        const TString& key,
-        const TYsonString& /*oldValue*/,
-        const TYsonString& newValue) override
+    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
     {
-        if (key == "disable_chunk_replicator" && newValue) {
-            ConvertTo<bool>(newValue);
-            return;
+        if (key == "config") {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            const auto& configManager = Bootstrap_->GetConfigManager();
+            configManager->SetConfig(ConvertTo<TDynamicClusterConfigPtr>(value));
+            return true;
         }
+
+        return TBase::SetBuiltinAttribute(key, value);
     }
 };
 

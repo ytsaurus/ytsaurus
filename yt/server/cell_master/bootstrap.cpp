@@ -1,6 +1,7 @@
 #include "bootstrap.h"
 #include "private.h"
 #include "config.h"
+#include "config_manager.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
 #include "multicell_manager.h"
@@ -196,6 +197,11 @@ TCellTag TBootstrap::GetPrimaryCellTag() const
 const TCellTagList& TBootstrap::GetSecondaryCellTags() const
 {
     return SecondaryCellTags_;
+}
+
+const TConfigManagerPtr& TBootstrap::GetConfigManager() const
+{
+    return ConfigManager_;
 }
 
 const TMulticellManagerPtr& TBootstrap::GetMulticellManager() const
@@ -465,6 +471,8 @@ void TBootstrap::DoInitialize()
 
     HydraFacade_ = New<THydraFacade>(Config_, this);
 
+    ConfigManager_ = New<TConfigManager>(this);
+
     MulticellManager_ = New<TMulticellManager>(Config_->MulticellManager, this);
 
     WorldInitializer_ = New<TWorldInitializer>(Config_, this);
@@ -526,6 +534,7 @@ void TBootstrap::DoInitialize()
         });
 
     fileSnapshotStore->Initialize();
+    ConfigManager_->Initialize();
     ObjectManager_->Initialize();
     SecurityManager_->Initialize();
     TransactionManager_->Initialize();

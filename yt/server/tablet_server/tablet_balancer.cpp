@@ -5,6 +5,7 @@
 #include "tablet_manager.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/public.h>
 #include <yt/server/cell_master/world_initializer.h>
@@ -526,68 +527,18 @@ private:
             return;
         }
 
-        auto wasEnabled = Enabled_;
-
-        try {
-            Enabled_ = IsEnabled();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error updating tablet balancer state, disabling until the next attempt");
+        if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableTabletBalancer) {
+            if (Enabled_) {
+                LOG_INFO("Tablet balancer is disabled, see //sys/@config");
+            }
             Enabled_ = false;
+            return;
         }
 
-        if (Enabled_ && !wasEnabled) {
+        if (!Enabled_) {
             LOG_INFO("Tablet balancer enabled");
         }
-    }
-
-    bool IsEnabled()
-    {
-        return
-            IsEnabledByFlag() &&
-            IsEnabledWorkHours();
-    }
-
-    bool IsEnabledByFlag()
-    {
-        bool enabled = true;
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        auto sysNode = resolver->ResolvePath("//sys");
-        if (!sysNode->Attributes().Get<bool>("enable_tablet_balancer", true)) {
-            if (Enabled_) {
-                LOG_INFO("Tablet balancer is disabled by //sys/@enable_tablet_balancer setting");
-            }
-            enabled = false;
-        }
-        return enabled;
-    }
-
-    bool IsEnabledWorkHours()
-    {
-        bool enabled = true;
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        auto sysNode = resolver->ResolvePath("//sys");
-        auto officeHours = sysNode->Attributes().Find<std::vector<int>>("tablet_balancer_office_hours");
-        if (!officeHours) {
-            return enabled;
-        }
-        if (officeHours->size() != 2) {
-            LOG_INFO("Expected two integers in //sys/@tablet_balancer_office_hours, but got %v",
-                *officeHours);
-            return enabled;
-        }
-
-        tm localTime;
-        Now().LocalTime(&localTime);
-        int hour = localTime.tm_hour;
-        if (hour < (*officeHours)[0] || hour > (*officeHours)[1]) {
-            if (Enabled_) {
-                LOG_INFO("Tablet balancer is disabled by //sys/@tablet_balancer_office_hours");
-            }
-            enabled = false;
-        }
-        return enabled;
+        Enabled_ = true;
     }
 };
 
