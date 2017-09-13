@@ -134,6 +134,7 @@ def group_blobs_by_size(lines, chunk_size):
             yield chunk
             size = 0
             chunk = []
+
     yield chunk
 
 def chunk_iter_list(lines, chunk_size):

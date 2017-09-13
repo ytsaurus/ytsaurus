@@ -108,14 +108,34 @@ class _ImapIterator(Iterator):
     FREE = 0
     BUSY = 1
 
-    def __init__(self, result_queue, expected_item_count, ordered, pool):
+    def __init__(self, result_queue, task_queue, task_iterator, ordered, pool):
         self._result_queue = result_queue
-        self._expected_item_count = expected_item_count
+        self._task_queue = task_queue
         self._ordered = ordered
         self._state = self.BUSY
         self._pool = pool
+        self._task_iterator = task_iterator
 
+        self._task_count = 0
         self._generated_item_count = 0
+
+        self._is_task_iterator_stopped = False
+
+        for _ in xrange(self._pool.get_thread_count() - self._task_queue.qsize()):
+            self.try_to_put_next_task()
+
+    def try_to_put_next_task(self):
+        if self._is_task_iterator_stopped:
+            return
+
+        try:
+            task = next(self._task_iterator)
+        except StopIteration:
+            self._is_task_iterator_stopped = True
+            return
+
+        self._task_queue.put((self._task_count, task))
+        self._task_count += 1
 
     def close(self):
         self._state = self.FREE
@@ -125,10 +145,13 @@ class _ImapIterator(Iterator):
             self._result_queue = None
 
     def __next__(self):
-        if self._generated_item_count >= self._expected_item_count:
+        is_pool_running = (self._state == self.BUSY and self._pool._state == self._pool.RUNNING)
+
+        if self._generated_item_count >= self._task_count:
+            self.close()
             raise StopIteration
 
-        if self._state != self.BUSY or self._pool._state != self._pool.RUNNING:
+        if not is_pool_running:
             raise RuntimeError("Pool is not running")
 
         if self._ordered:
@@ -137,11 +160,12 @@ class _ImapIterator(Iterator):
             result, exception = self._result_queue.get()
 
         self._generated_item_count += 1
-        if self._generated_item_count == self._expected_item_count:
-            self.close()
 
         if exception is not None:
             raise exception
+
+        if is_pool_running and not self._is_task_iterator_stopped:
+            self.try_to_put_next_task()
 
         return result
 
@@ -174,6 +198,7 @@ class ThreadPool(object):
 
         self._task_queue = Queue()
         self._result_queue = _ImapQueue(max_queue_size)
+        self._thread_count = thread_count
 
         self._workers = [_Worker(self._task_queue, self._result_queue, initfunc, initargs)
                          for _ in xrange(thread_count)]
@@ -213,6 +238,9 @@ class ThreadPool(object):
         self._state = self.TERMINATED
         self._iterable_state = _ImapIterator.FREE
 
+    def get_thread_count(self):
+        return self._thread_count
+
     def __del__(self):
         if self._state == self.RUNNING:
             self.close()
@@ -220,13 +248,6 @@ class ThreadPool(object):
     def join(self):
         for worker in self._workers:
             worker.join()
-
-    def _start_all(self, func, tasks):
-        for worker in self._workers:
-            worker.set_func(func)
-
-        for index, item in enumerate(tasks):
-            self._task_queue.put((index, item))
 
     def _terminate_iterator(self):
         self._iterable_state = _ImapIterator.FREE
@@ -238,9 +259,10 @@ class ThreadPool(object):
         if self._iterable_state != _ImapIterator.FREE:
             raise RuntimeError("Cannot run more than one imap simultaneously")
 
-        tasks = list(iterable)
-        self._start_all(func, tasks)
-        iterator = _ImapIterator(self._result_queue, len(tasks), ordered, self)
+        for worker in self._workers:
+            worker.set_func(func)
+
+        iterator = _ImapIterator(self._result_queue, self._task_queue, iter(iterable), ordered, self)
         self._iterable_state = _ImapIterator.BUSY
         return iterator
 
