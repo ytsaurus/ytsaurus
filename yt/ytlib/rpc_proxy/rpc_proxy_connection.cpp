@@ -1,3 +1,4 @@
+#include "discovery_service_proxy.h"
 #include "rpc_proxy_connection.h"
 #include "rpc_proxy_client.h"
 #include "rpc_proxy_transaction.h"
@@ -195,7 +196,22 @@ void TRpcProxyConnection::OnPingCompleted(const TErrorOr<std::vector<TError>>& p
     }
 }
 
-IConnectionPtr CreateRpcProxyConnection(TRpcProxyConnectionConfigPtr config)
+TFuture<std::vector<TProxyInfo>> TRpcProxyConnection::DiscoverProxies(const TDiscoverProxyOptions& /*options*/)
+{
+    TDiscoveryServiceProxy proxy(GetRandomPeerChannel());
+
+    auto req = proxy.DiscoverProxies();
+
+    return req->Invoke().Apply(BIND([] (const TDiscoveryServiceProxy::TRspDiscoverProxiesPtr& rsp) {
+        std::vector<TProxyInfo> proxies;
+        for (auto&& address : rsp->addresses()) {
+            proxies.push_back({address});
+        }
+        return proxies;
+    }));
+}
+
+IProxyConnectionPtr CreateRpcProxyConnection(TRpcProxyConnectionConfigPtr config)
 {
     auto actionQueue = New<TActionQueue>("RpcConnect");
     return New<TRpcProxyConnection>(std::move(config), std::move(actionQueue));

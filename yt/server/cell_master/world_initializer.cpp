@@ -282,6 +282,15 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/rpc_proxies",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/nodes",
                 transactionId,
                 EObjectType::ClusterNodeMap,
