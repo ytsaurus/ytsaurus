@@ -231,7 +231,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 50,
                     "chunk_count_per_merge_job": 50,
-                    "job_io": {"table_writer": {"desired_chunk_size": 100 * 1024}},
+                    "chunk_size_threshold": 100 * 1024
                 },
                 "data_size_per_job": 1,
                 "mapper": {

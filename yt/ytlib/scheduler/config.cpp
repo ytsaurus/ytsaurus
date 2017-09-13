@@ -57,6 +57,9 @@ TAutoMergeConfig::TAutoMergeConfig()
     RegisterParameter("chunk_count_per_merge_job", ChunkCountPerMergeJob)
         .Default(Null)
         .GreaterThanOrEqual(1);
+    RegisterParameter("chunk_size_threshold", ChunkSizeThreshold)
+        .Default(128_MB)
+        .GreaterThanOrEqual(1);
     RegisterParameter("mode", Mode)
         .Default(EAutoMergeMode::Disabled);
 
