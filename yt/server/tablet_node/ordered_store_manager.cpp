@@ -133,7 +133,8 @@ void TOrderedStoreManager::CreateActiveStore()
         ->CreateStore(Tablet_, EStoreType::OrderedDynamic, storeId, nullptr)
         ->AsOrderedDynamic();
 
-    ActiveStore_->SetStartingRowIndex(ComputeStartingRowIndex());
+    auto startingRowIndex = ComputeStartingRowIndex();
+    ActiveStore_->SetStartingRowIndex(startingRowIndex);
 
     Tablet_->AddStore(ActiveStore_);
     Tablet_->SetActiveStore(ActiveStore_);
