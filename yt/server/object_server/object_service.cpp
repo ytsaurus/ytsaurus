@@ -320,7 +320,7 @@ private:
         if (NeedsUpstreamSync_) {
             NeedsUpstreamSync_ = false;
             auto result = HydraManager_->SyncWithUpstream();
-            if (!WaitForAndContinue(result)) {
+            if (!WaitForAndContinue(std::move(result))) {
                 return;
             }
         }
