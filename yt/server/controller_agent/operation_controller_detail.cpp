@@ -949,18 +949,26 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
             chunkCountPerMergeJob = maxIntermediateChunkCount / 10;
             break;
         case EAutoMergeMode::Manual:
-            maxIntermediateChunkCount = *Spec_->AutoMerge->MaxIntermediateChunkCount;
-            chunkCountPerMergeJob = *Spec_->AutoMerge->ChunkCountPerMergeJob;
+            maxIntermediateChunkCount = *autoMergeSpec->MaxIntermediateChunkCount;
+            chunkCountPerMergeJob = *autoMergeSpec->ChunkCountPerMergeJob;
             break;
         default:
             Y_UNREACHABLE();
     }
-    LOG_INFO("Auto merge parameters calculated "
-        "(Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v)",
+    i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
+    i64 desiredChunkDataWeight = desiredChunkSize / dataWeightRatio;
+    i64 dataWeightPerJob = std::min(1_GB, desiredChunkDataWeight);
+
+    LOG_INFO("Auto merge parameters calculated ("
+        "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v,"
+        "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v)",
         mode,
         outputChunkCountEstimate,
         maxIntermediateChunkCount,
-        chunkCountPerMergeJob);
+        chunkCountPerMergeJob,
+        autoMergeSpec->ChunkSizeThreshold,
+        desiredChunkSize,
+        desiredChunkDataWeight);
 
     AutoMergeDirector_ = std::make_unique<TAutoMergeDirector>(
         maxIntermediateChunkCount,
@@ -976,14 +984,12 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
             // index in writer options with 0.
             edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
             edgeDescriptor.TableWriterOptions->TableIndex = 0;
-            i64 dataWeightPerJob = std::min(
-                static_cast<double>(1_GB),
-                Spec_->AutoMerge->JobIO->TableWriter->DesiredChunkSize / dataWeightRatio);
             auto task = New<TAutoMergeTask>(
                 this /* taskHost */,
                 index,
                 chunkCountPerMergeJob,
-                Spec_->AutoMerge->JobIO->TableWriter->DesiredChunkSize,
+                autoMergeSpec->ChunkSizeThreshold,
+                desiredChunkSize,
                 dataWeightPerJob,
                 edgeDescriptor);
             RegisterTask(task);

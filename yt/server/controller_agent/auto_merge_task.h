@@ -22,7 +22,7 @@ public:
     TAutoMergeChunkPoolAdapter(
         NChunkPools::IChunkPoolInput* underlyingInput,
         TAutoMergeTask* task,
-        i64 teleportChunkSize);
+        i64 chunkSizeThreshold);
 
     virtual NChunkPools::IChunkPoolInput::TCookie Add(
         NChunkPools::TChunkStripePtr stripe,
@@ -39,7 +39,7 @@ private:
     void ProcessStripe(const NChunkPools::TChunkStripePtr& stripe) const;
 
     TAutoMergeTask* Task_;
-    i64 TeleportChunkSize_;
+    i64 ChunkSizeThreshold_;
     std::vector<int> CookieChunkCount_;
 };
 
@@ -58,6 +58,7 @@ public:
         ITaskHostPtr taskHost,
         int tableIndex,
         int maxChunksPerJob,
+        i64 chunkSizeThreshold,
         i64 desiredChunkSize,
         i64 dataWeightPerJob,
         TEdgeDescriptor edgeDescriptor);
