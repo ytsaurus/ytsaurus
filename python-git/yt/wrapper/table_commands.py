@@ -8,6 +8,7 @@ from .errors import YtIncorrectResponse, YtError, YtRetriableError, YtResponseEr
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
+from .parallel_writer import make_parallel_write_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format)
@@ -161,7 +162,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     params["input_format"] = format.to_yson_type()
     set_param(params, "table_writer", table_writer)
 
-    def prepare_table(path):
+    def prepare_table(path, client):
         if not force_create:
             return
         _create_table(path, ignore_existing=True, client=client)
@@ -173,22 +174,38 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
+    enable_parallel_writing = get_config(client)["write_parallel"]["enable"] and \
+            can_split_input and \
+            not is_stream_compressed and \
+            not "sorted_by" in table.attributes
+
     input_stream = _to_chunk_stream(
         input_stream,
         format,
         raw,
-        split_rows=enable_retries,
+        split_rows=(enable_retries or enable_parallel_writing),
         chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
-    make_write_request(
-        "write_table",
-        input_stream,
-        table,
-        params,
-        prepare_table,
-        use_retries=enable_retries,
-        is_stream_compressed=is_stream_compressed,
-        client=client)
+    if enable_parallel_writing:
+        make_parallel_write_request(
+            "write_table",
+            input_stream,
+            table,
+            params,
+            get_config(client)["write_parallel"]["unordered"],
+            prepare_table,
+            get_config(client)["remote_temp_files_directory"],
+            client=client)
+    else:
+        make_write_request(
+            "write_table",
+            input_stream,
+            table,
+            params,
+            prepare_table,
+            use_retries=enable_retries,
+            is_stream_compressed=is_stream_compressed,
+            client=client)
 
     if get_config(client)["yamr_mode"]["delete_empty_tables"] and is_empty(table, client=client):
         _remove_tables([table], client=client)

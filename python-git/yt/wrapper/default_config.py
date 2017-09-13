@@ -359,6 +359,18 @@ default_config = {
         # Always run read parallel if it is possible.
         "enable": False
     },
+    "write_parallel": {
+        # Number of threads.
+        "max_thread_count": 10,
+        # Always run parallel writing if it is possible.
+        "enable": False,
+        # This option allows to write table in unordered mode.
+        "unordered": False,
+        # The restriction on the number of chunks which will be passed to concatenate command.
+        "concatenate_size": 100,
+        # This option allows to save intermediate data in remote_temp_files_directory / remote_temp_tables_directory.
+        "use_tmp_dir_for_intermediate_data": True
+    },
 
     # Size of block to read from response stream.
     "read_buffer_size": 8 * 1024 * 1024,

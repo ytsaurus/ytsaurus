@@ -85,7 +85,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
     created = False
     if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
-        create_object(path)
+        create_object(path, client)
         created = True
 
     title = "Python wrapper: {0} {1}".format(command_name, path)
@@ -95,7 +95,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                      client=client,
                      transaction_id=get_config(client)["write_retries"]["transaction_id"]):
         if not created:
-            create_object(path)
+            create_object(path, client)
         params["path"] = path
         if use_retries:
             chunk_size = get_config(client)["write_retries"]["chunk_size"]

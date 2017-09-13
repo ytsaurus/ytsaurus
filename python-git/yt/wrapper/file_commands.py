@@ -5,6 +5,7 @@ from .errors import YtError, YtResponseError
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
                                create, link, get, set)
+from .parallel_writer import make_parallel_write_request
 from .ypath import FilePath, ypath_join, ypath_dirname
 from .local_mode import is_local_mode
 
@@ -148,7 +149,7 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     if force_create is None:
         force_create = True
 
-    def prepare_file(path):
+    def prepare_file(path, client):
         if not force_create:
             return
         create("file", path, ignore_existing=True, client=client)
@@ -186,15 +187,26 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     if not is_one_small_blob and is_stream_compressed:
         enable_retries = False
 
-    make_write_request(
-        "write_file",
-        stream,
-        destination,
-        params,
-        prepare_file,
-        enable_retries,
-        is_stream_compressed=is_stream_compressed,
-        client=client)
+    if get_config(client)["write_parallel"]["enable"] and not is_stream_compressed:
+        make_parallel_write_request(
+            "write_file",
+            stream,
+            destination,
+            params,
+            False,
+            prepare_file,
+            get_config(client)["remote_temp_tables_directory"],
+            client=client)
+    else:
+        make_write_request(
+            "write_file",
+            stream,
+            destination,
+            params,
+            prepare_file,
+            enable_retries,
+            is_stream_compressed=is_stream_compressed,
+            client=client)
 
 def is_executable(filename, client=None):
     return os.access(filename, os.X_OK) or get_config(client)["yamr_mode"]["always_set_executable_flag_on_files"]
