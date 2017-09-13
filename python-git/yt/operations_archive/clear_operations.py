@@ -1,9 +1,9 @@
 from .queues import (Timer, ThreadSafeCounter, NonBlockingQueue,
-                     queue_worker, batching_queue_worker, run_workers,
-                     run_queue_workers, run_batching_queue_workers, wait_for_queue)
+                     queue_worker, run_workers, run_queue_workers,
+                     run_batching_queue_workers, wait_for_queue)
 
 from yt.wrapper.http_helpers import get_token, get_proxy_url
-from yt.common import date_string_to_timestamp_mcs
+from yt.common import date_string_to_timestamp_mcs, datetime_to_string
 
 import yt.logger as logger
 import yt.wrapper as yt
@@ -354,7 +354,7 @@ def push_to_solomon(values_map, cluster, ts):
     except:
         logger.exception("Failed to push metrics to Solomon")
 
-def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, execution_timeout,
+def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, execution_timeout,
                      max_operations_per_user, robots, archive, archive_jobs, thread_count,
                      stderr_thread_count, push_metrics, remove_threshold, client):
 
