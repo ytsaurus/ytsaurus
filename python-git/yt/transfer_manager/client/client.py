@@ -68,7 +68,8 @@ class HTTPRequestRetrier(Retrier):
                 "exponential_policy": {
                     "start_timeout": 2000,
                     "base": 2,
-                    "max_timeout": 20000
+                    "max_timeout": 20000,
+                    "decay_factor_bound": 0.3
                 }
             }
         }
