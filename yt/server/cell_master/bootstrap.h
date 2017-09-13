@@ -67,6 +67,7 @@ public:
 
     const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
 
+    const TConfigManagerPtr& GetConfigManager() const;
     const TMulticellManagerPtr& GetMulticellManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NRpc::IChannelPtr GetLocalRpcChannel() const;
@@ -108,6 +109,7 @@ private:
     NObjectClient::TCellTag PrimaryCellTag_;
     NObjectClient::TCellTagList SecondaryCellTags_;
 
+    TConfigManagerPtr ConfigManager_;
     TMulticellManagerPtr MulticellManager_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;

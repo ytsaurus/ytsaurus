@@ -11,6 +11,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/world_initializer.h>
 #include <yt/server/cell_master/multicell_manager.h>
@@ -1799,12 +1800,9 @@ void TChunkReplicator::OnCheckEnabled()
 
 void TChunkReplicator::OnCheckEnabledPrimary()
 {
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto resolver = cypressManager->CreateResolver();
-    auto sysNode = resolver->ResolvePath("//sys");
-    if (sysNode->Attributes().Get<bool>("disable_chunk_replicator", false)) {
+    if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableChunkReplicator) {
         if (!Enabled_ || *Enabled_) {
-            LOG_INFO("Chunk replicator is disabled by //sys/@disable_chunk_replicator setting");
+            LOG_INFO("Chunk replicator is disabled, see //sys/@config");
         }
         Enabled_ = false;
         return;

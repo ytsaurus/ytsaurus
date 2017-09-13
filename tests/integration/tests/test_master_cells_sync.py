@@ -155,6 +155,15 @@ class TestMasterCellsSync(YTEnvSetup):
 
         self._check_true_for_secondary(lambda driver: check(driver))
 
+    def test_safe_mode_sync(self):
+        set("//sys/@config/enable_safe_mode", True)
+
+        def check(driver, value):
+            return get("//sys/@config/enable_safe_mode", driver=driver) == value
+
+        self._check_true_for_secondary(lambda driver: check(driver, True))
+        set("//sys/@config", {})
+        self._check_true_for_secondary(lambda driver: check(driver, False))
 
 ##################################################################
 

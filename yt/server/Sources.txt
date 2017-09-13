@@ -16,6 +16,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/automaton.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cell_master/config_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/hydra_facade.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/master_hydra_service.cpp

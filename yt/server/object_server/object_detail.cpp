@@ -89,6 +89,11 @@ const TObjectId& TObjectProxyBase::GetId() const
     return Object_->GetId();
 }
 
+TObjectBase* TObjectProxyBase::GetObject() const
+{
+    return Object_;
+}
+
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
     return *const_cast<TObjectProxyBase*>(this)->GetCombinedAttributes();

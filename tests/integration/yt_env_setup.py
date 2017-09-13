@@ -398,7 +398,6 @@ class YTEnvSetup(object):
                 self._wait_jobs_to_abort(driver=driver)
                 self._remove_operations(driver=driver)
                 self._remove_pools(driver=driver)
-            self._reenable_chunk_replicator(driver=driver)
             self._remove_accounts(driver=driver)
             self._remove_users(driver=driver)
             self._remove_groups(driver=driver)
@@ -406,11 +405,11 @@ class YTEnvSetup(object):
                 yt_commands.gc_collect(driver=driver)
                 self._remove_tablet_cells(driver=driver)
                 self._remove_tablet_cell_bundles(driver=driver)
-                self._reenable_tablet_balancer(driver=driver)
             self._remove_racks(driver=driver)
             self._remove_data_centers(driver=driver)
             if self.ENABLE_MULTICELL_TEARDOWN:
                 self._remove_tablet_actions(driver=driver)
+            self._reset_dynamic_cluster_config(driver=driver)
 
             yt_commands.gc_collect(driver=driver)
             yt_commands.clear_metadata_caches(driver=driver)
@@ -576,9 +575,8 @@ class YTEnvSetup(object):
 
         wait(check_jobs_are_missing)
 
-    def _reenable_chunk_replicator(self, driver=None):
-        if yt_commands.exists("//sys/@disable_chunk_replicator", driver=driver):
-            yt_commands.remove("//sys/@disable_chunk_replicator", driver=driver)
+    def _reset_dynamic_cluster_config(self, driver=None):
+        yt_commands.set("//sys/@config", {}, driver=driver)
 
     def _remove_accounts(self, driver=None):
         accounts = yt_commands.ls("//sys/accounts", attributes=["builtin", "resource_usage"], driver=driver)
@@ -627,10 +625,6 @@ class YTEnvSetup(object):
         actions = yt_commands.get_tablet_actions()
         for action in actions:
             yt_commands.remove_tablet_action(action, driver=driver)
-
-    def _reenable_tablet_balancer(self, driver=None):
-        if yt_commands.exists("//sys/@enable_tablet_balancer", driver=driver):
-            yt_commands.remove("//sys/@enable_tablet_balancer", driver=driver)
 
     def _find_ut_file(self, file_name):
         unittester_path = find_executable("unittester-ytlib")
