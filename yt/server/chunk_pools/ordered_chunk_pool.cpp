@@ -395,7 +395,9 @@ private:
                 }
 
                 std::vector<TInputDataSlicePtr> slicedDataSlices;
-                if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsUnversioned()) {
+                if (dataSlice->Type == EDataSourceType::UnversionedTable &&
+                    dataSlice->GetRowCount() >= JobSizeConstraints_->GetInputSliceRowCount())
+                {
                     auto chunkSlices = CreateInputChunkSlice(dataSlice->GetSingleUnversionedChunkOrThrow())
                         ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
                     for (const auto& chunkSlice : chunkSlices) {

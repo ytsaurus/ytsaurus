@@ -49,6 +49,7 @@ protected:
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataSize_ = Inf64;
+        InputSliceRowCount_ = Inf64;
     }
 
     void InitJobConstraints()
@@ -62,7 +63,7 @@ protected:
             MaxDataSlicesPerJob_,
             0 /* maxDataSizePerJob_ */,
             InputSliceDataSize_,
-            Inf64 /* inputSliceRowCount */);
+            InputSliceRowCount_ /* inputSliceRowCount */);
     }
 
     TInputChunkPtr CreateChunk(
@@ -320,6 +321,8 @@ protected:
 
     i64 InputSliceDataSize_;
 
+    i64 InputSliceRowCount_;
+
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
     std::mt19937 Gen_;
@@ -457,6 +460,7 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
 
     DataSizePerJob_ = 2_KB;
     InputSliceDataSize_ = 2_KB;
+    InputSliceRowCount_ = 100;
 
     InitJobConstraints();
 

@@ -20,7 +20,6 @@ struct TOrderedChunkPoolOptions
     //! An upper bound for a total number of slices that is allowed. If this value
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;
-
     i64 MinTeleportChunkSize = 0;
     bool SupportLocality = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;

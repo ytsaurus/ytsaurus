@@ -760,6 +760,7 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec);
 
 class TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
+    , public TOperationWithLegacyControllerSpec
 {
 public:
     TNullable<TString> ClusterName;
