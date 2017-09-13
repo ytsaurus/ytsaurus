@@ -12,3 +12,14 @@ message THostRow {
     optional string Host = 1          [(NYT.column_name) = "Host"];
     optional sint32 HttpCodeTotal = 2 [(NYT.column_name) = "HttpCodeTotal"];
 }
+
+message TRowVer1 {
+    optional string String_1 = 1;
+    optional uint32 Uint32_2 = 2;
+}
+
+message TRowVer2 {
+    optional string String_1 = 1;
+    optional uint32 Uint32_2 = 2;
+    optional fixed64 Fixed64_3 = 3;
+}

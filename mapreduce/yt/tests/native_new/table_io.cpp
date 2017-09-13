@@ -176,6 +176,63 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT(!reader->IsValid());
     }
 
+    SIMPLE_UNIT_TEST(ProtobufVersions)
+    {
+        auto client = CreateTestClient();
+        {
+            const auto writer = client->CreateTableWriter<TRowVer1>("//testing/ver1");
+            TRowVer1 data;
+            data.SetString_1("Ver1_String_1");
+            data.SetUint32_2(0x12);
+            writer->AddRow(data);
+            writer->Finish();
+        }
+
+        //V1 as V2
+        {
+            const auto reader = client->CreateTableReader<TRowVer2>("//testing/ver1");
+            UNIT_ASSERT(reader->IsValid());
+            {
+                const auto& data = reader->GetRow();
+                UNIT_ASSERT(data.HasString_1());
+                UNIT_ASSERT_VALUES_EQUAL(data.GetString_1(), "Ver1_String_1");
+                UNIT_ASSERT(data.HasUint32_2());
+                UNIT_ASSERT_VALUES_EQUAL(data.GetUint32_2(), 0x12);
+                UNIT_ASSERT(!data.HasFixed64_3());
+                UNIT_ASSERT_VALUES_EQUAL(data.unknown_fields().field_count(), 0);
+            }
+            reader->Next();
+            UNIT_ASSERT(!reader->IsValid());
+        }
+
+        {
+            const auto writer = client->CreateTableWriter<TRowVer2>("//testing/ver2");
+            TRowVer2 data;
+            data.SetString_1("Ver2_String_1");
+            data.SetUint32_2(0x22);
+            data.SetFixed64_3(0x23);
+            writer->AddRow(data);
+            writer->Finish();
+        }
+
+        //V2 as V1
+        {
+            const auto reader = client->CreateTableReader<TRowVer1>("//testing/ver2");
+            UNIT_ASSERT(reader->IsValid());
+            {
+                const auto& data = reader->GetRow();
+                UNIT_ASSERT(data.HasString_1());
+                UNIT_ASSERT_VALUES_EQUAL(data.GetString_1(), "Ver2_String_1");
+                UNIT_ASSERT(data.HasUint32_2());
+                UNIT_ASSERT_VALUES_EQUAL(data.GetUint32_2(), 0x22);
+                //no unknown fields supported
+                UNIT_ASSERT_VALUES_EQUAL(data.unknown_fields().field_count(), 0);
+            }
+            reader->Next();
+            UNIT_ASSERT(!reader->IsValid());
+        }
+    }
+
     SIMPLE_UNIT_TEST(ErrorInTableWriter)
     {
         const TNode DATA = TString(1024, 'a');
