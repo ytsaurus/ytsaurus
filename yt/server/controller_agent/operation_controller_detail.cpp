@@ -2116,7 +2116,7 @@ void TOperationControllerBase::SafeAbort()
     CancelableContext->Cancel();
 
     // NB: Errors ignored since we cannot do anything with it.
-    FlushOperationNode(/* checkFlushResult */ false);
+    WaitFor(MasterConnector->FlushOperationNode(OperationId));
 
     AreTransactionsActive = false;
 
