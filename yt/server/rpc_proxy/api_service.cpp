@@ -1,4 +1,5 @@
 #include "api_service.h"
+#include "proxy_coordinator.h"
 #include "public.h"
 #include "private.h"
 
@@ -64,6 +65,7 @@ public:
             TApiServiceProxy::GetDescriptor(),
             RpcProxyLogger)
         , Bootstrap_(bootstrap)
+        , Coordinator_(bootstrap->GetProxyCoordinator())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
@@ -102,7 +104,8 @@ public:
     }
 
 private:
-    NCellProxy::TBootstrap* const Bootstrap_;
+    const NCellProxy::TBootstrap* Bootstrap_;
+    const IProxyCoordinatorPtr Coordinator_;
 
     TSpinLock SpinLock_;
     // TODO(sandello): Introduce expiration times for clients.
@@ -112,6 +115,9 @@ private:
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
     {
+        if (!Coordinator_->IsOperable(context)) {
+            return nullptr;
+        }
         auto replyWithMissingCredentials = [&] () {
             context->Reply(TError(
                 NSecurityClient::EErrorCode::AuthenticationError,
@@ -203,6 +209,9 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GenerateTimestamps)
     {
+        if (!Coordinator_->IsOperable(context)) {
+            return;
+        }
         auto count = request->count();
         auto timestampProvider = Bootstrap_->GetNativeConnection()->GetTimestampProvider();
         timestampProvider->GenerateTimestamps(count).Subscribe(

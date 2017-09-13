@@ -6,7 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/proxy_connection.h>
 #include <yt/core/logging/log.h>
 
 namespace NYT {
@@ -15,7 +15,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcProxyConnection
-    : public NApi::IConnection
+    : public NApi::IProxyConnection
 {
 public:
     TRpcProxyConnection(
@@ -40,6 +40,9 @@ public:
     virtual void ClearMetadataCaches() override;
 
     virtual void Terminate() override;
+
+    virtual TFuture<std::vector<NApi::TProxyInfo>> DiscoverProxies(
+        const NApi::TDiscoverProxyOptions& options) override;
 
 private:
     const TRpcProxyConnectionConfigPtr Config_;
@@ -71,7 +74,7 @@ protected:
 
 DEFINE_REFCOUNTED_TYPE(TRpcProxyConnection)
 
-NApi::IConnectionPtr CreateRpcProxyConnection(
+NApi::IProxyConnectionPtr CreateRpcProxyConnection(
     TRpcProxyConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
