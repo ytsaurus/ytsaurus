@@ -67,8 +67,7 @@ public:
         TVersion startVersion)
         : Owner_(owner)
         , StartVersion_(startVersion)
-        , Logger(NLogging::TLogger(Owner_->Logger)
-            .AddTag("StartVersion: %v", StartVersion_))
+        , Logger(NLogging::TLogger(Owner_->Logger))
     { }
 
     void AddMutation(
@@ -76,16 +75,14 @@ public:
         const TSharedRef& recordData,
         TFuture<void> localFlushResult)
     {
-        TVersion currentVersion(
-            StartVersion_.SegmentId,
-            StartVersion_.RecordId + BatchedRecordsData_.size());
+        auto currentVersion = GetStartVersion().Advance(BatchedRecordsData_.size());
 
         BatchedRecordsData_.push_back(recordData);
         LocalFlushResult_ = std::move(localFlushResult);
 
         LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v, MutationId: %v)",
             currentVersion,
-            StartVersion_,
+            GetStartVersion(),
             request.Type,
             request.MutationId);
     }
@@ -98,9 +95,10 @@ public:
     void Flush()
     {
         int mutationCount = GetMutationCount();
-        CommittedVersion_ = TVersion(StartVersion_.SegmentId, StartVersion_.RecordId + mutationCount);
+        CommittedVersion_ = GetStartVersion().Advance(mutationCount);
 
-        LOG_DEBUG("Flushing batched mutations (MutationCount: %v)",
+        LOG_DEBUG("Flushing batched mutations (StartVersion: %v, MutationCount: %v)",
+            GetStartVersion(),
             mutationCount);
 
         Profiler.Enqueue("/commit_batch_size", mutationCount, EMetricType::Gauge);
@@ -126,7 +124,10 @@ public:
                 if (!channel)
                     continue;
 
-                LOG_DEBUG("Sending mutations to follower (PeerId: %v)", followerId);
+                LOG_DEBUG("Sending mutations to follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
+                    followerId,
+                    GetStartVersion(),
+                    GetMutationCount());
 
                 THydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(Owner_->Config_->CommitFlushRpcTimeout);
@@ -135,7 +136,7 @@ public:
 
                 auto request = proxy.AcceptMutations();
                 ToProto(request->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
-                request->set_start_revision(StartVersion_.ToRevision());
+                request->set_start_revision(GetStartVersion().ToRevision());
                 request->set_committed_revision(committedVersion.ToRevision());
                 request->Attachments() = BatchedRecordsData_;
 
@@ -155,6 +156,11 @@ public:
         return static_cast<int>(BatchedRecordsData_.size());
     }
 
+    TVersion GetStartVersion() const
+    {
+        return StartVersion_;
+    }
+
     TVersion GetCommittedVersion() const
     {
         return CommittedVersion_;
@@ -170,17 +176,25 @@ private:
             Owner_->CellManager_->GetPeerTags(followerId));
 
         if (!rspOrError.IsOK()) {
-            LOG_DEBUG(rspOrError, "Error logging mutations at follower (PeerId: %v)",
-                followerId);
+            LOG_DEBUG(rspOrError, "Error logging mutations at follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
+                followerId,
+                GetStartVersion(),
+                GetMutationCount());
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         if (rsp->logged()) {
-            LOG_DEBUG("Mutations are logged by follower (PeerId: %v)", followerId);
+            LOG_DEBUG("Mutations are logged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
+                followerId,
+                GetStartVersion(),
+                GetMutationCount());
             OnSuccessfulFlush();
         } else {
-            LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v)", followerId);
+            LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
+                followerId,
+                GetStartVersion(),
+                GetMutationCount());
         }
     }
 
@@ -200,7 +214,10 @@ private:
             Timer_,
             Owner_->CellManager_->GetPeerTags(Owner_->CellManager_->GetSelfPeerId()));
 
-        LOG_DEBUG("Mutations are flushed locally");
+        LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v)",
+            GetStartVersion(),
+            GetMutationCount());
+
         OnSuccessfulFlush();
     }
 
