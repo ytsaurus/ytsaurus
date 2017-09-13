@@ -56,8 +56,8 @@ private:
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot) override;
 
+    i64 ComputeStartingRowIndex() const;
     virtual void CreateActiveStore() override;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedStoreManager)
