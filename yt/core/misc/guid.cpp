@@ -226,20 +226,50 @@ TGuid TGuid::FromString(const TStringBuf& str)
     return guid;
 }
 
-bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
+bool TGuid::FromString(const TStringBuf& str, TGuid* result)
 {
-    int length = 0;
-    if (sscanf(
-        str.data(),
-        "%x-%x-%x-%x%n",
-        &guid->Parts32[3],
-        &guid->Parts32[2],
-        &guid->Parts32[1],
-        &guid->Parts32[0],
-        &length) != 4 || length != str.length())
-    {
+    size_t partId = 3;
+    ui64 partValue = 0;
+    bool isEmptyPart = true;
+
+    for (size_t i = 0; i != str.size(); ++i) {
+        const char c = str[i];
+
+        if (c == '-') {
+            if (isEmptyPart || partId == 0) { // x-y--z, -x-y-z or x-y-z-m-...
+                return false;
+            }
+            result->Parts32[partId] = static_cast<ui32>(partValue);
+            --partId;
+            partValue = 0;
+            isEmptyPart = true;
+            continue;
+        }
+
+        ui32 digit = 0;
+        if ('0' <= c && c <= '9') {
+            digit = c - '0';
+        } else if ('a' <= c && c <= 'f') {
+            digit = c - 'a' + 10;
+        } else if ('A' <= c && c <= 'F') {
+            digit = c - 'A' + 10;
+        } else {
+            return false; // non-hex character
+        }
+
+        partValue = partValue * 16 + digit;
+        isEmptyPart = false;
+
+        // overflow check
+        if (partValue > Max<ui32>()) {
+            return false;
+        }
+    }
+
+    if (partId != 0 || isEmptyPart) { // x-y or x-y-z-
         return false;
     }
+    result->Parts32[partId] = static_cast<ui32>(partValue);
     return true;
 }
 
