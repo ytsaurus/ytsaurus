@@ -61,6 +61,7 @@ cp -r "${VERSION}/usr/bin" "$ARCADIA/"
 
 pushd "$ARCADIA_DIR"
 
+mkdir -p latest
 pushd latest
 LATEST_FILES="$(find . -name "*")"
 popd
