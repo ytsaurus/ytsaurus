@@ -25,7 +25,12 @@ def get_debian_version(root):
         return (100, )
     return tuple(imap(int, output.split("Version:")[1].split()[0].split(".")))
 
-PARENT_REPO_DIR = os.path.abspath(os.path.join(__file__, "../../../../../"))
+try:
+    import yatest.common
+    PARENT_REPO_DIR = yatest.common.source_path("yt/python")
+except ImportError:
+    PARENT_REPO_DIR = os.path.abspath(os.path.join(__file__, "../../../../../"))
+
 VERSION = get_debian_version(PARENT_REPO_DIR)
 
 class YsonWriterTestBase(object):
