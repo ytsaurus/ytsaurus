@@ -526,6 +526,8 @@ void TTablet::Load(TLoadContext& context)
             PartitionList_.push_back(std::move(partition));
         }
     }
+
+    UpdateOverlappingStoreCount();
 }
 
 TCallback<void(TSaveContext&)> TTablet::AsyncSave()
