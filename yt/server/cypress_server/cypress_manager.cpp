@@ -1130,7 +1130,7 @@ private:
     // COMPAT(babenko)
     bool FixLinkPaths_ = false;
     // COMPAT(savrus)
-    bool UpdateConfigFromSysAttributes_ = false;
+    bool ClearSysAttributes_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1166,7 +1166,7 @@ private:
         // COMPAT(babenko)
         FixLinkPaths_ = context.GetVersion() < 403;
         // COMPAT(savrus)
-        UpdateConfigFromSysAttributes_ = Bootstrap_->IsPrimaryMaster() && context.GetVersion() < 620;
+        ClearSysAttributes_ = Bootstrap_->IsPrimaryMaster() && context.GetVersion() < 620;
     }
 
 
@@ -1281,46 +1281,29 @@ private:
             }
         }
 
-        if (UpdateConfigFromSysAttributes_) {
-            const auto& configManager = Bootstrap_->GetConfigManager();
-            auto config = CloneYsonSerializable(configManager->GetConfig());
+        if (ClearSysAttributes_) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             auto* resolver = objectManager->GetObjectResolver();
             auto sysNodeProxy = resolver->ResolvePath("//sys", nullptr);
             auto* sysNode = sysNodeProxy->GetObject();
             auto& attributes = sysNode->GetMutableAttributes()->Attributes();
-
-            auto processAttribute = [&] (
-                const TString& attributeName,
-                std::function<void(const TYsonString&)> functor)
+            auto processAttribute = [&] (const TString& attributeName)
             {
                 auto it = attributes.find(attributeName);
                 if (it != attributes.end()) {
-                    LOG_DEBUG("Change //sys attribute from custom to config (AttributeName: %Qv, AttributeValue: %v)",
+                    LOG_DEBUG("Remove //sys attribute (AttributeName: %Qv, AttributeValue: %v)",
                         attributeName,
                         ConvertToYsonString(it->second, EYsonFormat::Text));
-                    try {
-                        functor(it->second);
-                    } catch (...) {
-                    }
                     attributes.erase(it);
                 }
             };
-
             static const TString enableTabletBalancerAttributeName("enable_tablet_balancer");
             static const TString disableChunkReplicatorAttributeName("disable_chunk_replicator");
-            processAttribute(enableTabletBalancerAttributeName, [&] (const TYsonString& val) {
-                config->EnableTabletBalancer = ConvertTo<bool>(val);
-            });
-            processAttribute(disableChunkReplicatorAttributeName, [&] (const TYsonString& val) {
-                config->EnableChunkReplicator = !ConvertTo<bool>(val);
-            });
-
+            processAttribute(enableTabletBalancerAttributeName);
+            processAttribute(disableChunkReplicatorAttributeName);
             if (attributes.empty()) {
                 sysNode->ClearAttributes();
             }
-
-            configManager->SetConfig(config);
         }
     }
 
