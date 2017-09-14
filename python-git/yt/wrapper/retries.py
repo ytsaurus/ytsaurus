@@ -78,7 +78,8 @@ class Retrier(object):
             return backoff_config["constant_time"] / 1000.0
         elif backoff_config["policy"] == "exponential":
             exponential_policy = backoff_config["exponential_policy"]
-            backoff = exponential_policy["start_timeout"] * (exponential_policy["base"] ** attempt) / 1000.0
+            # TODO(asaitgalin): Start timeout should be specified in ms as all timeouts in config.
+            backoff = exponential_policy["start_timeout"] * (exponential_policy["base"] ** attempt)
             timeout = min(exponential_policy["max_timeout"] / 1000.0, backoff)
             return timeout * (1.0 + exponential_policy["decay_factor_bound"] * random.random())
         else:
