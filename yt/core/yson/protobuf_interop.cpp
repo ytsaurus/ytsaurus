@@ -444,65 +444,12 @@ public:
 
     virtual void OnInt64Scalar(i64 value) override
     {
-        WriteScalar([&] {
-            const auto* field = FieldStack_.back().Field;
-            switch (field->GetType()) {
-                case FieldDescriptor::TYPE_INT32: {
-                    auto i32Value = CheckedCastToInt32(value);
-                    BodyCodedStream_.WriteVarint32SignExtended(i32Value);
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_INT64:
-                    BodyCodedStream_.WriteVarint64(static_cast<ui64>(value));
-                    break;
-
-                case FieldDescriptor::TYPE_SINT32:
-                case FieldDescriptor::TYPE_SINT64:
-                    BodyCodedStream_.WriteVarint64(ZigZagEncode64(value));
-                    break;
-
-                default:
-                    THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"int64\" values",
-                        YPathStack_.GetPath())
-                        << TErrorAttribute("ypath", YPathStack_.GetPath())
-                        << TErrorAttribute("proto_field", field->GetFullName());
-            }
-        });
+        OnIntegerScalar(value);
     }
 
     virtual void OnUint64Scalar(ui64 value) override
     {
-        WriteScalar([&] {
-            const auto* field = FieldStack_.back().Field;
-            switch (field->GetType()) {
-                case FieldDescriptor::TYPE_UINT32: {
-                    auto ui32Value = CheckedCastToUint32(value);
-                    BodyCodedStream_.WriteVarint32(ui32Value);
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_UINT64:
-                    BodyCodedStream_.WriteVarint64(value);
-                    break;
-
-                case FieldDescriptor::TYPE_FIXED32: {
-                    auto ui32Value = CheckedCastToUint32(value);
-                    BodyCodedStream_.WriteRaw(&ui32Value, sizeof(ui32Value));
-                    break;
-                }
-
-                case FieldDescriptor::TYPE_FIXED64:
-                    BodyCodedStream_.WriteRaw(&value, sizeof(value));
-                    break;
-
-                default:
-                    THROW_ERROR_EXCEPTION("Field %v cannot be parsed from \"uint64\" values",
-                        YPathStack_.GetPath())
-                        << TErrorAttribute("ypath", YPathStack_.GetPath())
-                        << TErrorAttribute("proto_field", field->GetFullName());
-            }
-        });
+        OnIntegerScalar(value);
     }
 
     virtual void OnDoubleScalar(double value) override
@@ -851,30 +798,101 @@ private:
         YPathStack_.Pop();
     }
 
-    i32 CheckedCastToInt32(i64 value)
+
+    template <class T>
+    void OnIntegerScalar(T value)
     {
-        const auto* field = FieldStack_.back().Field;
-        if (value > std::numeric_limits<i32>::max() || value < std::numeric_limits<i32>::min()) {
-            THROW_ERROR_EXCEPTION("Value %v of field %v cannot fit into \"int32\"",
-                value,
-                YPathStack_.GetPath())
-                << TErrorAttribute("ypath", YPathStack_.GetPath())
-                << TErrorAttribute("protobuf_field", field->GetFullName());
-        }
-        return static_cast<i32>(value);
+        WriteScalar([&] {
+            const auto* field = FieldStack_.back().Field;
+            switch (field->GetType()) {
+                case FieldDescriptor::TYPE_INT32: {
+                    auto i32Value = CheckedCast<i32>(value, STRINGBUF("i32"));
+                    BodyCodedStream_.WriteVarint32SignExtended(i32Value);
+                    break;
+                }
+
+                case FieldDescriptor::TYPE_INT64: {
+                    auto i64Value = CheckedCast<i64>(value, STRINGBUF("i64"));
+                    BodyCodedStream_.WriteVarint64(static_cast<ui64>(i64Value));
+                    break;
+                }
+
+                case FieldDescriptor::TYPE_SINT32: {
+                    auto i32Value = CheckedCast<i32>(value, STRINGBUF("i32"));
+                    BodyCodedStream_.WriteVarint64(ZigZagEncode64(i32Value));
+                    break;
+                }
+
+                case FieldDescriptor::TYPE_SINT64: {
+                    auto i64Value = CheckedCast<i64>(value, STRINGBUF("i64"));
+                    BodyCodedStream_.WriteVarint64(ZigZagEncode64(i64Value));
+                    break;
+                }
+
+                case FieldDescriptor::TYPE_UINT32: {
+                    auto ui32Value = CheckedCast<ui32>(value, STRINGBUF("ui32"));
+                    BodyCodedStream_.WriteVarint32(ui32Value);
+                    break;
+                }
+
+                case FieldDescriptor::TYPE_UINT64: {
+                    auto ui64Value = CheckedCast<ui64>(value, STRINGBUF("ui64"));
+                    BodyCodedStream_.WriteVarint64(ui64Value);
+                    break;
+                }
+
+                case FieldDescriptor::TYPE_FIXED32: {
+                    auto ui32Value = CheckedCast<ui32>(value, STRINGBUF("ui32"));
+                    BodyCodedStream_.WriteRaw(&ui32Value, sizeof(ui32Value));
+                    break;
+                }
+
+                case FieldDescriptor::TYPE_FIXED64: {
+                    auto ui64Value = CheckedCast<ui64>(value, STRINGBUF("ui64"));
+                    BodyCodedStream_.WriteRaw(&ui64Value, sizeof(ui64Value));
+                    break;
+                }
+
+                default:
+                    THROW_ERROR_EXCEPTION("Field %v cannot be parsed from integer values",
+                        YPathStack_.GetPath())
+                        << TErrorAttribute("ypath", YPathStack_.GetPath())
+                        << TErrorAttribute("proto_field", field->GetFullName());
+            }
+        });
     }
 
-    ui32 CheckedCastToUint32(ui64 value)
+    template <class TTo, class TFrom>
+    static bool IsOutOfRange(TFrom value)
+    {
+        if (std::numeric_limits<TFrom>::min() != 0) {
+            auto min = std::numeric_limits<TTo>::min();
+            if (static_cast<i64>(value) < static_cast<i64>(min)) {
+                return true;
+            }
+        }
+
+        auto max = std::numeric_limits<TTo>::max();
+        if (static_cast<ui64>(value) > static_cast<ui64>(max)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    template <class TTo, class TFrom>
+    TTo CheckedCast(TFrom value, const TStringBuf& to)
     {
         const auto* field = FieldStack_.back().Field;
-        if (value > std::numeric_limits<ui32>::max()) {
-            THROW_ERROR_EXCEPTION("Value %v of field %v cannot fit into \"uint32\"",
+        if (IsOutOfRange<TTo, TFrom>(value)) {
+            THROW_ERROR_EXCEPTION("Value %v of field %v cannot fit into %Qv",
                 value,
-                YPathStack_.GetPath())
+                YPathStack_.GetPath(),
+                to)
                 << TErrorAttribute("ypath", YPathStack_.GetPath())
                 << TErrorAttribute("protobuf_field", field->GetFullName());
         }
-        return static_cast<ui32>(value);
+        return static_cast<TTo>(value);
     }
 };
 
