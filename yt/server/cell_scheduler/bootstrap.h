@@ -49,6 +49,7 @@ public:
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
+    const IInvokerPtr& GetControllerAgentInvoker() const;
     const NScheduler::TSchedulerPtr& GetScheduler() const;
     const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
@@ -67,6 +68,7 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NConcurrency::TFairShareActionQueuePtr ControlQueue_;
+    NConcurrency::TActionQueuePtr ControllerAgentQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     std::unique_ptr<NHttp::TServer> HttpServer_;

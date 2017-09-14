@@ -38,7 +38,7 @@ class TJobSpecService
 public:
     explicit TJobSpecService(TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            bootstrap->GetControllerAgentInvoker(),
             TJobSpecServiceProxy::GetDescriptor(),
             ControllerAgentLogger)
         , Bootstrap_(bootstrap)
