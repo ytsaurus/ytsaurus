@@ -3,6 +3,8 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
+#include <yt/core/concurrency/thread_affinity.h>
+
 #include <yt/core/ytree/convert.h>
 
 namespace NYT {
@@ -28,7 +30,7 @@ public:
 
     void Disconnect()
     {
-        Connected_ = false;
+        Connected_.store(false);
 
         ControllerAgentMasterConnector_.Reset();
     }
@@ -42,7 +44,7 @@ public:
             Config_,
             Bootstrap_);
 
-        Connected_ = true;
+        Connected_.store(true);
     }
 
     void ValidateConnected()
@@ -67,16 +69,20 @@ public:
 
     void RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller)
     {
+        TWriterGuard guard(ControllersLock_);
         Controllers_.emplace(operationId, controller);
     }
 
     void UnregisterOperation(const TOperationId& operationId)
     {
+        TWriterGuard guard(ControllersLock_);
         YCHECK(Controllers_.erase(operationId) == 1);
     }
 
     std::vector<TErrorOr<TSharedRef>> GetJobSpecs(const std::vector<std::pair<TOperationId, TJobId>>& jobSpecRequests)
     {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControllerAgentInvoker());
+
         std::vector<TFuture<TSharedRef>> asyncJobSpecs;
 
         for (const auto& pair : jobSpecRequests) {
@@ -132,9 +138,10 @@ private:
     NCellScheduler::TBootstrap* Bootstrap_;
     IInvokerPtr Invoker_;
 
-    bool Connected_ = false;
+    std::atomic<bool> Connected_ = {false};
     TMasterConnectorPtr ControllerAgentMasterConnector_;
 
+    TReaderWriterSpinLock ControllersLock_;
     yhash<TOperationId, IOperationControllerPtr> Controllers_;
 
     // TODO: Move this method to some common place to avoid copy/paste.
@@ -147,6 +154,7 @@ private:
 
     IOperationControllerPtr FindController(const TOperationId& operationId)
     {
+        TReaderGuard guard(ControllersLock_);
         auto it = Controllers_.find(operationId);
         if (it == Controllers_.end()) {
             return nullptr;
