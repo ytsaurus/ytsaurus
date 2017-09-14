@@ -574,15 +574,35 @@ class YsonFormat(Format):
                       **kwargs)
             return
 
-        table_index = 0
-        for row in rows:
-            if isinstance(row, yson.YsonEntity):
-                if self._coerced_table_index_column in row.attributes:
-                    table_index = row.attributes[self._coerced_table_index_column]
-                    self._check_output_table_index(table_index, len(stream_or_streams))
-                    continue
+        class RowsIterator(Iterator):
+            def __init__(self, rows, coerced_table_index_column):
+                self.is_finished = False
+                self.table_index = 0
+                self._rows_iterator = iter(rows)
+                self._coerced_table_index_column = coerced_table_index_column
 
-            yson.dump([row], stream_or_streams[table_index],
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                try:
+                    row = next(self._rows_iterator)
+                except StopIteration:
+                    self.is_finished = True
+                    raise
+
+                if isinstance(row, yson.YsonEntity) and self._coerced_table_index_column in row.attributes:
+                    new_table_index = row.attributes[self._coerced_table_index_column]
+                    if self.table_index != new_table_index:
+                        YsonFormat._check_output_table_index(new_table_index, len(stream_or_streams))
+                        self.table_index = new_table_index
+                        raise StopIteration()
+
+                return row
+
+        rows_iterator = RowsIterator(rows, self._coerced_table_index_column)
+        while not rows_iterator.is_finished:
+            yson.dump(rows_iterator, stream_or_streams[rows_iterator.table_index],
                       yson_type="list_fragment",
                       yson_format=self.attributes["format"],
                       boolean_as_string=self.attributes["boolean_as_string"],
