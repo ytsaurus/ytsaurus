@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/scheduler/fair_share_tree.h>
+#include <yt/server/scheduler/fair_share_tree_element.h>
 
 #include <yt/server/controller_agent/operation_controller.h>
 

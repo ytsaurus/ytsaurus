@@ -818,6 +818,6 @@ DEFINE_REFCOUNTED_TYPE(TRootElement)
 } // namespace NScheduler
 } // namespace NYT
 
-#define FAIR_SHARE_TREE_INL_H_
-#include "fair_share_tree-inl.h"
-#undef FAIR_SHARE_TREE_INL_H_
+#define FAIR_SHARE_TREE_ELEMENT_INL_H_
+#include "fair_share_tree_element-inl.h"
+#undef FAIR_SHARE_TREE_ELEMENT_INL_H_
