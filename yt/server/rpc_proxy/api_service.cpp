@@ -207,6 +207,42 @@ private:
         return transaction;
     }
 
+    static void NoOp()
+    { }
+
+    template <class T>
+    void CompleteCallWith(IServiceContextPtr&& context, TFuture<T>&& future)
+    {
+        future.Subscribe(
+            BIND([context = std::move(context)] (const TErrorOr<T>& valueOrError) {
+                if (valueOrError.IsOK()) {
+                    // XXX(sandello): This relies on the typed service context implementation.
+                    context->Reply(TError());
+                } else {
+                    context->Reply(valueOrError);
+                }
+            }));
+    }
+
+    template <class T, class F>
+    void CompleteCallWith(IServiceContextPtr&& context, TFuture<T>&& future, F&& functor)
+    {
+        future.Subscribe(
+            BIND([context = std::move(context), functor = std::move(functor)] (const TErrorOr<T>& valueOrError) {
+                if (valueOrError.IsOK()) {
+                    try {
+                        functor(valueOrError.Value());
+                        // XXX(sandello): This relies on the typed service context implementation.
+                        context->Reply(TError());
+                    } catch (const std::exception& ex) {
+                        context->Reply(TError(ex));
+                    }
+                } else {
+                    context->Reply(valueOrError);
+                }
+            }));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GenerateTimestamps)
     {
         if (!Coordinator_->IsOperable(context)) {
@@ -214,15 +250,13 @@ private:
         }
         auto count = request->count();
         auto timestampProvider = Bootstrap_->GetNativeConnection()->GetTimestampProvider();
-        timestampProvider->GenerateTimestamps(count).Subscribe(
-            BIND([=] (const TErrorOr<NTransactionClient::TTimestamp>& timestampOrError) {
-                if (timestampOrError.IsOK()) {
-                    response->set_timestamp(timestampOrError.Value());
-                    context->Reply();
-                } else {
-                    context->Reply(timestampOrError);
-                }
-            }));
+
+        CompleteCallWith(
+            context,
+            timestampProvider->GenerateTimestamps(count),
+            [response] (const NTransactionClient::TTimestamp& timestamp) {
+                response->set_timestamp(timestamp);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, StartTransaction)
@@ -247,17 +281,13 @@ private:
         options.Ping = request->ping();
         options.PingAncestors = request->ping_ancestors();
 
-        client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options)
-            .Subscribe(BIND([=] (const TErrorOr<ITransactionPtr>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    const auto& value = result.Value();
-                    ToProto(response->mutable_id(), value->GetId());
-                    response->set_start_timestamp(value->GetStartTimestamp());
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options),
+            [response] (const ITransactionPtr& transaction) {
+                ToProto(response->mutable_id(), transaction->GetId());
+                response->set_start_timestamp(transaction->GetStartTimestamp());
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, PingTransaction)
@@ -276,13 +306,7 @@ private:
         }
 
         // TODO(sandello): Options!
-        transaction->Ping().Subscribe(BIND([=] (const TErrorOr<void>& result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
-            } else {
-                context->Reply();
-            }
-        }));
+        CompleteCallWith(context, transaction->Ping());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CommitTransaction)
@@ -301,14 +325,12 @@ private:
         }
 
         // TODO(sandello): Options!
-        transaction->Commit().Subscribe(BIND([=] (const TErrorOr<TTransactionCommitResult>& result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
-            } else {
+        CompleteCallWith(
+            context,
+            transaction->Commit(),
+            [response] (const TTransactionCommitResult& result) {
                 // TODO(sandello): Fill me.
-                context->Reply();
-            }
-        }));
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AbortTransaction)
@@ -327,13 +349,7 @@ private:
         }
 
         // TODO(sandello): Options!
-        transaction->Abort().Subscribe(BIND([=] (const TErrorOr<void>& result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
-            } else {
-                context->Reply();
-            }
-        }));
+        CompleteCallWith(context, transaction->Abort());
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -479,15 +495,12 @@ private:
             FromProto(&options, request->suppressable_access_tracking_options());
         }
 
-        client->NodeExists(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<bool>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    response->set_exists(result.Value());
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->NodeExists(path, options),
+            [response] (const bool& result) {
+                response->set_exists(result);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetNode)
@@ -531,15 +544,12 @@ private:
             FromProto(&options, request->suppressable_access_tracking_options());
         }
 
-        client->GetNode(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<TYsonString>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    response->set_value(result.Value().GetData());
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->GetNode(path, options),
+            [response] (const TYsonString& result) {
+                response->set_value(result.GetData());
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ListNode)
@@ -584,15 +594,12 @@ private:
             FromProto(&options, request->suppressable_access_tracking_options());
         }
 
-        client->ListNode(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<TYsonString>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    response->set_value(result.Value().GetData());
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->ListNode(path, options),
+            [response] (const TYsonString& result) {
+                response->set_value(result.GetData());
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CreateNode)
@@ -637,15 +644,12 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        client->CreateNode(path, type, options)
-            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    ToProto(response->mutable_node_id(), result.Value());
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->CreateNode(path, type, options),
+            [response] (const NCypressClient::TNodeId& result) {
+                ToProto(response->mutable_node_id(), result);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, RemoveNode)
@@ -677,14 +681,7 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        client->RemoveNode(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->RemoveNode(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, SetNode)
@@ -710,14 +707,7 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        client->SetNode(path, value, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->SetNode(path, value, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LockNode)
@@ -753,16 +743,13 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        client->LockNode(path, mode, options)
-            .Subscribe(BIND([=] (const TErrorOr<TLockNodeResult>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    ToProto(response->mutable_node_id(), result.Value().NodeId);
-                    ToProto(response->mutable_lock_id(), result.Value().LockId);
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->LockNode(path, mode, options),
+            [response] (const TLockNodeResult& result) {
+                ToProto(response->mutable_node_id(), result.NodeId);
+                ToProto(response->mutable_lock_id(), result.LockId);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CopyNode)
@@ -801,15 +788,12 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        client->CopyNode(srcPath, dstPath, options)
-            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    ToProto(response->mutable_node_id(), result.Value());
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->CopyNode(srcPath, dstPath, options),
+            [response] (const NCypressClient::TNodeId& result) {
+                ToProto(response->mutable_node_id(), result);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, MoveNode)
@@ -848,15 +832,12 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        client->MoveNode(srcPath, dstPath, options)
-            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    ToProto(response->mutable_node_id(), result.Value());
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->MoveNode(srcPath, dstPath, options),
+            [response] (const NCypressClient::TNodeId& result) {
+                ToProto(response->mutable_node_id(), result);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LinkNode)
@@ -892,15 +873,12 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        client->LinkNode(srcPath, dstPath, options)
-            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    ToProto(response->mutable_node_id(), result.Value());
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->LinkNode(srcPath, dstPath, options),
+            [response] (const NCypressClient::TNodeId& result) {
+                ToProto(response->mutable_node_id(), result);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ConcatenateNodes)
@@ -934,14 +912,7 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        client->ConcatenateNodes(srcPaths, dstPath, options)
-            .Subscribe(BIND([=] (const TErrorOr<NCypressClient::TNodeId>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->ConcatenateNodes(srcPaths, dstPath, options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -974,14 +945,7 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        client->MountTable(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->MountTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnmountTable)
@@ -1007,14 +971,7 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        client->UnmountTable(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->UnmountTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, RemountTable)
@@ -1036,14 +993,7 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        client->RemountTable(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->RemountTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, FreezeTable)
@@ -1065,14 +1015,7 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        client->FreezeTable(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->FreezeTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnfreezeTable)
@@ -1094,14 +1037,7 @@ private:
             FromProto(&options, request->tablet_range_options());
         }
 
-        client->UnfreezeTable(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->UnfreezeTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ReshardTable)
@@ -1138,14 +1074,7 @@ private:
             result = client->ReshardTable(path, keys, options);
         }
 
-        result
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, std::move(result));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, TrimTable)
@@ -1162,14 +1091,7 @@ private:
         TTrimTableOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        client->TrimTable(path, tabletIndex, trimmedRowCount, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->TrimTable(path, tabletIndex, trimmedRowCount, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AlterTable)
@@ -1202,14 +1124,7 @@ private:
             FromProto(&options, request->transactional_options());
         }
 
-        client->AlterTable(path, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->AlterTable(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AlterTableReplica)
@@ -1239,14 +1154,7 @@ private:
             }
         }
 
-        client->AlterTableReplica(replicaId, options)
-            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(context, client->AlterTableReplica(replicaId, options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -1287,22 +1195,15 @@ private:
         return true;
     }
 
-    template <class TContext, class TResponse, class TRow>
-    static void LookupRowsEpilogue(
-        const TIntrusivePtr<TContext>& context,
+    template <class TResponse, class TRow>
+    static void AttachRowset(
         TResponse* response,
-        const TErrorOr<TIntrusivePtr<IRowset<TRow>>>& result)
+        const TIntrusivePtr<IRowset<TRow>>& rowset)
     {
-        if (!result.IsOK()) {
-            context->Reply(result);
-        } else {
-            const auto& value = result.Value();
-            response->Attachments() = SerializeRowset(
-                value->Schema(),
-                value->GetRows(),
-                response->mutable_rowset_descriptor());
-            context->Reply();
-        }
+        response->Attachments() = SerializeRowset(
+            rowset->Schema(),
+            rowset->GetRows(),
+            response->mutable_rowset_descriptor());
     };
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LookupRows)
@@ -1320,10 +1221,12 @@ private:
             return;
         }
 
-        client->LookupRows(request->path(), std::move(nameTable), std::move(keys), options)
-            .Subscribe(BIND([=] (const TErrorOr<IUnversionedRowsetPtr>& result) {
-                LookupRowsEpilogue(context, response, result);
-            }));
+        CompleteCallWith(
+            context,
+            client->LookupRows(request->path(), std::move(nameTable), std::move(keys), options),
+            [response] (const IUnversionedRowsetPtr& rowset) {
+                AttachRowset(response, rowset);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, VersionedLookupRows)
@@ -1341,10 +1244,12 @@ private:
             return;
         }
 
-        client->VersionedLookupRows(request->path(), std::move(nameTable), std::move(keys), options)
-            .Subscribe(BIND([=] (const TErrorOr<IVersionedRowsetPtr>& result) {
-                LookupRowsEpilogue(context, response, result);
-            }));
+        CompleteCallWith(
+            context,
+            client->VersionedLookupRows(request->path(), std::move(nameTable), std::move(keys), options),
+            [response] (const IVersionedRowsetPtr& rowset) {
+                AttachRowset(response, rowset);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, SelectRows)
@@ -1380,19 +1285,13 @@ private:
             options.MaxSubqueries = request->max_subqueries();
         }
 
-        client->SelectRows(request->query(), options)
-            .Subscribe(BIND([=] (const TErrorOr<TSelectRowsResult>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                } else {
-                    const auto& value = result.Value();
-                    response->Attachments() = SerializeRowset(
-                        value.Rowset->Schema(),
-                        value.Rowset->GetRows(),
-                        response->mutable_rowset_descriptor());
-                    context->Reply();
-                }
-            }));
+        CompleteCallWith(
+            context,
+            client->SelectRows(request->query(), options),
+            [response] (const TSelectRowsResult& result) {
+                // TODO(sandello): Statistics?
+                AttachRowset(response, result.Rowset);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ModifyRows)
