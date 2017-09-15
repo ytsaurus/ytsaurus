@@ -109,16 +109,14 @@ void TTcpConnection::Cleanup()
     DiscardUnackedMessages(CloseError_);
 
     while (!QueuedPackets_.empty()) {
-        auto* packet = QueuedPackets_.front();
-        UpdatePendingOut(-1, -packet->Size);
-        delete packet;
+        const auto& packet = QueuedPackets_.front();
+        UpdatePendingOut(-1, -packet.Size);
         QueuedPackets_.pop();
     }
 
     while (!EncodedPackets_.empty()) {
-        auto* packet = EncodedPackets_.front();
-        UpdatePendingOut(-1, -packet->Size);
-        delete packet;
+        const auto& packet = EncodedPackets_.front();
+        UpdatePendingOut(-1, -packet.Size);
         EncodedPackets_.pop();
     }
 
@@ -722,7 +720,7 @@ bool TTcpConnection::OnMessagePacketReceived()
     return true;
 }
 
-TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
+size_t TTcpConnection::EnqueuePacket(
     EPacketType type,
     EPacketFlags flags,
     int checksummedPartCount,
@@ -730,10 +728,9 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     TSharedRefArray message)
 {
     size_t size = TPacketEncoder::GetPacketSize(type, message);
-    auto* packet = new TPacket(type, flags, checksummedPartCount, packetId, std::move(message), size);
-    QueuedPackets_.push(packet);
+    QueuedPackets_.emplace(type, flags, checksummedPartCount, packetId, std::move(message), size);
     UpdatePendingOut(+1, +size);
-    return packet;
+    return size;
 }
 
 void TTcpConnection::OnSocketWrite()
@@ -900,20 +897,20 @@ bool TTcpConnection::MaybeEncodeFragments()
            !QueuedPackets_.empty())
     {
         // Move the packet from queued to encoded.
-        auto* packet = QueuedPackets_.front();
+        EncodedPackets_.push(std::move(QueuedPackets_.front()));
         QueuedPackets_.pop();
-        EncodedPackets_.push(packet);
+        const auto& packet = EncodedPackets_.back();
 
         // Encode the packet.
-        LOG_TRACE("Starting encoding packet (PacketId: %v)", packet->PacketId);
+        LOG_TRACE("Starting encoding packet (PacketId: %v)", packet.PacketId);
 
         bool encodeResult = Encoder_.Start(
-            packet->Type,
-            packet->Flags,
+            packet.Type,
+            packet.Flags,
             GenerateChecksums_,
-            packet->ChecksummedPartCount,
-            packet->PacketId,
-            packet->Message);
+            packet.ChecksummedPartCount,
+            packet.PacketId,
+            packet.Message);
         if (!encodeResult) {
             Counters_->EncoderErrors.fetch_add(1, std::memory_order_relaxed);
             Abort(TError(NRpc::EErrorCode::TransportError, "Error encoding outcoming packet"));
@@ -932,10 +929,10 @@ bool TTcpConnection::MaybeEncodeFragments()
             Encoder_.NextFragment();
         } while (!Encoder_.IsFinished());
 
-        EncodedPacketSizes_.push(packet->Size);
-        encodedSize += packet->Size;
+        EncodedPacketSizes_.push(packet.Size);
+        encodedSize += packet.Size;
 
-        LOG_TRACE("Finished encoding packet (PacketId: %v)", packet->PacketId);
+        LOG_TRACE("Finished encoding packet (PacketId: %v)", packet.PacketId);
     }
 
     flushCoalesced();
@@ -960,14 +957,14 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
 
 void TTcpConnection::OnPacketSent()
 {
-    const auto* packet = EncodedPackets_.front();
-    switch (packet->Type) {
+    const auto& packet = EncodedPackets_.front();
+    switch (packet.Type) {
         case EPacketType::Ack:
-            OnAckPacketSent(*packet);
+            OnAckPacketSent(packet);
             break;
 
         case EPacketType::Message:
-            OnMessagePacketSent(*packet);
+            OnMessagePacketSent(packet);
             break;
 
         default:
@@ -975,10 +972,9 @@ void TTcpConnection::OnPacketSent()
     }
 
 
-    UpdatePendingOut(-1, -packet->Size);
+    UpdatePendingOut(-1, -packet.Size);
     Counters_->OutPackets.fetch_add(1, std::memory_order_relaxed);
 
-    delete packet;
     EncodedPackets_.pop();
 }
 
@@ -1020,7 +1016,7 @@ void TTcpConnection::ProcessQueuedMessages()
             ? EPacketFlags::RequestAck
             : EPacketFlags::None;
 
-        auto* packet = EnqueuePacket(
+        auto packetSize = EnqueuePacket(
             EPacketType::Message,
             flags,
             GenerateChecksums_ ? queuedMessage.Options.ChecksummedPartCount : 0,
@@ -1029,7 +1025,7 @@ void TTcpConnection::ProcessQueuedMessages()
 
         LOG_DEBUG("Outcoming message dequeued (PacketId: %v, PacketSize: %v, Flags: %v)",
             packetId,
-            packet->Size,
+            packetSize,
             flags);
 
         if (Any(flags & EPacketFlags::RequestAck)) {
