@@ -68,9 +68,18 @@ private:
     TResultHandlers ResultHandlers_;
     TCancelHandlers CancelHandlers_;
 
+    template <class F, class... As>
+    auto RunNoExcept(F&& functor, As&&... args) -> decltype(functor(std::forward<As>(args)...))
+    {
+        try {
+            return functor(std::forward<As>(args)...);
+        } catch (...) {
+            std::terminate();
+        }
+    }
 
     template <class U, bool MustSet>
-    bool DoSet(U&& value)
+    bool DoSet(U&& value) noexcept
     {
         // Calling subscribers may release the last reference to this.
         TIntrusivePtr<TFutureState> this_(this);
@@ -86,6 +95,7 @@ private:
                     return false;
                 }
             }
+            // TODO(sandello): What about exceptions here?
             Value_.Assign(TErrorOr<T>(std::forward<U>(value)));
             Set_ = true;
             canceled = Canceled_;
@@ -97,7 +107,7 @@ private:
         }
 
         for (const auto& handler : ResultHandlers_) {
-            handler.Run(*Value_);
+            RunNoExcept(handler, *Value_);
         }
         ResultHandlers_.clear();
 
@@ -243,7 +253,7 @@ public:
     {
         // Fast path.
         if (Set_) {
-            handler.Run(*Value_);
+            RunNoExcept(handler, *Value_);
             return;
         }
 
@@ -252,7 +262,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             if (Set_) {
                 guard.Release();
-                handler.Run(*Value_);
+                RunNoExcept(handler, *Value_);
             } else {
                 ResultHandlers_.push_back(std::move(handler));
             }
@@ -266,7 +276,7 @@ public:
             return;
         }
         if (Canceled_) {
-            handler.Run();
+            RunNoExcept(handler);
             return;
         }
 
@@ -275,7 +285,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             if (Canceled_) {
                 guard.Release();
-                handler.Run();
+                RunNoExcept(handler);
             } else if (!Set_) {
                 CancelHandlers_.push_back(std::move(handler));
             }
@@ -288,7 +298,7 @@ public:
     }
 
 private:
-    bool DoCancel()
+    bool DoCancel() noexcept
     {
         // Calling subscribers may release the last reference to this.
         TIntrusivePtr<TFutureState> this_(this);
@@ -302,7 +312,7 @@ private:
         }
 
         for (auto& handler : CancelHandlers_) {
-            handler.Run();
+            RunNoExcept(handler);
         }
         CancelHandlers_.clear();
 

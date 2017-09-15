@@ -159,6 +159,12 @@ public:
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
+     *
+     *  \note
+     *  If the callback throws an exception, the program terminates with
+     *  a call to std::terminate. This is because the subscribers are notified synchronously
+     *  and thus we have to ensure that the promise state remains valid by correctly
+     *  finishing the Set call.
      */
     void Subscribe(TCallback<void(const TErrorOr<T>&)> handler);
 
