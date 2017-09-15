@@ -413,8 +413,7 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
     }
 
     QueuedMessages_.Enqueue(queuedMessage);
-
-    TryArmPoller();
+    ArmPollerForWrite();
 
     return queuedMessage.Promise;
 }
@@ -454,7 +453,6 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>&
 
 void TTcpConnection::OnEvent(EPollControl control)
 {
-    bool hasUnsentData;
     do {
         TTryGuard<TSpinLock> guard(EventHandlerSpinLock_);
         if (!guard.WasAcquired()) {
@@ -495,12 +493,11 @@ void TTcpConnection::OnEvent(EPollControl control)
             OnSocketWrite();
         }
 
-        hasUnsentData = HasUnsentData();
-
-        LOG_TRACE("Event processing finished (HasUnsentData: %v)", hasUnsentData);
+        HasUnsentData_ = HasUnsentData();
+        LOG_TRACE("Event processing finished (HasUnsentData: %v)", HasUnsentData_.load());
     } while (ArmedForQueuedMessages_);
 
-    RearmPoller(hasUnsentData);
+    RearmPoller();
 }
 
 void TTcpConnection::OnShutdown()
@@ -773,7 +770,7 @@ void TTcpConnection::OnSocketWrite()
 
 bool TTcpConnection::HasUnsentData() const
 {
-    return !EncodedFragments_.empty() || !QueuedPackets_.empty();
+    return !EncodedFragments_.empty() || !QueuedPackets_.empty() || !EncodedPackets_.empty();
 }
 
 bool TTcpConnection::WriteFragments(size_t* bytesWritten)
@@ -1084,7 +1081,7 @@ void TTcpConnection::UnregisterFromPoller()
     Poller_->Unregister(this);
 }
 
-void TTcpConnection::TryArmPoller()
+void TTcpConnection::ArmPollerForWrite()
 {
     if (State_ != EState::Open) {
         LOG_TRACE("Cannot arm poller since connection is not open yet");
@@ -1122,7 +1119,7 @@ void TTcpConnection::DoArmPoller()
     LOG_TRACE("Poller armed");
 }
 
-void TTcpConnection::RearmPoller(bool hasUnsentData)
+void TTcpConnection::RearmPoller()
 {
     NConcurrency::TReaderGuard guard(ControlSpinLock_);
 
@@ -1136,20 +1133,24 @@ void TTcpConnection::RearmPoller(bool hasUnsentData)
         return;
     }
 
-    if (hasUnsentData) {
-        LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
-    } else {
-        LastIncompleteWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
-    }
+    auto mustArmForWrite = [&] {
+        return HasUnsentData_.load() || ArmedForQueuedMessages_.load();
+    };
 
     // This loop is to avoid race with #TTcpConnection::Send and to prevent
     // arming the poller in read-only mode in presence of queued messages.
     bool forWrite;
     do {
-        forWrite = hasUnsentData || ArmedForQueuedMessages_.load();
+        if (HasUnsentData_.load()) {
+            LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
+        } else {
+            LastIncompleteWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
+        }
+
+        forWrite = mustArmForWrite();
         Poller_->Arm(Socket_, this, EPollControl::Read | (forWrite ? EPollControl::Write : EPollControl::None));
         LOG_TRACE("Poller rearmed (ForWrite: %v)", forWrite);
-    } while (!forWrite && ArmedForQueuedMessages_.load());
+    } while (!forWrite && mustArmForWrite());
 }
 
 int TTcpConnection::GetSocketError() const
