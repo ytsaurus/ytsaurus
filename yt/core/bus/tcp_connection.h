@@ -168,6 +168,8 @@ private:
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
     std::atomic<bool> ArmedForQueuedMessages_ = {false};
+    std::atomic<bool> HasUnsentData_ = {false};
+
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
 
     TPacketDecoder Decoder_;
@@ -243,9 +245,9 @@ private:
 
     void UnregisterFromPoller();
 
-    void TryArmPoller();
+    void ArmPollerForWrite();
     void DoArmPoller();
-    void RearmPoller(bool hasUnsentData);
+    void RearmPoller();
 
     void UpdateConnectionCount(bool increment);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
