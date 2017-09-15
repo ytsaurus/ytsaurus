@@ -1141,7 +1141,7 @@ void TTcpConnection::RearmPoller()
     };
 
     // This loop is to avoid race with #TTcpConnection::Send and to prevent
-    // arming the poller in read-only mode in presence of queued messages.
+    // arming the poller in read-only mode in presence of queued messages or unsent data.
     bool forWrite;
     do {
         if (HasUnsentData_.load()) {
