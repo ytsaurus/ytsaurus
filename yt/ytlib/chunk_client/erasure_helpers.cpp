@@ -497,7 +497,6 @@ TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
         std::vector<int>{
             TProtoExtensionTag<NProto::TErasurePlacementExt>::Value
         }).Apply(BIND([] (const NProto::TChunkMeta& meta) {
-            YCHECK(HasProtoExtension<NProto::TErasurePlacementExt>(meta.extensions()));
             return GetProtoExtension<NProto::TErasurePlacementExt>(meta.extensions());
         }));
 }
