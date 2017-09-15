@@ -179,8 +179,8 @@ private:
     std::atomic<NProfiling::TCpuInstant> LastIncompleteReadTime_ = {std::numeric_limits<NProfiling::TCpuInstant>::max()};
     TBlob ReadBuffer_;
 
-    TRingQueue<TPacket*> QueuedPackets_;
-    TRingQueue<TPacket*> EncodedPackets_;
+    TRingQueue<TPacket> QueuedPackets_;
+    TRingQueue<TPacket> EncodedPackets_;
 
     TPacketEncoder Encoder_;
     NProfiling::TCpuDuration WriteStallTimeout_;
@@ -225,7 +225,7 @@ private:
     bool OnAckPacketReceived();
     bool OnMessagePacketReceived();
 
-    TPacket* EnqueuePacket(
+    size_t EnqueuePacket(
         EPacketType type,
         EPacketFlags flags,
         int checksummedPartCount,
