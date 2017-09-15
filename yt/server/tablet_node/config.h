@@ -50,10 +50,11 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
-    int MaxDynamicStoreRowCount;
-    int MaxDynamicStoreValueCount;
+    i64 MaxDynamicStoreRowCount;
+    i64 MaxDynamicStoreValueCount;
+    i64 MaxDynamicStoreTimestampCount;
     i64 MaxDynamicStorePoolSize;
-    size_t MaxDynamicStoreRowDataWeight;
+    i64 MaxDynamicStoreRowDataWeight;
 
     double DynamicStoreOverflowThreshold;
 
@@ -109,6 +110,9 @@ public:
             .Default(1000000);
         RegisterParameter("max_dynamic_store_value_count", MaxDynamicStoreValueCount)
             .GreaterThan(0)
+            .Default(1000000000);
+        RegisterParameter("max_dynamic_store_timestamp_count", MaxDynamicStoreTimestampCount)
+            .GreaterThan(0)
             .Default(10000000)
             // NB: This limit is really important; please consult babenko@
             // before changing it.
@@ -120,7 +124,7 @@ public:
             .GreaterThan(0)
             .Default(NTableClient::MaxClientVersionedRowDataWeight)
             // NB: This limit is important: it ensures that store is flushable.
-            // Please consult savrus@ before chaging.
+            // Please consult savrus@ before changing.
             .LessThanOrEqual(NTableClient::MaxServerVersionedRowDataWeight / 2);
 
         RegisterParameter("dynamic_store_overflow_threshold", DynamicStoreOverflowThreshold)
