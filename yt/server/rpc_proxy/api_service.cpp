@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <yt/server/cell_proxy/bootstrap.h>
+#include <yt/server/cell_proxy/config.h>
 
 #include <yt/server/blackbox/cookie_authenticator.h>
 #include <yt/server/blackbox/token_authenticator.h>
@@ -169,7 +170,10 @@ private:
             return nullptr;
         }
 
-        context->SetRequestInfo("Request: %v", request->ShortDebugString());
+        // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
+        if (Bootstrap_->GetConfig()->ApiService->VerboseLogging) {
+            context->SetRequestInfo("Request: %v", request->ShortDebugString());
+        }
 
         {
             auto guard = Guard(SpinLock_);

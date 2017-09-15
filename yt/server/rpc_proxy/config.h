@@ -9,6 +9,23 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TApiServiceConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    bool VerboseLogging;
+
+    TApiServiceConfig()
+    {
+        RegisterParameter("verbose_logging", VerboseLogging)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDiscoveryServiceConfig
     : public virtual NYTree::TYsonSerializable
 {

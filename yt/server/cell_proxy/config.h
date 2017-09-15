@@ -26,6 +26,7 @@ public:
     NBlackbox::TDefaultBlackboxServiceConfigPtr Blackbox;
     NBlackbox::TCookieAuthenticatorConfigPtr CookieAuthenticator;
     NBlackbox::TCachingTokenAuthenticatorConfigPtr TokenAuthenticator;
+    NRpcProxy::TApiServiceConfigPtr ApiService;
     NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
     //! Known RPC proxy addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
@@ -39,6 +40,8 @@ public:
         RegisterParameter("cookie_authenticator", CookieAuthenticator)
             .DefaultNew();
         RegisterParameter("token_authenticator", TokenAuthenticator)
+            .DefaultNew();
+        RegisterParameter("api_service", ApiService)
             .DefaultNew();
         RegisterParameter("discovery_service", DiscoveryService)
             .DefaultNew();
