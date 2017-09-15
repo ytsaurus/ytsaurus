@@ -193,6 +193,8 @@ protected:
 
     NErasure::ICodec* const Codec_;
     const std::vector<IChunkReaderPtr> Readers_;
+
+    TFuture<void> PlacementExtFuture_;
     NProto::TErasurePlacementExt PlacementExt_;
 };
 
