@@ -571,6 +571,16 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+    virtual bool IsValid() const override
+    {
+        for (size_t i = 0; i < Readers_.size(); ++i) {
+            if (!Readers_[i]->IsValid()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 private:
     const TPartIndexList ErasedIndices_;
 };

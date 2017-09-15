@@ -1903,7 +1903,7 @@ void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, 
     auto& chunkSpec = descriptor.InputChunks.front();
     auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
 
-    if (IsUnavailable(replicas, codecId, IsParityReplicasFetchEnabled())) {
+    if (IsUnavailable(replicas, codecId, CheckParityReplicas())) {
         OnInputChunkUnavailable(chunkId, &descriptor);
     } else {
         OnInputChunkAvailable(chunkId, replicas, &descriptor);
@@ -3527,7 +3527,9 @@ void TOperationControllerBase::FetchInputTables()
                 if (table.IsDynamic || IsBoundaryKeysFetchEnabled()) {
                     req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
                 }
-                req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
+                // NB: we always fetch parity replicas since
+                // erasure reader can repair data on flight.
+                req->set_fetch_parity_replicas(true);
                 SetTransactionId(req, InputTransaction->GetId());
             },
             Logger,
@@ -3567,7 +3569,7 @@ void TOperationControllerBase::RegisterInputChunk(const TInputChunkPtr& inputChu
     auto& chunkDescriptor = InputChunkMap[chunkId];
     chunkDescriptor.InputChunks.push_back(inputChunk);
 
-    if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
+    if (IsUnavailable(inputChunk, CheckParityReplicas())) {
         chunkDescriptor.State = EInputChunkState::Waiting;
     }
 }
@@ -3993,7 +3995,9 @@ void TOperationControllerBase::FetchUserFiles()
                         if (file.IsDynamic || IsBoundaryKeysFetchEnabled()) {
                             req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
                         }
-                        req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
+                        // NB: we always fetch parity replicas since
+                        // erasure reader can repair data on flight.
+                        req->set_fetch_parity_replicas(true);
                         SetTransactionId(req, InputTransaction->GetId());
                     },
                     Logger,
@@ -4347,7 +4351,7 @@ void TOperationControllerBase::CollectTotals()
     i64 totalInputDataWeight = 0;
     for (const auto& table : InputTables) {
         for (const auto& inputChunk : table.Chunks) {
-            if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
+            if (IsUnavailable(inputChunk, CheckParityReplicas())) {
                 const auto& chunkId = inputChunk->ChunkId();
                 if (table.IsDynamic && table.Schema.IsSorted()) {
                     THROW_ERROR_EXCEPTION("Input chunk %v of sorted dynamic table %v is unavailable",
@@ -4424,7 +4428,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool 
     for (const auto& table : InputTables) {
         if (!table.IsForeign() && ((table.IsDynamic && table.Schema.IsSorted()) == versioned)) {
             for (const auto& chunk : table.Chunks) {
-                if (!table.IsDynamic && IsUnavailable(chunk, IsParityReplicasFetchEnabled())) {
+                if (!table.IsDynamic && IsUnavailable(chunk, CheckParityReplicas())) {
                     switch (Spec_->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
@@ -4563,7 +4567,7 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
 
                 auto dataSlices = CombineVersionedChunkSlices(chunkSlices);
                 for (const auto& dataSlice : dataSlices) {
-                    if (IsUnavailable(dataSlice, IsParityReplicasFetchEnabled())) {
+                    if (IsUnavailable(dataSlice, CheckParityReplicas())) {
                         switch (Spec_->UnavailableChunkStrategy) {
                             case EUnavailableChunkAction::Skip:
                                 continue;
@@ -4580,7 +4584,7 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
                 }
             } else {
                 for (const auto& inputChunk : table.Chunks) {
-                    if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
+                    if (IsUnavailable(inputChunk, CheckParityReplicas())) {
                         switch (Spec_->UnavailableChunkStrategy) {
                             case EUnavailableChunkAction::Skip:
                                 continue;
@@ -4873,9 +4877,9 @@ TOutputOrderPtr TOperationControllerBase::GetOutputOrder() const
     return nullptr;
 }
 
-bool TOperationControllerBase::IsParityReplicasFetchEnabled() const
+bool TOperationControllerBase::CheckParityReplicas() const
 {
-    return true;
+    return false;
 }
 
 bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const

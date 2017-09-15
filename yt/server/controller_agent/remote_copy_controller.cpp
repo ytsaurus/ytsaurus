@@ -471,7 +471,7 @@ private:
         return false;
     }
 
-    virtual bool IsParityReplicasFetchEnabled() const override
+    virtual bool CheckParityReplicas() const override
     {
         return true;
     }
