@@ -332,6 +332,37 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("* from [//tmp/jl] left join [//tmp/jr] using a, b")
         assert sorted(expected) == sorted(actual)
 
+    def test_join_common_prefix2(self):
+        self.sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/jl",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"}],
+            [
+                {"a": 1, "c": 3 }
+            ],
+            "scan");
+
+
+        self._create_table(
+            "//tmp/jr",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+                {"name": "d", "type": "int64"}],
+            [
+                {"a": 1, "b": 2, "d": 4 }
+            ],
+            "scan");
+
+        expected = [
+            {"l.a": 1, "r.a": 1, "r.b": 2, "l.c": 3, "r.d": 4}]
+
+        actual = select_rows("* from [//tmp/jl] l left join [//tmp/jr] r on (l.a, 2) = (r.a, r.b) where l.a = 1")
+        assert sorted(expected) == sorted(actual)
+
     def test_join_many(self):
         self.sync_create_cells(1)
 

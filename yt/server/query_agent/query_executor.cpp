@@ -358,6 +358,7 @@ private:
                         bool isRanges = false;
                         bool isKeys = false;
 
+                        std::vector<EValueType> schema;
                         for (const auto& split : dataSplits) {
                             for (int index = 0; index < split.Ranges.Size(); ++index) {
                                 isRanges = true;
@@ -391,6 +392,8 @@ private:
                                     upperBound);
                             }
 
+                            schema = split.Schema;
+
                             for (int index = 0; index < split.Keys.Size(); ++index) {
                                 isKeys = true;
                                 YCHECK(!isRanges);
@@ -421,6 +424,7 @@ private:
                         if (isKeys) {
                             prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
                             dataSource.Keys = MakeSharedRange(prefixKeys, rowBuffer);
+                            dataSource.Schema = schema;
                         }
 
                         // COMPAT(lukyan): Use ordered read without modification of protocol
@@ -581,6 +585,12 @@ private:
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
 
         auto keySize = Query_->OriginalSchema.GetKeyColumnCount();
+
+        std::vector<EValueType> keySchema;
+        for (size_t index = 0; index < keySize; ++index) {
+            keySchema.push_back(Query_->OriginalSchema.Columns()[index].Type);
+        }
+
         size_t rangesCount = 0;
         for (const auto& source : dataSources) {
             TRowRanges rowRanges;
@@ -604,6 +614,7 @@ private:
                     item.Id = source.Id;
                     item.KeyWidth = source.KeyWidth;
                     item.Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder());
+                    item.Schema = keySchema;
                     item.LookupSupported = source.LookupSupported;
                     rangesByTablet.emplace_back(std::move(item));
                 }
