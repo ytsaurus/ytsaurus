@@ -20,14 +20,19 @@ void TFunctionRegistryBuilder::RegisterFunction(
 {
     if (TypeInferrers_) {
         TypeInferrers_->emplace(functionName, New<TFunctionTypeInferrer>(
-            typeArgumentConstraints,
-            argumentTypes,
+            std::move(typeArgumentConstraints),
+            std::move(argumentTypes),
             repeatedArgType,
             resultType));
     }
     if (FunctionProfilers_) {
         FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
-            functionName, symbolName, implementationFile, callingConvention, TSharedRef(), useFunctionContext));
+            functionName,
+            symbolName,
+            std::move(implementationFile),
+            std::move(callingConvention),
+            TSharedRef(),
+            useFunctionContext));
     }
 }
 
@@ -42,10 +47,10 @@ void TFunctionRegistryBuilder::RegisterFunction(
         functionName,
         functionName,
         std::unordered_map<TTypeArgument, TUnionType>(),
-        argumentTypes,
+        std::move(argumentTypes),
         EValueType::Null,
         resultType,
-        implementationFile,
+        std::move(implementationFile),
         GetCallingConvention(callingConvention));
 }
 

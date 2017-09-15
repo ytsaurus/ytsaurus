@@ -16,6 +16,7 @@
 
 #include <yt/core/yson/lexer.h>
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/writer.h>
 #include <yt/core/yson/token.h>
 
 #include <yt/core/ytree/ypath_resolver.h>
@@ -1338,7 +1339,6 @@ void RegexReplaceFirst(
     CopyString(context, result, str);
 }
 
-
 void RegexReplaceAll(
     TExpressionContext* context,
     re2::RE2* re2,
@@ -1633,6 +1633,66 @@ void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, 
 TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     return NYT::NTableClient::GetFarmFingerprint(begin, end);
+}
+
+extern "C" void MakeMap(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* args,
+    int argCount)
+{
+    if (argCount % 2 != 0) {
+        THROW_ERROR_EXCEPTION("\"make_map\" takes a even number of arguments");
+    }
+
+    TString resultYson;
+    TStringOutput output(resultYson);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginMap();
+    for (int index = 0; index < argCount / 2; ++index) {
+        const auto& nameArg = args[index * 2];
+        const auto& valueArg = args[index * 2 + 1];
+
+        if (nameArg.Type != EValueType::String) {
+            THROW_ERROR_EXCEPTION("Invalid type of key in key-value pair #%v: expected %Qlv, got %Qlv",
+                index,
+                EValueType::String,
+                nameArg.Type);
+        }
+        writer.OnKeyedItem(TStringBuf(nameArg.Data.String, nameArg.Length));
+
+        switch (valueArg.Type) {
+            case EValueType::Int64:
+                writer.OnInt64Scalar(valueArg.Data.Int64);
+                break;
+            case EValueType::Uint64:
+                writer.OnUint64Scalar(valueArg.Data.Uint64);
+                break;
+            case EValueType::Double:
+                writer.OnDoubleScalar(valueArg.Data.Double);
+                break;
+            case EValueType::Boolean:
+                writer.OnBooleanScalar(valueArg.Data.Boolean);
+                break;
+            case EValueType::String:
+                writer.OnStringScalar(TStringBuf(valueArg.Data.String, valueArg.Length));
+                break;
+            case EValueType::Any:
+                writer.OnRaw(TStringBuf(valueArg.Data.String, valueArg.Length));
+                break;
+            case EValueType::Null:
+                writer.OnEntity();
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value in key-value pair #%v",
+                    valueArg.Type,
+                    index);
+        }
+    }
+    writer.OnEndMap();
+
+    *result = context->Capture(MakeUnversionedAnyValue(resultYson));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
