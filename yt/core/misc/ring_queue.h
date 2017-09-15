@@ -200,6 +200,14 @@ public:
         AfterPush();
     }
 
+    template <class... TArgs>
+    void emplace(TArgs&&... args)
+    {
+        BeforePush();
+        new(Tail_) T(std::forward<TArgs>(args)...);
+        AfterPush();
+    }
+
     void pop()
     {
         Y_ASSERT(Size_ > 0);
