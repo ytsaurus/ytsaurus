@@ -11,6 +11,7 @@
 #include "udf/is_prefix.h" // Y_IGNORE
 #include "udf/avg.h" // Y_IGNORE
 #include "udf/farm_hash.h" // Y_IGNORE
+#include "udf/make_map.h" // Y_IGNORE
 #include "udf/first.h" // Y_IGNORE
 #include "udf/hyperloglog.h" // Y_IGNORE
 #include "udf/is_substr.h" // Y_IGNORE
@@ -587,19 +588,33 @@ void RegisterBuiltinFunctions(
         UDF_BC(sleep),
         ECallingConvention::Simple);
 
-    TUnionType hashTypes = TUnionType{
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Boolean,
-        EValueType::String};
-
     builder.RegisterFunction(
         "farm_hash",
         std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{},
-        hashTypes,
+        TUnionType{
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Boolean,
+            EValueType::String
+        },
         EValueType::Uint64,
         UDF_BC(farm_hash));
+
+    builder.RegisterFunction(
+        "make_map",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{},
+        TUnionType{
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Boolean,
+            EValueType::Double,
+            EValueType::String,
+            EValueType::Any
+        },
+        EValueType::Any,
+        UDF_BC(make_map));
 
     if (typeInferrers) {
         typeInferrers->emplace("is_null", New<TFunctionTypeInferrer>(
