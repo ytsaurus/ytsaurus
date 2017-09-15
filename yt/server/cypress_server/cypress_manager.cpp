@@ -1166,7 +1166,7 @@ private:
         // COMPAT(babenko)
         FixLinkPaths_ = context.GetVersion() < 403;
         // COMPAT(savrus)
-        ClearSysAttributes_ = Bootstrap_->IsPrimaryMaster() && context.GetVersion() < 620;
+        ClearSysAttributes_ = context.GetVersion() < 620;
     }
 
 
