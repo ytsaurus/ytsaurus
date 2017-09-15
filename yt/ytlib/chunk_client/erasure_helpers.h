@@ -194,6 +194,7 @@ protected:
     NErasure::ICodec* const Codec_;
     const std::vector<IChunkReaderPtr> Readers_;
 
+    TSpinLock PlacementExtLock_;
     TFuture<void> PlacementExtFuture_;
     NProto::TErasurePlacementExt PlacementExt_;
 };

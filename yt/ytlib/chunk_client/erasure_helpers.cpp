@@ -609,13 +609,21 @@ TChunkId TErasureChunkReaderBase::GetChunkId() const
 
 TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TWorkloadDescriptor& workloadDescriptor)
 {
-    if (!PlacementExtFuture_) {
-        PlacementExtFuture_ = GetPlacementMeta(this, workloadDescriptor).Apply(
-            BIND(&TErasureChunkReaderBase::OnGotPlacementMeta, MakeStrong(this))
-                .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
+    if (PlacementExtFuture_) {
+        return PlacementExtFuture_;
     }
 
-    return PlacementExtFuture_;
+    {
+        TGuard<TSpinLock> guard(PlacementExtLock_);
+
+        if (!PlacementExtFuture_) {
+            PlacementExtFuture_ = GetPlacementMeta(this, workloadDescriptor).Apply(
+                BIND(&TErasureChunkReaderBase::OnGotPlacementMeta, MakeStrong(this))
+                    .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
+        }
+
+        return PlacementExtFuture_;
+    }
 }
 
 void TErasureChunkReaderBase::OnGotPlacementMeta(const TErasurePlacementExt& placementExt)
