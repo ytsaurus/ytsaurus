@@ -1729,6 +1729,11 @@ i64 TSortedDynamicStore::GetRowCount() const
     return Rows_->GetSize();
 }
 
+i64 TSortedDynamicStore::GetTimestampCount() const
+{
+    return RevisionToTimestamp_.Size();
+}
+
 TOwningKey TSortedDynamicStore::GetMinKey() const
 {
     return MinKey();
@@ -1990,7 +1995,7 @@ void TSortedDynamicStore::InsertIntoLookupHashTable(
     }
 }
 
-size_t TSortedDynamicStore::GetMaxDataWeight() const
+i64 TSortedDynamicStore::GetMaxDataWeight() const
 {
     return MaxDataWeight_;
 }

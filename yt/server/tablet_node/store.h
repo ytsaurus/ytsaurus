@@ -84,6 +84,7 @@ struct IDynamicStore
     : public virtual IStore
 {
     virtual i64 GetValueCount() const = 0;
+    virtual i64 GetTimestampCount() const = 0;
     virtual i64 GetLockCount() const = 0;
 
     virtual i64 GetPoolSize() const = 0;

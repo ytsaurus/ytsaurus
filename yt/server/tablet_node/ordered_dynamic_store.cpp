@@ -396,6 +396,11 @@ TOrderedDynamicStorePtr TOrderedDynamicStore::AsOrderedDynamic()
     return this;
 }
 
+i64 TOrderedDynamicStore::GetTimestampCount() const
+{
+    return GetRowCount();
+}
+
 ISchemafulReaderPtr TOrderedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& /*tabletSnapshot*/,
     int tabletIndex,

@@ -105,14 +105,16 @@ public:
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
-
     virtual i64 GetRowCount() const override;
+
+    // IDynamicStore implementation.
+    virtual i64 GetTimestampCount() const override;
 
     // ISortedStore implementation.
     virtual TOwningKey GetMinKey() const override;
     virtual TOwningKey GetMaxKey() const override;
 
-    size_t GetMaxDataWeight() const;
+    i64 GetMaxDataWeight() const;
     TOwningKey GetMaxDataWeightWitnessKey() const;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
@@ -166,7 +168,7 @@ private:
     // Reused between ModifyRow calls.
     std::vector<ui32> WriteRevisions_;
 
-    size_t MaxDataWeight_ = 0;
+    i64 MaxDataWeight_ = 0;
     TSortedDynamicRow MaxDataWeightWitness_;
 
     virtual void OnSetPassive() override;

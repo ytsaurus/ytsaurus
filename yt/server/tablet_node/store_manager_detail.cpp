@@ -465,6 +465,7 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
     return
         activeStore->GetRowCount() >= threshold * config->MaxDynamicStoreRowCount ||
         activeStore->GetValueCount() >= threshold * config->MaxDynamicStoreValueCount ||
+        activeStore->GetTimestampCount() >= threshold * config->MaxDynamicStoreTimestampCount ||
         activeStore->GetPoolCapacity() >= threshold * config->MaxDynamicStorePoolSize;
 }
 
@@ -490,10 +491,17 @@ TError TStoreManagerBase::CheckOverflow() const
             << TErrorAttribute("value_count_limit", config->MaxDynamicStoreValueCount);
     }
 
-    if (activeStore->GetRowCount() >= config->MaxDynamicStoreRowCount) {
+    if (activeStore->GetTimestampCount() >= config->MaxDynamicStoreTimestampCount) {
+        return TError("Dynamic store timestamp count limit reached")
+            << TErrorAttribute("store_id", activeStore->GetId())
+            << TErrorAttribute("timestamp_count", activeStore->GetTimestampCount())
+            << TErrorAttribute("timestamp_count_limit", config->MaxDynamicStoreTimestampCount);
+    }
+
+    if (activeStore->GetPoolSize() >= config->MaxDynamicStorePoolSize) {
         return TError("Dynamic store pool size limit reached")
             << TErrorAttribute("store_id", activeStore->GetId())
-            << TErrorAttribute("pool_size", activeStore->GetPoolCapacity())
+            << TErrorAttribute("pool_size", activeStore->GetPoolSize())
             << TErrorAttribute("pool_size_limit", config->MaxDynamicStorePoolSize);
     }
 
