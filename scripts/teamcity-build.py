@@ -345,9 +345,8 @@ def run_unit_tests(options, build_context):
 
         raise StepFailedWithNonCriticalError(str(err))
     finally:
+        find_and_report_core_dumps(options, "unit_tests", sandbox_current)
         rmtree(sandbox_current)
-
-    find_and_report_core_dumps(options, "unit_tests", sandbox_current)
 
 
 @build_step
@@ -364,8 +363,8 @@ def run_javascript_tests(options, build_context):
             env={"MOCHA_OUTPUT_FILE": "{0}/junit_nodejs_run_tests.xml".format(options.working_directory)})
     except ChildHasNonZeroExitCode as err:
         raise StepFailedWithNonCriticalError(str(err))
-
-    find_and_report_core_dumps(options, "javascript", tests_path)
+    finally:
+        find_and_report_core_dumps(options, "javascript", tests_path)
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
