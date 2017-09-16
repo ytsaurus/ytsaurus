@@ -5146,7 +5146,14 @@ bool TOperationControllerBase::ShouldUpdateProgress() const
 
 bool TOperationControllerBase::HasProgress() const
 {
-    return IsPrepared() && ProgressString_ && BriefProgressString_;
+    if (!IsPrepared()) {
+        return false;
+    }
+
+    {
+        TGuard<TSpinLock> guard(ProgressLock_);
+        return ProgressString_ && BriefProgressString_;
+    }
 }
 
 bool TOperationControllerBase::HasJobSplitterInfo() const
