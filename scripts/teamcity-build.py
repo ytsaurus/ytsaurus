@@ -481,7 +481,7 @@ def run_yp_integration_tests(options, build_context):
         return
     
     node_path = os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
-    run_pytest(options, "yp_integration", "{0}/yp/python".format(options.checkout_directory),
+    run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
                env={
                    "NODE_PATH": node_path
                })
