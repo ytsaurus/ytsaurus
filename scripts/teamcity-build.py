@@ -385,7 +385,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
         env = {}
 
     env["PATH"] = "{0}/bin:{0}/yt/nodejs:/usr/sbin:{1}".format(options.working_directory, os.environ.get("PATH", ""))
-    env["PYTHONPATH"] = "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
+    env["PYTHONPATH"] = "{0}/python:{0}/yp/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
     env["TESTS_SANDBOX"] = sandbox_current
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
