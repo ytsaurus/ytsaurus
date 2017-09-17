@@ -236,7 +236,7 @@ public:
     }
 
 private:
-    IInvokerPtr Invoker_;
+    const IInvokerPtr Invoker_;
     TSchedulerConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
 
@@ -277,7 +277,7 @@ private:
 
     yhash<TCellTag, std::vector<TChunkId>> CellTagToChunkUnstageList_;
 
-    const TCallback<TFuture<void>()> VoidCallback_ = BIND([] {return VoidFuture;});
+    const TCallback<TFuture<void>()> VoidCallback_ = BIND([] { return VoidFuture; });
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -447,7 +447,7 @@ private:
         try {
             UpdateOperationNodeAttributes(operationId);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error updating operation node %v",
+            THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
                 << ex;
         }

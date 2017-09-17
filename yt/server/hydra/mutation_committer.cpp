@@ -72,12 +72,12 @@ public:
 
     void AddMutation(
         const TMutationRequest& request,
-        const TSharedRef& recordData,
+        TSharedRef recordData,
         TFuture<void> localFlushResult)
     {
         auto currentVersion = GetStartVersion().Advance(BatchedRecordsData_.size());
 
-        BatchedRecordsData_.push_back(recordData);
+        BatchedRecordsData_.push_back(std::move(recordData));
         LocalFlushResult_ = std::move(localFlushResult);
 
         LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v, MutationId: %v)",
@@ -320,7 +320,7 @@ TLeaderCommitter::TLeaderCommitter(
     AutoSnapshotCheckExecutor_->Start();
 }
 
-TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& request)
+TFuture<TMutationResponse> TLeaderCommitter::Commit(TMutationRequest&& request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -332,11 +332,8 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& requ
     NTracing::TNullTraceContextGuard guard;
     
     if (LoggingSuspended_) {
-        TPendingMutation pendingMutation;
-        pendingMutation.Request = request;
-        pendingMutation.Promise = NewPromise<TMutationResponse>();
-        PendingMutations_.push_back(pendingMutation);
-        return pendingMutation.Promise;
+        PendingMutations_.emplace_back(std::move(request));
+        return PendingMutations_.back().CommitPromise;
     }
 
     auto version = DecoratedAutomaton_->GetLoggedVersion();
@@ -344,15 +341,15 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& requ
     TSharedRef recordData;
     TFuture<void> localFlushResult;
     TFuture<TMutationResponse> commitResult;
-    DecoratedAutomaton_->LogLeaderMutation(
-        request,
+    const auto& loggedRequest = DecoratedAutomaton_->LogLeaderMutation(
+        std::move(request),
         &recordData,
         &localFlushResult,
         &commitResult);
 
     AddToBatch(
         version,
-        request,
+        loggedRequest,
         std::move(recordData),
         std::move(localFlushResult));
 
@@ -415,19 +412,19 @@ void TLeaderCommitter::ResumeLogging()
         TSharedRef recordData;
         TFuture<void> localFlushResult;
         TFuture<TMutationResponse> commitResult;
-        DecoratedAutomaton_->LogLeaderMutation(
-            pendingMutation.Request,
+        const auto& loggedMutation = DecoratedAutomaton_->LogLeaderMutation(
+            std::move(pendingMutation.Request),
             &recordData,
             &localFlushResult,
             &commitResult);
 
         AddToBatch(
             version,
-            pendingMutation.Request,
-            recordData,
+            loggedMutation,
+            std::move(recordData),
             std::move(localFlushResult));
 
-        pendingMutation.Promise.SetFrom(std::move(commitResult));
+        pendingMutation.CommitPromise.SetFrom(std::move(commitResult));
     }
 
     PendingMutations_.clear();
@@ -440,14 +437,14 @@ void TLeaderCommitter::Stop()
 
     auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
     for (auto& mutation : PendingMutations_) {
-        mutation.Promise.Set(error);
+        mutation.CommitPromise.Set(error);
     }
 }
 
 void TLeaderCommitter::AddToBatch(
     TVersion version,
     const TMutationRequest& request,
-    const TSharedRef& recordData,
+    TSharedRef recordData,
     TFuture<void> localFlushResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -456,7 +453,7 @@ void TLeaderCommitter::AddToBatch(
     auto batch = GetOrCreateBatch(version);
     batch->AddMutation(
         request,
-        recordData,
+        std::move(recordData),
         std::move(localFlushResult));
     if (batch->GetMutationCount() >= Config_->MaxCommitBatchRecordCount) {
         FlushCurrentBatch();
@@ -637,7 +634,7 @@ void TFollowerCommitter::ResumeLogging()
     LoggingSuspended_ = false;
 }
 
-TFuture<TMutationResponse> TFollowerCommitter::Forward(const TMutationRequest& request)
+TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& request)
 {
     auto channel = CellManager_->GetPeerChannel(EpochContext_->LeaderId);
     YCHECK(channel);

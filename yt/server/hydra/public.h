@@ -31,14 +31,13 @@ DECLARE_REFCOUNTED_CLASS(TChangelogStoreFactoryThunk)
 
 struct TDistributedHydraManagerOptions;
 
+class TMutation;
+class TMutationContext;
 struct TMutationRequest;
 struct TMutationResponse;
-class TMutationContext; 
 
 DECLARE_REFCOUNTED_CLASS(TCompositeAutomaton)
 DECLARE_REFCOUNTED_CLASS(TCompositeAutomatonPart)
-
-DECLARE_REFCOUNTED_CLASS(TMutation)
 
 class TEntityBase;
 class TSaveContext;

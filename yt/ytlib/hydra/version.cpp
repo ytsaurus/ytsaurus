@@ -59,13 +59,13 @@ TVersion TVersion::FromRevision(i64 revision)
     return TVersion(revision >> 32, revision & 0xffffffff);
 }
 
-TVersion TVersion::Advance(int delta)
+TVersion TVersion::Advance(int delta) const
 {
     Y_ASSERT(delta >= 0);
     return TVersion(SegmentId, RecordId + delta);
 }
 
-TVersion TVersion::Rotate()
+TVersion TVersion::Rotate() const
 {
     return TVersion(SegmentId + 1, 0);
 }

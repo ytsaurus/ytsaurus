@@ -602,15 +602,15 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr automatonInvoker,
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore)
-    : Config_(config)
+    : Config_(std::move(config))
     , Options_(options)
-    , CellManager_(cellManager)
-    , Automaton_(automaton)
-    , AutomatonInvoker_(automatonInvoker)
+    , CellManager_(std::move(cellManager))
+    , Automaton_(std::move(automaton))
+    , AutomatonInvoker_(std::move(automatonInvoker))
     , DefaultGuardedUserInvoker_(CreateGuardedUserInvoker(AutomatonInvoker_))
-    , ControlInvoker_(controlInvoker)
+    , ControlInvoker_(std::move(controlInvoker))
     , SystemInvoker_(New<TSystemInvoker>(this))
-    , SnapshotStore_(snapshotStore)
+    , SnapshotStore_(std::move(snapshotStore))
     , BatchCommitTimeCounter_("/batch_commit_time")
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
@@ -766,8 +766,8 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     DoApplyMutation(&context);
 }
 
-void TDecoratedAutomaton::LogLeaderMutation(
-    const TMutationRequest& request,
+const TMutationRequest& TDecoratedAutomaton::LogLeaderMutation(
+    TMutationRequest&& request,
     TSharedRef* recordData,
     TFuture<void>* localFlushResult,
     TFuture<TMutationResponse>* commitResult)
@@ -778,16 +778,15 @@ void TDecoratedAutomaton::LogLeaderMutation(
     Y_ASSERT(commitResult);
     Y_ASSERT(!RotatingChangelog_);
 
-    TPendingMutation pendingMutation;
-    pendingMutation.Version = LoggedVersion_;
-    pendingMutation.Request = request;
-    pendingMutation.Timestamp = TInstant::Now();
-    pendingMutation.RandomSeed  = RandomNumber<ui64>();
-    pendingMutation.CommitPromise = NewPromise<TMutationResponse>();
-    PendingMutations_.push(pendingMutation);
+    PendingMutations_.emplace(
+        LoggedVersion_,
+        std::move(request),
+        NProfiling::GetInstant(),
+        RandomNumber<ui64>());
+    const auto& pendingMutation = PendingMutations_.back();
 
     MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
-    MutationHeader_.set_mutation_type(request.Type);
+    MutationHeader_.set_mutation_type(pendingMutation.Request.Type);
     MutationHeader_.set_timestamp(pendingMutation.Timestamp.GetValue());
     MutationHeader_.set_random_seed(pendingMutation.RandomSeed);
     MutationHeader_.set_segment_id(pendingMutation.Version.SegmentId);
@@ -796,12 +795,14 @@ void TDecoratedAutomaton::LogLeaderMutation(
         ToProto(MutationHeader_.mutable_mutation_id(), pendingMutation.Request.MutationId);
     }
 
-    *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
+    *recordData = SerializeMutationRecord(MutationHeader_, pendingMutation.Request.Data);
     *localFlushResult = Changelog_->Append(*recordData);
     *commitResult = pendingMutation.CommitPromise;
 
     LoggedVersion_ = pendingMutation.Version.Advance();
     YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
+
+    return pendingMutation.Request;
 }
 
 TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutationRequest& request)
@@ -837,16 +838,20 @@ void TDecoratedAutomaton::LogFollowerMutation(
     TSharedRef mutationData;
     DeserializeMutationRecord(recordData, &MutationHeader_, &mutationData);
 
-    TPendingMutation pendingMutation;
-    pendingMutation.Version = LoggedVersion_;
-    pendingMutation.Request.Type = MutationHeader_.mutation_type();
-    if (MutationHeader_.has_mutation_id()) {
-        pendingMutation.Request.MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());
-    }
-    pendingMutation.Request.Data = mutationData;
-    pendingMutation.Timestamp = FromProto<TInstant>(MutationHeader_.timestamp());
-    pendingMutation.RandomSeed  = MutationHeader_.random_seed();
-    PendingMutations_.push(pendingMutation);
+    auto version = LoggedVersion_.load();
+
+    TMutationRequest request;
+    request.Type = std::move(*MutationHeader_.mutable_mutation_type());
+    request.Data = std::move(mutationData);
+    request.MutationId = MutationHeader_.has_mutation_id()
+        ? FromProto<TMutationId>(MutationHeader_.mutation_id())
+        : TMutationId();
+
+    PendingMutations_.emplace(
+        version,
+        std::move(request),
+        FromProto<TInstant>(MutationHeader_.timestamp()),
+        MutationHeader_.random_seed());
 
     if (Changelog_) {
         auto actualLogResult = Changelog_->Append(recordData);
@@ -855,7 +860,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
         }
     }
 
-    LoggedVersion_ = pendingMutation.Version.Advance();
+    LoggedVersion_ = version.Advance();
     YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
 }
 
@@ -1114,7 +1119,7 @@ void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Changelog_ = changelog;
+    Changelog_ = std::move(changelog);
 }
 
 int TDecoratedAutomaton::GetRecordCountSinceLastCheckpoint() const
@@ -1221,7 +1226,7 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
     YCHECK(!EpochContext_);
-    EpochContext_ = epochContext;
+    EpochContext_ = std::move(epochContext);
 
     // Enable batching for log messages.
     NLogging::TLogManager::Get()->SetPerThreadBatchingPeriod(Config_->AutomatonThreadLogBatchingPeriod);

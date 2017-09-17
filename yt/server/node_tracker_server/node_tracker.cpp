@@ -304,7 +304,7 @@ public:
             context,
             &TImpl::HydraFullHeartbeat,
             this);
-        CommitMutationWithSemaphore(mutation, context, FullHeartbeatSemaphore_);
+        CommitMutationWithSemaphore(std::move(mutation), std::move(context), FullHeartbeatSemaphore_);
    }
 
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
@@ -314,7 +314,7 @@ public:
             context,
             &TImpl::HydraIncrementalHeartbeat,
             this);
-        CommitMutationWithSemaphore(mutation, context, IncrementalHeartbeatSemaphore_);
+        CommitMutationWithSemaphore(std::move(mutation), std::move(context), IncrementalHeartbeatSemaphore_);
     }
 
 
@@ -1427,9 +1427,12 @@ private:
     }
 
 
-    void CommitMutationWithSemaphore(TMutationPtr mutation, NRpc::IServiceContextPtr context, TAsyncSemaphorePtr semaphore)
+    void CommitMutationWithSemaphore(
+        std::unique_ptr<TMutation> mutation,
+        NRpc::IServiceContextPtr context,
+        const TAsyncSemaphorePtr& semaphore)
     {
-        auto handler = BIND([=] (TAsyncSemaphoreGuard) {
+        auto handler = BIND([mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
             WaitFor(mutation->CommitAndReply(context));
         });
 
@@ -1449,7 +1452,7 @@ private:
             &TImpl::HydraDisposeNode,
             this);
 
-        auto handler = BIND([=] (TAsyncSemaphoreGuard) {
+        auto handler = BIND([mutation = std::move(mutation)] (TAsyncSemaphoreGuard) {
             WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger));
         });
 

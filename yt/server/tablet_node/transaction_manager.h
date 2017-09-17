@@ -53,7 +53,7 @@ public:
         NTabletClient::NProto::TReqRegisterTransactionActions,
         NTabletClient::NProto::TRspRegisterTransactionActions>;
     using TCtxRegisterTransactionActionsPtr = TIntrusivePtr<TCtxRegisterTransactionActions>;
-    NHydra::TMutationPtr CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context);
+    std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context);
 
     //! Finds transaction by id.
     //! If it does not exist then creates a new transaction

@@ -379,17 +379,17 @@ public:
                 hydraRequest.set_row_count(writeRecord.RowCount);
                 hydraRequest.set_data_weight(writeRecord.DataWeight);
                 ToProto(hydraRequest.mutable_sync_replica_ids(), syncReplicaIds);
-                *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-                    ->SetHandler(BIND(
-                        &TImpl::HydraLeaderExecuteWrite,
-                        MakeStrong(this),
-                        transactionId,
-                        adjustedSignature,
-                        lockless,
-                        writeRecord,
-                        user))
-                    ->Commit()
-                    .As<void>();
+
+                auto mutation = CreateMutation(Slot_->GetHydraManager(), hydraRequest);
+                mutation->SetHandler(BIND(
+                    &TImpl::HydraLeaderExecuteWrite,
+                    MakeStrong(this),
+                    transactionId,
+                    adjustedSignature,
+                    lockless,
+                    writeRecord,
+                    user));
+                *commitResult = mutation->Commit().As<void>();
             } else if (transactionIsFresh) {
                 transactionManager->DropTransaction(transaction);
             }
@@ -2584,8 +2584,9 @@ private:
     void CommitTabletMutation(const ::google::protobuf::MessageLite& message)
     {
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
-        Slot_->GetEpochAutomatonInvoker()->Invoke(
-            BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
+        Slot_->GetEpochAutomatonInvoker()->Invoke(BIND([=, this_ = MakeStrong(this), mutation = std::move(mutation)] {
+            mutation->CommitAndLog(Logger);
+        }));
     }
 
     void PostMasterMutation(const ::google::protobuf::MessageLite& message)

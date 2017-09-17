@@ -114,7 +114,7 @@ public:
         NTransactionClient::NProto::TReqStartTransaction,
         NTransactionClient::NProto::TRspStartTransaction>;
     using TCtxStartTransactionPtr = TIntrusivePtr<TCtxStartTransaction>;
-    NHydra::TMutationPtr CreateStartTransactionMutation(
+    std::unique_ptr<NHydra::TMutation> CreateStartTransactionMutation(
         TCtxStartTransactionPtr context,
         const NTransactionServer::NProto::TReqStartTransaction& request);
 
@@ -122,7 +122,7 @@ public:
         NProto::TReqRegisterTransactionActions,
         NProto::TRspRegisterTransactionActions>;
     using TCtxRegisterTransactionActionsPtr = TIntrusivePtr<TCtxRegisterTransactionActions>;
-    NHydra::TMutationPtr CreateRegisterTransactionActionsMutation(
+    std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context);
 
 private:

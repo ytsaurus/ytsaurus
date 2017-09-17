@@ -162,7 +162,7 @@ public:
             ->Cached(TDuration::Seconds(1));
     }
 
-    TMutationPtr CreateRegisterTransactionActionsMutation(
+    std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context)
     {
         return CreateMutation(HydraManager_, std::move(context));
@@ -994,7 +994,7 @@ TTransactionManager::TTransactionManager(
 
 TTransactionManager::~TTransactionManager() = default;
 
-TMutationPtr TTransactionManager::CreateRegisterTransactionActionsMutation(
+std::unique_ptr<TMutation> TTransactionManager::CreateRegisterTransactionActionsMutation(
     TCtxRegisterTransactionActionsPtr context)
 {
     return Impl_->CreateRegisterTransactionActionsMutation(std::move(context));

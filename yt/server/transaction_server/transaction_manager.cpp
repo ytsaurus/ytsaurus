@@ -500,7 +500,7 @@ public:
     }
 
 
-    TMutationPtr CreateStartTransactionMutation(
+    std::unique_ptr<TMutation> CreateStartTransactionMutation(
         TCtxStartTransactionPtr context,
         const NTransactionServer::NProto::TReqStartTransaction& request)
     {
@@ -512,7 +512,7 @@ public:
             this);
     }
 
-    TMutationPtr CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
+    std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -1014,14 +1014,14 @@ void TTransactionManager::RegisterAbortActionHandler(const TTransactionAbortActi
     Impl_->RegisterAbortActionHandler(descriptor);
 }
 
-TMutationPtr TTransactionManager::CreateStartTransactionMutation(
+std::unique_ptr<TMutation> TTransactionManager::CreateStartTransactionMutation(
     TCtxStartTransactionPtr context,
     const NTransactionServer::NProto::TReqStartTransaction& request)
 {
     return Impl_->CreateStartTransactionMutation(std::move(context), request);
 }
 
-TMutationPtr TTransactionManager::CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
+std::unique_ptr<TMutation> TTransactionManager::CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
 {
     return Impl_->CreateRegisterTransactionActionsMutation(std::move(context));
 }

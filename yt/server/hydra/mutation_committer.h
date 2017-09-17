@@ -72,7 +72,7 @@ public:
      *  A distributed commit is completed when the mutation is received, applied,
      *  and flushed to the changelog by a quorum of replicas.
      */
-    TFuture<TMutationResponse> Commit(const TMutationRequest& request);
+    TFuture<TMutationResponse> Commit(TMutationRequest&& request);
 
     //! Sends out the current batch of mutations.
     void Flush();
@@ -108,7 +108,7 @@ private:
     void AddToBatch(
         TVersion version,
         const TMutationRequest& request,
-        const TSharedRef& recordData,
+        TSharedRef recordData,
         TFuture<void> localFlushResult);
     void FlushCurrentBatch();
 
@@ -123,8 +123,13 @@ private:
 
     struct TPendingMutation
     {
+        explicit TPendingMutation(TMutationRequest&& request)
+            : Request(std::move(request))
+            , CommitPromise(NewPromise<TMutationResponse>())
+        { }
+
         TMutationRequest Request;
-        TPromise<TMutationResponse> Promise;
+        TPromise<TMutationResponse> CommitPromise;
     };
     
     bool LoggingSuspended_ = false;
@@ -171,7 +176,7 @@ public:
     void ResumeLogging();
 
     //! Fowards a given mutation to the leader via RPC.
-    TFuture<TMutationResponse> Forward(const TMutationRequest& request);
+    TFuture<TMutationResponse> Forward(TMutationRequest&& request);
 
 private:
     TFuture<void> DoAcceptMutations(

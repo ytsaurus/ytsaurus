@@ -165,7 +165,7 @@ public:
     /*!
      *  Thread affinity: any
      */
-    NHydra::TMutationPtr CreateExecuteMutation(
+    std::unique_ptr<NHydra::TMutation> CreateExecuteMutation(
         const TString& userName,
         const NRpc::IServiceContextPtr& context);
 
@@ -173,7 +173,7 @@ public:
     /*!
      *  Thread affinity: any
      */
-    NHydra::TMutationPtr CreateDestroyObjectsMutation(
+    std::unique_ptr<NHydra::TMutation> CreateDestroyObjectsMutation(
         const NProto::TReqDestroyObjects& request);
 
     //! Returns a future that gets set when the GC queues becomes empty.
