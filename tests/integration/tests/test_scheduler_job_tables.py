@@ -501,6 +501,14 @@ class TestCoreTable(YTEnvSetup):
     def setup(self):
         create("table", self.CORE_TABLE)
 
+    def teardown(self):
+        core_path = os.environ.get("YT_CORE_PATH")
+        if core_path is None:
+            return
+        for file in os.listdir(core_path):
+            if file.startswith("core.bash"):
+                os.remove(os.path.join(core_path, file))
+
     # In order to find out the correspondence between job id and user id,
     # We create a special file in self.JOB_PROXY_UDS_NAME_DIR where we put
     # the user id and job id.
