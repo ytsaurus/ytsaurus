@@ -447,7 +447,7 @@ public:
     }
 
 
-    TMutationPtr CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
+    std::unique_ptr<TMutation> CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -456,7 +456,7 @@ public:
             this);
     }
 
-    TMutationPtr CreateExportChunksMutation(TCtxExportChunksPtr context)
+    std::unique_ptr<TMutation> CreateExportChunksMutation(TCtxExportChunksPtr context)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -465,7 +465,7 @@ public:
             this);
     }
 
-    TMutationPtr CreateImportChunksMutation(TCtxImportChunksPtr context)
+    std::unique_ptr<TMutation> CreateImportChunksMutation(TCtxImportChunksPtr context)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -474,7 +474,7 @@ public:
             this);
     }
 
-    TMutationPtr CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
+    std::unique_ptr<TMutation> CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -2675,22 +2675,22 @@ TNodeList TChunkManager::AllocateWriteTargets(
         preferredHostName);
 }
 
-TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
+std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
 {
     return Impl_->CreateUpdateChunkPropertiesMutation(request);
 }
 
-TMutationPtr TChunkManager::CreateExportChunksMutation(TCtxExportChunksPtr context)
+std::unique_ptr<TMutation> TChunkManager::CreateExportChunksMutation(TCtxExportChunksPtr context)
 {
     return Impl_->CreateExportChunksMutation(std::move(context));
 }
 
-TMutationPtr TChunkManager::CreateImportChunksMutation(TCtxImportChunksPtr context)
+std::unique_ptr<TMutation> TChunkManager::CreateImportChunksMutation(TCtxImportChunksPtr context)
 {
     return Impl_->CreateImportChunksMutation(std::move(context));
 }
 
-TMutationPtr TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
+std::unique_ptr<TMutation> TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
 {
     return Impl_->CreateExecuteBatchMutation(std::move(context));
 }

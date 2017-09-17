@@ -18,23 +18,25 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequest>
-TMutationPtr CreateMutation(
+std::unique_ptr<TMutation> CreateMutation(
     IHydraManagerPtr hydraManager,
     const TRequest& request)
 {
-    return New<TMutation>(std::move(hydraManager))
-        ->SetRequestData(SerializeToProtoWithEnvelope(request), request.GetTypeName());
+    auto mutation = std::make_unique<TMutation>(std::move(hydraManager));
+    mutation->SetRequestData(SerializeToProtoWithEnvelope(request), request.GetTypeName());
+    return mutation;
 }
 
 template <class TRequest, class TTarget>
-TMutationPtr CreateMutation(
+std::unique_ptr<TMutation> CreateMutation(
     IHydraManagerPtr hydraManager,
     const TRequest& request,
     void (TTarget::* handler)(TRequest*),
     TTarget* target)
 {
-    return CreateMutation(std::move(hydraManager), request)
-        ->SetHandler(BIND([=, request = request] (TMutationContext* mutationContext) mutable {
+    auto mutation = CreateMutation(std::move(hydraManager), request);
+    mutation->SetHandler(
+        BIND([=, request = request] (TMutationContext* mutationContext) mutable {
             auto& mutationResponse = mutationContext->Response();
             try {
                 (target->*handler)(&request);
@@ -44,61 +46,65 @@ TMutationPtr CreateMutation(
                 mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
             }
         }));
+    return mutation;
 }
 
 template <class TRequest, class TResponse>
-TMutationPtr CreateMutation(
+std::unique_ptr<TMutation> CreateMutation(
     IHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context)
 {
-    return New<TMutation>(std::move(hydraManager))
-        ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-        ->SetMutationId(context->GetMutationId(), context->IsRetry());
+    auto mutation = std::make_unique<TMutation>(std::move(hydraManager));
+    mutation->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName());
+    mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
+    return mutation;
 }
 
 template <class TRequest, class TResponse, class TTarget>
-TMutationPtr CreateMutation(
+std::unique_ptr<TMutation> CreateMutation(
     IHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context,
     void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>&, TRequest*, TResponse*),
     TTarget* target)
 {
-    return CreateMutation(std::move(hydraManager), context)
-        ->SetHandler(
-            BIND([=] (TMutationContext* mutationContext) {
-                auto& mutationResponse = mutationContext->Response();
-                try {
-                    TResponse response;
-                    (target->*handler)(context, &context->Request(), &response);
-                    mutationResponse.Data = NRpc::CreateResponseMessage(response);
-                } catch (const std::exception& ex) {
-                    mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
-                }
-            }));
+    auto mutation = CreateMutation(std::move(hydraManager), context);
+    mutation->SetHandler(
+        BIND([=] (TMutationContext* mutationContext) {
+            auto& mutationResponse = mutationContext->Response();
+            try {
+                TResponse response;
+                (target->*handler)(context, &context->Request(), &response);
+                mutationResponse.Data = NRpc::CreateResponseMessage(response);
+            } catch (const std::exception& ex) {
+                mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+            }
+        }));
+    return mutation;
 }
 
 template <class TRpcRequest, class TResponse, class THandlerRequest, class TTarget>
-TMutationPtr CreateMutation(
+std::unique_ptr<TMutation> CreateMutation(
     IHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TResponse>>& context,
     const THandlerRequest& request,
     void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TResponse>>&, THandlerRequest*, TResponse*),
     TTarget* target)
 {
-    return New<TMutation>(std::move(hydraManager))
-        ->SetRequestData(SerializeToProtoWithEnvelope(request), request.GetTypeName())
-        ->SetMutationId(context->GetMutationId(), context->IsRetry())
-        ->SetHandler(
-            BIND([=, request = request] (TMutationContext* mutationContext) mutable {
-                auto& mutationResponse = mutationContext->Response();
-                try {
-                    TResponse response;
-                    (target->*handler)(context, &request, &response);
-                    mutationResponse.Data = NRpc::CreateResponseMessage(response);
-                } catch (const std::exception& ex) {
-                    mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
-                }
-            }));
+    auto mutation = std::make_unique<TMutation>(std::move(hydraManager));
+    mutation->SetRequestData(SerializeToProtoWithEnvelope(request), request.GetTypeName());
+    mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
+    mutation->SetHandler(
+        BIND([=, request = request] (TMutationContext* mutationContext) mutable {
+            auto& mutationResponse = mutationContext->Response();
+            try {
+                TResponse response;
+                (target->*handler)(context, &request, &response);
+                mutationResponse.Data = NRpc::CreateResponseMessage(response);
+            } catch (const std::exception& ex) {
+                mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+            }
+        }));
+    return mutation;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

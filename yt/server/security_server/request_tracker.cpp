@@ -194,9 +194,9 @@ void TRequestTracker::OnFlush()
         Request_.entries_size());
 
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-    auto asyncResult = CreateMutation(hydraFacade->GetHydraManager(), Request_)
-        ->SetAllowLeaderForwarding(true)
-        ->CommitAndLog(Logger);
+    auto mutation = CreateMutation(hydraFacade->GetHydraManager(), Request_);
+    mutation->SetAllowLeaderForwarding(true);
+    auto asyncResult = mutation->CommitAndLog(Logger);
 
     Reset();
 

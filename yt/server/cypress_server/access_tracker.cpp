@@ -127,9 +127,9 @@ void TAccessTracker::OnFlush()
     LOG_DEBUG("Starting access statistics commit for %v nodes",
         UpdateAccessStatisticsRequest_.updates_size());
 
-    auto asyncResult = CreateMutation(hydraManager, UpdateAccessStatisticsRequest_)
-        ->SetAllowLeaderForwarding(true)
-        ->CommitAndLog(Logger);
+    auto mutation = CreateMutation(hydraManager, UpdateAccessStatisticsRequest_);
+    mutation->SetAllowLeaderForwarding(true);
+    auto asyncResult = mutation->CommitAndLog(Logger);
 
     Reset();
 

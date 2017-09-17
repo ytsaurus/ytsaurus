@@ -849,7 +849,7 @@ void TObjectManager::FillAttributes(
     }
 }
 
-TMutationPtr TObjectManager::CreateExecuteMutation(
+std::unique_ptr<TMutation> TObjectManager::CreateExecuteMutation(
     const TString& userName,
     const IServiceContextPtr& context)
 {
@@ -860,18 +860,16 @@ TMutationPtr TObjectManager::CreateExecuteMutation(
         request.add_request_parts(part.Begin(), part.Size());
     }
 
-    return
-        CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request)
-        ->SetHandler(BIND(
-            &TObjectManager::HydraExecuteLeader,
-            MakeStrong(this),
-            userName,
-            context));
+    auto mutation = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request);
+    mutation->SetHandler(BIND(
+        &TObjectManager::HydraExecuteLeader,
+        MakeStrong(this),
+        userName,
+        context));
+    return mutation;
 }
 
-TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
+std::unique_ptr<TMutation> TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
 {
     return CreateMutation(
         Bootstrap_->GetHydraFacade()->GetHydraManager(),

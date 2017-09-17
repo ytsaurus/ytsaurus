@@ -181,7 +181,7 @@ private:
     {
         IServiceContextPtr Context;
         TFuture<TSharedRefArray> AsyncResponseMessage;
-        TMutationPtr Mutation;
+        std::unique_ptr<TMutation> Mutation;
         TRequestHeader RequestHeader;
         TSharedRefArray RequestMessage;
         NTracing::TTraceContext TraceContext;
@@ -262,8 +262,8 @@ private:
             subrequest.AsyncResponseMessage = subcontext->GetAsyncResponseMessage();
             subrequest.TraceContext = NTracing::CreateChildTraceContext();
             if (mutating) {
-                subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext)
-                    ->SetMutationId(subcontext->GetMutationId(), subcontext->IsRetry());
+                subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext);
+                subrequest.Mutation->SetMutationId(subcontext->GetMutationId(), subcontext->IsRetry());
             }
         }
 

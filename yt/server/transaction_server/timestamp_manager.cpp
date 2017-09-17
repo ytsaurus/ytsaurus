@@ -218,7 +218,9 @@ private:
         request.set_timestamp(commitTimestamp);
 
         auto mutation = CreateMutation(HydraManager_, request);
-        BIND(&TMutation::Commit, mutation)
+        BIND([mutation = std::move(mutation)] {
+            return mutation->Commit();
+        })
             .AsyncVia(AutomatonInvoker_)
             .Run()
             .Subscribe(BIND(&TImpl::OnTimestampCommitted, MakeStrong(this), commitTimestamp)
