@@ -542,6 +542,24 @@ ACTIONS[14] = [
     add_sys_bundle("job_specs"),
 ]
 
+TRANSFORMS[15] = [
+    Convert(
+        "ordered_by_start_time",
+        table_info=TableInfo([
+                ("start_time", "int64"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("operation_type", "string"),
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("filter_factors", "string"),
+                ("pool", "string")
+            ],
+            in_memory=True),
+        source="ordered_by_id")
+]
+
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
