@@ -12,7 +12,7 @@ namespace NYT {
 //! Create NONBLOCKING server socket, set IPV6_ONLY and REUSEADD flags.
 SOCKET CreateTcpServerSocket();
 SOCKET CreateUnixServerSocket();
-SOCKET CreateTcpClientSocket();
+SOCKET CreateTcpClientSocket(int family);
 SOCKET CreateUnixClientSocket();
 
 //! Start connect on the socket. Any errors other than EWOULDBLOCK,
