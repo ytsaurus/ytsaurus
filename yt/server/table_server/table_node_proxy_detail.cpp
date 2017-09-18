@@ -165,6 +165,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     if (key == "chunk_row_count") {
         BuildYsonFluently(consumer)
@@ -264,7 +265,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
                         })
                         .Item("state").Value(tablet->GetState())
                         .Item("last_commit_timestamp").Value(tablet->NodeStatistics().last_commit_timestamp())
-                        .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
+                        .Item("statistics").Value(New<TSerializableTabletStatistics>(
+                            tabletManager->GetTabletStatistics(tablet),
+                            chunkManager))
                         .Item("tablet_id").Value(tablet->GetId())
                         .DoIf(cell, [&] (TFluentMap fluent) {
                             fluent.Item("cell_id").Value(cell->GetId());
@@ -301,7 +304,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
             tabletStatistics += tabletManager->GetTabletStatistics(tablet);
         }
         BuildYsonFluently(consumer)
-            .Value(tabletStatistics);
+            .Value(New<TSerializableTabletStatistics>(
+                tabletStatistics,
+                chunkManager));
         return true;
     }
 
