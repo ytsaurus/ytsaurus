@@ -34,7 +34,7 @@ bool IsSpecialJsonKey(const TStringBuf& key)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void WriteInt(T value, TOutputStream* output)
+void WriteInt(T value, IOutputStream* output)
 {
     char buf[64];
     char* end = buf + 64;
@@ -42,7 +42,7 @@ void WriteInt(T value, TOutputStream* output)
     output->Write(start, end - start);
 }
 
-void WriteDouble(double value, TOutputStream* output)
+void WriteDouble(double value, IOutputStream* output)
 {
     char buf[64];
     char* begin = buf;
@@ -55,7 +55,7 @@ void WriteDouble(double value, TOutputStream* output)
     output->Write(begin, length);
 }
 
-void WriteUnversionedValue(const TUnversionedValue& value, TOutputStream* output, const TEscapeTable& escapeTable)
+void WriteUnversionedValue(const TUnversionedValue& value, IOutputStream* output, const TEscapeTable& escapeTable)
 {
     switch (value.Type) {
         case EValueType::Null:

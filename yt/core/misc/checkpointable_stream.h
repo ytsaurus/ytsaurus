@@ -10,7 +10,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICheckpointableInputStream
-    : public TInputStream
+    : public IInputStream
 {
     virtual void SkipToCheckpoint() = 0;
 };
@@ -18,7 +18,7 @@ struct ICheckpointableInputStream
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICheckpointableOutputStream
-    : public TOutputStream
+    : public IOutputStream
 {
     virtual void MakeCheckpoint() = 0;
 };
@@ -27,17 +27,17 @@ struct ICheckpointableOutputStream
 
 //! Wraps an input stream making it checkpointable.
 std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
-    TInputStream* underlyingStream);
+    IInputStream* underlyingStream);
 
 //! Wraps a given input stream constructing another one whose binary content
 //! can be parsed by a checkpointable stream parser as a single block.
 //! Used for migrating pre-0.17 snapshots that were not checkpointable.
-std::unique_ptr<TInputStream> EscapsulateAsCheckpointableInputStream(
-    TInputStream* underlyingStream);
+std::unique_ptr<IInputStream> EscapsulateAsCheckpointableInputStream(
+    IInputStream* underlyingStream);
 
 //! Wraps an output stream making it checkpointable.
 std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
-    TOutputStream* underlyingStream);
+    IOutputStream* underlyingStream);
 
 //! Wraps a checkpointable output stream adding some buffering.
 std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputStream(

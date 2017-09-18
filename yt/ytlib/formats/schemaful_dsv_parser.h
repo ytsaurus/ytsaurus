@@ -17,7 +17,7 @@ std::unique_ptr<IParser> CreateParserForSchemafulDsv(
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseSchemafulDsv(
-    TInputStream* input,
+    IInputStream* input,
     NYson::IYsonConsumer* consumer,
     TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 

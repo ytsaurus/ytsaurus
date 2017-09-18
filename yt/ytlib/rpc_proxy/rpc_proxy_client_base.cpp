@@ -487,10 +487,10 @@ TFuture<NApi::TSelectRowsResult> TRpcProxyClientBase::SelectRows(
 }
 
 TFuture<std::vector<NTabletClient::TTableReplicaId>> TRpcProxyClientBase::GetInSyncReplicas(
-    const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
-    const NApi::TGetInSyncReplicasOptions& options)
+    const NYPath::TYPath&,
+    NTableClient::TNameTablePtr,
+    const TSharedRange<NTableClient::TKey>&,
+    const NApi::TGetInSyncReplicasOptions&)
 {
     Y_UNIMPLEMENTED();
 }

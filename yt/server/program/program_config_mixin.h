@@ -52,10 +52,11 @@ protected:
 
     bool HandleConfigOptions()
     {
-        auto print = [] (const TIntrusivePtr <TConfig>& config) {
+        auto print = [] (const TIntrusivePtr<TConfig>& config) {
             using namespace NYson;
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
+            Cout << Flush;
         };
         if (ConfigTemplate_) {
             print(New<TConfig>());

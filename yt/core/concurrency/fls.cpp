@@ -42,6 +42,11 @@ static void TsdDestroy(void* opaque)
 {
     uintptr_t* tsd = static_cast<uintptr_t*>(opaque);
     if (tsd) {
+        for (int i = 0; i < FlsMaxSize; ++i) {
+            if (tsd[i]) {
+                FlsDestruct(i, tsd[i]);
+            }
+        }
         delete[] tsd;
     }
 }

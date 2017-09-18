@@ -8,13 +8,13 @@ namespace NYT {
 namespace NJobProxy {
 
 class TTailBuffer
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
     explicit TTailBuffer(i64 sizeLimit);
 
     bool IsOverflowed() const;
-    void SaveTo(TOutputStream* out) const;
+    void SaveTo(IOutputStream* out) const;
 
 private:
     virtual void DoWrite(const void* buf, size_t len) override;
@@ -28,7 +28,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStderrWriter
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
     TStderrWriter(
@@ -48,7 +48,7 @@ private:
 
     virtual void DoFinish() override;
 
-    void SaveCurrentDataTo(TOutputStream* output) const;
+    void SaveCurrentDataTo(IOutputStream* output) const;
 
 private:
     NFileClient::TFileChunkOutput FileChunkOutput_;

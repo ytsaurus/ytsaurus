@@ -14,7 +14,7 @@ static const auto& Logger = JobProxyLogger;
 namespace {
 
 class TSizeCountingStream
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
     ui64 GetSize() const
@@ -45,7 +45,7 @@ bool TTailBuffer::IsOverflowed() const
     return BufferOverflowed_;
 }
 
-void TTailBuffer::SaveTo(TOutputStream* out) const
+void TTailBuffer::SaveTo(IOutputStream* out) const
 {
     if (BufferOverflowed_) {
         out->Write(RingBuffer_.Begin() + Position_, RingBuffer_.Size() - Position_);
@@ -137,7 +137,7 @@ size_t TStderrWriter::GetCurrentSize() const
     return sizeCounter.GetSize();
 }
 
-void TStderrWriter::SaveCurrentDataTo(TOutputStream* output) const
+void TStderrWriter::SaveCurrentDataTo(IOutputStream* output) const
 {
     output->Write(Head_.Begin(), Head_.Size());
 

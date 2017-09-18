@@ -11,12 +11,12 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This class adheres to TInputStream interface as a C++ object and
+//! This class adheres to IInputStream interface as a C++ object and
 //! simultaneously provides 'writable stream' interface stubs as a JS object
 //! thus effectively acting as a bridge from JS to C++.
 class TInputStreamWrap
     : public TNodeJSStreamBase
-    , public TInputStream
+    , public IInputStream
     , public TRefTracked<TInputStreamWrap>
 {
 protected:

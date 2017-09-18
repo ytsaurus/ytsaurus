@@ -327,7 +327,7 @@ struct IOperationController
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;
 
     //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
-    virtual void SaveSnapshot(TOutputStream* stream) = 0;
+    virtual void SaveSnapshot(IOutputStream* stream) = 0;
 
     //! Returns the list of all active controller transactions.
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() = 0;

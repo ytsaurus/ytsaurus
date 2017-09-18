@@ -22,7 +22,7 @@ std::unique_ptr<IParser> CreateParserForDsv(
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseDsv(
-    TInputStream* input,
+    IInputStream* input,
     NYson::IYsonConsumer* consumer,
     TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 

@@ -43,7 +43,7 @@ DEFINE_ENUM(ENodeState,
 );
 
 class TNode
-    : public NObjectServer::TObjectBase
+    : public NObjectServer::IObjectBase
     , public TRefTracked<TNode>
 {
 public:

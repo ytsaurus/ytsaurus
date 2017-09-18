@@ -115,8 +115,8 @@ public:
 
     // Objects
     virtual TFuture<NObjectClient::TObjectId> CreateObject(
-        NObjectClient::EObjectType type,
-        const NApi::TCreateObjectOptions& options) override
+        NObjectClient::EObjectType,
+        const NApi::TCreateObjectOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
@@ -124,15 +124,15 @@ public:
 
     // Files
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
-        const NYPath::TYPath& path,
-        const NApi::TFileReaderOptions& options) override
+        const NYPath::TYPath&,
+        const NApi::TFileReaderOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual NApi::IFileWriterPtr CreateFileWriter(
-        const NYPath::TYPath& path,
-        const NApi::TFileWriterOptions& options) override
+        const NYPath::TYPath&,
+        const NApi::TFileWriterOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
@@ -140,15 +140,15 @@ public:
 
     // Journals
     virtual NApi::IJournalReaderPtr CreateJournalReader(
-        const NYPath::TYPath& path,
-        const NApi::TJournalReaderOptions& options) override
+        const NYPath::TYPath&,
+        const NApi::TJournalReaderOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual NApi::IJournalWriterPtr CreateJournalWriter(
-        const NYPath::TYPath& path,
-        const NApi::TJournalWriterOptions& options) override
+        const NYPath::TYPath&,
+        const NApi::TJournalWriterOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
@@ -156,15 +156,15 @@ public:
 
     // Tables
     virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
-        const NYPath::TRichYPath& path,
-        const NApi::TTableReaderOptions& options) override
+        const NYPath::TRichYPath&,
+        const NApi::TTableReaderOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
-        const NYPath::TRichYPath& path,
-        const NApi::TTableWriterOptions& options) override
+        const NYPath::TRichYPath&,
+        const NApi::TTableWriterOptions&) override
     {
         Y_UNIMPLEMENTED();
     }

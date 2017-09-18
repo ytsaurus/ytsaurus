@@ -25,9 +25,9 @@ struct TChunkTreeBalancerSettings
 struct IChunkTreeBalancerCallbacks
     : public virtual TRefCounted
 {
-    virtual void RefObject(NObjectServer::TObjectBase* object) = 0;
-    virtual void UnrefObject(NObjectServer::TObjectBase* object) = 0;
-    virtual int GetObjectRefCounter(NObjectServer::TObjectBase* object) = 0;
+    virtual void RefObject(NObjectServer::IObjectBase* object) = 0;
+    virtual void UnrefObject(NObjectServer::IObjectBase* object) = 0;
+    virtual int GetObjectRefCounter(NObjectServer::IObjectBase* object) = 0;
 
     virtual TChunkList* CreateChunkList() = 0;
     virtual void ClearChunkList(TChunkList* chunkList) = 0;
