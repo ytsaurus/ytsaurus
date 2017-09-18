@@ -50,7 +50,7 @@ public:
         if (Finished_.test_and_set()) {
             return;
         }
-    
+
         int error = GetSocketError(ClientSocket_);
         if (error != 0) {
             Promise_.Set(TError("Connect error")
@@ -119,7 +119,7 @@ public:
         if (family == AF_UNIX) {
             clientSocket = CreateUnixClientSocket();
         } else {
-            clientSocket = CreateTcpClientSocket();
+            clientSocket = CreateTcpClientSocket(family);
         }
 
         try {
