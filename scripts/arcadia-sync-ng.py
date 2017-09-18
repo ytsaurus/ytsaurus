@@ -954,10 +954,12 @@ SUBMODULES = """
 contrib-libs-base64
 contrib-libs-c--ares
 contrib-libs-double--conversion
+contrib-libs-farmhash
 contrib-libs-gmock
 contrib-libs-grpc
 contrib-libs-gtest
 contrib-libs-libbz2
+contrib-libs-lz4
 contrib-libs-lzmasdk
 contrib-libs-minilzo
 contrib-libs-nanopb

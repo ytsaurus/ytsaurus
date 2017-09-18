@@ -139,7 +139,6 @@ set(SYSTEM_SRCS
   ${SYSTEM_BASE}/file_lock.cpp
   ${SYSTEM_BASE}/filemap.cpp
   ${SYSTEM_BASE}/flock.cpp
-  ${SYSTEM_BASE}/freeBSD_mktemp.cpp
   ${SYSTEM_BASE}/fs.cpp
   ${SYSTEM_BASE}/fstat.cpp
   ${SYSTEM_BASE}/getpid.cpp
