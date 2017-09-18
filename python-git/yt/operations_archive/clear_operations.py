@@ -152,6 +152,9 @@ class OperationArchiver(object):
                 if key in data:
                     by_start_time_row[key] = data[key]
 
+        if self.version >= 15:
+            by_start_time_row["pool"] = by_id_row["brief_spec"]["pool"]
+
         return by_id_row, by_start_time_row
 
     def get_insert_rows(self, op_id, jobs):
