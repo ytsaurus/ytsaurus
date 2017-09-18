@@ -85,7 +85,7 @@ static inline size_t EscapeC(unsigned char c, char next, char r[ESCAPE_C_BUFFER_
     }
 }
 
-void EscapeC(const char* str, size_t len, TOutputStream& output) {
+void EscapeC(const char* str, size_t len, IOutputStream& output) {
     char buffer[ESCAPE_C_BUFFER_SIZE];
 
     size_t i, j;
@@ -111,7 +111,7 @@ void EscapeC(const char* str, size_t len, TOutputStream& output) {
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonWriter::TYsonWriter(
-    TOutputStream* stream,
+    IOutputStream* stream,
     EYsonFormat format,
     EYsonType type,
     bool enableRaw,
@@ -331,7 +331,7 @@ int TYsonWriter::GetDepth() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TBufferedBinaryYsonWriter::TBufferedBinaryYsonWriter(
-    TOutputStream* stream,
+    IOutputStream* stream,
     EYsonType type,
     bool enableRaw,
     bool booleanAsString)
@@ -531,7 +531,7 @@ void TBufferedBinaryYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
-    TOutputStream* output,
+    IOutputStream* output,
     EYsonFormat format,
     EYsonType type,
     bool enableRaw,

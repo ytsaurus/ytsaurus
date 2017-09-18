@@ -30,7 +30,7 @@ TErrorOr<T> WaitForWithStrategy(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSyncInputStreamAdapter
-    : public TInputStream
+    : public IInputStream
 {
 public:
     TSyncInputStreamAdapter(
@@ -52,7 +52,7 @@ private:
     }
 };
 
-std::unique_ptr<TInputStream> CreateSyncAdapter(
+std::unique_ptr<IInputStream> CreateSyncAdapter(
     IAsyncInputStreamPtr underlyingStream,
     ESyncStreamAdapterStrategy strategy)
 {
@@ -69,7 +69,7 @@ class TAsyncInputStreamAdapter
 {
 public:
     TAsyncInputStreamAdapter(
-        TInputStream* underlyingStream,
+        IInputStream* underlyingStream,
         IInvokerPtr invoker)
         : UnderlyingStream_(underlyingStream)
         , Invoker_(std::move(invoker))
@@ -90,12 +90,12 @@ private:
     }
 
 private:
-    TInputStream* const UnderlyingStream_;
+    IInputStream* const UnderlyingStream_;
     const IInvokerPtr Invoker_;
 };
 
 IAsyncInputStreamPtr CreateAsyncAdapter(
-    TInputStream* underlyingStream,
+    IInputStream* underlyingStream,
     IInvokerPtr invoker)
 {
     YCHECK(underlyingStream);
@@ -105,7 +105,7 @@ IAsyncInputStreamPtr CreateAsyncAdapter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSyncOutputStreamAdapter
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
     TSyncOutputStreamAdapter(
@@ -134,7 +134,7 @@ private:
     }
 };
 
-std::unique_ptr<TOutputStream> CreateSyncAdapter(
+std::unique_ptr<IOutputStream> CreateSyncAdapter(
     IAsyncOutputStreamPtr underlyingStream,
     ESyncStreamAdapterStrategy strategy)
 {
@@ -151,7 +151,7 @@ class TAsyncOutputStreamAdapter
 {
 public:
     TAsyncOutputStreamAdapter(
-        TOutputStream* underlyingStream,
+        IOutputStream* underlyingStream,
         IInvokerPtr invoker)
         : UnderlyingStream_(underlyingStream)
         , Invoker_(std::move(invoker))
@@ -183,12 +183,12 @@ private:
     }
 
 private:
-    TOutputStream* const UnderlyingStream_;
+    IOutputStream* const UnderlyingStream_;
     const IInvokerPtr Invoker_;
 };
 
 IAsyncOutputStreamPtr CreateAsyncAdapter(
-    TOutputStream* underlyingStream,
+    IOutputStream* underlyingStream,
     IInvokerPtr invoker)
 {
     YCHECK(underlyingStream);

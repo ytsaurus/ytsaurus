@@ -24,7 +24,7 @@ public:
      *  \param enableRaw Enables inserting raw portions of YSON as-is, without reparse.
      */
     TYsonWriter(
-        TOutputStream* stream,
+        IOutputStream* stream,
         EYsonFormat format = EYsonFormat::Binary,
         EYsonType type = EYsonType::Node,
         bool enableRaw = false,
@@ -58,7 +58,7 @@ public:
     int GetDepth() const;
 
 protected:
-    TOutputStream* const Stream_;
+    IOutputStream* const Stream_;
     const EYsonFormat Format_;
     const EYsonType Type_;
     const bool EnableRaw_;
@@ -100,7 +100,7 @@ public:
      *  \param enableRaw Enables inserting raw portions of YSON as-is, without reparse.
      */
     TBufferedBinaryYsonWriter(
-        TOutputStream* stream,
+        IOutputStream* stream,
         EYsonType type = EYsonType::Node,
         bool enableRaw = true,
         bool booleanAsString = false);
@@ -132,7 +132,7 @@ public:
     int GetDepth() const;
 
 protected:
-    TOutputStream* const Stream_;
+    IOutputStream* const Stream_;
     const EYsonType Type_;
     const bool EnableRaw_;
     const bool BooleanAsString_;
@@ -159,7 +159,7 @@ protected:
 
 //! Creates either TYsonWriter or TBufferedBinaryYsonWriter, depending on #format.
 std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
-    TOutputStream* output,
+    IOutputStream* output,
     EYsonFormat format,
     EYsonType type,
     bool enableRaw,

@@ -15,7 +15,7 @@ using namespace NTableClient;
 TVersionedWriter::TVersionedWriter(
     NConcurrency::IAsyncOutputStreamPtr stream,
     const NTableClient::TTableSchema& schema,
-    const std::function<std::unique_ptr<IFlushableYsonConsumer>(TOutputStream*)>& consumerBuilder)
+    const std::function<std::unique_ptr<IFlushableYsonConsumer>(IOutputStream*)>& consumerBuilder)
     : Stream_(stream)
     , Schema_(schema)
     , Consumer_(consumerBuilder(&Buffer_))

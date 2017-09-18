@@ -11,10 +11,10 @@ namespace NCompression {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBrotliCompress
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
-    TBrotliCompress(TOutputStream* slave, int level);
+    TBrotliCompress(IOutputStream* slave, int level);
 
 protected:
     virtual void DoWrite(const void* buffer, size_t length);
@@ -27,10 +27,10 @@ private:
 };
 
 class TBrotliDecompress
-    : public TInputStream
+    : public IInputStream
 {
 public:
-    explicit TBrotliDecompress(TInputStream* slave, size_t buflen = 8 * 1024);
+    explicit TBrotliDecompress(IInputStream* slave, size_t buflen = 8 * 1024);
 
 private:
     virtual size_t DoRead(void* buffer, size_t length);

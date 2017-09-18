@@ -11,12 +11,12 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This class adheres to TOutputStream interface as a C++ object and
+//! This class adheres to IOutputStream interface as a C++ object and
 //! simultaneously provides 'readable stream' interface stubs as a JS object
 //! thus effectively acting as a bridge from C++ to JS.
 class TOutputStreamWrap
     : public TNodeJSStreamBase
-    , public TOutputStream
+    , public IOutputStream
     , public TRefTracked<TOutputStreamWrap>
 {
 protected:

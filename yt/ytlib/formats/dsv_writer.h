@@ -38,7 +38,7 @@ class TDsvNodeConsumer
 {
 public:
     explicit TDsvNodeConsumer(
-        TOutputStream* stream,
+        IOutputStream* stream,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 
     // IYsonConsumer overrides.
@@ -58,7 +58,7 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
-    TOutputStream* const Stream_;
+    IOutputStream* const Stream_;
 
     bool AllowBeginList_ = true;
     bool AllowBeginMap_ = true;

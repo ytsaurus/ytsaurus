@@ -75,7 +75,7 @@ void TFileWrapper::Flock(int op)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLengthMeasureOutputStream::TLengthMeasureOutputStream(TOutputStream* output)
+TLengthMeasureOutputStream::TLengthMeasureOutputStream(IOutputStream* output)
     : Output(output)
     , Length(0)
 { }

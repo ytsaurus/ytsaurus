@@ -112,7 +112,7 @@ EYsonType DataTypeToYsonType(EDataType dataType)
 std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForYson(
     EDataType dataType,
     const IAttributeDictionary& attributes,
-    TOutputStream* output)
+    IOutputStream* output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
     return CreateYsonWriter(
@@ -126,7 +126,7 @@ std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForYson(
 std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForJson(
     EDataType dataType,
     const IAttributeDictionary& attributes,
-    TOutputStream* output)
+    IOutputStream* output)
 {
     auto config = ConvertTo<TJsonFormatConfigPtr>(&attributes);
     return CreateJsonConsumer(output, DataTypeToYsonType(dataType), config);
@@ -135,7 +135,7 @@ std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForJson(
 std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
-    TOutputStream* output)
+    IOutputStream* output)
 {
     auto config = ConvertTo<TDsvFormatConfigPtr>(&attributes);
     switch (dataType) {
@@ -190,7 +190,7 @@ private:
 std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
-    TOutputStream* output)
+    IOutputStream* output)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
@@ -214,7 +214,7 @@ TIntrusivePtr<TWriter> CreateAdaptedWriterForYson(
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
-    return New<TConsumerAdapter>(std::move(output), schema, [=] (TOutputStream* buffer) {
+    return New<TConsumerAdapter>(std::move(output), schema, [=] (IOutputStream* buffer) {
         if (config->Format == EYsonFormat::Binary) {
             return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
                 buffer,
@@ -237,7 +237,7 @@ TIntrusivePtr<TWriter> CreateAdaptedWriterForJson(
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TJsonFormatConfigPtr>(&attributes);
-    return New<TConsumerAdapter>(std::move(output), schema, [&] (TOutputStream* buffer) {
+    return New<TConsumerAdapter>(std::move(output), schema, [&] (IOutputStream* buffer) {
         return CreateJsonConsumer(buffer, EYsonType::ListFragment, config);
     });
 }
@@ -345,7 +345,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
 TYsonProducer CreateProducerForDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
-    TInputStream* input)
+    IInputStream* input)
 {
     if (dataType != EDataType::Tabular) {
         THROW_ERROR_EXCEPTION("DSV is supported only for tabular data");
@@ -359,7 +359,7 @@ TYsonProducer CreateProducerForDsv(
 TYsonProducer CreateProducerForYamr(
     EDataType dataType,
     const IAttributeDictionary& attributes,
-    TInputStream* input)
+    IInputStream* input)
 {
     if (dataType != EDataType::Tabular) {
         THROW_ERROR_EXCEPTION("YAMR is supported only for tabular data");
@@ -373,7 +373,7 @@ TYsonProducer CreateProducerForYamr(
 TYsonProducer CreateProducerForYamredDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
-    TInputStream* input)
+    IInputStream* input)
 {
     if (dataType != EDataType::Tabular) {
         THROW_ERROR_EXCEPTION("Yamred DSV is supported only for tabular data");
@@ -387,7 +387,7 @@ TYsonProducer CreateProducerForYamredDsv(
 TYsonProducer CreateProducerForSchemafulDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
-    TInputStream* input)
+    IInputStream* input)
 {
     if (dataType != EDataType::Tabular) {
         THROW_ERROR_EXCEPTION("Schemaful DSV is supported only for tabular data");
@@ -401,7 +401,7 @@ TYsonProducer CreateProducerForSchemafulDsv(
 TYsonProducer CreateProducerForJson(
     EDataType dataType,
     const IAttributeDictionary& attributes,
-    TInputStream* input)
+    IInputStream* input)
 {
     auto ysonType = DataTypeToYsonType(dataType);
     auto config = ConvertTo<TJsonFormatConfigPtr>(&attributes);
@@ -410,13 +410,13 @@ TYsonProducer CreateProducerForJson(
     });
 }
 
-TYsonProducer CreateProducerForYson(EDataType dataType, TInputStream* input)
+TYsonProducer CreateProducerForYson(EDataType dataType, IInputStream* input)
 {
     auto ysonType = DataTypeToYsonType(dataType);
     return ConvertToProducer(TYsonInput(input, ysonType));
 }
 
-TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType, TInputStream* input)
+TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType, IInputStream* input)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:

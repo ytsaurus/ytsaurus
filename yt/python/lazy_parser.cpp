@@ -138,7 +138,7 @@ class TLazyDictParser
 {
 public:
     TLazyDictParser(
-        TInputStream* stream,
+        IInputStream* stream,
         TPythonStringCache* keyCacher,
         TLazyDictConsumer* consumer);
 
@@ -163,7 +163,7 @@ private:
 
 
 TLazyDictParser::TLazyDictParser(
-    TInputStream* stream,
+    IInputStream* stream,
     TPythonStringCache* keyCacher,
     TLazyDictConsumer* consumer)
     : TBase(NYT::NPython::TStreamReader(stream))
@@ -414,7 +414,7 @@ TSharedRefArray TLazyDictParser::ParseMapValue(ETokenType finishTokenType)
 ////////////////////////////////////////////////////////////////////////////////
 
 PyObject* ParseLazyDict(
-    TInputStream* stream,
+    IInputStream* stream,
     NYson::EYsonType parsingMode,
     const TNullable<TString>& encoding,
     bool alwaysCreateAttributes,

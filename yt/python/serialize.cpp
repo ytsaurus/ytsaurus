@@ -492,7 +492,7 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encod
 class TListFragmentLexer::TImpl
 {
 public:
-    explicit TImpl(TInputStream* stream)
+    explicit TImpl(IInputStream* stream)
         : Lexer_(NYT::NPython::TStreamReader(stream))
     { }
 
@@ -582,7 +582,7 @@ TListFragmentLexer& TListFragmentLexer::operator=(TListFragmentLexer&& lexer)
     return *this;
 }
 
-TListFragmentLexer::TListFragmentLexer(TInputStream* stream)
+TListFragmentLexer::TListFragmentLexer(IInputStream* stream)
     : Impl_(new TImpl(stream))
 { }
 

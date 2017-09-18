@@ -11,7 +11,7 @@ namespace NFormats {
 
 static const size_t ParseBufferSize = 1 << 16;
 
-void Parse(TInputStream* input, IParser* parser)
+void Parse(IInputStream* input, IParser* parser)
 {
     std::array<char, ParseBufferSize> buffer;
     while (true) {

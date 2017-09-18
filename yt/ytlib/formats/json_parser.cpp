@@ -149,7 +149,7 @@ public:
     void Read(const TStringBuf& data);
     void Finish();
 
-    void Parse(TInputStream* input);
+    void Parse(IInputStream* input);
 
 private:
     IYsonConsumer* const Consumer_;
@@ -197,7 +197,7 @@ void TJsonParser::TImpl::Finish()
     yajl_free(YajlHandle_);
 }
 
-void TJsonParser::TImpl::Parse(TInputStream* input)
+void TJsonParser::TImpl::Parse(IInputStream* input)
 {
     while (true) {
         auto readLength = input->Read(Buffer_.Begin(), Config_->BufferSize);
@@ -228,7 +228,7 @@ void TJsonParser::Finish()
     Impl_->Finish();
 }
 
-void TJsonParser::Parse(TInputStream* input)
+void TJsonParser::Parse(IInputStream* input)
 {
     Impl_->Parse(input);
 }
@@ -236,7 +236,7 @@ void TJsonParser::Parse(TInputStream* input)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseJson(
-    TInputStream* input,
+    IInputStream* input,
     IYsonConsumer* consumer,
     TJsonFormatConfigPtr config,
     EYsonType type)

@@ -167,7 +167,7 @@ TEST(TDsvWriterTest, SimpleTabular)
     auto writer = CreateSchemalessWriterForDsv(
         config,
         nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        CreateAsyncAdapter(static_cast<IOutputStream*>(&outputStream)),
         false,
         controlAttributes,
         0);
@@ -198,7 +198,7 @@ TEST(TDsvWriterTest, AnyTabular)
     auto writer = CreateSchemalessWriterForDsv(
         New<TDsvFormatConfig>(),
         nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        CreateAsyncAdapter(static_cast<IOutputStream*>(&outputStream)),
         false,
         controlAttributes,
         0);
@@ -242,7 +242,7 @@ TEST(TTskvWriterTest, SimpleTabular)
     auto writer = CreateSchemalessWriterForDsv(
         config,
         nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        CreateAsyncAdapter(static_cast<IOutputStream*>(&outputStream)),
         false,
         controlAttributes,
         0);
@@ -282,7 +282,7 @@ TEST(TTskvWriterTest, Escaping)
     auto writer = CreateSchemalessWriterForDsv(
         config,
         nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        CreateAsyncAdapter(static_cast<IOutputStream*>(&outputStream)),
         false,
         controlAttributes,
         0);

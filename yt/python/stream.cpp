@@ -71,7 +71,7 @@ void TOutputStreamWrap::DoWrite(const void* buf, size_t len)
 
 struct TInputStreamBlobTag { };
 
-TStreamReader::TStreamReader(TInputStream* stream)
+TStreamReader::TStreamReader(IInputStream* stream)
     : Stream_(stream)
 {
     ReadNextBlob();

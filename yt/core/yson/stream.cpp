@@ -12,14 +12,14 @@ static const size_t ParseBufferSize = 1 << 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonInput::TYsonInput(TInputStream* stream, EYsonType type)
+TYsonInput::TYsonInput(IInputStream* stream, EYsonType type)
     : Stream_(stream)
     , Type_(type)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonOutput::TYsonOutput(TOutputStream* stream, EYsonType type)
+TYsonOutput::TYsonOutput(IOutputStream* stream, EYsonType type)
     : Stream_(stream)
     , Type_(type)
 { }

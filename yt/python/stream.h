@@ -14,7 +14,7 @@ namespace NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInputStreamWrap
-    : public TInputStream
+    : public IInputStream
 {
 public:
     explicit TInputStreamWrap(const Py::Object& inputStream);
@@ -27,7 +27,7 @@ private:
     Py::Callable ReadFunction_;
 };
 
-class TOutputStreamWrap: public TOutputStream {
+class TOutputStreamWrap: public IOutputStream {
 public:
     explicit TOutputStreamWrap(const Py::Object& outputStream);
     virtual ~TOutputStreamWrap() throw();
@@ -40,7 +40,7 @@ private:
 };
 
 class TOwningStringInput
-    : public TInputStream
+    : public IInputStream
 {
 public:
     explicit TOwningStringInput(const TString& string)
@@ -63,7 +63,7 @@ private:
 class TStreamReader
 {
 public:
-    explicit TStreamReader(TInputStream* stream);
+    explicit TStreamReader(IInputStream* stream);
 
     const char* Begin() const;
     const char* Current() const;
@@ -76,7 +76,7 @@ public:
     TSharedRef ExtractPrefix();
 
 private:
-    TInputStream* Stream_;
+    IInputStream* Stream_;
 
     std::deque<TSharedMutableRef> Blobs_;
 

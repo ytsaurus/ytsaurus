@@ -206,7 +206,7 @@ void TDsvParser::ValidatePrefix(const TString& prefix) const
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseDsv(
-    TInputStream* input,
+    IInputStream* input,
     IYsonConsumer* consumer,
     TDsvFormatConfigPtr config)
 {

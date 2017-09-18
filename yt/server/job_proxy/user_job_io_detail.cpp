@@ -123,7 +123,7 @@ std::vector<ISchemalessMultiChunkWriterPtr> TUserJobIOBase::GetWriters() const
     }
 }
 
-TOutputStream* TUserJobIOBase::GetStderrTableWriter() const
+IOutputStream* TUserJobIOBase::GetStderrTableWriter() const
 {
     if (Initialized_) {
         return StderrTableWriter_.get();

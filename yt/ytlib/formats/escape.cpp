@@ -195,7 +195,7 @@ const char* TEscapeTable::FindNext(const char* begin, const char* end) const
 
 void EscapeAndWrite(
     const TStringBuf& string,
-    TOutputStream* stream,
+    IOutputStream* stream,
     const TEscapeTable& escapeTable)
 {
     if (escapeTable.EscapingSymbol) {
