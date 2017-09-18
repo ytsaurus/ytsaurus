@@ -57,8 +57,8 @@ public class DefaultRpcBusClient implements RpcClient {
         Histogram requestsResponseHistogramLocal;
 
         void updateAck(long millis) {
-            requestsResponseHistogramLocal.update(millis);
-            requestsResponseHistogram.update(millis);
+            requestsAckHistogramLocal.update(millis);
+            requestsAckHistogram.update(millis);
         }
 
         void updateResponse(long millis) {
