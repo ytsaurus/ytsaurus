@@ -77,7 +77,7 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TNode::TNode(const TObjectId& objectId)
-    : TObjectBase(objectId)
+    : IObjectBase(objectId)
     , IOWeights_{}
     , FillFactorIterators_{}
     , LoadFactorIterators_{}
@@ -214,7 +214,7 @@ ENodeState TNode::GetAggregatedState() const
 
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    IObjectBase::Save(context);
 
     using NYT::Save;
     Save(context, Banned_);
@@ -252,7 +252,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    IObjectBase::Load(context);
 
     using NYT::Load;
     Load(context, Banned_);

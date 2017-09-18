@@ -15,7 +15,7 @@ std::unique_ptr<IParser> CreateParserForYamredDsv(
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseYamredDsv(
-    TInputStream* input,
+    IInputStream* input,
     NYson::IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config = nullptr);
 

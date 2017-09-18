@@ -743,7 +743,7 @@ TChecksum GetChecksum(const TRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksumInput::TChecksumInput(TInputStream* input)
+TChecksumInput::TChecksumInput(IInputStream* input)
     : Input_(input)
 { }
 
@@ -761,7 +761,7 @@ size_t TChecksumInput::DoRead(void* buf, size_t len)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksumOutput::TChecksumOutput(TOutputStream* output)
+TChecksumOutput::TChecksumOutput(IOutputStream* output)
     : Output_(output)
 { }
 

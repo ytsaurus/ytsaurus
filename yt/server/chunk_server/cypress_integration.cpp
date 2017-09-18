@@ -82,7 +82,7 @@ private:
         }
     }
 
-    virtual bool IsValid(TObjectBase* object) const
+    virtual bool IsValid(IObjectBase* object) const
     {
         auto type = object->GetType();
         if (type != EObjectType::Chunk &&
@@ -177,7 +177,7 @@ private:
         return ToObjectIds(GetValues(chunkManager->ChunkLists(), sizeLimit));
     }
 
-    virtual bool IsValid(TObjectBase* object) const
+    virtual bool IsValid(IObjectBase* object) const
     {
         return object->GetType() == EObjectType::ChunkList;
     }
@@ -233,7 +233,7 @@ private:
         return keys;
     }
 
-    virtual bool IsValid(TObjectBase* object) const
+    virtual bool IsValid(IObjectBase* object) const
     {
         return object->GetType() == EObjectType::Medium;
     }

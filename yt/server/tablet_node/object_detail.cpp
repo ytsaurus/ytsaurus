@@ -7,12 +7,12 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TObjectId& TObjectBase::GetId() const
+const TObjectId& IObjectBase::GetId() const
 {
     return Id_;
 }
 
-TObjectBase::TObjectBase(const TObjectId& id)
+IObjectBase::IObjectBase(const TObjectId& id)
     : Id_(id)
 { }
 

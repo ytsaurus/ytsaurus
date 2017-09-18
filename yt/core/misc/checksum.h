@@ -31,27 +31,27 @@ ui64 Crc(const void* buf, size_t buflen, ui64 crcinit);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChecksumInput
-    : public TInputStream
+    : public IInputStream
 {
 public:
-    explicit TChecksumInput(TInputStream* input);
+    explicit TChecksumInput(IInputStream* input);
     TChecksum GetChecksum() const;
 
 protected:
     virtual size_t DoRead(void* buf, size_t len);
 
 private:
-    TInputStream* const Input_;
+    IInputStream* const Input_;
     TChecksum Checksum_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChecksumOutput
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
-    explicit TChecksumOutput(TOutputStream* output);
+    explicit TChecksumOutput(IOutputStream* output);
     TChecksum GetChecksum() const;
 
 protected:
@@ -60,7 +60,7 @@ protected:
     virtual void DoFinish();
 
 private:
-    TOutputStream* const Output_;
+    IOutputStream* const Output_;
     TChecksum Checksum_ = 0;
 };
 

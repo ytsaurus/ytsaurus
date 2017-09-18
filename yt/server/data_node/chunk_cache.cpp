@@ -96,17 +96,17 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TErrorInterceptingOutput
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
-    TErrorInterceptingOutput(TLocationPtr location, TOutputStream* underlying)
+    TErrorInterceptingOutput(TLocationPtr location, IOutputStream* underlying)
         : Location_(std::move(location))
         , Underlying_(underlying)
     { }
 
 private:
     const TLocationPtr Location_;
-    TOutputStream* const Underlying_;
+    IOutputStream* const Underlying_;
 
 
     virtual void DoWrite(const void* buf, size_t len) override
@@ -703,7 +703,7 @@ private:
         try {
             TSessionCounterGuard sessionCounterGuard(location);
 
-            auto producer = [&] (TOutputStream* output) {
+            auto producer = [&] (IOutputStream* output) {
                 TBlock block;
                 while (reader->ReadBlock(&block)) {
                     if (block.Data.Empty()) {
@@ -802,7 +802,7 @@ private:
 
             TSessionCounterGuard sessionCounterGuard(location);
 
-            auto producer = [&] (TOutputStream* output) {
+            auto producer = [&] (IOutputStream* output) {
                 auto writer = CreateSchemalessWriterForFormat(
                     format,
                     nameTable,
@@ -835,7 +835,7 @@ private:
         const TArtifactKey& key,
         TCacheLocationPtr location,
         const TChunkId& chunkId,
-        std::function<void(TOutputStream*)> producer)
+        std::function<void(IOutputStream*)> producer)
     {
         LOG_INFO("Producing artifact file (ChunkId: %v)",
             chunkId);

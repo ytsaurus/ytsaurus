@@ -89,7 +89,7 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise_;
 }
 
-int TGarbageCollector::WeakRefObject(TObjectBase* object, TEpoch epoch)
+int TGarbageCollector::WeakRefObject(IObjectBase* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(!IsRecovery());
@@ -103,7 +103,7 @@ int TGarbageCollector::WeakRefObject(TObjectBase* object, TEpoch epoch)
     return weakRefCounter;
 }
 
-int TGarbageCollector::WeakUnrefObject(TObjectBase* object, TEpoch epoch)
+int TGarbageCollector::WeakUnrefObject(IObjectBase* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(!IsRecovery());
@@ -123,7 +123,7 @@ int TGarbageCollector::WeakUnrefObject(TObjectBase* object, TEpoch epoch)
     return weakRefCounter;
 }
 
-void TGarbageCollector::RegisterZombie(TObjectBase* object)
+void TGarbageCollector::RegisterZombie(IObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(!object->IsAlive());
@@ -137,7 +137,7 @@ void TGarbageCollector::RegisterZombie(TObjectBase* object)
     YCHECK(Zombies_.insert(object).second);
 }
 
-void TGarbageCollector::UnregisterZombie(TObjectBase* object)
+void TGarbageCollector::UnregisterZombie(IObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(object->GetObjectRefCounter() == 1);
@@ -149,7 +149,7 @@ void TGarbageCollector::UnregisterZombie(TObjectBase* object)
     }
 }
 
-void TGarbageCollector::DestroyZombie(TObjectBase* object)
+void TGarbageCollector::DestroyZombie(IObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 

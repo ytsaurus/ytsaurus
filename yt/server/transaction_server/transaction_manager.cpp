@@ -443,7 +443,7 @@ public:
         return LeaseTracker_->GetLastPingTime(transaction->GetId());
     }
 
-    void StageObject(TTransaction* transaction, TObjectBase* object)
+    void StageObject(TTransaction* transaction, IObjectBase* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -452,7 +452,7 @@ public:
         objectManager->RefObject(object);
     }
 
-    void UnstageObject(TTransaction* transaction, TObjectBase* object, bool recursive)
+    void UnstageObject(TTransaction* transaction, IObjectBase* object, bool recursive)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -476,7 +476,7 @@ public:
         objectManager->RefObject(trunkNode);
     }
 
-    void ImportObject(TTransaction* transaction, TObjectBase* object)
+    void ImportObject(TTransaction* transaction, IObjectBase* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -486,7 +486,7 @@ public:
         object->ImportRefObject();
     }
 
-    void ExportObject(TTransaction* transaction, TObjectBase* object, TCellTag destinationCellTag)
+    void ExportObject(TTransaction* transaction, IObjectBase* object, TCellTag destinationCellTag)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -964,14 +964,14 @@ TFuture<TInstant> TTransactionManager::GetLastPingTime(const TTransaction* trans
 
 void TTransactionManager::StageObject(
     TTransaction* transaction,
-    TObjectBase* object)
+    IObjectBase* object)
 {
     Impl_->StageObject(transaction, object);
 }
 
 void TTransactionManager::UnstageObject(
     TTransaction* transaction,
-    TObjectBase* object,
+    IObjectBase* object,
     bool recursive)
 {
     Impl_->UnstageObject(transaction, object, recursive);
@@ -986,7 +986,7 @@ void TTransactionManager::StageNode(
 
 void TTransactionManager::ExportObject(
     TTransaction* transaction,
-    TObjectBase* object,
+    IObjectBase* object,
     TCellTag destinationCellTag)
 {
     Impl_->ExportObject(transaction, object, destinationCellTag);
@@ -994,7 +994,7 @@ void TTransactionManager::ExportObject(
 
 void TTransactionManager::ImportObject(
     TTransaction* transaction,
-    TObjectBase* object)
+    IObjectBase* object)
 {
     Impl_->ImportObject(transaction, object);
 }

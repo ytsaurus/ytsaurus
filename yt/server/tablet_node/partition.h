@@ -44,7 +44,7 @@ DEFINE_REFCOUNTED_TYPE(TPartitionSnapshot)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartition
-    : public TObjectBase
+    : public IObjectBase
     , public TRefTracked<TPartition>
 {
 public:

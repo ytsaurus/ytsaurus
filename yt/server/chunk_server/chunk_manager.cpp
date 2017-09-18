@@ -128,17 +128,17 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual void RefObject(TObjectBase* object) override
+    virtual void RefObject(IObjectBase* object) override
     {
         Bootstrap_->GetObjectManager()->RefObject(object);
     }
 
-    virtual void UnrefObject(TObjectBase* object) override
+    virtual void UnrefObject(IObjectBase* object) override
     {
         Bootstrap_->GetObjectManager()->UnrefObject(object);
     }
 
-    virtual int GetObjectRefCounter(TObjectBase* object) override
+    virtual int GetObjectRefCounter(IObjectBase* object) override
     {
         return Bootstrap_->GetObjectManager()->GetObjectRefCounter(object);
     }
@@ -188,7 +188,7 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual TObjectBase* FindObject(const TObjectId& id) override
+    virtual IObjectBase* FindObject(const TObjectId& id) override
     {
         return Map_->Find(DecodeChunkId(id).Id);
     }
@@ -317,7 +317,7 @@ public:
         return EObjectType::Medium;
     }
 
-    virtual TObjectBase* CreateObject(
+    virtual IObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -2573,7 +2573,7 @@ IObjectProxyPtr TChunkManager::TMediumTypeHandler::DoGetProxy(
     return CreateMediumProxy(Bootstrap_, &Metadata_, medium);
 }
 
-TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
+IObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {

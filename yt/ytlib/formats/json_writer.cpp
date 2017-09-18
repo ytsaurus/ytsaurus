@@ -18,7 +18,7 @@ using namespace NYson;
 class TJsonWriter
 {
 public:
-    TJsonWriter(TOutputStream* output, bool isPretty, bool supportInfinity);
+    TJsonWriter(IOutputStream* output, bool isPretty, bool supportInfinity);
     ~TJsonWriter();
 
     void Flush();
@@ -42,7 +42,7 @@ public:
 
 private:
     yajl_gen Handle;
-    TOutputStream* Output;
+    IOutputStream* Output;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +53,7 @@ class TJsonConsumer
 {
 public:
     TJsonConsumer(
-        TOutputStream* output,
+        IOutputStream* output,
         EYsonType type,
         TJsonFormatConfigPtr config);
 
@@ -79,7 +79,7 @@ public:
     virtual void Flush() override;
 
 private:
-    TOutputStream* const Output;
+    IOutputStream* const Output;
     const EYsonType Type;
     const TJsonFormatConfigPtr Config;
 
@@ -132,7 +132,7 @@ static void CheckYajlCode(int yajlCode)
     THROW_ERROR_EXCEPTION(errorMessage);
 }
 
-TJsonWriter::TJsonWriter(TOutputStream* output, bool isPretty, bool supportInfinity)
+TJsonWriter::TJsonWriter(IOutputStream* output, bool isPretty, bool supportInfinity)
     : Output(output)
 {
     Handle = yajl_gen_alloc(nullptr);
@@ -220,7 +220,7 @@ void TJsonWriter::Write(bool value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonConsumer::TJsonConsumer(TOutputStream* output,
+TJsonConsumer::TJsonConsumer(IOutputStream* output,
     EYsonType type,
     TJsonFormatConfigPtr config)
     : Output(output)
@@ -494,7 +494,7 @@ void TJsonConsumer::WriteStringScalar(const TStringBuf &value)
 }
 
 std::unique_ptr<IFlushableYsonConsumer> CreateJsonConsumer(
-    TOutputStream* output,
+    IOutputStream* output,
     EYsonType type,
     TJsonFormatConfigPtr config)
 {

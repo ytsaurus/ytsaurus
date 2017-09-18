@@ -39,18 +39,18 @@ public:
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectBase*>, StagedObjects);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::IObjectBase*>, StagedObjects);
 
     struct TExportEntry
     {
-        NObjectServer::TObjectBase* Object;
+        NObjectServer::IObjectBase* Object;
         NObjectClient::TCellTag DestinationCellTag;
 
         void Persist(NCellMaster::TPersistenceContext& context);
     };
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TExportEntry>, ExportedObjects);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObjectBase*>, ImportedObjects);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::IObjectBase*>, ImportedObjects);
 
     // Cypress stuff
     typedef yhash_set<NCypressServer::TCypressNodeBase*> TLockedNodeSet;

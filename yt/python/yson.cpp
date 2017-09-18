@@ -61,7 +61,7 @@ public:
         : Py::PythonClass<TYsonIterator>::PythonClass(self, args, kwargs)
     { }
 
-    void Init(TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner,
+    void Init(IInputStream* inputStream, std::unique_ptr<IInputStream> inputStreamOwner,
               bool alwaysCreateAttributes, const TNullable<TString>& encoding)
     {
         YCHECK(!inputStreamOwner || inputStreamOwner.get() == inputStream);
@@ -120,8 +120,8 @@ public:
     }
 
 private:
-    TInputStream* InputStream_;
-    std::unique_ptr<TInputStream> InputStreamOwner_;
+    IInputStream* InputStream_;
+    std::unique_ptr<IInputStream> InputStreamOwner_;
 
     bool IsStreamRead_;
 
@@ -141,7 +141,7 @@ public:
         : Py::PythonClass<TRawYsonIterator>::PythonClass(self, args, kwargs)
     { }
 
-    void Init(TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner)
+    void Init(IInputStream* inputStream, std::unique_ptr<IInputStream> inputStreamOwner)
     {
         InputStreamOwner_ = std::move(inputStreamOwner);
         Lexer_ = TListFragmentLexer(inputStream);
@@ -181,7 +181,7 @@ public:
     }
 
 private:
-    std::unique_ptr<TInputStream> InputStreamOwner_;
+    std::unique_ptr<IInputStream> InputStreamOwner_;
     TListFragmentLexer Lexer_;
 };
 
@@ -196,8 +196,8 @@ public:
     { }
 
     void Init(
-        TInputStream* inputStream,
-        std::unique_ptr<TInputStream> inputStreamOwner,
+        IInputStream* inputStream,
+        std::unique_ptr<IInputStream> inputStreamOwner,
         Py::Tuple& loadsParams,
         const TNullable<TString>& encoding,
         bool alwaysCreateAttributes)
@@ -244,7 +244,7 @@ public:
     }
 
 private:
-    std::unique_ptr<TInputStream> InputStreamOwner_;
+    std::unique_ptr<IInputStream> InputStreamOwner_;
     TListFragmentLexer Lexer_;
     Py::Tuple LoadsParams_;
     TPythonStringCache KeyCache_;
@@ -307,7 +307,7 @@ public:
         }
 #endif
         auto string = ConvertStringObjectToString(stringArgument);
-        std::unique_ptr<TInputStream> stringStream(new TOwningStringInput(string));
+        std::unique_ptr<IInputStream> stringStream(new TOwningStringInput(string));
 
         try {
             return LoadImpl(args, kwargs, std::move(stringStream));
@@ -348,10 +348,10 @@ private:
     Py::Object LoadImpl(
         Py::Tuple& args,
         Py::Dict& kwargs,
-        std::unique_ptr<TInputStream> inputStream)
+        std::unique_ptr<IInputStream> inputStream)
     {
         // Holds inputStreamWrap if passed non-trivial stream argument
-        TInputStream* inputStreamPtr;
+        IInputStream* inputStreamPtr;
         if (!inputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
             bool wrapStream = true;
@@ -479,7 +479,7 @@ private:
         }
     }
 
-    void DumpImpl(Py::Tuple& args, Py::Dict& kwargs, TOutputStream* outputStream)
+    void DumpImpl(Py::Tuple& args, Py::Dict& kwargs, IOutputStream* outputStream)
     {
         auto obj = ExtractArgument(args, kwargs, "object");
 

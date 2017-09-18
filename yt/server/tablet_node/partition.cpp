@@ -47,7 +47,7 @@ TPartition::TPartition(
     int index,
     TOwningKey pivotKey,
     TOwningKey nextPivotKey)
-    : TObjectBase(id)
+    : IObjectBase(id)
     , Tablet_(tablet)
     , Index_(index)
     , PivotKey_(std::move(pivotKey))

@@ -83,7 +83,7 @@ private:
 
 void EscapeAndWrite(
     const TStringBuf& string,
-    TOutputStream* stream,
+    IOutputStream* stream,
     const TEscapeTable& escapeTable);
 
 TString Escape(

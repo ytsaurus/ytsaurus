@@ -108,7 +108,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TDsvNodeConsumer::TDsvNodeConsumer(
-    TOutputStream* stream,
+    IOutputStream* stream,
     TDsvFormatConfigPtr config)
     : TDsvWriterBase(config)
     , Stream_(stream)

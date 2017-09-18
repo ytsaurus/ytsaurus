@@ -170,9 +170,14 @@ struct TPooledObjectTraits<NConcurrency::TPooledExecutionStack<Kind, Size>, void
 
     static void Clean(TStack* stack)
     {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && !defined(_asan_enabled_)
         if (stack->GetStack()) {
             memset(stack->GetStack(), 0, stack->GetSize());
+        }
+#endif
+#if defined(_asan_enabled_)
+        if (stack->GetStack()) {
+            NSan::Poison(stack->GetStack(), stack->GetSize());
         }
 #endif
     }

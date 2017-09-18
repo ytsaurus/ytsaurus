@@ -61,13 +61,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Wraps another TOutputStream and measures the number of bytes
+//! Wraps another IOutputStream and measures the number of bytes
 //! written through it.
 class TLengthMeasureOutputStream
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
-    explicit TLengthMeasureOutputStream(TOutputStream* output);
+    explicit TLengthMeasureOutputStream(IOutputStream* output);
 
     i64 GetLength() const;
 
@@ -77,7 +77,7 @@ protected:
     virtual void DoFinish();
 
 private:
-    TOutputStream* Output;
+    IOutputStream* Output;
     i64 Length;
 
 };

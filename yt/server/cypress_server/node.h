@@ -113,7 +113,7 @@ struct TCypressNodeDynamicData
 
 //! Provides a common base for all versioned (aka Cypress) nodes.
 class TCypressNodeBase
-    : public NObjectServer::TObjectBase
+    : public NObjectServer::IObjectBase
     , public TRefTracked<TCypressNodeBase>
 {
 public:
@@ -188,7 +188,7 @@ public:
     //! to another cell.
     bool IsExternal() const;
 
-    // Similar methods are also declared in TObjectBase but starting from TCypressNodeBase
+    // Similar methods are also declared in IObjectBase but starting from TCypressNodeBase
     // they become virtual.
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);

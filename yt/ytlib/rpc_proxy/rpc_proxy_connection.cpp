@@ -60,12 +60,12 @@ const IInvokerPtr& TRpcProxyConnection::GetHeavyInvoker()
     return ActionQueue_->GetInvoker();
 }
 
-IAdminPtr TRpcProxyConnection::CreateAdmin(const TAdminOptions& options)
+IAdminPtr TRpcProxyConnection::CreateAdmin(const TAdminOptions&)
 {
     Y_UNIMPLEMENTED();
 }
 
-IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
+NApi::IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
 {
     // TODO(sandello): Extract this to a new TAddressResolver method.
     auto localHostname = GetLocalHostName();
@@ -109,8 +109,8 @@ IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
 }
 
 NHiveClient::ITransactionParticipantPtr TRpcProxyConnection::CreateTransactionParticipant(
-    const NHiveClient::TCellId& cellId,
-    const TTransactionParticipantOptions& options)
+    const NHiveClient::TCellId&,
+    const TTransactionParticipantOptions&)
 {
     Y_UNIMPLEMENTED();
 }
@@ -130,11 +130,12 @@ void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)
     auto guard = Guard(SpinLock_);
     YCHECK(Transactions_.insert(MakeWeak(transaction)).second);
 
-    if (Transactions_.empty() && !PingExecutor_) {
+    if (!PingExecutor_) {
         PingExecutor_ = New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
             BIND(&TRpcProxyConnection::OnPing, MakeWeak(this)),
             Config_->PingPeriod);
+        PingExecutor_->Start();
     }
 }
 

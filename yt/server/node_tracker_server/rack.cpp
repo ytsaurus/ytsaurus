@@ -9,13 +9,13 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TRack::TRack(const TRackId& id)
-    : TObjectBase(id)
+    : IObjectBase(id)
     , Index_(-1)
 { }
 
 void TRack::Save(NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(context);
+    IObjectBase::Save(context);
 
     using NYT::Save;
     Save(context, Name_);
@@ -25,7 +25,7 @@ void TRack::Save(NCellMaster::TSaveContext& context) const
 
 void TRack::Load(NCellMaster::TLoadContext& context)
 {
-    TObjectBase::Load(context);
+    IObjectBase::Load(context);
 
     using NYT::Load;
     Load(context, Name_);

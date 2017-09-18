@@ -47,7 +47,7 @@ struct TBlobTableSchema
 //   Destructor doesn't call Finish, since it involves complicated logic including WaitFor
 //   that is not good to call from destructor.
 class TBlobTableWriter
-    : public TOutputStream
+    : public IOutputStream
 {
 public:
     TBlobTableWriter(
