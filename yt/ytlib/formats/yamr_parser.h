@@ -15,7 +15,7 @@ std::unique_ptr<IParser> CreateParserForYamr(
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseYamr(
-    TInputStream* input,
+    IInputStream* input,
     NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
 

@@ -108,7 +108,7 @@ class TListFragmentLexer
 {
 public:
     TListFragmentLexer();
-    explicit TListFragmentLexer(TInputStream* stream);
+    explicit TListFragmentLexer(IInputStream* stream);
     ~TListFragmentLexer();
     TListFragmentLexer(TListFragmentLexer&&);
     TListFragmentLexer& operator=(TListFragmentLexer&&);

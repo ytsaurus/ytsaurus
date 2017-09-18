@@ -410,7 +410,7 @@ private:
 
     TDuration MemoryWatchdogPeriod_;
 
-    std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
+    std::vector<std::unique_ptr<IOutputStream>> TableOutputs_;
     std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
 
     // Writes stderr data to cypress file.
@@ -522,7 +522,7 @@ private:
         }
     }
 
-    TOutputStream* CreateStatisticsOutput()
+    IOutputStream* CreateStatisticsOutput()
     {
         StatisticsConsumer_.reset(new TStatisticsConsumer(
             BIND(&TUserJob::AddCustomStatistics, Unretained(this))));
@@ -545,7 +545,7 @@ private:
         return options;
     }
 
-    TOutputStream* CreateErrorOutput()
+    IOutputStream* CreateErrorOutput()
     {
         ErrorOutput_.reset(new TStderrWriter(
             UserJobSpec_.max_stderr_size()));
@@ -739,7 +739,7 @@ private:
 
     TAsyncReaderPtr PrepareOutputPipe(
         const std::vector<int>& jobDescriptors,
-        TOutputStream* output,
+        IOutputStream* output,
         std::vector<TCallback<void()>>* actions,
         const TError& wrappingError)
     {

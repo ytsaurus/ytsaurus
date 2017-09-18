@@ -24,7 +24,7 @@ public:
     TSchemafulWriter(
         NConcurrency::IAsyncOutputStreamPtr stream,
         const NTableClient::TTableSchema& schema,
-        const std::function<std::unique_ptr<NYson::IFlushableYsonConsumer>(TOutputStream*)>& consumerBuilder);
+        const std::function<std::unique_ptr<NYson::IFlushableYsonConsumer>(IOutputStream*)>& consumerBuilder);
 
     virtual TFuture<void> Close() override;
 

@@ -102,12 +102,12 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
 std::unique_ptr<NYson::IFlushableYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
-    TOutputStream* output);
+    IOutputStream* output);
 
 NYson::TYsonProducer CreateProducerForFormat(
     const TFormat& format,
     EDataType dataType,
-    TInputStream* input);
+    IInputStream* input);
 
 std::unique_ptr<IParser> CreateParserForFormat(
     const TFormat& format,

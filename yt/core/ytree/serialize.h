@@ -27,7 +27,7 @@ NYson::EYsonType GetYsonType(const NYson::TYsonProducer& producer);
 
 template <class T>
 void WriteYson(
-    TOutputStream* output,
+    IOutputStream* output,
     const T& value,
     NYson::EYsonType type,
     NYson::EYsonFormat format = NYson::EYsonFormat::Binary,
@@ -35,7 +35,7 @@ void WriteYson(
 
 template <class T>
 void WriteYson(
-    TOutputStream* output,
+    IOutputStream* output,
     const T& value,
     NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
 
@@ -92,8 +92,8 @@ void Serialize(TInstant value, NYson::IYsonConsumer* consumer);
 // TGuid
 void Serialize(const TGuid& value, NYson::IYsonConsumer* consumer);
 
-// TInputStream
-void Serialize(TInputStream& input, NYson::IYsonConsumer* consumer);
+// IInputStream
+void Serialize(IInputStream& input, NYson::IYsonConsumer* consumer);
 
 // Enums
 template <class T>

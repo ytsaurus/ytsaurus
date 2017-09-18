@@ -173,7 +173,7 @@ public:
     }
 
     virtual TFuture<NApi::TListOperationsResult> ListOperations(
-        const NApi::TListOperationsOptions& options) override
+        const NApi::TListOperationsOptions&) override
     {
         Y_UNIMPLEMENTED();
     }

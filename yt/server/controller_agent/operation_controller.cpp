@@ -90,7 +90,7 @@ public:
         Underlying_->Commit();
     }
 
-    virtual void SaveSnapshot(TOutputStream* stream) override
+    virtual void SaveSnapshot(IOutputStream* stream) override
     {
         Underlying_->SaveSnapshot(stream);
     }

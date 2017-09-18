@@ -14,7 +14,7 @@ namespace NCompression {
 class TBrotliCompress::TImpl
 {
 public:
-    inline TImpl(TOutputStream* slave, int level)
+    inline TImpl(IOutputStream* slave, int level)
         : Slave_(slave)
         , Compressor_(MakeParams(level))
     { }
@@ -55,7 +55,7 @@ public:
     }
 
 private:
-    TOutputStream* Slave_;
+    IOutputStream* Slave_;
     brotli::BrotliCompressor Compressor_;
 
     static brotli::BrotliParams MakeParams(int level)
@@ -66,7 +66,7 @@ private:
     }
 };
 
-TBrotliCompress::TBrotliCompress(TOutputStream* slave, int level)
+TBrotliCompress::TBrotliCompress(IOutputStream* slave, int level)
     : Impl_(new TImpl(slave, level))
 { }
 
@@ -86,7 +86,7 @@ class TBrotliDecompress::TImpl
     : public TAdditionalStorage<TImpl>
 {
 public:
-    inline TImpl(TInputStream* slave)
+    inline TImpl(IInputStream* slave)
         : Slave_(slave)
     { }
 
@@ -146,7 +146,7 @@ public:
     }
 
 private:
-    TInputStream* Slave_;
+    IInputStream* Slave_;
     BrotliState State_;
 
     bool Initialized_ = false;
@@ -166,7 +166,7 @@ private:
 
 };
 
-TBrotliDecompress::TBrotliDecompress(TInputStream* slave, size_t buflen)
+TBrotliDecompress::TBrotliDecompress(IInputStream* slave, size_t buflen)
     : Impl_(new (buflen) TImpl(slave))
 { }
 

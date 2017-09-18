@@ -29,7 +29,7 @@ class TCheckpointableInputStream
     : public ICheckpointableInputStream
 {
 public:
-    explicit TCheckpointableInputStream(TInputStream* underlyingStream)
+    explicit TCheckpointableInputStream(IInputStream* underlyingStream)
         : UnderlyingStream_(underlyingStream)
     { }
 
@@ -55,7 +55,7 @@ public:
     { }
 
 private:
-    TInputStream* const UnderlyingStream_;
+    IInputStream* const UnderlyingStream_;
 
     size_t BlockLength_;
     size_t BlockOffset_;
@@ -116,7 +116,7 @@ private:
 };
 
 std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
-    TInputStream* underlyingStream)
+    IInputStream* underlyingStream)
 {
     return std::unique_ptr<ICheckpointableInputStream>(new TCheckpointableInputStream(
         underlyingStream));
@@ -125,11 +125,11 @@ std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEnscapsulatedCheckpointableInputStream
-    : public TInputStream
+    : public IInputStream
 {
 public:
     explicit TEnscapsulatedCheckpointableInputStream(
-        TInputStream* underlyingStream)
+        IInputStream* underlyingStream)
         : UnderlyingStream_(underlyingStream)
         , FakeHeader_{TBlockHeader::CheckpointsDisabled}
     { }
@@ -138,7 +138,7 @@ public:
     { }
 
 private:
-    TInputStream* const UnderlyingStream_;
+    IInputStream* const UnderlyingStream_;
 
     int FakeHeaderOffset_ = 0;
     TBlockHeader FakeHeader_;
@@ -158,10 +158,10 @@ private:
 
 };
 
-std::unique_ptr<TInputStream> EscapsulateAsCheckpointableInputStream(
-    TInputStream* underlyingStream)
+std::unique_ptr<IInputStream> EscapsulateAsCheckpointableInputStream(
+    IInputStream* underlyingStream)
 {
-    return std::unique_ptr<TInputStream>(new TEnscapsulatedCheckpointableInputStream(
+    return std::unique_ptr<IInputStream>(new TEnscapsulatedCheckpointableInputStream(
         underlyingStream));
 }
 
@@ -171,7 +171,7 @@ class TCheckpointableOutputStream
     : public ICheckpointableOutputStream
 {
 public:
-    explicit TCheckpointableOutputStream(TOutputStream* underlyingStream)
+    explicit TCheckpointableOutputStream(IOutputStream* underlyingStream)
         : UnderlyingStream_(underlyingStream)
     { }
 
@@ -184,7 +184,7 @@ public:
     { }
 
 private:
-    TOutputStream* const UnderlyingStream_;
+    IOutputStream* const UnderlyingStream_;
 
 
     virtual void DoWrite(const void* buf, size_t len) override
@@ -200,7 +200,7 @@ private:
 };
 
 std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
-    TOutputStream* underlyingStream)
+    IOutputStream* underlyingStream)
 {
     return std::unique_ptr<ICheckpointableOutputStream>(new TCheckpointableOutputStream(
         underlyingStream));

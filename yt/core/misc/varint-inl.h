@@ -33,7 +33,7 @@ Y_FORCE_INLINE int WriteVarUint64Impl(TWriteCallback doWrite, ui64 value)
 }
 
 // These are optimized versions of these Read/Write functions in protobuf/io/coded_stream.cc.
-Y_FORCE_INLINE int WriteVarUint64(TOutputStream* output, ui64 value)
+Y_FORCE_INLINE int WriteVarUint64(IOutputStream* output, ui64 value)
 {
     return WriteVarUint64Impl([&] (ui8 byte) {
         output->Write(byte);
@@ -55,7 +55,7 @@ Y_FORCE_INLINE int WriteVarUint32Impl(TOutput output, ui32 value)
     return WriteVarUint64(output, static_cast<ui64>(value));
 }
 
-Y_FORCE_INLINE int WriteVarUint32(TOutputStream* output, ui32 value)
+Y_FORCE_INLINE int WriteVarUint32(IOutputStream* output, ui32 value)
 {
     return WriteVarUint32Impl(output, value);
 }
@@ -73,7 +73,7 @@ Y_FORCE_INLINE int WriteVarInt32Impl(TOutput output, i32 value)
     return WriteVarUint64(output, static_cast<ui64>(ZigZagEncode32(value)));
 }
 
-Y_FORCE_INLINE int WriteVarInt32(TOutputStream* output, i32 value)
+Y_FORCE_INLINE int WriteVarInt32(IOutputStream* output, i32 value)
 {
     return WriteVarInt32Impl(output, value);
 }
@@ -91,7 +91,7 @@ Y_FORCE_INLINE int WriteVarInt64Impl(TOutput output, i64 value)
     return WriteVarUint64(output, static_cast<ui64>(ZigZagEncode64(value)));
 }
 
-Y_FORCE_INLINE int WriteVarInt64(TOutputStream* output, i64 value)
+Y_FORCE_INLINE int WriteVarInt64(IOutputStream* output, i64 value)
 {
     return WriteVarInt64Impl(output, value);
 }
@@ -123,7 +123,7 @@ Y_FORCE_INLINE int ReadVarUint64Impl(TReadCallback doRead, ui64* value)
     return count;
 }
 
-Y_FORCE_INLINE int ReadVarUint64(TInputStream* input, ui64* value)
+Y_FORCE_INLINE int ReadVarUint64(IInputStream* input, ui64* value)
 {
     return ReadVarUint64Impl([&] () {
         char byte;
@@ -169,7 +169,7 @@ Y_FORCE_INLINE int ReadVarUint32Impl(ui32* value, Args... args)
     return bytesRead;
 }
 
-Y_FORCE_INLINE int ReadVarUint32(TInputStream* input, ui32* value)
+Y_FORCE_INLINE int ReadVarUint32(IInputStream* input, ui32* value)
 {
     return ReadVarUint32Impl(value, input);
 }
@@ -198,7 +198,7 @@ Y_FORCE_INLINE int ReadVarInt32Impl(i32* value, Args... args)
     return bytesRead;
 }
 
-Y_FORCE_INLINE int ReadVarInt32(TInputStream* input, i32* value)
+Y_FORCE_INLINE int ReadVarInt32(IInputStream* input, i32* value)
 {
     return ReadVarInt32Impl(value, input);
 }
@@ -224,7 +224,7 @@ Y_FORCE_INLINE int ReadVarInt64Impl(i64* value, Args... args)
     return bytesRead;
 }
 
-Y_FORCE_INLINE int ReadVarInt64(TInputStream* input, i64* value)
+Y_FORCE_INLINE int ReadVarInt64(IInputStream* input, i64* value)
 {
     return ReadVarInt64Impl(value, input);
 }

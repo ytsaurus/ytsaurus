@@ -45,7 +45,7 @@ public:
     virtual void CheckSpace(i64 minSpace) override;
 
 protected:
-    virtual TOutputStream* GetOutputStream() const noexcept = 0;
+    virtual IOutputStream* GetOutputStream() const noexcept = 0;
     virtual void OnException(const std::exception& ex);
 
 private:
@@ -61,14 +61,14 @@ class TStreamLogWriter final
     : public TStreamLogWriterBase
 {
 public:
-    explicit TStreamLogWriter(TOutputStream* stream)
+    explicit TStreamLogWriter(IOutputStream* stream)
         : Stream_(stream)
     { }
 
 private:
-    virtual TOutputStream* GetOutputStream() const noexcept override;
+    virtual IOutputStream* GetOutputStream() const noexcept override;
 
-    TOutputStream* Stream_;
+    IOutputStream* Stream_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +77,7 @@ class TStderrLogWriter final
     : public TStreamLogWriterBase
 {
 private:
-    virtual TOutputStream* GetOutputStream() const noexcept override;
+    virtual IOutputStream* GetOutputStream() const noexcept override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +86,7 @@ class TStdoutLogWriter final
     : public TStreamLogWriterBase
 {
 private:
-    virtual TOutputStream* GetOutputStream() const noexcept override;
+    virtual IOutputStream* GetOutputStream() const noexcept override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +102,7 @@ public:
     virtual void CheckSpace(i64 minSpace) override;
 
 private:
-    virtual TOutputStream* GetOutputStream() const noexcept override;
+    virtual IOutputStream* GetOutputStream() const noexcept override;
     virtual void OnException(const std::exception& ex) override;
 
     void Open();

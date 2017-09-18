@@ -165,7 +165,7 @@ void TSchemafulDsvParser::Finish()
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseSchemafulDsv(
-    TInputStream* input,
+    IInputStream* input,
     IYsonConsumer* consumer,
     TSchemafulDsvFormatConfigPtr config)
 {

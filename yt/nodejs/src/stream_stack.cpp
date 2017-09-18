@@ -14,10 +14,10 @@ namespace NNodeJS {
 
 template <class TStream>
 class TLazyInput
-    : public TInputStream
+    : public IInputStream
 {
 public:
-    TLazyInput(TInputStream* input)
+    TLazyInput(IInputStream* input)
         : Input_(input)
     { }
 
@@ -37,8 +37,8 @@ private:
     }
 
 private:
-    TInputStream* Input_;
-    std::unique_ptr<TInputStream> Slave_;
+    IInputStream* Input_;
+    std::unique_ptr<IInputStream> Slave_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

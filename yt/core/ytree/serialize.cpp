@@ -116,8 +116,8 @@ void Serialize(const TGuid& value, IYsonConsumer* consumer)
     consumer->OnStringScalar(ToString(value));
 }
 
-// TInputStream
-void Serialize(TInputStream& input, IYsonConsumer* consumer)
+// IInputStream
+void Serialize(IInputStream& input, IYsonConsumer* consumer)
 {
     Serialize(TYsonInput(&input), consumer);
 }

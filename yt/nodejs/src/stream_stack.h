@@ -108,8 +108,8 @@ private:
     TPtr* Head;
 };
 
-typedef TGrowingStreamStack<TInputStream> TGrowingInputStreamStack;
-typedef TGrowingStreamStack<TOutputStream> TGrowingOutputStreamStack;
+typedef TGrowingStreamStack<IInputStream> TGrowingInputStreamStack;
+typedef TGrowingStreamStack<IOutputStream> TGrowingOutputStreamStack;
 
 void AddCompressionToStack(TGrowingInputStreamStack& stack, ECompression compression);
 void AddCompressionToStack(TGrowingOutputStreamStack& stack, ECompression compression);

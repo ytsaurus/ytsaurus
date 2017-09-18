@@ -8,7 +8,7 @@ TStreamSaveContext::TStreamSaveContext()
     : Output_(nullptr)
 { }
 
-TStreamSaveContext::TStreamSaveContext(TOutputStream* output)
+TStreamSaveContext::TStreamSaveContext(IOutputStream* output)
     : Output_(output)
 { }
 
@@ -18,7 +18,7 @@ TStreamLoadContext::TStreamLoadContext()
     : Input_(nullptr)
 { }
 
-TStreamLoadContext::TStreamLoadContext(TInputStream* input)
+TStreamLoadContext::TStreamLoadContext(IInputStream* input)
     : Input_(input)
 { }
 
