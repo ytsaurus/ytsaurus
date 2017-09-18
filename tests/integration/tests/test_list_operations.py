@@ -55,6 +55,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress without filters
         res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
@@ -65,6 +66,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress with from_time & to_time filter
         res = list_operations(from_time="2016-03-02T00:00:00Z", to_time="2016-03-02T12:00:00Z")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("running", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
@@ -73,6 +75,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress with cursor_time/past filter
         res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", cursor_time="2016-03-02T12:00:00Z", cursor_direction="past")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
@@ -82,6 +85,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress with cursor_time/future filter
         res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", cursor_time="2016-03-02T00:00:00Z", cursor_direction="future")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
@@ -91,6 +95,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress without cursor_time/past filter
         res = list_operations(cursor_direction="past", limit=2)
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 2L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L), ("sort", 1L)]
@@ -100,6 +105,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress without cursor_time/future filter
         res = list_operations(cursor_direction="future", limit=2)
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("odin", 1L), ("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 2L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L), ("sort", 1L)]
@@ -109,6 +115,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress with type filter
         res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", type="map_reduce")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
@@ -124,6 +131,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress with state filter
         res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", state="completed")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
@@ -142,6 +150,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress with user filter
         res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", user="psushin")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("running", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
@@ -150,11 +159,21 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress with text filter
         res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", filter="MRPROC")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("failed", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map_reduce", 1L)]
         assert res["failed_jobs_count"] == 1L
         assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a"]
+
+        #should list operations from cypress with pool filter
+        res = list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", pool="ignat")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
+        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("ignat", 1L)]
+        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L)]
+        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
+        assert res["failed_jobs_count"] == 0L
+        assert [op["id"] for op in res["operations"]] == ["19b5c14-c41a6620-7fa0d708-29a241d2"]
 
         #should list operations w.r.t. limit parameter (incomplete result)
         assert list_operations(from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", limit=1)["incomplete"] == True
@@ -177,6 +196,7 @@ class TestListOperations(YTEnvSetup):
 
         #should list operations from cypress and archive without filters
         res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L), ("failed", 1L), ("running", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 2L), ("map_reduce", 1L)]
@@ -184,6 +204,24 @@ class TestListOperations(YTEnvSetup):
         assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a",
                                                           "1dee545-fe4c4006-cd95617-54f87a31",
                                                           "19b5c14-c41a6620-7fa0d708-29a241d2"]
+
+        #should list operations from cypress and archive with text filter
+        res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", filter="MRPROC")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L)]
+        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("data_quality_robot", 1L)]
+        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("failed", 1L)]
+        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map_reduce", 1L)]
+        assert res["failed_jobs_count"] == 1L
+        assert [op["id"] for op in res["operations"]] == ["d7df8-7d0c30ec-582ebd65-9ad7535a"]
+
+        #should list operations from cypress and archive with pool filter
+        res = list_operations(include_archive=True, from_time="2016-02-25T00:00:00Z", to_time="2016-03-04T00:00:00Z", pool="psushin")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("data-quality_robot", 1L), ("ignat", 1L), ("psushin", 1L)]
+        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("psushin", 1L)]
+        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("running", 1L)]
+        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
+        assert res["failed_jobs_count"] == 0L
+        assert [op["id"] for op in res["operations"]] == ["1dee545-fe4c4006-cd95617-54f87a31"]
 
         #should list operations from cypress and archive with from_time & to_time filter
         res = list_operations(include_archive=True, from_time="2016-03-02T00:00:00Z", to_time="2016-03-02T16:00:00Z")
@@ -228,6 +266,7 @@ class TestListOperations(YTEnvSetup):
                 create("map_node", "//sys/operations/" + op_id, attributes=attr)
 
         res = list_operations(include_archive=True, from_time="2016-02-25T23:50:00Z", to_time="2016-02-25T23:55:00Z")
+        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("ignat", 1L)]
         assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("ignat", 1L)]
         assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L)]
         assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]

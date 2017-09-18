@@ -99,6 +99,8 @@ TListOperationsCommand::TListOperationsCommand()
         .Optional();
     RegisterParameter("filter", Options.SubstrFilter)
         .Optional();
+    RegisterParameter("pool", Options.Pool)
+        .Optional();
     RegisterParameter("with_failed_jobs", Options.WithFailedJobs)
         .Optional();
     RegisterParameter("include_archive", Options.IncludeArchive)
@@ -140,6 +142,13 @@ void TListOperationsCommand::DoExecute(ICommandContextPtr context)
                 })  
             .EndList()
             .Item("incomplete").Value(result.Incomplete)
+            .DoIf(result.PoolCounts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("pool_counts").BeginMap()
+                .DoFor(*result.PoolCounts, [] (TFluentMap fluent, const auto& item) {
+                    fluent.Item(item.first).Value(item.second);
+                })  
+                .EndMap();
+            })
             .DoIf(result.UserCounts.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("user_counts").BeginMap()
                 .DoFor(*result.UserCounts, [] (TFluentMap fluent, const auto& item) {
