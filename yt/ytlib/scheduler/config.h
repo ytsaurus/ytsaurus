@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "helpers.h"
+#include "job_resources.h"
 
 #include <yt/ytlib/api/config.h>
 
@@ -57,7 +58,7 @@ class TResourceLimitsConfig
 {
 public:
     TNullable<int> UserSlots;
-    TNullable<int> Cpu;
+    TNullable<double> Cpu;
     TNullable<int> Network;
     TNullable<i64> Memory;
 
