@@ -1497,6 +1497,9 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto jobId = jobSummary->Id;
+    RecentlyCompletedJobIds.emplace_back(jobId);
+
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
         Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
@@ -1504,7 +1507,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         THROW_ERROR_EXCEPTION("Testing exception");
     }
 
-    auto jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -1575,7 +1577,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ false);
 
     RemoveJoblet(joblet);
-    RecentlyCompletedJobIds.emplace_back(jobId);
 
     UpdateTask(joblet->Task);
 
