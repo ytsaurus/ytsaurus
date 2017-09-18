@@ -5041,7 +5041,6 @@ void TOperationControllerBase::RegisterRecoveryInfo(
     const TCompletedJobPtr& completedJob,
     const TChunkStripePtr& stripe)
 {
-    YCHECK(!stripe->DataSlices.empty());
     for (const auto& dataSlice : stripe->DataSlices) {
         // NB: intermediate slice must be trivial.
         const auto& chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
