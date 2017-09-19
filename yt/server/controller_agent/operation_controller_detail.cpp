@@ -1498,7 +1498,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     auto jobId = jobSummary->Id;
-    RecentlyCompletedJobIds.emplace_back(jobId);
     // NB: We should not explicitly tell node to remove abandoned job because it may be still
     // running at the node.
     if (!jobSummary->Abandoned) {
