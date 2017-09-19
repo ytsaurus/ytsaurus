@@ -236,10 +236,10 @@ private:
     {
         // NB: We must not be dropping the previous tree while holding
         // a spin lock since destroying the tree could take a while. Cf. YT-4948.
-        decltype(CachedTreeOrError_) oldCacheTreeOrError;
+        decltype(CachedTreeOrError_) oldCachedTreeOrError;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            std::swap(CachedTreeOrError_, oldCacheTreeOrError);
+            std::swap(CachedTreeOrError_, oldCachedTreeOrError);
             CachedTreeOrError_ = cachedTreeOrError;
         }
     }
