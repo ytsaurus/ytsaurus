@@ -47,6 +47,8 @@ public:
 
     virtual TChunkId GetChunkId() const override;
 
+    virtual bool IsValid() const override;
+
 private:
     const TChunkId ChunkId_;
     const TString FileName_;

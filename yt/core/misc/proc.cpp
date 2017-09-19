@@ -32,6 +32,7 @@
     #include <sys/types.h>
     #include <sys/resource.h>
     #include <sys/stat.h>
+    #include <sys/syscall.h>
     #include <unistd.h>
 #endif
 #ifdef _linux_
@@ -95,6 +96,28 @@ std::vector<int> GetPidsByUid(int uid)
 
 #else
     return std::vector<int>();
+#endif
+}
+
+int GetCurrentThreadId()
+{
+#ifdef _unix_
+    return ::syscall(SYS_gettid);
+#else
+    Y_UNREACHABLE();
+#endif
+}
+
+void SetThreadPriority(int tid, int priority)
+{
+#ifdef _unix_
+    auto res = ::setpriority(PRIO_PROCESS, tid, priority);
+    if (res != 0) {
+        THROW_ERROR_EXCEPTION("Failed to set priority for thread %v",
+            tid) << TError::FromSystem();
+    }
+#else
+    Y_UNREACHABLE();
 #endif
 }
 
@@ -244,6 +267,12 @@ void UmountAsRoot(TUmountConfigPtr config)
 {
     SafeSetUid(0);
     NFS::Umount(config->Path, config->Detach);
+}
+
+void SetThreadPriorityAsRoot(TSetThreadPriorityConfigPtr config)
+{
+    SafeSetUid(0);
+    SetThreadPriority(config->ThreadId, config->Priority);
 }
 
 void SetQuota(TFSQuotaConfigPtr config)
@@ -699,6 +728,11 @@ void UmountAsRoot(const TString& /* path */)
     Y_UNIMPLEMENTED();
 }
 
+void SetThreadPriorityAsRoot(TSetThreadPriorityConfigPtr /* config */)
+{
+    Y_UNIMPLEMENTED();
+}
+
 void CloseAllDescriptors()
 {
     Y_UNIMPLEMENTED();
@@ -852,6 +886,13 @@ void TMountTmpfsAsRootTool::operator()(TMountTmpfsConfigPtr arg) const
 void TUmountAsRootTool::operator()(TUmountConfigPtr arg) const
 {
     UmountAsRoot(arg);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSetThreadPriorityAsRootTool::operator()(TSetThreadPriorityConfigPtr arg) const
+{
+    SetThreadPriorityAsRoot(arg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

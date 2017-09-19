@@ -3,6 +3,8 @@
 #include "dispatcher.h"
 #include "helpers.h"
 
+#include <yt/core/misc/singleton.h>
+
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/rpc.pb.h>
@@ -11,7 +13,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
@@ -229,7 +231,7 @@ private:
         grpc_completion_queue* const CompletionQueue_;
         const NLogging::TLogger& Logger;
 
-        NProfiling::TScopedTimer Timer_;
+        NProfiling::TWallTimer Timer_;
 
         TGrpcCallPtr Call_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
@@ -406,7 +408,7 @@ private:
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),
-                Timer_.GetElapsed());
+                Timer_.GetElapsedTime());
 
             ResponseHandler_->HandleResponse(std::move(message));
         }
@@ -415,11 +417,29 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TChannel)
 
-IChannelPtr CreateChannel(TChannelConfigPtr config)
+IChannelPtr CreateGrpcChannel(TChannelConfigPtr config)
 {
     auto channel = New<TChannel>(std::move(config));
     channel->Initialize();
     return channel;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChannelFactory
+    : public IChannelFactory
+{
+public:
+    virtual IChannelPtr CreateChannel(const TString& address) override
+    {
+        auto config = TChannelConfig::CreateInsecure(address);
+        return CreateGrpcChannel(config);
+    }
+};
+
+IChannelFactoryPtr GetGrpcChannelFactory()
+{
+    return RefCountedSingleton<TChannelFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

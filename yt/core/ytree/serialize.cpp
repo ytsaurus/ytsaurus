@@ -2,10 +2,14 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+
 namespace NYT {
 namespace NYTree {
 
 using namespace NYson;
+using namespace google::protobuf;
+using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,6 +122,20 @@ void Serialize(TInputStream& input, IYsonConsumer* consumer)
     Serialize(TYsonInput(&input), consumer);
 }
 
+// Subtypes of google::protobuf::Message
+void SerializeProtobufMessage(
+    const Message& message,
+    const TProtobufMessageType* type,
+    NYson::IYsonConsumer* consumer)
+{
+    auto byteSize = message.ByteSize();
+    std::vector<char> wireBytes;
+    wireBytes.reserve(byteSize);
+    YCHECK(message.SerializePartialToArray(wireBytes.data(), byteSize));
+    ArrayInputStream inputStream(wireBytes.data(), byteSize);
+    ParseProtobuf(consumer, &inputStream, type);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // signed integers
@@ -213,6 +231,22 @@ void Deserialize(TInstant& value, INodePtr node)
 void Deserialize(TGuid& value, INodePtr node)
 {
     value = TGuid::FromString(node->AsString()->GetValue());
+}
+
+// Subtypes of google::protobuf::Message
+void DeserializeProtobufMessage(
+    Message& message,
+    const TProtobufMessageType* type,
+    const INodePtr& node)
+{
+    TString wireBytes;
+    StringOutputStream outputStream(&wireBytes);
+    auto protobufWriter = CreateProtobufWriter(&outputStream, type);
+    VisitTree(node, protobufWriter.get());
+    if (!message.ParseFromArray(wireBytes.data(), wireBytes.size())) {
+        THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
+            message.GetTypeName());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

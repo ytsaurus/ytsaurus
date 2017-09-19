@@ -55,6 +55,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TListOperationsCommand
+    : public TTypedCommand<NApi::TListOperationsOptions>
+{
+public:
+    TListOperationsCommand();
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TListJobsCommand
     : public TTypedCommand<NApi::TListJobsOptions>
 {

@@ -20,7 +20,7 @@ public:
     TFileChunkWriterConfig()
     {
         RegisterParameter("block_size", BlockSize)
-            .Default(16 * MB)
+            .Default(16_MB)
             .GreaterThan(0);
     }
 };

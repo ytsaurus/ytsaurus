@@ -21,17 +21,14 @@ TRefCountedTypeKey GetRefCountedTypeKey()
     return &typeid(T);
 }
 
-TRefCountedTypeCookie GetRefCountedTypeCookie(
-    TRefCountedTypeKey typeKey,
-    const TSourceLocation& location);
-
 template <class T>
 Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 {
     static auto cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
-        cookie = GetRefCountedTypeCookie(
+        cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),
+            sizeof(T),
             NYT::TSourceLocation());
     }
     return cookie;
@@ -42,17 +39,12 @@ Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const T
 {
     static auto cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
-        cookie = GetRefCountedTypeCookie(
+        cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),
+            sizeof(T),
             location);
     }
     return cookie;
-}
-
-template <class T>
-Y_FORCE_INLINE size_t SpaceUsed(const T* /*instance*/)
-{
-    return sizeof(T);
 }
 
 namespace NDetail {
@@ -89,7 +81,7 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewImpl(
 
     InitializeNewInstance(instance, ptr);
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    InitializeRefCountedTracking(instance, cookie, SpaceUsed(instance));
+    InitializeRefCountedTracking(instance, cookie);
 #endif
 
     return TIntrusivePtr<T>(instance, false);

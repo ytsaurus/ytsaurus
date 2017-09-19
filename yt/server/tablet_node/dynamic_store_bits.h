@@ -65,6 +65,7 @@ struct TSortedDynamicRowHeader
     ui32 NullKeyMask;
     ui32 DeleteLockFlag : 1;
     ui32 Padding : 31;
+    size_t DataWeight;
 };
 
 struct TEditListHeader
@@ -97,6 +98,24 @@ static_assert(
 static_assert(
     sizeof(std::atomic<ui16>) == sizeof(ui16),
     "std::atomic<ui16> does not seem to be lock-free.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline size_t GetDataWeight(EValueType type, bool isNull, const TDynamicValueData& data)
+{
+    if (isNull) {
+        return GetDataWeight(EValueType::Null);
+    } else if (IsStringLikeType(type)) {
+        return data.String->Length;
+    } else {
+        return GetDataWeight(type);
+    }
+}
+
+inline size_t GetDataWeight(EValueType type, const TDynamicValue& value)
+{
+    return GetDataWeight(type, value.Null, value.Data);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,6 +413,17 @@ public:
     void SetDeleteLockFlag(bool value)
     {
         Header_->DeleteLockFlag = value;
+    }
+
+
+    size_t GetDataWeight() const
+    {
+        return Header_->DataWeight;
+    }
+
+    size_t& GetDataWeight()
+    {
+        return Header_->DataWeight;
     }
 
 

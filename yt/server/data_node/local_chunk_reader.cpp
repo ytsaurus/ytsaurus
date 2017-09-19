@@ -99,6 +99,11 @@ public:
         return Chunk_->GetId();
     }
 
+    virtual bool IsValid() const override
+    {
+        return true;
+    }
+
 private:
     const TReplicationReaderConfigPtr Config_;
     const IChunkPtr Chunk_;

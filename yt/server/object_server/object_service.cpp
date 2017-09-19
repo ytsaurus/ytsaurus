@@ -26,7 +26,7 @@
 
 #include <yt/core/ytree/ypath_detail.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>
 
 #include <yt/core/misc/crash_handler.h>
@@ -320,7 +320,7 @@ private:
         if (NeedsUpstreamSync_) {
             NeedsUpstreamSync_ = false;
             auto result = HydraManager_->SyncWithUpstream();
-            if (!WaitForAndContinue(result)) {
+            if (!WaitForAndContinue(std::move(result))) {
                 return;
             }
         }
@@ -426,7 +426,7 @@ private:
 
         NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
 
-        NProfiling::TScopedTimer timer;
+        NProfiling::TWallTimer timer;
 
         const auto& context = subrequest->Context;
         try {
@@ -443,7 +443,7 @@ private:
 
         // NB: Even if the user was just removed the instance is still valid but not alive.
         if (IsObjectAlive(user)) {
-            SecurityManager_->ChargeUserRead(user, 1, timer.GetElapsed());
+            SecurityManager_->ChargeUserRead(user, 1, timer.GetElapsedTime());
         }
     }
 

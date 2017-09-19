@@ -43,6 +43,7 @@ class TRuleConfig
 public:
     TNullable<yhash_set<TString>> IncludeCategories;
     yhash_set<TString> ExcludeCategories;
+
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
 
@@ -87,6 +88,7 @@ public:
 
     std::vector<TRuleConfigPtr> Rules;
     yhash<TString, TWriterConfigPtr> WriterConfigs;
+    std::vector<TString> SuppressedMessages;
 
     TLogConfig()
     {
@@ -97,8 +99,8 @@ public:
         RegisterParameter("check_space_period", CheckSpacePeriod)
             .Default();
         RegisterParameter("min_disk_space", MinDiskSpace)
-            .GreaterThanOrEqual(GB)
-            .Default(5 * GB);
+            .GreaterThanOrEqual(1_GB)
+            .Default(5_GB);
         RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
             .GreaterThan(0)
             .Default(10000000);
@@ -110,6 +112,8 @@ public:
 
         RegisterParameter("writers", WriterConfigs);
         RegisterParameter("rules", Rules);
+        RegisterParameter("suppressed_messages", SuppressedMessages)
+            .Default();
 
         RegisterValidator([&] () {
             for (const auto& rule : Rules) {

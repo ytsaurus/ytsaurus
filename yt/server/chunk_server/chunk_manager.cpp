@@ -647,7 +647,6 @@ public:
             &child + 1);
     }
 
-
     void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,

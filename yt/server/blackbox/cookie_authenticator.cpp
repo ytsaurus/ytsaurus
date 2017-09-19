@@ -2,6 +2,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <yt/core/misc/expiring_cache.h>
+
 #include <util/string/split.h>
 
 namespace NYT {
@@ -27,20 +29,19 @@ public:
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
-        const TString& sessionId,
-        const TString& sslSessionId,
-        const TString& host,
-        const TString& userIP) override
+        const TCookieCredentials& credentials) override
     {
-        auto sessionIdMD5 = ComputeMD5(sessionId);
-        auto sslSessionIdMD5 = ComputeMD5(sslSessionId);
+        auto sessionIdMD5 = ComputeMD5(credentials.SessionId);
+        auto sslSessionIdMD5 = ComputeMD5(credentials.SslSessionId);
         LOG_DEBUG(
             "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v)",
             sessionIdMD5,
             sslSessionIdMD5);
         return Blackbox_->Call("sessionid", {
-                {"sessionid", sessionId}, {"sslsessionid", sslSessionId},
-                {"host", host}, {"userip", userIP}})
+                {"sessionid", credentials.SessionId},
+                {"sslsessionid", credentials.SslSessionId},
+                {"host", credentials.Host},
+                {"userip", credentials.UserIP}})
             .Apply(BIND(
                 &TCookieAuthenticator::OnCallResult,
                 MakeStrong(this),
@@ -104,6 +105,39 @@ ICookieAuthenticatorPtr CreateCookieAuthenticator(
     IBlackboxServicePtr blackbox)
 {
     return New<TCookieAuthenticator>(std::move(config), std::move(blackbox));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingCookieAuthenticator
+    : public ICookieAuthenticator
+    , private TExpiringCache<TCookieCredentials, TAuthenticationResult>
+{
+public:
+    TCachingCookieAuthenticator(TExpiringCacheConfigPtr config, ICookieAuthenticatorPtr cookieAuthenticator)
+        : TExpiringCache(std::move(config))
+        , CookieAuthenticator_(std::move(cookieAuthenticator))
+    { }
+
+    virtual TFuture<TAuthenticationResult> Authenticate(const TCookieCredentials& credentials) override
+    {
+        return Get(credentials);
+    }
+
+private:
+    virtual TFuture<TAuthenticationResult> DoGet(const TCookieCredentials& credentials) override
+    {
+        return CookieAuthenticator_->Authenticate(credentials);
+    }
+
+    const ICookieAuthenticatorPtr CookieAuthenticator_;
+};
+
+ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
+    TExpiringCacheConfigPtr config,
+    ICookieAuthenticatorPtr authenticator)
+{
+    return New<TCachingCookieAuthenticator>(std::move(config), std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

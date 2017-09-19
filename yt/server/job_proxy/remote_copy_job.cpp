@@ -445,7 +445,7 @@ private:
             while (true) {
                 auto guard = TAsyncSemaphoreGuard::TryAcquire(CopySemaphore_);
                 if (guard) {
-                    return std::move(guard);
+                    return guard;
                 }
 
                 WaitFor(CopySemaphore_->GetReadyEvent())

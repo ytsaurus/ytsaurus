@@ -14,8 +14,6 @@ namespace NNet {
 
 using namespace NConcurrency;
 
-static const auto& Logger = NetLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TIOResult
@@ -29,9 +27,9 @@ struct TIOResult
     { }
 };
 
-struct TIOOperation
+struct IIOOperation
 {
-    virtual ~TIOOperation() = default;
+    virtual ~IIOOperation() = default;
 
     virtual TErrorOr<TIOResult> PerformIO(int fd) = 0;
 
@@ -43,7 +41,7 @@ struct TIOOperation
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReadOperation
-    : public TIOOperation
+    : public IIOOperation
 {
 public:
     explicit TReadOperation(const TSharedMutableRef& buffer)
@@ -98,7 +96,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWriteOperation
-    : public TIOOperation
+    : public IIOOperation
 {
 public:
     explicit TWriteOperation(const TSharedRef& buffer)
@@ -156,7 +154,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TShutdownOperation
-    : public TIOOperation
+    : public IIOOperation
 {
 public:
     explicit TShutdownOperation(bool shutdownRead)
@@ -211,9 +209,9 @@ public:
         , Poller_(poller)
     {
         ReadDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &ReadDirection_, false);
-        ReadDirection_.EPollFlag = EPollControl::Read;
+        ReadDirection_.PollFlag = EPollControl::Read;
         WriteDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &WriteDirection_, false);
-        WriteDirection_.EPollFlag = EPollControl::Write;
+        WriteDirection_.PollFlag = EPollControl::Write;
         Poller_->Register(this);
     }
 
@@ -326,12 +324,12 @@ private:
 
     struct TIODirection
     {
-        std::unique_ptr<TIOOperation> Operation;
+        std::unique_ptr<IIOOperation> Operation;
         bool Starting = false;
         std::atomic<i64> BytesTransferred = {0};
 
         TClosure DoIO;
-        EPollControl EPollFlag;
+        EPollControl PollFlag;
     };
 
     TSpinLock Lock_;
@@ -345,7 +343,7 @@ private:
     EPollControl Control_ = EPollControl::None;
     IPollerPtr Poller_;
 
-    void StartIO(TIODirection* direction, std::unique_ptr<TIOOperation> operation)
+    void StartIO(TIODirection* direction, std::unique_ptr<IIOOperation> operation)
     {
         TError error;
 
@@ -377,12 +375,12 @@ private:
             // We use Poller in a way that generates spurious
             // notifications. Do nothing if we are not interested in
             // this event.
-            if (filterSpuriousEvent && !Any(Control_ & direction->EPollFlag)) {
+            if (filterSpuriousEvent && None(Control_ & direction->PollFlag)) {
                 return;
             }
 
             if (filterSpuriousEvent) {
-                Control_ ^= direction->EPollFlag;
+                Control_ ^= direction->PollFlag;
             }
         }
 
@@ -395,7 +393,7 @@ private:
         }
         
         bool needClose = false;
-        std::unique_ptr<TIOOperation> operation;
+        std::unique_ptr<IIOOperation> operation;
         {
             auto guard = Guard(Lock_);
             if (!result.IsOK()) {
@@ -414,7 +412,7 @@ private:
                 }
             } else if (result.Value().Retry) {
                 // IO not completed.
-                Control_ |= direction->EPollFlag;
+                Control_ |= direction->PollFlag;
             } else {
                 // IO finished successfully.
                 operation = std::move(direction->Operation);

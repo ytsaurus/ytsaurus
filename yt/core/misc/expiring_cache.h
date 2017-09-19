@@ -17,7 +17,7 @@ class TExpiringCache
     : public virtual TRefCounted
 {
 public:
-    typedef typename TFutureCombineTraits<TValue>::TCombined TCombinedValue;
+    typedef typename TFutureCombineTraits<TValue>::TCombinedVector TCombinedValue;
 
     explicit TExpiringCache(TExpiringCacheConfigPtr config);
 

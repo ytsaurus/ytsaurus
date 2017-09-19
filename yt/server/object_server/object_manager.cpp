@@ -37,7 +37,7 @@
 #include <yt/core/erasure/public.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/response_keeper.h>
 
@@ -890,15 +890,9 @@ TFuture<void> TObjectManager::GCCollect()
 TObjectBase* TObjectManager::CreateObject(
     const TObjectId& hintId,
     EObjectType type,
-    IAttributeDictionary* attributes)
+    IAttributeDictionary* userAttributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    std::unique_ptr<IAttributeDictionary> attributeHolder;
-    if (!attributes) {
-        attributeHolder = CreateEphemeralAttributes();
-        attributes = attributeHolder.get();
-    }
 
     const auto& handler = FindHandler(type);
     if (!handler) {
@@ -924,13 +918,23 @@ TObjectBase* TObjectManager::CreateObject(
         securityManager->ValidatePermission(schema, user, EPermission::Create);
     }
 
+    auto attributes = CreateEphemeralAttributes();
+    if (auto* schemaAttributes = schema->GetAttributes()) {
+        for (const auto& pair : schemaAttributes->Attributes()) {
+            attributes->SetYson(pair.first, pair.second);
+        }
+    }
+    if (userAttributes) {
+        attributes->MergeFrom(*userAttributes);
+    }
+
     // ITypeHandler::CreateObject may modify the attributes.
     std::unique_ptr<IAttributeDictionary> replicatedAttributes;
     if (replicate) {
         replicatedAttributes = attributes->Clone();
     }
 
-    auto* object = handler->CreateObject(hintId, attributes);
+    auto* object = handler->CreateObject(hintId, attributes.get());
 
     YCHECK(object->GetObjectRefCounter() == 1);
 
@@ -1118,7 +1122,7 @@ void TObjectManager::HydraExecuteLeader(
     const IServiceContextPtr& context,
     TMutationContext*)
 {
-    TScopedTimer timer;
+    TWallTimer timer;
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
@@ -1132,7 +1136,7 @@ void TObjectManager::HydraExecuteLeader(
     }
 
     if (!IsRecovery() && IsObjectAlive(user)) {
-        securityManager->ChargeUserWrite(user, 1, timer.GetElapsed());
+        securityManager->ChargeUserWrite(user, 1, timer.GetElapsedTime());
     }
 
     auto mutationId = context->GetMutationId();

@@ -651,6 +651,17 @@ class TestAcls(YTEnvSetup):
         set("//tmp/x/y/@attr", "value")
         assert "attr" not in ls("//tmp/x", attributes=["attr"], authenticated_user="u")[0].attributes
 
+    def test_safe_mode(self):
+        create_user("u")
+        with pytest.raises(YtError):
+            set("//sys/@config/enable_safe_mode", True, authenticated_user="u")
+        set("//sys/@config/enable_safe_mode", True)
+        create("table", "//tmp/t1")
+        with pytest.raises(YtError):
+            create("table", "//tmp/t2", authenticated_user="u")
+        with pytest.raises(YtError):
+            start_transaction(authenticated_user="u")
+
 ##################################################################
 
 class TestAclsMulticell(TestAcls):

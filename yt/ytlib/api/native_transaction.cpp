@@ -352,10 +352,10 @@ public:
                 State_);
         }
 
-        LOG_DEBUG("Row modifications buffered (Count: %v)",
+        LOG_DEBUG("Buffering client row modifications (Count: %v)",
             modifications.Size());
 
-        Requests_.push_back(std::make_unique<TModificationRequest>(
+        EnqueueModificationRequest(std::make_unique<TModificationRequest>(
             this,
             Client_->GetNativeConnection(),
             path,
@@ -556,6 +556,7 @@ private:
             , TabletIndexColumnId_(NameTable_->FindId(TabletIndexColumnName))
             , Modifications_(std::move(modifications))
             , Options_(options)
+            , Logger(Transaction_->Logger)
         { }
 
         void PrepareTableSessions()
@@ -565,25 +566,46 @@ private:
 
         void SubmitRows()
         {
-            if (!TableSession_->GetInfo()->Replicas.empty() &&
+            const auto& tableInfo = TableSession_->GetInfo();
+            if (Options_.UpstreamReplicaId && tableInfo->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Replicated table %v cannot act as a replication sink",
+                    tableInfo->Path);
+            }
+            
+            if (!tableInfo->Replicas.empty() &&
                 TableSession_->SyncReplicas().empty() &&
                 Options_.RequireSyncReplica)
             {
                 THROW_ERROR_EXCEPTION("Table %v has no synchronous replicas",
-                    TableSession_->GetInfo()->Path);
+                    tableInfo->Path);
             }
 
             for (const auto& replicaData : TableSession_->SyncReplicas()) {
                 auto replicaOptions = Options_;
                 replicaOptions.UpstreamReplicaId = replicaData.ReplicaInfo->ReplicaId;
-                replicaData.Transaction->ModifyRows(
-                    replicaData.ReplicaInfo->ReplicaPath,
-                    NameTable_,
-                    Modifications_,
-                    replicaOptions);
+                if (replicaData.Transaction) {
+                    LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
+                        Modifications_.Size());
+                    replicaData.Transaction->ModifyRows(
+                        replicaData.ReplicaInfo->ReplicaPath,
+                        NameTable_,
+                        Modifications_,
+                        replicaOptions);                    
+                } else {
+                    // YT-7551: Local sync replicas must be handled differenly.
+                    // We cannot add more modifications via ITransactions interface since
+                    // the transaction is already committing.
+                    LOG_DEBUG("Bufferring local sync replication modifications (Count: %v)",
+                        Modifications_.Size());
+                    Transaction_->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
+                        Transaction_,
+                        Connection_,
+                        replicaData.ReplicaInfo->ReplicaPath,
+                        NameTable_,
+                        Modifications_,
+                        replicaOptions));
+                }
             }
-
-            const auto& tableInfo = TableSession_->GetInfo();
 
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
@@ -687,8 +709,12 @@ private:
         const TSharedRange<TRowModification> Modifications_;
         const TModifyRowsOptions Options_;
 
+        const NLogging::TLogger& Logger;
+
+
         TTableCommitSessionPtr TableSession_;
 
+        
         static EWireProtocolCommand GetCommand(ERowModificationType modificationType)
         {
             switch (modificationType) {
@@ -708,6 +734,7 @@ private:
     };
 
     std::vector<std::unique_ptr<TModificationRequest>> Requests_;
+    std::vector<TModificationRequest*> PendingRequests_;
 
     struct TSyncReplica
     {
@@ -777,6 +804,7 @@ private:
 
     //! Maintains per-table commit info.
     yhash<TYPath, TTableCommitSessionPtr> TablePathToSession_;
+    std::vector<TTableCommitSessionPtr> PendingSessions_;
 
     class TTabletCommitSession
         : public TIntrinsicRefCounted
@@ -1269,6 +1297,10 @@ private:
             connection = clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
         }
 
+        if (connection->GetCellTag() == Client_->GetConnection()->GetCellTag()) {
+            return nullptr;
+        }
+
         auto client = connection->CreateClient(Client_->GetOptions());
 
         TForeignTransactionStartOptions options;
@@ -1284,6 +1316,12 @@ private:
         return transaction;
     }
 
+    void EnqueueModificationRequest(std::unique_ptr<TModificationRequest> request)
+    {
+        PendingRequests_.push_back(request.get());
+        Requests_.push_back(std::move(request));
+    }
+
     TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, const TTableReplicaId& upstreamReplicaId)
     {
         auto it = TablePathToSession_.find(path);
@@ -1292,10 +1330,9 @@ private:
             auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
                 .ValueOrThrow();
 
-            it = TablePathToSession_.emplace(
-                path,
-                New<TTableCommitSession>(this, std::move(tableInfo), upstreamReplicaId)
-            ).first;
+            auto session = New<TTableCommitSession>(this, std::move(tableInfo), upstreamReplicaId);
+            PendingSessions_.push_back(session);
+            it = TablePathToSession_.emplace(path, session).first;
         } else {
             const auto& session = it->second;
             if (session->GetUpstreamReplicaId() != upstreamReplicaId) {
@@ -1333,18 +1370,29 @@ private:
 
     TFuture<void> SendRequests()
     {
-        for (const auto& request : Requests_) {
-            request->PrepareTableSessions();
-        }
-
         bool clusterDirectorySynched = false;
-        for (const auto& pair : TablePathToSession_) {
-            const auto& tableSession = pair.second;
-            tableSession->RegisterSyncReplicas(&clusterDirectorySynched);
-        }
 
-        for (const auto& request : Requests_) {
-            request->SubmitRows();
+        // Tables with local sync replicas pose a problem since modifications in such tables
+        // induce more modifications that need to be taken care of.
+        // Here we iterate over requests and sessions until to more new items are added.
+        while (!PendingRequests_.empty() || !PendingSessions_.empty()) {
+            decltype(PendingRequests_) pendingRequests;
+            std::swap(PendingRequests_, pendingRequests);
+
+            for (auto* request : pendingRequests) {
+                request->PrepareTableSessions();
+            }
+ 
+            decltype(PendingSessions_) pendingSessions;
+            std::swap(PendingSessions_, pendingSessions);
+ 
+            for (const auto& tableSession : pendingSessions) {
+                tableSession->RegisterSyncReplicas(&clusterDirectorySynched);
+            }
+
+            for (auto* request : pendingRequests) {
+                request->SubmitRows();
+            }
         }
 
         for (const auto& pair : TabletIdToSession_) {

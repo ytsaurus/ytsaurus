@@ -48,8 +48,10 @@ void ExtractFunctionNames(
     } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
         ExtractFunctionNames(binaryExpr->Lhs, functions);
         ExtractFunctionNames(binaryExpr->Rhs, functions);
-    } else if (auto inExpr = expr->As<NAst::TInOpExpression>()) {
+    } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
         ExtractFunctionNames(inExpr->Expr, functions);
+    } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
+        ExtractFunctionNames(transformExpr->Expr, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (expr->As<NAst::TAliasExpression>()) {
@@ -118,7 +120,17 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
         THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
     }
 
-    if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>() || op->As<TInOpExpression>()) {
+    if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>()) {
+        return;
+    } if (auto inExpr = op->As<TInExpression>()) {
+        for (const auto& argument : inExpr->Arguments) {
+            CheckExpressionDepth(argument, depth + 1);
+        }
+        return;
+    } if (auto transformExpr = op->As<TTransformExpression>()) {
+        for (const auto& argument : transformExpr->Arguments) {
+            CheckExpressionDepth(argument, depth + 1);
+        }
         return;
     } else if (auto functionExpr = op->As<TFunctionExpression>()) {
         for (const auto& argument : functionExpr->Arguments) {
@@ -281,7 +293,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
     std::vector<TRow> rows;
     for (const auto& tuple : literalTuples) {
         if (tuple.size() != argTypes.size()) {
-            THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
+            THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
                 << TErrorAttribute("source", source);
         }
         for (int i = 0; i < tuple.size(); ++i) {
@@ -294,7 +306,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
                 if (IsArithmeticType(valueType) && IsArithmeticType(argTypes[i])) {
                     value = CastValueWithCheck(value, argTypes[i]);
                 } else {
-                    THROW_ERROR_EXCEPTION("IN operator types mismatch")
+                    THROW_ERROR_EXCEPTION("Types mismatch in tuple")
                     << TErrorAttribute("source", source)
                     << TErrorAttribute("actual_type", valueType)
                     << TErrorAttribute("expected_type", argTypes[i]);
@@ -585,163 +597,6 @@ TNullable<TUnversionedValue> FoldConstants(
     return Null;
 }
 
-template <class TResult, class TDerived>
-struct TBaseVisitor
-{
-    TDerived* Derived()
-    {
-        return static_cast<TDerived*>(this);
-    }
-
-    TResult Visit(TConstExpressionPtr expr)
-    {
-        if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-            return Derived()->OnReference(referenceExpr);
-        } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
-            return Derived()->OnLiteral(literalExpr);
-        } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-            return Derived()->OnUnary(unaryOp);
-        } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-            return Derived()->OnBinary(binaryOp);
-        } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-            return Derived()->OnFunction(functionExpr);
-        } else if (auto inExpr = expr->As<TInOpExpression>()) {
-            return Derived()->OnIn(inExpr);
-        }
-        Y_UNREACHABLE();
-    }
-};
-
-template <class TDerived>
-struct TVisitor
-    : public TBaseVisitor<void, TDerived>
-{
-    using TBase = TBaseVisitor<TConstExpressionPtr, TDerived>;
-    using TBase::Derived;
-    using TBase::Visit;
-
-    void OnLiteral(const TLiteralExpression* literalExpr)
-    { }
-
-    void OnReference(const TReferenceExpression* referenceExpr)
-    { }
-
-    void OnUnary(const TUnaryOpExpression* unaryExpr)
-    {
-        Derived()->Visit(unaryExpr->Operand);
-    }
-
-    void OnBinary(const TBinaryOpExpression* binaryExpr)
-    {
-        Derived()->Visit(binaryExpr->Lhs);
-        Derived()->Visit(binaryExpr->Rhs);
-    }
-
-    void OnFunction(const TFunctionExpression* functionExpr)
-    {
-        for (auto argument : functionExpr->Arguments) {
-            Derived()->Visit(argument);
-        }
-    }
-
-    void OnIn(const TInOpExpression* inExpr)
-    {
-        for (auto argument : inExpr->Arguments) {
-            Derived()->Visit(argument);
-        }
-    }
-
-};
-
-template <class TDerived>
-struct TRewriter
-    : public TBaseVisitor<TConstExpressionPtr, TDerived>
-{
-    using TBase = TBaseVisitor<TConstExpressionPtr, TDerived>;
-    using TBase::Derived;
-    using TBase::Visit;
-
-    TConstExpressionPtr OnLiteral(const TLiteralExpression* literalExpr)
-    {
-        return literalExpr;
-    }
-
-    TConstExpressionPtr OnReference(const TReferenceExpression* referenceExpr)
-    {
-        return referenceExpr;
-    }
-
-    TConstExpressionPtr OnUnary(const TUnaryOpExpression* unaryExpr)
-    {
-        auto newOperand = Visit(unaryExpr->Operand);
-
-        if (newOperand == unaryExpr->Operand) {
-            return unaryExpr;
-        }
-
-        return New<TUnaryOpExpression>(
-            unaryExpr->Type,
-            unaryExpr->Opcode,
-            newOperand);
-    }
-
-    TConstExpressionPtr OnBinary(const TBinaryOpExpression* binaryExpr)
-    {
-        auto newLhs = Visit(binaryExpr->Lhs);
-        auto newRhs = Visit(binaryExpr->Rhs);
-
-        if (newLhs == binaryExpr->Lhs && newRhs == binaryExpr->Rhs) {
-            return binaryExpr;
-        }
-
-        return New<TBinaryOpExpression>(
-            binaryExpr->Type,
-            binaryExpr->Opcode,
-            newLhs,
-            newRhs);
-    }
-
-    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
-    {
-        std::vector<TConstExpressionPtr> newArguments;
-        bool allEqual = true;
-        for (auto argument : functionExpr->Arguments) {
-            auto newArgument = Visit(argument);
-            allEqual = allEqual && newArgument == argument;
-            newArguments.push_back(newArgument);
-        }
-
-        if (allEqual) {
-            return functionExpr;
-        }
-
-        return New<TFunctionExpression>(
-            functionExpr->Type,
-            functionExpr->FunctionName,
-            std::move(newArguments));
-    }
-
-    TConstExpressionPtr OnIn(const TInOpExpression* inExpr)
-    {
-        std::vector<TConstExpressionPtr> newArguments;
-        bool allEqual = true;
-        for (auto argument : inExpr->Arguments) {
-            auto newArgument = Visit(argument);
-            allEqual = allEqual && newArgument == argument;
-            newArguments.push_back(newArgument);
-        }
-
-        if (allEqual) {
-            return inExpr;
-        }
-
-        return New<TInOpExpression>(
-            std::move(newArguments),
-            inExpr->Values);
-    }
-
-};
-
 struct TNotExpressionPropagator
     : TRewriter<TNotExpressionPropagator>
 {
@@ -820,9 +675,9 @@ struct TCastEliminator
 };
 
 struct TExpressionSimplifier
-    : TCastEliminator
+    : TRewriter<TExpressionSimplifier>
 {
-    using TBase = TCastEliminator;
+    using TBase = TRewriter<TExpressionSimplifier>;
 
     TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
     {
@@ -1552,7 +1407,7 @@ struct TTypedExpressionBuilder
 
                 return makeBinaryExpr(binaryExpr->Opcode, std::move(untypedLhs), std::move(untypedRhs), 0);
             }
-        } else if (auto inExpr = expr->As<NAst::TInOpExpression>()) {
+        } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             std::vector<TConstExpressionPtr> typedArguments;
             std::unordered_set<TString> columnNames;
             std::vector<EValueType> argTypes;
@@ -1574,13 +1429,122 @@ struct TTypedExpressionBuilder
             }
 
             auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, inExpr->GetSource(Source));
-            auto result = New<TInOpExpression>(std::move(typedArguments), std::move(capturedRows));
+            auto result = New<TInExpression>(std::move(typedArguments), std::move(capturedRows));
 
             TTypeSet resultTypes({EValueType::Boolean});
             TExpressionGenerator generator = [result] (EValueType type) mutable {
                 return result;
             };
             return TUntypedExpression{resultTypes, std::move(generator), false};
+        } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
+            std::vector<TConstExpressionPtr> typedArguments;
+            std::unordered_set<TString> columnNames;
+            std::vector<EValueType> argTypes;
+
+            auto source = transformExpr->GetSource(Source);
+
+            for (const auto& argument : transformExpr->Expr) {
+                auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
+
+                EValueType argType = untypedArgument.FeasibleTypes.GetFront();
+                auto typedArgument = untypedArgument.Generator(argType);
+
+                typedArguments.push_back(typedArgument);
+                argTypes.push_back(argType);
+                if (auto reference = typedArgument->As<TReferenceExpression>()) {
+                    if (!columnNames.insert(reference->ColumnName).second) {
+                        THROW_ERROR_EXCEPTION("TRANSFORM operator has multiple references to column %Qv",
+                        reference->ColumnName)
+                            << TErrorAttribute("source", source);
+                    }
+                }
+            }
+
+            if (transformExpr->From.size() != transformExpr->To.size()) {
+                THROW_ERROR_EXCEPTION("Size mismatch for source and result arrays in TRANSFORM operator")
+                    << TErrorAttribute("source", source);
+            }
+
+            TTypeSet resultTypes({
+                EValueType::Null,
+                EValueType::Int64,
+                EValueType::Uint64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::String,
+                EValueType::Any});
+
+            for (const auto& tuple : transformExpr->To) {
+                if (tuple.size() != 1) {
+                    THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                        << TErrorAttribute("source", source);
+                }
+
+                auto valueTypes = GetTypes(tuple.front());
+
+                if (!Unify(&resultTypes, valueTypes)) {
+                    THROW_ERROR_EXCEPTION("Types mismatch in tuple")
+                        << TErrorAttribute("source", source)
+                        << TErrorAttribute("actual_type", ToString(valueTypes))
+                        << TErrorAttribute("expected_type", ToString(resultTypes));
+                }
+            }
+
+            auto resultType = resultTypes.GetFront();
+
+            auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
+            TUnversionedRowBuilder rowBuilder;
+            std::vector<TRow> rows;
+
+            for (size_t index = 0; index < transformExpr->From.size(); ++index) {
+                const auto& sourceTuple = transformExpr->From[index];
+                if (sourceTuple.size() != argTypes.size()) {
+                    THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
+                        << TErrorAttribute("source", source);
+                }
+                for (int i = 0; i < sourceTuple.size(); ++i) {
+                    auto valueType = GetType(sourceTuple[i]);
+                    auto value = GetValue(sourceTuple[i]);
+
+                    if (valueType == EValueType::Null) {
+                        value = MakeUnversionedSentinelValue(EValueType::Null);
+                    } else if (valueType != argTypes[i]) {
+                        if (IsArithmeticType(valueType) && IsArithmeticType(argTypes[i])) {
+                            value = CastValueWithCheck(value, argTypes[i]);
+                        } else {
+                            THROW_ERROR_EXCEPTION("Types mismatch in tuple")
+                            << TErrorAttribute("source", source)
+                            << TErrorAttribute("actual_type", valueType)
+                            << TErrorAttribute("expected_type", argTypes[i]);
+                        }
+                    }
+                    rowBuilder.AddValue(value);
+                }
+
+                const auto& resultTuple = transformExpr->To[index];
+
+                YCHECK(resultTuple.size() == 1);
+                auto value = CastValueWithCheck(GetValue(resultTuple.front()), resultType);
+                rowBuilder.AddValue(value);
+
+                rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
+                rowBuilder.Reset();
+            }
+
+            std::sort(rows.begin(), rows.end(), [argCount = argTypes.size()] (TRow lhs, TRow rhs) {
+                return CompareRows(lhs, rhs, argCount) < 0;
+            });
+
+            auto capturedRows =  MakeSharedRange(std::move(rows), std::move(rowBuffer));
+            auto result = New<TTransformExpression>(
+                resultType,
+                std::move(typedArguments),
+                std::move(capturedRows));
+
+            TExpressionGenerator generator = [result] (EValueType type) mutable {
+                return result;
+            };
+            return TUntypedExpression{TTypeSet({resultType}), std::move(generator), false};
         }
 
         Y_UNREACHABLE();
@@ -1600,9 +1564,13 @@ struct TTypedExpressionBuilder
     {
         auto expressionTyper = BuildUntypedExpression(expr, schema);
         YCHECK(!expressionTyper.FeasibleTypes.IsEmpty());
-        return TCastEliminator().Visit(
-            TNotExpressionPropagator().Visit(
-                expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront())));
+
+        auto result = expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront());
+
+        result = TCastEliminator().Visit(result);
+        result = TExpressionSimplifier().Visit(result);
+        result = TNotExpressionPropagator().Visit(result);
+        return result;
     }
 
 };
@@ -1893,9 +1861,11 @@ public:
                 effectiveStateType = argType;
             }
 
-            auto typedOperand = TCastEliminator().Visit(
-                TNotExpressionPropagator().Visit(
-                    untypedOperand.Generator(argType)));
+            auto typedOperand = untypedOperand.Generator(argType);
+
+            typedOperand = TCastEliminator().Visit(typedOperand);
+            typedOperand = TExpressionSimplifier().Visit(typedOperand);
+            typedOperand = TNotExpressionPropagator().Visit(typedOperand);
 
             CheckExpressionDepth(typedOperand);
 
@@ -2387,27 +2357,17 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             }
         }
 
-        // Check that there are no join equations from keyPrefix to foreignKeyColumnsCount
-        bool canUseSourceRanges = lastEmptyIndex == keyPrefix;
-
         keyForeignEquations.resize(lastEmptyIndex);
         keySelfEquations.resize(lastEmptyIndex);
 
-        joinClause->CanUseSourceRanges = canUseSourceRanges;
         joinClause->SelfEquations = std::move(keySelfEquations);
         joinClause->ForeignEquations = std::move(keyForeignEquations);
         joinClause->ForeignKeyPrefix = keyPrefix;
-
-        if (!canUseSourceRanges) {
-            commonKeyPrefix = 0;
-        }
-
         joinClause->CommonKeyPrefix = commonKeyPrefix;
 
-        LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v, CanUseSourceRanges: %v)",
-                commonKeyPrefix,
-                keyPrefix,
-                canUseSourceRanges);
+        LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
+            commonKeyPrefix,
+            keyPrefix);
 
         if (join.Predicate) {
             joinClause->Predicate = BuildPredicate(

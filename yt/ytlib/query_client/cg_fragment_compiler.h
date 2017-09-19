@@ -111,9 +111,15 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
     EValueType type,
     TString name);
 
-TCodegenExpression MakeCodegenInOpExpr(
+TCodegenExpression MakeCodegenInExpr(
     std::vector<size_t> argIds,
     int arrayIndex,
+    TComparerManagerPtr comparerManager);
+
+TCodegenExpression MakeCodegenTransformExpr(
+    std::vector<size_t> argIds,
+    int arrayIndex,
+    EValueType resultType,
     TComparerManagerPtr comparerManager);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +162,7 @@ size_t MakeCodegenJoinOp(
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<std::pair<size_t, bool>> equations,
     size_t commonKeyPrefix,
+    size_t foreignKeyPrefix,
     TComparerManagerPtr comparerManager);
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(

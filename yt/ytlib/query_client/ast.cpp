@@ -121,14 +121,23 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
             typedLhs->Opcode == typedRhs->Opcode &&
             typedLhs->Lhs == typedRhs->Lhs &&
             typedLhs->Rhs == typedRhs->Rhs;
-    } else if (const auto* typedLhs = lhs.As<TInOpExpression>()) {
-        const auto* typedRhs = rhs.As<TInOpExpression>();
+    } else if (const auto* typedLhs = lhs.As<TInExpression>()) {
+        const auto* typedRhs = rhs.As<TInExpression>();
         if (!typedRhs) {
             return false;
         }
         return
             typedLhs->Expr == typedRhs->Expr &&
             typedLhs->Values == typedRhs->Values;
+    } else if (const auto* typedLhs = lhs.As<TTransformExpression>()) {
+        const auto* typedRhs = rhs.As<TTransformExpression>();
+        if (!typedRhs) {
+            return false;
+        }
+        return
+            typedLhs->Expr == typedRhs->Expr &&
+            typedLhs->From == typedRhs->From &&
+            typedLhs->To == typedRhs->To;
     } else {
         Y_UNREACHABLE();
     }
@@ -285,6 +294,29 @@ void FormatExpression(TStringBuilder* builder, const TExpressionList& expr, bool
 
 void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool expandAliases, bool isFinal)
 {
+    auto printValues = [] (TStringBuilder* builder, const TLiteralValueTupleList& list) {
+        JoinToString(
+            builder,
+            list.begin(),
+            list.end(),
+            [] (TStringBuilder* builder, const TLiteralValueTuple& tuple) {
+                bool needParens = tuple.size() > 1;
+                if (needParens) {
+                    builder->AppendChar('(');
+                }
+                JoinToString(
+                    builder,
+                    tuple.begin(),
+                    tuple.end(),
+                    [] (TStringBuilder* builder, const TLiteralValue& value) {
+                        builder->AppendString(FormatLiteralValue(value));
+                    });
+                if (needParens) {
+                    builder->AppendChar(')');
+                }
+            });
+    };
+
     if (auto* typedExpr = expr.As<TLiteralExpression>()) {
         builder->AppendString(FormatLiteralValue(typedExpr->Value));
     } else if (auto* typedExpr = expr.As<TReferenceExpression>()) {
@@ -317,31 +349,28 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
         builder->AppendChar('(');
         FormatExpression(builder, typedExpr->Rhs, expandAliases);
         builder->AppendChar(')');
-    } else if (auto* typedExpr = expr.As<TInOpExpression>()) {
+    } else if (auto* typedExpr = expr.As<TInExpression>()) {
         builder->AppendChar('(');
         FormatExpressions(builder, typedExpr->Expr, expandAliases);
         builder->AppendString(") IN (");
-        JoinToString(
-            builder,
-            typedExpr->Values.begin(),
-            typedExpr->Values.end(),
-            [] (TStringBuilder* builder, const TLiteralValueTuple& tuple) {
-                bool needParens = tuple.size() > 1;
-                if (needParens) {
-                    builder->AppendChar('(');
-                }
-                JoinToString(
-                    builder,
-                    tuple.begin(),
-                    tuple.end(),
-                    [] (TStringBuilder* builder, const TLiteralValue& value) {
-                        builder->AppendString(FormatLiteralValue(value));
-                    });
-                if (needParens) {
-                    builder->AppendChar(')');
-                }
-            });
+        printValues(builder, typedExpr->Values);
         builder->AppendChar(')');
+    } else if (auto* typedExpr = expr.As<TTransformExpression>()) {
+        builder->AppendString("TRANSFORM(");
+        size_t argumentCount = typedExpr->Expr.size();
+        auto needParenthesis = argumentCount > 1;
+        if (needParenthesis) {
+            builder->AppendChar('(');
+        }
+        FormatExpressions(builder, typedExpr->Expr, expandAliases);
+        if (needParenthesis) {
+            builder->AppendChar(')');
+        }
+        builder->AppendString(", (");
+        printValues(builder, typedExpr->From);
+        builder->AppendString("), (");
+        printValues(builder, typedExpr->To);
+        builder->AppendString("))");
     } else {
         Y_UNREACHABLE();
     }

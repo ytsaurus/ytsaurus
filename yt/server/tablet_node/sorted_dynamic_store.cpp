@@ -51,7 +51,7 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t ReaderPoolSize = 16 * KB;
+static const size_t ReaderPoolSize = 16_KB;
 static const int SnapshotRowsPerRead = 1024;
 
 struct TSortedDynamicStoreReaderPoolTag
@@ -873,6 +873,7 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             THROW_ERROR_EXCEPTION(message)
                 << TErrorAttribute("lock", LockIndexToName_[lockIndex])
                 << TErrorAttribute("tablet_id", TabletId_)
+                << TErrorAttribute("table_path", TablePath_)
                 << TErrorAttribute("key", RowToKey(row))
                 << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime);
         };
@@ -914,7 +915,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
             uncommittedValue.Revision = revision;
             CaptureUnversionedValue(&uncommittedValue, value);
             if (commitTimestamp != NullTimestamp) {
-                list.Commit();
+                CommitValue(dynamicRow, list, value.Id);
             }
         }
     };
@@ -1033,12 +1034,12 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
         auto currentList = result.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
         if (currentList && currentList.HasUncommitted()) {
             currentList.GetUncommitted() = dynamicValue;
-            currentList.Commit();
+            CommitValue(result, currentList, index);
             PrepareFixedValue(result, index);
         } else {
             auto newList = PrepareFixedValue(result, index);
             newList.GetUncommitted() = dynamicValue;
-            newList.Commit();
+            CommitValue(result, newList, index);
         }
     }
 
@@ -1195,7 +1196,7 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
                 auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
                 if (list.HasUncommitted()) {
                     list.GetUncommitted().Revision = commitRevision;
-                    list.Commit();
+                    CommitValue(row, list, index);
                 }
             }
         }
@@ -1390,6 +1391,7 @@ TError TSortedDynamicStore::CheckRowLocks(
             return TError("Multiple modifications to a row within a single transaction are not allowed")
                 << TErrorAttribute("transaction_id", transaction->GetId())
                 << TErrorAttribute("tablet_id", TabletId_)
+                << TErrorAttribute("table_path", TablePath_)
                 << TErrorAttribute("key", RowToKey(row));
         }
 
@@ -1407,6 +1409,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                     << TErrorAttribute("loser_transaction_id", transaction->GetId())
                     << TErrorAttribute("winner_transaction_id", lock->Transaction->GetId())
                     << TErrorAttribute("tablet_id", TabletId_)
+                    << TErrorAttribute("table_path", TablePath_)
                     << TErrorAttribute("key", RowToKey(row))
                     << TErrorAttribute("lock", LockIndexToName_[index]);
             }
@@ -1419,6 +1422,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                     << TErrorAttribute("loser_transaction_id", transaction->GetId())
                     << TErrorAttribute("winner_transaction_commit_timestamp", lastCommitTimestamp)
                     << TErrorAttribute("tablet_id", TabletId_)
+                    << TErrorAttribute("table_path", TablePath_)
                     << TErrorAttribute("key", RowToKey(row))
                     << TErrorAttribute("lock", LockIndexToName_[index]);
             }
@@ -1502,6 +1506,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedVa
     {
         const auto& srcValue = srcKeys[index];
         Y_ASSERT(srcValue.Id == index);
+        dstRow.GetDataWeight() += GetDataWeight(srcValue);
         if (srcValue.Type == EValueType::Null) {
             nullKeyMask |= nullKeyBit;
         } else {
@@ -1528,11 +1533,26 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
          index < KeyColumnCount_;
          ++index, nullKeyBit <<= 1, ++srcKeys, ++dstKeys, ++columnIt)
     {
-        if (!(nullKeyMask & nullKeyBit) && IsStringLikeType(columnIt->Type)) {
-            *dstKeys = CaptureStringValue(*srcKeys);
-        } else {
-            *dstKeys = *srcKeys;
+        bool isNull = nullKeyMask & nullKeyBit;
+        dstRow.GetDataWeight() += GetDataWeight(columnIt->Type, isNull, *srcKeys);
+        if (!isNull) {
+            if(IsStringLikeType(columnIt->Type)) {
+                *dstKeys = CaptureStringValue(*srcKeys);
+            } else {
+                *dstKeys = *srcKeys;
+            }
         }
+    }
+}
+
+void TSortedDynamicStore::CommitValue(TSortedDynamicRow row, TValueList list, int index)
+{
+    row.GetDataWeight() += GetDataWeight(Schema_.Columns()[index].Type, list.GetUncommitted());
+    list.Commit();
+
+    if (row.GetDataWeight() > MaxDataWeight_) {
+        MaxDataWeight_ = row.GetDataWeight();
+        MaxDataWeightWitness_ = row;
     }
 }
 
@@ -1564,7 +1584,7 @@ void TSortedDynamicStore::LoadRow(
         for (const auto* value = endValue - 1; value >= beginValue; --value) {
             auto list = PrepareFixedValue(dynamicRow, index);
             ui32 revision = CaptureVersionedValue(&list.GetUncommitted(), *value, scratchData);
-            list.Commit();
+            CommitValue(dynamicRow, list, index);
             scratchData->WriteRevisions[lockIndex].push_back(revision);
         }
 
@@ -1707,6 +1727,11 @@ EStoreType TSortedDynamicStore::GetType() const
 i64 TSortedDynamicStore::GetRowCount() const
 {
     return Rows_->GetSize();
+}
+
+i64 TSortedDynamicStore::GetTimestampCount() const
+{
+    return RevisionToTimestamp_.Size();
 }
 
 TOwningKey TSortedDynamicStore::GetMinKey() const
@@ -1968,6 +1993,16 @@ void TSortedDynamicStore::InsertIntoLookupHashTable(
             LookupHashTable_->Insert(keyBegin, dynamicRow);
         }
     }
+}
+
+i64 TSortedDynamicStore::GetMaxDataWeight() const
+{
+    return MaxDataWeight_;
+}
+
+TOwningKey TSortedDynamicStore::GetMaxDataWeightWitnessKey() const
+{
+    return RowToKey(MaxDataWeightWitness_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

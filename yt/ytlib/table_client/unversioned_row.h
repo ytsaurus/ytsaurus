@@ -150,9 +150,9 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline size_t GetDataWeight(const TUnversionedValue& value)
+inline size_t GetDataWeight(const EValueType type)
 {
-    switch (value.Type) {
+    switch (type) {
         case EValueType::Null:
         case EValueType::Min:
         case EValueType::Max:
@@ -171,12 +171,17 @@ inline size_t GetDataWeight(const TUnversionedValue& value)
         case EValueType::Boolean:
             return 1;
 
-        case EValueType::String:
-        case EValueType::Any:
-            return value.Length;
-
         default:
             Y_UNREACHABLE();
+    }
+}
+
+inline size_t GetDataWeight(const TUnversionedValue& value)
+{
+    if (IsStringLikeType(value.Type)) {
+        return value.Length;
+    } else {
+        return GetDataWeight(value.Type);
     }
 }
 
@@ -372,17 +377,6 @@ void ValidateClientDataRow(
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable);
 
-//! Checks that #row is a valid server-side data row. Throws on failure.
-/*! The row must obey the following properties:
- *  1. Its value count must pass #ValidateRowValueCount checks.
- *  2. It must contain all key components (values with ids in range [0, #schema.GetKeyColumnCount() - 1])
- *  in this order at the very beginning.
- *  3. Value types must either be null or match those given in schema.
- */
-void ValidateServerDataRow(
-    TUnversionedRow row,
-    const TTableSchema& schema);
-
 //! Checks that #key is a valid client-side key. Throws on failure.
 /*! The components must pass #ValidateKeyValue check. */
 void ValidateClientKey(TKey key);
@@ -399,16 +393,6 @@ void ValidateClientKey(
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable);
-
-//! Checks that #key is a valid server-side key. Throws on failure.
-/*! The key must obey the following properties:
- *  1. It cannot be null.
- *  2. It must contain exactly #schema.GetKeyColumnCount() components with ids
- *  0, ..., #schema.GetKeyColumnCount() - 1 in this order.
- */
-void ValidateServerKey(
-    TKey key,
-    const TTableSchema& schema);
 
 //! Checks if #timestamp is sane and can be used for data.
 //! Allows timestamps in range [MinTimestamp, MaxTimestamp] plus some sentinels
@@ -560,6 +544,16 @@ public:
         return Begin() + GetCount();
     }
 
+    const TUnversionedValue* Begin() const
+    {
+        return reinterpret_cast<const TUnversionedValue*>(TUnversionedRow::GetHeader() + 1);
+    }
+
+    const TUnversionedValue* End() const
+    {
+        return Begin() + GetCount();
+    }
+
     void SetCount(ui32 count)
     {
         Y_ASSERT(count <= GetHeader()->Capacity);
@@ -579,6 +573,16 @@ public:
     }
 
     TUnversionedValue* end()
+    {
+        return End();
+    }
+
+    const TUnversionedValue* begin() const
+    {
+        return Begin();
+    }
+
+    const TUnversionedValue* end() const
     {
         return End();
     }

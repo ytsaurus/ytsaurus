@@ -52,8 +52,6 @@ public:
 
     IInvokerPtr GetCancelableControlInvoker() const;
 
-    NControllerAgent::TMasterConnectorPtr GetControllerAgentMasterConnector() const;
-
     bool IsConnected() const;
 
     void Disconnect();

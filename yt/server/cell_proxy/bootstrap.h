@@ -6,6 +6,8 @@
 
 #include <yt/server/blackbox/public.h>
 
+#include <yt/server/rpc_proxy/public.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/monitoring/http_server.h>
@@ -35,6 +37,8 @@ public:
     const NApi::INativeClientPtr& GetNativeClient() const;
     const NBlackbox::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
     const NBlackbox::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
+    const NRpcProxy::IProxyCoordinatorPtr& GetProxyCoordinator() const;
+    const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
 
     void Run();
 
@@ -54,6 +58,8 @@ private:
     NApi::INativeClientPtr NativeClient_;
     NBlackbox::ITokenAuthenticatorPtr TokenAuthenticator_;
     NBlackbox::ICookieAuthenticatorPtr CookieAuthenticator_;
+    NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
+    NNodeTrackerClient::TAddressMap LocalAddresses_;
 
     void DoRun();
 };

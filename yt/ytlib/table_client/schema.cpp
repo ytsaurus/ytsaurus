@@ -1301,6 +1301,10 @@ TError ValidateTableSchemaCompatibility(
                 return addAttributes(TError("Column %Qv expression mismatch",
                     inputColumn->Name));
             }
+            if (outputColumn.Aggregate && inputColumn->Aggregate != outputColumn.Aggregate) {
+                return addAttributes(TError("Column %Qv aggregate mismatch",
+                    inputColumn->Name));
+            }
         } else if (outputColumn.Expression) {
             return addAttributes(TError("Unexpected computed column %Qv in output schema",
                 outputColumn.Name));

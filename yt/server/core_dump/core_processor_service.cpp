@@ -175,7 +175,7 @@ private:
                 Transaction_,
                 ChunkList_);
 
-            auto reader = CreateZeroCopyAdapter(namedPipe->CreateAsyncReader(), MB /* blockSize */);
+            auto reader = CreateZeroCopyAdapter(namedPipe->CreateAsyncReader(), 1_MB /* blockSize */);
             auto writer = CreateZeroCopyAdapter(CreateAsyncAdapter(&blobWriter));
 
             i64 coreSize = 0;

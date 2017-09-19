@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, \
-    require_ytserver_root_privileges, porto_env_only, skip_if_porto
+    require_ytserver_root_privileges, patch_porto_env_only, skip_if_porto
 from yt_commands import *
 
 from flaky import flaky
@@ -815,6 +815,7 @@ class TestCoreTable(YTEnvSetup):
         assert not "size" in core_info
         assert "error" in core_info
 
+    @skip_if_porto
     @require_enabled_core_dump
     @require_ytserver_root_privileges
     @unix_only
@@ -863,14 +864,14 @@ class TestCoreTable(YTEnvSetup):
         assert not "size" in core_info
         assert "error" in core_info
 
-@porto_env_only
-class TestCoreTablePorto(TestCoreTable):
+@patch_porto_env_only(TestCoreTable)
+class TestCoreTablePorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
     @require_ytserver_root_privileges
     @unix_only
-    def test_core_when_user_job_was_killed(self):
+    def test_core_when_user_job_was_killed_porto(self):
         op, correspondence_file_path = self._start_operation(1, kill_self=True, max_failed_job_count=1)
         job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
 

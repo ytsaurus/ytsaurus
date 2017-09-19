@@ -1,0 +1,368 @@
+#!/usr/bin/env python
+
+import copy
+import click
+import requests
+import json
+import sys
+import pprint
+import logging
+import random
+
+###################################################################################################################
+# Configuration Goes Here.
+
+TOKEN = "..."  # fill me
+
+SERVICES = [
+    # --- master ---
+    {
+        "solomon_id": "yt_bridge_master_internal",
+        "solomon_name": "yt_master_internal",
+        "yt_port": 10010,
+        "bridge_port": 10020,
+        "bridge_rules": [
+            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "-.*",
+        ],
+    },
+    {
+        "solomon_id": "yt_bridge_master_other",
+        "solomon_name": "yt_master",
+        "yt_port": 10010,
+        "bridge_port": 10030,
+        "bridge_rules": [
+            "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "+.*",
+        ],
+    },
+    # --- scheduler ---
+    {
+        "solomon_id": "yt_bridge_scheduler_internal",
+        "solomon_name": "yt_scheduler_internal",
+        "yt_port": 10011,
+        "bridge_port": 10021,
+        "bridge_rules": [
+            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "-.*",
+        ],
+    },
+    {
+        "solomon_id": "yt_bridge_scheduler_other",
+        "solomon_name": "yt_scheduler",
+        "yt_port": 10011,
+        "bridge_port": 10031,
+        "bridge_rules": [
+            "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "+.*",
+        ],
+    },
+    # --- node ---
+    {
+        "solomon_id": "yt_bridge_node_internal",
+        "solomon_name": "yt_node_internal",
+        "yt_port": 10012,
+        "bridge_port": 10022,
+        "bridge_rules": [
+            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "-.*",
+        ],
+    },
+    {
+        "solomon_id": "yt_bridge_node_other",
+        "solomon_name": "yt_node",
+        "yt_port": 10012,
+        "bridge_port": 10032,
+        "bridge_rules": [
+            "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "+.*",
+        ],
+    },
+    # --- rpc proxy ---
+    {
+        "solomon_id": "yt_bridge_rpc_proxy_internal",
+        "solomon_name": "yt_rpc_proxy_internal",
+        "yt_port": 10014,
+        "bridge_port": 10023,
+        "bridge_rules": [
+            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "-.*",
+        ],
+    },
+    {
+        "solomon_id": "yt_bridge_rpc_proxy_other",
+        "solomon_name": "yt_rpc_proxy",
+        "yt_port": 10014,
+        "bridge_port": 10033,
+        "bridge_rules": [
+            "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "+.*",
+        ],
+    },
+]
+
+SENSOR = {
+    "aggrRules": [
+      {"cond": ["host=*"], "target": ["host=Aggr"]},
+      {"cond": ["DC=*"], "target": ["host=Aggr_DC_{{DC}}"]},
+    ],
+    "priorityRules": [
+      {"target": "host=Aggr_DC_Ugr", "priority": 10},
+      {"target": "host=Aggr_DC_Sas", "priority": 10},
+      {"target": "host=Aggr_DC_Fol", "priority": 10},
+      {"target": "host=Aggr_DC_Iva", "priority": 10},
+      {"target": "host=Aggr_DC_Myt", "priority": 10},
+      {"target": "host=Aggr_DC_Ash", "priority": 10},
+      {"target": "host=Aggr_DC_Ams", "priority": 10},
+      {"target": "host=Aggr_DC_Veg", "priority": 10},
+      {"target": "host=Aggr_DC_Man", "priority": 10},
+      {"target": "host=Aggr", "priority": 100}
+    ],
+    "rawDataMemOnly": False,
+}
+
+###################################################################################################################
+# Code Goes Here.
+
+
+def view_object(title, obj, color="blue"):
+    message = ""
+    message += click.style("## %s" % title, fg=color) + "\n"
+    message += click.style("#" * 80, fg=color) + "\n"
+    message += "\n"
+    message += pprint.pformat(obj)
+    click.echo_via_pager(message)
+
+
+def view_response(rsp):
+    if rsp.status_code >= 400:
+        color = "red"
+    elif rsp.status_code >= 200 and rsp.status_code < 300:
+        color = "green"
+    else:
+        color = "blue"
+    message = ""
+    message += click.style("## %s   %s" % (rsp.status_code, rsp.url), fg=color) + "\n"
+    message += click.style("#" * 80, fg=color) + "\n"
+    message += "\n"
+    message += pprint.pformat(rsp.json())
+    click.echo_via_pager(message)
+
+class Resource(object):
+    def __init__(self, uri, local_data={}, remote_data={}):
+        self.uri = uri
+        self._local_data = local_data
+        self._remote_data = remote_data
+
+    @staticmethod
+    def make_api_url(uri):
+        return "http://solomon.yandex.net/api/v2" + uri
+
+    @staticmethod
+    def make_admin_url(uri):
+        return "https://solomon.yandex-team.ru/admin" + uri
+
+    @property
+    def api_url(self):
+        return self.make_api_url(self.uri)
+
+    @property
+    def admin_url(self):
+        return self.make_admin_url(self.uri)
+
+    @property
+    def local(self):
+        return self._local_data
+
+    @property
+    def remote(self):
+        return self._remote_data
+
+    @property
+    def is_dirty(self):
+        for key in self._local_data:
+            local = self._local_data.get(key, None)
+            remote = self._remote_data.get(key, None)
+            if local != remote:
+                return True
+        return False
+
+    @staticmethod
+    def create(uri, data):
+        logging.debug("Creating resource '%s'", uri)
+        headers = {"Authorization": "OAuth " + TOKEN}
+        rsp = requests.post(Resource.make_api_url(uri), headers=headers, json=data)
+        if not rsp.ok:
+            view_response(rsp)
+
+    @staticmethod
+    def delete(uri):
+        logging.debug("Deleting resource '%s'", uri)
+        headers = {"Authorization": "OAuth " + TOKEN}
+        rsp = requests.delete(Resource.make_api_url(uri), headers=headers)
+        if not rsp.ok:
+            view_response(rsp)
+
+    def load(self):
+        logging.debug("Loading resource '%s'", self.uri)
+        headers = {"Authorization": "OAuth " + TOKEN}
+        rsp = requests.get(self.api_url, headers=headers)
+        assert rsp.ok
+        self._remote_data = rsp.json()
+        self._local_data = copy.deepcopy(self._remote_data)
+
+    def save(self, dry_run):
+        if not self.is_dirty:
+            logging.debug("Skipping saving resource '%s' because it is clean", self.uri)
+            return
+
+        logging.debug("Saving resource '%s'%s", self.uri, " (dry run)" if dry_run else "")
+        if dry_run:
+            message = ""
+            message += "#" * 80 + "\n"
+            message += "## Dry run for resource '%s'\n" % self.uri
+            message += "## %s\n" % self.admin_url
+            message += "## [version=%s; deleted=%s]\n" % (self.remote["version"], self.remote["deleted"])
+            message += "#" * 80 + "\n"
+            message += "\n"
+            for key in self._local_data:
+                local = self._local_data.get(key, None)
+                remote = self._remote_data.get(key, None)
+                if local == remote:
+                    continue
+                message += "#" * 80 + "\n"
+                message += "## Key '%s'\n" % key
+                message += "# --- (before) ---\n"
+                message += pprint.pformat(remote, indent=2) + "\n\n"
+                message += "# --- (after) ---\n"
+                message += pprint.pformat(local, indent=2) + "\n\n"
+                message += "\n\n"
+            click.echo_via_pager(message)
+        else:
+            headers = {"Authorization": "OAuth " + TOKEN}
+            rsp = requests.put(self.api_url, headers=headers, json=self._local_data)
+            if rsp.ok:
+                self._remote_data = rsp.json()
+                self._local_data = copy.deepcopy(self._remote_data)
+
+
+def normalize_cluster_id(cluster):
+    cluster = cluster.replace("-", "_")
+    if not cluster.startswith("yt_"):
+        cluster = "yt_" + cluster
+    return cluster
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+def bridge_conf():
+    conf = {"sources": []}
+    for service in SERVICES:
+        conf["sources"].append(dict(
+            solomon_id=service["solomon_id"],
+            solomon_port=service["bridge_port"],
+            url=("localhost:%s" % service["yt_port"]),
+            rules=service["bridge_rules"]))
+    json.dump(conf, sys.stdout, indent=2, sort_keys=True)
+
+
+@cli.command()
+@click.option("--yes", is_flag=True)
+def check_solomon_services(yes):
+    for service in SERVICES:
+        resource = Resource("/projects/yt/services/%s" % service["solomon_id"])
+        resource.load()
+
+        def f(key, value):
+            resource.local[key] = value
+
+        f("type", "JSON_GENERIC")
+        f("port", service["bridge_port"])
+        f("path", "/pbjson")
+        f("interval", 15)
+        f("addTsArgs", True)
+        f("sensorConf", SENSOR)
+
+        resource.save(dry_run=(not yes))
+
+
+@cli.command()
+@click.option("--cluster", required=True)
+@click.option("--yes", is_flag=True)
+def link_cluster(cluster, yes):
+    cluster = normalize_cluster_id(cluster)
+
+    good_services = set(map(lambda s: s["solomon_id"], SERVICES))
+
+    resource = Resource("/projects/yt/clusters/%s/services" % cluster)
+    resource.load()
+
+    conflicting = False
+    for item in resource.local:
+        if item["id"] in good_services:
+            logging.error("Service '%s' in already linked!", item["id"])
+            conflicting = True
+    if conflicting:
+        return
+
+    tag = "".join(random.choice("0123456789abcdef") for _ in range(8))
+    for service in good_services:
+        data = {
+            "id": "_".join(["yt", cluster.replace("yt_", ""), service.replace("yt_", ""), tag]),
+            "projectId": "yt",
+            "serviceId": service,
+            "clusterId": cluster,
+            #"quotas": {
+            #    "maxSensorsPerUrl": 80000,
+            #    "maxResponseSizeMb": 10,
+            #    "maxFileSensors": 100000,
+            #    "maxMemSensors": 100000,
+            #},
+        }
+        if yes:
+            Resource.create("/projects/yt/shards", data)
+        else:
+            view_object("Creating shard", data)
+
+
+@cli.command()
+@click.option("--cluster", required=True)
+@click.option("--yes", is_flag=True)
+def unlink_cluster(cluster, yes):
+    cluster = normalize_cluster_id(cluster)
+
+    good_services = set(map(lambda s: s["solomon_id"], SERVICES))
+
+    resource = Resource("/projects/yt/clusters/%s/services" % cluster)
+    resource.load()
+
+    for item in resource.local:
+        if item["id"] not in good_services:
+            continue
+        uri = "/projects/yt/shards/%s" % item["shardId"]
+        if yes:
+            Resource.delete(uri)
+        else:
+            view_object("Deleting shard '%s'" % uri, item)
+
+
+@cli.command()
+@click.option("--mode", type=click.Choice(["pretty", "table"]), default="pretty")
+def list_shards(mode):
+    resource = Resource("/projects/yt/shards?pageSize=65535")
+    resource.load()
+
+    if mode == "pretty":
+        view_object("Shards", resource.local)
+    elif mode == "table":
+        for item in resource.local["result"]:
+            print "\t".join([item["id"], item["clusterId"], item["serviceId"]])
+
+
+if __name__ == "__main__":
+    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG)
+    cli()

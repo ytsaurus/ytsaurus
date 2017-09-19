@@ -157,17 +157,9 @@ def configure(options, build_context):
 
 
 @build_step
-def fast_build(options, build_context):
+def build(options, build_context):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
-    try:
-        run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
-    except ChildHasNonZeroExitCode:
-        teamcity_message("(ignoring child failure to provide meaningful diagnostics in `slow_build`)")
-
-
-@build_step
-def slow_build(options, build_context):
-    run(["make"], cwd=options.working_directory)
+    run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
 
 @build_step
 def set_suid_bit(options, build_context):
@@ -353,9 +345,8 @@ def run_unit_tests(options, build_context):
 
         raise StepFailedWithNonCriticalError(str(err))
     finally:
+        find_and_report_core_dumps(options, "unit_tests", sandbox_current)
         rmtree(sandbox_current)
-
-    find_and_report_core_dumps(options, "unit_tests", sandbox_current)
 
 
 @build_step
@@ -372,8 +363,8 @@ def run_javascript_tests(options, build_context):
             env={"MOCHA_OUTPUT_FILE": "{0}/junit_nodejs_run_tests.xml".format(options.working_directory)})
     except ChildHasNonZeroExitCode as err:
         raise StepFailedWithNonCriticalError(str(err))
-
-    find_and_report_core_dumps(options, "javascript", tests_path)
+    finally:
+        find_and_report_core_dumps(options, "javascript", tests_path)
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
@@ -394,7 +385,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
         env = {}
 
     env["PATH"] = "{0}/bin:{0}/yt/nodejs:/usr/sbin:{1}".format(options.working_directory, os.environ.get("PATH", ""))
-    env["PYTHONPATH"] = "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
+    env["PYTHONPATH"] = "{0}/python:{0}/yp/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
     env["TESTS_SANDBOX"] = sandbox_current
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
@@ -481,7 +472,19 @@ def run_cpp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("C++ integration tests are skipped since all tests are disabled")
         return
-    run_pytest(options, "c++ integration", "{0}/tests/cpp".format(options.checkout_directory))
+    run_pytest(options, "cpp_integration", "{0}/tests/cpp".format(options.checkout_directory))
+
+@build_step
+def run_yp_integration_tests(options, build_context):
+    if options.disable_tests:
+        teamcity_message("YP integration tests are skipped since all tests are disabled")
+        return
+    
+    node_path = os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
+    run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
+               env={
+                   "NODE_PATH": node_path
+               })
 
 @build_step
 def run_python_libraries_tests(options, build_context):

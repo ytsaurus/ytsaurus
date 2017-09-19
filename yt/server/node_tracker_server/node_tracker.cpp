@@ -845,7 +845,7 @@ private:
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
         const auto& addresses = GetAddresses(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
-        const auto& statistics = request->statistics();
+        auto& statistics = *request->mutable_statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
         auto tags = FromProto<std::vector<TString>>(request->tags());
 
@@ -891,10 +891,17 @@ private:
             node = CreateNode(nodeId, nodeAddresses);
         }
 
+        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
+            node->GetId(),
+            address,
+            tags,
+            leaseTransactionId,
+            statistics);
+
         node->SetLocalState(ENodeState::Registered);
         node->SetNodeTags(tags);
 
-        node->Statistics() = statistics;
+        node->SetStatistics(std::move(statistics));
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
@@ -904,13 +911,6 @@ private:
             node->SetLeaseTransaction(leaseTransaction);
             RegisterLeaseTransaction(node);
         }
-
-        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
-            node->GetId(),
-            address,
-            tags,
-            leaseTransactionId,
-            statistics);
 
         NodeRegistered_.Fire(node);
 
@@ -960,7 +960,7 @@ private:
         TRspFullHeartbeat* /*response*/)
     {
         auto nodeId = request->node_id();
-        const auto& statistics = request->statistics();
+        auto& statistics = *request->mutable_statistics();
 
         auto* node = GetNodeOrThrow(nodeId);
         if (node->GetLocalState() != ENodeState::Registered) {
@@ -981,7 +981,7 @@ private:
             node->SetLocalState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
 
-            node->Statistics() = statistics;
+            node->SetStatistics(std::move(statistics));
 
             UpdateLastSeenTime(node);
 
@@ -999,7 +999,7 @@ private:
         TRspIncrementalHeartbeat* response)
     {
         auto nodeId = request->node_id();
-        const auto& statistics = request->statistics();
+        auto& statistics = *request->mutable_statistics();
 
         auto* node = GetNodeOrThrow(nodeId);
         if (node->GetLocalState() != ENodeState::Online) {
@@ -1016,7 +1016,7 @@ private:
                 node->GetLocalState(),
                 statistics);
 
-            node->Statistics() = statistics;
+            node->SetStatistics(std::move(statistics));
             node->Alerts() = FromProto<std::vector<TError>>(request->alerts());
 
             UpdateLastSeenTime(node);

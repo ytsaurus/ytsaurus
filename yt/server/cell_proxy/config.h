@@ -6,6 +6,10 @@
 
 #include <yt/server/blackbox/config.h>
 
+#include <yt/server/rpc_proxy/config.h>
+
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/ytlib/api/config.h>
 
 namespace NYT {
@@ -22,6 +26,10 @@ public:
     NBlackbox::TDefaultBlackboxServiceConfigPtr Blackbox;
     NBlackbox::TCookieAuthenticatorConfigPtr CookieAuthenticator;
     NBlackbox::TCachingTokenAuthenticatorConfigPtr TokenAuthenticator;
+    NRpcProxy::TApiServiceConfigPtr ApiService;
+    NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
+    //! Known RPC proxy addresses.
+    NNodeTrackerClient::TNetworkAddressList Addresses;
 
     TCellProxyConfig()
     {
@@ -33,6 +41,12 @@ public:
             .DefaultNew();
         RegisterParameter("token_authenticator", TokenAuthenticator)
             .DefaultNew();
+        RegisterParameter("api_service", ApiService)
+            .DefaultNew();
+        RegisterParameter("discovery_service", DiscoveryService)
+            .DefaultNew();
+        RegisterParameter("addresses", Addresses)
+            .Default();
     }
 };
 

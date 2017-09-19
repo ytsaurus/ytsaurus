@@ -177,49 +177,93 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", enable_profiling=True)
         self.sync_mount_table("//tmp/t")
 
+        tablet_profiling = self._get_tablet_profiling("//tmp/t")
+        select_profiling = self._get_profiling("//tmp/t")
+
+        def get_all_counters(count_name):
+            return (
+                tablet_profiling.get_counter("lookup/" + count_name),
+                select_profiling.get_counter("select/" + count_name),
+                tablet_profiling.get_counter("write/" + count_name),
+                tablet_profiling.get_counter("commit/" + count_name))
+
+        assert get_all_counters("row_count") == (0, 0, 0, 0)
+        assert get_all_counters("data_weight") == (0, 0, 0, 0)
+        assert tablet_profiling.get_counter("lookup/cpu_time") == 0
+        assert select_profiling.get_counter("select/cpu_time") == 0
+
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
 
-        sleep(1)
-
-        addresses = self._get_tablet_addresses("//tmp/t")
-        assert len(addresses) == 1
-
-        def get_counter(counter_name):
-            return self._get_tablet_node_profiling_counter(addresses[0], counter_name)
-
-        def get_all_counters(count_name):
-            return (
-                get_counter("lookup/" + count_name),
-                get_counter("select/" + count_name),
-                get_counter("write/" + count_name),
-                get_counter("commit/" + count_name))
+        sleep(2)
 
         assert get_all_counters("row_count") == (0, 0, 1, 1)
         assert get_all_counters("data_weight") == (0, 0, 10, 10)
-        assert get_counter("lookup/cpu_time") == 0
-        assert get_counter("select/cpu_time") == 0
+        assert tablet_profiling.get_counter("lookup/cpu_time") == 0
+        assert select_profiling.get_counter("select/cpu_time") == 0
 
         actual = lookup_rows("//tmp/t", keys)
         assert_items_equal(actual, rows)
 
-        sleep(1)
+        sleep(2)
 
         assert get_all_counters("row_count") == (1, 0, 1, 1)
         assert get_all_counters("data_weight") == (10, 0, 10, 10)
-        assert get_counter("lookup/cpu_time") > 0
-        assert get_counter("select/cpu_time") == 0
+        assert tablet_profiling.get_counter("lookup/cpu_time") > 0
+        assert select_profiling.get_counter("select/cpu_time") == 0
 
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
 
-        sleep(1)
+        sleep(2)
 
         assert get_all_counters("row_count") == (1, 2, 1, 1)
         assert get_all_counters("data_weight") == (10, 10*2+8, 10, 10)
-        assert get_counter("lookup/cpu_time") > 0
-        assert get_counter("select/cpu_time") > 0
+        assert tablet_profiling.get_counter("lookup/cpu_time") > 0
+        assert select_profiling.get_counter("select/cpu_time") > 0
+
+    def test_sorted_tablet_node_profiling_remount(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+
+        profiling = self._get_tablet_profiling("//tmp/t")
+
+        def get_lookup_row_counter():
+            return profiling.get_counter("lookup/row_count")
+
+        lookup_rows("//tmp/t", keys)
+        sleep(2)
+        assert get_lookup_row_counter() == 0
+
+        set("//tmp/t/@enable_profiling", True)
+        lookup_rows("//tmp/t", keys)
+        sleep(2)
+        assert get_lookup_row_counter() == 0
+
+        remount_table("//tmp/t")
+        sleep(1)
+        lookup_rows("//tmp/t", keys)
+        sleep(2)
+        assert get_lookup_row_counter() == 1
+
+        set("//tmp/t/@enable_profiling", False)
+        remount_table("//tmp/t")
+        sleep(1)
+        lookup_rows("//tmp/t", keys)
+        sleep(2)
+        assert get_lookup_row_counter() == 1
+
+        set("//tmp/t/@enable_profiling", True)
+        remount_table("//tmp/t")
+        sleep(1)
+        lookup_rows("//tmp/t", keys)
+        sleep(2)
+        assert get_lookup_row_counter() == 2
 
     def test_reshard_unmounted(self):
         self.sync_create_cells(1)
@@ -355,6 +399,17 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             assert "%s" % row["value"][1] == "b:" + str(key["key"])
             assert "%s" % row["value"][2] == "a:" + str(key["key"])
 
+    def test_overflow_row_data_weight(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@max_dynamic_store_row_data_weight", 100)
+        self.sync_mount_table("//tmp/t")
+        rows = [{"key": 0, "value": "A" * 100}]
+        insert_rows("//tmp/t", rows)
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", rows)
+
     def test_read_invalid_limits(self):
         self.sync_create_cells(1)
 
@@ -365,8 +420,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1)
         self.sync_unmount_table("//tmp/t")
 
-        with pytest.raises(YtError):  read_table("//tmp/t[#5:]")
-        with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
+        with pytest.raises(YtError): read_table("//tmp/t[#5:]")
+        with pytest.raises(YtError): read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for):
@@ -387,7 +442,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self.sync_unfreeze_table("//tmp/t")
         rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
         insert_rows("//tmp/t", rows2)
-        self.sync_freeze_table("//tmp/t")
+        self.sync_unmount_table("//tmp/t")
+        sleep(1)
 
         assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
         assert get("//tmp/t/@chunk_count") == 2
@@ -422,6 +478,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         verify_chunk_tree_refcount("//tmp/t", 1, [1])
         assert read_table("//tmp/t") == rows1
         assert read_table("//tmp/t", tx=tx) == []
+
+        with pytest.raises(YtError):
+            read_table("<timestamp={0}>//tmp/t".format(generate_timestamp()), tx=tx)
 
         abort_transaction(tx)
         verify_chunk_tree_refcount("//tmp/t", 1, [1])
@@ -823,7 +882,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_reshard_single_chunk(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", disable_compaction_and_partitioning=True)
+        self._create_simple_table("//tmp/t", enable_compaction_and_partitioning=False)
         self.sync_mount_table("//tmp/t")
 
         def reshard(pivots):
@@ -2071,7 +2130,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
 
     def test_metadata_cache_invalidation(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t1", disable_compaction_and_partitioning=True)
+        self._create_simple_table("//tmp/t1", enable_compaction_and_partitioning=False)
         self.sync_mount_table("//tmp/t1")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]

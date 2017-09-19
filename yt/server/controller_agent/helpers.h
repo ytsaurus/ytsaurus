@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include "serialize.h"
+#include "data_flow_graph.h"
 
 #include <yt/server/chunk_pools/chunk_stripe_key.h>
 
@@ -124,7 +125,7 @@ struct TLockedUserObject
 
 NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const NScheduler::NProto::TOutputResult& boundaryKeys,
-    const TOutputTable& outputTable,
+    const TEdgeDescriptor& outputTable,
     const NTableClient::TRowBufferPtr& rowBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////

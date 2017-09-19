@@ -74,6 +74,7 @@ public:
     virtual std::vector<IStorePtr> GetLockedStores() const override;
 
     virtual bool IsOverflowRotationNeeded() const override;
+    virtual TError CheckOverflow() const override;
     virtual bool IsPeriodicRotationNeeded() const override;
     virtual bool IsRotationPossible() const override;
     virtual bool IsForcedRotationPossible() const override;

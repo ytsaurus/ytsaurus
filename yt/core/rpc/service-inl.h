@@ -13,7 +13,7 @@ namespace NRpc {
 template <class... TArgs>
 void IServiceContext::SetRequestInfo(const char* format, const TArgs&... args)
 {
-    if (GetLogger().IsEnabled(NLogging::ELogLevel::Debug)) {
+    if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
         SetRawRequestInfo(Format(format, args...));
     }
 }
@@ -21,7 +21,7 @@ void IServiceContext::SetRequestInfo(const char* format, const TArgs&... args)
 template <class... TArgs>
 void IServiceContext::SetResponseInfo(const char* format, const TArgs&... args)
 {
-    if (GetLogger().IsEnabled(NLogging::ELogLevel::Debug)) {
+    if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
         SetRawResponseInfo(Format(format, args...));
     }
 }

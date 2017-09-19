@@ -26,6 +26,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/persistent_queue.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/api/protos/api_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/api/protos/discovery_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/cgroup/cgroup.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cgroup/config.cpp
@@ -81,6 +82,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/read_limit.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/read_limit.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/reader_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/repairing_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/session_id.cpp
@@ -180,6 +182,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/job_tracker_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/job_spec_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/statistics.cpp
 
@@ -322,6 +325,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/row_sampler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/samples_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schema_inferer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_concatenating_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_reader_adapter.cpp

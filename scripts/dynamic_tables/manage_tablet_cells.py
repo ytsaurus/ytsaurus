@@ -5,6 +5,7 @@ import yt.yson as yson
 
 import argparse
 import sys
+import os
 
 def verify_ok(reqs, rsps):
     assert len(reqs) == len(rsps)
@@ -82,6 +83,8 @@ def save(args):
     if args.file is None:
         raise Exception("Need to specify file")
     config = get_tablet_cell_count_per_bundle()
+    if os.path.isfile(args.file) and not args.force:
+        raise Exception("File \"{0}\" already exists. Use --force to overwrite it.".format(args.file))
     with open(args.file, "w") as f:
         yson.dump(config, f, yson_format="pretty")
 
@@ -117,6 +120,8 @@ def main2():
     parser.add_argument("--bundle", type=str, default=None,
                         help="Tablet cell bundle name")
     parser.add_argument("--file", "--f", type=str, default=None,
+                        help="File to save/restore config")
+    parser.add_argument("--force", action="store_true", default=None,
                         help="File to save/restore config")
     args = parser.parse_args()
 

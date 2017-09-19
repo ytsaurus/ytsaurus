@@ -407,14 +407,14 @@ class TSchedulerConfig
     , public NChunkClient::TChunkTeleporterConfig
 {
 public:
+    //! Priority of control thread.
+    TNullable<int> ControlThreadPriority;
+
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 
     //! Number of threads for retrieving important fields from job statistics.
     int StatisticsAnalyzerThreadCount;
-
-    //! Number of threads for building job specs.
-    int JobSpecBuilderThreadCount;
 
     //! Number of parallel operation snapshot builders.
     int ParallelSnapshotBuilderCount;
@@ -436,6 +436,8 @@ public:
     TDuration ProfilingUpdatePeriod;
 
     TDuration AlertsUpdatePeriod;
+
+    TDuration ChunkUnstagePeriod;
 
     TDuration NodeShardsUpdatePeriod;
 

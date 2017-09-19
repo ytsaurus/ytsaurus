@@ -19,12 +19,18 @@
 
 #include <yt/core/unittests/rpc_ut.pb.h>
 
+#include <yt/core/grpc/config.h>
+#include <yt/core/grpc/channel.h>
+#include <yt/core/grpc/server.h>
+
 namespace NYT {
 namespace NRpc {
 namespace {
 
 using namespace NBus;
 using namespace NConcurrency;
+
+static const TString DefaultAddress = "localhost:2000";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,6 +42,7 @@ public:
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, PassCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, RegularAttachments);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NullAndEmptyAttachments);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
@@ -90,6 +97,7 @@ public:
             NLogging::TLogger("Main"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PassCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegularAttachments));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(NullAndEmptyAttachments));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DoNothing));
@@ -107,6 +115,15 @@ public:
         context->SetRequestInfo();
         int a = request->a();
         response->set_b(a + 100);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, PassCall)
+    {
+        context->SetRequestInfo();
+        response->set_user(context->GetUser());
+        response->set_mutation_id(ToString(context->GetMutationId()));
+        response->set_retry(context->IsRetry());
         context->Reply();
     }
 
@@ -179,62 +196,199 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcTestBase
+class TGrpcImpl;
+template <class TImpl>
+class TRpcOverBus;
+
+template <class T>
+struct TErrorCodeTraits {};
+
+template <class T>
+struct TErrorCodeTraits<TRpcOverBus<T>>
+{
+    static constexpr int TimeoutCode = static_cast<int>(NYT::EErrorCode::Timeout);
+    static constexpr int CancelCode = static_cast<int>(NYT::EErrorCode::Canceled);
+    static constexpr int TransportCode = static_cast<int>(NRpc::EErrorCode::TransportError);
+};
+
+template<>
+struct TErrorCodeTraits<TGrpcImpl>
+{
+    static constexpr int TimeoutCode = NGrpc::GenericErrorStatusCode;
+    static constexpr int CancelCode = static_cast<int>(NYT::EErrorCode::Canceled);
+    static constexpr int TransportCode = NGrpc::GenericErrorStatusCode;
+};
+
+template <class TImpl>
+class TTestBase
     : public ::testing::Test
 {
 public:
-    virtual void SetUp()
+    virtual void SetUp() override final
     {
-        auto busServer = CreateServer();
-
-        Server_ = CreateBusServer(busServer);
-
+        Server_ = CreateServer();
         Queue_ = New<TActionQueue>();
-
         Service_ = New<TMyService>(Queue_->GetInvoker());
         Server_->RegisterService(Service_);
         Server_->Start();
     }
 
-    virtual void TearDown()
+    virtual void TearDown() override final
     {
-        Server_->Stop().Get();
+        Server_->Stop().Get().ThrowOnError();
         Server_.Reset();
     }
 
-protected:
-    virtual IBusServerPtr CreateServer() = 0;
+    IServerPtr CreateServer()
+    {
+        return TImpl::CreateServer();
+    }
 
+    IChannelPtr CreateChannel(const TString& address = DefaultAddress)
+    {
+        return TImpl::CreateChannel(address);
+    }
+
+    int ConvertToInt(NYT::TErrorCode errorCode)
+    {
+        return errorCode;
+    }
+
+    int GetTimeoutCode()
+    {
+        return TErrorCodeTraits<TImpl>::TimeoutCode;
+    }
+
+    int GetCancelCode()
+    {
+        return TErrorCodeTraits<TImpl>::CancelCode;
+    }
+
+    int GetTransportCode()
+    {
+        return TErrorCodeTraits<TImpl>::TransportCode;
+    }
+protected:
     TActionQueuePtr Queue_;
     TIntrusivePtr<TMyService> Service_;
     IServerPtr Server_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcTest
-    : public TRpcTestBase
+template <class TImpl>
+class TRpcOverBus
 {
 public:
-    virtual IBusServerPtr CreateServer()
+    static IServerPtr CreateServer()
+    {
+        auto busServer = MakeBusServer();
+        return CreateBusServer(busServer);
+    }
+
+    static IChannelPtr CreateChannel(const TString& address)
+    {
+        return TImpl::CreateChannel(address);
+    }
+
+    static IBusServerPtr MakeBusServer()
+    {
+        return TImpl::MakeBusServer();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRpcOverBusImpl
+{
+public:
+    static IChannelPtr CreateChannel(const TString& address)
+    {
+        auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(address));
+        return CreateBusChannel(client);
+    }
+
+    static IBusServerPtr MakeBusServer()
     {
         auto busConfig = TTcpBusServerConfig::CreateTcp(2000);
         return CreateTcpBusServer(busConfig);
     }
+};
 
-    IChannelPtr CreateChannel(const TString& address = "localhost:2000")
+////////////////////////////////////////////////////////////////////////////////
+
+class TGrpcImpl
+{
+public:
+    static IChannelPtr CreateChannel(const TString& address)
     {
-        auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(address));
+        auto channelConfig = New<NGrpc::TChannelConfig>();
+        channelConfig->Address = address;
+        return NGrpc::CreateGrpcChannel(channelConfig);
+    }
+
+    static IServerPtr CreateServer()
+    {
+        auto serverAddressConfig = New<NGrpc::TServerAddressConfig>();
+        serverAddressConfig->Type = NGrpc::EAddressType::Insecure;
+        serverAddressConfig->Address = DefaultAddress;
+        auto serverConfig = New<NGrpc::TServerConfig>();
+        serverConfig->Addresses.push_back(serverAddressConfig);
+        return NGrpc::CreateServer(serverConfig);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TTcpBusClient creates abstract unix sockets, supported only on Linux.
+class TRpcOverUnixDomainImpl
+{
+public:
+    static IBusServerPtr MakeBusServer()
+    {
+        auto busConfig = TTcpBusServerConfig::CreateUnixDomain("unix_domain");
+        return CreateTcpBusServer(busConfig);
+    }
+
+    static IChannelPtr CreateChannel(const TString& address)
+    {
+        auto clientConfig = TTcpBusClientConfig::CreateUnixDomain(
+            address == DefaultAddress ? "unix_domain" : address);
+        auto client = CreateTcpBusClient(clientConfig);
         return CreateBusChannel(client);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TRpcTest, Send)
+#ifdef _linux_
+using AllTransport = ::testing::Types<
+    TRpcOverBus<TRpcOverBusImpl>,
+    TGrpcImpl,
+    TRpcOverBus<TRpcOverUnixDomainImpl>>;
+using WithoutGrpc = ::testing::Types<
+    TRpcOverBus<TRpcOverBusImpl>,
+    TRpcOverBus<TRpcOverUnixDomainImpl>>;
+#else
+using AllTransport = ::testing::Types<
+    TRpcOverBus<TRpcOverBusImpl>,
+    TGrpcImpl>;
+using WithoutGrpc = ::testing::Types<
+    TRpcOverBus<TRpcOverBusImpl>>;
+#endif
+
+template <class I>
+using TRpcTest = TTestBase<I>;
+template <class I>
+using TNotGrpcTest = TTestBase<I>;
+TYPED_TEST_CASE(TRpcTest, AllTransport);
+TYPED_TEST_CASE(TNotGrpcTest, WithoutGrpc);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYPED_TEST(TRpcTest, Send)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.SomeCall();
     req->set_a(42);
     auto rspOrError = req->Invoke().Get();
@@ -243,13 +397,29 @@ TEST_F(TRpcTest, Send)
     EXPECT_EQ(142, rsp->b());
 }
 
-TEST_F(TRpcTest, ManyAsyncRequests)
+TYPED_TEST(TNotGrpcTest, SendSimple)
+{
+    TMyProxy proxy(this->CreateChannel());
+    auto req = proxy.PassCall();
+    auto mutation_id = TGuid::Create();
+    req->SetUser("test");
+    req->SetMutationId(mutation_id);
+    req->SetRetry(true);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+    const auto& rsp = rspOrError.Value();
+    EXPECT_EQ("test", rsp->user());
+    EXPECT_EQ(ToString(mutation_id), rsp->mutation_id());
+    EXPECT_EQ(true, rsp->retry());
+}
+
+TYPED_TEST(TRpcTest, ManyAsyncRequests)
 {
     const int RequestCount = 1000;
 
     std::vector<TFuture<void>> asyncResults;
 
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
 
     for (int i = 0; i < RequestCount; ++i) {
         auto request = proxy.SomeCall();
@@ -263,9 +433,9 @@ TEST_F(TRpcTest, ManyAsyncRequests)
     EXPECT_TRUE(Combine(asyncResults).Get().IsOK());
 }
 
-TEST_F(TRpcTest, RegularAttachments)
+TYPED_TEST(TNotGrpcTest, RegularAttachments)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.RegularAttachments();
 
     req->Attachments().push_back(SharedRefFromString("Hello"));
@@ -283,9 +453,9 @@ TEST_F(TRpcTest, RegularAttachments)
     EXPECT_EQ("TMyProxy_",  StringFromSharedRef(attachments[2]));
 }
 
-TEST_F(TRpcTest, NullAndEmptyAttachments)
+TYPED_TEST(TNotGrpcTest, NullAndEmptyAttachments)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.NullAndEmptyAttachments();
 
     req->Attachments().push_back(TSharedRef());
@@ -303,70 +473,71 @@ TEST_F(TRpcTest, NullAndEmptyAttachments)
 }
 
 // Now test different types of errors
-TEST_F(TRpcTest, OK)
+
+TYPED_TEST(TRpcTest, OK)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.DoNothing();
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
 }
 
-TEST_F(TRpcTest, NoAck)
+TYPED_TEST(TRpcTest, NoAck)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.DoNothing();
     req->SetRequestAck(false);
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
 }
 
-TEST_F(TRpcTest, TransportError)
+TYPED_TEST(TRpcTest, TransportError)
 {
-    TMyProxy proxy(CreateChannel("localhost:9999"));
+    TMyProxy proxy(this->CreateChannel("localhost:9999"));
     auto req = proxy.DoNothing();
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
 }
 
-TEST_F(TRpcTest, NoService)
+TYPED_TEST(TRpcTest, NoService)
 {
-    TNonExistingServiceProxy proxy(CreateChannel());
+    TNonExistingServiceProxy proxy(this->CreateChannel());
     auto req = proxy.DoNothing();
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::NoSuchService, rspOrError.GetCode());
 }
 
-TEST_F(TRpcTest, NoMethod)
+TYPED_TEST(TRpcTest, NoMethod)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.NotRegistered();
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::NoSuchMethod, rspOrError.GetCode());
 }
 
-TEST_F(TRpcTest, ClientTimeout)
+TYPED_TEST(TRpcTest, ClientTimeout)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
     auto req = proxy.SlowCall();
     auto rspOrError = req->Invoke().Get();
-    EXPECT_EQ(NYT::EErrorCode::Timeout, rspOrError.GetCode());
+    EXPECT_EQ(this->GetTimeoutCode(), this->ConvertToInt(rspOrError.GetCode()));
 }
 
-TEST_F(TRpcTest, ServerTimeout)
+TYPED_TEST(TRpcTest, ServerTimeout)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
     auto req = proxy.SlowCanceledCall();
     auto rspOrError = req->Invoke().Get();
-    EXPECT_EQ(NYT::EErrorCode::Timeout, rspOrError.GetCode());
+    EXPECT_EQ(this->GetTimeoutCode(), this->ConvertToInt(rspOrError.GetCode()));
     Sleep(TDuration::Seconds(1));
-    EXPECT_TRUE(Service_->GetSlowCallCanceled());
+    EXPECT_TRUE(this->Service_->GetSlowCallCanceled());
 }
 
-TEST_F(TRpcTest, ClientCancel)
+TYPED_TEST(TRpcTest , ClientCancel)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.SlowCanceledCall();
     auto asyncRspOrError = req->Invoke();
     Sleep(TDuration::Seconds(0.5));
@@ -375,41 +546,40 @@ TEST_F(TRpcTest, ClientCancel)
     Sleep(TDuration::Seconds(0.1));
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
-    EXPECT_EQ(NYT::EErrorCode::Canceled, rspOrError.GetCode());
+    EXPECT_EQ(this->GetCancelCode(), this->ConvertToInt(rspOrError.GetCode()));
     Sleep(TDuration::Seconds(1));
-    EXPECT_TRUE(Service_->GetSlowCallCanceled());
+    EXPECT_TRUE(this->Service_->GetSlowCallCanceled());
 }
 
-TEST_F(TRpcTest, SlowCall)
+TYPED_TEST(TRpcTest, SlowCall)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     proxy.SetDefaultTimeout(TDuration::Seconds(2.0));
     auto req = proxy.SlowCall();
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
 }
 
-TEST_F(TRpcTest, NoReply)
+TYPED_TEST(TRpcTest, NoReply)
 {
-    TMyProxy proxy(CreateChannel());
-
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.NoReply();
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::Unavailable, rspOrError.GetCode());
 }
 
-TEST_F(TRpcTest, CustomErrorMessage)
+TYPED_TEST(TRpcTest, CustomErrorMessage)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.CustomMessageError();
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NYT::EErrorCode(42), rspOrError.GetCode());
     EXPECT_EQ("Some Error", rspOrError.GetMessage());
 }
 
-TEST_F(TRpcTest, ConnectionLost)
+TYPED_TEST(TRpcTest, ConnectionLost)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
 
     auto req = proxy.SlowCanceledCall();
     auto asyncRspOrError = req->Invoke();
@@ -417,89 +587,53 @@ TEST_F(TRpcTest, ConnectionLost)
     Sleep(TDuration::Seconds(0.5));
 
     EXPECT_FALSE(asyncRspOrError.IsSet());
-    Server_->Stop(false);
+    this->Server_->Stop(false);
 
     Sleep(TDuration::Seconds(0.5));
 
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
-    EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
-    EXPECT_TRUE(Service_->GetSlowCallCanceled());
+    EXPECT_EQ(this->GetTransportCode(), this->ConvertToInt(rspOrError.GetCode()));
+    EXPECT_TRUE(this->Service_->GetSlowCallCanceled());
 }
 
-TEST_F(TRpcTest, ProtocolVersionMismatch)
+TYPED_TEST(TNotGrpcTest, ProtocolVersionMismatch)
 {
-    TMyIncorrectProtocolVersionProxy proxy(CreateChannel());
+    TMyIncorrectProtocolVersionProxy proxy(this->CreateChannel());
     auto req = proxy.SomeCall();
     req->set_a(42);
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::ProtocolError, rspOrError.GetCode());
 }
 
-TEST_F(TRpcTest, StopWithoutActiveRequests)
+TYPED_TEST(TRpcTest, StopWithoutActiveRequests)
 {
-    auto stopResult = Service_->Stop();
+    auto stopResult = this->Service_->Stop();
     EXPECT_TRUE(stopResult.IsSet());
 }
 
-TEST_F(TRpcTest, StopWithActiveRequests)
+TYPED_TEST(TRpcTest, StopWithActiveRequests)
 {
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.SlowCall();
     auto reqResult = req->Invoke();
     Sleep(TDuration::Seconds(0.5));
-    auto stopResult = Service_->Stop();
+    auto stopResult = this->Service_->Stop();
     EXPECT_FALSE(stopResult.IsSet());
     EXPECT_TRUE(reqResult.Get().IsOK());
     Sleep(TDuration::Seconds(0.5));
     EXPECT_TRUE(stopResult.IsSet());
 }
 
-TEST_F(TRpcTest, NoMoreRequestsAfterStop)
+TYPED_TEST(TRpcTest, NoMoreRequestsAfterStop)
 {
-    auto stopResult = Service_->Stop();
+    auto stopResult = this->Service_->Stop();
     EXPECT_TRUE(stopResult.IsSet());
-    TMyProxy proxy(CreateChannel());
+    TMyProxy proxy(this->CreateChannel());
     auto req = proxy.SlowCall();
     auto reqResult = req->Invoke();
     EXPECT_FALSE(reqResult.Get().IsOK());
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-#ifdef _linux_
-
-// TTcpBusClient creates abstract unix sockets, supported only on Linux.
-class TRpcUnixDomainTest
-    : public TRpcTestBase
-{
-public:
-    virtual IBusServerPtr CreateServer()
-    {
-        auto busConfig = TTcpBusServerConfig::CreateUnixDomain("unix_domain");
-        return CreateTcpBusServer(busConfig);
-    }
-
-    IChannelPtr CreateChannel(const TString& address = "unix_domain")
-    {
-        auto clientConfig = TTcpBusClientConfig::CreateUnixDomain(address);
-        auto client = CreateTcpBusClient(clientConfig);
-        return CreateBusChannel(client);
-    }
-};
-
-TEST_F(TRpcUnixDomainTest, Send)
-{
-    TMyProxy proxy(CreateChannel());
-    auto req = proxy.SomeCall();
-    req->set_a(42);
-    auto rspOrError = req->Invoke().Get();
-    EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
-    const auto& rsp = rspOrError.Value();
-    EXPECT_EQ(142, rsp->b());
-}
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

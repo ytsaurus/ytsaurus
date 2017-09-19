@@ -144,6 +144,7 @@ struct TResourceLimitsKey
 {
     TString Account;
     TString MediumName;
+    EInMemoryMode InMemoryMode;
 
     // Hasher.
     operator size_t() const
@@ -151,6 +152,7 @@ struct TResourceLimitsKey
         size_t result = 0;
         HashCombine(result, Account);
         HashCombine(result, MediumName);
+        HashCombine(result, InMemoryMode);
         return result;
     }
 
@@ -159,15 +161,17 @@ struct TResourceLimitsKey
     {
         return
             Account == other.Account &&
-            MediumName == other.MediumName;
+            MediumName == other.MediumName &&
+            InMemoryMode == other.InMemoryMode;
     }
 
     // Formatter.
     friend TString ToString(const TResourceLimitsKey& key)
     {
-        return Format("%v:%v",
+        return Format("%v:%v:%v",
             key.Account,
-            key.MediumName);
+            key.MediumName,
+            key.InMemoryMode);
     }
 };
 
@@ -191,6 +195,9 @@ private:
 
     virtual TFuture<void> DoGet(const TResourceLimitsKey& key) override
     {
+        LOG_DEBUG("Resource limits violation check started (Key: %v)",
+            key);
+
         auto client = Bootstrap_->GetMasterClient();
         auto options = TGetNodeOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
@@ -215,9 +222,11 @@ private:
                         key.Account);
                 }
 
-                if (node->AsMap()->GetChild("tablet_static_memory")->GetValue<bool>()) {
-                    THROW_ERROR_EXCEPTION("Account %Qv violates tablet static memory limit",
-                        key.Account);
+                if (key.InMemoryMode != EInMemoryMode::None) {
+                    if (node->AsMap()->GetChild("tablet_static_memory")->GetValue<bool>()) {
+                        THROW_ERROR_EXCEPTION("Account %Qv violates tablet static memory limit",
+                            key.Account);
+                    }
                 }
 
                 const auto& mediumLimit = node->AsMap()->GetChild("disk_space_per_medium")->AsMap()->FindChild(key.MediumName);
@@ -301,16 +310,18 @@ public:
 
     TFuture<void> CheckResourceLimits(
         const TString& account,
-        const TString& mediumName)
+        const TString& mediumName,
+        EInMemoryMode inMemoryMode)
     {
-        return ResourceLimitsCache_->Get(TResourceLimitsKey{account, mediumName});
+        return ResourceLimitsCache_->Get(TResourceLimitsKey{account, mediumName, inMemoryMode});
     }
 
     void ValidateResourceLimits(
         const TString& account,
-        const TString& mediumName)
+        const TString& mediumName,
+        EInMemoryMode inMemoryMode)
     {
-        auto asyncResult = CheckResourceLimits(account, mediumName);
+        auto asyncResult = CheckResourceLimits(account, mediumName, inMemoryMode);
         auto maybeResult = asyncResult.TryGet();
         auto result = maybeResult ? *maybeResult : WaitFor(asyncResult);
         result.ThrowOnError();
@@ -370,16 +381,18 @@ void TSecurityManager::ValidatePermission(
 
 TFuture<void> TSecurityManager::CheckResourceLimits(
     const TString& account,
-    const TString& mediumName)
+    const TString& mediumName,
+    EInMemoryMode inMemoryMode)
 {
-    return Impl_->CheckResourceLimits(account, mediumName);
+    return Impl_->CheckResourceLimits(account, mediumName, inMemoryMode);
 }
 
 void TSecurityManager::ValidateResourceLimits(
     const TString& account,
-    const TString& mediumName)
+    const TString& mediumName,
+    EInMemoryMode inMemoryMode)
 {
-    Impl_->ValidateResourceLimits(account, mediumName);
+    Impl_->ValidateResourceLimits(account, mediumName, inMemoryMode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

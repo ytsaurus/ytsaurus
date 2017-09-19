@@ -9,7 +9,7 @@
 
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -69,14 +69,14 @@ TFairShareContext::TFairShareContext(
     }
 }
 
-TDynamicAttributes& TFairShareContext::DynamicAttributes(TSchedulerElement* element)
+TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerElement* element)
 {
     int index = element->GetTreeIndex();
     YCHECK(index < DynamicAttributesList.size());
     return DynamicAttributesList[index];
 }
 
-const TDynamicAttributes& TFairShareContext::DynamicAttributes(TSchedulerElement* element) const
+const TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerElement* element) const
 {
     int index = element->GetTreeIndex();
     YCHECK(index < DynamicAttributesList.size());
@@ -105,6 +105,13 @@ TJobResources TSchedulerElementSharedState::GetResourceUsage()
     return ResourceUsage_;
 }
 
+TJobResources TSchedulerElementSharedState::GetResourceUsagePrecommit()
+{
+    TReaderGuard guard(ResourceUsageLock_);
+
+    return ResourceUsagePrecommit_;
+}
+
 TJobMetrics TSchedulerElementSharedState::GetJobMetrics()
 {
     TReaderGuard guard(JobMetricsLock_);
@@ -118,6 +125,14 @@ void TSchedulerElementSharedState::IncreaseResourceUsage(const TJobResources& de
 
     ResourceUsage_ += delta;
 }
+
+void TSchedulerElementSharedState::IncreaseResourceUsagePrecommit(const TJobResources& delta)
+{
+    TWriterGuard guard(ResourceUsageLock_);
+
+    ResourceUsagePrecommit_ += delta;
+}
+
 
 void TSchedulerElementSharedState::ApplyJobMetricsDelta(const TJobMetrics& delta)
 {
@@ -279,6 +294,11 @@ TJobResources TSchedulerElement::GetResourceUsage() const
     return resourceUsage;
 }
 
+TJobResources TSchedulerElement::GetResourceUsagePrecommit() const
+{
+    return SharedState_->GetResourceUsagePrecommit();
+}
+
 TJobMetrics TSchedulerElement::GetJobMetrics() const
 {
     return SharedState_->GetJobMetrics();
@@ -295,6 +315,12 @@ void TSchedulerElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 {
     SharedState_->IncreaseResourceUsage(delta);
 }
+
+void TSchedulerElement::IncreaseLocalResourceUsagePrecommit(const TJobResources& delta)
+{
+    SharedState_->IncreaseResourceUsagePrecommit(delta);
+}
+
 
 void TSchedulerElement::ApplyJobMetricsDeltaLocal(const TJobMetrics& delta)
 {
@@ -695,6 +721,15 @@ void TCompositeSchedulerElement::IncreaseResourceUsage(const TJobResources& delt
     auto* currentElement = this;
     while (currentElement) {
         currentElement->IncreaseLocalResourceUsage(delta);
+        currentElement = currentElement->GetParent();
+    }
+}
+
+void TCompositeSchedulerElement::IncreaseResourceUsagePrecommit(const TJobResources& delta)
+{
+    auto* currentElement = this;
+    while (currentElement) {
+        currentElement->IncreaseLocalResourceUsagePrecommit(delta);
         currentElement = currentElement->GetParent();
     }
 }
@@ -1579,7 +1614,7 @@ bool TOperationElement::TryStartScheduleJob(
         return false;
     }
 
-    IncreaseResourceUsage(minNeededResources);
+    IncreaseResourceUsagePrecommit(minNeededResources);
 
     SharedState_->IncreaseConcurrentScheduleJobCalls();
 
@@ -1597,7 +1632,7 @@ void TOperationElement::FinishScheduleJob(
         SharedState_->SetLastScheduleJobFailTime(now);
     }
 
-    IncreaseResourceUsage(-minNeededResources);
+    IncreaseResourceUsagePrecommit(-minNeededResources);
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(
@@ -1843,9 +1878,9 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
         return false;
     }
 
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
     auto scheduleJobResult = DoScheduleJob(context, jobLimits, minNeededResources);
-    auto scheduleJobDuration = timer.GetElapsed();
+    auto scheduleJobDuration = timer.GetElapsedTime();
     context.TotalScheduleJobDuration += scheduleJobDuration;
     context.ExecScheduleJobDuration += scheduleJobResult->Duration;
 
@@ -1991,6 +2026,12 @@ void TOperationElement::IncreaseResourceUsage(const TJobResources& delta)
     GetParent()->IncreaseResourceUsage(delta);
 }
 
+void TOperationElement::IncreaseResourceUsagePrecommit(const TJobResources& delta)
+{
+    IncreaseLocalResourceUsagePrecommit(delta);
+    GetParent()->IncreaseResourceUsagePrecommit(delta);
+}
+
 void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
 {
     ApplyJobMetricsDeltaLocal(delta);
@@ -2090,19 +2131,17 @@ TJobResources TOperationElement::GetHierarchicalResourceLimits(const TFairShareC
         + schedulingContext->ResourceUsageDiscount();
 
     // Bound limits with pool free resources.
-    auto* parent = GetParent();
+    const TSchedulerElement* parent = this;
     while (parent) {
         auto parentLimits =
             parent->ResourceLimits()
             - parent->GetResourceUsage()
+            - parent->GetResourceUsagePrecommit()
             + context.DynamicAttributes(parent).ResourceUsageDiscount;
 
         limits = Min(limits, parentLimits);
         parent = parent->GetParent();
     }
-
-    // Bound limits with operation free resources.
-    limits = Min(limits, ResourceLimits() - GetResourceUsage());
 
     return limits;
 }
@@ -2208,7 +2247,7 @@ int TOperationElement::ComputePendingJobCount() const
 
 void TOperationElement::UpdatePreemptableJobsList()
 {
-    TScopedTimer timer;
+    TWallTimer timer;
     int moveCount = 0;
 
     SharedState_->UpdatePreemptableJobsList(
@@ -2218,7 +2257,7 @@ void TOperationElement::UpdatePreemptableJobsList()
         StrategyConfig_->AggressivePreemptionSatisfactionThreshold,
         &moveCount);
 
-    auto elapsed = timer.GetElapsed();
+    auto elapsed = timer.GetElapsedTime();
 
     Profiler.Update(PreemptableListUpdateTimeCounter, DurationToValue(elapsed));
     Profiler.Update(PreemptableListUpdateMoveCountCounter, moveCount);

@@ -70,11 +70,13 @@ struct TSchedulerStrategyHostMock
     virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) override
     { }
 
-    virtual void SetOperationAlert(
+    virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) override
-    { }
+    {
+        return VoidFuture;
+    }
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override
     {

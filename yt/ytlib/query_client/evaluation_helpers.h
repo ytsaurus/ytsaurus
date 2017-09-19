@@ -48,6 +48,7 @@ static const size_t InitialGroupOpHashtableCapacity = 1024;
 
 using THasherFunction = ui64(TRow);
 using TComparerFunction = char(TRow, TRow);
+using TTernaryComparerFunction = int(TRow, TRow);
 
 namespace NDetail {
 class TGroupHasher
@@ -105,15 +106,13 @@ struct TJoinParameters
 {
     bool IsOrdered;
     bool IsLeft;
+    bool IsSortMergeJoin;
+    bool IsPartiallySorted;
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
-    bool IsSortMergeJoin;
-    size_t CommonKeyPrefixDebug;
-
-    std::function<std::pair<TQueryPtr, TDataRanges>(std::vector<TRow>, TRowBufferPtr)>
-        GetForeignQuery;
-
+    TJoinSubqueryEvaluator ExecuteForeign;
     size_t BatchSize;
+    size_t CommonKeyPrefixDebug;
 };
 
 struct TChainedRow
@@ -202,8 +201,6 @@ struct TExecutionContext
 
     // Limit from LIMIT clause.
     i64 Limit;
-
-    TExecuteQueryCallback ExecuteCallback;
 
     TExecutionContext()
     {
@@ -325,11 +322,11 @@ struct TCGAggregateCallbacks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJoinParameters GetJoinEvaluator(
-    const TJoinClause& joinClause,
-    const TTableSchema& selfTableSchema,
-    size_t batchSize,
-    bool isOrdered);
+std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
+    TQueryPtr subquery,
+    TConstJoinClausePtr joinClause,
+    std::vector<TRow> keys,
+    TRowBufferPtr permanentBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

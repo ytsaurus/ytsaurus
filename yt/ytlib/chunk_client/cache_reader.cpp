@@ -72,6 +72,11 @@ public:
         return ChunkId_;
     }
 
+    virtual bool IsValid() const override
+    {
+        return true;
+    }
+
 private:
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;

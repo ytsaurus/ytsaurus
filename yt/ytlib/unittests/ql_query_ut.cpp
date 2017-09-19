@@ -27,6 +27,7 @@
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/pipe.h>
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -313,13 +314,13 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         EXPECT_EQ(query->JoinClauses.size(), 3);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 2);
         EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 4);
         EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
     }
 
@@ -334,13 +335,13 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         EXPECT_EQ(query->JoinClauses.size(), 3);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 4);
         EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
     }
 
@@ -355,13 +356,13 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         EXPECT_EQ(query->JoinClauses.size(), 3);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 4);
         EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 3);
 
-        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
 
-        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3);
         EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
     }
 }
@@ -539,7 +540,7 @@ TQueryStatistics DoExecuteQuery(
     TConstQueryPtr query,
     ISchemafulWriterPtr writer,
     const TQueryBaseOptions& options,
-    TExecuteQueryCallback executeCallback = nullptr)
+    TJoinSubqueryProfiler joinProfiler = nullptr)
 {
     std::vector<TOwningRow> owningSource;
     std::vector<TRow> sourceRows;
@@ -571,7 +572,7 @@ TQueryStatistics DoExecuteQuery(
         query,
         readerMock,
         writer,
-        executeCallback,
+        joinProfiler,
         functionProfilers,
         aggregateProfilers,
         options);
@@ -815,12 +816,9 @@ protected:
         i64 outputRowLimit,
         EFailureLocation failureLocation)
     {
-        yhash<TGuid, size_t> sourceGuids;
-        size_t index = 0;
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first, _))
                 .WillOnce(Return(MakeFuture(dataSplit.second)));
-            sourceGuids.emplace(NYT::FromProto<TGuid>(dataSplit.second.chunk_id()), index++);
         }
 
         auto fetchFunctions = [&] (const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
@@ -831,6 +829,8 @@ protected:
         options.InputRowLimit = inputRowLimit;
         options.OutputRowLimit = outputRowLimit;
 
+        size_t sourceIndex = 1;
+
         auto prepareAndExecute = [&] () {
             auto fragment = PreparePlanFragment(
                 &PrepareMock_,
@@ -838,20 +838,33 @@ protected:
                 fetchFunctions);
             const auto& primaryQuery = fragment->Query;
 
-            auto executeCallback = [&] (
-                const TQueryPtr& subquery,
-                TDataRanges dataRanges,
-                ISchemafulWriterPtr writer) mutable
-            {
-                return MakeFuture(DoExecuteQuery(
-                    owningSources[sourceGuids[dataRanges.Id]],
-                    FunctionProfilers_,
-                    AggregateProfilers_,
-                    failureLocation,
-                    subquery,
-                    writer,
-                    options));
+            auto profileCallback = [&] (TQueryPtr subquery, TConstJoinClausePtr joinClause) mutable {
+                auto rows = owningSources[sourceIndex++];
+
+                return [&, rows, subquery, joinClause] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer)
+                mutable {
+                    TDataRanges dataSource;
+                    std::tie(subquery, dataSource) = GetForeignQuery(
+                        subquery,
+                        joinClause,
+                        std::move(keys),
+                        permanentBuffer);
+
+                    auto pipe = New<NTableClient::TSchemafulPipe>();
+
+                    DoExecuteQuery(
+                        rows,
+                        FunctionProfilers_,
+                        AggregateProfilers_,
+                        failureLocation,
+                        subquery,
+                        pipe->GetWriter(),
+                        options);
+
+                    return pipe->GetReader();
+                };
             };
+
 
             ISchemafulWriterPtr writer;
             TFuture<IUnversionedRowsetPtr> asyncResultRowset;
@@ -866,7 +879,7 @@ protected:
                 primaryQuery,
                 writer,
                 options,
-                executeCallback);
+                profileCallback);
 
             auto resultRowset = WaitFor(asyncResultRowset)
                 .ValueOrThrow();
@@ -1103,6 +1116,63 @@ TEST_F(TQueryEvaluateTest, SimpleInWithNull)
     }, split);
 
     Evaluate("a, b FROM [//t] where (a, b) in ((null, 1), (2, null))", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, SimpleTransform)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "a=4",
+        "a=-10",
+        "a=15"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=13",
+        "x=17",
+        "",
+    }, resultSplit);
+
+    Evaluate("transform(a, (4.0, -10), (13, 17)) as x FROM [//t]", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, SimpleTransform2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String}
+    });
+
+    std::vector<TString> source = {
+        "a=4;b=p",
+        "a=-10;b=q",
+        "a=-10;b=s",
+        "a=15"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=13",
+        "",
+        "x=17",
+        "",
+    }, resultSplit);
+
+    Evaluate(
+        "transform((a, b), ((4.0, 'p'), (-10, 's')), (13, 17)) as x FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
@@ -2306,7 +2376,12 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
 
     splits["//left"] = leftSplit;
     sources.push_back({
-        "a=1;ut=123456;b=10"
+        "a=1;ut=1;b=30",
+        "a=1;ut=2;b=20",
+        "a=2;ut=3;b=10",
+        "a=2;ut=4;b=30",
+        "a=3;ut=5;b=20",
+        "a=4;ut=6;b=10"
     });
 
     auto rightSplit = MakeSplit({
@@ -2316,7 +2391,9 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
 
     splits["//right"] = rightSplit;
     sources.push_back({
-        "b=10;c=100"
+        "b=10;c=100",
+        "b=20;c=200",
+        "b=30;c=300"
     });
 
     auto resultSplit = MakeSplit({
@@ -2327,14 +2404,95 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
     });
 
     auto result = YsonToRows({
-        "\"a.ut\"=123456;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10"
+        "\"a.ut\"=1;\"b.c\"=300;\"a.b\"=30;\"b.b\"=30",
+        "\"a.ut\"=2;\"b.c\"=200;\"a.b\"=20;\"b.b\"=20",
+        "\"a.ut\"=3;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10",
+        "\"a.ut\"=4;\"b.c\"=300;\"a.b\"=30;\"b.b\"=30",
+        "\"a.ut\"=5;\"b.c\"=200;\"a.b\"=20;\"b.b\"=20",
+        "\"a.ut\"=6;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10"
+
     }, resultSplit);
 
-    Evaluate(
-        "a.ut, b.c, a.b, b.b FROM [//left] a join [//right] b on a.b=b.b limit 1",
-        splits,
-        sources,
-        ResultMatcher(result));
+    for (size_t limit = 1; limit <= 6; ++limit) {
+        std::vector<TOwningRow> currentResult(result.begin(), result.begin() + limit);
+        Evaluate(
+            Format("a.ut, b.c, a.b, b.b FROM [//left] a join [//right] b on a.b=b.b limit %v", limit),
+            splits,
+            sources,
+            ResultMatcher(currentResult));
+    }
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinLimit5)
+{
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"publisherId", EValueType::String, ESortOrder::Ascending},
+        {"itemId", EValueType::Int64}
+    }, 0);
+
+    splits["//publishers"] = leftSplit;
+    sources.push_back({
+        "publisherId=\"5903739ad7d0a6e07ad1fb93\";itemId=3796616032221332447",
+        "publisherId=\"5908961de3cda81ba288b664\";itemId=847311080463071787",
+        "publisherId=\"5909bd2dd7d0a68351e66077\";itemId=-3463642079005455542",
+        "publisherId=\"5912f1e27ddde8c264b56f0c\";itemId=2859920047593648390",
+        "publisherId=\"5912f1f88e557d5b22ff7077\";itemId=-5478070133262294529",
+        "publisherId=\"591446067ddde805266009b5\";itemId=-5089939500492155348",
+        "publisherId=\"591464507ddde805266009b8\";itemId=3846436484159153735",
+        "publisherId=\"591468bce3cda8db9996fa89\";itemId=2341245309580180142",
+        "publisherId=\"5914c6678e557dcf3bf713cf\";itemId=-6844788529441593571",
+        "publisherId=\"5915869a7ddde805266009bb\";itemId=-6883609521883689",
+        "publisherId=\"5918c7f8e3cda83873187c37\";itemId=-896633843529240754",
+        "publisherId=\"591939f67ddde8632415d4ce\";itemId=-2679935711711852631",
+        "publisherId=\"59195b327ddde8632415d4d1\";itemId=8410938732504570842"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"publisherId", EValueType::String, ESortOrder::Ascending},
+        {"timestamp", EValueType::Uint64}
+    }, 1);
+
+    splits["//draft"] = rightSplit;
+    sources.push_back({
+        "publisherId=\"591446067ddde805266009b5\";timestamp=1504706169u",
+        "publisherId=\"591468bce3cda8db9996fa89\";timestamp=1504706172u",
+        "publisherId=\"5914c6678e557dcf3bf713cf\";timestamp=1504706178u",
+        "publisherId=\"5918c7f8e3cda83873187c37\";timestamp=1504706175u",
+    });
+
+    auto resultSplit = MakeSplit({
+        {"publisherId", EValueType::String}
+    });
+
+    auto result = YsonToRows({
+        "publisherId=\"5903739ad7d0a6e07ad1fb93\"",
+        "publisherId=\"5908961de3cda81ba288b664\"",
+        "publisherId=\"5909bd2dd7d0a68351e66077\"",
+        "publisherId=\"5912f1e27ddde8c264b56f0c\"",
+        "publisherId=\"5912f1f88e557d5b22ff7077\"",
+        "publisherId=\"591446067ddde805266009b5\"",
+        "publisherId=\"591464507ddde805266009b8\"",
+        "publisherId=\"591468bce3cda8db9996fa89\"",
+        "publisherId=\"5914c6678e557dcf3bf713cf\"",
+        "publisherId=\"5915869a7ddde805266009bb\"",
+        "publisherId=\"5918c7f8e3cda83873187c37\"",
+        "publisherId=\"591939f67ddde8632415d4ce\"",
+        "publisherId=\"59195b327ddde8632415d4d1\""
+    }, resultSplit);
+
+    for (size_t limit = 1; limit <= 13; ++limit) {
+        std::vector<TOwningRow> currentResult(result.begin(), result.begin() + limit);
+        Evaluate(
+            Format("[publisherId] FROM [//publishers] LEFT JOIN [//draft] USING [publisherId] LIMIT %v", limit),
+            splits,
+            sources,
+            ResultMatcher(currentResult));
+    }
 
     SUCCEED();
 }
@@ -2502,8 +2660,140 @@ TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
     EXPECT_EQ(query->JoinClauses.size(), 1);
     const auto& joinClauses = query->JoinClauses;
 
-    EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+    EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1);
     EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestPartialSortMergeJoin)
+{
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64},
+    }, 0);
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1;b=2;c=1 ",
+        "a=1;b=3;c=2 ",
+        "a=1;b=1;c=3 ",
+        "a=1;b=4;c=4 ",
+        "a=2;b=4;c=5 ",
+        "a=2;b=3;c=6 ",
+        "a=2;b=1;c=7 ",
+        "a=2;b=2;c=8 ",
+        "a=3;b=1;c=9 ",
+        "a=3;b=4;c=10",
+        "a=3;b=3;c=11",
+        "a=3;b=2;c=12",
+        "a=4;b=8;c=13",
+        "a=4;b=7;c=14"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"d", EValueType::Int64, ESortOrder::Ascending},
+        {"e", EValueType::Int64, ESortOrder::Ascending},
+        {"f", EValueType::Int64},
+    }, 1);
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "d=1;e=1;f=3 ",
+        "d=1;e=2;f=1 ",
+        "d=1;e=3;f=2 ",
+        "d=1;e=4;f=4 ",
+        "d=2;e=1;f=7 ",
+        "d=2;e=2;f=8 ",
+        "d=2;e=3;f=6 ",
+        "d=2;e=4;f=5 ",
+        "d=3;e=1;f=9 ",
+        "d=3;e=2;f=12",
+        "d=3;e=3;f=11",
+        "d=3;e=4;f=10",
+        "d=4;e=7;f=14",
+        "d=4;e=8;f=13",
+
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64},
+        {"d", EValueType::Int64},
+        {"e", EValueType::Int64},
+        {"f", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "a=1;b=1;c=3 ;d=1;e=1;f=3 ",
+        "a=1;b=2;c=1 ;d=1;e=2;f=1 ",
+        "a=1;b=3;c=2 ;d=1;e=3;f=2 ",
+        "a=1;b=4;c=4 ;d=1;e=4;f=4 ",
+        "a=2;b=1;c=7 ;d=2;e=1;f=7 ",
+        "a=2;b=2;c=8 ;d=2;e=2;f=8 ",
+        "a=2;b=3;c=6 ;d=2;e=3;f=6 ",
+        "a=2;b=4;c=5 ;d=2;e=4;f=5 ",
+        "a=3;b=1;c=9 ;d=3;e=1;f=9 ",
+        "a=3;b=2;c=12;d=3;e=2;f=12",
+        "a=3;b=3;c=11;d=3;e=3;f=11",
+        "a=3;b=4;c=10;d=3;e=4;f=10",
+        "a=4;b=7;c=14;d=4;e=7;f=14",
+        "a=4;b=8;c=13;d=4;e=8;f=13",
+    }, resultSplit);
+
+    {
+        auto query = Evaluate("a, b, c, d, e, f FROM [//left] join [//right] on (a, b) = (d, e)",
+            splits,
+            sources,
+            ResultMatcher(result));
+
+        EXPECT_EQ(query->JoinClauses.size(), 1);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 2);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+    }
+
+    {
+        auto rightSplit = MakeSplit({
+            {"d", EValueType::Int64, ESortOrder::Ascending},
+            {"e", EValueType::Int64},
+            {"f", EValueType::Int64},
+        }, 1);
+        splits["//right"] = rightSplit;
+        sources[1] = {
+            "d=1;e=4;f=4 ",
+            "d=1;e=1;f=3 ",
+            "d=1;e=3;f=2 ",
+            "d=1;e=2;f=1 ",
+            "d=2;e=2;f=8 ",
+            "d=2;e=4;f=5 ",
+            "d=2;e=1;f=7 ",
+            "d=2;e=3;f=6 ",
+            "d=3;e=2;f=12",
+            "d=3;e=3;f=11",
+            "d=3;e=4;f=10",
+            "d=3;e=1;f=9 ",
+            "d=4;e=7;f=14",
+            "d=4;e=8;f=13"
+        };
+
+        auto query = Evaluate("a, b, c, d, e, f FROM [//left] join [//right] on (a, b) = (d, e)",
+            splits,
+            sources,
+            ResultMatcher(result));
+
+        EXPECT_EQ(query->JoinClauses.size(), 1);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+    }
 
     SUCCEED();
 }

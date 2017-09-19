@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "enum.h"
-#include "memory_constants.h"
+#include "size_literals.h"
 
 // Google Protobuf forward declarations.
 namespace google {
@@ -10,6 +10,7 @@ namespace protobuf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class Descriptor;
 class MessageLite;
 class Message;
 
@@ -17,6 +18,13 @@ template <class Element>
 class RepeatedField;
 template <class Element>
 class RepeatedPtrField;
+
+namespace io {
+
+class ZeroCopyInputStream;
+class ZeroCopyOutputStream;
+
+} // namespace io
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,6 +140,7 @@ DEFINE_ENUM(EProcessErrorCode,
 
 DECLARE_REFCOUNTED_CLASS(TMountTmpfsConfig)
 DECLARE_REFCOUNTED_CLASS(TUmountConfig)
+DECLARE_REFCOUNTED_CLASS(TSetThreadPriorityConfig)
 DECLARE_REFCOUNTED_CLASS(TFSQuotaConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

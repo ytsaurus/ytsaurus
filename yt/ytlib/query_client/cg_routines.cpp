@@ -25,7 +25,7 @@
 
 #include <yt/core/misc/farm_hash.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <contrib/libs/re2/re2/re2.h>
 
@@ -205,9 +205,7 @@ void InsertJoinRow(
         startIndex = chainIndex;
     }
 
-    if (closure->ChainedRows.size() >= closure->BatchSize ||
-        2 * (closure->KeysToRows.size() + closure->Lookup.size()) > NTableClient::MaxRowsPerRowset)
-    {
+    if (closure->ChainedRows.size() >= closure->BatchSize) {
         closure->ProcessJoinBatch();
         *keyPtr = closure->Buffer->AllocateUnversioned(closure->KeySize);
     }
@@ -302,29 +300,34 @@ public:
         TExecutionContext* context,
         const std::vector<std::pair<TRow, int>>& keysToRows,
         const std::vector<TChainedRow>& chainedRows,
-        TComparerFunction* fullEqComparer,
-        TComparerFunction* fullLessComparer,
+        TTernaryComparerFunction* fullTernaryComparer,
+        TComparerFunction* foreignPrefixEqComparer,
+        TComparerFunction* foreignSuffixLessComparer,
+        bool isPartiallySorted,
         const ISchemafulReaderPtr& reader,
         bool isLeft)
     {
+        std::vector<TRow> sortedForeignSequence;
+        size_t unsortedOffset = 0;
+        TRow lastForeignKey;
+
+
         std::vector<TRow> foreignRows;
         foreignRows.reserve(RowsetProcessingSize);
 
         // Sort-merge join
         auto currentKey = keysToRows.begin();
         auto lastJoined = keysToRows.end();
-        while (currentKey != keysToRows.end()) {
-            bool hasMoreData = reader->Read(&foreignRows);
-            bool shouldWait = foreignRows.empty();
 
-            auto foreignIt = foreignRows.begin();
-            while (foreignIt != foreignRows.end() && currentKey != keysToRows.end()) {
+        auto processSortedForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
+            while (foreignIt != endForeignIt && currentKey != keysToRows.end()) {
                 int startIndex = currentKey->second;
-                if (fullEqComparer(currentKey->first, *foreignIt)) {
+                int cmpResult = fullTernaryComparer(currentKey->first, *foreignIt);
+                if (cmpResult == 0) {
                     JoinRows(chainedRows, startIndex, *foreignIt);
                     ++foreignIt;
                     lastJoined = currentKey;
-                } else if (fullLessComparer(currentKey->first, *foreignIt)) {
+                } else if (cmpResult < 0) {
                     if (isLeft && lastJoined != currentKey) {
                         JoinRowsNull(chainedRows, startIndex);
                         lastJoined = currentKey;
@@ -334,8 +337,43 @@ public:
                     ++foreignIt;
                 }
             }
-
             ConsumeJoinedRows();
+        };
+
+        auto processForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
+            while (foreignIt != endForeignIt) {
+                if (!lastForeignKey || !foreignPrefixEqComparer(*foreignIt, lastForeignKey)) {
+                    std::sort(
+                        sortedForeignSequence.begin() + unsortedOffset,
+                        sortedForeignSequence.end(),
+                        foreignSuffixLessComparer);
+                    unsortedOffset = sortedForeignSequence.size();
+
+                    if (unsortedOffset >= RowsetProcessingSize) {
+                        processSortedForeignSequence(
+                            sortedForeignSequence.begin(),
+                            sortedForeignSequence.end());
+                        sortedForeignSequence.clear();
+                        unsortedOffset = 0;
+                    }
+                    lastForeignKey = *foreignIt;
+                }
+
+                sortedForeignSequence.push_back(*foreignIt);
+                IntermediateBuffer->Capture(*foreignIt);
+                ++foreignIt;
+            }
+        };
+
+        while (currentKey != keysToRows.end()) {
+            bool hasMoreData = reader->Read(&foreignRows);
+            bool shouldWait = foreignRows.empty();
+
+            if (isPartiallySorted) {
+                processForeignSequence(foreignRows.begin(), foreignRows.end());
+            } else {
+                processSortedForeignSequence(foreignRows.begin(), foreignRows.end());
+            }
 
             foreignRows.clear();
 
@@ -348,6 +386,18 @@ public:
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
+        }
+
+        if (isPartiallySorted) {
+            std::sort(
+                sortedForeignSequence.begin() + unsortedOffset,
+                sortedForeignSequence.end(),
+                foreignSuffixLessComparer);
+            processSortedForeignSequence(
+                sortedForeignSequence.begin(),
+                sortedForeignSequence.end());
+            sortedForeignSequence.clear();
+            unsortedOffset = 0;
         }
 
         if (isLeft) {
@@ -440,9 +490,11 @@ void JoinOpHelper(
     TComparerFunction* lookupEqComparer,
     TComparerFunction* sortLessComparer,
     TComparerFunction* prefixEqComparer,
-    TComparerFunction* fullEqComparer,
-    TComparerFunction* fullLessComparer,
+    TComparerFunction* foreignPrefixEqComparer,
+    TComparerFunction* foreignSuffixLessComparer,
+    TTernaryComparerFunction* fullTernaryComparer,
     THasherFunction* fullHasher,
+    TComparerFunction* fullEqComparer,
     int keySize,
     void** collectRowsClosure,
     void (*collectRows)(
@@ -467,14 +519,6 @@ void JoinOpHelper(
             {
                 return sortLessComparer(lhs.first, rhs.first);
             });
-    };
-
-    auto executeForeign = [&] (std::vector<TRow> keys, ISchemafulWriterPtr writer) {
-        TQueryPtr foreignQuery;
-        TDataRanges dataSource;
-
-        std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(std::move(keys), closure.Buffer);
-        return context->ExecuteCallback(foreignQuery, dataSource, writer);
     };
 
     closure.ProcessJoinBatch = [&] () {
@@ -508,21 +552,9 @@ void JoinOpHelper(
         auto isLeft = parameters->IsLeft;
 
         if (!parameters->IsOrdered) {
-            auto pipe = New<NTableClient::TSchemafulPipe>();
-
-            executeForeign(std::move(keys), pipe->GetWriter())
-                .Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
-                    if (!error.IsOK()) {
-                        pipe->Fail(error);
-                    }
-                }));
+            auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
 
             LOG_DEBUG("Joining started");
-
-            std::vector<TRow> foreignRows;
-            foreignRows.reserve(RowsetProcessingSize);
-
-            auto reader = pipe->GetReader();
 
             if (parameters->IsSortMergeJoin) {
                 // Sort-merge join
@@ -530,8 +562,10 @@ void JoinOpHelper(
                     context,
                     keysToRows,
                     chainedRows,
-                    fullEqComparer,
-                    fullLessComparer,
+                    fullTernaryComparer,
+                    foreignPrefixEqComparer,
+                    foreignSuffixLessComparer,
+                    parameters->IsPartiallySorted,
                     reader,
                     isLeft);
             } else {
@@ -540,34 +574,49 @@ void JoinOpHelper(
         } else {
             NApi::IUnversionedRowsetPtr rowset;
 
-            {
-                ISchemafulWriterPtr writer;
-                TFuture<NApi::IUnversionedRowsetPtr> rowsetFuture;
-                // Any schema, it is not used.
-                std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(TTableSchema());
-                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+            auto foreignRowsBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
 
-                WaitFor(executeForeign(std::move(keys), writer))
-                    .ThrowOnError();
-
-                YCHECK(rowsetFuture.IsSet());
-                rowset = rowsetFuture.Get()
-                    .ValueOrThrow();
-            }
-
-            auto foreignRows = rowset->GetRows();
-
-            LOG_DEBUG("Got %v foreign rows", foreignRows.Size());
+            std::vector<TRow> foreignRows;
+            foreignRows.reserve(RowsetProcessingSize);
 
             TJoinLookupRows foreignLookup(
                 InitialGroupOpHashtableCapacity,
                 fullHasher,
                 fullEqComparer);
 
-            for (auto row : foreignRows) {
-                foreignLookup.insert(row);
+            {
+                auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
+
+                std::vector<TRow> rows;
+                rows.reserve(RowsetProcessingSize);
+
+                while (true) {
+                    bool hasMoreData;
+                    {
+                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->ReadTime);
+                        hasMoreData = reader->Read(&rows);
+                    }
+
+                    bool shouldWait = foreignRows.empty();
+
+                    for (auto row : rows) {
+                        foreignLookup.insert(foreignRowsBuffer->Capture(row));
+                    }
+                    rows.clear();
+
+                    if (!hasMoreData) {
+                        break;
+                    }
+
+                    if (shouldWait) {
+                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                    }
+                }
             }
 
+            LOG_DEBUG("Got %v foreign rows", foreignLookup.size());
             LOG_DEBUG("Joining started");
 
             for (const auto& item : chainedRows) {
@@ -753,12 +802,22 @@ char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char IsRowInArray(
-    TComparerFunction* comparer,
-    TRow row,
-    TSharedRange<TRow>* rows)
+char IsRowInArray(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* rows)
 {
     return std::binary_search(rows->Begin(), rows->End(), row, comparer);
+}
+
+// LLVM calling convention for aggregate types is incompatible with C++
+static const TValue NullValue = MakeUnversionedSentinelValue(EValueType::Null);
+const TValue* TransformTuple(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* rows)
+{
+    auto found = std::lower_bound(rows->Begin(), rows->End(), row, comparer);
+
+    if (found != rows->End() && !comparer(row, *found)) {
+        return &(*found)[row.GetCount()];
+    }
+
+    return &NullValue;
 }
 
 size_t StringHash(
@@ -1259,6 +1318,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(IsRowInArray);
+    REGISTER_ROUTINE(TransformTuple);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);
     REGISTER_ROUTINE(AddRow);

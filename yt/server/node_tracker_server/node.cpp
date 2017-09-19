@@ -120,6 +120,31 @@ void TNode::ComputeDefaultAddress()
     DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(GetAddressesOrThrow(EAddressType::InternalRpc));
 }
 
+void TNode::SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statistics)
+{
+    Statistics_.Swap(&statistics);
+    ComputeFillFactors();
+}
+
+void TNode::ComputeFillFactors()
+{
+    TPerMediumArray<i64> freeSpace;
+    TPerMediumArray<i64> usedSpace;
+
+    for (const auto& location : Statistics_.locations()) {
+        auto mediumIndex = location.medium_index();
+        freeSpace[mediumIndex] += (location.available_space() - location.low_watermark_space());
+        usedSpace[mediumIndex] += location.used_space();
+    }
+
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        i64 totalSpace = freeSpace[mediumIndex] + usedSpace[mediumIndex];
+        FillFactors_[mediumIndex] = (totalSpace == 0)
+            ? Null
+            : MakeNullable(usedSpace[mediumIndex] / std::max<double>(1.0, totalSpace));
+    }
+}
+
 TNodeId TNode::GetId() const
 {
     return NodeIdFromObjectId(Id_);
@@ -610,23 +635,7 @@ bool TNode::HasMedium(int mediumIndex) const
 
 TNullable<double> TNode::GetFillFactor(int mediumIndex) const
 {
-    i64 freeSpace = 0;
-    i64 usedSpace = 0;
-
-    for (const auto& location : Statistics_.locations()) {
-        if (location.medium_index() == mediumIndex) {
-            freeSpace += location.available_space() - location.low_watermark_space();
-            usedSpace += location.used_space();
-        }
-    }
-
-    i64 totalSpace = freeSpace + usedSpace;
-    if (totalSpace == 0) {
-        // No storage of this medium on this node.
-        return Null;
-    } else {
-        return usedSpace / std::max<double>(1.0, totalSpace);
-    }
+    return FillFactors_[mediumIndex];
 }
 
 TNullable<double> TNode::GetLoadFactor(int mediumIndex) const

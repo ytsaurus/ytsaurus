@@ -97,9 +97,10 @@ void Serialize(TInputStream& input, NYson::IYsonConsumer* consumer);
 
 // Enums
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type Serialize(
+void Serialize(
     T value,
-    NYson::IYsonConsumer* consumer);
+    NYson::IYsonConsumer* consumer,
+    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
 
 // TNullable
 template <class T>
@@ -133,6 +134,13 @@ void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer);
 // TEnumIndexedVector
 template <class T, class E, E Min, E Max>
 void Serialize(const TEnumIndexedVector<T, E, Min, Max>& value, NYson::IYsonConsumer* consumer);
+
+// Subtypes of google::protobuf::Message
+template <class T>
+void Serialize(
+    const T& message,
+    NYson::IYsonConsumer* consumer,
+    typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type* = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,9 +185,10 @@ void Deserialize(TGuid& value, INodePtr node);
 
 // Enums
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type Deserialize(
+void Deserialize(
     T& value,
-    INodePtr node);
+    INodePtr node,
+    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
 
 // TNullable
 template <class T>
@@ -209,6 +218,13 @@ void Deserialize(std::tuple<T...>& value, INodePtr node);
 // For any associative container.
 template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
 void Deserialize(C<T...>& value, INodePtr node);
+
+// Subtypes of google::protobuf::Message
+template <class T>
+void Deserialize(
+    T& message,
+    const INodePtr& node,
+    typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type* = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

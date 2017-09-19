@@ -1418,6 +1418,8 @@ public:
             tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
             tablet->SetInMemoryMode(inMemoryMode);
 
+            cell->TotalStatistics() += GetTabletStatistics(tablet);
+
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
             if (mountTimestamp != NullTimestamp) {
@@ -2397,6 +2399,7 @@ private:
 
     bool UpdateChunkListsKind_ = false;
     bool RecomputeTabletCountByState_ = false;
+    bool RecomputeTabletCellStatistics_ = false;
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
@@ -2461,6 +2464,8 @@ private:
         UpdateChunkListsKind_ = (context.GetVersion() < 600);
         // COMPAT(savrus)
         RecomputeTabletCountByState_ = (context.GetVersion() <= 608);
+        // COMPAT(savrus)
+        RecomputeTabletCellStatistics_ = (context.GetVersion() <= 619);
     }
 
 
@@ -2550,7 +2555,7 @@ private:
             }
         }
 
-        //COMPAT(savrus)
+        // COMPAT(savrus)
         if (RecomputeTabletCountByState_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             for (const auto& pair : cypressManager->Nodes()) {
@@ -2567,6 +2572,17 @@ private:
                             ++table->MutableTabletCountByState()[tablet->GetState()];
                         }
                     }
+                }
+            }
+        }
+
+        // COMPAT(savrus)
+        if (RecomputeTabletCellStatistics_) {
+            for (const auto& pair : TabletCellMap_) {
+                auto* cell = pair.second;
+                cell->TotalStatistics() = TTabletCellStatistics();
+                for (const auto& tablet : cell->Tablets()) {
+                    cell->TotalStatistics() += GetTabletStatistics(tablet);
                 }
             }
         }
@@ -3036,8 +3052,6 @@ private:
             cell->GetId(),
             frozen);
 
-        cell->TotalStatistics() += GetTabletStatistics(tablet);
-
         tablet->SetState(frozen ? ETabletState::Frozen : ETabletState::Mounted);
 
         OnTabletActionStateChanged(tablet->GetAction());
@@ -3392,7 +3406,7 @@ private:
 
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid mount revision on tablet stores update commit; ignored "
+            LOG_DEBUG_UNLESS(IsRecovery(), "Invalid mount revision on tablet stores update commit; ignored "
                 "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
                 tabletId,
                 transaction->GetId(),
@@ -3402,7 +3416,7 @@ private:
         }
 
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: tablet stores update commit for an improperly unprepared tablet; ignored "
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
                 "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
                 tabletId,
                 transaction->GetId(),

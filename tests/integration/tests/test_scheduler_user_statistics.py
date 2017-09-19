@@ -1,7 +1,7 @@
 import pytest
 import os
 
-from yt_env_setup import YTEnvSetup, porto_env_only, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, patch_porto_env_only, require_ytserver_root_privileges
 from yt_commands import *
 
 ##################################################################
@@ -158,7 +158,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         count = get_statistics(statistics["job_statistics"], counter_name)
         assert count == 2
 
-@porto_env_only
-class TestSchedulerUserStatisticsPorto(TestSchedulerUserStatistics):
+@patch_porto_env_only(TestSchedulerUserStatistics)
+class TestSchedulerUserStatisticsPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True

@@ -15,7 +15,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NCypressServer {

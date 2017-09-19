@@ -11,6 +11,10 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const TString IntermediatePath;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(TSnapshotJob)
 
 DECLARE_REFCOUNTED_CLASS(TSnapshotBuilder)
@@ -32,6 +36,8 @@ DECLARE_REFCOUNTED_STRUCT(TCompletedJob)
 DECLARE_REFCOUNTED_CLASS(TTask)
 DECLARE_REFCOUNTED_STRUCT(TTaskGroup)
 
+DECLARE_REFCOUNTED_CLASS(TAutoMergeTask);
+
 DECLARE_REFCOUNTED_STRUCT(ITaskHost)
 
 struct IJobSplitter;
@@ -39,6 +45,8 @@ struct IJobSplitter;
 struct TLivePreviewTableBase;
 struct TInputTable;
 struct TOutputTable;
+
+class TAutoMergeDirector;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +59,8 @@ extern const TDuration PrepareYieldPeriod;
 
 extern const NLogging::TLogger OperationLogger;
 extern const NLogging::TLogger MasterConnectorLogger;
+extern const NLogging::TLogger ControllerAgentLogger;
+
 extern const NProfiling::TProfiler ControllerAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, porto_env_only, wait
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
 from yt_commands import *
 
 from yt.yson import *
@@ -155,8 +155,8 @@ class TestEventLog(YTEnvSetup):
 
 ##################################################################
 
-@porto_env_only
-class TestEventLogPorto(TestEventLog):
+@patch_porto_env_only(TestEventLog)
+class TestEventLogPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -411,8 +411,8 @@ class TestJobStderrMulticell(TestJobStderr):
 
 ##################################################################
 
-@porto_env_only
-class TestJobStderrPorto(TestJobStderr):
+@patch_porto_env_only(TestJobStderr)
+class TestJobStderrPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -621,8 +621,8 @@ class TestUserFilesMulticell(TestUserFiles):
 
 ##################################################################
 
-@porto_env_only
-class TestUserFilesPorto(TestUserFiles):
+@patch_porto_env_only(TestUserFiles)
+class TestUserFilesPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -1089,8 +1089,8 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
 
 ##################################################################
 
-@porto_env_only
-class TestSchedulerCommonPorto(TestSchedulerCommon):
+@patch_porto_env_only(TestSchedulerCommon)
+class TestSchedulerCommonPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -1947,7 +1947,9 @@ class TestSafeAssertionsMode(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
+        # Note that exception in on job completed is not a failed assertion, so it doesn't affect this counter.
+        # TODO(max42): uncomment this when metrics are exported properly (after Ignat's scheduler resharding).
+        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
 
         op = map(
             dont_track=True,
@@ -1958,8 +1960,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        # Note that exception in on job completed is not a failed assertion, so it doesn't affect this counter.
-        assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
+        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
 
         op = map(
             dont_track=True,
@@ -1970,7 +1971,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 2
+        # assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 2
 
 ##################################################################
 
@@ -2007,7 +2008,7 @@ class TestMaxTotalSliceCount(YTEnvSetup):
 
 ##################################################################
 
-class TestNewPoolMetrics(YTEnvSetup):
+class TestPoolMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2115,7 +2116,7 @@ class TestNewPoolMetrics(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
         op = map(
-            command='cat; if [ "$YT_JOB_INDEX" = "0" ]; then sleep 1; else sleep 100500; fi',
+            command='cat; if [ "$YT_JOB_INDEX" = "0" ]; then sleep 2; else sleep 100500; fi',
             in_="//tmp/t_input",
             out="//tmp/t_output",
             dont_track=True,
@@ -2124,13 +2125,10 @@ class TestNewPoolMetrics(YTEnvSetup):
 
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
 
-        def running_jobs_exists():
-            return exists(orchid_path) and len(ls(orchid_path)) == 2
-
-        wait(running_jobs_exists)
-
-        # Give jobs some time to run.
-        time.sleep(3.0)
+        # Wait until both jobs started.
+        wait(lambda: exists(orchid_path) and len(ls(orchid_path)) == 2)
+        # Wait until short job is completed.
+        wait(lambda: len(ls(orchid_path)) == 1)
 
         running_jobs = ls(orchid_path)
         assert len(running_jobs) == 1

@@ -11,7 +11,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -184,149 +184,60 @@ TWriteOpClosure::TWriteOpClosure()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJoinParameters GetJoinEvaluator(
-    const TJoinClause& joinClause,
-    const TTableSchema& selfTableSchema,
-    size_t batchSize,
-    bool isOrdered)
+std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
+    TQueryPtr subquery,
+    TConstJoinClausePtr joinClause,
+    std::vector<TRow> keys,
+    TRowBufferPtr permanentBuffer)
 {
-    const auto& foreignEquations = joinClause.ForeignEquations;
-    auto canUseSourceRanges = joinClause.CanUseSourceRanges;
-    auto commonKeyPrefix = joinClause.CommonKeyPrefix;
+    auto foreignKeyPrefix = joinClause->ForeignKeyPrefix;
+    const auto& foreignEquations = joinClause->ForeignEquations;
 
-    // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
-    auto subquery = New<TQuery>();
+    TDataRanges dataSource;
+    dataSource.Id = joinClause->ForeignDataId;
 
-    subquery->OriginalSchema = joinClause.OriginalSchema;
-    subquery->SchemaMapping = joinClause.SchemaMapping;
-
-    // (join key... , other columns...)
-    auto projectClause = New<TProjectClause>();
-    std::vector<TConstExpressionPtr> joinKeyExprs;
-
-    for (const auto& column : foreignEquations) {
-        projectClause->AddProjection(column, InferName(column));
-        joinKeyExprs.push_back(column);
-    }
-
-    subquery->ProjectClause = projectClause;
-
-    auto selfColumnNames = joinClause.SelfJoinedColumns;
-    std::sort(selfColumnNames.begin(), selfColumnNames.end());
-
-    const auto& selfTableColumns = selfTableSchema.Columns();
-
-    std::vector<size_t> selfColumns;
-    for (size_t index = 0; index < selfTableColumns.size(); ++index) {
-        if (std::binary_search(
-            selfColumnNames.begin(),
-            selfColumnNames.end(),
-            selfTableColumns[index].Name))
-        {
-            selfColumns.push_back(index);
-        }
-    }
-
-    auto joinRenamedTableColumns = joinClause.GetRenamedSchema().Columns();
-
-    auto foreignColumnNames = joinClause.ForeignJoinedColumns;
-    std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
-
-    std::vector<size_t> foreignColumns;
-    for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
-        if (std::binary_search(
-            foreignColumnNames.begin(),
-            foreignColumnNames.end(),
-            joinRenamedTableColumns[index].Name))
-        {
-            foreignColumns.push_back(projectClause->Projections.size());
-
-            projectClause->AddProjection(
-                New<TReferenceExpression>(
-                    joinRenamedTableColumns[index].Type,
-                    joinRenamedTableColumns[index].Name),
-                joinRenamedTableColumns[index].Name);
-        }
-    };
-
-    auto getForeignQuery = [
-        subquery,
-        canUseSourceRanges,
-        commonKeyPrefix,
-        foreignKeyPrefix = joinClause.ForeignKeyPrefix,
-        joinKeyExprs,
-        foreignDataId = joinClause.ForeignDataId,
-        foreignPredicate = joinClause.Predicate
-    ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer)
-    {
-        // TODO: keys should be joined with allRows: [(key, sourceRow)]
-
-        TDataRanges dataSource;
-        dataSource.Id = foreignDataId;
-
-        if (canUseSourceRanges) {
+    if (foreignKeyPrefix > 0) {
+        if (foreignKeyPrefix == foreignEquations.size()) {
             LOG_DEBUG("Using join via source ranges");
-
             dataSource.Keys = MakeSharedRange(std::move(keys), std::move(permanentBuffer));
-            for (const auto& item : joinKeyExprs) {
-                dataSource.Schema.push_back(item->Type);
-            }
-
-            subquery->WhereClause = foreignPredicate;
-            subquery->InferRanges = false;
-
-            if (commonKeyPrefix > 0) {
-                // Use ordered read without modification of protocol
-                subquery->Limit = std::numeric_limits<i64>::max() - 1;
-            }
-        } else if (foreignKeyPrefix > 0) {
+        } else {
             LOG_DEBUG("Using join via prefix ranges");
-
             std::vector<TRow> prefixKeys;
-
             for (auto key : keys) {
                 prefixKeys.push_back(permanentBuffer->Capture(key.Begin(), foreignKeyPrefix, false));
             }
-
             prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
-
             dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(permanentBuffer));
-            for (size_t index = 0; index < foreignKeyPrefix; ++index) {
-                dataSource.Schema.push_back(joinKeyExprs[index]->Type);
-            }
-            subquery->WhereClause = foreignPredicate;
-            subquery->InferRanges = false;
-        } else {
-            TRowRanges ranges;
-
-            LOG_DEBUG("Using join via IN clause");
-            ranges.emplace_back(
-                permanentBuffer->Capture(NTableClient::MinKey().Get()),
-                permanentBuffer->Capture(NTableClient::MaxKey().Get()));
-
-            auto inClause = New<TInOpExpression>(joinKeyExprs, MakeSharedRange(std::move(keys), permanentBuffer));
-
-            dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
-
-            subquery->WhereClause = foreignPredicate
-                ? MakeAndExpression(inClause, foreignPredicate)
-                : inClause;
         }
 
-        LOG_DEBUG("Executing subquery");
+        for (size_t index = 0; index < foreignKeyPrefix; ++index) {
+            dataSource.Schema.push_back(foreignEquations[index]->Type);
+        }
 
-        return std::make_pair(subquery, dataSource);
-    };
+        subquery->InferRanges = false;
 
-    return TJoinParameters{
-        isOrdered,
-        joinClause.IsLeft,
-        selfColumns,
-        foreignColumns,
-        canUseSourceRanges && commonKeyPrefix > 0,
-        joinClause.CommonKeyPrefix,
-        getForeignQuery,
-        batchSize};
+        if (joinClause->CommonKeyPrefix > 0) {
+            // COMPAT(lukyan): Use ordered read without modification of protocol
+            subquery->Limit = std::numeric_limits<i64>::max() - 1;
+        }
+    } else {
+        TRowRanges ranges;
+
+        LOG_DEBUG("Using join via IN clause");
+        ranges.emplace_back(
+            permanentBuffer->Capture(NTableClient::MinKey().Get()),
+            permanentBuffer->Capture(NTableClient::MaxKey().Get()));
+
+        auto inClause = New<TInExpression>(foreignEquations, MakeSharedRange(std::move(keys), permanentBuffer));
+
+        dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
+
+        subquery->WhereClause = subquery->WhereClause
+            ? MakeAndExpression(inClause, subquery->WhereClause)
+            : inClause;
+    }
+
+    return std::make_pair(subquery, dataSource);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

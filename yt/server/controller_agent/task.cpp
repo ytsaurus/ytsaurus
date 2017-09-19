@@ -50,10 +50,10 @@ TTask::TTask()
     , CompletedFired_(false)
 { }
 
-TTask::TTask(ITaskHostPtr taskHost, std::vector<IChunkPoolInput*> destinationPoolInputs)
+TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors)
     : Logger(OperationLogger)
     , TaskHost_(taskHost.Get())
-    , DestinationPoolInputs_(std::move(destinationPoolInputs))
+    , EdgeDescriptors_(std::move(edgeDescriptors))
     , CachedPendingJobCount_(0)
     , CachedTotalJobCount_(0)
     , DemandSanityCheckDeadline_(0)
@@ -61,13 +61,15 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<IChunkPoolInput*> destinationPoo
 { }
 
 TTask::TTask(ITaskHostPtr taskHost)
-    : TTask(taskHost, taskHost->GetSinks())
+    : TTask(taskHost, taskHost->GetStandardEdgeDescriptors())
 { }
 
 void TTask::Initialize()
 {
     Logger.AddTag("OperationId: %v", TaskHost_->GetOperationId());
     Logger.AddTag("Task: %v", GetId());
+
+    SetupCallbacks();
 }
 
 int TTask::GetPendingJobCount() const
@@ -198,6 +200,11 @@ ITaskHost* TTask::GetTaskHost()
     return TaskHost_;
 }
 
+bool TTask::ValidateChunkCount(int /* chunkCount */)
+{
+    return true;
+}
+
 void TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
@@ -208,7 +215,6 @@ void TTask::ScheduleJob(
         return;
     }
 
-    bool intermediateOutput = IsIntermediateOutput();
     int jobIndex = TaskHost_->NextJobIndex();
     auto joblet = New<TJoblet>(TaskHost_->CreateJobMetricsUpdater(), this, jobIndex);
 
@@ -226,6 +232,13 @@ void TTask::ScheduleJob(
     }
 
     int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
+
+    if (!ValidateChunkCount(sliceCount)) {
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::IntermediateChunkLimitExceeded);
+        chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::IntermediateChunkLimitExceeded);
+        return;
+    }
+
     const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
     if (sliceCount > TaskHost_->SchedulerConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
@@ -259,49 +272,18 @@ void TTask::ScheduleJob(
         return;
     }
 
-    // Async part.
-    // NB: it is important to capture task host (Controller), by strong reference,
-    // since it can be dead otherwise.
-    auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this), taskHost = MakeStrong(TaskHost_)] (TJobSpec* jobSpec) {
-        BuildJobSpec(joblet, jobSpec);
-        jobSpec->set_version(GetJobSpecVersion());
-        TaskHost_->CustomizeJobSpec(joblet, jobSpec);
-
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (TaskHost_->Spec()->JobProxyMemoryOvercommitLimit) {
-            schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->Spec()->JobProxyMemoryOvercommitLimit);
-        }
-        schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->Spec()->JobProxyRefCountedTrackerLogPeriod));
-        schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->Spec()->SuspendOperationIfAccountLimitExceeded);
-
-        // Adjust sizes if approximation flag is set.
-        if (joblet->InputStripeList->IsApproximate) {
-            schedulerJobSpecExt->set_input_data_weight(static_cast<i64>(
-                schedulerJobSpecExt->input_data_weight() *
-                ApproximateSizesBoostFactor));
-            schedulerJobSpecExt->set_input_row_count(static_cast<i64>(
-                schedulerJobSpecExt->input_row_count() *
-                ApproximateSizesBoostFactor));
-        }
-
-        if (schedulerJobSpecExt->input_data_weight() > TaskHost_->Spec()->MaxDataWeightPerJob) {
-            TaskHost_->OnOperationFailed(TError(
-                "Maximum allowed data weight per job violated: %v > %v",
-                schedulerJobSpecExt->input_data_weight(),
-                TaskHost_->Spec()->MaxDataWeightPerJob));
-        }
-    });
-
     auto jobType = GetJobType();
     joblet->JobId = context->GenerateJobId();
     auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
     joblet->Account = TaskHost_->Spec()->JobNodeAccount;
+    joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
+        .AsyncVia(TaskHost_->GetCancelableInvoker())
+        .Run();
     scheduleJobResult->JobStartRequest.Emplace(
         joblet->JobId,
         jobType,
         neededResources,
-        TaskHost_->IsJobInterruptible(),
-        jobSpecBuilder);
+        TaskHost_->IsJobInterruptible());
 
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
@@ -336,13 +318,8 @@ void TTask::ScheduleJob(
         joblet->UserJobMemoryReserveFactor,
         FormatResources(neededResources));
 
-    // Prepare chunk lists.
-    if (intermediateOutput) {
-        joblet->ChunkListIds.push_back(TaskHost_->ExtractChunkList(TaskHost_->GetIntermediateOutputCellTag()));
-    } else {
-        for (const auto& table : TaskHost_->OutputTables()) {
-            joblet->ChunkListIds.push_back(TaskHost_->ExtractChunkList(table.CellTag));
-        }
+    for (const auto& edgeDescriptor : EdgeDescriptors_) {
+        joblet->ChunkListIds.push_back(TaskHost_->ExtractChunkList(edgeDescriptor.CellTag));
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {
@@ -365,11 +342,6 @@ void TTask::ScheduleJob(
     if (TaskHost_->JobSplitter()) {
         TaskHost_->JobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList);
     }
-}
-
-bool TTask::IsPending() const
-{
-    return GetChunkPoolOutput()->GetPendingJobCount() > 0;
 }
 
 bool TTask::IsCompleted() const
@@ -423,7 +395,7 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, LostJobCookieMap);
 
-    Persist(context, DestinationPoolInputs_);
+    Persist(context, EdgeDescriptors_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -432,7 +404,7 @@ void TTask::PrepareJoblet(TJobletPtr /* joblet */)
 void TTask::OnJobStarted(TJobletPtr joblet)
 { }
 
-void TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
+void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
     YCHECK(jobSummary.Statistics);
     const auto& statistics = *jobSummary.Statistics;
@@ -444,6 +416,10 @@ void TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSum
             auto outputStatistics = outputStatisticsMap[index];
             if (outputStatistics.chunk_count() == 0) {
                 TaskHost_->ChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                joblet->ChunkListIds[index] = NullChunkListId;
+            }
+            if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
+                this->TaskHost_->UnstageChunkTreesNonRecursively({joblet->ChunkListIds[index]});
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
         }
@@ -661,48 +637,25 @@ void TTask::UpdateInputSpecTotals(
         list->TotalRowCount);
 }
 
-void TTask::AddFinalOutputSpecs(
+void TTask::AddOutputTableSpecs(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    YCHECK(joblet->ChunkListIds.size() == TaskHost_->OutputTables().size());
+    YCHECK(joblet->ChunkListIds.size() == EdgeDescriptors_.size());
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    for (int index = 0; index < TaskHost_->OutputTables().size(); ++index) {
-        const auto& table = TaskHost_->OutputTables()[index];
+    for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
+        const auto& edgeDescriptor = EdgeDescriptors_[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
-        outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).GetData());
-        if (table.WriterConfig) {
-            outputSpec->set_table_writer_config(table.WriterConfig.GetData());
+        outputSpec->set_table_writer_options(ConvertToYsonString(edgeDescriptor.TableWriterOptions).GetData());
+        if (edgeDescriptor.TableWriterConfig) {
+            outputSpec->set_table_writer_config(edgeDescriptor.TableWriterConfig.GetData());
         }
-        outputSpec->set_timestamp(table.Timestamp);
-        ToProto(outputSpec->mutable_table_schema(), table.TableUploadOptions.TableSchema);
+        ToProto(outputSpec->mutable_table_schema(), edgeDescriptor.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
+        if (edgeDescriptor.Timestamp) {
+            outputSpec->set_timestamp(*edgeDescriptor.Timestamp);
+        }
     }
-}
-
-void TTask::AddIntermediateOutputSpec(
-    TJobSpec* jobSpec,
-    TJobletPtr joblet,
-    const TKeyColumns& keyColumns)
-{
-    YCHECK(joblet->ChunkListIds.size() == 1);
-    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
-
-    auto options = New<NTableClient::TTableWriterOptions>();
-    options->Account = TaskHost_->Spec()->IntermediateDataAccount;
-    options->ChunksVital = false;
-    options->ChunksMovable = false;
-    options->ReplicationFactor = TaskHost_->Spec()->IntermediateDataReplicationFactor;
-    options->MediumName = TaskHost_->Spec()->IntermediateDataMediumName;
-    options->CompressionCodec = TaskHost_->Spec()->IntermediateCompressionCodec;
-    // Distribute intermediate chunks uniformly across storage locations.
-    options->PlacementId = TaskHost_->GetOperationId();
-
-    outputSpec->set_table_writer_options(ConvertToYsonString(options).GetData());
-
-    ToProto(outputSpec->mutable_table_schema(), TTableSchema::FromKeyColumns(keyColumns));
-    ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }
 
 void TTask::ResetCachedMinNeededResources()
@@ -729,7 +682,8 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     return result;
 }
 
-void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics) {
+void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics)
+{
     auto maxUsedTmpfsSize = FindNumericValue(
         statistics,
         "/user_job/max_tmpfs_size");
@@ -743,6 +697,41 @@ void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& sta
     }
 }
 
+TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
+{
+    NJobTrackerClient::NProto::TJobSpec jobSpec;
+
+    BuildJobSpec(joblet, &jobSpec);
+    jobSpec.set_version(GetJobSpecVersion());
+    TaskHost_->CustomizeJobSpec(joblet, &jobSpec);
+
+    auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    if (TaskHost_->Spec()->JobProxyMemoryOvercommitLimit) {
+        schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->Spec()->JobProxyMemoryOvercommitLimit);
+    }
+    schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->Spec()->JobProxyRefCountedTrackerLogPeriod));
+    schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->Spec()->SuspendOperationIfAccountLimitExceeded);
+
+    // Adjust sizes if approximation flag is set.
+    if (joblet->InputStripeList->IsApproximate) {
+        schedulerJobSpecExt->set_input_data_weight(static_cast<i64>(
+            schedulerJobSpecExt->input_data_weight() *
+            ApproximateSizesBoostFactor));
+        schedulerJobSpecExt->set_input_row_count(static_cast<i64>(
+            schedulerJobSpecExt->input_row_count() *
+            ApproximateSizesBoostFactor));
+    }
+
+    if (schedulerJobSpecExt->input_data_weight() > TaskHost_->Spec()->MaxDataWeightPerJob) {
+        TaskHost_->OnOperationFailed(TError(
+            "Maximum allowed data weight per job violated: %v > %v",
+            schedulerJobSpecExt->input_data_weight(),
+            TaskHost_->Spec()->MaxDataWeightPerJob));
+    }
+
+    return SerializeToProtoWithEnvelope(jobSpec, TaskHost_->SchedulerConfig()->JobSpecCodec);
+}
+
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
 {
     jobResources.SetFootprintMemory(GetFootprintMemorySize());
@@ -753,15 +742,20 @@ void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources)
 }
 
 void TTask::RegisterOutput(
-    const NJobTrackerClient::NProto::TJobResult& jobResult,
+    NJobTrackerClient::NProto::TJobResult* jobResult,
     const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+    TJobletPtr joblet,
     const NChunkPools::TChunkStripeKey& key)
 {
-    const auto& schedulerJobResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    auto outputStripes = BuildOutputChunkStripes(chunkListIds, schedulerJobResultExt.output_boundary_keys());
-    for (int tableIndex = 0; tableIndex < TaskHost_->OutputTables().size(); ++tableIndex) {
+    auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    auto outputStripes = BuildOutputChunkStripes(schedulerJobResultExt, chunkListIds, schedulerJobResultExt->output_boundary_keys());
+    for (int tableIndex = 0; tableIndex < EdgeDescriptors_.size(); ++tableIndex) {
         if (outputStripes[tableIndex]) {
-            DestinationPoolInputs_[tableIndex]->Add(std::move(outputStripes[tableIndex]), key);
+            RegisterStripe(
+                std::move(outputStripes[tableIndex]),
+                EdgeDescriptors_[tableIndex],
+                joblet,
+                key);
         }
     }
 }
@@ -779,46 +773,56 @@ TJobResources TTask::GetMinNeededResources() const
     return result;
 }
 
-void TTask::RegisterIntermediate(
+void TTask::RegisterStripe(
     TChunkStripePtr stripe,
-    IChunkPoolInput* destinationPool,
-    TJobletPtr joblet)
+    const TEdgeDescriptor& edgeDescriptor,
+    TJobletPtr joblet,
+    TChunkStripeKey key)
 {
-    YCHECK(!stripe->ChunkListId);
-    if (stripe->DataSlices.empty()) {
+    if (stripe->DataSlices.empty() && !stripe->ChunkListId) {
         return;
     }
 
-    IChunkPoolInput::TCookie inputCookie;
+    auto* destinationPool = edgeDescriptor.DestinationPool;
+    if (edgeDescriptor.RequiresRecoveryInfo) {
+        YCHECK(joblet);
 
-    auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
-    if (lostIt == LostJobCookieMap.end()) {
-        inputCookie = destinationPool->Add(stripe);
+        IChunkPoolInput::TCookie inputCookie;
+        auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
+        if (lostIt == LostJobCookieMap.end()) {
+            inputCookie = destinationPool->Add(stripe, key);
+        } else {
+            inputCookie = lostIt->second;
+            destinationPool->Resume(inputCookie, stripe);
+            LostJobCookieMap.erase(lostIt);
+        }
+
+        // Store recovery info.
+        auto completedJob = New<TCompletedJob>(
+            joblet->JobId,
+            this,
+            joblet->OutputCookie,
+            joblet->InputStripeList->TotalDataWeight,
+            destinationPool,
+            inputCookie,
+            joblet->NodeDescriptor);
+
+        TaskHost_->RegisterRecoveryInfo(
+            completedJob,
+            stripe);
     } else {
-        inputCookie = lostIt->second;
-        destinationPool->Resume(inputCookie, stripe);
-        LostJobCookieMap.erase(lostIt);
+        destinationPool->Add(stripe, key);
     }
-
-    // Store recovery info.
-    auto completedJob = New<TCompletedJob>(
-        joblet->JobId,
-        this,
-        joblet->OutputCookie,
-        joblet->InputStripeList->TotalDataWeight,
-        destinationPool,
-        inputCookie,
-        joblet->NodeDescriptor);
-
-    TaskHost_->RegisterRecoveryInfo(
-        completedJob,
-        stripe);
 }
 
-TChunkStripePtr TTask::BuildIntermediateChunkStripe(
-    google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
+std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
+    google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs,
+    int tableCount)
 {
-    auto stripe = New<TChunkStripe>();
+    std::vector<TChunkStripePtr> stripes(tableCount);
+    for (int index = 0; index < tableCount; ++index) {
+        stripes[index] = New<TChunkStripe>();
+    }
 
     i64 currentTableRowIndex = 0;
     for (int index = 0; index < chunkSpecs->size(); ++index) {
@@ -834,36 +838,47 @@ TChunkStripePtr TTask::BuildIntermediateChunkStripe(
         // (i.e. it may be reproduced with exactly the same content divided into chunks with exactly
         // the same boundary keys when the job output is lost).
         dataSlice->Tag = index;
-        stripe->DataSlices.emplace_back(std::move(dataSlice));
-    }
-    return stripe;
-}
-
-std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
-    const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
-    google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeysPerTable)
-{
-    std::vector<TChunkStripePtr> stripes(chunkTreeIds.size());
-    for (int tableIndex = 0; tableIndex < chunkTreeIds.size(); ++tableIndex) {
-        if (!chunkTreeIds[tableIndex]) {
-            continue;
-        }
-
-        TBoundaryKeys boundaryKeys;
-        if (tableIndex < boundaryKeysPerTable.size() &&
-            !boundaryKeysPerTable.Get(tableIndex).empty() &&
-            boundaryKeysPerTable.Get(tableIndex).sorted())
-        {
-            boundaryKeys = BuildBoundaryKeysFromOutputResult(
-                boundaryKeysPerTable.Get(tableIndex),
-                TaskHost_->OutputTables()[tableIndex],
-                TaskHost_->GetRowBuffer());
-        }
-        stripes[tableIndex] = New<TChunkStripe>(chunkTreeIds[tableIndex], boundaryKeys);
+        int tableIndex = inputChunk->GetTableIndex();
+        YCHECK(tableIndex >= 0);
+        YCHECK(tableIndex < tableCount);
+        stripes[tableIndex]->DataSlices.emplace_back(std::move(dataSlice));
     }
     return stripes;
 }
 
+TChunkStripePtr TTask::BuildIntermediateChunkStripe(
+    google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
+{
+    auto stripes = BuildChunkStripes(chunkSpecs, 1 /* tableCount */);
+    return std::move(stripes[0]);
+}
+
+std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
+    NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt,
+    const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
+    google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeysPerTable)
+{
+    auto stripes = BuildChunkStripes(schedulerJobResultExt->mutable_output_chunk_specs(), chunkTreeIds.size());
+    for (int tableIndex = 0; tableIndex < chunkTreeIds.size(); ++tableIndex) {
+        if (!chunkTreeIds[tableIndex]) {
+            continue;
+        }
+        stripes[tableIndex]->ChunkListId = chunkTreeIds[tableIndex];
+        if (tableIndex < boundaryKeysPerTable.size() &&
+            !boundaryKeysPerTable.Get(tableIndex).empty() &&
+            boundaryKeysPerTable.Get(tableIndex).sorted())
+        {
+            stripes[tableIndex]->BoundaryKeys = BuildBoundaryKeysFromOutputResult(
+                boundaryKeysPerTable.Get(tableIndex),
+                EdgeDescriptors_[tableIndex],
+                TaskHost_->GetRowBuffer());
+        }
+    }
+    return stripes;
+}
+
+void TTask::SetupCallbacks()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
