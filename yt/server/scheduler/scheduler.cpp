@@ -1932,7 +1932,8 @@ private:
         // Second, register jobs on the corresponding node shards.
         std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());
         for (auto& job : jobs) {
-            jobsByShardId[NodeIdFromJobId(job->GetId())].emplace_back(std::move(job));
+            auto shardId = GetNodeShardId(NodeIdFromJobId(job->GetId()));
+            jobsByShardId[shardId].emplace_back(std::move(job));
         }
         std::vector<TFuture<void>> registrationFutures;
         for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
