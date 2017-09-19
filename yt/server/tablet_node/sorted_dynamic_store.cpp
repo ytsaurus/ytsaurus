@@ -999,6 +999,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 {
     Y_ASSERT(FlushRevision_ != MaxRevision);
 
+    auto* timestampToRevision = &context->TimestampToRevision;
     TSortedDynamicRow result;
 
     auto newKeyProvider = [&] () -> TSortedDynamicRow {
@@ -1023,7 +1024,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 
     WriteRevisions_.clear();
     for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
-        auto revision = RegisterRevision(value->Timestamp);
+        auto revision = CaptureTimestamp(value->Timestamp, timestampToRevision);
         WriteRevisions_.push_back(revision);
 
         TDynamicValue dynamicValue;
@@ -1063,7 +1064,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
     }
 
     for (const auto* timestamp = row.EndDeleteTimestamps() - 1; timestamp >= row.BeginDeleteTimestamps(); --timestamp) {
-        auto revision = RegisterRevision(*timestamp);
+        auto revision = CaptureTimestamp(*timestamp, timestampToRevision);
         AddDeleteRevision(result, revision);
         UpdateTimestampRange(TimestampFromRevision(revision));
     }
@@ -1562,6 +1563,7 @@ void TSortedDynamicStore::LoadRow(
 {
     Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
 
+    auto* timestampToRevision = &scratchData->TimestampToRevision;
     auto dynamicRow = AllocateRow();
 
     SetKeys(dynamicRow, row.BeginKeys());
@@ -1583,7 +1585,7 @@ void TSortedDynamicStore::LoadRow(
         // Values are ordered by descending timestamps but we need ascending ones here.
         for (const auto* value = endValue - 1; value >= beginValue; --value) {
             auto list = PrepareFixedValue(dynamicRow, index);
-            ui32 revision = CaptureVersionedValue(&list.GetUncommitted(), *value, scratchData);
+            ui32 revision = CaptureVersionedValue(&list.GetUncommitted(), *value, timestampToRevision);
             CommitValue(dynamicRow, list, index);
             scratchData->WriteRevisions[lockIndex].push_back(revision);
         }
@@ -1625,7 +1627,7 @@ void TSortedDynamicStore::LoadRow(
              currentTimestamp >= row.BeginDeleteTimestamps();
              --currentTimestamp)
         {
-            ui32 revision = CaptureTimestamp(*currentTimestamp, scratchData);
+            ui32 revision = CaptureTimestamp(*currentTimestamp, timestampToRevision);
             AddDeleteRevision(dynamicRow, revision);
         }
     }
@@ -1637,13 +1639,12 @@ void TSortedDynamicStore::LoadRow(
 
 ui32 TSortedDynamicStore::CaptureTimestamp(
     TTimestamp timestamp,
-    TLoadScratchData* scratchData)
+    TTimestampToRevisionMap* timestampToRevision)
 {
-    auto& timestampToRevision = scratchData->TimestampToRevision;
-    auto it = timestampToRevision.find(timestamp);
-    if (it == timestampToRevision.end()) {
+    auto it = timestampToRevision->find(timestamp);
+    if (it == timestampToRevision->end()) {
         ui32 revision = RegisterRevision(timestamp);
-        YCHECK(timestampToRevision.insert(std::make_pair(timestamp, revision)).second);
+        YCHECK(timestampToRevision->insert(std::make_pair(timestamp, revision)).second);
         return revision;
     } else {
         return it->second;
@@ -1653,10 +1654,10 @@ ui32 TSortedDynamicStore::CaptureTimestamp(
 ui32 TSortedDynamicStore::CaptureVersionedValue(
     TDynamicValue* dst,
     const TVersionedValue& src,
-    TLoadScratchData* scratchData)
+    TTimestampToRevisionMap* timestampToRevision)
 {
     Y_ASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
-    ui32 revision = CaptureTimestamp(src.Timestamp, scratchData);
+    ui32 revision = CaptureTimestamp(src.Timestamp, timestampToRevision);
     dst->Revision = revision;
     CaptureUnversionedValue(dst, src);
     return revision;
@@ -1971,6 +1972,12 @@ ui32 TSortedDynamicStore::GetLatestRevision() const
 ui32 TSortedDynamicStore::RegisterRevision(TTimestamp timestamp)
 {
     YCHECK(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
+
+    auto latestRevision = GetLatestRevision();
+    if (TimestampFromRevision(latestRevision) == timestamp) {
+        return latestRevision;
+    }
+
     YCHECK(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicStoreLimit);
     RevisionToTimestamp_.PushBack(timestamp);
     return GetLatestRevision();
