@@ -275,7 +275,7 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
         case NAst::TLiteralValue::TagOf<bool>():
             return MakeUnversionedBooleanValue(literalValue.As<bool>());
         case NAst::TLiteralValue::TagOf<TString>():{
-            auto data = literalValue.As<TString>();
+            const auto& data = literalValue.As<TString>();
             return MakeUnversionedStringValue(TStringBuf(data.c_str(), data.length()));
         }
 
