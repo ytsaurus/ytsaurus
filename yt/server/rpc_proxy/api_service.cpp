@@ -102,6 +102,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
+
+        if (!Bootstrap_->GetConfig()->EnableAuthentication) {
+            const auto& connection = Bootstrap_->GetNativeConnection();
+            auto client = connection->CreateNativeClient(TClientOptions("root"));
+            YCHECK(AuthenticatedClients_.insert(std::make_pair("root", client)).second);
+        }
     }
 
 private:
@@ -119,6 +125,13 @@ private:
         if (!Coordinator_->IsOperable(context)) {
             return nullptr;
         }
+
+        if (!Bootstrap_->GetConfig()->EnableAuthentication) {
+            auto it = AuthenticatedClients_.find("root");
+            YCHECK(it != AuthenticatedClients_.end());
+            return it->second;
+        }
+
         auto replyWithMissingCredentials = [&] () {
             context->Reply(TError(
                 NSecurityClient::EErrorCode::AuthenticationError,
