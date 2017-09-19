@@ -1926,9 +1926,6 @@ private:
             operation->GetId(),
             jobs.size());
 
-        // First, register jobs in the strategy. Do this syncrhonously as we are in the scheduler control thread.
-        GetStrategy()->RegisterJobs(operation->GetId(), jobs);
-
         // Second, register jobs on the corresponding node shards.
         std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());
         for (auto& job : jobs) {
@@ -2488,10 +2485,11 @@ private:
                 .Item("nodes").BeginMap()
                     .Do([=] (IYsonConsumer* consumer) {
                         for (auto nodeShard : NodeShards_) {
-                            WaitFor(
+                            auto asyncResult = WaitFor(
                                 BIND(&TNodeShard::BuildNodesYson, nodeShard, consumer)
                                     .AsyncVia(nodeShard->GetInvoker())
                                     .Run());
+                            asyncResult.ThrowOnError();
                         }
                     })
                 .EndMap()
@@ -2514,20 +2512,22 @@ private:
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
-                        WaitFor(
+                        auto asyncResult = WaitFor(
                             // TODO(ignat): maybe use cached version here?
                             BIND(&IOperationController::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
+                        asyncResult.ThrowOnError();
                     }))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
-                        WaitFor(
+                        auto asyncResult = WaitFor(
                             BIND(&IOperationController::BuildBriefProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
+                        asyncResult.ThrowOnError();
                     }))
                     .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
@@ -2549,17 +2549,19 @@ private:
                 .EndAttributes()
                 .BeginMap()
                     .DoIf(hasControllerJobSplitterInfo, BIND([=] (IYsonConsumer* consumer) {
-                        WaitFor(
+                        auto asyncResult = WaitFor(
                             BIND(&IOperationController::BuildJobSplitterInfo, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
+                        asyncResult.ThrowOnError();
                     }))
                 .EndMap()
                 .Do([=] (IYsonConsumer* consumer) {
-                    WaitFor(
+                    auto asyncResult = WaitFor(
                         BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
                             .AsyncVia(controller->GetInvoker())
                             .Run(consumer));
+                    asyncResult.ThrowOnError();
                 })
             .EndMap();
     }
