@@ -274,10 +274,11 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
             return MakeUnversionedDoubleValue(literalValue.As<double>());
         case NAst::TLiteralValue::TagOf<bool>():
             return MakeUnversionedBooleanValue(literalValue.As<bool>());
-        case NAst::TLiteralValue::TagOf<TString>():
-            return MakeUnversionedStringValue(
-                literalValue.As<TString>().c_str(),
-                literalValue.As<TString>().length());
+        case NAst::TLiteralValue::TagOf<TString>():{
+            auto data = literalValue.As<TString>();
+            return MakeUnversionedStringValue(TStringBuf(data.c_str(), data.length()));
+        }
+
         default:
             Y_UNREACHABLE();
     }
