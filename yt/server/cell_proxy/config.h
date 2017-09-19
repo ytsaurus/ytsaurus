@@ -31,6 +31,10 @@ public:
     //! Known RPC proxy addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
 
+    //! Switch on for local mode and testing purposes only.
+    //! If enabled, every call is considered to be invoked as root.
+    bool EnableAuthentication;
+
     TCellProxyConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -47,6 +51,8 @@ public:
             .DefaultNew();
         RegisterParameter("addresses", Addresses)
             .Default();
+        RegisterParameter("enable_authentication", EnableAuthentication)
+            .Default(true);
     }
 };
 
