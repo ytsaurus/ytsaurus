@@ -1926,6 +1926,9 @@ private:
             operation->GetId(),
             jobs.size());
 
+        // First, register jobs in the strategy. Do this syncrhonously as we are in the scheduler control thread.
+        GetStrategy()->RegisterJobs(operation->GetId(), jobs);
+
         // Second, register jobs on the corresponding node shards.
         std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());
         for (auto& job : jobs) {
