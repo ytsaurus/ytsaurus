@@ -2352,7 +2352,7 @@ size_t MakeCodegenJoinOp(
                 TCGExprContext evaluatedColumnsBuilder(builder, TCGExprData{
                     *fragmentInfos,
                     rowBuilder.Buffer,
-                    CodegenValuesPtrFromRow(builder, keyRef),
+                    keyValues,
                     rowBuilder.ExpressionClosurePtr});
 
                 for (int column = 0; column < lookupKeySize; ++column) {
@@ -2381,7 +2381,6 @@ size_t MakeCodegenJoinOp(
 
             builder->CreateRetVoid();
         });
-
 
         auto consumeJoinedRows = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ConsumeJoinedRows", [&] (
             TCGOperatorContext& builder,
