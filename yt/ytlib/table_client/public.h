@@ -45,34 +45,34 @@ using TKeyColumns = std::vector<TString>;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Keep values below consistent with https://wiki.yandex-team.ru/yt/userdoc/tables.
-const int MaxKeyColumnCount = 256;
-const int TypicalColumnCount = 64;
-const int MaxColumnLockCount = 32;
-extern const TString PrimaryLockName;
-const int MaxColumnNameLength = 256;
-const int MaxColumnLockLength = 256;
-const int MaxColumnGroupLength = 256;
+constexpr int MaxKeyColumnCount = 256;
+constexpr int TypicalColumnCount = 64;
+constexpr int MaxColumnLockCount = 32;
+constexpr int MaxColumnNameLength = 256;
+constexpr int MaxColumnLockLength = 256;
+constexpr int MaxColumnGroupLength = 256;
 
 // Only for dynamic tables.
-const int MaxValuesPerRow = 1024;
-const int MaxRowsPerRowset = 1024 * 1024;
-const i64 MaxStringValueLength = 16 * MB;
-const i64 MaxAnyValueLength = 16 * MB;
-const i64 MaxVersionedRowDataWeight = 512 * MB;
+constexpr int MaxValuesPerRow = 1024;
+constexpr int MaxRowsPerRowset = 1024 * 1024;
+constexpr i64 MaxStringValueLength = 16_MB;
+constexpr i64 MaxAnyValueLength = 16_MB;
+constexpr i64 MaxServerVersionedRowDataWeight = 512_MB;
+constexpr i64 MaxClientVersionedRowDataWeight = 128_MB;
 
 // Only for static tables.
-const i64 MaxRowWeightLimit = 128 * MB;
-const i64 MaxKeyWeightLimit = 256 * KB;
+constexpr i64 MaxRowWeightLimit = 128_MB;
+constexpr i64 MaxKeyWeightLimit = 256_KB;
 
 // NB(psushin): increasing this parameter requires rewriting all chunks,
 // so one probaly should never want to do it.
-const int MaxSampleSize = 64 * 1024;
+constexpr int MaxSampleSize = 64_KB;
 
 // This is a hard limit for static tables,
 // imposed Id field size (16-bit) in TUnversionedValue.
-const int MaxColumnId = 32 * 1024;
+constexpr int MaxColumnId = 32 * 1024;
 
-const int DefaultPartitionTag = -1;
+constexpr int DefaultPartitionTag = -1;
 
 extern const TString SystemColumnNamePrefix;
 extern const TString TableIndexColumnName;
@@ -80,6 +80,7 @@ extern const TString RowIndexColumnName;
 extern const TString RangeIndexColumnName;
 extern const TString TabletIndexColumnName;
 extern const TString TimestampColumnName;
+extern const TString PrimaryLockName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

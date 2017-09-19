@@ -8,6 +8,7 @@
 #include "node_proxy_detail.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 
@@ -33,18 +34,19 @@
 namespace NYT {
 namespace NCypressServer {
 
-using namespace NCellMaster;
 using namespace NBus;
-using namespace NRpc;
-using namespace NYTree;
-using namespace NTransactionServer;
+using namespace NCellMaster;
+using namespace NCypressClient::NProto;
 using namespace NHydra;
-using namespace NObjectClient;
 using namespace NObjectClient::NProto;
+using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
-using namespace NCypressClient::NProto;
+using namespace NTransactionServer;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1127,6 +1129,8 @@ private:
 
     // COMPAT(babenko)
     bool FixLinkPaths_ = false;
+    // COMPAT(savrus)
+    bool ClearSysAttributes_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1161,6 +1165,8 @@ private:
 
         // COMPAT(babenko)
         FixLinkPaths_ = context.GetVersion() < 403;
+        // COMPAT(savrus)
+        ClearSysAttributes_ = context.GetVersion() < 620;
     }
 
 
@@ -1272,6 +1278,31 @@ private:
                         }
                     }
                 }
+            }
+        }
+
+        if (ClearSysAttributes_) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            auto* resolver = objectManager->GetObjectResolver();
+            auto sysNodeProxy = resolver->ResolvePath("//sys", nullptr);
+            auto* sysNode = sysNodeProxy->GetObject();
+            auto& attributes = sysNode->GetMutableAttributes()->Attributes();
+            auto processAttribute = [&] (const TString& attributeName)
+            {
+                auto it = attributes.find(attributeName);
+                if (it != attributes.end()) {
+                    LOG_DEBUG("Remove //sys attribute (AttributeName: %Qv, AttributeValue: %v)",
+                        attributeName,
+                        ConvertToYsonString(it->second, EYsonFormat::Text));
+                    attributes.erase(it);
+                }
+            };
+            static const TString enableTabletBalancerAttributeName("enable_tablet_balancer");
+            static const TString disableChunkReplicatorAttributeName("disable_chunk_replicator");
+            processAttribute(enableTabletBalancerAttributeName);
+            processAttribute(disableChunkReplicatorAttributeName);
+            if (attributes.empty()) {
+                sysNode->ClearAttributes();
             }
         }
     }

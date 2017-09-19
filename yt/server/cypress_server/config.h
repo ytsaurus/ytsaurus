@@ -59,7 +59,7 @@ public:
             .Default(65536);
         RegisterParameter("max_attribute_size", MaxAttributeSize)
             .GreaterThan(256)
-            .Default(16 * MB);
+            .Default(16_MB);
         RegisterParameter("max_map_node_key_length", MaxMapNodeKeyLength)
             .GreaterThan(256)
             .Default(4096);

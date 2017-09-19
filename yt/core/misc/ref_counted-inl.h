@@ -37,18 +37,10 @@ Y_FORCE_INLINE int AtomicallyIncrementIfNonZero(std::atomic<int>& atomic)
 
 Y_FORCE_INLINE void InitializeRefCountedTracking(
     TRefCountedBase* object,
-    TRefCountedTypeCookie typeCookie,
-    size_t instanceSize)
+    TRefCountedTypeCookie typeCookie)
 {
-    object->InitializeTracking(typeCookie, instanceSize);
+    object->InitializeTracking(typeCookie);
 }
-
-void RefCountedTrackerAllocate(
-    TRefCountedTypeCookie cookie,
-    size_t instanceSize);
-void RefCountedTrackerFree(
-    TRefCountedTypeCookie cookie,
-    size_t instanceSize);
 
 #endif
 
@@ -180,25 +172,17 @@ Y_FORCE_INLINE void TRefCounter<true>::Dispose()
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
-Y_FORCE_INLINE void TRefCountedBase::InitializeTracking(
-    TRefCountedTypeCookie typeCookie,
-    size_t instanceSize)
+Y_FORCE_INLINE void TRefCountedBase::InitializeTracking(TRefCountedTypeCookie typeCookie)
 {
     Y_ASSERT(TypeCookie_ == NullRefCountedTypeCookie);
     TypeCookie_ = typeCookie;
-
-    Y_ASSERT(InstanceSize_ == 0);
-    Y_ASSERT(instanceSize != 0);
-    InstanceSize_ = instanceSize;
-
-    NDetail::RefCountedTrackerAllocate(typeCookie, instanceSize);
+    TRefCountedTrackerFacade::AllocateInstance(typeCookie);
 }
 
 Y_FORCE_INLINE void TRefCountedBase::FinalizeTracking()
 {
     Y_ASSERT(TypeCookie_ != NullRefCountedTypeCookie);
-    Y_ASSERT(InstanceSize_ != 0);
-    NDetail::RefCountedTrackerFree(TypeCookie_, InstanceSize_);
+    TRefCountedTrackerFacade::FreeInstance(TypeCookie_);
 }
 
 #endif

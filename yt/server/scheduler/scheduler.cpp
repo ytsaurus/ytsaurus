@@ -13,6 +13,7 @@
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/master_connector.h>
+#include <yt/server/controller_agent/controller_agent.h>
 
 #include <yt/server/exec_agent/public.h>
 
@@ -55,9 +56,9 @@
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/memory_constants.h>
+#include <yt/core/misc/size_literals.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
@@ -139,7 +140,6 @@ public:
         , Bootstrap_(bootstrap)
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
-        , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
         , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "Statistics"))
         , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->JobSpecSliceThrottler,
@@ -243,7 +243,7 @@ public:
         MasterConnector_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingUpdatePeriod);
         ProfilingExecutor_->Start();
@@ -269,19 +269,19 @@ public:
             .Item("address").Value(ServiceAddress_);
 
         LoggingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::OnLogging, MakeWeak(this)),
             Config_->ClusterInfoLoggingPeriod);
         LoggingExecutor_->Start();
 
         PendingEventLogRowsFlushExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::OnPendingEventLogRowsFlush, MakeWeak(this)),
             Config_->PendingEventLogRowsFlushPeriod);
         PendingEventLogRowsFlushExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->UpdateExecNodeDescriptorsPeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
@@ -291,11 +291,11 @@ public:
     {
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
-            ->Via(GetControlInvoker())
+            ->Via(GetControlInvoker(EControlQueue::Orchid))
             ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
 
         auto dynamicOrchidService = GetDynamicOrchidService()
-            ->Via(GetControlInvoker());
+            ->Via(GetControlInvoker(EControlQueue::Orchid));
 
         return New<TServiceCombiner>(std::vector<IYPathServicePtr> {
             staticOrchidService,
@@ -462,14 +462,14 @@ public:
         operation->Alerts()[alertType] = alert;
     }
 
-    virtual void SetOperationAlert(
+    virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert)
+        return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert)
             .AsyncVia(GetControlInvoker())
             .Run();
     }
@@ -594,7 +594,7 @@ public:
             user,
             operationSpec->Owners,
             TInstant::Now(),
-            GetControlInvoker());
+            GetControlInvoker(EControlQueue::Operation));
         operation->SetState(EOperationState::Initializing);
 
         WaitFor(Strategy_->ValidateOperationStart(operation))
@@ -797,11 +797,6 @@ public:
     }
 
     // ISchedulerStrategyHost implementation
-    virtual NControllerAgent::TMasterConnector* GetMasterConnector() override
-    {
-        return MasterConnector_->GetControllerAgentMasterConnector().Get();
-    }
-
     virtual TJobResources GetTotalResourceLimits() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -886,6 +881,11 @@ public:
 
 
     // IOperationHost implementation
+    virtual NControllerAgent::TMasterConnector* GetControllerAgentMasterConnector() override
+    {
+        return Bootstrap_->GetControllerAgent()->GetMasterConnector();
+    }
+
     virtual const TSchedulerConfigPtr& GetConfig() const override
     {
         return Config_;
@@ -901,9 +901,9 @@ public:
         return Bootstrap_->GetNodeDirectory();
     }
 
-    virtual IInvokerPtr GetControlInvoker() const override
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const
     {
-        return Bootstrap_->GetControlInvoker();
+        return Bootstrap_->GetControlInvoker(queue);
     }
 
     virtual IInvokerPtr CreateOperationControllerInvoker() override
@@ -984,13 +984,6 @@ public:
         return StatisticsAnalyzerThreadPool_->GetInvoker();
     }
 
-    const IInvokerPtr& GetJobSpecBuilderInvoker() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return JobSpecBuilderThreadPool_->GetInvoker();
-    }
-
     virtual const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1006,7 +999,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&NControllerAgent::TMasterConnector::AttachJobContext, MasterConnector_->GetControllerAgentMasterConnector())
+        return BIND(&NControllerAgent::TControllerAgent::AttachJobContext, Bootstrap_->GetControllerAgent())
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run(path, chunkId, operationId, jobId);
     }
@@ -1030,7 +1023,6 @@ private:
 
     const TActionQueuePtr SnapshotIOQueue_;
     const TThreadPoolPtr ControllerThreadPool_;
-    const TThreadPoolPtr JobSpecBuilderThreadPool_;
     const TThreadPoolPtr StatisticsAnalyzerThreadPool_;
 
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
@@ -1668,7 +1660,7 @@ private:
 
             for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
                 if (filter.CanSchedule(descriptor.Tags)) {
-                    ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), GB)];
+                    ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), 1_GB)];
                 }
             }
         }
@@ -1754,9 +1746,9 @@ private:
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
 
-            TScopedTimer timer;
+            TWallTimer timer;
             auto result = WaitFor(asyncResult);
-            auto prepareDuration = timer.GetElapsed();
+            auto prepareDuration = timer.GetElapsedTime();
             operation->UpdateControllerTimeStatistics("/prepare", prepareDuration);
 
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
@@ -1906,6 +1898,8 @@ private:
             operation,
             BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
+        Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), operation->GetController());
+
         LOG_DEBUG("Operation registered (OperationId: %v)",
             operation->GetId());
     }
@@ -1932,6 +1926,8 @@ private:
         }
 
         Strategy_->UnregisterOperation(operation);
+
+        Bootstrap_->GetControllerAgent()->UnregisterOperation(operation->GetId());
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)",
             operation->GetId());
@@ -2038,8 +2034,8 @@ private:
             // state is changed to Completing.
             {
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-                WaitFor(asyncResult)
-                    .ThrowOnError();
+                // Result is ignored since failure cause scheduler disconnection.
+                WaitFor(asyncResult);
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }
@@ -2212,8 +2208,8 @@ private:
         // First flush: ensure that all stderrs are attached and the
         // state is changed to its intermediate value.
         {
-            auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-            WaitFor(asyncResult);
+            // Result is ignored since failure cause scheduler disconnection.
+            WaitFor(MasterConnector_->FlushOperationNode(operation));
             if (operation->GetState() != intermediateState)
                 return;
         }
@@ -2246,8 +2242,8 @@ private:
 
         // Second flush: ensure that the state is changed to its final value.
         {
-            auto asyncResult = MasterConnector_->FlushOperationNode(operation);
-            WaitFor(asyncResult);
+            // Result is ignored since failure cause scheduler disconnection.
+            WaitFor(MasterConnector_->FlushOperationNode(operation));
             if (operation->GetState() != finalState)
                 return;
         }
@@ -2275,8 +2271,8 @@ private:
 
         SetOperationFinalState(operation, EOperationState::Completed, TError());
 
-        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
-        YCHECK(flushResult.IsOK());
+        // Result is ignored since failure cause scheduler disconnection.
+        WaitFor(MasterConnector_->FlushOperationNode(operation));
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
@@ -2303,8 +2299,8 @@ private:
 
         SetOperationFinalState(operation, EOperationState::Aborted, TError());
 
-        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
-        YCHECK(flushResult.IsOK());
+        // Result is ignored since failure cause scheduler disconnection.
+        WaitFor(MasterConnector_->FlushOperationNode(operation));
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
@@ -2560,7 +2556,7 @@ private:
             TJobId jobId = TJobId::FromString(key);
             auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);
             auto jobYPathService = IYPathService::FromProducer(buildJobYsonCallback)
-                ->Via(Scheduler_->GetControlInvoker());
+                ->Via(Scheduler_->GetControlInvoker(EControlQueue::Orchid));
             return jobYPathService;
         }
 

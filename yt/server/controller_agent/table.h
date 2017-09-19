@@ -3,7 +3,9 @@
 #include "helpers.h"
 #include "private.h"
 #include "serialize.h"
-#include "yt/server/chunk_pools/chunk_stripe_key.h"
+#include "table.h"
+
+#include <yt/server/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
@@ -84,6 +86,8 @@ struct TOutputTable
     NYson::TYsonString WriterConfig;
 
     NTransactionClient::TTimestamp Timestamp;
+
+    TEdgeDescriptor GetEdgeDescriptorTemplate();
 
     bool IsBeginUploadCompleted() const;
 

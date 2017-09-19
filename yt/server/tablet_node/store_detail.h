@@ -75,6 +75,7 @@ protected:
 
     const TTabletPerformanceCountersPtr PerformanceCounters_;
     const TTabletId TabletId_;
+    const NYPath::TYPath TablePath_;
     const NTableClient::TTableSchema Schema_;
     const int KeyColumnCount_;
     const int SchemaColumnCount_;
@@ -89,8 +90,8 @@ protected:
 
     void SetMemoryUsage(i64 value);
 
-    TOwningKey RowToKey(TUnversionedRow row);
-    TOwningKey RowToKey(TSortedDynamicRow row);
+    TOwningKey RowToKey(TUnversionedRow row) const;
+    TOwningKey RowToKey(TSortedDynamicRow row) const;
 
 private:
     i64 MemoryUsage_ = 0;

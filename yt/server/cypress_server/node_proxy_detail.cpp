@@ -494,7 +494,6 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor("account")
         .SetWritable(true)
         .SetReplicated(true));
-    descriptors->push_back("user_attribute_keys");
     descriptors->push_back(TAttributeDescriptor("opaque")
         .SetWritable(true)
         .SetRemovable(true));
@@ -634,24 +633,6 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     if (key == "account") {
         BuildYsonFluently(consumer)
             .Value(node->GetAccount()->GetName());
-        return true;
-    }
-
-    if (key == "user_attribute_keys") {
-        std::vector<TAttributeDescriptor> systemAttributes;
-        ReserveAndListSystemAttributes(&systemAttributes);
-
-        auto customAttributes = GetCustomAttributes()->List();
-        yhash_set<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
-
-        for (const auto& attribute : systemAttributes) {
-            if (attribute.Custom) {
-                customAttributesSet.erase(attribute.Key);
-            }
-        }
-
-        BuildYsonFluently(consumer)
-            .Value(customAttributesSet);
         return true;
     }
 

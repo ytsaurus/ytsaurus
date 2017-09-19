@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "auto_merge_director.h"
 #include "chunk_list_pool.h"
 #include "job_memory.h"
 #include "job_splitter.h"
@@ -214,6 +215,9 @@ public:
     virtual bool IsForgotten() const override;
     virtual bool IsRevivedFromSnapshot() const override;
 
+    virtual void SetProgressUpdated() override;
+    virtual bool ShouldUpdateProgress() const override;
+
     virtual bool HasProgress() const override;
     virtual bool HasJobSplitterInfo() const override;
 
@@ -236,6 +240,8 @@ public:
 
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
     virtual NYson::TYsonString BuildJobsYson() const override;
+
+    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override;
 
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const override;
 
@@ -278,6 +284,12 @@ public:
     virtual bool IsJobInterruptible() const override;
     virtual bool ShouldSkipSanityCheck() override;
 
+    virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
+        const NChunkPools::TChunkStripeStatisticsVector& statistics) const override;
+    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const override;
+    virtual TTaskGroupPtr GetAutoMergeTaskGroup() const override;
+    virtual TAutoMergeDirector* GetAutoMergeDirector() override;
+
     virtual const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const override;
     virtual const IDigest* GetUserJobMemoryDigest(EJobType jobType) const override;
 
@@ -290,7 +302,7 @@ public:
     virtual TOperationId GetOperationId() const override;
     virtual EOperationType GetOperationType() const override;
 
-    virtual const std::vector<TOutputTable>& OutputTables() const override;
+    const std::vector<TOutputTable>& OutputTables() const;
     virtual const TNullable<TOutputTable>& StderrTable() const override;
     virtual const TNullable<TOutputTable>& CoreTable() const override;
 
@@ -433,6 +445,10 @@ protected:
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroupPtr> TaskGroups;
 
+    //! Auto merge task for each of the output tables.
+    std::vector<TAutoMergeTaskPtr> AutoMergeTasks;
+    TTaskGroupPtr AutoMergeTaskGroup;
+
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::INativeClientPtr client,
@@ -460,15 +476,19 @@ protected:
 
     void CheckAvailableExecNodes();
 
-    virtual void AnalyzePartitionHistogram() const;
-    void AnalyzeTmpfsUsage() const;
-    void AnalyzeIntermediateJobsStatistics() const;
-    void AnalyzeInputStatistics() const;
-    void AnalyzeAbortedJobs() const;
-    void AnalyzeJobsIOUsage() const;
-    void AnalyzeJobsDuration() const;
+    virtual TFuture<void> AnalyzePartitionHistogram() const;
+    TFuture<void> AnalyzeTmpfsUsage() const;
+    TFuture<void> AnalyzeIntermediateJobsStatistics() const;
+    TFuture<void> AnalyzeInputStatistics() const;
+    TFuture<void> AnalyzeAbortedJobs() const;
+    TFuture<void> AnalyzeJobsIOUsage() const;
+    TFuture<void> AnalyzeJobsDuration() const;
+    TFuture<void> AnalyzeScheduleJobStatistics() const;
+
     void AnalyzeOperationProgess() const;
-    void AnalyzeScheduleJobStatistics() const;
+    TFuture<void> DoAnalyzeOperationProgress() const;
+
+    void FlushOperationNode(bool checkFlushResult);
 
     void CheckMinNeededResourcesSanity();
     void UpdateCachedMaxAvailableExecNodeResources();
@@ -524,6 +544,7 @@ protected:
     void AddAllTaskPendingHints();
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
+    void InitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
 
     void ParseInputQuery(
         const TString& queryString,
@@ -655,7 +676,7 @@ protected:
 
     virtual void OnOperationTimeLimitExceeded();
 
-    virtual bool IsCompleted() const = 0;
+    virtual bool IsCompleted() const;
 
     //! Returns |true| when the controller is prepared.
     /*!
@@ -682,7 +703,7 @@ protected:
     virtual NChunkPools::TOutputOrderPtr GetOutputOrder() const;
 
     //! Enables fetching all input replicas (not only data)
-    virtual bool IsParityReplicasFetchEnabled() const;
+    virtual bool CheckParityReplicas() const;
 
     //! Enables fetching boundary keys for chunk specs.
     virtual bool IsBoundaryKeysFetchEnabled() const;
@@ -710,12 +731,12 @@ protected:
 
     void AttachToLivePreview(NChunkClient::TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId);
 
-    void RegisterTeleportChunk(
+    virtual void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunkSpec,
         NChunkPools::TChunkStripeKey key,
-        int tableIndex);
+        int tableIndex) override;
 
-    bool HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable);
+    bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
 
     //! Called after preparation to decrease memory footprint.
     void ClearInputChunkBoundaryKeys();
@@ -788,7 +809,7 @@ protected:
 
     const std::vector<NScheduler::TExecNodeDescriptor>& GetExecNodeDescriptors();
 
-    virtual void RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor);
+    virtual void RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor, double minMemoryReserveFactor);
     IDigest* GetUserJobMemoryDigest(EJobType jobType);
 
     virtual void RegisterJobProxyMemoryDigest(EJobType jobType, const TLogDigestConfigPtr& config);
@@ -808,7 +829,12 @@ protected:
 
     void CheckFailedJobsStatusReceived();
 
-    virtual std::vector<NChunkPools::IChunkPoolInput*> GetSinks() override;
+    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() override;
+
+    NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
+    TEdgeDescriptor GetIntermediateEdgeDescriptorTemplate() const;
+
+    virtual void UnstageChunkTreesNonRecursively(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds) override;
 
 private:
     typedef TOperationControllerBase TThis;
@@ -823,8 +849,7 @@ private:
 
     NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
     TChunkListPoolPtr ChunkListPool_;
-    yhash<NObjectClient::TCellTag, int> CellTagToOutputRequiredChunkList;
-    yhash<NObjectClient::TCellTag, int> CellTagToIntermediateRequiredChunkList;
+    yhash<NObjectClient::TCellTag, int> CellTagToRequiredChunkLists;
 
     std::atomic<int> CachedPendingJobCount = {0};
 
@@ -904,8 +929,11 @@ private:
     const NProfiling::TCpuDuration LogProgressBackoff;
     NProfiling::TCpuInstant NextLogProgressDeadline = 0;
 
+    std::atomic<bool> ShouldUpdateProgressInCypress_ = {true};
     NYson::TYsonString ProgressString_;
     NYson::TYsonString BriefProgressString_;
+
+    std::vector<TEdgeDescriptor> StandardEdgeDescriptors_;
 
     TSpinLock ProgressLock_;
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
@@ -919,6 +947,10 @@ private:
 
     class TSink;
     std::vector<std::unique_ptr<TSink>> Sinks_;
+
+    std::vector<NJobTrackerClient::NProto::TJobSpec> AutoMergeJobSpecTemplates_;
+
+    std::unique_ptr<TAutoMergeDirector> AutoMergeDirector_;
 
     void BuildAndSaveProgress();
 
@@ -943,6 +975,8 @@ private:
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
+    void InitializeStandardEdgeDescriptors();
+
     TNullable<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;
 
@@ -960,12 +994,6 @@ private:
 
     TCodicilGuard MakeCodicilGuard() const;
 
-    void ValidateDynamicTableTimestamp(
-        const NYPath::TRichYPath& path,
-        bool dynamic,
-        const NTableClient::TTableSchema& schema,
-        const NYTree::IAttributeDictionary& attributes) const;
-
     void SleepInStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
 
     //! An internal helper for invoking OnOperationFailed with an error
@@ -978,6 +1006,8 @@ private:
     NYson::TYsonString BuildInputPathYson(const TJobletPtr& joblet) const;
 
     void ProcessFinishedJobResult(std::unique_ptr<NScheduler::TJobSummary> summary, bool suggestCreateJobNodeByStatus);
+
+    void InitAutoMergeJobSpecTemplates();
 
     void BuildJobAttributes(
         const TJobInfoPtr& job,

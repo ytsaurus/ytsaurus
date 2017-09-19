@@ -18,7 +18,7 @@
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/profiling/timing.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -137,12 +137,12 @@ protected:
 
     void GuardedTraverse()
     {
-        NProfiling::TScopedTimer timer;
+        NProfiling::TWallTimer timer;
         auto invoker = Callbacks_->GetInvoker();
         int visitedChunkCount = 0;
         while (visitedChunkCount < MaxChunksPerStep || !invoker) {
             if (IsStackEmpty()) {
-                OnTimeSpent(timer.GetElapsed());
+                OnTimeSpent(timer.GetElapsedTime());
                 Shutdown();
                 OnFinish(TError());
                 return;
@@ -193,7 +193,7 @@ protected:
         }
 
         // Schedule continuation.
-        Callbacks_->OnTimeSpent(timer.GetElapsed());
+        Callbacks_->OnTimeSpent(timer.GetElapsedTime());
         invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
     }
 

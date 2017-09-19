@@ -20,7 +20,7 @@
 
 #include <yt/core/misc/fs.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -279,7 +279,7 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
             blockIndex,
             block.Size());
 
-        TScopedTimer timer;
+        TWallTimer timer;
         TBlockId blockId(GetChunkId(), blockIndex);
         try {
             if (!Writer_->WriteBlock(block)) {
@@ -303,7 +303,7 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
                           << ex);
         }
 
-        auto writeTime = timer.GetElapsed();
+        auto writeTime = timer.GetElapsedTime();
 
         LOG_DEBUG("Finished writing block (BlockIndex: %v)", blockIndex);
 

@@ -185,6 +185,29 @@ private:
 
 };
 
+template <class TIter>
+TIter MergeOverlappingRanges(TIter begin, TIter end)
+{
+    if (begin == end) {
+        return end;
+    }
+
+    auto it = begin;
+    auto dest = it;
+    ++it;
+
+    for (; it != end; ++it) {
+        if (dest->second < it->first) {
+            *++dest = std::move(*it);
+        } else if (dest->second < it->second) {
+            dest->second = std::move(it->second);
+        }
+    }
+
+    ++dest;
+    return dest;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryExecution
@@ -266,8 +289,9 @@ private:
     TQueryStatistics DoCoordinateAndExecute(
         TConstExternalCGInfoPtr externalCGInfo,
         ISchemafulWriterPtr writer,
-        const std::vector<TRefiner>& refiners,
-        const std::vector<TSubreaderCreator>& subreaderCreators)
+        std::vector<TRefiner> refiners,
+        std::vector<TSubreaderCreator> subreaderCreators,
+        std::vector<std::vector<TDataRanges>> readRanges)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
@@ -302,48 +326,188 @@ private:
             writer,
             refiners,
             [&] (TConstQueryPtr subquery, int index) {
-                auto mergingReader = subreaderCreators[index]();
-
-                auto pipe = New<TSchemafulPipe>();
-
-                LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
-
                 auto asyncSubqueryResults = std::make_shared<std::vector<TFuture<TQueryStatistics>>>();
 
-                auto foreignExecuteCallback = [
+                auto foreignProfileCallback = [
                     asyncSubqueryResults,
                     externalCGInfo,
                     remoteExecutor,
+                    dataSplits = std::move(readRanges[index]),
                     this,
                     this_ = MakeStrong(this)
-                ] (
-                    const TQueryPtr& subquery,
-                    TDataRanges dataRanges,
-                    ISchemafulWriterPtr writer)
-                {
-                    LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
-
+                ] (TQueryPtr subquery, TConstJoinClausePtr joinClause) -> TJoinSubqueryEvaluator {
                     auto remoteOptions = Options_;
-                    remoteOptions.MaxSubqueries = 16;
+                    remoteOptions.MaxSubqueries = 1;
 
-                    auto asyncResult = remoteExecutor->Execute(
-                        subquery,
-                        externalCGInfo,
-                        std::move(dataRanges),
-                        writer,
-                        remoteOptions);
+                    auto verboseLogging = Options_.VerboseLogging;
 
-                    asyncSubqueryResults->push_back(asyncResult);
+                    size_t minKeyWidth = std::numeric_limits<size_t>::max();
+                    for (const auto& split : dataSplits) {
+                        minKeyWidth = std::min(minKeyWidth, split.KeyWidth);
+                    }
 
-                    return asyncResult;
+                    LOG_DEBUG("Profiling (CommonKeyPrefix: %v, minKeyWidth: %v)",
+                        joinClause->CommonKeyPrefix,
+                        minKeyWidth);
+
+                    if (joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0) {
+                        auto rowBuffer = New<TRowBuffer>();
+
+                        std::vector<TRowRange> prefixRanges;
+                        std::vector<TRow> prefixKeys;
+                        bool isRanges = false;
+                        bool isKeys = false;
+
+                        std::vector<EValueType> schema;
+                        for (const auto& split : dataSplits) {
+                            for (int index = 0; index < split.Ranges.Size(); ++index) {
+                                isRanges = true;
+                                YCHECK(!isKeys);
+                                const auto& range = split.Ranges[index];
+                                int lowerBoundWidth = std::min(
+                                    GetSignificantWidth(range.first),
+                                    joinClause->CommonKeyPrefix);
+
+                                auto lowerBound = rowBuffer->AllocateUnversioned(lowerBoundWidth);
+                                for (int column = 0; column < lowerBoundWidth; ++column) {
+                                    lowerBound[column] = rowBuffer->Capture(range.first[column]);
+                                }
+
+                                int upperBoundWidth = std::min(
+                                    GetSignificantWidth(range.second),
+                                    joinClause->CommonKeyPrefix);
+
+                                auto upperBound = rowBuffer->AllocateUnversioned(upperBoundWidth + 1);
+                                for (int column = 0; column < upperBoundWidth; ++column) {
+                                    upperBound[column] = rowBuffer->Capture(range.second[column]);
+                                }
+
+                                upperBound[upperBoundWidth] = MakeUnversionedSentinelValue(EValueType::Max);
+                                prefixRanges.emplace_back(lowerBound, upperBound);
+
+                                LOG_DEBUG_IF(verboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
+                                    range.first,
+                                    range.second,
+                                    lowerBound,
+                                    upperBound);
+                            }
+
+                            schema = split.Schema;
+
+                            for (int index = 0; index < split.Keys.Size(); ++index) {
+                                isKeys = true;
+                                YCHECK(!isRanges);
+                                const auto& key = split.Keys[index];
+
+                                int keyWidth = std::min(
+                                    size_t(key.GetCount()),
+                                    joinClause->CommonKeyPrefix);
+
+                                auto prefixKey = rowBuffer->AllocateUnversioned(keyWidth);
+                                for (int column = 0; column < keyWidth; ++column) {
+                                    prefixKey[column] = rowBuffer->Capture(key[column]);
+                                }
+                                prefixKeys.emplace_back(prefixKey);
+                            }
+                        }
+
+                        TDataRanges dataSource;
+                        dataSource.Id = joinClause->ForeignDataId;
+
+                        if (isRanges) {
+                            prefixRanges.erase(
+                                MergeOverlappingRanges(prefixRanges.begin(), prefixRanges.end()),
+                                prefixRanges.end());
+                            dataSource.Ranges = MakeSharedRange(prefixRanges, rowBuffer);
+                        }
+
+                        if (isKeys) {
+                            prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
+                            dataSource.Keys = MakeSharedRange(prefixKeys, rowBuffer);
+                            dataSource.Schema = schema;
+                        }
+
+                        // COMPAT(lukyan): Use ordered read without modification of protocol
+                        subquery->Limit = std::numeric_limits<i64>::max() - 1;
+
+                        LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
+
+                        auto pipe = New<NTableClient::TSchemafulPipe>();
+
+                        auto asyncResult = remoteExecutor->Execute(
+                            subquery,
+                            externalCGInfo,
+                            std::move(dataSource),
+                            pipe->GetWriter(),
+                            remoteOptions);
+
+                        asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
+                            if (!error.IsOK()) {
+                                pipe->Fail(error);
+                            }
+                        }));
+
+                        asyncSubqueryResults->push_back(asyncResult);
+
+                        return [
+                            reader = pipe->GetReader()
+                        ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) {
+                            return reader;
+                        };
+                    } else {
+                        return [
+                            asyncSubqueryResults,
+                            externalCGInfo,
+                            remoteExecutor,
+                            subquery,
+                            joinClause,
+                            remoteOptions,
+                            this,
+                            this_ = MakeStrong(this)
+                        ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) mutable {
+                            TDataRanges dataSource;
+                            std::tie(subquery, dataSource) = GetForeignQuery(
+                                subquery,
+                                joinClause,
+                                std::move(keys),
+                                permanentBuffer);
+
+                            LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
+
+                            auto pipe = New<NTableClient::TSchemafulPipe>();
+
+                            auto asyncResult = remoteExecutor->Execute(
+                                subquery,
+                                externalCGInfo,
+                                std::move(dataSource),
+                                pipe->GetWriter(),
+                                remoteOptions);
+
+                            asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
+                                if (!error.IsOK()) {
+                                    pipe->Fail(error);
+                                }
+                            }));
+
+                            asyncSubqueryResults->push_back(asyncResult);
+
+                            return pipe->GetReader();
+                        };
+                    }
                 };
+
+                auto mergingReader = subreaderCreators[index]();
+
+                LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
+
+                auto pipe = New<TSchemafulPipe>();
 
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
                     .Run(subquery,
                         mergingReader,
                         pipe->GetWriter(),
-                        foreignExecuteCallback,
+                        foreignProfileCallback,
                         functionGenerators,
                         aggregateGenerators,
                         Options_);
@@ -421,6 +585,12 @@ private:
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
 
         auto keySize = Query_->OriginalSchema.GetKeyColumnCount();
+
+        std::vector<EValueType> keySchema;
+        for (size_t index = 0; index < keySize; ++index) {
+            keySchema.push_back(Query_->OriginalSchema.Columns()[index].Type);
+        }
+
         size_t rangesCount = 0;
         for (const auto& source : dataSources) {
             TRowRanges rowRanges;
@@ -431,6 +601,7 @@ private:
                     rangesCount += rowRanges.size();
                     TDataRanges item;
                     item.Id = source.Id;
+                    item.KeyWidth = source.KeyWidth;
                     item.Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), rowBuffer);
                     item.LookupSupported = source.LookupSupported;
                     rangesByTablet.emplace_back(std::move(item));
@@ -441,7 +612,9 @@ private:
                 if (!keys.empty()) {
                     TDataRanges item;
                     item.Id = source.Id;
+                    item.KeyWidth = source.KeyWidth;
                     item.Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder());
+                    item.Schema = keySchema;
                     item.LookupSupported = source.LookupSupported;
                     rangesByTablet.emplace_back(std::move(item));
                 }
@@ -495,6 +668,7 @@ private:
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
+        std::vector<std::vector<TDataRanges>> readRanges;
 
         auto processSplitsRanges = [&] (int beginIndex, int endIndex) {
             if (beginIndex == endIndex) {
@@ -502,6 +676,7 @@ private:
             }
 
             std::vector<TDataRanges> groupedSplit(splits.begin() + beginIndex, splits.begin() + endIndex);
+            readRanges.push_back(groupedSplit);
             std::vector<TRowRange> keyRanges;
             for (const auto& dataRange : groupedSplit) {
                 keyRanges.insert(keyRanges.end(), dataRange.Ranges.Begin(), dataRange.Ranges.End());
@@ -553,6 +728,8 @@ private:
             const auto& tabletId = splits[index].Id;
             auto& keys = splits[index].Keys;
 
+            readRanges.push_back({splits[index]});
+
             refiners.push_back([&, inferRanges = Query_->InferRanges] (
                 TConstExpressionPtr expr, const
                 TKeyColumns& keyColumns)
@@ -595,8 +772,9 @@ private:
         return DoCoordinateAndExecute(
             externalCGInfo,
             std::move(writer),
-            refiners,
-            subreaderCreators);
+            std::move(refiners),
+            std::move(subreaderCreators),
+            std::move(readRanges));
     }
 
     std::vector<TSharedRange<TRowRange>> SplitTablet(
@@ -848,7 +1026,9 @@ private:
 
             for (const auto& split : splits) {
                 TDataRanges dataRanges;
+
                 dataRanges.Id = tablePartId;
+                dataRanges.KeyWidth = tablePartIdRange.KeyWidth;
                 dataRanges.Ranges = split;
                 dataRanges.LookupSupported = tablePartIdRange.LookupSupported;
 

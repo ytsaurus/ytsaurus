@@ -1,6 +1,5 @@
 #include "blob.h"
 #include "ref.h"
-#include "ref_counted_tracker.h"
 
 namespace NYT {
 
@@ -11,7 +10,7 @@ const double BlobCapacityMultiplier = 1.5;
 
 TBlob::TBlob(TRefCountedTypeCookie tagCookie, size_t size, bool initiailizeStorage)
 {
-    SetTypeCookie(tagCookie);
+    SetTagCookie(tagCookie);
     if (size == 0) {
         Reset();
     } else {
@@ -25,14 +24,14 @@ TBlob::TBlob(TRefCountedTypeCookie tagCookie, size_t size, bool initiailizeStora
 
 TBlob::TBlob(TRefCountedTypeCookie tagCookie, const void* data, size_t size)
 {
-    SetTypeCookie(tagCookie);
+    SetTagCookie(tagCookie);
     Reset();
     Append(data, size);
 }
 
 TBlob::TBlob(const TBlob& other)
 {
-    SetTypeCookie(other);
+    SetTagCookie(other);
     if (other.Size_ == 0) {
         Reset();
     } else {
@@ -47,7 +46,7 @@ TBlob::TBlob(TBlob&& other) noexcept
     , Size_(other.Size_)
     , Capacity_(other.Capacity_)
 {
-    SetTypeCookie(other);
+    SetTagCookie(other);
     other.Reset();
 }
 
@@ -86,7 +85,7 @@ TBlob& TBlob::operator = (const TBlob& rhs)
 {
     if (this != &rhs) {
         Free();
-        SetTypeCookie(rhs);
+        SetTagCookie(rhs);
         if (rhs.Size_ > 0) {
             Allocate(std::max(InitialBlobCapacity, rhs.Size_));
             memcpy(Begin_, rhs.Begin_, rhs.Size_);
@@ -100,7 +99,7 @@ TBlob& TBlob::operator = (TBlob&& rhs) noexcept
 {
     if (this != &rhs) {
         Free();
-        SetTypeCookie(rhs);
+        SetTagCookie(rhs);
         YCHECK(!Begin_);
         Begin_ = rhs.Begin_;
         Size_ = rhs.Size_;
@@ -148,7 +147,8 @@ void TBlob::Allocate(size_t newCapacity)
     Begin_ = new char[newCapacity];
     Capacity_ = newCapacity;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Allocate(TypeCookie_, newCapacity);
+    TRefCountedTrackerFacade::AllocateTagInstance(TagCookie_);
+    TRefCountedTrackerFacade::AllocateSpace(TagCookie_, newCapacity);
 #endif
 }
 
@@ -162,7 +162,7 @@ void TBlob::Reallocate(size_t newCapacity)
     memcpy(newBegin, Begin_, Size_);
     delete[] Begin_;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Reallocate(TypeCookie_, Capacity_, newCapacity);
+    TRefCountedTrackerFacade::ReallocateSpace(TagCookie_, Capacity_, newCapacity);
 #endif
     Begin_ = newBegin;
     Capacity_ = newCapacity;
@@ -175,21 +175,22 @@ void TBlob::Free()
     }
     delete[] Begin_;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Free(TypeCookie_, Capacity_);
+    TRefCountedTrackerFacade::FreeTagInstance(TagCookie_);
+    TRefCountedTrackerFacade::FreeSpace(TagCookie_, Capacity_);
 #endif
     Reset();
 }
 
-void TBlob::SetTypeCookie(TRefCountedTypeCookie tagCookie)
+void TBlob::SetTagCookie(TRefCountedTypeCookie tagCookie)
 {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TypeCookie_ = tagCookie;
+    TagCookie_ = tagCookie;
 #endif
 }
-void TBlob::SetTypeCookie(const TBlob& other)
+void TBlob::SetTagCookie(const TBlob& other)
 {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TypeCookie_ = other.TypeCookie_;
+    TagCookie_ = other.TagCookie_;
 #endif
 }
 
@@ -200,7 +201,7 @@ void swap(TBlob& left, TBlob& right)
         std::swap(left.Size_, right.Size_);
         std::swap(left.Capacity_, right.Capacity_);
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        std::swap(left.TypeCookie_, right.TypeCookie_);
+        std::swap(left.TagCookie_, right.TagCookie_);
 #endif
     }
 }

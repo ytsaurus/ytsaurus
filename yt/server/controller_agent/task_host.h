@@ -3,16 +3,20 @@
 #include "private.h"
 #include "serialize.h"
 #include "table.h"
+#include "data_flow_graph.h"
+
+#include <yt/server/chunk_pools/public.h>
+#include <yt/server/chunk_pools/chunk_stripe.h>
+
+#include <yt/server/scheduler/public.h>
 
 #include <yt/ytlib/ypath/rich.h>
 
 #include <yt/ytlib/object_client/public.h>
 
-#include <yt/server/chunk_pools/public.h>
-
-#include <yt/server/scheduler/public.h>
-
 #include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -70,7 +74,6 @@ struct ITaskHost
     virtual TOperationId GetOperationId() const = 0;
     virtual EOperationType GetOperationType() const = 0;
 
-    virtual const std::vector<TOutputTable>& OutputTables() const = 0;
     virtual const TNullable<TOutputTable>& StderrTable() const = 0;
     virtual const TNullable<TOutputTable>& CoreTable() const = 0;
 
@@ -89,13 +92,26 @@ struct ITaskHost
         const TCompletedJobPtr& completedJob,
         const NChunkPools::TChunkStripePtr& stripe) = 0;
 
+    virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
+        const NChunkPools::TChunkStripeStatisticsVector& statistics) const = 0;
+    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const = 0;
+    virtual TTaskGroupPtr GetAutoMergeTaskGroup() const = 0;
+    virtual TAutoMergeDirector* GetAutoMergeDirector() = 0;
+
     virtual void Persist(const TPersistenceContext& context) = 0;
 
-    virtual std::vector<NChunkPools::IChunkPoolInput*> GetSinks() = 0;
+    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() = 0;
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() = 0;
 
     virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) = 0;
+
+    virtual void RegisterTeleportChunk(
+        NChunkClient::TInputChunkPtr chunkSpec,
+        NChunkPools::TChunkStripeKey key,
+        int tableIndex) = 0;
+
+    virtual void UnstageChunkTreesNonRecursively(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost);

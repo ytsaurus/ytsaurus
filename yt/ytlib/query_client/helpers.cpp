@@ -146,6 +146,15 @@ NLogging::TLogger MakeQueryLogger(TConstBaseQueryPtr query)
         .AddTag("FragmentId: %v", query->Id);
 }
 
+size_t GetSignificantWidth(TRow row)
+{
+    auto valueIt = row.Begin();
+    while (valueIt != row.End() && !IsSentinelType(valueIt->Type)) {
+        ++valueIt;
+    }
+    return std::distance(row.Begin(), valueIt);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

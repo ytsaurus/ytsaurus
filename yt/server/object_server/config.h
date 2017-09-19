@@ -62,7 +62,7 @@ public:
     TMasterCacheServiceConfig()
     {
         RegisterInitializer([&] () {
-            Capacity = 256 * MB;
+            Capacity = 256_MB;
         });
     }
 };

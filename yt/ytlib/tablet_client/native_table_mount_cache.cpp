@@ -256,13 +256,13 @@ public:
 
     virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) override
     {
-        if (!error.IsOK()) {
-            std::vector<NTabletClient::EErrorCode> retriableCodes = {
-                NTabletClient::EErrorCode::NoSuchTablet,
-                NTabletClient::EErrorCode::TabletNotMounted,
-                NTabletClient::EErrorCode::InvalidMountRevision
-            };
+        static std::vector<NTabletClient::EErrorCode> retriableCodes = {
+            NTabletClient::EErrorCode::NoSuchTablet,
+            NTabletClient::EErrorCode::TabletNotMounted,
+            NTabletClient::EErrorCode::InvalidMountRevision
+        };
 
+        if (!error.IsOK()) {
             for (auto errCode : retriableCodes) {
                 if (auto retriableError = error.FindMatching(errCode)) {
                     // COMPAT(savrus) Not all above exceptions had tablet_id attribute in early 19.2 versions.

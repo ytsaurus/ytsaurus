@@ -49,8 +49,17 @@ void TColumnWriterBase::DumpSegment(TSegmentInfo* segmentInfo)
     segmentInfo->SegmentMeta.set_offset(BlockWriter_->GetOffset());
     segmentInfo->SegmentMeta.set_chunk_row_count(RowCount_);
 
+    // This is a rough estimate, we don't account extensions, varint coding, etc.
+    // We don't want to pay for the ByteSize call.
+    MetaSize_ += sizeof(TSegmentMeta);
+
     CurrentBlockSegments_.push_back(segmentInfo->SegmentMeta);
     BlockWriter_->WriteSegment(MakeRange(segmentInfo->Data));
+}
+
+i64 TColumnWriterBase::GetMetaSize() const
+{
+    return MetaSize_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

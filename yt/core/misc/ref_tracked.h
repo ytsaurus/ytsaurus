@@ -1,7 +1,6 @@
 #pragma once
 
 #include "new.h"
-#include "ref_counted_tracker.h"
 
 namespace NYT {
 
@@ -22,7 +21,7 @@ public:
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         auto cookie = GetRefCountedTypeCookie<T>();
-        TRefCountedTracker::Get()->Allocate(cookie, sizeof(T));
+        TRefCountedTrackerFacade::AllocateInstance(cookie);
 #endif
     }
 
@@ -30,7 +29,7 @@ public:
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         auto cookie = GetRefCountedTypeCookie<T>();
-        TRefCountedTracker::Get()->Allocate(cookie, sizeof(T));
+        TRefCountedTrackerFacade::AllocateInstance(cookie);
 #endif
     }
 
@@ -38,7 +37,7 @@ public:
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         auto cookie = GetRefCountedTypeCookie<T>();
-        TRefCountedTracker::Get()->Allocate(cookie, sizeof(T));
+        TRefCountedTrackerFacade::AllocateInstance(cookie);
 #endif
     }
 
@@ -46,7 +45,7 @@ public:
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         auto cookie = GetRefCountedTypeCookie<T>();
-        TRefCountedTracker::Get()->Free(cookie, sizeof(T));
+        TRefCountedTrackerFacade::FreeInstance(cookie);
 #endif
     }
 };

@@ -41,7 +41,7 @@ struct ISchedulerStrategyHost
         ESchedulerAlertType alertType,
         const TError& alert) = 0;
 
-    virtual void SetOperationAlert(
+    virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) = 0;

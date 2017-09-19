@@ -11,6 +11,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/world_initializer.h>
 #include <yt/server/cell_master/multicell_manager.h>
@@ -52,7 +53,7 @@
 #include <yt/core/ytree/ypath_proxy.h>
 
 #include <array>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -1744,7 +1745,7 @@ void TChunkReplicator::OnRefresh()
 {
     int totalCount = 0;
     int aliveCount = 0;
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
 
     LOG_DEBUG("Incremental chunk refresh iteration started");
 
@@ -1753,7 +1754,7 @@ void TChunkReplicator::OnRefresh()
         while (totalCount < Config_->MaxChunksPerRefresh &&
                RefreshScanner_->HasUnscannedChunk(deadline))
         {
-            if (timer.GetElapsed() > Config_->MaxTimePerRefresh) {
+            if (timer.GetElapsedTime() > Config_->MaxTimePerRefresh) {
                 break;
             }
 
@@ -1799,12 +1800,9 @@ void TChunkReplicator::OnCheckEnabled()
 
 void TChunkReplicator::OnCheckEnabledPrimary()
 {
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto resolver = cypressManager->CreateResolver();
-    auto sysNode = resolver->ResolvePath("//sys");
-    if (sysNode->Attributes().Get<bool>("disable_chunk_replicator", false)) {
+    if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableChunkReplicator) {
         if (!Enabled_ || *Enabled_) {
-            LOG_INFO("Chunk replicator is disabled by //sys/@disable_chunk_replicator setting");
+            LOG_INFO("Chunk replicator is disabled, see //sys/@config");
         }
         Enabled_ = false;
         return;
@@ -1985,7 +1983,7 @@ void TChunkReplicator::OnPropertiesUpdate()
 
     int totalCount = 0;
     int aliveCount = 0;
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
 
     LOG_DEBUG("Chunk properties update iteration started");
 
@@ -1993,7 +1991,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         while (totalCount < Config_->MaxChunksPerPropertiesUpdate &&
                PropertiesUpdateScanner_->HasUnscannedChunk())
         {
-            if (timer.GetElapsed() > Config_->MaxTimePerPropertiesUpdate) {
+            if (timer.GetElapsedTime() > Config_->MaxTimePerPropertiesUpdate) {
                 break;
             }
 
@@ -2202,6 +2200,8 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
     InterDCEdgeCapacities.clear();
 
     auto capacities = Config_->InterDCLimits->GetCapacities();
+    auto secondaryCellCount = Bootstrap_->GetSecondaryCellTags().size();
+    secondaryCellCount = std::max<int>(secondaryCellCount, 1);
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
@@ -2212,7 +2212,7 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
         auto updateForDstDC = [&] (const TDataCenter* dstDataCenter, const TNullable<TString>& dstDataCenterName) {
             auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
             if (it != newInterDCEdgeCapacities.end()) {
-                interDCEdgeCapacities[dstDataCenter] = it->second;
+                interDCEdgeCapacities[dstDataCenter] = it->second / secondaryCellCount;
             }
         };
 
@@ -2240,13 +2240,16 @@ void TChunkReplicator::UpdateUnsaturatedInterDCEdges()
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
+    const auto defaultCapacity =
+        Config_->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+
     auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
         auto& interDCEdgeConsumption = InterDCEdgeConsumption[srcDataCenter];
         const auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
 
         auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
             if (interDCEdgeConsumption.Value(dstDataCenter, 0) <
-                interDCEdgeCapacities.Value(dstDataCenter, Config_->InterDCLimits->GetDefaultCapacity()))
+                interDCEdgeCapacities.Value(dstDataCenter, defaultCapacity))
             {
                 UnsaturatedInterDCEdges[srcDataCenter].insert(dstDataCenter);
             }
@@ -2280,6 +2283,9 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(const TJobPtr& job, int size
     auto& interDCEdgeConsumption = InterDCEdgeConsumption[srcDataCenter];
     const auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
 
+    const auto defaultCapacity =
+        Config_->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+
     for (const auto& nodePtrWithIndexes : job->TargetReplicas()) {
         const auto* dstDataCenter = nodePtrWithIndexes.GetPtr()->GetDataCenter();
 
@@ -2298,7 +2304,7 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(const TJobPtr& job, int size
         auto& consumption = interDCEdgeConsumption[dstDataCenter];
         consumption += sizeMultiplier * chunkPartSize;
 
-        if (consumption < interDCEdgeCapacities.Value(dstDataCenter, Config_->InterDCLimits->GetDefaultCapacity())) {
+        if (consumption < interDCEdgeCapacities.Value(dstDataCenter, defaultCapacity)) {
             UnsaturatedInterDCEdges[srcDataCenter].insert(dstDataCenter);
         } else {
             auto it = UnsaturatedInterDCEdges.find(srcDataCenter);

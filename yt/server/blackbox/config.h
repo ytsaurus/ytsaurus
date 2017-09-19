@@ -82,5 +82,18 @@ DEFINE_REFCOUNTED_TYPE(TCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCachingCookieAuthenticatorConfig
+    : public TCookieAuthenticatorConfig
+    , public TExpiringCacheConfig
+{
+public:
+    TCachingCookieAuthenticatorConfig()
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NBlackbox
 } // namespace NYT

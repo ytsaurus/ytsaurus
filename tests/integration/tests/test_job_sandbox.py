@@ -1,8 +1,10 @@
-from yt_env_setup import YTEnvSetup, porto_env_only
+from yt_env_setup import YTEnvSetup, patch_porto_env_only
 from yt_commands import *
 
 from yt.yson import *
 from yt.environment.helpers import assert_items_equal, assert_almost_equal
+
+from flaky import flaky
 
 import pytest
 import time
@@ -255,8 +257,8 @@ class TestSandboxTmpfs(YTEnvSetup):
 
 ##################################################################
 
-@porto_env_only
-class TestSandboxTmpfsPorto(TestSandboxTmpfs):
+@patch_porto_env_only(TestSandboxTmpfs)
+class TestSandboxTmpfsPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -310,6 +312,7 @@ class TestFilesInSandbox(YTEnvSetup):
         }
     }
 
+    @flaky(max_runs=3)
     def test_operation_abort_with_lost_file(self):
         create("file", "//tmp/script", attributes={"replication_factor": 1, "executable": True})
         write_file("//tmp/script", "#!/bin/bash\ncat")

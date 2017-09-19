@@ -68,9 +68,18 @@ private:
     TResultHandlers ResultHandlers_;
     TCancelHandlers CancelHandlers_;
 
+    template <class F, class... As>
+    auto RunNoExcept(F&& functor, As&&... args) -> decltype(functor(std::forward<As>(args)...))
+    {
+        try {
+            return functor(std::forward<As>(args)...);
+        } catch (...) {
+            std::terminate();
+        }
+    }
 
     template <class U, bool MustSet>
-    bool DoSet(U&& value)
+    bool DoSet(U&& value) noexcept
     {
         // Calling subscribers may release the last reference to this.
         TIntrusivePtr<TFutureState> this_(this);
@@ -86,6 +95,7 @@ private:
                     return false;
                 }
             }
+            // TODO(sandello): What about exceptions here?
             Value_.Assign(TErrorOr<T>(std::forward<U>(value)));
             Set_ = true;
             canceled = Canceled_;
@@ -97,7 +107,7 @@ private:
         }
 
         for (const auto& handler : ResultHandlers_) {
-            handler.Run(*Value_);
+            RunNoExcept(handler, *Value_);
         }
         ResultHandlers_.clear();
 
@@ -243,7 +253,7 @@ public:
     {
         // Fast path.
         if (Set_) {
-            handler.Run(*Value_);
+            RunNoExcept(handler, *Value_);
             return;
         }
 
@@ -252,7 +262,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             if (Set_) {
                 guard.Release();
-                handler.Run(*Value_);
+                RunNoExcept(handler, *Value_);
             } else {
                 ResultHandlers_.push_back(std::move(handler));
             }
@@ -266,7 +276,7 @@ public:
             return;
         }
         if (Canceled_) {
-            handler.Run();
+            RunNoExcept(handler);
             return;
         }
 
@@ -275,7 +285,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             if (Canceled_) {
                 guard.Release();
-                handler.Run();
+                RunNoExcept(handler);
             } else if (!Set_) {
                 CancelHandlers_.push_back(std::move(handler));
             }
@@ -288,7 +298,7 @@ public:
     }
 
 private:
-    bool DoCancel()
+    bool DoCancel() noexcept
     {
         // Calling subscribers may release the last reference to this.
         TIntrusivePtr<TFutureState> this_(this);
@@ -302,7 +312,7 @@ private:
         }
 
         for (auto& handler : CancelHandlers_) {
-            handler.Run();
+            RunNoExcept(handler);
         }
         CancelHandlers_.clear();
 
@@ -1073,10 +1083,13 @@ TFuture<T>* TFutureHolder<T>::operator->() // noexcept
 namespace NDetail {
 
 template <class T>
-class TFutureCombinerResultHolder
+class TFutureCombinerVectorResultHolder
 {
 public:
-    explicit TFutureCombinerResultHolder(int size)
+    using TResult = std::vector<T>;
+
+public:
+    explicit TFutureCombinerVectorResultHolder(int size)
         : Result_(size)
     { }
 
@@ -1085,27 +1098,75 @@ public:
         Result_[index] = value.Value();
     }
 
-    void SetPromise(TPromise<std::vector<T>>& promise)
+    void SetPromise(TPromise<TResult>& promise)
     {
         promise.TrySet(std::move(Result_));
     }
 
 private:
-    std::vector<T> Result_;
+    TResult Result_;
 
 };
 
 template <>
-class TFutureCombinerResultHolder<void>
+class TFutureCombinerVectorResultHolder<void>
 {
 public:
-    explicit TFutureCombinerResultHolder(int /*size*/)
+    using TResult = void;
+
+public:
+    explicit TFutureCombinerVectorResultHolder(int /*size*/)
     { }
 
     void SetItem(int /*index*/, const TError& /*value*/)
     { }
 
-    void SetPromise(TPromise<void>& promise)
+    void SetPromise(TPromise<TResult>& promise)
+    {
+        promise.TrySet();
+    }
+};
+
+template <class K, class T>
+class TFutureCombinerHashMapResultHolder
+{
+public:
+    using TResult = yhash<K, T>;
+
+public:
+    TFutureCombinerHashMapResultHolder(std::vector<K> keys)
+        : Keys_(std::move(keys))
+    { }
+
+    void SetItem(int index, const TErrorOr<T>& value)
+    {
+        Result_.emplace(Keys_[index], value.Value());
+    }
+
+    void SetPromise(TPromise<TResult>& promise)
+    {
+        promise.TrySet(std::move(Result_));
+    }
+
+private:
+    const std::vector<K> Keys_;
+    TResult Result_;
+};
+
+template <class K>
+class TFutureCombinerHashMapResultHolder<K, void>
+{
+public:
+    using TResult = void;
+
+public:
+    TFutureCombinerHashMapResultHolder(std::vector<K> /*keys*/)
+    { }
+
+    void SetItem(int /*index*/, const TError& /*value*/)
+    { }
+
+    void SetPromise(TPromise<TResult>& promise)
     {
         promise.TrySet();
     }
@@ -1137,7 +1198,6 @@ protected:
     std::vector<TFuture<TItem>> Futures_;
     TPromise<TResult> Promise_ = NewPromise<TResult>();
 
-
     void CancelFutures()
     {
         for (size_t index = 0; index < Futures_.size(); ++index) {
@@ -1161,21 +1221,21 @@ private:
     }
 };
 
-template <class T>
+template <class T, class TResultHolder>
 class TFutureCombiner
-    : public TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>
+    : public TFutureCombinerBase<T, typename TResultHolder::TResult>
 {
 public:
-    explicit TFutureCombiner(std::vector<TFuture<T>> futures)
-        : TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>(std::move(futures))
-        , ResultHolder_(this->Futures_.size())
+    template <typename... Args>
+    TFutureCombiner(std::vector<TFuture<T>> futures, Args... args)
+        : TFutureCombinerBase<T, typename TResultHolder::TResult>(std::move(futures))
+        , ResultHolder_(args...)
         , PendingResponseCount_(this->Futures_.size())
     { }
 
 private:
-    TFutureCombinerResultHolder<T> ResultHolder_;
+    TResultHolder ResultHolder_;
     std::atomic<int> PendingResponseCount_;
-
 
     virtual void OnFutureSet(int futureIndex, const TErrorOr<T>& result) override
     {
@@ -1200,11 +1260,11 @@ private:
 
 template <class T>
 class TQuorumFutureCombiner
-    : public TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>
+    : public TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombinedVector>
 {
 public:
     TQuorumFutureCombiner(std::vector<TFuture<T>> futures, int quorum)
-        : TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>(std::move(futures))
+        : TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombinedVector>(std::move(futures))
         , Quorum_(quorum)
         , ResultHolder_(quorum)
         , PendingResponseCount_(quorum)
@@ -1213,7 +1273,7 @@ public:
 private:
     const int Quorum_;
 
-    TFutureCombinerResultHolder<T> ResultHolder_;
+    TFutureCombinerVectorResultHolder<T> ResultHolder_;
     std::atomic<int> PendingResponseCount_;
     std::atomic<int> CurrentResponseIndex_ = {0};
 
@@ -1275,15 +1335,35 @@ private:
 } // namespace NDetail
 
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
     std::vector<TFuture<T>> futures)
 {
-    return New<NDetail::TFutureCombiner<T>>(std::move(futures))
+    auto size = futures.size();
+    return New<NDetail::TFutureCombiner<T, NDetail::TFutureCombinerVectorResultHolder<T>>>(std::move(futures), size)
+        ->Run();
+}
+
+template <class K, class T>
+TFuture<typename TFutureCombineTraits<T>::template TCombinedHashMap<K>> Combine(
+    const yhash<K, TFuture<T>>& futures)
+{
+    const size_t size = futures.size();
+    std::vector<K> keys;
+    keys.reserve(size);
+    std::vector<TFuture<T>> values;
+    values.reserve(size);
+
+    for (const auto& item : futures) {
+        keys.emplace_back(item.first);
+        values.emplace_back(item.second);
+    }
+
+    return New<NDetail::TFutureCombiner<T, NDetail::TFutureCombinerHashMapResultHolder<K,T>>>(std::move(values), std::move(keys))
         ->Run();
 }
 
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombined> CombineQuorum(
+TFuture<typename TFutureCombineTraits<T>::TCombinedVector> CombineQuorum(
     std::vector<TFuture<T>> futures,
     int quorum)
 {
@@ -1293,7 +1373,7 @@ TFuture<typename TFutureCombineTraits<T>::TCombined> CombineQuorum(
 }
 
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
     std::vector<TFutureHolder<T>> holders)
 {
     std::vector<TFuture<T>> futures;

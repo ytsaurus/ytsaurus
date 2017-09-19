@@ -124,7 +124,7 @@ static const int JobStatisticsFD = 5;
 static TString CGroupBase = "user_jobs";
 static TString CGroupPrefix = CGroupBase + "/yt-job-";
 
-static const size_t BufferSize = MB;
+static const size_t BufferSize = 1_MB;
 
 static const size_t MaxCustomStatisticsPathLength = 512;
 
@@ -340,7 +340,7 @@ public:
 
         auto jobError = innerErrors.empty()
             ? TError()
-            : TError("User job failed") << innerErrors;
+            : TError(EErrorCode::UserJobFailed, "User job failed") << innerErrors;
 
         ToProto(result.mutable_error(), jobError);
 
@@ -1215,7 +1215,7 @@ private:
         i64 memoryLimit = UserJobSpec_.memory_limit();
         i64 currentMemoryUsage = rss + tmpfsSize;
 
-        CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / MB) * MemoryWatchdogPeriod_.Seconds();
+        CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / 1_MB) * MemoryWatchdogPeriod_.Seconds();
 
         LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
             tmpfsSize,

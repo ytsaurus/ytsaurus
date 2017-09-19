@@ -153,6 +153,7 @@ void TExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
     NConcurrency::TWriterGuard guard(SpinLock_);
     auto it = Map_.find(key);
     if (it != Map_.end() && it->second->Promise.IsSet()) {
+        NConcurrency::TDelayedExecutor::CancelAndClear(it->second->ProbationCookie);
         Map_.erase(it);
     }
 }
@@ -161,6 +162,11 @@ template <class TKey, class TValue>
 void TExpiringCache<TKey, TValue>::Clear()
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
+    for (const auto& pair : Map_) {
+        if (pair.second->Promise.IsSet()) {
+            NConcurrency::TDelayedExecutor::CancelAndClear(pair.second->ProbationCookie);
+        }
+    }
     Map_.clear();
 }
 
@@ -190,11 +196,6 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
         return;
     }
 
-    if (now > entry->AccessDeadline) {
-        Map_.erase(key);
-        return;
-    }
-
     if (valueOrError.IsOK()) {
         NTracing::TNullTraceContextGuard guard;
         entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
@@ -206,31 +207,35 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
 template <class TKey, class TValue>
 void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, const TKey& key)
 {
-    DoGet(key)
-    .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+    if (weakEntry.IsExpired()) {
+        return;
+    }
 
-        SetResult(weakEntry, key, valueOrError);
-    }));
+    DoGet(key)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
+            NConcurrency::TWriterGuard guard(SpinLock_);
+
+            SetResult(weakEntry, key, valueOrError);
+        }));
 }
 
 template <class TKey, class TValue>
 void TExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys)
 {
     DoGetMany(keys)
-    .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TValue>>& valueOrError) {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TValue>>& valueOrError) {
+            NConcurrency::TWriterGuard guard(SpinLock_);
 
-        if (valueOrError.IsOK()) {
-            for (size_t index = 0; index < keys.size(); ++index) {
-                SetResult(entries[index], keys[index], valueOrError.Value()[index]);
+            if (valueOrError.IsOK()) {
+                for (size_t index = 0; index < keys.size(); ++index) {
+                    SetResult(entries[index], keys[index], valueOrError.Value()[index]);
+                }
+            } else {
+                for (size_t index = 0; index < keys.size(); ++index) {
+                    SetResult(entries[index], keys[index], TError(valueOrError));
+                }
             }
-        } else {
-            for (size_t index = 0; index < keys.size(); ++index) {
-                SetResult(entries[index], keys[index], TError(valueOrError));
-            }
-        }
-    }));
+        }));
 }
 
 template <class TKey, class TValue>

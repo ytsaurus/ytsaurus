@@ -14,6 +14,7 @@ DEFINE_ENUM(EErrorCode,
     ((JobTimeLimitExceeded)    (1202))
     ((UnsupportedJobType)      (1203))
     ((JobNotPrepared)          (1204))
+    ((UserJobFailed)           (1205))
 );
 
 DECLARE_REFCOUNTED_STRUCT(IJobSpecHelper)

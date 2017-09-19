@@ -16,6 +16,8 @@ class TCellStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TDynamicClusterConfig)
+
 DECLARE_REFCOUNTED_CLASS(TMasterHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TMulticellManagerConfig)
@@ -33,6 +35,9 @@ class TBootstrap;
 class TLoadContext;
 class TSaveContext;
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
+
+class TConfigManager;
+using TConfigManagerPtr = TIntrusivePtr<TConfigManager>;
 
 DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)

@@ -78,6 +78,9 @@ public:
         TPartition* partition,
         const TSharedRange<TKey>& keys) override;
 
+    virtual bool IsOverflowRotationNeeded() const override;
+    virtual TError CheckOverflow() const override;
+
 private:
     const int KeyColumnCount_;
 

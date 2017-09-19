@@ -11,7 +11,7 @@
 
 #include <yt/core/misc/async_cache.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <llvm/ADT/FoldingSet.h>
 #include <llvm/Support/TargetSelect.h>
@@ -60,7 +60,7 @@ public:
         TConstBaseQueryPtr query,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        const TExecuteQueryCallback& executeCallback,
+        TJoinSubqueryProfiler joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const TQueryBaseOptions& options)
@@ -87,6 +87,7 @@ public:
                 auto cgQuery = Codegen(
                     query,
                     fragmentParams,
+                    joinProfiler,
                     functionProfilers,
                     aggregateProfilers,
                     statistics,
@@ -105,15 +106,6 @@ public:
                 executionContext.JoinRowLimit = options.OutputRowLimit;
                 executionContext.Limit = query->Limit;
                 executionContext.IsOrdered = query->IsOrdered();
-
-                // Used in joins
-                executionContext.ExecuteCallback = executeCallback;
-
-                if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
-                    if(!derivedQuery->JoinClauses.empty()) {
-                        YCHECK(executeCallback);
-                    }
-                }
 
                 LOG_DEBUG("Evaluating query");
 
@@ -153,6 +145,7 @@ private:
     TCGQueryCallback Codegen(
         TConstBaseQueryPtr query,
         TCGVariables& variables,
+        const TJoinSubqueryProfiler& joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         TQueryStatistics& statistics,
@@ -160,7 +153,13 @@ private:
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, functionProfilers, aggregateProfilers);
+        auto makeCodegenQuery = Profile(
+            query,
+            &id,
+            &variables,
+            joinProfiler,
+            functionProfilers,
+            aggregateProfilers);
 
         auto Logger = MakeQueryLogger(query);
 
@@ -225,7 +224,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     TConstBaseQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
-    TExecuteQueryCallback executeCallback,
+    TJoinSubqueryProfiler joinProfiler,
     TConstFunctionProfilerMapPtr functionProfilers,
     TConstAggregateProfilerMapPtr aggregateProfilers,
     const TQueryBaseOptions& options)
@@ -234,7 +233,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
         std::move(query),
         std::move(reader),
         std::move(writer),
-        std::move(executeCallback),
+        std::move(joinProfiler),
         functionProfilers,
         aggregateProfilers,
         options);

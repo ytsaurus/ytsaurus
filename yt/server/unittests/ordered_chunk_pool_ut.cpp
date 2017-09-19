@@ -67,7 +67,7 @@ protected:
 
     TInputChunkPtr CreateChunk(
         int tableIndex,
-        i64 size = 1 * KB,
+        i64 size = 1_KB,
         i64 rowCount = 1000)
     {
         auto inputChunk = New<TInputChunk>();
@@ -334,7 +334,7 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSimple)
         {false, false, false} /* isVersioned */
     );
 
-    DataSizePerJob_ = 2 * KB;
+    DataSizePerJob_ = 2_KB;
 
     InitJobConstraints();
 
@@ -372,22 +372,22 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
     );
 
     Options_.KeepOutputOrder = true;
-    Options_.MinTeleportChunkSize = 2 * KB;
-    DataSizePerJob_ = 2 * KB;
+    Options_.MinTeleportChunkSize = 2_KB;
+    DataSizePerJob_ = 2_KB;
 
     InitJobConstraints();
 
     std::vector<TInputChunkPtr> chunks = {
-        CreateChunk(0, 1 * KB),
-        CreateChunk(0, 10 * KB),
-        CreateChunk(0, 10 * KB),
-        CreateChunk(0, 1 * KB),
-        CreateChunk(0, 1 * KB),
-        CreateChunk(0, 1 * KB),
-        CreateChunk(0, 1 * KB),
-        CreateChunk(0, 1 * KB),
-        CreateChunk(0, 10 * KB),
-        CreateChunk(0, 1 * KB),
+        CreateChunk(0, 1_KB),
+        CreateChunk(0, 10_KB),
+        CreateChunk(0, 10_KB),
+        CreateChunk(0, 1_KB),
+        CreateChunk(0, 1_KB),
+        CreateChunk(0, 1_KB),
+        CreateChunk(0, 1_KB),
+        CreateChunk(0, 1_KB),
+        CreateChunk(0, 10_KB),
+        CreateChunk(0, 1_KB),
     };
 
     CreateChunkPool();
@@ -455,12 +455,12 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
         {false} /* isVersioned */
     );
 
-    DataSizePerJob_ = 2 * KB;
-    InputSliceDataSize_ = 2 * KB;
+    DataSizePerJob_ = 2_KB;
+    InputSliceDataSize_ = 2_KB;
 
     InitJobConstraints();
 
-    auto chunkA = CreateChunk(0, 20 * KB, 1000 /* rowCount */);
+    auto chunkA = CreateChunk(0, 20_KB, 1000 /* rowCount */);
 
     CreateChunkPool();
 
@@ -503,7 +503,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         {false} /* isTeleportable */,
         {false} /* isVersioned */
     );
-    DataSizePerJob_ = 1 * KB;
+    DataSizePerJob_ = 1_KB;
     InitJobConstraints();
 
     const int chunkCount = 50;

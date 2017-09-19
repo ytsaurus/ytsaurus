@@ -835,18 +835,18 @@ TString TLockedUserObject::GetPath() const
 
 TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const NScheduler::NProto::TOutputResult& boundaryKeys,
-    const TOutputTable& outputTable,
+    const TEdgeDescriptor& edgeDescriptor,
     const TRowBufferPtr& rowBuffer)
 {
     YCHECK(!boundaryKeys.empty());
     YCHECK(boundaryKeys.sorted());
-    YCHECK(!outputTable.Options->ValidateUniqueKeys || boundaryKeys.unique_keys());
+    YCHECK(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
 
     auto trimAndCaptureKey = [&] (const TOwningKey& key) {
-        int limit = outputTable.TableUploadOptions.TableSchema.GetKeyColumnCount();
+        int limit = edgeDescriptor.TableUploadOptions.TableSchema.GetKeyColumnCount();
         if (key.GetCount() > limit) {
             // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
-            YCHECK(!outputTable.Options->ValidateUniqueKeys);
+            YCHECK(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys);
             return rowBuffer->Capture(key.Begin(), limit);
         } else {
             return rowBuffer->Capture(key.Begin(), key.GetCount());

@@ -6,6 +6,8 @@
 
 #include <yt/server/scheduler/public.h>
 
+#include <yt/server/controller_agent/public.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/hive/public.h>
@@ -30,6 +32,10 @@ namespace NCellScheduler {
 DEFINE_ENUM(EControlQueue,
     (Default)
     (UserRequest)
+    (MasterConnector)
+    (Orchid)
+    (PeriodicActivity)
+    (Operation)
 );
 
 class TBootstrap
@@ -43,7 +49,9 @@ public:
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
+    const IInvokerPtr& GetControllerAgentInvoker() const;
     const NScheduler::TSchedulerPtr& GetScheduler() const;
+    const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
     const TCoreDumperPtr& GetCoreDumper() const;
@@ -60,12 +68,14 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NConcurrency::TFairShareActionQueuePtr ControlQueue_;
+    NConcurrency::TActionQueuePtr ControllerAgentQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     std::unique_ptr<NHttp::TServer> HttpServer_;
     NApi::INativeConnectionPtr Connection_;
     NApi::INativeClientPtr Client_;
     NScheduler::TSchedulerPtr Scheduler_;
+    NControllerAgent::TControllerAgentPtr ControllerAgent_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;

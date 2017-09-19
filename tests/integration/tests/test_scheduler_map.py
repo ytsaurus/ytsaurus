@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, porto_env_only
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal, assert_almost_equal
@@ -289,12 +289,16 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/output", ignore_existing=True)
 
         for job_count in xrange(976, 950, -1):
-            op = map(dont_track=True,
-                     in_="//tmp/input",
-                     out="//tmp/output",
-                     command="sleep 100",
-                     spec={"job_count": job_count})
-            time.sleep(2)
+            op = map(
+                dont_track=True,
+                in_="//tmp/input",
+                out="//tmp/output",
+                command="sleep 100",
+                spec={"job_count": job_count})
+
+            running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+            wait(lambda: exists(running_jobs_path) and len(ls(running_jobs_path)) > 1)
+
             assert op.get_job_count("total") == job_count
             op.abort()
 
@@ -380,18 +384,6 @@ cat > /dev/null; echo {hello=world}
             file="//tmp/mapper.sh")
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
-
-    def test_empty_range(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-
-        original_data = [{"index": i} for i in xrange(10)]
-        write_table("//tmp/t1", original_data)
-
-        command = "cat"
-        map(in_="<ranges=[{lower_limit={row_index=1}; upper_limit={row_index=1}}]>//tmp/t1", out="//tmp/t2", command=command)
-
-        assert [] == read_table("//tmp/t2", verbose=False)
 
     @unix_only
     def test_table_index(self):
@@ -998,8 +990,8 @@ done
 
 ##################################################################
 
-@porto_env_only
-class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
+@patch_porto_env_only(TestSchedulerMapCommands)
+class TestSchedulerMapCommandsPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -1451,8 +1443,8 @@ class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
 
 ##################################################################
 
-@porto_env_only
-class TestMapOnDynamicTablesPorto(TestMapOnDynamicTables):
+@patch_porto_env_only(TestMapOnDynamicTables)
+class TestMapOnDynamicTablesPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True
 
@@ -1667,7 +1659,7 @@ class TestInputOutputFormatsMulticell(TestInputOutputFormats):
 
 ##################################################################
 
-@porto_env_only
-class TestInputOutputFormatsPorto(TestInputOutputFormats):
+@patch_porto_env_only(TestInputOutputFormats)
+class TestInputOutputFormatsPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = porto_delta_node_config
     USE_PORTO_FOR_SERVERS = True

@@ -72,7 +72,7 @@ using NYT::TRange;
 
 static const i64 PartitionRowCountThreshold = 1000 * 1000;
 static const i64 PartitionRowCountLimit = std::numeric_limits<i32>::max() - PartitionRowCountThreshold;
-static const i64 MinRowRangeDataWeight = 64 * KB;
+static const i64 MinRowRangeDataWeight = 64_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -577,6 +577,16 @@ public:
             result += blockWriter->GetCurrentSize();
         }
         return result;
+    }
+
+    virtual i64 GetMetaSize() const override
+    {
+        i64 metaSize = 0;
+        for (const auto& valueColumnWriter : ValueColumnWriters_) {
+            metaSize += valueColumnWriter->GetMetaSize();
+        }
+
+        return metaSize + TUnversionedChunkWriterBase::GetMetaSize();
     }
 
 private:

@@ -26,7 +26,8 @@ DEFINE_ENUM(EFoldingObjectType,
     (FunctionExpr)
     (UnaryOpExpr)
     (BinaryOpExpr)
-    (InOpExpr)
+    (InExpr)
+    (TransformExpr)
 
     (NamedExpression)
     (AggregateItem)
@@ -136,48 +137,70 @@ struct TDebugInfo
 
 };
 
-TString InferName(
-    size_t id,
-    const std::vector<TDebugInfo>& debugExpressions,
-    const std::vector<TCodegenFragmentInfo>& expressions);
-
-TString InferNameArg(
-    size_t id,
-    const std::vector<TDebugInfo>& debugExpressions,
-    const std::vector<TCodegenFragmentInfo>& expressions)
+struct TExpressionFragmentPrinter
+    : TAbstractExpressionPrinter<TExpressionFragmentPrinter, size_t, size_t>
 {
-    if (expressions[id].IsOutOfLine()) {
-        return Format("$%v", id);
+    using TBase = TAbstractExpressionPrinter<TExpressionFragmentPrinter, size_t, size_t>;
+
+    const std::vector<TDebugInfo>& DebugExpressions;
+    const std::vector<TCodegenFragmentInfo>& Expressions;
+
+    TExpressionFragmentPrinter(
+        TStringBuilder* builder,
+        const std::vector<TDebugInfo>& debugExpressions,
+        const std::vector<TCodegenFragmentInfo>& expressions)
+        : TBase(builder, false)
+        , DebugExpressions(debugExpressions)
+        , Expressions(expressions)
+    { }
+
+    const TExpression* GetExpression(size_t id)
+    {
+        return &*DebugExpressions[id].Expr;
     }
 
-    return InferName(id, debugExpressions, expressions);
-}
+    void InferNameArg(size_t id)
+    {
+        if (Expressions[id].IsOutOfLine()) {
+            Builder->AppendString(Format("$%v", id));
+        }
 
-TString InferName(
-    size_t id,
-    const std::vector<TDebugInfo>& debugExpressions,
-    const std::vector<TCodegenFragmentInfo>& expressions)
-{
-    const auto& expr = debugExpressions[id].Expr;
-    const auto& args = debugExpressions[id].Args;
+        Visit(id, id);
+    }
 
-    bool newTuple = true;
-    auto comma = [&] {
-        bool isNewTuple = newTuple;
-        newTuple = false;
-        return TString(isNewTuple ? "" : ", ");
-    };
-    auto canOmitParenthesis = [&] (size_t id) {
-        const auto& expr = debugExpressions[id].Expr;
-        return
-            expr->As<TLiteralExpression>() ||
-            expr->As<TReferenceExpression>() ||
-            expr->As<TFunctionExpression>();
-    };
+    void OnOperand(const TUnaryOpExpression* unaryExpr, size_t id)
+    {
+        auto operandId = DebugExpressions[id].Args[0];
+        Visit(operandId, operandId);
+    }
 
-    if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return ToString(static_cast<TValue>(literalExpr->Value));
-    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+    void OnLhs(const TBinaryOpExpression* binaryExpr, size_t id)
+    {
+        auto lhsId = DebugExpressions[id].Args[0];
+        Visit(lhsId, lhsId);
+    }
+
+    void OnRhs(const TBinaryOpExpression* binaryExpr, size_t id)
+    {
+        auto rhsId = DebugExpressions[id].Args[1];
+        Visit(rhsId, rhsId);
+    }
+
+    template <class T>
+    void OnArguments(const T* expr, size_t id)
+    {
+        bool needComma = false;
+        for (const auto& argument : DebugExpressions[id].Args) {
+            if (needComma) {
+                Builder->AppendString(", ");
+            }
+            InferNameArg(argument);
+            needComma = true;
+        }
+    }
+
+    void OnReference(const TReferenceExpression* referenceExpr, size_t id)
+    {
         auto columnName = referenceExpr->ColumnName;
         if (columnName.size() > 40) {
             columnName.resize(40);
@@ -188,53 +211,14 @@ TString InferName(
                 return c;
             });
 
-            return Format("[%x%v]", FarmFingerprint(columnName.data(), columnName.size()), columnName);
+            Builder->AppendString(
+                Format("[%x%v]", FarmFingerprint(columnName.data(), columnName.size()), columnName));
         }
 
-        return Format("[%v]", columnName);
-    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        auto str = functionExpr->FunctionName + "(";
-        for (const auto& argument : args) {
-            str += comma() + InferNameArg(argument, debugExpressions, expressions);
-        }
-        return str + ")";
-    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        auto rhsName = InferNameArg(args[0], debugExpressions, expressions);
-        if (!canOmitParenthesis(args[0])) {
-            rhsName = "(" + rhsName + ")";
-        }
-        return TString() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
-    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        auto lhsName = InferNameArg(args[0], debugExpressions, expressions);
-        if (!canOmitParenthesis(args[0])) {
-            lhsName = "(" + lhsName + ")";
-        }
-        auto rhsName = InferNameArg(args[1], debugExpressions, expressions);
-        if (!canOmitParenthesis(args[1])) {
-            rhsName = "(" + rhsName + ")";
-        }
-        return
-            lhsName +
-            " " + GetBinaryOpcodeLexeme(binaryOp->Opcode) + " " +
-            rhsName;
-    } else if (auto inOp = expr->As<TInOpExpression>()) {
-        TString str;
-        for (const auto& argument : args) {
-            str += comma() + InferNameArg(argument, debugExpressions, expressions);
-        }
-        if (inOp->Arguments.size() > 1) {
-            str = "(" + str + ")";
-        }
-        str += " IN (";
-        newTuple = true;
-        for (const auto& row : inOp->Values) {
-            str += comma() + ToString(row);
-        }
-        return str + ")";
-    } else {
-        Y_UNREACHABLE();
+        Builder->AppendString(Format("[%v]", columnName));
     }
-}
+
+};
 
 static bool IsDumpExprsEnabled()
 {
@@ -258,17 +242,25 @@ struct TExpressionFragments
         result->Items.assign(Items.begin(), Items.end());
         result->NamePrefix = namePrefix;
 
+        TStringBuilder builder;
+        TExpressionFragmentPrinter expressionPrinter(
+            &builder,
+            DebugInfos,
+            Items);
+
         size_t functionCount = 0;
         for (size_t id = 0; id < result->Items.size(); ++id) {
             if (result->Items[id].IsOutOfLine()) {
                 result->Items[id].Index = functionCount++;
 
                 if (IsDumpExprsEnabled()) {
+                    expressionPrinter.Visit(id, id);
+
                     Cerr << Format(
                         "$%v %v:= %v\n",
                         id,
                         result->Items[id].Nullable ? "nullable " : "",
-                        InferName(id, DebugInfos, Items));
+                        builder.Flush());
                 }
             }
         }
@@ -283,8 +275,16 @@ struct TExpressionFragments
         if (!IsDumpExprsEnabled()) {
             return;
         }
+
+        TStringBuilder builder;
+        TExpressionFragmentPrinter expressionPrinter(
+            &builder,
+            DebugInfos,
+            Items);
+
         for (size_t index = 0; index < ids.size(); ++index) {
-            Cerr << Format("arg%v := %v\n", index, InferNameArg(ids[index], DebugInfos, Items));
+            expressionPrinter.InferNameArg(ids[index]);
+            Cerr << Format("arg%v := %v\n", index, builder.Flush());
         }
     }
 
@@ -293,8 +293,16 @@ struct TExpressionFragments
         if (!IsDumpExprsEnabled()) {
             return;
         }
+
+        TStringBuilder builder;
+        TExpressionFragmentPrinter expressionPrinter(
+            &builder,
+            DebugInfos,
+            Items);
+
         for (size_t index = 0; index < ids.size(); ++index) {
-            Cerr << Format("arg%v := %v\n", index, InferNameArg(ids[index].first, DebugInfos, Items));
+            expressionPrinter.InferNameArg(ids[index].first);
+            Cerr << Format("arg%v := %v\n", index, builder.Flush());
         }
     }
 
@@ -461,16 +469,16 @@ size_t TExpressionProfiler::Profile(
                 nullable);
         }
         return emplaced.first->second;
-    } else if (auto inOp = expr->As<TInOpExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::InOpExpr));
+    } else if (auto inExpr = expr->As<TInExpression>()) {
+        id.AddInteger(static_cast<int>(EFoldingObjectType::InExpr));
 
         std::vector<size_t> argIds;
-        for (const auto& argument : inOp->Arguments) {
+        for (const auto& argument : inExpr->Arguments) {
             argIds.push_back(Profile(argument, schema, fragments));
             id.AddInteger(argIds.back());
         }
 
-        for (const auto& value : inOp->Values) {
+        for (const auto& value : inExpr->Values) {
             id.AddString(ToString(value).c_str());
         }
 
@@ -481,10 +489,38 @@ size_t TExpressionProfiler::Profile(
                 ++fragments->Items[argId].UseCount;
             }
 
-            int index = Variables_->AddOpaque<TSharedRange<TRow>>(inOp->Values);
+            int index = Variables_->AddOpaque<TSharedRange<TRow>>(inExpr->Values);
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
-                MakeCodegenInOpExpr(argIds, index, ComparerManager_),
+                MakeCodegenInExpr(argIds, index, ComparerManager_),
+                expr->Type,
+                false);
+        }
+        return emplaced.first->second;
+    } else if (auto transformExpr = expr->As<TTransformExpression>()) {
+        id.AddInteger(static_cast<int>(EFoldingObjectType::TransformExpr));
+
+        std::vector<size_t> argIds;
+        for (const auto& argument : transformExpr->Arguments) {
+            argIds.push_back(Profile(argument, schema, fragments));
+            id.AddInteger(argIds.back());
+        }
+
+        for (const auto& value : transformExpr->Values) {
+            id.AddString(ToString(value).c_str());
+        }
+
+        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+        if (emplaced.second) {
+            Fold(id);
+            for (size_t argId : argIds) {
+                ++fragments->Items[argId].UseCount;
+            }
+
+            int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformExpr->Values);
+            fragments->DebugInfos.emplace_back(expr, argIds);
+            fragments->Items.emplace_back(
+                MakeCodegenTransformExpr(argIds, index, transformExpr->Type, ComparerManager_),
                 expr->Type,
                 false);
         }
@@ -519,7 +555,11 @@ public:
         TTableSchema schema,
         bool isMerge);
 
-    void Profile(TCodegenSource* codegenSource, TConstQueryPtr query, size_t* slotCount);
+    void Profile(
+        TCodegenSource* codegenSource,
+        TConstQueryPtr query,
+        size_t* slotCount,
+        TJoinSubqueryProfiler joinProfiler);
 
     void Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr query, size_t* slotCount);
 
@@ -831,7 +871,11 @@ void TQueryProfiler::Profile(
     MakeCodegenWriteOp(codegenSource, resultSlot);
 }
 
-void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query, size_t* slotCount)
+void TQueryProfiler::Profile(
+    TCodegenSource* codegenSource,
+    TConstQueryPtr query,
+    size_t* slotCount,
+    TJoinSubqueryProfiler joinProfiler)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
@@ -884,11 +928,78 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
             joinBatchSize = query->Limit;
         }
 
-        int index = Variables_->AddOpaque<TJoinParameters>(GetJoinEvaluator(
-            *joinClause,
-            schema,
-            joinBatchSize,
-            query->IsOrdered()));
+        TJoinParameters joinParameters;
+        {
+            const auto& foreignEquations = joinClause->ForeignEquations;
+            auto commonKeyPrefix = joinClause->CommonKeyPrefix;
+
+            // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
+            auto subquery = New<TQuery>();
+
+            subquery->OriginalSchema = joinClause->OriginalSchema;
+            subquery->SchemaMapping = joinClause->SchemaMapping;
+
+            // (join key... , other columns...)
+            auto projectClause = New<TProjectClause>();
+            std::vector<TConstExpressionPtr> joinKeyExprs;
+
+            for (const auto& column : foreignEquations) {
+                projectClause->AddProjection(column, InferName(column));
+            }
+
+            subquery->ProjectClause = projectClause;
+            subquery->WhereClause = joinClause->Predicate;
+
+            auto selfColumnNames = joinClause->SelfJoinedColumns;
+            std::sort(selfColumnNames.begin(), selfColumnNames.end());
+
+            const auto& selfTableColumns = schema.Columns();
+
+            std::vector<size_t> selfColumns;
+            for (size_t index = 0; index < selfTableColumns.size(); ++index) {
+                if (std::binary_search(
+                    selfColumnNames.begin(),
+                    selfColumnNames.end(),
+                    selfTableColumns[index].Name))
+                {
+                    selfColumns.push_back(index);
+                }
+            }
+
+            auto foreignColumnNames = joinClause->ForeignJoinedColumns;
+            std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
+
+            auto joinRenamedTableColumns = joinClause->GetRenamedSchema().Columns();
+
+            std::vector<size_t> foreignColumns;
+            for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
+                if (std::binary_search(
+                    foreignColumnNames.begin(),
+                    foreignColumnNames.end(),
+                    joinRenamedTableColumns[index].Name))
+                {
+                    foreignColumns.push_back(projectClause->Projections.size());
+
+                    projectClause->AddProjection(
+                        New<TReferenceExpression>(
+                            joinRenamedTableColumns[index].Type,
+                            joinRenamedTableColumns[index].Name),
+                        joinRenamedTableColumns[index].Name);
+                }
+            };
+
+            joinParameters.IsOrdered = query->IsOrdered();
+            joinParameters.IsLeft = joinClause->IsLeft;
+            joinParameters.SelfColumns = selfColumns;
+            joinParameters.ForeignColumns = foreignColumns;
+            joinParameters.IsSortMergeJoin = commonKeyPrefix > 0;
+            joinParameters.CommonKeyPrefixDebug = commonKeyPrefix;
+            joinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
+            joinParameters.BatchSize = joinBatchSize;
+            joinParameters.ExecuteForeign = joinProfiler(subquery, joinClause);
+        }
+
+        int index = Variables_->AddOpaque<TJoinParameters>(joinParameters);
 
         Fold(index);
 
@@ -907,6 +1018,7 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
             fragmentInfos,
             selfKeys,
             joinClause->CommonKeyPrefix,
+            joinClause->ForeignKeyPrefix,
             ComparerManager_);
 
         MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
@@ -1008,6 +1120,7 @@ TCGQueryCallbackGenerator Profile(
     TConstBaseQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
+    TJoinSubqueryProfiler joinProfiler,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers)
 {
@@ -1017,7 +1130,7 @@ TCGQueryCallbackGenerator Profile(
     TCodegenSource codegenSource = &CodegenEmptyOp;
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
-        profiler.Profile(&codegenSource, derivedQuery, &slotCount);
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfiler);
     } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
         profiler.Profile(&codegenSource, derivedQuery, &slotCount);
     } else {

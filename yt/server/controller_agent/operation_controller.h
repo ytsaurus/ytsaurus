@@ -4,6 +4,8 @@
 
 #include "private.h"
 
+#include <yt/server/cell_scheduler/bootstrap.h>
+
 #include <yt/server/scheduler/scheduling_context.h>
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/job_metrics.h>
@@ -80,7 +82,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual TMasterConnector* GetMasterConnector() = 0;
+    virtual TMasterConnector* GetControllerAgentMasterConnector() = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -91,7 +93,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual IInvokerPtr GetControlInvoker() const = 0;
+    virtual IInvokerPtr GetControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const = 0;
 
     //! Returns invoker for statistics analyzer.
     /*!
@@ -189,7 +191,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual void SetOperationAlert(
+    virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) = 0;
@@ -404,7 +406,19 @@ struct IOperationController
     virtual void BuildSpec(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
-     *  \note Invoker affinity: Controller invoker
+     *  \note Invoker affinity: any.
+     */
+    //! Marks that progress was dumped to cypress.
+    virtual void SetProgressUpdated() = 0;
+
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    //! Check that progress has changed and should be dumped to the cypress.
+    virtual bool ShouldUpdateProgress() const = 0;
+
+    /*!
+     *  \note Invoker affinity: any.
      */
     //! Returns |true| when controller can build it's progress.
     virtual bool HasProgress() const = 0;
@@ -445,6 +459,9 @@ struct IOperationController
     //! Called to get a YSON string representing current job(s) state.
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
     virtual NYson::TYsonString BuildJobsYson() const = 0;
+
+    //! Builds job spec proto blob.
+    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
 
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;

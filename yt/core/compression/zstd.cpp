@@ -14,7 +14,7 @@ namespace NCompression {
 
 static const auto& Logger = CompressionLogger;
 
-static const size_t MaxBlockSize = MB;
+static const size_t MaxBlockSize = 1_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

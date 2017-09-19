@@ -13,6 +13,11 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPath GetOperationsPath()
+{
+    return "//sys/operations";
+}
+
 TYPath GetOperationPath(const TOperationId& operationId)
 {
     return
@@ -100,6 +105,18 @@ TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
 const TYPath& GetPoolsPath()
 {
     static TYPath path =  "//sys/pools";
+    return path;
+}
+
+const TYPath& GetOperationsArchivePathOrderedById()
+{
+    static TYPath path = "//sys/operations_archive/ordered_by_id";
+    return path;
+}
+
+const TYPath& GetOperationsArchivePathOrderedByStartTime()
+{
+    static TYPath path = "//sys/operations_archive/ordered_by_start_time";
     return path;
 }
 

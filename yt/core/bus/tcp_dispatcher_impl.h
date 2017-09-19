@@ -17,7 +17,6 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNetworkAddress GetUnixDomainAddress(const TString& name);
 TNetworkAddress GetLocalBusAddress(int port);
 bool IsLocalBusTransportEnabled();
 

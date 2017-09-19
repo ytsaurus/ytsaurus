@@ -21,10 +21,8 @@ function(UDF_BC udf output)
   get_filename_component(_filename ${_realpath} NAME_WE)
   get_filename_component(_extension ${_realpath} EXT)
 
-  set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
-  set(_h_file ${_h_dirname}/${_filename}.h)
-
-  set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
+  set(_bc_filename ${_filename}.bc)
+  set(${output} ${${output}} ${_bc_filename} PARENT_SCOPE)
 
   set(_args ${ARGN})
   set(_list _extra_symbols)
@@ -35,12 +33,12 @@ function(UDF_BC udf output)
       set(_list _extra_files)
     elseif(${_arg} STREQUAL "INCLUDE_DIRECTORIES")
       set(_list _include_dirs)
+    elseif(${_arg} STREQUAL "DEPENDS")
+      set(_list _depends)
     else()
       set(${_list} ${${_list}} ${_arg})
     endif()
   endforeach()
-
-  set(_bc_filename ${_filename}.bc)
 
   foreach(_extra_file ${_extra_files})
     get_filename_component(_extra_realpath ${_extra_file} REALPATH)
@@ -68,20 +66,18 @@ function(UDF_BC udf output)
   if(${_extension} STREQUAL ".cpp")
     set(_compiler ${CLANGPP_EXECUTABLE})
     set(_options -std=c++1y -Wglobal-constructors)
-    set(_depends ${_include_dir}/yt_udf_cpp.h)
+    set(_depends ${_depends} ${_include_dir}/yt_udf_cpp.h)
     set(_lang "CXX")
   else()
     set(_compiler ${CLANG_EXECUTABLE})
     set(_options)
-    set(_depends ${_include_dir}/yt_udf.h)
+    set(_depends ${_depends} ${_include_dir}/yt_udf.h)
     set(_lang "C")
   endif()
 
   add_custom_command(
     OUTPUT
-      ${_h_file}
-    COMMAND
-      ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
+      ${_bc_filename}
     COMMAND
       for f in ${_realpath} ${_extra_files} \; do
         ${_compiler} -c
@@ -110,8 +106,6 @@ function(UDF_BC udf output)
         ${_bc_filename}
     COMMAND
       mv ${_bc_filename}.tmp ${_bc_filename}
-    COMMAND
-      xxd -i ${_bc_filename} > ${_h_file}
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
@@ -123,6 +117,34 @@ function(UDF_BC udf output)
       ${_extra_files}
     IMPLICIT_DEPENDS
       ${_lang} ${_realpath} ${_extra_files}
+    WORKING_DIRECTORY
+      ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generating UDF header for ${_filename}..."
+  )
+endfunction()
+
+function(UDF_BC_HEADER udf output)
+  get_filename_component(_realpath ${udf} REALPATH)
+  get_filename_component(_filename ${_realpath} NAME_WE)
+  get_filename_component(_extension ${_realpath} EXT)
+
+  set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
+  set(_h_file ${_h_dirname}/${_filename}.h)
+
+  set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
+
+  set(targets "")
+  udf_bc(${udf} targets ${ARGN})
+
+  add_custom_command(
+    OUTPUT
+      ${_h_file}
+    COMMAND
+      ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
+    COMMAND
+      xxd -i ${targets} > ${_h_file}
+    MAIN_DEPENDENCY
+      ${targets}
     WORKING_DIRECTORY
       ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generating UDF header for ${_filename}..."
@@ -234,7 +256,7 @@ function(RAGEL source result_variable)
       COMMAND
         ${RAGEL_EXECUTABLE} -C -G2 ${_input} -o ${_output}
       COMMAND
-        ${PERL_EXECUTABLE} -ni -e 's/\t/    /g; print unless /^\#line/' ${_output}
+        ${PERL_EXECUTABLE} -ni -e 's/\t/\ \ \ \ /g $<SEMICOLON> print unless /^\#line/' ${_output}
       MAIN_DEPENDENCY
         ${_input}
       WORKING_DIRECTORY
@@ -267,11 +289,11 @@ function(BISON source result_variable)
       COMMAND
         ${BISON_EXECUTABLE} --locations -fcaret ${_realpath} -o ${_dirname}/${_basename}.cpp
       COMMAND
-        ${PERL_EXECUTABLE} -ni -e 's/\t/    /g; print unless /^\#line/' ${_dirname}/${_basename}.cpp
+        ${PERL_EXECUTABLE} -ni -e 's/\t/\ \ \ \ /g $<SEMICOLON> print unless /^\#line/' ${_dirname}/${_basename}.cpp
       COMMAND
-        ${PERL_EXECUTABLE} -ni -e 's/\t/    /g; print unless /^\#line/' ${_dirname}/${_basename}.hpp
+        ${PERL_EXECUTABLE} -ni -e 's/\t/\ \ \ \ /g $<SEMICOLON> print unless /^\#line/' ${_dirname}/${_basename}.hpp
       COMMAND
-        ${PERL_EXECUTABLE} -ni -e 's/\t/    /g; print unless /^\#line/' ${_dirname}/stack.hh
+        ${PERL_EXECUTABLE} -ni -e 's/\t/\ \ \ \ /g $<SEMICOLON> print unless /^\#line/' ${_dirname}/stack.hh
       MAIN_DEPENDENCY
         ${_realpath}
       WORKING_DIRECTORY

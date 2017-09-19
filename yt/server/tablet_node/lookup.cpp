@@ -21,7 +21,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -126,7 +126,7 @@ public:
             currentIt = nextIt;
         }
 
-        auto cpuTime = timer.GetCpuValue();
+        auto cpuTime = timer.GetElapsedValue();
 
         if (IsProfilingEnabled()) {
             auto& counters = GetLocallyGloballyCachedValue<TLookupProfilerTrait>(Tags_);

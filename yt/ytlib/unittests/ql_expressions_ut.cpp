@@ -76,8 +76,8 @@ protected:
                 || !Equal(binaryLhs->Rhs, binaryRhs->Rhs)) {
                 return false;
             }
-        } else if (auto inLhs = lhs->As<TInOpExpression>()) {
-            auto inRhs = rhs->As<TInOpExpression>();
+        } else if (auto inLhs = lhs->As<TInExpression>()) {
+            auto inRhs = rhs->As<TInExpression>();
             if (inRhs == nullptr
                 || inLhs->Values.Size() != inRhs->Values.Size()
                 || inLhs->Arguments.size() != inRhs->Arguments.size()) {
@@ -760,7 +760,7 @@ TEST_F(TPrepareExpressionTest, Negative1)
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(TString("ki in (1, 2u, \"abc\")"), schema); },
-        HasSubstr("IN operator types mismatch"));
+        HasSubstr("Types mismatch in tuple"));
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(TString("ku = \"abc\""), schema); },
@@ -819,25 +819,25 @@ INSTANTIATE_TEST_CASE_P(
                 Make<TLiteralExpression>(MakeDouble(1))),
             "kd = 1u"),
         std::tuple<TConstExpressionPtr, const char*>(
-            New<TInOpExpression>(
+            New<TInExpression>(
                 std::initializer_list<TConstExpressionPtr>({
                     Make<TLiteralExpression>(MakeInt64(4))}),
                 MakeRows("1; 2; 3")),
             "4 in (1, 2u, 3.0)"),
         std::tuple<TConstExpressionPtr, const char*>(
-            New<TInOpExpression>(
+            New<TInExpression>(
                 std::initializer_list<TConstExpressionPtr>({
                     Make<TReferenceExpression>("ki")}),
                 MakeRows("1; 2; 3")),
             "ki in (1, 2u, 3.0)"),
         std::tuple<TConstExpressionPtr, const char*>(
-            New<TInOpExpression>(
+            New<TInExpression>(
                 std::initializer_list<TConstExpressionPtr>({
                     Make<TReferenceExpression>("ku")}),
                 MakeRows("1u; 2u; 3u")),
             "ku in (1, 2u, 3.0)"),
         std::tuple<TConstExpressionPtr, const char*>(
-            New<TInOpExpression>(
+            New<TInExpression>(
                 std::initializer_list<TConstExpressionPtr>({
                     Make<TReferenceExpression>("kd")}),
                 MakeRows("1.0; 2.0; 3.0")),

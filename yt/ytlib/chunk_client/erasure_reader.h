@@ -20,6 +20,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(ignat): Remove this reader, it is not used anymore.
 IChunkReaderPtr CreateNonRepairingErasureReader(
     NErasure::ICodec* codec,
     const std::vector<IChunkReaderPtr>& dataBlocksReaders);

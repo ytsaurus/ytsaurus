@@ -87,6 +87,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, Slots);
 
 public:
+    TAsyncSemaphoreGuard();
     TAsyncSemaphoreGuard(TAsyncSemaphoreGuard&& other);
     ~TAsyncSemaphoreGuard();
 
@@ -108,7 +109,6 @@ private:
 
     TAsyncSemaphorePtr Semaphore_;
 
-    TAsyncSemaphoreGuard();
     TAsyncSemaphoreGuard(TAsyncSemaphorePtr semaphore, i64 slots);
 
     void MoveFrom(TAsyncSemaphoreGuard&& other);

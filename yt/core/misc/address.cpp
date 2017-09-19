@@ -14,7 +14,7 @@
 #include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <util/generic/singleton.h>
 
@@ -173,6 +173,11 @@ socklen_t TNetworkAddress::GetLength() const
     return Length;
 }
 
+socklen_t* TNetworkAddress::GetLengthPtr()
+{
+    return &Length;
+}
+
 TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
 {
     int closingBracketIndex = address.find(']');
@@ -242,6 +247,25 @@ TNetworkAddress TNetworkAddress::CreateIPv6Loopback(int port)
     return TNetworkAddress(reinterpret_cast<const sockaddr&>(serverAddress), sizeof(serverAddress));
 }
 
+TNetworkAddress TNetworkAddress::CreateUnixDomainAddress(const TString& name)
+{
+#ifdef _linux_
+    // Abstract unix sockets are supported only on Linux.
+    sockaddr_un sockAddr;
+    memset(&sockAddr, 0, sizeof(sockAddr));
+    sockAddr.sun_family = AF_UNIX;
+    memcpy(sockAddr.sun_path + 1, ~name, name.length());
+    return TNetworkAddress(
+        *reinterpret_cast<sockaddr*>(&sockAddr),
+        sizeof (sockAddr.sun_family) +
+        sizeof (char) +
+        name.length());
+#else
+    Y_UNREACHABLE();
+#endif
+}
+
+
 TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
 {
     return TryParse(address).ValueOrThrow();
@@ -258,9 +282,16 @@ TString ToString(const TNetworkAddress& address, bool withPort)
 #ifdef _unix_
         case AF_UNIX: {
             const auto* typedAddr = reinterpret_cast<const sockaddr_un*>(sockAddr);
-            return typedAddr->sun_path[0] == 0
-                ? Format("unix://[%v]", typedAddr->sun_path + 1)
-                : Format("unix://%v", typedAddr->sun_path);
+            //! See `man unix`.
+            if (address.GetLength() == sizeof(sa_family_t)) {
+                return "unix://[*unnamed*]";
+            } else if (typedAddr->sun_path[0] == 0) {
+                auto addressRef = TStringBuf(typedAddr->sun_path + 1, address.GetLength() - 1 - sizeof(sa_family_t));
+                auto quoted = Format("%Qv", addressRef);
+                return Format("unix://[%v]", quoted.substr(1, quoted.Size() - 2));
+            } else {
+                return Format("unix://%v", typedAddr->sun_path);
+            }
         }
 #endif
         case AF_INET: {

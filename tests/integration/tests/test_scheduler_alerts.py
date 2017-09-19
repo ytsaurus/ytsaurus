@@ -201,7 +201,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "excessive_disk_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
 
-    @flaky(max_runs=3)
     def test_long_aborted_jobs_alert(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(5)])
@@ -224,14 +223,14 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         wait(running_jobs_exists)
 
+        time.sleep(1.5)
+
         for job in ls(operation_orchid_path + "/running_jobs"):
             abort_job(job)
 
         time.sleep(1.5)
 
         assert "long_aborted_jobs" in get("//sys/operations/{0}/@alerts".format(op.id))
-
-        abort_op(op.id)
 
     def test_intermediate_data_skew_alert(self):
         create("table", "//tmp/t_in")

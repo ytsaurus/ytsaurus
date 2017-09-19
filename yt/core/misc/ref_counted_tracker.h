@@ -19,7 +19,6 @@ namespace NYT {
 //
 // See also: http://gcc.gnu.org/faq.html#dso
 // See also: http://www.codesourcery.com/public/cxx-abi/
-
 class TRefCountedTracker
     : private TNonCopyable
 {
@@ -28,30 +27,26 @@ public:
 
     TRefCountedTypeCookie GetCookie(
         TRefCountedTypeKey typeKey,
+        size_t instanceSize,
         const TSourceLocation& location = TSourceLocation());
 
-    Y_FORCE_INLINE void Allocate(TRefCountedTypeCookie cookie, size_t size)
-    {
-        GetPerThreadSlot(cookie)->Allocate(size);
-    }
+    void AllocateInstance(TRefCountedTypeCookie cookie);
+    void FreeInstance(TRefCountedTypeCookie cookie);
 
-    Y_FORCE_INLINE void Reallocate(TRefCountedTypeCookie cookie, size_t sizeFreed, size_t sizeAllocated)
-    {
-        GetPerThreadSlot(cookie)->Reallocate(sizeFreed, sizeAllocated);
-    }
+    void AllocateTagInstance(TRefCountedTypeCookie cookie);
+    void FreeTagInstance(TRefCountedTypeCookie cookie);
 
-    Y_FORCE_INLINE void Free(TRefCountedTypeCookie cookie, size_t size)
-    {
-        GetPerThreadSlot(cookie)->Free(size);
-    }
+    void AllocateSpace(TRefCountedTypeCookie cookie, size_t size);
+    void FreeSpace(TRefCountedTypeCookie cookie, size_t sie);
+    void ReallocateSpace(TRefCountedTypeCookie cookie, size_t sizeFreed, size_t sizeAllocated);
 
     TString GetDebugInfo(int sortByColumn = -1) const;
     NYson::TYsonProducer GetMonitoringProducer() const;
 
-    i64 GetObjectsAllocated(TRefCountedTypeKey typeKey);
-    i64 GetObjectsAlive(TRefCountedTypeKey typeKey);
-    i64 GetAllocatedBytes(TRefCountedTypeKey typeKey);
-    i64 GetAliveBytes(TRefCountedTypeKey typeKey);
+    size_t GetInstancesAllocated(TRefCountedTypeKey typeKey) const;
+    size_t GetInstancesAlive(TRefCountedTypeKey typeKey) const;
+    size_t GetBytesAllocated(TRefCountedTypeKey typeKey) const;
+    size_t GetBytesAlive(TRefCountedTypeKey typeKey) const;
 
     int GetTrackedThreadCount() const;
 
@@ -69,50 +64,38 @@ private:
         bool operator == (const TKey& other) const;
     };
 
-
     class TAnonymousSlot
     {
     public:
-        Y_FORCE_INLINE void Allocate(i64 size)
-        {
-            ++ObjectsAllocated_;
-            BytesAllocated_ += size;
-        }
+        void AllocateInstance();
+        void FreeInstance();
 
-        Y_FORCE_INLINE void Reallocate(i64 sizeFreed, i64 sizeAllocated)
-        {
-            BytesFreed_ += sizeFreed;
-            BytesAllocated_ += sizeAllocated;
-        }
+        void AllocateTagInstance();
+        void FreeTagInstance();
 
-        Y_FORCE_INLINE void Free(i64 size)
-        {
-            ++ObjectsFreed_;
-            BytesFreed_ += size;
-        }
+        void AllocateSpace(size_t size);
+        void FreeSpace(size_t size);
+        void ReallocateSpace(size_t sizeFreed, size_t sizeAllocated);
 
         TAnonymousSlot& operator += (const TAnonymousSlot& other);
 
-        i64 GetObjectsAllocated() const;
-        i64 GetObjectsAlive() const;
-        i64 GetBytesAllocated() const;
-        i64 GetBytesAlive() const;
-
-    private:
-        i64 ObjectsAllocated_ = 0;
-        i64 BytesAllocated_ = 0;
-        i64 ObjectsFreed_ = 0;
-        i64 BytesFreed_ = 0;
+    protected:
+        size_t InstancesAllocated_ = 0;
+        size_t InstancesFreed_ = 0;
+        size_t TagInstancesAllocated_ = 0;
+        size_t TagInstancesFreed_ = 0;
+        size_t SpaceSizeAllocated_ = 0;
+        size_t SpaceSizeFreed_ = 0;
 
     };
 
-    typedef std::vector<TAnonymousSlot> TAnonymousStatistics;
+    using TAnonymousStatistics = std::vector<TAnonymousSlot>;
 
     class TNamedSlot
         : public TAnonymousSlot
     {
     public:
-        explicit TNamedSlot(const TKey& key);
+        TNamedSlot(const TKey& key, size_t instanceSize);
 
         TRefCountedTypeKey GetTypeKey() const;
         const TSourceLocation& GetLocation() const;
@@ -120,18 +103,27 @@ private:
         TString GetTypeName() const;
         TString GetFullName() const;
 
+        size_t GetInstancesAllocated() const;
+        size_t GetInstancesAlive() const;
+
+        size_t GetBytesAllocated() const;
+        size_t GetBytesAlive() const;
+
     private:
         TKey Key_;
+        size_t InstanceSize_;
 
+        static size_t ClampNonnegative(size_t allocated, size_t freed);
     };
 
-    typedef std::vector<TNamedSlot> TNamedStatistics;
+    using TNamedStatistics = std::vector<TNamedSlot>;
 
     static PER_THREAD TAnonymousSlot* CurrentThreadStatisticsBegin;
     static PER_THREAD int CurrentThreadStatisticsSize;
 
-    NConcurrency::TForkAwareSpinLock SpinLock_;
+    mutable NConcurrency::TForkAwareSpinLock SpinLock_;
     std::map<TKey, TRefCountedTypeCookie> KeyToCookie_;
+    std::map<TRefCountedTypeKey, size_t> TypeKeyToInstanceSize_;
     std::vector<TKey> CookieToKey_;
     TAnonymousStatistics GlobalStatistics_;
     yhash_set<TStatisticsHolder*> PerThreadHolders_;
@@ -142,44 +134,19 @@ private:
     TNamedStatistics GetSnapshot() const;
     static void SortSnapshot(TNamedStatistics* snapshot, int sortByColumn);
 
-    TNamedSlot GetSlot(TRefCountedTypeKey typeKey);
+    size_t GetInstanceSize(TRefCountedTypeKey typeKey) const;
 
-    Y_FORCE_INLINE TAnonymousSlot* GetPerThreadSlot(TRefCountedTypeCookie cookie)
-    {
-        if (cookie >= CurrentThreadStatisticsSize) {
-            PreparePerThreadSlot(cookie);
-        }
-        return CurrentThreadStatisticsBegin + cookie;
-    }
+    TNamedSlot GetSlot(TRefCountedTypeKey typeKey) const;
+    TAnonymousSlot* GetPerThreadSlot(TRefCountedTypeCookie cookie);
 
     void PreparePerThreadSlot(TRefCountedTypeCookie cookie);
     void FlushPerThreadStatistics(TStatisticsHolder* holder);
-
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A nifty counter initializer for TRefCountedTracker.
-class TRefCountedTrackerInitializer
-{
-public:
-    TRefCountedTrackerInitializer();
-};
-
-// Never destroyed.
-extern TRefCountedTracker* RefCountedTrackerInstance;
-
-Y_FORCE_INLINE TRefCountedTracker* TRefCountedTracker::Get()
-{
-    static TRefCountedTrackerInitializer refCountedTrackerInitializer;
-    return RefCountedTrackerInstance;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Typically invoked from GDB console.
-void DumpRefCountedTracker(int sortByColumn = -1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define REF_COUNTED_TRACKER_INL_H_
+#include "ref_counted_tracker-inl.h"
+#undef REF_COUNTED_TRACKER_INL_H_

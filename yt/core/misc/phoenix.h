@@ -175,9 +175,34 @@ struct TDynamicInitializer
     static ::NYT::NPhoenix::TDynamicInitializer<__VA_ARGS__>          \
         DynamicPhoenixInitializer
 
-#define DEFINE_DYNAMIC_PHOENIX_TYPE(type)                             \
-    decltype(type::DynamicPhoenixInitializer)                         \
-        type::DynamicPhoenixInitializer
+// __VA_ARGS__ are used because sometimes we want a template type
+// to be an argument but the single macro argument may not contain
+// commas. Dat preprocessor :/
+#define DEFINE_DYNAMIC_PHOENIX_TYPE(...)                              \
+    decltype(__VA_ARGS__::DynamicPhoenixInitializer)                  \
+        __VA_ARGS__::DynamicPhoenixInitializer
+
+#define INHERIT_DYNAMIC_PHOENIX_TYPE(baseType, type, tag)             \
+class type                                                            \
+    : public baseType                                                 \
+{                                                                     \
+public:                                                               \
+    using baseType::baseType;                                         \
+                                                                      \
+private:                                                              \
+    DECLARE_DYNAMIC_PHOENIX_TYPE(type, tag);                          \
+};
+
+#define INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(baseType, type, tag, ...) \
+class type                                                               \
+    : public baseType<__VA_ARGS__>                                       \
+{                                                                        \
+public:                                                                  \
+    using baseType::baseType;                                            \
+                                                                         \
+private:                                                                 \
+    DECLARE_DYNAMIC_PHOENIX_TYPE(type, tag);                             \
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

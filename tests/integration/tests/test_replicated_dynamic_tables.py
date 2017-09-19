@@ -58,6 +58,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
     def setup(self):
         self.replica_driver = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
+        self.primary_driver = get_driver(cluster="primary")
 
 
     def _get_table_attributes(self, schema):
@@ -73,12 +74,14 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         if mount:
             self.sync_mount_table(path)
 
-    def _create_replica_table(self, path, replica_id, schema=SIMPLE_SCHEMA, mount=True):
+    def _create_replica_table(self, path, replica_id, schema=SIMPLE_SCHEMA, mount=True, replica_driver=None):
+        if not replica_driver:
+            replica_driver = self.replica_driver
         attributes = self._get_table_attributes(schema)
         attributes["upstream_replica_id"] = replica_id
-        create("table", path, attributes=attributes, driver=self.replica_driver)
+        create("table", path, attributes=attributes, driver=replica_driver)
         if mount:
-            self.sync_mount_table(path, driver=self.replica_driver)
+            self.sync_mount_table(path, driver=replica_driver)
 
     def _create_cells(self):
         self.sync_create_cells(1)
@@ -107,7 +110,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
 
-        sleep(1)
+        sleep(2)
 
         addresses = self._get_tablet_addresses("//tmp/t")
         assert len(addresses) == 1
@@ -142,13 +145,13 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             return get_counter("replica/lag_time") / 1e6 # conversion from us to s
 
         self.sync_enable_table_replica(replica_id)
-        sleep(1.0)
+        sleep(2)
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
 
         insert_rows("//tmp/t", [{"key": 0, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(1.0)
+        sleep(2)
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
@@ -156,19 +159,19 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self.sync_unmount_table("//tmp/r", driver=self.replica_driver)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(2.0)
+        sleep(2)
 
         assert get_lag_row_count() == 1
-        assert 0 < get_lag_time() < 7
+        assert 1 < get_lag_time() < 7
 
         insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(1.0)
+        sleep(2)
 
         assert get_lag_row_count() == 2
-        assert 0 < get_lag_time() < 8
+        assert 2 < get_lag_time() < 8
 
         self.sync_mount_table("//tmp/r", driver=self.replica_driver)
-        sleep(2.0)
+        sleep(2)
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
@@ -769,6 +772,19 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         alter_table_replica(replica_id2, mode="async")
         sleep(1.0)
         with pytest.raises(YtError): select_rows("* from [//tmp/t]")
+
+    def test_local_sync_replica_yt_7571(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", "primary", "//tmp/r", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id, replica_driver=self.primary_driver)
+        self.sync_enable_table_replica(replica_id)
+
+        rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        assert_items_equal(select_rows("key, value1 from [//tmp/t]", driver=self.primary_driver), rows)
+        assert_items_equal(select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver), rows)
 
 ##################################################################
 

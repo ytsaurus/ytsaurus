@@ -12,7 +12,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -206,10 +206,15 @@ public:
             operation->GetSlotIndex(),
             operation->GetId());
 
-        if (CanAddOperationToPool(pool.Get())) {
-            ActivateOperation(operation->GetId());
-        } else {
+        auto violatedPool = FindPoolViolatingMaxRunningOperationCount(pool.Get());
+        if (violatedPool) {
+            LOG_DEBUG("Max running operation count violated (OperationId: %v, Pool: %v, Limit: %v)",
+                operation->GetId(),
+                violatedPool->GetId(),
+                violatedPool->GetMaxRunningOperationCount());
             OperationQueue.push_back(operation);
+        } else {
+            ActivateOperation(operation->GetId());
         }
     }
 
@@ -315,7 +320,7 @@ public:
             while (it != OperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
                 const auto& operation = *it;
                 auto* operationPool = GetOperationElement(operation->GetId())->GetParent();
-                if (CanAddOperationToPool(operationPool)) {
+                if (FindPoolViolatingMaxRunningOperationCount(operationPool) == nullptr) {
                     ActivateOperation(operation->GetId());
                     auto toRemove = it++;
                     OperationQueue.erase(toRemove);
@@ -609,6 +614,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        // TODO(ignat): stop using pools from here and remove this section (since it is also presented in fair_share_info subsection).
         BuildPoolsInformation(consumer);
         BuildYsonMapFluently(consumer)
             .Item("fair_share_info").BeginMap()
@@ -952,7 +958,7 @@ private:
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
             }
 
-            TScopedTimer timer;
+            TWallTimer timer;
             while (schedulingContext->CanStartMoreJobs()) {
                 ++nonPreemptiveScheduleJobCount;
                 if (!rootElement->ScheduleJob(context)) {
@@ -962,7 +968,7 @@ private:
             profileTimings(
                 NonPreemptiveProfilingCounters,
                 nonPreemptiveScheduleJobCount,
-                timer.GetElapsed() - context.TotalScheduleJobDuration);
+                timer.GetElapsedTime() - context.TotalScheduleJobDuration);
 
             if (nonPreemptiveScheduleJobCount > 0) {
                 logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
@@ -1018,7 +1024,7 @@ private:
             context.ExecScheduleJobDuration = TDuration::Zero();
             std::fill(context.FailedScheduleJob.begin(), context.FailedScheduleJob.end(), 0);
 
-            TScopedTimer timer;
+            TWallTimer timer;
             while (schedulingContext->CanStartMoreJobs()) {
                 ++preemptiveScheduleJobCount;
                 if (!rootElement->ScheduleJob(context)) {
@@ -1032,7 +1038,7 @@ private:
             profileTimings(
                 PreemptiveProfilingCounters,
                 preemptiveScheduleJobCount,
-                timer.GetElapsed() - context.TotalScheduleJobDuration);
+                timer.GetElapsedTime() - context.TotalScheduleJobDuration);
             if (preemptiveScheduleJobCount > 0) {
                 logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
             }
@@ -1200,17 +1206,17 @@ private:
         return params;
     }
 
-    bool CanAddOperationToPool(TCompositeSchedulerElement* pool)
+    TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         while (pool) {
             if (pool->RunningOperationCount() >= pool->GetMaxRunningOperationCount()) {
-                return false;
+                return pool;
             }
             pool = pool->GetParent();
         }
-        return true;
+        return nullptr;
     }
 
     TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element)

@@ -59,9 +59,6 @@ class TJob
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
 
-    //! Asynchronous spec builder callback.
-    DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
-
     //! Temporary flag used during heartbeat jobs processing to mark found jobs.
     DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
 
@@ -91,8 +88,7 @@ public:
         TExecNodePtr node,
         TInstant startTime,
         const TJobResources& resourceLimits,
-        bool interruptible,
-        TJobSpecBuilder specBuilder);
+        bool interruptible);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
@@ -178,32 +174,31 @@ struct TJobStartRequest
         TJobId id,
         EJobType type,
         const TJobResources& resourceLimits,
-        bool interruptible,
-        TJobSpecBuilder specBuilder);
+        bool interruptible);
 
     const TJobId Id;
     const EJobType Type;
     const TJobResources ResourceLimits;
     const bool Interruptible;
-    const TJobSpecBuilder SpecBuilder;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EScheduleJobFailReason,
-    ((Unknown)                    ( 0))
-    ((OperationNotRunning)        ( 1))
-    ((NoPendingJobs)              ( 2))
-    ((NotEnoughChunkLists)        ( 3))
-    ((NotEnoughResources)         ( 4))
-    ((Timeout)                    ( 5))
-    ((EmptyInput)                 ( 6))
-    ((NoLocalJobs)                ( 7))
-    ((TaskDelayed)                ( 8))
-    ((NoCandidateTasks)           ( 9))
-    ((ResourceOvercommit)         (10))
-    ((TaskRefusal)                (11))
-    ((JobSpecThrottling)          (12))
+    ((Unknown)                       ( 0))
+    ((OperationNotRunning)           ( 1))
+    ((NoPendingJobs)                 ( 2))
+    ((NotEnoughChunkLists)           ( 3))
+    ((NotEnoughResources)            ( 4))
+    ((Timeout)                       ( 5))
+    ((EmptyInput)                    ( 6))
+    ((NoLocalJobs)                   ( 7))
+    ((TaskDelayed)                   ( 8))
+    ((NoCandidateTasks)              ( 9))
+    ((ResourceOvercommit)            (10))
+    ((TaskRefusal)                   (11))
+    ((JobSpecThrottling)             (12))
+    ((IntermediateChunkLimitExceeded)(13))
 );
 
 struct TScheduleJobResult

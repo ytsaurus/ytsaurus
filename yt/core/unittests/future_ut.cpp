@@ -600,6 +600,39 @@ TEST_F(TFutureTest, CombineCancel)
     EXPECT_EQ(NYT::EErrorCode::Canceled, result.GetCode());
 }
 
+TEST_F(TFutureTest, CombineHashMapEmpty)
+{
+    yhash<TString, TFuture<int>> futures;
+    auto resultOrError = Combine(futures).Get();
+    EXPECT_TRUE(resultOrError.IsOK());
+    const auto& result = resultOrError.Value();
+    EXPECT_TRUE(result.size() == 0);
+}
+
+TEST_F(TFutureTest, CombineHashMapNonEmpty)
+{
+    yhash<TString, TFuture<int>> asyncResults {
+        {"two", AsyncDivide(5, 2, TDuration::Seconds(0.1))},
+        {"ten", AsyncDivide(30, 3, TDuration::Seconds(0.2))},
+    };
+    auto resultOrError = Combine(asyncResults).Get();
+    EXPECT_TRUE(resultOrError.IsOK());
+    const auto& result = resultOrError.Value();
+    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2, result.at("two"));
+    EXPECT_EQ(10, result.at("ten"));
+}
+
+TEST_F(TFutureTest, CombineHashMapError)
+{
+    yhash<TString, TFuture<int>> asyncResults {
+        {"two", AsyncDivide(5, 2, TDuration::Seconds(0.1))},
+        {"error", AsyncDivide(30, 0, TDuration::Seconds(0.2))},
+    };
+    auto resultOrError = Combine(asyncResults).Get();
+    EXPECT_FALSE(resultOrError.IsOK());
+}
+
 TEST_F(TFutureTest, AsyncViaCanceledInvoker)
 {
     auto context = New<TCancelableContext>();

@@ -11,6 +11,7 @@
 #include "user_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
@@ -514,7 +515,11 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
-        return DoCreateUser(id, name);
+        auto user = DoCreateUser(id, name);
+        if (user) {
+            LOG_DEBUG("User %Qv created", name);
+        }
+        return user;
     }
 
     void DestroyUser(TUser* user)
@@ -590,7 +595,11 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Group, hintId);
-        return DoCreateGroup(id, name);
+        auto group = DoCreateGroup(id, name);
+        if (group) {
+            LOG_DEBUG("Group %Qv created", name);
+        }
+        return group;
     }
 
     void DestroyGroup(TGroup* group)
@@ -804,6 +813,20 @@ public:
         }
     }
 
+    bool IsUserRootOrSuperuser(const TUser* user)
+    {
+        // NB: This is also useful for migration when "superusers" is initially created.
+        if (user == RootUser_) {
+            return true;
+        }
+
+        if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
+            return true;
+        }
+
+        return false;
+    }
+
     TPermissionCheckResult CheckPermission(
         TObjectBase* object,
         TUser* user,
@@ -811,15 +834,8 @@ public:
     {
         TPermissionCheckResult result;
 
-        // Fast lane: "root" needs to authorization.
-        // NB: This is also useful for migration when "superusers" is initially created.
-        if (user == RootUser_) {
-            result.Action = ESecurityAction::Allow;
-            return result;
-        }
-
-        // Fast lane: "superusers" need to authorization.
-        if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
+        // Fast lane: "root" and "superusers" need no autorization.
+        if (IsUserRootOrSuperuser(user)) {
             result.Action = ESecurityAction::Allow;
             return result;
         }
@@ -914,6 +930,17 @@ public:
     {
         if (IsHiveMutation()) {
             return;
+        }
+
+        if (!IsUserRootOrSuperuser(user) &&
+            permission != EPermission::Read &&
+            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+        {
+            THROW_ERROR_EXCEPTION("Access denied: cluster is in safe mode. "
+                "Check for the announces before reporting any issues")
+                << TErrorAttribute("permission", permission)
+                << TErrorAttribute("user", user->GetName())
+                << TErrorAttribute("object", object->GetId());
         }
 
         auto result = CheckPermission(object, user, permission);
@@ -1247,7 +1274,7 @@ private:
         accountHolder->SetName(name);
         // Give some reasonable initial resource limits.
         accountHolder->ClusterResourceLimits()
-            .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = GB;
+            .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = 1_GB;
         accountHolder->ClusterResourceLimits().NodeCount = 1000;
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
         accountHolder->ClusterResourceLimits().TabletCount = 100000;
@@ -1713,8 +1740,8 @@ private:
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
                 .SetTabletCount(100000)
-                .SetTabletStaticMemory(10 * TB)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, TB);
+                .SetTabletStaticMemory(10_TB)
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -1726,7 +1753,7 @@ private:
             TmpAccount_->ClusterResourceLimits() = TClusterResources()
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, TB);
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1738,7 +1765,7 @@ private:
             IntermediateAccount_->ClusterResourceLimits() = TClusterResources()
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, TB);
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,

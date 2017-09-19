@@ -103,6 +103,18 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         assert sorted(read_table("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
         assert get("//tmp/t2/@chunk_count") == 2
 
+    def test_multi_chunk_sorted_table(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        for value in xrange(10):
+            write_table("<append=true;sorted_by=[a]>//tmp/t1", {"a": value}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "job_count": 10})
+
+        assert read_table("//tmp/t2") == [{"a": value} for value in xrange(10)]
+        assert get("//tmp/t2/@chunk_count") == 10
+
     def test_multiple_jobs(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)

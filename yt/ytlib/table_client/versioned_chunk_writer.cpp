@@ -42,7 +42,7 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 MinRowRangeDataWeight = 64 * KB;
+static const i64 MinRowRangeDataWeight = 64_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,11 +221,11 @@ protected:
 
     static void ValidateRowDataWeight(TVersionedRow row, i64 dataWeight)
     {
-        if (dataWeight > MaxVersionedRowDataWeight) {
+        if (dataWeight > MaxServerVersionedRowDataWeight) {
             THROW_ERROR_EXCEPTION("Versioned row data weight is too large")
                 << TErrorAttribute("key", RowToKey(row))
                 << TErrorAttribute("actual_data_weight", dataWeight)
-                << TErrorAttribute("max_data_weight", MaxVersionedRowDataWeight);
+                << TErrorAttribute("max_data_weight", MaxServerVersionedRowDataWeight);
         }
     }
 };
@@ -478,6 +478,17 @@ public:
         FillCommonMeta(&meta);
         SetProtoExtension(meta.mutable_extensions(), EncodingChunkWriter_->MiscExt());
         return meta;
+    }
+
+    virtual i64 GetMetaSize() const override
+    {
+        i64 metaSize = 0;
+        for (const auto& valueColumnWriter : ValueColumnWriters_) {
+            metaSize += valueColumnWriter->GetMetaSize();
+        }
+        metaSize += TimestampWriter_->GetMetaSize();
+
+        return metaSize + TVersionedChunkWriterBase::GetMetaSize();
     }
 
 private:

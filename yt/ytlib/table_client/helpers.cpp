@@ -24,15 +24,15 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NChunkClient;
+using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NCypressClient;
 using namespace NFormats;
 using namespace NProto;
 using namespace NScheduler::NProto;
-using namespace NYson;
 using namespace NYTree;
-using namespace NCypressClient;
-using namespace NChunkClient;
+using namespace NYson;
 
 using NYPath::TRichYPath;
 using NYT::FromProto;
@@ -699,6 +699,35 @@ std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
     auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
     auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
     return std::make_pair(minKey, maxKey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateDynamicTableTimestamp(
+    const TRichYPath& path,
+    bool dynamic,
+    const TTableSchema& schema,
+    const IAttributeDictionary& attributes)
+{
+    auto nullableRequested = path.GetTimestamp();
+    if (nullableRequested && !(dynamic && schema.IsSorted())) {
+        THROW_ERROR_EXCEPTION("Invalid attribute %Qv: table %Qv is not sorted dynamic",
+            "timestamp",
+            path.GetPath());
+    }
+
+    auto requested = nullableRequested.Get(AsyncLastCommittedTimestamp);
+    if (requested != AsyncLastCommittedTimestamp) {
+        auto retained = attributes.Get<TTimestamp>("retained_timestamp");
+        auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
+        if (requested < retained || requested >= unflushed) {
+            THROW_ERROR_EXCEPTION("Requested timestamp is out of range for table %v",
+                path.GetPath())
+                << TErrorAttribute("requested_timestamp", requested)
+                << TErrorAttribute("retained_timestamp", retained)
+                << TErrorAttribute("unflushed_timestamp", unflushed);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

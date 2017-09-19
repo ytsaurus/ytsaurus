@@ -14,7 +14,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TExecuteQueryCallback = std::function<TFuture<TQueryStatistics>(
+using TExecuteQueryCallback = std::function<TFuture<void>(
     const TQueryPtr& query,
     TDataRanges dataRanges,
     ISchemafulWriterPtr writer)>;
@@ -60,6 +60,11 @@ struct IPrepareCallbacks
         const NYPath::TYPath& path,
         TTimestamp timestamp) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TJoinSubqueryEvaluator = std::function<ISchemafulReaderPtr(std::vector<TRow>, TRowBufferPtr)>;
+using TJoinSubqueryProfiler = std::function<TJoinSubqueryEvaluator(TQueryPtr, TConstJoinClausePtr)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

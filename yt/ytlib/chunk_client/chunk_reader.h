@@ -35,6 +35,8 @@ struct IChunkReader
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 
     virtual TChunkId GetChunkId() const = 0;
+
+    virtual bool IsValid() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkReader)
