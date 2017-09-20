@@ -556,8 +556,7 @@ TRANSFORMS[15] = [
                 ("filter_factors", "string"),
                 ("pool", "string")
             ],
-            in_memory=True),
-        source="ordered_by_id")
+            in_memory=True))
 ]
 
 def swap_table(client, target, source, version):
