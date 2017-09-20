@@ -49,6 +49,11 @@ TPartRange::operator bool() const
     return !IsEmpty();
 }
 
+bool operator == (const TPartRange& lhs, const TPartRange& rhs)
+{
+    return lhs.Begin == rhs.Begin && lhs.End == rhs.End;
+}
+
 TPartRange Intersection(const TPartRange& lhs, const TPartRange& rhs)
 {
     i64 beginMax = std::max(lhs.Begin, rhs.Begin);
@@ -246,8 +251,14 @@ public:
 
     virtual TFuture<TSharedRef> Produce(const TPartRange& range)
     {
-        // Requested ranges must be monotonic.
-        YCHECK(!PreviousRange_ || PreviousRange_->End <= range.Begin);
+        if (PreviousRange_ && (*PreviousRange_ == range)) {
+            return MakeFuture(LastResult_);
+        }
+
+        if (PreviousRange_) {
+            // Requested ranges must be monotonic.
+            YCHECK(*PreviousRange_ == range || PreviousRange_->End <= range.Begin);
+        }
         PreviousRange_ = range;
 
         // XXX(ignat): This may be optimized using monotonicity.
@@ -294,6 +305,8 @@ private:
     yhash<int, TSharedRef> RequestedBlocks_;
     TNullable<TPartRange> PreviousRange_;
 
+    TSharedRef LastResult_;
+
     void OnBlocksRead(const std::vector<int>& indicesToRequest, const std::vector<TSharedRef>& blocks)
     {
         YCHECK(indicesToRequest.size() == blocks.size());
@@ -324,7 +337,8 @@ private:
             if (innerStart < innerEnd) {
                 auto block = RequestedBlocks_[index];
                 if (range.Size() == innerEnd - innerStart) {
-                    return block.Slice(innerStart, innerEnd);
+                    LastResult_ = block.Slice(innerStart, innerEnd);
+                    return LastResult_;
                 }
 
                 initialize();
@@ -347,7 +361,8 @@ private:
 
         initialize();
 
-        return result;
+        LastResult_ = result;
+        return LastResult_;
     }
 
     std::vector<TPartRange> SizesToConsecutiveRanges(const std::vector<i64>& sizes)

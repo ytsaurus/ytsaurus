@@ -25,6 +25,8 @@ struct TPartRange
     explicit operator bool() const;
 };
 
+bool operator == (const TPartRange& lhs, const TPartRange& rhs);
+
 TPartRange Intersection(const TPartRange& lhs, const TPartRange& rhs);
 
 std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges);
