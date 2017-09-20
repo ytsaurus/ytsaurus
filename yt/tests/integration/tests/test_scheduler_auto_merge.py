@@ -182,10 +182,29 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     @pytest.mark.timeout(240)
     def test_auto_merge_with_schema_and_append(self):
-        schema_in = yson.loads("<unique_keys=%false;strict=%true>[{name=a;type=int64;sort_order=ascending};{name=b;type=string}]")
+        schema_in = make_schema([
+            {
+                "name": "a",
+                "type": "int64",
+                "sort_order": "ascending",
+            },
+            {
+                "name": "b",
+                "type": "string"
+            }
+        ], unique_keys=False, strict=True)
         create("table", "//tmp/t_in", attributes={"schema": schema_in})
 
-        schema_out = yson.loads("<unique_keys=%false;strict=%true>[{name=a;type=int64};{name=b;type=string}]")
+        schema_out = make_schema([
+            {
+                "name": "a",
+                "type": "int64",
+            },
+            {
+                "name": "b",
+                "type": "string"
+            }
+        ], unique_keys=False, strict=True)
         create("table", "//tmp/t_out", attributes={"schema": schema_out})
 
         data = [{"a": i, "b" : str(i * i)} for i in range(10)];

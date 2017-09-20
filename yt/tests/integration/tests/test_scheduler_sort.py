@@ -644,7 +644,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             out="//tmp/t",
             sort_by="k1")
 
-        assert get("//tmp/t/@schema/0") == {"name": "k1", "type": "int64", "expression": "k2 * 2", "sort_order": "ascending"}
+        assert get("//tmp/t/@schema/0") == {"name": "k1", "type": "int64", "expression": "k2 * 2", "sort_order": "ascending", "required": False}
         assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
         create("table", "//tmp/t2")
@@ -698,8 +698,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "v1")} for r in rows])
 
-        schema = yson.loads('<"unique_keys"=%false;"strict"=%true;>' \
-                + '[{"name"="k1";"sort_order"="ascending";"type"="int64";};{"name"="v1";"type"="int64";};]')
+        schema = make_schema(
+            [{"name": "k1", "sort_order": "ascending", "type": "int64"},
+             {"name": "v1", "type": "int64"}],
+            unique_keys=False, strict=True)
+
         assert get("//tmp/t_out/@schema") == schema
 
         remove("//tmp/t_out")
@@ -711,10 +714,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "k2", "v2")} for r in rows])
 
-        schema = yson.loads('<"unique_keys"=%true;"strict"=%true;>' \
-                + '[{"name"="k1";"sort_order"="ascending";"type"="int64";};' \
-                + '{"name"="k2";"sort_order"="ascending";"type"="int64";};' \
-                + '{"name"="v2";"type"="int64";};]')
+        schema = make_schema([
+            {"name": "k1", "sort_order": "ascending", "type": "int64"},
+            {"name": "k2", "sort_order": "ascending", "type": "int64"},
+            {"name": "v2", "type": "int64"},
+        ], unique_keys=True, strict=True)
         assert get("//tmp/t_out/@schema") == schema
 
     def test_column_selectors_output_schema_validation(self):

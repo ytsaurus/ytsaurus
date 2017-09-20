@@ -47,7 +47,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         assert not get("//tmp/t2/@sorted")
 
     def test_schema_inference(self):
-        schema = yson.loads("<strict=%true; unique_keys=%false>[{name=a; type=string}]")
+        schema = make_schema([{"name": "a", "type": "string"}], strict=True, unique_keys=False)
 
         create("table",
                "//tmp/t1",

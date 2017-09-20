@@ -93,6 +93,12 @@ TColumnSchema& TColumnSchema::SetLogicalType(ELogicalValueType valueType)
     return *this;
 }
 
+TColumnSchema& TColumnSchema::SetRequired(bool value)
+{
+    Required_ = value;
+    return *this;
+}
+
 EValueType TColumnSchema::GetPhysicalType() const
 {
     return NTableClient::GetPhysicalType(LogicalType());
@@ -117,6 +123,8 @@ struct TSerializableColumnSchema
             .Default();
         RegisterParameter("group", Group_)
             .Default();
+        RegisterParameter("required", Required_)
+            .Default(false);
 
         RegisterValidator([&] () {
             // Name
@@ -125,6 +133,12 @@ struct TSerializableColumnSchema
             }
 
             try {
+                // Required
+                if (LogicalType() == ELogicalValueType::Any && Required()) {
+                    THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be \"required\"",
+                        ELogicalValueType::Any);
+                }
+
                 // Lock
                 if (Lock() && Lock()->empty()) {
                     THROW_ERROR_EXCEPTION("Lock name cannot be empty");
@@ -177,6 +191,9 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     if (schema.Group()) {
         protoSchema->set_group(*schema.Group());
     }
+    if (schema.Required()) {
+        protoSchema->set_required(schema.Required());
+    }
 }
 
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
@@ -193,6 +210,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->SetAggregate(protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null);
     schema->SetSortOrder(protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null);
     schema->SetGroup(protoSchema.has_group() ? MakeNullable(protoSchema.group()) : Null);
+    schema->SetRequired(protoSchema.required());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -456,6 +474,7 @@ TTableSchema TTableSchema::ToStrippedColumnAttributes() const
     std::vector<TColumnSchema> strippedColumns;
     for (auto& column : Columns_) {
         strippedColumns.emplace_back(column.Name(), column.LogicalType());
+        strippedColumns.back().SetRequired(column.Required());
     }
     return TTableSchema(strippedColumns, Strict_, false);
 }
@@ -465,6 +484,7 @@ TTableSchema TTableSchema::ToSortedStrippedColumnAttributes() const
     std::vector<TColumnSchema> strippedColumns;
     for (auto& column : Columns_) {
         strippedColumns.emplace_back(column.Name(), column.LogicalType(), column.SortOrder());
+        strippedColumns.back().SetRequired(column.Required());
     }
     return TTableSchema(strippedColumns, Strict_, UniqueKeys_);
 }
@@ -730,6 +750,11 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic
                 MaxColumnNameLength);
         }
 
+        if (columnSchema.LogicalType() == ELogicalValueType::Any && columnSchema.Required()) {
+            THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be required",
+                ELogicalValueType::Any);
+        }
+
         if (columnSchema.Lock()) {
             if (columnSchema.Lock()->empty()) {
                 THROW_ERROR_EXCEPTION("Column lock name cannot be empty");
@@ -782,6 +807,7 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic
  *
  *  Validates that:
  *  - Column type remains the same.
+ *  - Optional column doesn't become required.
  *  - Column expression remains the same.
  *  - Column aggregate method either was introduced or remains the same.
  *  - Column sort order either changes to Null or remains the same.
@@ -794,6 +820,11 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
             oldColumn.Name(),
             oldColumn.LogicalType(),
             newColumn.LogicalType());
+    }
+
+    if (!oldColumn.Required() && newColumn.Required()) {
+        THROW_ERROR_EXCEPTION("Optional column %Qv cannot be changed to required",
+            oldColumn.Name());
     }
 
     if (newColumn.SortOrder().HasValue() && newColumn.SortOrder() != oldColumn.SortOrder()) {
@@ -842,9 +873,19 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
     }
 
     for (const auto& column : schema.Columns()) {
-        if (column.SortOrder() && column.GetPhysicalType() == EValueType::Any) {
-            THROW_ERROR_EXCEPTION("Invalid dynamic table key column type: %Qv",
-                column.GetPhysicalType());
+        try {
+            if (column.SortOrder() && column.GetPhysicalType() == EValueType::Any) {
+                THROW_ERROR_EXCEPTION("Dynamic table cannot have key column of type: %Qv",
+                    column.GetPhysicalType());
+            }
+            if (column.Required()) {
+                THROW_ERROR_EXCEPTION("Dynamic table cannot have required column",
+                    ELogicalValueType::Any);
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error validating column %Qv in dynamic table schema",
+                column.Name())
+                << ex;
         }
     }
 }

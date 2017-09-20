@@ -749,7 +749,7 @@ void ValidateClientRow(
         }
 
         const auto& column = schema.Columns()[mappedId];
-        ValidateValueType(value, schema, mappedId);
+        ValidateValueType(value, schema, mappedId, /*typeAnyAcceptsAllValues*/false);
 
         if (value.Aggregate && !column.Aggregate()) {
             THROW_ERROR_EXCEPTION(
@@ -894,9 +894,10 @@ void TUnversionedRow::Load(TLoadContext& context)
 void ValidateValueType(
     const TUnversionedValue& value,
     const TTableSchema& schema,
-    int schemaId)
+    int schemaId,
+    bool typeAnyAcceptsAllValues)
 {
-    ValidateValueType(value, schema.Columns()[schemaId]);
+    ValidateValueType(value, schema.Columns()[schemaId], typeAnyAcceptsAllValues);
 }
 
 template <typename T>
@@ -930,20 +931,33 @@ static inline void ValidateIntegerRange(const TUnversionedValue& value, const TS
     }
 }
 
-void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& columnSchema)
+void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& columnSchema, bool typeAnyAcceptsAllValues)
 {
     if (value.Type == EValueType::Null) {
-        return;
+        if (columnSchema.Required()) {
+            // Any column can't be required.
+            YCHECK(columnSchema.LogicalType() != ELogicalValueType::Any);
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Required column %Qv cannot have %Qlv value",
+                columnSchema.Name(),
+                value.Type);
+        } else {
+            return;
+        }
     }
 
     if (columnSchema.GetPhysicalType() != value.Type) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::SchemaViolation,
-                "Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                columnSchema.Name(),
-                columnSchema.GetPhysicalType(),
-                EValueType::Null,
-                value.Type);
+        if (columnSchema.LogicalType() == ELogicalValueType::Any && typeAnyAcceptsAllValues) {
+            return;
+        }
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::SchemaViolation,
+            "Invalid type of column %Qv: expected physical type %Qlv or %Qlv but got %Qlv",
+            columnSchema.Name(),
+            columnSchema.GetPhysicalType(),
+            EValueType::Null,
+            value.Type);
     }
 
     switch (columnSchema.LogicalType()) {
