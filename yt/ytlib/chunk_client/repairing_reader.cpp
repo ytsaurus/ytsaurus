@@ -65,48 +65,54 @@ private:
 
     std::vector<TBlock> BuildResult()
     {
-        TPartIndexList erasedIndices;
-        auto allReaders = Readers_;
-        std::vector<int> readersParts(Readers_.size());
-        std::iota(readersParts.begin(), readersParts.end(), 0);
-        for (;;) {
-            auto reader = CreateRepairingErasureReader(Codec_, erasedIndices, Readers_);
+        if (!Config_->EnableAutoRepair) {
+            auto reader = CreateRepairingErasureReader(Codec_, TPartIndexList(), Readers_);
+            return WaitFor(reader->ReadBlocks(WorkloadDescriptor_, BlockIndexes_))
+                .ValueOrThrow();
+        }
+
+        TNullable<TPartIndexList> erasedIndicesOnPreviousIteration;
+        TError error;
+
+        while (true) {
+            TPartIndexList erasedIndices;
+            for (size_t index = 0; index < Readers_.size(); ++index) {
+                if (!Readers_[index]->IsValid()) {
+                    erasedIndices.push_back(index);
+                }
+            }
+
+            if (erasedIndicesOnPreviousIteration && erasedIndices == *erasedIndicesOnPreviousIteration) {
+                THROW_ERROR_EXCEPTION("Read with reapir failed, but list of valid underlying part readers do not changed")
+                    << error;
+            }
+
+            auto repairIndicesOrNull = Codec_->GetRepairIndices(erasedIndices);
+            if (!repairIndicesOrNull) {
+                THROW_ERROR_EXCEPTION("Not enough parts to read with repair");
+            }
+            auto repairIndices = *repairIndicesOrNull;
+
+            std::vector<IChunkReaderPtr> readers;
+            for (int index = 0; index < Codec_->GetDataPartCount(); ++index) {
+                if (!std::binary_search(erasedIndices.begin(), erasedIndices.end(), index)) {
+                    readers.push_back(Readers_[index]);
+                }
+            }
+            for (int index = Codec_->GetDataPartCount(); index < Codec_->GetTotalPartCount(); ++index) {
+                if (std::binary_search(repairIndices.begin(), repairIndices.end(), index)) {
+                    readers.push_back(Readers_[index]);
+                }
+            }
+
+            auto reader = CreateRepairingErasureReader(Codec_, erasedIndices, readers);
             auto result = WaitFor(reader->ReadBlocks(WorkloadDescriptor_, BlockIndexes_));
+
             if (result.IsOK()) {
                 return result.Value();
-            } else if (!Config_->EnableAutoRepair) {
-                THROW_ERROR result;
+            } else {
+                error = result;
             }
-
-            for (size_t i = 0; i < Readers_.size(); ++i) {
-                if (!Readers_[i]->IsValid()) {
-                    erasedIndices.push_back(readersParts[i]);
-                }
-            }
-            std::sort(erasedIndices.begin(), erasedIndices.end());
-
-            auto repairIndicesResult = Codec_->GetRepairIndices(erasedIndices);
-            if (!repairIndicesResult) {
-                THROW_ERROR (result << TError("Not enough parts to repair"));
-            }
-            auto repairIndices = repairIndicesResult.Get();
-
-            std::vector<IChunkReaderPtr> newReaders;
-            std::vector<int> newReadersParts;
-            for (int i = 0; i < Codec_->GetDataPartCount(); ++i) {
-                if (!std::binary_search(erasedIndices.begin(), erasedIndices.end(), i)) {
-                    newReaders.push_back(allReaders[i]);
-                    newReadersParts.push_back(i);
-                }
-            }
-            for (int i = Codec_->GetDataPartCount(); i < Codec_->GetTotalPartCount(); ++i) {
-                if (std::binary_search(repairIndices.begin(), repairIndices.end(), i)) {
-                    newReaders.push_back(allReaders[i]);
-                    newReadersParts.push_back(i);
-                }
-            }
-            Readers_.swap(newReaders);
-            readersParts.swap(newReadersParts);
         }
     }
 };
