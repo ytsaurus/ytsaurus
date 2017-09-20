@@ -56,6 +56,7 @@ public:
         int index = 0;
         while (index < blockIndexes.size() && index < CachedBlocks_.size()) {
             resultBlocks.push_back(CachedBlocks_[index].second);
+            ++index;
         }
 
         YCHECK(index == CachedBlocks_.size());
@@ -318,8 +319,12 @@ public:
 
     virtual TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override
     {
-        YCHECK(range.Begin >= Cursor_);
-        Cursor_ = range.End;
+        if (LastRange_ && *LastRange_ == range) {
+            return VoidFuture;
+        }
+
+        YCHECK(!LastRange_ || LastRange_->End <= range.Begin);
+        LastRange_ = range;
 
         for (int index = 0; index < Ranges_.size(); ++index) {
             auto blockRange = Ranges_[index];
@@ -334,7 +339,7 @@ public:
             SavedBytes_ += intersection.Size();
         }
 
-        return MakeFuture(TError());
+        return VoidFuture;
     }
 
     std::vector<TBlock> GetSavedBlocks()
@@ -353,7 +358,8 @@ private:
     std::vector<TSharedMutableRef> Blocks_;
     i64 TotalBytes_ = 0;
     i64 SavedBytes_ = 0;
-    i64 Cursor_ = 0;
+
+    TNullable<TPartRange> LastRange_;
 };
 
 class TEmptyPartBlockConsumer

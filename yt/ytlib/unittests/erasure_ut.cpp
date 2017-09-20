@@ -185,10 +185,10 @@ public:
         return refs;
     }
 
-    static void WriteErasureChunk(ECodec codecId, ICodec* codec, std::vector<TSharedRef> data)
+    static void WriteErasureChunk(ECodec codecId, ICodec* codec, std::vector<TSharedRef> data, int erasureWindowSize = 64)
     {
         auto config = NYT::New<TErasureWriterConfig>();
-        config->ErasureWindowSize = 64;
+        config->ErasureWindowSize = erasureWindowSize;
 
         std::vector<IChunkWriterPtr> writers;
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
@@ -289,24 +289,7 @@ public:
         const std::vector<TSharedRef>& dataRefs,
         TNullable<int> maskCount)
     {
-        YCHECK(dataRefs.size() <= 30);
-
-        bool useRandom = true;
-        if (!maskCount) {
-            useRandom = false;
-            maskCount = (1 << dataRefs.size());
-        }
-
-        for (int iter = 0; iter < *maskCount; ++iter) {
-            int mask = useRandom ? (rand() % (1 << dataRefs.size())) : iter;
-
-            std::vector<int> indexes;
-            for (int i = 0; i < dataRefs.size(); ++i) {
-                if (((1 << i) & mask) != 0) {
-                    indexes.push_back(i);
-                }
-            }
-
+        auto check = [&] (std::vector<int> indexes) {
             std::random_shuffle(indexes.begin(), indexes.end());
             auto result = WaitFor(repairReader->ReadBlocks(TWorkloadDescriptor(), indexes))
                 .ValueOrThrow();
@@ -316,6 +299,40 @@ public:
                 auto dataRef = dataRefs[indexes[i]];
                 EXPECT_EQ(dataRef.Size(), resultRef.Size());
                 EXPECT_EQ(ToString(dataRef), ToString(resultRef.Data));
+            }
+        };
+
+        if (dataRefs.size() <= 30) {
+            bool useRandom = true;
+            if (!maskCount) {
+                YCHECK(dataRefs.size() <= 15);
+                useRandom = false;
+                maskCount = (1 << dataRefs.size());
+            }
+
+            for (int iter = 0; iter < *maskCount; ++iter) {
+                int mask = useRandom ? (rand() % (1 << dataRefs.size())) : iter;
+
+                std::vector<int> indexes;
+                for (int i = 0; i < dataRefs.size(); ++i) {
+                    if (((1 << i) & mask) != 0) {
+                        indexes.push_back(i);
+                    }
+                }
+
+                check(indexes);
+            }
+        } else {
+            YCHECK(maskCount);
+            for (int iter = 0; iter < *maskCount; ++iter) {
+                std::vector<int> indexes;
+                for (int i = 0; i < dataRefs.size(); ++i) {
+                    indexes.push_back(i);
+                }
+                std::random_shuffle(indexes.begin(), indexes.end());
+                indexes.resize(1 + rand() % (dataRefs.size() - 1));
+
+                check(indexes);
             }
         }
     }
@@ -599,6 +616,52 @@ TEST_F(TErasureMixture, RepairTest4)
 
     auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(repairReader, dataRefs, 100);
+
+    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
+    {
+        auto erasureReader = CreateErasureReader(codec);
+        CheckRepairResult(erasureReader, dataRefs);
+    }
+
+    Cleanup(codec);
+}
+
+TEST_F(TErasureMixture, RepairTest5)
+{
+    auto codecId = ECodec::Lrc_12_2_2;
+    auto codec = GetCodec(codecId);
+
+    // Prepare data (in this test we have multiple erasure windows).
+    std::vector<TSharedRef> dataRefs;
+    for (int i = 0; i < 2000; ++i) {
+        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), 100);
+        for (int i = 0; i < 100; ++i) {
+            data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
+        }
+        dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
+    }
+    WriteErasureChunk(codecId, codec, dataRefs, 256);
+
+    {
+        auto erasureReader = CreateErasureReader(codec);
+        CheckRepairResult(erasureReader, dataRefs);
+    }
+
+    TPartIndexList erasedIndices;
+    erasedIndices.push_back(1);
+    erasedIndices.push_back(8);
+    erasedIndices.push_back(13);
+    erasedIndices.push_back(15);
+
+    RemoveErasedParts(erasedIndices);
+
+    std::vector<IChunkReaderPtr> allReaders;
+    std::vector<IChunkReaderPtr> readers;
+    std::vector<IChunkWriterPtr> writers;
+    PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
+
+    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
+    CheckRepairReader(repairReader, dataRefs, 40);
 
     RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
     {
