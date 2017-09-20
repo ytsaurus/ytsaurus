@@ -338,15 +338,20 @@ static_assert(
 
 //! Checks that #value type is compatible with the schema column type.
 /*
+ * If #typeAnyAcceptsAllValues is false columns of type EValueType::ANY accept only values of same type.
+ * If #typeAnyAcceptsAllValues is true then columns of type EValueType::ANY accept all values.
+ *
  * \note Function throws an error if column has `Any' type and value has `non-Any' type.
  */
 void ValidateValueType(
     const TUnversionedValue& value,
     const TTableSchema& schema,
-    int schemaId);
+    int schemaId,
+    bool typeAnyAcceptsAllValues);
 void ValidateValueType(
     const TUnversionedValue& value,
-    const TColumnSchema& columnSchema);
+    const TColumnSchema& columnSchema,
+    bool typeAnyAcceptsAllValues);
 
 //! Checks that #value is allowed to appear in static tables' data. Throws on failure.
 void ValidateStaticValue(const TUnversionedValue& value);

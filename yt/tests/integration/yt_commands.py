@@ -1083,7 +1083,11 @@ def get_last_profiling_values(orchid_path, metrics):
     return values
 
 def make_schema(columns, **attributes):
-    schema = yson.YsonList(columns)
+    schema = yson.YsonList()
+    for column_schema in columns:
+        column_schema = column_schema.copy()
+        column_schema.setdefault("required", False)
+        schema.append(column_schema)
     for attr, value in attributes.items():
         schema.attributes[attr] = value
     return schema

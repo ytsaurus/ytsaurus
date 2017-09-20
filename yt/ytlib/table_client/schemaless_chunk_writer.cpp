@@ -934,12 +934,6 @@ protected:
                 int id = IdMapping_[valueIt->Id];
                 if (id < Schema_.Columns().size()) {
                     // Validate schema column types.
-                    const auto& column = Schema_.Columns()[id];
-                    const auto& value = *valueIt;
-                    if (column.GetPhysicalType() != EValueType::Any) {
-                        ValidateValueType(value, column);
-                    }
-
                     mutableRow[id] = *valueIt;
                     mutableRow[id].Id = id;
                 } else {
@@ -955,6 +949,13 @@ protected:
                     mutableRow[columnCount].Id = id;
                     ++columnCount;
                 }
+            }
+
+            // Now mutableRow contains all values that schema knows about.
+            // And we can check types and check that all required fields are set.
+            for (int i = 0; i < Schema_.Columns().size(); ++i) {
+                const auto& column = Schema_.Columns()[i];
+                ValidateValueType(mutableRow[i], column, /*typeAnyAcceptsAllValues*/ true);
             }
 
             ValidateColumnCount(columnCount);

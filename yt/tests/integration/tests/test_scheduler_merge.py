@@ -586,8 +586,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
             assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "v1")} for r in rows])
 
-            schema = yson.loads('<"unique_keys"=%false;"strict"=%true;>' \
-                    + '[{"name"="k1";"type"="int64";};{"name"="v1";"type"="int64";};]')
+            schema = make_schema(
+                [{"name": "k1", "type": "int64"}, {"name": "v1", "type": "int64"}],
+                unique_keys=False, strict=True)
             if mode != "unordered":
                 schema[0]["sort_order"] = "ascending"
             assert get("//tmp/t_out/@schema") == schema
@@ -601,8 +602,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
             assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k2", "v2")} for r in rows])
 
-            schema = yson.loads('<"unique_keys"=%false;"strict"=%true;>' \
-                    + '[{"name"="k2";"type"="int64";};{"name"="v2";"type"="int64";};]')
+            schema = make_schema([{"name": "k2", "type": "int64"}, {"name": "v2", "type": "int64"}],
+                                 unique_keys=False, strict=True)
             assert get("//tmp/t_out/@schema") == schema
 
             remove("//tmp/t_out")
@@ -614,9 +615,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "k2", "v2")} for r in rows])
 
-        schema = yson.loads('<"unique_keys"=%false;"strict"=%true;>' \
-                + '[{"name"="k1";"type"="int64";};{"name"="k2";"type"="int64";};' \
-                + '{"name"="v2";"type"="int64";};]')
+        schema = make_schema(
+            [{"name": "k1", "type": "int64"}, {"name": "k2", "type": "int64"}, {"name": "v2", "type": "int64"}],
+            unique_keys=False, strict=True)
         if mode != "unordered":
             schema.attributes["unique_keys"] = True
             schema[0]["sort_order"] = "ascending"

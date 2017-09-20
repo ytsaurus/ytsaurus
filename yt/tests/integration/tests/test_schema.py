@@ -126,3 +126,197 @@ class TestLogicalType(YTEnvSetup):
                    attributes={"schema": [
                        {"name": "key1", "type": "int32", "aggregate": "sum"},
                    ]})
+
+class TestRequiredOption(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+    NUM_SCHEDULERS = 1
+    def test_required_static_tables(self):
+        create("table", "//tmp/required_table",
+               attributes={
+                   "schema": [
+                       {
+                           "name": "value",
+                           "type": "string",
+                           "required": True,
+                       }
+                   ],
+               })
+
+        write_table("//tmp/required_table", [{"value": "foo"}])
+        with pytest.raises(YtError):
+            write_table("//tmp/required_table", [{"value": 100500}])
+        with pytest.raises(YtError):
+            write_table("//tmp/required_table", [{"value": None}])
+        with pytest.raises(YtError):
+            write_table("//tmp/required_table", [{}])
+
+    def test_required_any_is_disallowed(self):
+        with pytest.raises(YtError):
+            create("table", "//tmp/required_table",
+                   attributes={
+                       "schema": [
+                           {
+                               "name": "value",
+                               "type": "any",
+                               "required": True,
+                           }
+                       ],
+                   })
+        with pytest.raises(YtError):
+            create("table", "//tmp/dynamic_required_table",
+                   attributes={
+                       "dynamic": True,
+                       "schema": [
+                           {
+                               "name": "key",
+                               "type": "string",
+                               "sort_order": "ascending",
+                           },
+                           {
+                               "name": "value",
+                               "type": "any",
+                               "required": True,
+                           }
+                       ],
+                   })
+
+    def test_required_dissalowed_in_dynamic_tables(self):
+        self.sync_create_cells(1)
+        with pytest.raises(YtError):
+            create("table", "//tmp/dynamic_required_key",
+                   attributes={
+                       "dynamic": True,
+                       "schema": [
+                           {
+                               "name": "key",
+                               "type": "string",
+                               "sort_order": "ascending",
+                               "required": True,
+                           },
+                           {
+                               "name": "value",
+                               "type": "string",
+                           }
+                       ],
+                   })
+        with pytest.raises(YtError):
+            create("table", "//tmp/dynamic_required_value",
+                   attributes={
+                       "dynamic": True,
+                       "schema": [
+                           {
+                               "name": "key",
+                               "type": "string",
+                               "sort_order": "ascending",
+                           },
+                           {
+                               "name": "value",
+                               "type": "string",
+                               "required": True,
+                           }
+                       ],
+                   })
+
+    def test_alter_required_column(self):
+        table = "//tmp/static_table"
+        create("table", table,
+               attributes={
+                   "schema": [
+                       {
+                           "name": "column",
+                           "type": "string",
+                       }
+                   ],
+               })
+        write_table(table, [{"column": None}])
+        with pytest.raises(YtError):
+            alter_table(
+                table,
+                schema=[
+                    {
+                        "name": "column",
+                        "type": "string",
+                        "required": True,
+                    }
+                ]
+            )
+        write_table(table, [{"column": None}])
+
+        create("table", table,
+               force=True,
+               attributes={
+                   "schema": [
+                       {
+                           "name": "column",
+                           "type": "string",
+                           "required": True,
+                       }
+                   ],
+               })
+        write_table(table, [{"column": "foo"}])
+
+        # No exception.
+        alter_table(
+            table,
+            schema=[
+                {
+                    "name": "column",
+                    "type": "string",
+                }
+            ]
+        )
+
+    def test_dissalowed_alter_to_dynamic_table(self):
+        def create_schema(required):
+            return make_schema([
+                {
+                    "name": "key",
+                    "type": "string",
+                    "sort_order": "ascending",
+                },
+                {
+                    "name": "value",
+                    "type": "string",
+                    "required": required,
+                },
+            ], unique_keys=True)
+
+        # Check that if we have required column alter_table fails.
+        table = "//tmp/required"
+        create("table", table, attributes={"schema": create_schema(required=True)})
+        write_table(table, [{"key": "foo", "value": "bar"}])
+        with pytest.raises(YtError):
+            alter_table(table, dynamic=True)
+
+        # Check that if we don't have required column alter_table succeds.
+        # So we check that the problem is required field
+        # and we don't have other problems with schema.
+        table = "//tmp/non_required"
+        create("table", table, attributes={"schema": create_schema(required=False)})
+        write_table(table, [{"key": "foo", "value": "bar"}])
+        alter_table(table, dynamic=True)
+
+    @pytest.mark.parametrize("sorted_table", [False, True])
+    def test_infer_required_column(self, sorted_table):
+        if sorted_table:
+            schema = make_schema([
+                {"name": "key", "type": "string", "required": False, "sort_order": "ascending"},
+                {"name": "value", "type": "string", "required": True},
+            ], unique_keys=False, strict=True)
+        else:
+            schema = make_schema([
+                {"name": "key", "type": "string", "required": False},
+                {"name": "value", "type": "string", "required": True},
+            ], unique_keys=False, strict=True)
+        table = "//tmp/input1"
+        create("table", table, attributes={"schema": schema})
+        table = "//tmp/input2"
+        create("table", table, attributes={"schema": schema})
+        write_table("//tmp/input1", [{"key": "foo", "value": "bar"}])
+        write_table("//tmp/input2", [{"key": "foo", "value": "baz"}])
+
+        create("table", "//tmp/output")
+
+        mode = "sorted" if sorted_table else "unordered"
+        merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode=mode)
+        assert get("//tmp/output/@schema") == schema
