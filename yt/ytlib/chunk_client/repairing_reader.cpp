@@ -83,7 +83,7 @@ private:
             }
 
             if (erasedIndicesOnPreviousIteration && erasedIndices == *erasedIndicesOnPreviousIteration) {
-                THROW_ERROR_EXCEPTION("Read with reapir failed, but list of valid underlying part readers do not changed")
+                THROW_ERROR_EXCEPTION("Read with repair failed, but list of valid underlying part readers did not changed")
                     << error;
             }
 
