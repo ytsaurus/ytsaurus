@@ -1466,34 +1466,6 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, NullError)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    std::vector<TString> source = {
-        "a=1;b=10",
-        "b=20",
-    };
-
-    auto resultSplit = MakeSplit({
-    });
-
-    auto resultWithTotals = YsonToRows({
-    }, resultSplit);
-
-    EXPECT_THROW_THAT(
-        [&] {
-            Evaluate("null FROM [//t]", split,
-                source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
-        },
-        HasSubstr("Failed to infer type"));
-
-    SUCCEED();
-}
-
 TEST_F(TQueryEvaluateTest, GroupWithTotalsEmpty)
 {
     auto split = MakeSplit({
