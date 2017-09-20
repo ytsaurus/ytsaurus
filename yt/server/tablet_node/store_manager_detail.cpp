@@ -466,7 +466,7 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
         activeStore->GetRowCount() >= threshold * config->MaxDynamicStoreRowCount ||
         activeStore->GetValueCount() >= threshold * config->MaxDynamicStoreValueCount ||
         activeStore->GetTimestampCount() >= threshold * config->MaxDynamicStoreTimestampCount ||
-        activeStore->GetPoolCapacity() >= threshold * config->MaxDynamicStorePoolSize;
+        activeStore->GetPoolSize() >= threshold * config->MaxDynamicStorePoolSize;
 }
 
 TError TStoreManagerBase::CheckOverflow() const

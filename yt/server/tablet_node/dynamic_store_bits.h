@@ -569,6 +569,8 @@ DEFINE_ENUM(EWritePhase,
     (Commit)
 );
 
+using TTimestampToRevisionMap = yhash<TTimestamp, ui32>;
+
 struct TWriteContext
 {
     EWritePhase Phase;
@@ -585,6 +587,8 @@ struct TWriteContext
     TTimestamp BlockedTimestamp = NullTimestamp;
 
     TError Error;
+
+    TTimestampToRevisionMap TimestampToRevision;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

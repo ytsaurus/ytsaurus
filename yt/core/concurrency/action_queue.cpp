@@ -439,7 +439,7 @@ private:
 
             // Don't leave a dangling pointer behind.
             CurrentSchedulingInvoker_ = nullptr;
-        }        
+        }
     }
 
     bool TryAcquireSemaphore()
@@ -511,6 +511,11 @@ public:
             FreeEvent_.Reset();
         }
         ScheduleMore();
+    }
+
+    bool IsSuspended() override
+    {
+        return Suspended_;
     }
 
 private:

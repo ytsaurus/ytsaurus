@@ -754,7 +754,7 @@ void TTask::RegisterOutput(
             RegisterStripe(
                 std::move(outputStripes[tableIndex]),
                 EdgeDescriptors_[tableIndex],
-                std::move(joblet),
+                joblet,
                 key);
         }
     }

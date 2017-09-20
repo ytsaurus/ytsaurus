@@ -140,6 +140,13 @@ public:
 
     void BuildNodesYson(NYson::IYsonConsumer* consumer);
 
+    void ReleaseJobs(const std::vector<TJobId>& jobIds);
+
+    void RegisterRevivedJobs(const std::vector<TJobPtr>& jobs);
+
+    void ClearRevivalState();
+    void StartReviving();
+
     TOperationId GetOperationIdByJobId(const TJobId& job);
 
     TJobResources GetTotalResourceLimits();
@@ -157,7 +164,39 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
-    void SetInterruptHint(const TJobId& jobId, bool hint);
+public:
+    //! This class holds nodeshard-specific information for the revival process that happens
+    //! each time scheduler becomes connected to master. It contains information about
+    //! all revived jobs and tells which nodes should include stored jobs into their heartbeats
+    //! next time.
+    class TRevivalState
+        : public TRefCounted
+    {
+    public:
+        explicit TRevivalState(TNodeShard* host);
+
+        bool ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId);
+
+        void OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId);
+
+        void Clear();
+
+        void RegisterRevivedJob(const TJobPtr& job);
+        void ConfirmJob(const TJobPtr& job);
+        void UnregisterJob(const TJobPtr& job);
+
+        void StartReviving();
+
+    private:
+        TNodeShard* const Host_;
+        yhash_set<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
+        yhash_set<TJobPtr> NotConfirmedJobs_;
+        bool Active_ = false;
+
+        void FinalizeReviving();
+    };
+
+    typedef TIntrusivePtr<TRevivalState> TRevivalStatePtr;
 
 private:
     const int Id_;
@@ -167,6 +206,8 @@ private:
     TSchedulerConfigPtr Config_;
     INodeShardHost* const Host_;
     NCellScheduler::TBootstrap* const Bootstrap_;
+
+    TRevivalStatePtr RevivalState_;
 
     NLogging::TLogger Logger;
 
@@ -216,7 +257,6 @@ private:
 
     typedef yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
     TExecNodeByIdMap IdToNode_;
-
 
     NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address);
 
@@ -302,6 +342,7 @@ private:
 
 typedef NYT::TIntrusivePtr<TNodeShard> TNodeShardPtr;
 DEFINE_REFCOUNTED_TYPE(TNodeShard)
+DEFINE_REFCOUNTED_TYPE(TNodeShard::TRevivalState);
 
 ////////////////////////////////////////////////////////////////////////////////
 

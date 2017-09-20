@@ -1476,6 +1476,26 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         statistics2 = get("#" + chunk_list_id + "/@statistics")
         assert statistics1 == statistics2
 
+    def test_tablet_statistics(self):
+        cell_ids = self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+        self.sync_freeze_table("//tmp/t")
+        def check_statistics(statistics):
+            assert statistics["tablet_count"] == 1
+            assert statistics["tablet_count_per_memory_mode"]["none"] == 1
+            assert statistics["chunk_count"] == get("//tmp/t/@chunk_count")
+            assert statistics["uncompressed_data_size"] == get("//tmp/t/@uncompressed_data_size")
+            assert statistics["compressed_data_size"] == get("//tmp/t/@compressed_data_size")
+            assert statistics["disk_space"] == get("//tmp/t/@resource_usage/disk_space")
+            assert statistics["disk_space_per_medium"]["default"] == get("//tmp/t/@resource_usage/disk_space_per_medium/default")
+        statistics = get("//tmp/t/@tablet_statistics")
+        assert statistics["overlapping_store_count"] == statistics["store_count"]
+        check_statistics(statistics)
+        statistics = get("#{0}/@total_statistics".format(cell_ids[0]))
+        check_statistics(statistics)
+
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_timestamp_access(self, optimize_for):
         self.sync_create_cells(3)

@@ -1239,7 +1239,7 @@ public:
                 Y_UNREACHABLE();
         }
         for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
-            tabletStatistics.DiskSpace[mediumIndex] = CalculateDiskSpaceUsage(
+            tabletStatistics.DiskSpacePerMedium[mediumIndex] = CalculateDiskSpaceUsage(
                 table->Properties()[mediumIndex].GetReplicationFactor(),
                 treeStatistics.RegularDiskSpace,
                 treeStatistics.ErasureDiskSpace);
@@ -3517,8 +3517,8 @@ private:
             .SetChunkCount(deltaStatistics.ChunkCount)
             .SetTabletStaticMemory(newMemorySize - oldMemorySize);
         std::copy(
-            std::begin(deltaStatistics.DiskSpace),
-            std::end(deltaStatistics.DiskSpace),
+            std::begin(deltaStatistics.DiskSpacePerMedium),
+            std::end(deltaStatistics.DiskSpacePerMedium),
             std::begin(deltaResources.DiskSpace));
         securityManager->IncrementAccountNodeUsage(table, deltaResources);
 

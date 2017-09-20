@@ -470,6 +470,16 @@ public:
         }
     }
 
+    virtual bool GetStored() const override
+    {
+        return Stored_;
+    }
+
+    virtual void SetStored(bool value) override
+    {
+        Stored_ = value;
+    }
+
 private:
     const TJobId Id_;
     const TOperationId OperationId_;
@@ -522,6 +532,9 @@ private:
     NLogging::TLogger Logger = ExecAgentLogger;
 
     TJobEvents JobEvents_;
+
+    //! True if scheduler asked to store this job.
+    bool Stored_ = false;
 
     // Helpers.
 

@@ -482,6 +482,29 @@ void Deserialize(C<T...>& value, INodePtr node)
     DeserializeAssociative(value, node);
 }
 
+template <class T, class E, E Min, E Max>
+void Deserialize(TEnumIndexedVector<T, E, Min, Max>& value, INodePtr node)
+{
+    for (auto key : TEnumTraits<E>::GetDomainValues()) {
+        if (!value.IsDomainValue(key)) {
+            continue;
+        }
+        value[key] = T();
+    }
+
+    auto mapNode = node->AsMap();
+    for (const auto& pair : mapNode->GetChildren()) {
+        E key;
+        if (!TEnumTraits<E>::FindValueByLiteral(pair.first, &key)) {
+            continue;
+        }
+        if (!value.IsDomainValue(key)) {
+            continue;
+        }
+        Deserialize(value[key], pair.second);
+    }
+}
+
 void DeserializeProtobufMessage(
     google::protobuf::Message& message,
     const NYson::TProtobufMessageType* type,

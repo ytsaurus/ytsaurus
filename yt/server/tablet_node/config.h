@@ -95,6 +95,7 @@ public:
     bool EnableLookupHashTable;
 
     TDuration MinReplicationLogTtl;
+    int MaxTimestampsPerReplicationCommit;
     int MaxRowsPerReplicationCommit;
     i64 MaxDataWeightPerReplicationCommit;
     bool EnableReplicationLogging;
@@ -210,6 +211,8 @@ public:
 
         RegisterParameter("min_replication_log_ttl", MinReplicationLogTtl)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("max_timestamps_per_replication_commit", MaxTimestampsPerReplicationCommit)
+            .Default(10000);
         RegisterParameter("max_rows_per_replication_commit", MaxRowsPerReplicationCommit)
             .Default(90000);
         RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
