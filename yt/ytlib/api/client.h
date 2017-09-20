@@ -588,6 +588,7 @@ struct TListOperationsOptions
     TNullable<NScheduler::EOperationState> StateFilter;
     TNullable<NScheduler::EOperationType> TypeFilter;
     TNullable<TString> SubstrFilter;
+    TNullable<TString> Pool;
     TNullable<bool> WithFailedJobs;
     bool IncludeArchive = false;
     bool IncludeCounters = true;
@@ -680,6 +681,7 @@ struct TOperation
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
     NScheduler::EOperationState OperationState;
+    TString Pool;
     TString AuthenticatedUser;
     NYson::TYsonString BriefProgress;
     NYson::TYsonString BriefSpec;
@@ -706,6 +708,7 @@ struct TJob
 
 struct TListOperationsResult {
     std::vector<TOperation> Operations;
+    TNullable<yhash<TString, i64>> PoolCounts;
     TNullable<yhash<TString, i64>> UserCounts;
     TNullable<TEnumIndexedVector<i64, NScheduler::EOperationState>> StateCounts;
     TNullable<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;

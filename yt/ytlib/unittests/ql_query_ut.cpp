@@ -174,6 +174,16 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
         ContainsRegex("Misuse of aggregate function .*"));
 }
 
+TEST_F(TQueryPrepareTest, FailedTypeInference)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "null from [//t]",
+        ContainsRegex("Type inference failed"));
+}
+
 TEST_F(TQueryPrepareTest, JoinColumnCollision)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))

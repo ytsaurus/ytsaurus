@@ -23,6 +23,8 @@
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/key_set.h>
 
+#include <yt/ytlib/job_tracker_client/helpers.h>
+
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -2680,11 +2682,11 @@ private:
         TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TSortController::BuildPartitionsProgressYson, Unretained(this)))
-            .Item(ToString(EJobType::Partition)).Value(GetPartitionJobCounter())
-            .Item(ToString(EJobType::IntermediateSort)).Value(IntermediateSortJobCounter)
-            .Item(ToString(EJobType::FinalSort)).Value(FinalSortJobCounter)
-            .Item(ToString(EJobType::SortedMerge)).Value(SortedMergeJobCounter)
-            .Item(ToString(EJobType::UnorderedMerge)).Value(UnorderedMergeJobCounter)
+            .Item(JobTypeAsKey(EJobType::Partition)).Value(GetPartitionJobCounter())
+            .Item(JobTypeAsKey(EJobType::IntermediateSort)).Value(IntermediateSortJobCounter)
+            .Item(JobTypeAsKey(EJobType::FinalSort)).Value(FinalSortJobCounter)
+            .Item(JobTypeAsKey(EJobType::SortedMerge)).Value(SortedMergeJobCounter)
+            .Item(JobTypeAsKey(EJobType::UnorderedMerge)).Value(UnorderedMergeJobCounter)
             // TODO(ignat): remove when UI migrate to new keys.
             .Item("partition_jobs").Value(GetPartitionJobCounter())
             .Item("intermediate_sort_jobs").Value(IntermediateSortJobCounter)
@@ -3364,11 +3366,11 @@ private:
         TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
-            .Item(ToString(GetPartitionJobType())).Value(GetPartitionJobCounter())
-            .Item(ToString(GetIntermediateSortJobType())).Value(IntermediateSortJobCounter)
-            .Item(ToString(GetFinalSortJobType())).Value(FinalSortJobCounter)
-            .Item(ToString(GetSortedMergeJobType())).Value(SortedMergeJobCounter)
-			// TODO(ignat): remove when UI migrate to new keys.
+            .Item(JobTypeAsKey(GetPartitionJobType())).Value(GetPartitionJobCounter())
+            .Item(JobTypeAsKey(GetIntermediateSortJobType())).Value(IntermediateSortJobCounter)
+            .Item(JobTypeAsKey(GetFinalSortJobType())).Value(FinalSortJobCounter)
+            .Item(JobTypeAsKey(GetSortedMergeJobType())).Value(SortedMergeJobCounter)
+            // TODO(ignat): remove when UI migrate to new keys.
             .Item(Spec->Mapper ? "map_jobs" : "partition_jobs").Value(GetPartitionJobCounter())
             .Item(Spec->ReduceCombiner ? "reduce_combiner_jobs" : "sort_jobs").Value(IntermediateSortJobCounter)
             .Item("partition_reduce_jobs").Value(FinalSortJobCounter)

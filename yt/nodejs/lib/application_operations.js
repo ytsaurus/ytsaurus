@@ -308,9 +308,13 @@ function getArchiveCallbacks(
     timings,
     from_time, to_time, cursor_time, cursor_direction,
     user_filter, state_filter, type_filter, substr_filter,
-    max_size,
+    pool_filter, max_size,
     version)
 {
+    if (pool_filter !== null && version < 15) {
+        makeErrorHandler("Failed to get operation's pool: operations archive version is too old: expected >= 15, got %v", version);
+    }
+
     var start_time_name = version < 2 ? "index.start_time" : "start_time";
     var counts_filter_conditions = [
         "{} > {} AND {} <= {}".format(start_time_name, from_time, start_time_name, to_time)
@@ -337,6 +341,10 @@ function getArchiveCallbacks(
         items_sort_direction = "ASC";
     }
 
+    if (pool_filter) {
+        items_filter_conditions.push("pool = \"{}\"".format(escapeC(pool_filter)));
+    }
+
     if (state_filter) {
         items_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
     }
@@ -357,11 +365,11 @@ function getArchiveCallbacks(
         query_source = "[{}]"
             .format(OPERATIONS_ARCHIVE_INDEX_PATH);
     }
-   
+
     var query_for_counts =
-        "user, state, type, sum(1) AS count FROM {}".format(query_source) +
+        "pool, user, state, type, sum(1) AS count FROM {}".format(query_source) +
         " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
-        " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
+        " GROUP BY pool AS pool, authenticated_user AS user, state AS state, operation_type AS type";
 
     var query_for_items =
         "{} FROM {}".format(version < 2 ? "*" : "id_hi, id_lo", query_source) +
@@ -491,6 +499,7 @@ function YtApplicationOperations$list(parameters)
     var state_filter = optional(parameters, "state", validateString);
     var type_filter = optional(parameters, "type", validateString);
     var substr_filter = optional(parameters, "filter", validateString);
+    var pool_filter = optional(parameters, "pool", validateString);
     var with_failed_jobs = optional(parameters, "with_failed_jobs", validateBoolean, false);
     var include_archive = optional(parameters, "include_archive", validateBoolean, false);
     var include_counters = optional(parameters, "include_counters", validateBoolean, true);
@@ -582,6 +591,7 @@ function YtApplicationOperations$list(parameters)
             state_filter,
             type_filter,
             substr_filter,
+            pool_filter,
             max_size));
 
         if (include_counters) {
@@ -596,12 +606,23 @@ function YtApplicationOperations$list(parameters)
     }
 
     function makeRegister() {
+        var pool_counts = {};
         var user_counts = {};
         var state_counts = {};
         var type_counts = {};
 
         return {
-            filterAndCount: function(user, state, type, count) {
+            filterAndCount: function(pool, user, state, type, count) {
+                // POOL
+                if (!pool_counts.hasOwnProperty(pool)) {
+                    pool_counts[pool] = 0;
+                }
+                pool_counts[pool] += count;
+
+                if (pool_filter && pool !== pool_filter) {
+                    return false;
+                }
+
                 // USER
                 if (!user_counts.hasOwnProperty(user)) {
                     user_counts[user] = 0;
@@ -635,6 +656,7 @@ function YtApplicationOperations$list(parameters)
                 return true;
             },
             result: {
+                pool_counts: pool_counts,
                 user_counts: user_counts,
                 state_counts: state_counts,
                 type_counts: type_counts,
@@ -680,7 +702,7 @@ function YtApplicationOperations$list(parameters)
         var register = makeRegister();
 
         _.each(archive_counts, function(item) {
-            register.filterAndCount(item.user, item.state, item.type, item.count);
+            register.filterAndCount(item.pool, item.user, item.state, item.type, item.count);
         });
 
         var failed_jobs_count = 0;
@@ -708,6 +730,7 @@ function YtApplicationOperations$list(parameters)
             }
 
             // Now, extract main bits.
+            var pool = attributes.brief_spec.pool;
             var user = attributes.authenticated_user;
             var state = attributes.state;
             var type = attributes.operation_type;
@@ -722,7 +745,7 @@ function YtApplicationOperations$list(parameters)
             }
 
             // Apply user, state & type filters; count this operation.
-            if (!register.filterAndCount(user, mapped_state, type, 1)) {
+            if (!register.filterAndCount(pool, user, mapped_state, type, 1)) {
                 return false;
             }
 
@@ -769,6 +792,7 @@ function YtApplicationOperations$list(parameters)
                     // Reduce count here, because we have counted this one already
                     // while processing Cypress data.
                     register.filterAndCount(
+                        attributes.brief_spec.pool,
                         attributes.authenticated_user,
                         attributes.state,
                         attributes.operation_type,
@@ -822,6 +846,7 @@ function YtApplicationOperations$list(parameters)
         };
 
         if (include_counters) {
+            result.pool_counts = register.result.pool_counts;
             result.user_counts = register.result.user_counts;
             result.state_counts = register.result.state_counts;
             result.type_counts = register.result.type_counts;

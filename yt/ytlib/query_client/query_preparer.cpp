@@ -1100,6 +1100,17 @@ EValueType RefineUnaryExprTypes(
     return argType;
 }
 
+EValueType GetFrontWithCheck(const TTypeSet& typeSet, const TStringBuf& source)
+{
+    auto result = typeSet.GetFront();
+    if (result == EValueType::Null) {
+        THROW_ERROR_EXCEPTION("Type inference failed")
+            << TErrorAttribute("actual_type", EValueType::Null)
+            << TErrorAttribute("source", source);
+    }
+    return result;
+}
+
 struct TTypedExpressionBuilder
 {
     const TString& Source;
@@ -1416,7 +1427,7 @@ struct TTypedExpressionBuilder
             for (const auto& argument : inExpr->Expr) {
                 auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
 
-                EValueType argType = untypedArgument.FeasibleTypes.GetFront();
+                EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
                 auto typedArgument = untypedArgument.Generator(argType);
 
                 typedArguments.push_back(typedArgument);
@@ -1447,7 +1458,7 @@ struct TTypedExpressionBuilder
             for (const auto& argument : transformExpr->Expr) {
                 auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
 
-                EValueType argType = untypedArgument.FeasibleTypes.GetFront();
+                EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
                 auto typedArgument = untypedArgument.Generator(argType);
 
                 typedArguments.push_back(typedArgument);
@@ -1491,7 +1502,7 @@ struct TTypedExpressionBuilder
                 }
             }
 
-            auto resultType = resultTypes.GetFront();
+            auto resultType = GetFrontWithCheck(resultTypes, source);
 
             auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
             TUnversionedRowBuilder rowBuilder;
@@ -1566,7 +1577,8 @@ struct TTypedExpressionBuilder
         auto expressionTyper = BuildUntypedExpression(expr, schema);
         YCHECK(!expressionTyper.FeasibleTypes.IsEmpty());
 
-        auto result = expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront());
+        auto result = expressionTyper.Generator(
+            GetFrontWithCheck(expressionTyper.FeasibleTypes, expr->GetSource(Source)));
 
         result = TCastEliminator().Visit(result);
         result = TExpressionSimplifier().Visit(result);
@@ -2549,13 +2561,6 @@ TConstExpressionPtr PrepareExpression(
         aliasMap};
 
     auto result = builder.BuildTypedExpression(expr.Get(), schemaProxy);
-
-    auto actualType = result->Type;
-    if (actualType == EValueType::Null) {
-        THROW_ERROR_EXCEPTION("Type inference failed")
-            << TErrorAttribute("source", FormatExpression(*expr))
-            << TErrorAttribute("actual_type", actualType);
-    }
 
     if (references) {
         for (const auto& item : mapping) {
