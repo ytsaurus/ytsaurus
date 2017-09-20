@@ -219,6 +219,20 @@ message TRspSelectRows
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
+message TReqGetInSyncReplicas
+{
+    required string path = 1;
+
+    optional uint64 timestamp = 2 [default = 0];
+
+    required TRowsetDescriptor rowset_descriptor = 200;
+}
+
+message TRspGetInSyncReplicas
+{
+    repeated NYT.NProto.TGuid replica_ids = 1;
+}
+
 message TReqModifyRows
 {
     required NYT.NProto.TGuid transaction_id = 1;

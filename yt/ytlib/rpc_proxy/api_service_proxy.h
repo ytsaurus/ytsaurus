@@ -50,6 +50,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LookupRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, VersionedLookupRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SelectRows);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetInSyncReplicas);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ModifyRows);
 };

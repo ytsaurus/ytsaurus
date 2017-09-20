@@ -100,6 +100,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
 
@@ -1308,6 +1309,34 @@ private:
             [response] (const TSelectRowsResult& result) {
                 // TODO(sandello): Statistics?
                 AttachRowset(response, result.Rowset);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetInSyncReplicas)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        TGetInSyncReplicasOptions options;
+        if (request->has_timestamp()) {
+            options.Timestamp = request->timestamp();
+        }
+
+        auto rowset = DeserializeRowset<TUnversionedRow>(
+            request->rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+
+        CompleteCallWith(
+            context,
+            client->GetInSyncReplicas(
+                request->path(),
+                TNameTable::FromSchema(rowset->Schema()),
+                MakeSharedRange(rowset->GetRows(), rowset),
+                options),
+            [response] (const std::vector<NTabletClient::TTableReplicaId>& result) {
+                ToProto(response->mutable_replica_ids(), result);
             });
     }
 
