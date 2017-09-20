@@ -694,8 +694,11 @@ void TNodeShard::ReleaseJobs(const std::vector<TJobId>& jobIds)
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     for (const auto& jobId : jobIds) {
-        auto execNode = GetNodeByJob(jobId);
-        execNode->JobIdsToRemove().emplace_back(jobId);
+        // NB: While we kept job id in operation controller, its execution node
+        // could have unregistered.
+        if (auto execNode = GetNodeByJob(jobId)) {
+            execNode->JobIdsToRemove().emplace_back(jobId);
+        }
     }
 }
 
