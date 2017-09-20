@@ -319,7 +319,13 @@ private:
         } else {
             auto socket = Socket_;
             Socket_ = INVALID_SOCKET;
-            OnFinished_(socket, TError());
+            int error = GetSocketError(socket);
+            if (error != 0) {
+                socket = INVALID_SOCKET;
+                Error_ = TError("Connect error")
+                    << TError::FromSystem(error);
+            }
+            OnFinished_(socket, Error_);
         }
     }
 
