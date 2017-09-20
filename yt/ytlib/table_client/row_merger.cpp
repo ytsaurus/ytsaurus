@@ -387,7 +387,6 @@ TVersionedRowMerger::TVersionedRowMerger(
     }
 
     Keys_.resize(mergedKeyColumnCount);
-    std::sort(ColumnIds_.begin(), ColumnIds_.end());
 
     Cleanup();
 }
