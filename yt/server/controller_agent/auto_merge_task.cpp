@@ -58,6 +58,8 @@ void TAutoMergeChunkPoolAdapter::Suspend(TCookie cookie)
 {
     Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(-CookieChunkCount_[cookie]);
     Task_->CurrentChunkCount_ -= CookieChunkCount_[cookie];
+
+    TChunkPoolInputAdapterBase::Suspend(cookie);
 }
 
 void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
