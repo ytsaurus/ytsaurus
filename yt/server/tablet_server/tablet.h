@@ -85,8 +85,8 @@ public:
         const NChunkServer::TChunkManagerPtr& chunkManager);
 
 private:
-    int TabletCount_;
-    i64 DiskSpace_;
+    int TabletCount_ = 0;
+    i64 DiskSpace_ = 0;
     yhash<TString, i64> DiskSpacePerMediumMap_;
 
     void InitParameters();

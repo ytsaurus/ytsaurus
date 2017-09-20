@@ -3440,6 +3440,7 @@ private:
         }
 
         TListOperationsResult result;
+        yhash<TString, i64> poolCounts;
         yhash<TString, i64> userCounts;
         TEnumIndexedVector<i64, NScheduler::EOperationState> stateCounts;
         TEnumIndexedVector<i64, NScheduler::EOperationType> typeCounts;
@@ -3503,6 +3504,10 @@ private:
             }
             operation.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
             operation.BriefSpec = attributes.GetYson("brief_spec");
+
+            auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
+            operation.Pool = briefSpecMapNode->GetChild("pool")->AsString()->GetValue();
+
             operation.BriefProgress = attributes.GetYson("brief_progress");
             operation.Suspended = attributes.Get<bool>("suspended");
             operation.Weight = attributes.Get<double>("weight");
@@ -3510,7 +3515,13 @@ private:
         }
 
         auto filterAndCount =
-            [&] (const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
+            [&] (const TString& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
+                poolCounts[pool] += count;
+
+                if (options.Pool && *options.Pool != pool) {
+                    return false;
+                }
+
                 userCounts[user] += count;
 
                 if (options.UserFilter && *options.UserFilter != user) {
@@ -3562,7 +3573,7 @@ private:
                 continue;
             }
 
-            if (!filterAndCount(user, state, type, 1)) {
+            if (!filterAndCount(operation.Pool, user, state, type, 1)) {
                 continue;
             }
 
@@ -3594,6 +3605,10 @@ private:
         if (options.IncludeArchive) {
             int version = DoGetOperationsArchiveVersion();
 
+            if (options.Pool && version < 15) {
+                THROW_ERROR_EXCEPTION("Failed to get operation's pool: operations archive version is too old: expected >= 15, got %v", version);
+            }
+
             if (version < 9) {
                 THROW_ERROR_EXCEPTION("Failed to get operation: operations archive version is too old: expected >= 9, got %v", version);
             }
@@ -3623,6 +3638,10 @@ private:
                 }
                 itemsSortDirection = "ASC";
             }
+            
+            if (options.Pool) {
+                itemsConditions.push_back(Format("pool = %Qv", *options.Pool));
+            }
 
             if (options.StateFilter) {
                 itemsConditions.push_back(Format("state = %Qv", FormatEnum(*options.StateFilter)));
@@ -3644,7 +3663,7 @@ private:
                 1 + options.Limit);
 
             TString queryForCounts = Format(
-                "user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY authenticated_user AS user, state AS state, operation_type AS type",
+                "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY pool AS pool, authenticated_user AS user, state AS state, operation_type AS type",
                 GetOperationsArchivePathOrderedByStartTime(), JoinSeq(" AND ", countsConditions));
 
             TSelectRowsOptions selectRowsOptions;
@@ -3661,17 +3680,14 @@ private:
             const auto& rowsCounts = resultCounts.Rowset->GetRows();
 
             for (auto row : rowsCounts) {
-                auto user = TString(row[0].Data.String, row[0].Length);
-                auto state = ParseEnum<EOperationState>(TString(row[1].Data.String, row[1].Length));
-                auto type = ParseEnum<EOperationType>(TString(row[2].Data.String, row[2].Length));
-                i64 count = row[3].Data.Int64;
+                auto pool = TString(row[0].Data.String, row[0].Length);
+                auto user = TString(row[1].Data.String, row[1].Length);
+                auto state = ParseEnum<EOperationState>(TString(row[2].Data.String, row[2].Length));
+                auto type = ParseEnum<EOperationType>(TString(row[3].Data.String, row[3].Length));
+                i64 count = row[4].Data.Int64;
 
-                filterAndCount(user, state, type, count);
+                filterAndCount(pool, user, state, type, count);
             }
-
-            if (deadline) {
-                selectRowsOptions.Timeout = *deadline - Now();
-            }    
 
             auto nameTable = New<TNameTable>();
 
@@ -3801,7 +3817,7 @@ private:
                 if (it1->OperationId == it2->OperationId) {
                     result.push_back(*it1);
 
-                    filterAndCount(it2->AuthenticatedUser, it2->OperationState, it2->OperationType, -1);
+                    filterAndCount(it1->Pool, it1->AuthenticatedUser, it1->OperationState, it1->OperationType, -1);
 
                     ++it1;
                     ++it2;
@@ -3844,6 +3860,7 @@ private:
         std::sort(result.Operations.begin(), result.Operations.end(), startTimeComparer(EOperationSortDirection::Past));
 
         if (options.IncludeCounters) {
+            result.PoolCounts = std::move(poolCounts);
             result.UserCounts = std::move(userCounts);
             result.StateCounts = std::move(stateCounts);
             result.TypeCounts = std::move(typeCounts);

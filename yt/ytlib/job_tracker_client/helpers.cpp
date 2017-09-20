@@ -1,0 +1,18 @@
+#include "helpers.h"
+
+#include <yt/core/misc/format.h>
+
+namespace NYT {
+namespace NJobTrackerClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString JobTypeAsKey(EJobType jobType)
+{
+    return Format("%lv", jobType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NJobTrackerClient
+} // namespace NYT

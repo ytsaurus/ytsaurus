@@ -14,7 +14,8 @@ from helpers import (mkdirp, run, run_captured, cwd, copytree,
                      format_yes_no, parse_yes_no_bool, cleanup_cgroups,
                      ChildHasNonZeroExitCode)
 
-from pytest_helpers import get_sandbox_dirs, save_failed_test, find_and_report_core_dumps
+from pytest_helpers import (get_sandbox_dirs, save_failed_test,
+                            find_core_dumps_with_report, copy_artifacts)
 
 import argparse
 import glob
@@ -26,6 +27,7 @@ import socket
 import tarfile
 import tempfile
 import fnmatch
+import resource
 import xml.etree.ElementTree as etree
 import xml.parsers.expat
 import urlparse
@@ -40,6 +42,19 @@ def yt_processes_cleanup():
     kill_by_name("^ytserver")
     kill_by_name("^node")
     kill_by_name("^run_proxy")
+
+def process_core_dumps(options, suite_name, suite_path):
+    sandbox_archive = os.path.join(options.failed_tests_path,
+        "__".join([options.btid, options.build_number, suite_name]))
+    # Copy artifacts.
+    artifact_path = os.path.join(sandbox_archive, "artifacts")
+    artifacts = copy_artifacts(options.working_directory, artifact_path)
+
+    search_paths = [suite_path]
+    if hasattr(options, "core_path"):
+        search_paths.append(options.core_path)
+
+    return find_core_dumps_with_report(suite_name, search_paths, artifacts, sandbox_archive)
 
 @build_step
 def prepare(options, build_context):
@@ -119,12 +134,16 @@ def prepare(options, build_context):
     # Clean core path from previous builds.
     rm_content(options.core_path)
 
+    # Enable cores.
+    resource.setrlimit(
+	resource.RLIMIT_CORE,
+	(resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+
     mkdirp(options.sandbox_directory)
 
     os.chdir(options.sandbox_directory)
 
     teamcity_message(pprint.pformat(options.__dict__))
-
 
 @build_step
 def configure(options, build_context):
@@ -345,7 +364,7 @@ def run_unit_tests(options, build_context):
 
         raise StepFailedWithNonCriticalError(str(err))
     finally:
-        find_and_report_core_dumps(options, "unit_tests", sandbox_current)
+        process_core_dumps(options, "unit_tests", sandbox_current)
         rmtree(sandbox_current)
 
 
@@ -364,7 +383,7 @@ def run_javascript_tests(options, build_context):
     except ChildHasNonZeroExitCode as err:
         raise StepFailedWithNonCriticalError(str(err))
     finally:
-        find_and_report_core_dumps(options, "javascript", tests_path)
+        process_core_dumps(options, "javascript", tests_path)
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
@@ -390,6 +409,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
     env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
+    env["YT_CORE_PATH"] = options.core_path
     for var in ["TEAMCITY_YT_TOKEN", "TEAMCITY_SANDBOX_TOKEN"]:
         if var in os.environ:
             env[var] = os.environ[var]
@@ -442,7 +462,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             failed = True
             teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 
-    cores_found = find_and_report_core_dumps(options, suite_name, suite_path)
+    cores_found = process_core_dumps(options, suite_name, suite_path)
 
     try:
         if failed or cores_found:
@@ -479,7 +499,7 @@ def run_yp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("YP integration tests are skipped since all tests are disabled")
         return
-    
+
     node_path = os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
     run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
                env={
@@ -636,4 +656,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -164,11 +164,8 @@ TSerializableTabletCellStatistics::TSerializableTabletCellStatistics(
         TabletCountPerMemoryMode.begin(),
         TabletCountPerMemoryMode.end(),
         0);
-    DiskSpace_ = std::accumulate(
-        DiskSpacePerMedium,
-        DiskSpacePerMedium + MaxMediumCount,
-        0);
 
+    DiskSpace_ = 0;
     for (const auto& pair : chunkManager->Media()) {
         const auto* medium = pair.second;
         if (medium->GetCache()) {
@@ -177,6 +174,7 @@ TSerializableTabletCellStatistics::TSerializableTabletCellStatistics(
         int mediumIndex = medium->GetIndex();
         i64 mediumDiskSpace = DiskSpacePerMedium[mediumIndex];
         YCHECK(DiskSpacePerMediumMap_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
+        DiskSpace_ += mediumDiskSpace;
     }
 }
 
