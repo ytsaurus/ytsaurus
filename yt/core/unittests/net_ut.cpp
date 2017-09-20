@@ -3,6 +3,7 @@
 #include <yt/core/net/connection.h>
 #include <yt/core/net/listener.h>
 #include <yt/core/net/dialer.h>
+#include <yt/core/net/config.h>
 
 #include <yt/core/concurrency/poller.h>
 #include <yt/core/concurrency/thread_pool_poller.h>
@@ -12,6 +13,7 @@ namespace {
 
 using namespace NYT::NNet;
 using namespace NYT::NConcurrency;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +33,15 @@ public:
 
 protected:
     IPollerPtr Poller;
+    const TDialerConfigPtr Config = New<TDialerConfig>();
+    NLogging::TLogger Logger = NLogging::TLogger("Net");
+
+    IDialerPtr CreateDialer() {
+        return NNet::CreateDialer(
+            Config,
+            Poller,
+            Logger);
+    }
 };
 
 TEST_F(TNetTest, CreateConnectionPair)
@@ -190,7 +201,7 @@ TEST_F(TNetTest, DialError)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(4000);
-        auto dialer = CreateDialer(Poller);
+        auto dialer = CreateDialer();
         EXPECT_THROW(dialer->Dial(address).Get().ValueOrThrow(), TErrorException);
     })
         .AsyncVia(Poller->GetInvoker())
@@ -204,7 +215,7 @@ TEST_F(TNetTest, DialSuccess)
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
         auto listener = CreateListener(address, Poller);
-        auto dialer = CreateDialer(Poller);
+        auto dialer = CreateDialer();
 
         auto futureDial = dialer->Dial(listener->Address());
         auto futureAccept = listener->Accept();
@@ -223,7 +234,7 @@ TEST_F(TNetTest, ManyDials)
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
         auto listener = CreateListener(address, Poller);
-        auto dialer = CreateDialer(Poller);
+        auto dialer = CreateDialer();
 
         auto futureAccept1 = listener->Accept();
         auto futureAccept2 = listener->Accept();
@@ -244,7 +255,7 @@ TEST_F(TNetTest, AbandonDial)
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
         auto listener = CreateListener(address, Poller);
-        auto dialer = CreateDialer(Poller);
+        auto dialer = CreateDialer();
 
         dialer->Dial(listener->Address());
     })
