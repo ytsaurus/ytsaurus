@@ -4,8 +4,10 @@ from .helpers import TEST_DIR, check, set_config_option, TESTS_SANDBOX
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.driver import get_command_list
+from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.common import parse_bool
+
 from yt.local import start, stop
 
 import yt.zip as zip
@@ -550,12 +552,12 @@ class TestTableCommands(object):
         with set_config_option("local_temp_directory", new_temp_dir,
                                final_action=lambda: shutil.rmtree(new_temp_dir)):
             assert os.listdir(yt.config["local_temp_directory"]) == []
+
+            params = OperationParameters(input_format=None, output_format=None, operation_type="mapper", group_by=None)
             with pytest.raises(Exception):
-                py_wrapper.wrap(function=foo, operation_type="mapper", uploader=None,
-                                client=None, input_format=None, output_format=None, group_by=None)
+                py_wrapper.wrap(function=foo, uploader=None, params=params, client=None)
             assert os.listdir(yt.config["local_temp_directory"]) == []
-            py_wrapper.wrap(function=foo, operation_type="mapper", uploader=uploader,
-                            client=None, input_format=None, output_format=None, group_by=None)
+            py_wrapper.wrap(function=foo, uploader=uploader, params=params, client=None)
             assert os.listdir(yt.config["local_temp_directory"]) == []
 
     def test_write_compressed_table_data(self):
