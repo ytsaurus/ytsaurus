@@ -473,7 +473,7 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
 
     return list(imap(file_argument_builder, [function_filename, config_filename]))
 
-def build_modules_arguments(modules_info, create_temp_file, file_argument_builder):
+def build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client):
     # COMPAT: previous version of create_modules_archive returns string.
     if isinstance(modules_info, (text_type, binary_type)):
         modules_info = [{"filename": modules_info, "hash": calc_md5_string_from_file(modules_info), "tmpfs": False}]
@@ -488,8 +488,8 @@ def build_modules_arguments(modules_info, create_temp_file, file_argument_builde
     modules_info = {"modules": modules_info,
                     "platform_version": get_platform_version(),
                     "python_version": platform.python_version(),
-                    "ignore_yson_bindings": config["pickling"]["ignore_yson_bindings_for_incompatible_platforms"],
-                    "enable_modules_compatibility_filter": config["pickling"]["enable_modules_compatibility_filter"]}
+                    "ignore_yson_bindings": get_config(client)["pickling"]["ignore_yson_bindings_for_incompatible_platforms"],
+                    "enable_modules_compatibility_filter": get_config(client)["pickling"]["enable_modules_compatibility_filter"]}
 
     modules_info_filename = create_temp_file(prefix="_modules_info")
     with open(modules_info_filename, "wb") as fout:
@@ -580,7 +580,7 @@ def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
         main_file_arguments = []
     else:
         modules_info = create_modules_archive(tempfiles_manager, is_standalone_binary or use_local_python_in_jobs, client)
-        modules_arguments, tmpfs_size = build_modules_arguments(modules_info, create_temp_file, file_argument_builder)
+        modules_arguments, tmpfs_size = build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client)
         main_file_arguments = build_main_file_arguments(function, create_temp_file, file_argument_builder)
 
     cmd = " ".join(caller_arguments + function_and_config_arguments + modules_arguments + main_file_arguments)
