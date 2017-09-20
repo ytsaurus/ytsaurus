@@ -22,7 +22,10 @@ struct IDialer
 
 DEFINE_REFCOUNTED_TYPE(IDialer);
 
-IDialerPtr CreateDialer(const NConcurrency::IPollerPtr& poller);
+IDialerPtr CreateDialer(
+    TDialerConfigPtr config,
+    NConcurrency::IPollerPtr poller,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

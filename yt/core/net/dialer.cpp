@@ -17,62 +17,38 @@ using namespace NYT::NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDialSession
-    : public IPollable
+    : public TRefCounted
 {
 public:
     TDialSession(
-        SOCKET clientSocket,
         const TNetworkAddress& remote,
-        const IPollerPtr& poller)
+        const IAsyncDialerPtr& asyncDialer,
+        IPollerPtr poller)
         : Name_(Format("dialer[%v]", remote))
         , RemoteAddress_(remote)
-        , Poller_(poller)
-        , ClientSocket_(clientSocket)
+        , Poller_(std::move(poller))
+        , Session_(asyncDialer->CreateSession(
+            remote,
+            BIND(&TDialSession::OnDialerFinished, MakeWeak(this))))
     {
-        Poller_->Register(this);
+        Session_->Dial();
 
         Promise_.OnCanceled(BIND([this, this_ = MakeStrong(this)] {
             Abort();
         }));
-
-        Poller_->Arm(ClientSocket_, this, EPollControl::Write);
     }
 
-    ~TDialSession()
+    void OnDialerFinished(SOCKET socket, TError error)
     {
-        YCHECK(ClientSocket_ == -1);
-    }
-
-    virtual const TString& GetLoggingId() const override
-    {
-        return Name_;
-    }
-
-    virtual void OnEvent(EPollControl control) override
-    {
-        if (Finished_.test_and_set()) {
-            return;
-        }
-
-        int error = GetSocketError(ClientSocket_);
-        if (error != 0) {
-            Promise_.Set(TError("Connect error")
-                << TError::FromSystem(error)
-                << TErrorAttribute("dialer", Name_));
+        if (socket != INVALID_SOCKET) {
+            Promise_.TrySet(CreateConnectionFromFD(
+                socket,
+                GetSocketName(socket),
+                RemoteAddress_,
+                Poller_));
         } else {
-            auto localAddress = GetSocketName(ClientSocket_);
-            Promise_.Set(CreateConnectionFromFD(ClientSocket_, localAddress, RemoteAddress_, Poller_));
-            ClientSocket_ = -1;
-        }
-
-        Poller_->Unregister(this);
-    }
-
-    virtual void OnShutdown() override
-    {
-        if (ClientSocket_ != -1) {
-            YCHECK(TryClose(ClientSocket_, false));
-            ClientSocket_ = -1;
+            Promise_.TrySet(error
+                << TErrorAttribute("dialer", Name_));
         }
     }
 
@@ -85,23 +61,14 @@ private:
     const TString Name_;
     const TNetworkAddress RemoteAddress_;
     const IPollerPtr Poller_;
+    const IAsyncDialerSessionPtr Session_;
 
-    TSpinLock Lock_;
-    SOCKET ClientSocket_ = -1;
-
-    std::atomic_flag Finished_ = {false};
     TPromise<IConnectionPtr> Promise_ = NewPromise<IConnectionPtr>();
 
     void Abort()
     {
-        if (Finished_.test_and_set()) {
-            return;
-        }
-
-        Promise_.Set(TError("Dial aborted")
+        Promise_.TrySet(TError("Dial aborted")
             << TErrorAttribute("dialer", Name_));
-        Poller_->Unarm(ClientSocket_);
-        Poller_->Unregister(this);
     }
 };
 
@@ -111,53 +78,43 @@ class TDialer
     : public IDialer
 {
 public:
-    explicit TDialer(const IPollerPtr& poller)
-        : Poller_(poller)
+    TDialer(
+        TDialerConfigPtr config,
+        IPollerPtr poller,
+        const NLogging::TLogger& logger)
+        : AsyncDialer_(CreateAsyncDialer(std::move(config),
+            poller,
+            logger))
+        , Poller_(std::move(poller))
     { }
 
     virtual TFuture<IConnectionPtr> Dial(const TNetworkAddress& remote) override
     {
-        int family = remote.GetSockAddr()->sa_family;
-        SOCKET clientSocket;
-        if (family == AF_UNIX) {
-            clientSocket = CreateUnixClientSocket();
-        } else {
-            clientSocket = CreateTcpClientSocket(family);
-        }
-
-        try {
-            int result = ConnectSocket(clientSocket, remote);
-            if (result == 0) {
-                auto localAddress = GetSocketName(clientSocket);
-                return MakeFuture(CreateConnectionFromFD(
-                    clientSocket,
-                    localAddress,
-                    remote,
-                    Poller_));
-            } else {
-                auto connector = New<TDialSession>(
-                    clientSocket,
-                    remote,
-                    Poller_);
-                return connector->ToFuture();
-            }
-        } catch (const std::exception&) {
-            YCHECK(TryClose(clientSocket, false));
-            throw;
-        }
+        auto session = New<TDialSession>(
+            remote,
+            AsyncDialer_,
+            Poller_);
+        return session->ToFuture();
     }
 
 private:
-    const IPollerPtr Poller_;
+    IAsyncDialerPtr AsyncDialer_;
+    IPollerPtr Poller_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDialer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDialerPtr CreateDialer(const IPollerPtr& poller)
+IDialerPtr CreateDialer(
+    TDialerConfigPtr config,
+    IPollerPtr poller,
+    const NLogging::TLogger& logger)
 {
-    return New<TDialer>(poller);
+    return New<TDialer>(
+        std::move(config),
+        std::move(poller),
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
