@@ -1230,6 +1230,28 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
     Evaluate("a, b + c as x FROM [//t] where a < 10", split, source, ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, Strings)
+{
+    auto split = MakeSplit({
+        {"s", EValueType::String}
+    });
+
+    std::vector<TString> source = {
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::String}
+    });
+
+    auto result = YsonToRows({
+        "result=\"\\x0F\\xC7\\x84~\\0@\\0\\0<\\0\\0@\\x99l`\\x16\""
+    }, resultSplit);
+
+    Evaluate("\"\\x0F\\xC7\\x84~\\0@\\0\\0<\\0\\0@\\x99l`\\x16\" as result FROM [//t]", split, source,
+        ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, SimpleStrings)
 {
     auto split = MakeSplit({

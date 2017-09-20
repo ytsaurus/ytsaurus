@@ -337,6 +337,17 @@ public:
         }
     }
 
+    void ValidateAcceptsHeartbeats()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!AcceptsHeartbeats_ || !IsConnected()) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Scheduler is not able to accept heartbeats");
+        }
+    }
+
     virtual TInstant GetConnectionTime() const override
     {
         return ConnectionTime_;
@@ -372,7 +383,6 @@ public:
         }
         return operation;
     }
-
 
     virtual int GetExecNodeCount() const override
     {
@@ -482,6 +492,30 @@ public:
         return CreateJobHost(jobId, nodeShard);
     }
 
+    virtual TFuture<void> ReleaseJobs(const std::vector<TJobId>& jobIds) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        std::vector<std::vector<TJobId>> jobIdsToRemoveByShardId(NodeShards_.size());
+        for (const auto& jobId : jobIds) {
+            int shardId = GetNodeShardId(NodeIdFromJobId(jobId));
+            jobIdsToRemoveByShardId[shardId].emplace_back(jobId);
+        }
+
+        std::vector<TFuture<void>> submitFutures;
+        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+            if (jobIdsToRemoveByShardId[shardId].empty()) {
+                continue;
+            }
+            auto submitFuture = BIND(&TNodeShard::ReleaseJobs, NodeShards_[shardId])
+                .AsyncVia(NodeShards_[shardId]->GetInvoker())
+                .Run(std::move(jobIdsToRemoveByShardId[shardId]));
+            submitFutures.emplace_back(std::move(submitFuture));
+        }
+
+        return Combine(submitFutures);
+    }
+
     virtual void SendJobMetricsToStrategy(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) override
     {
         GetStrategy()->ApplyJobMetricsDelta(operationId, jobMetricsDelta);
@@ -513,7 +547,6 @@ public:
 
         LOG_DEBUG("Pool permission successfully validated");
     }
-
 
     void ValidateOperationPermission(
         const TString& user,
@@ -863,6 +896,9 @@ public:
         auto controller = operation->GetController();
         if (controller->IsRevivedFromSnapshot()) {
             operation->SetState(EOperationState::Running);
+            auto asyncResult = RegisterJobsFromRevivedOperation(operation);
+            auto error = WaitFor(asyncResult);
+            YCHECK(error.IsOK() && "Error while registering jobs from the revived operation");
         } else {
             operation->SetState(EOperationState::Materializing);
             BIND(&IOperationController::Materialize, controller)
@@ -1032,6 +1068,10 @@ private:
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> IsConnected_ = {false};
+    // We have to postpone heartbeat process until all controllers are revived
+    // (otherwise we won't know what to do with information about jobs running on the nodes).
+    // On the other hand we want to receive user requests earlier than all controllers are revived.
+    std::atomic<bool> AcceptsHeartbeats_ = {false};
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1106,7 +1146,6 @@ private:
     private:
         TScheduler::TImpl* const Host_;
         TUnversionedOwningRowBuilder Builder_;
-
     };
 
     ISchemalessWriterPtr EventLogWriter_;
@@ -1115,7 +1154,6 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TUnversionedOwningRow> PendingEventLogRows_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
 
     const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
     {
@@ -1291,6 +1329,8 @@ private:
         WaitFor(processFuture)
             .ThrowOnError();
 
+        AcceptsHeartbeats_.store(true);
+
         Strategy_->StartPeriodicActivity();
     }
 
@@ -1302,6 +1342,7 @@ private:
 
         LOG_INFO("Starting scheduler state cleanup");
 
+        AcceptsHeartbeats_.store(false);
         IsConnected_.store(false);
 
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
@@ -1816,11 +1857,11 @@ private:
         RegisterOperation(operation);
     }
 
-    void ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
+    TFuture<void> ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
     {
         auto controller = operation->GetController();
-        BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
-            .Via(operation->GetCancelableControlInvoker())
+        return BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
+            .AsyncVia(operation->GetCancelableControlInvoker())
             .Run();
     }
 
@@ -1849,8 +1890,7 @@ private:
             }
 
             {
-                auto asyncResult = VoidFuture;
-                asyncResult = BIND(&IOperationController::Revive, controller)
+                auto asyncResult = BIND(&IOperationController::Revive, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
                 auto error = WaitFor(asyncResult);
@@ -1876,6 +1916,36 @@ private:
 
         LOG_INFO("Operation has been revived and is now running (OperationId: %v)",
             operation->GetId());
+    }
+
+    TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
+    {
+        const auto& controller = operation->GetController();
+        auto jobs = controller->BuildJobsFromJoblets();
+        LOG_INFO("Registering running jobs from the revived operation (OperationId: %v, JobCount: %v)",
+            operation->GetId(),
+            jobs.size());
+
+        // First, register jobs in the strategy. Do this syncrhonously as we are in the scheduler control thread.
+        GetStrategy()->RegisterJobs(operation->GetId(), jobs);
+
+        // Second, register jobs on the corresponding node shards.
+        std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());
+        for (auto& job : jobs) {
+            auto shardId = GetNodeShardId(NodeIdFromJobId(job->GetId()));
+            jobsByShardId[shardId].emplace_back(std::move(job));
+        }
+        std::vector<TFuture<void>> registrationFutures;
+        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+            if (jobsByShardId[shardId].empty()) {
+                continue;
+            }
+            auto registerFuture = BIND(&TNodeShard::RegisterRevivedJobs, NodeShards_[shardId])
+                .AsyncVia(NodeShards_[shardId]->GetInvoker())
+                .Run(std::move(jobsByShardId[shardId]));
+            registrationFutures.emplace_back(std::move(registerFuture));
+        }
+        return Combine(registrationFutures);
     }
 
     void RegisterOperation(TOperationPtr operation)
@@ -2077,6 +2147,8 @@ private:
                 YCHECK(operation->GetState() == EOperationState::Completed);
             }
 
+            ReleaseCompletedJobs(operation);
+
             FinishOperation(operation);
         } catch (const std::exception& ex) {
             OnOperationFailed(operation->GetId(), ex);
@@ -2248,6 +2320,8 @@ private:
                 return;
         }
 
+        ReleaseCompletedJobs(operation);
+
         LogOperationFinished(operation, logEventType, error);
 
         FinishOperation(operation);
@@ -2309,6 +2383,18 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // Prepare reviving process on node shards.
+        std::vector<TFuture<void>> prepareFutures;
+        for (auto& shard : NodeShards_) {
+            auto prepareFuture = BIND(&TNodeShard::ClearRevivalState, shard)
+                .AsyncVia(shard->GetInvoker())
+                .Run();
+            prepareFutures.emplace_back(std::move(prepareFuture));
+        }
+        WaitFor(Combine(prepareFutures))
+            .ThrowOnError();
+
+        std::vector<TFuture<void>> reviveFutures;
         for (const auto& operationReport : operationReports) {
             const auto& operation = operationReport.Operation;
 
@@ -2327,8 +2413,21 @@ private:
                 continue;
             }
 
-            ReviveOperation(operation, operationReport.ControllerTransactions);
+            reviveFutures.emplace_back(ReviveOperation(operation, operationReport.ControllerTransactions));
         }
+        WaitFor(Combine(reviveFutures))
+            .ThrowOnError();
+
+        // Start reviving process on node shards.
+        std::vector<TFuture<void>> startFutures;
+        for (auto& shard : NodeShards_) {
+            auto startFuture = BIND(&TNodeShard::StartReviving, shard)
+                .AsyncVia(shard->GetInvoker())
+                .Run();
+            startFutures.emplace_back(std::move(startFuture));
+        }
+        WaitFor(Combine(startFutures))
+            .ThrowOnError();
     }
 
     void RegisterRevivingOperations(const std::vector<TOperationReport>& operationReports)
@@ -2389,10 +2488,11 @@ private:
                 .Item("nodes").BeginMap()
                     .Do([=] (IYsonConsumer* consumer) {
                         for (auto nodeShard : NodeShards_) {
-                            WaitFor(
+                            auto asyncResult = WaitFor(
                                 BIND(&TNodeShard::BuildNodesYson, nodeShard, consumer)
                                     .AsyncVia(nodeShard->GetInvoker())
                                     .Run());
+                            asyncResult.ThrowOnError();
                         }
                     })
                 .EndMap()
@@ -2415,20 +2515,22 @@ private:
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
-                        WaitFor(
+                        auto asyncResult = WaitFor(
                             // TODO(ignat): maybe use cached version here?
                             BIND(&IOperationController::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
+                        asyncResult.ThrowOnError();
                     }))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
-                        WaitFor(
+                        auto asyncResult = WaitFor(
                             BIND(&IOperationController::BuildBriefProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
+                        asyncResult.ThrowOnError();
                     }))
                     .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
@@ -2450,19 +2552,32 @@ private:
                 .EndAttributes()
                 .BeginMap()
                     .DoIf(hasControllerJobSplitterInfo, BIND([=] (IYsonConsumer* consumer) {
-                        WaitFor(
+                        auto asyncResult = WaitFor(
                             BIND(&IOperationController::BuildJobSplitterInfo, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
+                        asyncResult.ThrowOnError();
                     }))
                 .EndMap()
                 .Do([=] (IYsonConsumer* consumer) {
-                    WaitFor(
+                    auto asyncResult = WaitFor(
                         BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
                             .AsyncVia(controller->GetInvoker())
                             .Run(consumer));
+                    asyncResult.ThrowOnError();
                 })
             .EndMap();
+    }
+
+    void ReleaseCompletedJobs(const TOperationPtr& operation)
+    {
+        if (const auto& controller = operation->GetController()) {
+            int numberOfJobsToRelease = controller->GetRecentlyCompletedJobCount();
+            if (numberOfJobsToRelease > 0) {
+                auto error = WaitFor(controller->ReleaseJobs(numberOfJobsToRelease));
+                YCHECK(error.IsOK() && "ReleaseJobs failed");
+            }
+        }
     }
 
     IYPathServicePtr GetDynamicOrchidService()
@@ -2638,6 +2753,11 @@ bool TScheduler::IsConnected()
 void TScheduler::ValidateConnected()
 {
     Impl_->ValidateConnected();
+}
+
+void TScheduler::ValidateAcceptsHeartbeats()
+{
+    Impl_->ValidateAcceptsHeartbeats();
 }
 
 TOperationPtr TScheduler::FindOperation(const TOperationId& id) const

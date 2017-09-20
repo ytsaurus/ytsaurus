@@ -43,6 +43,7 @@ public:
 
     bool IsConnected();
     void ValidateConnected();
+    void ValidateAcceptsHeartbeats();
 
     TOperationPtr FindOperation(const TOperationId& id) const;
     TOperationPtr GetOperationOrThrow(const TOperationId& id) const;

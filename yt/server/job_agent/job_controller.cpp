@@ -78,6 +78,7 @@ public:
 
     void ProcessHeartbeatResponse(
         const TRspHeartbeatPtr& response,
+        EObjectType jobObjectType,
         NRpc::IChannelPtr jobSpecsProxyChannel);
 
     NYTree::IYPathServicePtr GetOrchidService();
@@ -102,6 +103,9 @@ private:
     TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
+
+    bool IncludeStoredJobsInNextSchedulerHeartbeat_ = false;
+    TInstant LastStoredJobsSendTime_;
 
     //! Starts a new job.
     IJobPtr CreateJob(
@@ -495,12 +499,27 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
 
     i64 completedJobsStatisticsSize = 0;
 
+    bool includeStoredJobs = false;
+    if (jobObjectType == EObjectType::SchedulerJob) {
+        auto now = TInstant::Now();
+        includeStoredJobs =
+            IncludeStoredJobsInNextSchedulerHeartbeat_ ||
+            LastStoredJobsSendTime_ + Config_->StoredJobsSendPeriod < now;
+        if (includeStoredJobs) {
+            LastStoredJobsSendTime_ = now;
+            LOG_INFO("Including all stored jobs in heartbeat");
+        }
+        request->set_stored_jobs_included(includeStoredJobs);
+    }
+
     for (const auto& pair : Jobs_) {
         const auto& jobId = pair.first;
         const auto& job = pair.second;
         if (CellTagFromId(jobId) != cellTag)
             continue;
         if (TypeFromId(jobId) != jobObjectType)
+            continue;
+        if (job->GetStored() && !includeStoredJobs)
             continue;
 
         auto* jobStatus = request->add_jobs();
@@ -558,6 +577,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
 
 void TJobController::TImpl::ProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
+    EObjectType jobObjectType,
     NRpc::IChannelPtr jobSpecsProxyChannel)
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
@@ -566,7 +586,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         if (job) {
             RemoveJob(job);
         } else {
-            LOG_WARNING("Requested to remove a non-existing job (JobId: %v)",
+            LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
                 jobId);
         }
     }
@@ -577,7 +597,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         if (job) {
             AbortJob(job);
         } else {
-            LOG_WARNING("Requested to abort a non-existing job (JobId: %v)",
+            LOG_WARNING("Requested to abort a non-existent job (JobId: %v)",
                 jobId);
         }
     }
@@ -599,9 +619,26 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         if (job) {
             FailJob(job);
         } else {
-            LOG_WARNING("Requested to fail a non-existing job (JobId: %v)",
+            LOG_WARNING("Requested to fail a non-existent job (JobId: %v)",
                 jobId);
         }
+    }
+
+    for (const auto& protoJobId: response->jobs_to_store()) {
+        auto jobId = FromProto<TJobId>(protoJobId);
+        auto job = FindJob(jobId);
+        if (job) {
+            LOG_DEBUG("Storing job (JobId: %v)",
+                jobId);
+            job->SetStored(true);
+        } else {
+            LOG_WARNING("Requested to store a non-existent job (JobId: %v)",
+                jobId);
+        }
+    }
+
+    if (jobObjectType == EObjectType::SchedulerJob) {
+        IncludeStoredJobsInNextSchedulerHeartbeat_ = response->include_stored_jobs_in_next_heartbeat();
     }
 
     std::vector<TJobSpec> specs(response->jobs_to_start_size());
@@ -800,9 +837,10 @@ void TJobController::PrepareHeartbeatRequest(
 
 void TJobController::ProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
+    EObjectType jobObjectType,
     IChannelPtr jobSpecsProxyChannel)
 {
-    Impl_->ProcessHeartbeatResponse(response, jobSpecsProxyChannel);
+    Impl_->ProcessHeartbeatResponse(response, jobObjectType, jobSpecsProxyChannel);
 }
 
 IYPathServicePtr TJobController::GetOrchidService()

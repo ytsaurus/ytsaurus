@@ -127,6 +127,9 @@ struct ISchedulerStrategy
      */
     virtual void UnregisterOperation(const TOperationPtr& operation) = 0;
 
+    //! Register jobs that are already created somewhere outside strategy.
+    virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
+
     virtual void ProcessUpdatedAndCompletedJobs(
         const std::vector<TUpdatedJob>& updatedJobs,
         const std::vector<NScheduler::TCompletedJob>& completedJobs) = 0;

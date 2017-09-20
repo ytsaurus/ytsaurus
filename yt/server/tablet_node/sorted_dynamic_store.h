@@ -208,13 +208,13 @@ private:
 
     struct TLoadScratchData
     {
-        yhash<TTimestamp, ui32> TimestampToRevision;
+        TTimestampToRevisionMap TimestampToRevision;
         std::vector<std::vector<ui32>> WriteRevisions;
     };
 
     void LoadRow(TVersionedRow row, TLoadScratchData* scratchData);
-    ui32 CaptureTimestamp(TTimestamp timestamp, TLoadScratchData* scratchData);
-    ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TLoadScratchData* scratchData);
+    ui32 CaptureTimestamp(TTimestamp timestamp, TTimestampToRevisionMap* scratchData);
+    ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TTimestampToRevisionMap* scratchData);
 
     void CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index);
     void CaptureUnversionedValue(TDynamicValue* dst, const TUnversionedValue& src);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "serialize.h"
 
 #include <yt/server/chunk_pools/public.h>
 
@@ -12,9 +13,9 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IJobSplitter
+    : public IPersistent
+    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
-    virtual ~IJobSplitter() = default;
-
     virtual void OnJobStarted(
         const TJobId& jobId,
         const NChunkPools::TChunkStripeListPtr& inputStripeList) = 0;

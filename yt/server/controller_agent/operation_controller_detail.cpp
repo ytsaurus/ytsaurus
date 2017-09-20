@@ -9,6 +9,7 @@
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/master_connector.h>
+#include <yt/server/scheduler/job.h>
 
 #include <yt/server/misc/job_table_schema.h>
 
@@ -695,8 +696,6 @@ void TOperationControllerBase::Revive()
 
     CreateLivePreviewTables();
 
-    AbortAllJoblets();
-
     AddAllTaskPendingHints();
 
     // Input chunk scraper initialization should be the last step to avoid races.
@@ -714,11 +713,6 @@ void TOperationControllerBase::Revive()
     AnalyzeOperationProgressExecutor->Start();
     MinNeededResourcesSanityCheckExecutor->Start();
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
-
-    auto jobSplitterConfig = GetJobSplitterConfig();
-    if (jobSplitterConfig) {
-        JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
-    }
 
     State = EControllerState::Running;
 }
@@ -1044,16 +1038,6 @@ void TOperationControllerBase::ReinstallLivePreview()
             IntermediateTable.LivePreviewTableId,
             childIds);
     }
-}
-
-void TOperationControllerBase::AbortAllJoblets()
-{
-    for (const auto& pair : JobletMap) {
-        auto joblet = pair.second;
-        JobCounter.Aborted(1, EAbortReason::Scheduler);
-        joblet->Task->OnJobAborted(joblet, TAbortedJobSummary(pair.first, EAbortReason::Scheduler));
-    }
-    JobletMap.clear();
 }
 
 void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot)
@@ -1513,6 +1497,13 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto jobId = jobSummary->Id;
+    // NB: We should not explicitly tell node to remove abandoned job because it may be still
+    // running at the node.
+    if (!jobSummary->Abandoned) {
+        RecentlyCompletedJobIds.emplace_back(jobId);
+    }
+
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
         Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
@@ -1520,7 +1511,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         THROW_ERROR_EXCEPTION("Testing exception");
     }
 
-    auto jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -1590,7 +1580,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ false);
 
-    RemoveJoblet(jobId);
+    RemoveJoblet(joblet);
 
     UpdateTask(joblet->Task);
 
@@ -1652,7 +1642,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
-    RemoveJoblet(jobId);
+    RemoveJoblet(joblet);
 
     LogProgress();
 
@@ -1714,7 +1704,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     bool requestJobNodeCreation = (abortReason == EAbortReason::UserRequest);
     ProcessFinishedJobResult(std::move(jobSummary), requestJobNodeCreation);
 
-    RemoveJoblet(jobId);
+    RemoveJoblet(joblet);
 
     if (abortReason == EAbortReason::AccountLimitExceeded) {
         Host->OnOperationSuspended(OperationId, TError("Account limit exceeded"));
@@ -5056,7 +5046,6 @@ void TOperationControllerBase::RegisterRecoveryInfo(
     const TCompletedJobPtr& completedJob,
     const TChunkStripePtr& stripe)
 {
-    YCHECK(!stripe->DataSlices.empty());
     for (const auto& dataSlice : stripe->DataSlices) {
         // NB: intermediate slice must be trivial.
         const auto& chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
@@ -5069,6 +5058,43 @@ void TOperationControllerBase::RegisterRecoveryInfo(
 TRowBufferPtr TOperationControllerBase::GetRowBuffer()
 {
     return RowBuffer;
+}
+
+int TOperationControllerBase::GetRecentlyCompletedJobCount() const
+{
+    YCHECK(SuspendableInvoker->IsSuspended() || IsFinished());
+
+    return RecentlyCompletedJobIds.size();
+}
+
+TFuture<void> TOperationControllerBase::ReleaseJobs(int jobCount)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    LOG_DEBUG("Releasing jobs (JobCount: %v)", jobCount);
+
+    YCHECK(jobCount <= RecentlyCompletedJobIds.size());
+
+    auto future = Host->ReleaseJobs(std::vector<TJobId>(RecentlyCompletedJobIds.begin(), RecentlyCompletedJobIds.begin() + jobCount));
+
+    auto rotateCompletedJobs = BIND([weakThis = MakeWeak(this), jobCount] {
+        if (auto this_ = weakThis.Lock()) {
+            auto& recentlyCompletedJobIds = this_->RecentlyCompletedJobIds;
+            recentlyCompletedJobIds.erase(recentlyCompletedJobIds.begin(), recentlyCompletedJobIds.begin() + jobCount);
+        }
+    }).Via(CancelableInvoker);
+
+    return future.Apply(rotateCompletedJobs);
+}
+
+std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
+{
+    std::vector<TJobPtr> jobs;
+    for (const auto& pair : JobletMap) {
+        const auto& joblet = pair.second;
+        jobs.emplace_back(BuildJobFromJoblet(joblet));
+    }
+    return jobs;
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)
@@ -5129,8 +5155,9 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(const TJobId& jobId) const
     return joblet;
 }
 
-void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
+void TOperationControllerBase::RemoveJoblet(const TJobletPtr& joblet)
 {
+    const auto& jobId = joblet->JobId;
     YCHECK(JobletMap.erase(jobId) == 1);
 }
 
@@ -5146,7 +5173,14 @@ bool TOperationControllerBase::ShouldUpdateProgress() const
 
 bool TOperationControllerBase::HasProgress() const
 {
-    return IsPrepared() && ProgressString_ && BriefProgressString_;
+    if (!IsPrepared()) {
+        return false;
+    }
+
+    {
+        TGuard<TSpinLock> guard(ProgressLock_);
+        return ProgressString_ && BriefProgressString_;
+    }
 }
 
 bool TOperationControllerBase::HasJobSplitterInfo() const
@@ -6166,6 +6200,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeTasks);
     Persist(context, AutoMergeJobSpecTemplates_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
+    Persist(context, JobSplitter_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already intialized.
@@ -6269,6 +6304,21 @@ bool TOperationControllerBase::IsCompleted() const
         }
     }
     return true;
+}
+
+NScheduler::TJobPtr TOperationControllerBase::BuildJobFromJoblet(const TJobletPtr& joblet) const
+{
+    auto job = New<NScheduler::TJob>(
+        joblet->JobId,
+        joblet->JobType,
+        OperationId,
+        nullptr /* execNode */,
+        joblet->StartTime,
+        joblet->ResourceLimits,
+        IsJobInterruptible());
+    job->SetState(EJobState::Running);
+    job->RevivedNodeDescriptor() = joblet->NodeDescriptor;
+    return job;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

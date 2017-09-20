@@ -38,6 +38,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidEpoch)               (602))
     ((InvalidVersion)             (603))
     ((OutOfOrderMutations)        (609))
+    ((InvalidSnapshotVersion)     (610))
 );
 
 DEFINE_ENUM(EPeerKind,

@@ -378,7 +378,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
     if (address.GetSockAddr()->sa_family == AF_UNIX) {
         Socket_ = CreateUnixClientSocket();
     } else {
-        Socket_ = CreateTcpClientSocket();
+        Socket_ = CreateTcpClientSocket(family);
     }
 
     if (Config_->EnableNoDelay && family != AF_UNIX) {

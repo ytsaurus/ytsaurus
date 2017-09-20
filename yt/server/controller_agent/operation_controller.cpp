@@ -302,6 +302,21 @@ public:
         return Underlying_->BuildSuspiciousJobsYson();
     }
 
+    virtual int GetRecentlyCompletedJobCount() const override
+    {
+        return Underlying_->GetRecentlyCompletedJobCount();
+    }
+
+    virtual TFuture<void> ReleaseJobs(int jobCount) override
+    {
+        return Underlying_->ReleaseJobs(jobCount);
+    }
+
+    virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override
+    {
+        return Underlying_->BuildJobsFromJoblets();
+    }
+
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;

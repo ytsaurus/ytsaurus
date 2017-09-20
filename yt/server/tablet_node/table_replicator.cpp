@@ -438,6 +438,7 @@ private:
             NullTimestamp,
             TWorkloadDescriptor(EWorkloadCategory::SystemReplication));
 
+        int timestampCount = 0;
         int rowCount = 0;
         i64 currentRowIndex = startRowIndex;
         i64 dataWeight = 0;
@@ -498,12 +499,16 @@ private:
                         << HardErrorAttribute;
                 }
 
-                if ((rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
-                    dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit) &&
-                    timestamp != prevTimestamp)
-                {
-                    tooMuch = true;
-                    break;
+                if (timestamp != prevTimestamp) {
+                    if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
+                        dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
+                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
+                    {
+                        tooMuch = true;
+                        break;
+                    }
+
+                    ++timestampCount;
                 }
 
                 ++currentRowIndex;

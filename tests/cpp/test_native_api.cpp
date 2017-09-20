@@ -575,8 +575,10 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
     TVersionedLookupRowsOptions options;
     options.RetentionConfig = New<TRetentionConfig>();
     options.RetentionConfig->MinDataTtl = TDuration::MilliSeconds(0);
-    options.RetentionConfig->MaxDataTtl = TDuration::MilliSeconds(0);
-    options.Timestamp = CommitTimestamps_[2];
+    options.RetentionConfig->MaxDataTtl = TDuration::MilliSeconds(1800000);
+    options.RetentionConfig->MinDataVersions = 1;
+    options.RetentionConfig->MaxDataVersions = 1;
+    options.Timestamp = CommitTimestamps_[2] + 1;
 
     res = WaitFor(Client_->VersionedLookupRows(
         Table_,
@@ -610,6 +612,27 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         "<id=0> 20; <id=1> 20; <id=2> 20",
         ""));
     EXPECT_EQ(actual, expected);
+
+    options.ColumnFilter.Indexes = SmallVector<int, TypicalColumnCount>{3};
+
+    preparedKey = PrepareUnversionedRow(
+        {"k0", "k1", "k2", "v3"},
+        "<id=0> 20; <id=1> 20; <id=2> 20");
+    res = WaitFor(Client_->VersionedLookupRows(
+        Table_,
+        std::get<1>(preparedKey),
+        std::get<0>(preparedKey),
+        options))
+        .ValueOrThrow();
+
+    ASSERT_EQ(res->GetRows().Size(), 1);
+
+    actual = ToString(res->GetRows()[0]);
+    expected = ToString(BuildVersionedRow(
+        "",
+        "<id=0;ts=2> 21;"));
+    EXPECT_EQ(actual, expected);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

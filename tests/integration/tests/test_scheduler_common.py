@@ -6,6 +6,7 @@ from yt.wrapper import JsonFormat
 
 from flaky import flaky
 
+import pprint
 import pytest
 import time
 import __builtin__
@@ -44,6 +45,14 @@ porto_delta_node_config = {
         }
     }
 }
+
+def _wait_for(condition, error_msg, period=0.5, iterations=60):
+    for i in range(iterations):
+        if condition():
+            break
+        time.sleep(period)
+    else:
+        raise RuntimeError(error_msg + " (timeout = {0}".format(period * iterations))
 
 ##################################################################
 
@@ -1203,6 +1212,155 @@ class TestSchedulerRevive(YTEnvSetup):
         finally:
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
             time.sleep(5)
+
+################################################################################
+
+class TestJobRevival(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_time_limit_check_period": 100,
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "snapshot_period": 500,
+            "lock_transaction_timeout": 3000,
+            "operations_update_period": 100,
+            "job_revival_abort_timeout": 2000,
+        },
+        "cluster_connection" : {
+            "transaction_manager": {
+                "default_transaction_timeout": 3000,
+                "default_ping_period": 200,
+            }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 5,
+                    "cpu": 5
+                },
+                "stored_jobs_send_period": 5000
+            }
+        }
+    }
+
+    def test_job_revival_simple(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"a": 0}])
+
+        events = EventsOnFs()
+
+        map_cmd = " ; ".join([
+            "sleep 2",
+            events.notify_event_cmd("snapshot_written"),
+            events.wait_event_cmd("scheduler_reconnected"),
+            "echo {a=1}"])
+        op = map(
+            dont_track=True,
+            command=map_cmd,
+            in_="//tmp/t_in",
+            out="//tmp/t_out")
+        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
+        cypress_path = "//sys/operations/{0}".format(op.id)
+
+        _wait_for(lambda: ls("{0}/running_jobs".format(orchid_path)),
+                  "Job did not start")
+        jobs = ls("{0}/running_jobs".format(orchid_path))
+        assert len(jobs) == 1
+        job_id = jobs[0]
+
+        events.wait_event("snapshot_written")
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        _wait_for(lambda: exists(orchid_path),
+                  "Operation did not re-appear within 30 seconds")
+
+        _wait_for(lambda: get("{0}/running_jobs".format(orchid_path)),
+                  "Job did not re-appear within 30 seconds")
+        jobs = get("{0}/running_jobs".format(orchid_path)).keys()
+        assert len(jobs) == 1
+        assert jobs[0] == job_id
+
+        events.notify_event("scheduler_reconnected")
+        op.track()
+
+        assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) == 0
+        assert read_table("//tmp/t_out") == [{"a": 1}]
+
+    @pytest.mark.timeout(600)
+    def test_many_jobs_and_operations(self):
+        create("table", "//tmp/t_in")
+
+        row_count = 20
+        op_count = 20
+
+        output_tables = []
+        for i in range(op_count):
+            output_table = "//tmp/t_out{0:02d}".format(i)
+            create("table", output_table)
+            output_tables.append(output_table)
+
+        for i in range(row_count):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        ops = []
+
+        for i in range(op_count):
+            ops.append(map(
+                dont_track=True,
+                command="sleep 0.$(($RANDOM)); cat",
+                in_="//tmp/t_in",
+                out=output_tables[i],
+                spec={"data_size_per_job": 1}))
+
+        def get_total_job_count(category):
+            total_job_count = 0
+            for op_id in get("//sys/operations", verbose=False).keys():
+                total_job_count += \
+                    get("//sys/operations/{0}/@brief_progress/jobs/{1}".format(op_id, category),
+                        default=0,
+                        verbose=False)
+            return total_job_count
+
+        # We will switch scheduler when there are 40, 80, 120, ..., 400 completed jobs.
+
+        for switch_job_count in range(40, 400, 40):
+            while True:
+                completed_job_count = get_total_job_count("completed/total")
+                aborted_job_count = get_total_job_count("aborted/total")
+                aborted_on_revival_job_count = get_total_job_count("aborted/scheduled/revival_confirmation_timeout")
+                print >>sys.stderr, "completed_job_count =", completed_job_count
+                print >>sys.stderr, "aborted_job_count =", aborted_job_count
+                print >>sys.stderr, "aborted_on_revival_job_count =", aborted_on_revival_job_count
+                if completed_job_count >= switch_job_count:
+                    self.Env.kill_schedulers()
+                    self.Env.start_schedulers()
+                    if switch_job_count % 3 == 0:
+                        self.Env.kill_nodes()
+                        self.Env.start_nodes()
+                    break
+                time.sleep(1)
+
+        for op in ops:
+            op.track()
+
+        if aborted_job_count != aborted_on_revival_job_count:
+            print >>sys.stderr, "There were aborted jobs other than during the revival process:"
+            for op in ops:
+                pprint.pprint(dict(get("//sys/operations/{0}/@brief_progress/jobs/aborted".format(op.id))), stream=sys.stderr)
+
+        for output_table in output_tables:
+            assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
+
 
 ##################################################################
 

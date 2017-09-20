@@ -345,9 +345,8 @@ def run_unit_tests(options, build_context):
 
         raise StepFailedWithNonCriticalError(str(err))
     finally:
+        find_and_report_core_dumps(options, "unit_tests", sandbox_current)
         rmtree(sandbox_current)
-
-    find_and_report_core_dumps(options, "unit_tests", sandbox_current)
 
 
 @build_step
@@ -364,8 +363,8 @@ def run_javascript_tests(options, build_context):
             env={"MOCHA_OUTPUT_FILE": "{0}/junit_nodejs_run_tests.xml".format(options.working_directory)})
     except ChildHasNonZeroExitCode as err:
         raise StepFailedWithNonCriticalError(str(err))
-
-    find_and_report_core_dumps(options, "javascript", tests_path)
+    finally:
+        find_and_report_core_dumps(options, "javascript", tests_path)
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
@@ -386,7 +385,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
         env = {}
 
     env["PATH"] = "{0}/bin:{0}/yt/nodejs:/usr/sbin:{1}".format(options.working_directory, os.environ.get("PATH", ""))
-    env["PYTHONPATH"] = "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
+    env["PYTHONPATH"] = "{0}/python:{0}/yp/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
     env["TESTS_SANDBOX"] = sandbox_current
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
@@ -482,7 +481,7 @@ def run_yp_integration_tests(options, build_context):
         return
     
     node_path = os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
-    run_pytest(options, "yp_integration", "{0}/yp/python".format(options.checkout_directory),
+    run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
                env={
                    "NODE_PATH": node_path
                })

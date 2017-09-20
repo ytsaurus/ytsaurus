@@ -82,6 +82,7 @@ private:
         const auto* chunkList = tablet->GetChunkList();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "state") {
             BuildYsonFluently(consumer)
@@ -91,7 +92,9 @@ private:
 
         if (key == "statistics") {
             BuildYsonFluently(consumer)
-                .Value(tabletManager->GetTabletStatistics(tablet));
+                .Value(New<TSerializableTabletStatistics>(
+                    tabletManager->GetTabletStatistics(tablet),
+                    chunkManager));
             return true;
         }
 
