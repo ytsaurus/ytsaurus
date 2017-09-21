@@ -1228,6 +1228,11 @@ void TNodeShard::UpdateNodeResources(TExecNodePtr node, const TJobResources& lim
 
         TotalResourceUsage_ -= oldResourceUsage;
         TotalResourceUsage_ += node->GetResourceUsage();
+
+        // Force update cache if node has come with non-zero usage.
+        if (oldResourceLimits.GetUserSlots() == 0 && node->GetResourceUsage().GetUserSlots() > 0) {
+            CachedResourceLimitsByTags_->ForceUpdate();
+        }
     }
 }
 
