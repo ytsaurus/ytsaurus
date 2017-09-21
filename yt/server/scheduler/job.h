@@ -39,6 +39,10 @@ class TJob
     //! Exec node where the job is running.
     DEFINE_BYVAL_RW_PROPERTY(TExecNodePtr, Node);
 
+    //! Flag that marks job as revived by scheduler. It is useful, for example,
+    //! when we lose information about interruption reason during revival.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Revived, false);
+
     //! Node descriptor that was obtained from corresponding joblet during the revival process.
     //! It used only during the revival and is used only for filling `Node` field.
     DEFINE_BYREF_RW_PROPERTY(TJobNodeDescriptor, RevivedNodeDescriptor);

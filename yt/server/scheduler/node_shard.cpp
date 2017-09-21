@@ -1360,6 +1360,10 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
             const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             if (schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) {
                 job->SetInterruptReason(EInterruptReason::None);
+            } else if (job->GetRevived()) {
+                // NB: We lose the original interrupt reason during the revival,
+                // so we set it to Unknown.
+                job->SetInterruptReason(EInterruptReason::Unknown);
             }
         } else {
             YCHECK(abandoned);

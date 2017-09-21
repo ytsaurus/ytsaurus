@@ -102,6 +102,7 @@ DEFINE_ENUM(EInterruptReason,
     (Preemption)
     (UserRequest)
     (JobSplit)
+    (Unknown)
 );
 
 DEFINE_ENUM(EJobFinalState,
