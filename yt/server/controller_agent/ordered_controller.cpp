@@ -771,7 +771,8 @@ private:
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         return !IsExplicitJobCount_ &&
-               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();
+               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
+               TOperationControllerBase::IsJobInterruptible();
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
