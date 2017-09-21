@@ -321,6 +321,7 @@ private:
             Socket_ = INVALID_SOCKET;
             int error = GetSocketError(socket);
             if (error != 0) {
+                close(socket);
                 socket = INVALID_SOCKET;
                 Error_ = TError("Connect error")
                     << TError::FromSystem(error);
