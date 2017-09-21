@@ -889,8 +889,10 @@ public:
     virtual bool IsJobInterruptible() const override
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return 2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options_->MaxJobCount > JobCounter.GetTotal();
+        return
+            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options_->MaxJobCount > JobCounter.GetTotal() &&
+            TOperationControllerBase::IsJobInterruptible();
     }
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override

@@ -4690,7 +4690,7 @@ void TOperationControllerBase::SlicePrimaryVersionedChunks(
 
 bool TOperationControllerBase::IsJobInterruptible() const
 {
-    return false;
+    return Spec_->AutoMerge->Mode == EAutoMergeMode::Disabled;
 }
 
 void TOperationControllerBase::ReinstallUnreadInputDataSlices(
