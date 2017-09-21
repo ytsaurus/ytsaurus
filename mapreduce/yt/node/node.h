@@ -235,7 +235,7 @@ template<>
 inline i64 TNode::IntCast<i64>() const {
     switch (GetType()) {
         case TNode::UINT64:
-            if (AsUint64() > std::numeric_limits<i64>::max()) {
+            if (AsUint64() > (ui64)std::numeric_limits<i64>::max()) {
                 ythrow TTypeError() << AsUint64() << " can't be converted to i64";
             }
             return AsUint64();
