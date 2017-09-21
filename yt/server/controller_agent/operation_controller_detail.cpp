@@ -1183,6 +1183,8 @@ void TOperationControllerBase::SafeCommit()
 
     MasterConnector->UnregisterOperation(OperationId);
 
+    CancelableContext->Cancel();
+
     LOG_INFO("Results committed");
 }
 
