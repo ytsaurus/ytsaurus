@@ -281,6 +281,12 @@ void Serialize(
         YsonEntityClass = GetYsonTypeClass("YsonEntity");
     }
 
+    std::unique_ptr<TContext> contextHolder;
+    if (!context) {
+        contextHolder.reset(new TContext());
+        context = contextHolder.get();
+    }
+
     const char* attributesStr = "attributes";
     if ((!ignoreInnerAttributes || depth == 0) && obj.hasAttr(attributesStr)) {
         auto attributeObject = obj.getAttr(attributesStr);
