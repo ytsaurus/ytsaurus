@@ -31,7 +31,8 @@ public interface RpcClientRequest {
      * Возвращает true, если от запроса не ожидается ответного сообщения
      */
     default boolean isOneWay() {
-        return header().getOneWay();
+        // TODO: remove one way support code
+        return false;
     }
 
     /**
