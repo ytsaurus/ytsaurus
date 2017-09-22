@@ -7,11 +7,11 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.primitives.Bytes;
-import protocol.ApiService;
-import protocol.Guid;
-import protocol.Rpc;
 
+import ru.yandex.yt.TGuid;
+import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.protocol.BUSPartable;
+import ru.yandex.yt.rpcproxy.TCredentialsExt;
 
 /**
  * @author valri
@@ -19,25 +19,25 @@ import ru.yandex.yt.rpc.protocol.BUSPartable;
 public final class RpcReqHeader implements BUSPartable {
     private UUID uuid;
     private RpcMessageType type;
-    private Rpc.TRequestHeader requestHeader;
+    private TRequestHeader requestHeader;
 
     private RpcReqHeader(String service, String method, RpcMessageType type, int protocolVersion,
                         String username, String userIp, String authToken, String domainName, UUID uuid)
     {
         this.type = type;
         this.uuid = uuid;
-        final Rpc.TRequestHeader.Builder headerBuilder = Rpc.TRequestHeader.newBuilder();
+        final TRequestHeader.Builder headerBuilder = TRequestHeader.newBuilder();
 
-        final Guid.TGuid.Builder uid = Guid.TGuid.newBuilder();
+        final TGuid.Builder uid = TGuid.newBuilder();
         uid.setFirst(this.uuid.getMostSignificantBits());
         uid.setSecond(this.uuid.getLeastSignificantBits());
 
-        final ApiService.TCredentialsExt.Builder credentialsBuilder = ApiService.TCredentialsExt.newBuilder();
+        final TCredentialsExt.Builder credentialsBuilder = TCredentialsExt.newBuilder();
         credentialsBuilder.setUserip(userIp);
         credentialsBuilder.setToken(authToken);
         credentialsBuilder.setDomain(domainName);
 
-        headerBuilder.setExtension(ApiService.TCredentialsExt.credentialsExt, credentialsBuilder.build());
+        headerBuilder.setExtension(TCredentialsExt.credentialsExt, credentialsBuilder.build());
         headerBuilder.setRequestId(uid.build());
         headerBuilder.setService(service);
         headerBuilder.setMethod(method);

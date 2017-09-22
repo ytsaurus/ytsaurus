@@ -9,8 +9,8 @@ import com.google.protobuf.Parser;
 import io.netty.buffer.ByteBufUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import protocol.Rpc;
 
+import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.protocol.bus.BusPackage;
 import ru.yandex.yt.rpc.protocol.rpc.RpcMessageType;
 import ru.yandex.yt.rpc.utils.Utility;
@@ -29,7 +29,7 @@ public class ProtobufHelpers {
      * @param responseHeader    header retrieved from responce
      * @return                  request Id
      */
-    public static UUID getUuidFromHeader(Rpc.TResponseHeader responseHeader) {
+    public static UUID getUuidFromHeader(TResponseHeader responseHeader) {
         return new UUID(responseHeader.getRequestId().getFirst(), responseHeader.getRequestId().getSecond());
     }
 
@@ -40,7 +40,7 @@ public class ProtobufHelpers {
      * @param responseHeader    internal header(which is packed into busPackage)
      * @return                  result of validation
      */
-    public static boolean validateHeader(BusPackage busPackage, Rpc.TResponseHeader responseHeader) {
+    public static boolean validateHeader(BusPackage busPackage, TResponseHeader responseHeader) {
         final RpcMessageType typeReceived = ProtobufHelpers.getMessageType(busPackage);
         if (typeReceived == null || typeReceived != RpcMessageType.RESPONSE) {
             logger.error("Failed parse response: ({})", busPackage);
@@ -75,18 +75,18 @@ public class ProtobufHelpers {
      * @param busPackage    bus package with rpc-message inside
      * @return              rpc header (TResponseHeader)
      */
-    public static Rpc.TResponseHeader parseResponseHeader(BusPackage busPackage) {
+    public static TResponseHeader parseResponseHeader(BusPackage busPackage) {
         if (busPackage.getHeaderMessage().size() > Integer.BYTES) {
             try {
                 // Skip first byte - TFixedHeader
                 // Used for message type which retrieved in getMessageType
                 final byte[] header = Utility.byteArrayFromList(busPackage.getHeaderMessage());
-                return Rpc.TResponseHeader.parseFrom(Arrays.copyOfRange(header, Integer.BYTES, header.length));
+                return TResponseHeader.parseFrom(Arrays.copyOfRange(header, Integer.BYTES, header.length));
             } catch (InvalidProtocolBufferException e) {
                 logger.error("Failed to parse protobuf header for incoming bus package ({})", busPackage, e);
             }
         }
-        return Rpc.TResponseHeader.getDefaultInstance();
+        return TResponseHeader.getDefaultInstance();
     }
 
     /**

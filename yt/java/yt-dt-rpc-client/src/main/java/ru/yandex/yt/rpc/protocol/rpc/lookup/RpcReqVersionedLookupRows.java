@@ -4,11 +4,13 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import protocol.ApiService;
 
 import ru.yandex.yt.rpc.client.ValueType;
 import ru.yandex.yt.rpc.client.requests.LookupReqInfo;
 import ru.yandex.yt.rpc.protocol.rpc.RpcReqHeader;
+import ru.yandex.yt.rpcproxy.ERowsetKind;
+import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
+import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 
 /**
  * @author valri
@@ -16,8 +18,8 @@ import ru.yandex.yt.rpc.protocol.rpc.RpcReqHeader;
 public class RpcReqVersionedLookupRows extends RpcReqLookupMessage {
     private static Logger logger = LoggerFactory.getLogger(RpcReqVersionedLookupRows.class);
 
-    protected ApiService.TReqVersionedLookupRows request;
-    private static ApiService.ERowsetKind rowSetKind = ApiService.ERowsetKind.UNVERSIONED;
+    protected TReqVersionedLookupRows request;
+    private static ERowsetKind rowSetKind = ERowsetKind.UNVERSIONED;
 
     static {
         serviceName = "ApiService";
@@ -25,15 +27,15 @@ public class RpcReqVersionedLookupRows extends RpcReqLookupMessage {
     }
 
     public RpcReqVersionedLookupRows(RpcReqHeader.Builder header, LookupReqInfo reqInfo) {
-        ApiService.TReqVersionedLookupRows.Builder reqBuilder = ApiService.TReqVersionedLookupRows
+        TReqVersionedLookupRows.Builder reqBuilder = TReqVersionedLookupRows
                 .newBuilder().setPath(reqInfo.tableSchema.path);
-        ApiService.TRowsetDescriptor.Builder descriptor = ApiService.TRowsetDescriptor
+        TRowsetDescriptor.Builder descriptor = TRowsetDescriptor
                 .newBuilder()
                 .setWireFormatVersion(reqInfo.wireFormat)
                 .setRowsetKind(rowSetKind);
         for (Map.Entry<Short, String> row : reqInfo.tableSchema.idToName.entrySet()) {
             ValueType tt = reqInfo.tableSchema.nameToType.getOrDefault(row.getValue(), ValueType.ANY);
-            descriptor.addColumns(ApiService.TRowsetDescriptor.TColumnDescriptor
+            descriptor.addColumns(TRowsetDescriptor.TColumnDescriptor
                     .newBuilder()
                     .setName(row.getValue())
                     .setType(tt.getValue())
