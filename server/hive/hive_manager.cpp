@@ -23,7 +23,7 @@
 
 #include <yt/core/misc/address.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/protos/rpc.pb.h>
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/service_detail.h>
 
@@ -160,7 +160,7 @@ public:
             mailbox->GetCellId());
         return mailbox;
     }
-    
+
     TMailbox* GetOrCreateMailbox(const TCellId& cellId)
     {
         auto* mailbox = MailboxMap_.Find(cellId);
@@ -217,7 +217,7 @@ public:
     TFuture<void> SyncWith(const TCellId& cellId)
     {
         YCHECK(EpochAutomatonInvoker_);
-        
+
         auto proxy = FindHiveProxy(cellId);
         if (!proxy) {
             return MakeFuture(TError(
@@ -257,7 +257,7 @@ private:
 
     TEntityMap<TMailbox> MailboxMap_;
     yhash<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
-    
+
 
     // RPC handlers.
 
@@ -1095,7 +1095,7 @@ private:
         return true;
     }
 
-    
+
     void ApplyReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
     {
         for (int index = 0; index < req->messages_size(); ++index) {

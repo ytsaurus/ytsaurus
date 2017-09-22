@@ -4,8 +4,8 @@ option java_package = "ru.yandex.yt";
 option java_outer_classname = "ApiProtos";
 option java_multiple_files = true;
 
-import "yt/core/rpc/rpc.proto";
-import "yt/core/misc/guid.proto";
+import "yt/core/protos/rpc.proto";
+import "yt/core/protos/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Authentication.
@@ -34,7 +34,7 @@ Durations and serialized as int64, in microseconds.
 
 Instants are serialized as int64, in microseconds since unix epoch.
 
-Guids are serialized as a pair of fixed64 (see yt/core/misc/guid.proto).
+Guids are serialized as a pair of fixed64 (see yt/core/protos/guid.proto).
 */
 
 enum ETransactionType
