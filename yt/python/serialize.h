@@ -71,7 +71,7 @@ void Serialize(
     bool ignoreInnerAttributes = false,
     NYson::EYsonType ysonType = NYson::EYsonType::Node,
     int depth = 0,
-    TContext* context = new TContext());
+    TContext* context = nullptr);
 
 void Deserialize(Py::Object& obj, NYTree::INodePtr node, const TNullable<TString>& encoding = Null);
 
