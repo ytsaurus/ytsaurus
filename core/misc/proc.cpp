@@ -130,7 +130,7 @@ i64 GetProcessRss(int pid)
     }
 
     TIFStream memoryStatFile(path);
-    auto memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
+    auto memoryStatFields = SplitStroku(memoryStatFile.ReadLine(), " ");
     return FromString<i64>(memoryStatFields[1]) * NSystemInfo::GetPageSize();
 #else
     return 0;
