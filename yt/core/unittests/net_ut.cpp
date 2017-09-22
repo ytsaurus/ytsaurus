@@ -36,7 +36,8 @@ protected:
     const TDialerConfigPtr Config = New<TDialerConfig>();
     NLogging::TLogger Logger = NLogging::TLogger("Net");
 
-    IDialerPtr CreateDialer() {
+    IDialerPtr CreateDialer()
+    {
         return NNet::CreateDialer(
             Config,
             Poller,
