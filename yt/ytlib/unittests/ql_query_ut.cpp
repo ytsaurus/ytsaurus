@@ -854,7 +854,8 @@ protected:
                 return [&, rows, subquery, joinClause] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer)
                 mutable {
                     TDataRanges dataSource;
-                    std::tie(subquery, dataSource) = GetForeignQuery(
+                    TQueryPtr preparedSubquery;
+                    std::tie(preparedSubquery, dataSource) = GetForeignQuery(
                         subquery,
                         joinClause,
                         std::move(keys),
@@ -867,7 +868,7 @@ protected:
                         FunctionProfilers_,
                         AggregateProfilers_,
                         failureLocation,
-                        subquery,
+                        preparedSubquery,
                         pipe->GetWriter(),
                         options);
 

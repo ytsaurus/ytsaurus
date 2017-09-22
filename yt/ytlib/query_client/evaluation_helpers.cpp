@@ -193,6 +193,8 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
     auto foreignKeyPrefix = joinClause->ForeignKeyPrefix;
     const auto& foreignEquations = joinClause->ForeignEquations;
 
+    auto newQuery = New<TQuery>(*subquery);
+
     TDataRanges dataSource;
     dataSource.Id = joinClause->ForeignDataId;
 
@@ -214,11 +216,11 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
             dataSource.Schema.push_back(foreignEquations[index]->Type);
         }
 
-        subquery->InferRanges = false;
+        newQuery->InferRanges = false;
 
         if (joinClause->CommonKeyPrefix > 0) {
             // COMPAT(lukyan): Use ordered read without modification of protocol
-            subquery->Limit = std::numeric_limits<i64>::max() - 1;
+            newQuery->Limit = std::numeric_limits<i64>::max() - 1;
         }
     } else {
         TRowRanges ranges;
@@ -232,12 +234,12 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
 
         dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 
-        subquery->WhereClause = subquery->WhereClause
-            ? MakeAndExpression(inClause, subquery->WhereClause)
+        newQuery->WhereClause = newQuery->WhereClause
+            ? MakeAndExpression(inClause, newQuery->WhereClause)
             : inClause;
     }
 
-    return std::make_pair(subquery, dataSource);
+    return std::make_pair(newQuery, dataSource);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
