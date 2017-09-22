@@ -713,9 +713,9 @@ void TNodeShard::RegisterRevivedJobs(const std::vector<TJobPtr>& jobs)
     }
 }
 
-void TNodeShard::ClearRevivalState()
+void TNodeShard::PrepareReviving()
 {
-    RevivalState_->Clear();
+    RevivalState_->PrepareReviving();
 }
 
 void TNodeShard::StartReviving()
@@ -1038,6 +1038,11 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
     auto job = FindJob(jobId, node);
     if (!job) {
+        // We should not abort or remove unknown jobs until revival is finished because
+        // we can decide what to do with these jobs only when all TJob's are revived.
+        if (RevivalState_->ShouldSkipUnknownJobs()) {
+            return nullptr;
+        }
         switch (state) {
             case EJobState::Completed:
                 LOG_DEBUG("Unknown job has completed, removal scheduled");
@@ -1679,7 +1684,12 @@ TNodeShard::TRevivalState::TRevivalState(TNodeShard* host)
     : Host_(host)
 { }
 
-bool TNodeShard::TRevivalState::ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId)
+bool TNodeShard::TRevivalState::ShouldSkipUnknownJobs() const
+{
+    return ShouldSkipUnknownJobs_;
+}
+
+bool TNodeShard::TRevivalState::ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId) const
 {
     return Active_ && !NodeIdsThatSentAllStoredJobs_.has(nodeId);
 }
@@ -1687,13 +1697,6 @@ bool TNodeShard::TRevivalState::ShouldSendStoredJobs(NNodeTrackerClient::TNodeId
 void TNodeShard::TRevivalState::OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId)
 {
     NodeIdsThatSentAllStoredJobs_.insert(nodeId);
-}
-
-void TNodeShard::TRevivalState::Clear()
-{
-    Active_ = false;
-    NodeIdsThatSentAllStoredJobs_.clear();
-    NotConfirmedJobs_.clear();
 }
 
 void TNodeShard::TRevivalState::RegisterRevivedJob(const TJobPtr& job)
@@ -1713,9 +1716,18 @@ void TNodeShard::TRevivalState::UnregisterJob(const TJobPtr& job)
     NotConfirmedJobs_.erase(job);
 }
 
+void TNodeShard::TRevivalState::PrepareReviving()
+{
+    Active_ = false;
+    ShouldSkipUnknownJobs_ = true;
+    NodeIdsThatSentAllStoredJobs_.clear();
+    NotConfirmedJobs_.clear();
+}
+
 void TNodeShard::TRevivalState::StartReviving()
 {
     Active_ = true;
+    ShouldSkipUnknownJobs_ = false;
 
     //! Give some time for nodes to confirm the jobs.
     TDelayedExecutor::Submit(
