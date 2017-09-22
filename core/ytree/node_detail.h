@@ -8,7 +8,7 @@
 #include "ypath_detail.h"
 #include "ypath_service.h"
 
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/protos/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {
@@ -127,7 +127,7 @@ protected:
         const TYPath& path,
         INodePtr child,
         bool recursive) override;
-    
+
     virtual int GetMaxKeyLength() const;
 };
 

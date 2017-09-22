@@ -1,8 +1,8 @@
 #include "helpers.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/protobuf_helpers.pb.h>
-#include <yt/core/misc/error.pb.h>
+#include <yt/core/protos/protobuf_helpers.pb.h>
+#include <yt/core/protos/error.pb.h>
 
 #include <yt/core/compression/codec.h>
 

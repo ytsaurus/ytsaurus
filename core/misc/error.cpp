@@ -4,7 +4,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/error.pb.h>
+#include <yt/core/protos/error.pb.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/local_address.h>

@@ -19,7 +19,7 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/protos/rpc.pb.h>
 
 #include <array>
 
