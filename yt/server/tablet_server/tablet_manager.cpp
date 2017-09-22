@@ -1749,12 +1749,6 @@ public:
 
     void DestroyTable(TTableNode* table)
     {
-        if (table->GetTabletCellBundle()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(table->GetTabletCellBundle());
-            table->SetTabletCellBundle(nullptr);
-        }
-
         if (!table->Tablets().empty()) {
             int firstTabletIndex = 0;
             int lastTabletIndex = static_cast<int>(table->Tablets().size()) - 1;
@@ -1771,6 +1765,12 @@ public:
             }
 
             table->MutableTablets().clear();
+        }
+
+        if (table->GetTabletCellBundle()) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(table->GetTabletCellBundle());
+            table->SetTabletCellBundle(nullptr);
         }
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
@@ -2354,7 +2354,11 @@ public:
             return;
         }
 
-        if (table->GetTabletState() != ETabletState::Unmounted) {
+        auto tabletState = table->GetTabletState();
+        if (table->GetTabletCellBundle() != nullptr &&
+            tabletState != ETabletState::Unmounted &&
+            tabletState != ETabletState::None)
+        {
             THROW_ERROR_EXCEPTION("Cannot change tablet cell bundle: table has mounted tablets");
         }
 
