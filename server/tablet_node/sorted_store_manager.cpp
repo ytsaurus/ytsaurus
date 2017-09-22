@@ -454,6 +454,14 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     });
 }
 
+bool TSortedStoreManager::IsFlushNeeded() const
+{
+    // Unfortunately one cannot rely on IStore::GetRowCount call since
+    // the latter is not stable (i.e. may return different values during recovery).
+    // But it's always safe to say "yes".
+    return true;
+}
+
 bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
 {
     if (store->GetStoreState() != EStoreState::Persistent) {
@@ -655,6 +663,35 @@ void TSortedStoreManager::WaitOnBlockedRow(
         transaction->GetId());
 
     WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
+}
+
+bool TSortedStoreManager::IsOverflowRotationNeeded() const
+{
+    if (!IsRotationPossible()) {
+        return false;
+    }
+
+    const auto& config = Tablet_->GetConfig();
+    auto threshold = config->DynamicStoreOverflowThreshold;
+    if (ActiveStore_->GetMaxDataWeight() >= threshold * config->MaxDynamicStoreRowDataWeight) {
+        return true;
+    }
+
+    return TStoreManagerBase::IsOverflowRotationNeeded();
+}
+
+TError TSortedStoreManager::CheckOverflow() const
+{
+    const auto& config = Tablet_->GetConfig();
+    if (ActiveStore_ && ActiveStore_->GetMaxDataWeight() >= config->MaxDynamicStoreRowDataWeight) {
+        return TError("Maximum row data weight limit reached")
+            << TErrorAttribute("store_id", ActiveStore_->GetId())
+            << TErrorAttribute("key", RowToKey(Tablet_->PhysicalSchema(), ActiveStore_->GetMaxDataWeightWitnessKey()))
+            << TErrorAttribute("data_weight", ActiveStore_->GetMaxDataWeight())
+            << TErrorAttribute("data_weight_limit", config->MaxDynamicStoreRowDataWeight);
+    }
+
+    return TStoreManagerBase::CheckOverflow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

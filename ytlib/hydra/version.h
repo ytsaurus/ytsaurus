@@ -29,9 +29,8 @@ struct TVersion
     i64 ToRevision() const;
     static TVersion FromRevision(i64 revision);
 
-    TVersion Advance(int delta = 1);
-    TVersion Rotate();
-
+    TVersion Advance(int delta = 1) const;
+    TVersion Rotate() const;
 };
 
 void FormatValue(TStringBuilder* builder, TVersion version, const TStringBuf& spec);

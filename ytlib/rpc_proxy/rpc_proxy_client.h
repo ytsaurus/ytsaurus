@@ -172,6 +172,12 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+    virtual TFuture<NApi::TListOperationsResult> ListOperations(
+        const NApi::TListOperationsOptions&) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
     virtual TFuture<std::vector<NApi::TJob>> ListJobs(
         const NJobTrackerClient::TOperationId&,
         const NApi::TListJobsOptions&) override

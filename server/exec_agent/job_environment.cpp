@@ -365,6 +365,9 @@ public:
             if (jobProxyProcess) {
                 jobProxyProcess->Kill(SIGKILL);
 
+                // No need to kill - we're killing container with all subcontainers.
+                EnsureJobProxyFinished(slotIndex, false);
+
                 // Drop reference to a process if there were any.
                 JobProxyProcesses_.erase(slotIndex);
             }

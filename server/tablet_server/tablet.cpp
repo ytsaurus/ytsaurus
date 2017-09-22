@@ -18,11 +18,12 @@
 namespace NYT {
 namespace NTabletServer {
 
-using namespace NTableServer;
-using namespace NChunkServer;
 using namespace NCellMaster;
-using namespace NYTree;
+using namespace NChunkClient;
+using namespace NChunkServer;
+using namespace NTableServer;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 using NTabletNode::EInMemoryMode;
 
@@ -36,7 +37,7 @@ void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, UncompressedDataSize);
     Persist(context, CompressedDataSize);
     Persist(context, MemorySize);
-    Persist(context, DiskSpace);
+    Persist(context, DiskSpacePerMedium);
     Persist(context, ChunkCount);
     Persist(context, PartitionCount);
     Persist(context, StoreCount);
@@ -49,13 +50,17 @@ void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
     }
 }
 
-void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
+void TTabletStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    TTabletCellStatistics::Persist(context);
-
     Persist(context, OverlappingStoreCount);
+}
+
+void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
+{
+    TTabletCellStatistics::Persist(context);
+    TTabletStatisticsBase::Persist(context);
 }
 
 TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
@@ -65,10 +70,10 @@ TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCell
     lhs.CompressedDataSize += rhs.CompressedDataSize;
     lhs.MemorySize += rhs.MemorySize;
     std::transform(
-        std::begin(lhs.DiskSpace),
-        std::end(lhs.DiskSpace),
-        std::begin(rhs.DiskSpace),
-        std::begin(lhs.DiskSpace),
+        std::begin(lhs.DiskSpacePerMedium),
+        std::end(lhs.DiskSpacePerMedium),
+        std::begin(rhs.DiskSpacePerMedium),
+        std::begin(lhs.DiskSpacePerMedium),
         std::plus<i64>());
     lhs.ChunkCount += rhs.ChunkCount;
     lhs.PartitionCount += rhs.PartitionCount;
@@ -114,10 +119,10 @@ TTabletCellStatistics& operator -=(TTabletCellStatistics& lhs, const TTabletCell
     lhs.CompressedDataSize -= rhs.CompressedDataSize;
     lhs.MemorySize -= rhs.MemorySize;
     std::transform(
-        std::begin(lhs.DiskSpace),
-        std::end(lhs.DiskSpace),
-        std::begin(rhs.DiskSpace),
-        std::begin(lhs.DiskSpace),
+        std::begin(lhs.DiskSpacePerMedium),
+        std::end(lhs.DiskSpacePerMedium),
+        std::begin(rhs.DiskSpacePerMedium),
+        std::begin(lhs.DiskSpacePerMedium),
         std::minus<i64>());
     lhs.ChunkCount -= rhs.ChunkCount;
     lhs.PartitionCount -= rhs.PartitionCount;
@@ -141,47 +146,84 @@ TTabletCellStatistics operator -(const TTabletCellStatistics& lhs, const TTablet
     return result;
 }
 
-void SerializeMembers(const TTabletCellStatistics& statistics, TFluentMap fluent)
+////////////////////////////////////////////////////////////////////////////////
+
+TSerializableTabletCellStatistics::TSerializableTabletCellStatistics()
 {
-    fluent
-        .Item("unmerged_row_count").Value(statistics.UnmergedRowCount)
-        .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
-        .Item("compressed_data_size").Value(statistics.CompressedDataSize)
-        .Item("memory_size").Value(statistics.MemorySize)
-        .Item("disk_space").Value(statistics.DiskSpace)
-        .Item("chunk_count").Value(statistics.ChunkCount)
-        .Item("partition_count").Value(statistics.PartitionCount)
-        .Item("store_count").Value(statistics.StoreCount)
-        .Item("preload_pending_store_count").Value(statistics.PreloadPendingStoreCount)
-        .Item("preload_completed_store_count").Value(statistics.PreloadCompletedStoreCount)
-        .Item("preload_failed_store_count").Value(statistics.PreloadFailedStoreCount)
-        .Item("tablet_count").Value(std::accumulate(
-            statistics.TabletCountPerMemoryMode.begin(),
-            statistics.TabletCountPerMemoryMode.end(),
-            0))
-        .Item("tablet_count_per_memory_mode").Value(statistics.TabletCountPerMemoryMode);
+    InitParameters();
 }
 
-void Serialize(const TTabletCellStatistics& statistics, NYson::IYsonConsumer* consumer)
+TSerializableTabletCellStatistics::TSerializableTabletCellStatistics(
+    const TTabletCellStatistics& statistics,
+    const NChunkServer::TChunkManagerPtr& chunkManager)
+    : TTabletCellStatistics(statistics)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Do([&] (TFluentMap fluent) {
-                SerializeMembers(statistics, fluent);
-            })
-        .EndMap();
+    InitParameters();
+
+    TabletCount_ = std::accumulate(
+        TabletCountPerMemoryMode.begin(),
+        TabletCountPerMemoryMode.end(),
+        0);
+
+    DiskSpace_ = 0;
+    for (const auto& pair : chunkManager->Media()) {
+        const auto* medium = pair.second;
+        if (medium->GetCache()) {
+            continue;
+        }
+        int mediumIndex = medium->GetIndex();
+        i64 mediumDiskSpace = DiskSpacePerMedium[mediumIndex];
+        YCHECK(DiskSpacePerMediumMap_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
+        DiskSpace_ += mediumDiskSpace;
+    }
 }
 
-void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consumer)
+void TSerializableTabletCellStatistics::InitParameters()
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Do([&] (TFluentMap fluent) {
-                SerializeMembers(statistics, fluent);
-            })
-            .Item("overlapping_store_count").Value(statistics.OverlappingStoreCount)
-        .EndMap();
+    RegisterParameter("unmerged_row_count", UnmergedRowCount);
+    RegisterParameter("uncompressed_data_size", UncompressedDataSize);
+    RegisterParameter("compressed_data_size", CompressedDataSize);
+    RegisterParameter("memory_size", MemorySize);
+    RegisterParameter("disk_space", DiskSpace_);
+    RegisterParameter("disk_space_per_medium", DiskSpacePerMediumMap_);
+    RegisterParameter("chunk_count", ChunkCount);
+    RegisterParameter("partition_count", PartitionCount);
+    RegisterParameter("store_count", StoreCount);
+    RegisterParameter("preload_pending_store_count", PreloadPendingStoreCount);
+    RegisterParameter("preload_completed_store_count", PreloadCompletedStoreCount);
+    RegisterParameter("preload_failed_store_count", PreloadFailedStoreCount);
+    RegisterParameter("tablet_count", TabletCount_);
+    RegisterParameter("tablet_count_per_memory_mode", TabletCountPerMemoryMode);
 }
+
+TSerializableTabletStatisticsBase::TSerializableTabletStatisticsBase()
+{
+    InitParameters();
+}
+
+TSerializableTabletStatisticsBase::TSerializableTabletStatisticsBase(
+    const TTabletStatisticsBase& statistics)
+    : TTabletStatisticsBase(statistics)
+{
+    InitParameters();
+}
+
+void TSerializableTabletStatisticsBase::InitParameters()
+{
+    RegisterParameter("overlapping_store_count", OverlappingStoreCount);
+}
+
+TSerializableTabletStatistics::TSerializableTabletStatistics()
+    : TSerializableTabletCellStatistics()
+    , TSerializableTabletStatisticsBase()
+{ }
+
+TSerializableTabletStatistics::TSerializableTabletStatistics(
+    const TTabletStatistics& statistics,
+    const NChunkServer::TChunkManagerPtr& chunkManager)
+    : TSerializableTabletCellStatistics(statistics, chunkManager)
+    , TSerializableTabletStatisticsBase(statistics)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

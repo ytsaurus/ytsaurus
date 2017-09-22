@@ -43,7 +43,7 @@ DEFINE_ENUM(ENodeState,
 );
 
 class TNode
-    : public NObjectServer::IObjectBase
+    : public NObjectServer::TObjectBase
     , public TRefTracked<TNode>
 {
 public:
@@ -76,7 +76,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
+    void SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statistics);
+
     DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, Alerts);
 
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
@@ -90,6 +92,8 @@ public:
 
     // Chunk Manager stuff.
     DEFINE_BYVAL_RO_PROPERTY(bool, Banned);
+    void ValidateNotBanned();
+
     DEFINE_BYVAL_RO_PROPERTY(bool, Decommissioned);
 
     using TFillFactorIterator = TNullable<NChunkServer::TFillFactorToNodeIterator>;
@@ -222,7 +226,6 @@ public:
     void RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);
 
     void ClearSessionHints();
-
     void AddSessionHint(NChunkClient::ESessionType sessionType);
 
     int GetSessionCount(NChunkClient::ESessionType sessionType) const;
@@ -265,13 +268,16 @@ private:
 
     TPerMediumArray<TMediumReplicaSet::iterator> RandomReplicaIters_;
 
-    TPerMediumArray<ui64> VisitMarks_; // transient
+    TPerMediumArray<ui64> VisitMarks_;
+
+    TPerMediumArray<TNullable<double>> FillFactors_;
 
     ENodeState* LocalStatePtr_;
     ENodeState AggregatedState_;
 
     void ComputeAggregatedState();
     void ComputeDefaultAddress();
+    void ComputeFillFactors();
 
     bool DoAddReplica(TChunkPtrWithIndexes replica);
     bool DoRemoveReplica(TChunkPtrWithIndexes replica);

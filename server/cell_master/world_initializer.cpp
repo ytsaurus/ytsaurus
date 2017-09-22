@@ -282,6 +282,15 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/rpc_proxies",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/nodes",
                 transactionId,
                 EObjectType::ClusterNodeMap,
@@ -515,7 +524,7 @@ private:
     {
         TTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
-        auto timeout = ToProto(InitTransactionTimeout);
+        auto timeout = ToProto<i64>(InitTransactionTimeout);
         req->set_timeout_old(timeout); // will be removed
         req->set_timeout_new(timeout);
         req->set_title("World initialization");

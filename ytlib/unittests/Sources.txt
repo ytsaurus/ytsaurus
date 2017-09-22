@@ -1,7 +1,6 @@
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ast_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/any_column_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/boolean_formula_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/boolean_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/column_format_ut.cpp
@@ -39,8 +38,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/timestamp_column_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/udf/invalid_ir.h
-  ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_fc.cpp
   ${CMAKE_CURRENT_LIST_DIR}/unordered_reader_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/wire_protocol_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_blocks_ut.cpp

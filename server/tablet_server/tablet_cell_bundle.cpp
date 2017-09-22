@@ -3,6 +3,8 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -28,6 +30,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, *Options_);
     Save(context, NodeTagFilter_);
     Save(context, TabletCells_);
+    Save(context, EnableTabletBalancer_);
 }
 
 void TTabletCellBundle::Load(TLoadContext& context)
@@ -56,6 +59,29 @@ void TTabletCellBundle::Load(TLoadContext& context)
     if (context.GetVersion() >= 400) {
         Load(context, TabletCells_);
     }
+    if (context.GetVersion() >= 614) {
+        Load(context, EnableTabletBalancer_);
+    }
+
+    //COMPAT(savrus)
+    if (context.GetVersion() < 614) {
+        if (Attributes_) {
+            auto& attributes = Attributes_->Attributes();
+            static const TString nodeTagFilterAttributeName("node_tag_filter");
+            auto it = attributes.find(nodeTagFilterAttributeName);
+            if (it != attributes.end()) {
+                attributes.erase(it);
+            }
+            if (attributes.empty()) {
+                Attributes_.reset();
+            }
+        }
+    }
+}
+
+void TTabletCellBundle::FillProfilingTag()
+{
+    ProfilingTag_ = NProfiling::TProfileManager::Get()->RegisterTag("tablet_cell_bundle", Name_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

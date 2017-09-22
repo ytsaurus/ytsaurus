@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "exec_node.h"
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -36,7 +37,15 @@ class TJob
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, OperationId);
 
     //! Exec node where the job is running.
-    DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
+    DEFINE_BYVAL_RW_PROPERTY(TExecNodePtr, Node);
+
+    //! Flag that marks job as revived by scheduler. It is useful, for example,
+    //! when we lose information about interruption reason during revival.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Revived, false);
+
+    //! Node descriptor that was obtained from corresponding joblet during the revival process.
+    //! It used only during the revival and is used only for filling `Node` field.
+    DEFINE_BYREF_RW_PROPERTY(TJobNodeDescriptor, RevivedNodeDescriptor);
 
     //! The time when the job was started.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
@@ -59,9 +68,6 @@ class TJob
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
 
-    //! Asynchronous spec builder callback.
-    DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
-
     //! Temporary flag used during heartbeat jobs processing to mark found jobs.
     DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
 
@@ -83,6 +89,9 @@ class TJob
     //! Deadline for running job.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningJobUpdateDeadline, 0);
 
+    //! True for revived job that was not confirmed by a heartbeat from the corresponding node yet.
+    DEFINE_BYVAL_RW_PROPERTY(bool, WaitingForConfirmation, false);
+
 public:
     TJob(
         const TJobId& id,
@@ -91,13 +100,10 @@ public:
         TExecNodePtr node,
         TInstant startTime,
         const TJobResources& resourceLimits,
-        bool interruptible,
-        TJobSpecBuilder specBuilder);
+        bool interruptible);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
-    
-    void InterruptJob(EInterruptReason reason, NProfiling::TCpuInstant interruptDeadline);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
@@ -109,6 +115,7 @@ struct TJobSummary
     TJobSummary() = default;
     TJobSummary(const TJobPtr& job, TJobStatus* status);
     TJobSummary(const TJobId& id, EJobState state);
+    virtual ~TJobSummary() = default;
 
     TJobResult Result;
     TJobId Id;
@@ -177,32 +184,31 @@ struct TJobStartRequest
         TJobId id,
         EJobType type,
         const TJobResources& resourceLimits,
-        bool interruptible,
-        TJobSpecBuilder specBuilder);
+        bool interruptible);
 
     const TJobId Id;
     const EJobType Type;
     const TJobResources ResourceLimits;
     const bool Interruptible;
-    const TJobSpecBuilder SpecBuilder;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EScheduleJobFailReason,
-    ((Unknown)                    ( 0))
-    ((OperationNotRunning)        ( 1))
-    ((NoPendingJobs)              ( 2))
-    ((NotEnoughChunkLists)        ( 3))
-    ((NotEnoughResources)         ( 4))
-    ((Timeout)                    ( 5))
-    ((EmptyInput)                 ( 6))
-    ((NoLocalJobs)                ( 7))
-    ((TaskDelayed)                ( 8))
-    ((NoCandidateTasks)           ( 9))
-    ((ResourceOvercommit)         (10))
-    ((TaskRefusal)                (11))
-    ((JobSpecThrottling)          (12))
+    ((Unknown)                       ( 0))
+    ((OperationNotRunning)           ( 1))
+    ((NoPendingJobs)                 ( 2))
+    ((NotEnoughChunkLists)           ( 3))
+    ((NotEnoughResources)            ( 4))
+    ((Timeout)                       ( 5))
+    ((EmptyInput)                    ( 6))
+    ((NoLocalJobs)                   ( 7))
+    ((TaskDelayed)                   ( 8))
+    ((NoCandidateTasks)              ( 9))
+    ((ResourceOvercommit)            (10))
+    ((TaskRefusal)                   (11))
+    ((JobSpecThrottling)             (12))
+    ((IntermediateChunkLimitExceeded)(13))
 );
 
 struct TScheduleJobResult

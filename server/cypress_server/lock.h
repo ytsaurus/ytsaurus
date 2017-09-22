@@ -53,6 +53,7 @@ struct TLockRequest
 
     ELockMode Mode;
     TLockKey Key;
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

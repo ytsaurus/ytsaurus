@@ -41,7 +41,7 @@ using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t ReaderPoolSize = (size_t) 16 * KB;
+static const size_t ReaderPoolSize = (size_t) 16_KB;
 static const int SnapshotRowsPerRead = 1024;
 
 struct TOrderedDynamicStoreReaderPoolTag
@@ -394,6 +394,11 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
 TOrderedDynamicStorePtr TOrderedDynamicStore::AsOrderedDynamic()
 {
     return this;
+}
+
+i64 TOrderedDynamicStore::GetTimestampCount() const
+{
+    return GetRowCount();
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::CreateReader(

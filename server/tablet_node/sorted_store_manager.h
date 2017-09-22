@@ -62,6 +62,7 @@ public:
     virtual void AddStore(IStorePtr store, bool onMount) override;
     virtual void RemoveStore(IStorePtr store) override;
 
+    virtual bool IsFlushNeeded() const override;
     virtual bool IsStoreCompactable(IStorePtr store) const override;
 
     virtual ISortedStoreManagerPtr AsSorted() override;
@@ -76,6 +77,9 @@ public:
     virtual void UpdatePartitionSampleKeys(
         TPartition* partition,
         const TSharedRange<TKey>& keys) override;
+
+    virtual bool IsOverflowRotationNeeded() const override;
+    virtual TError CheckOverflow() const override;
 
 private:
     const int KeyColumnCount_;

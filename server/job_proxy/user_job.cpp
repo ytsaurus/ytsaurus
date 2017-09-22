@@ -124,7 +124,7 @@ static const int JobStatisticsFD = 5;
 static TString CGroupBase = "user_jobs";
 static TString CGroupPrefix = CGroupBase + "/yt-job-";
 
-static const size_t BufferSize = MB;
+static const size_t BufferSize = 1_MB;
 
 static const size_t MaxCustomStatisticsPathLength = 512;
 
@@ -163,24 +163,27 @@ public:
         std::unique_ptr<IUserJobIO> userJobIO,
         IResourceControllerPtr resourceController)
         : TJob(host)
+        , Logger(Host_->GetLogger())
         , JobIO_(std::move(userJobIO))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
         , ResourceController_(resourceController)
         , JobErrorPromise_(NewPromise<void>())
+        , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
         , Process_(ResourceController_
-            ? ResourceController_->CreateControlledProcess(ExecProgramName)
+            ? ResourceController_->CreateControlledProcess(
+                ExecProgramName,
+                CreateCoreDumpHandlerPath(
+                    host->GetConfig()->BusServer->UnixDomainName))
             : New<TSimpleProcess>(ExecProgramName, false))
-        , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
         , JobSatelliteConnection_(
             jobId,
             host->GetConfig()->BusServer,
-            JobEnvironmentType_ == EJobEnvironmentType::Porto)
-        , Logger(Host_->GetLogger())
+            JobEnvironmentType_)
     {
         Synchronizer_ = New<TUserJobSynchronizer>();
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
@@ -278,6 +281,7 @@ public:
             if (!JobErrorPromise_.IsSet()) {
                 FinalizeJobIO();
             }
+            UploadStderrFile();
 
             CleanupUserProcesses();
 
@@ -336,7 +340,7 @@ public:
 
         auto jobError = innerErrors.empty()
             ? TError()
-            : TError("User job failed") << innerErrors;
+            : TError(EErrorCode::UserJobFailed, "User job failed") << innerErrors;
 
         ToProto(result.mutable_error(), jobError);
 
@@ -368,6 +372,8 @@ public:
     }
 
 private:
+    const NLogging::TLogger Logger;
+
     const std::unique_ptr<IUserJobIO> JobIO_;
     TUserJobReadControllerPtr UserJobReadController_;
 
@@ -379,15 +385,14 @@ private:
 
     mutable TPromise<void> JobErrorPromise_;
 
+    EJobEnvironmentType JobEnvironmentType_;
+
     const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
     const TProcessBasePtr Process_;
-    EJobEnvironmentType JobEnvironmentType_;
 
     TJobSatelliteConnection JobSatelliteConnection_;
-
-    const NLogging::TLogger Logger;
 
     TString InputPipePath_;
 
@@ -543,10 +548,6 @@ private:
     IOutputStream* CreateErrorOutput()
     {
         ErrorOutput_.reset(new TStderrWriter(
-            JobIOConfig_->ErrorFileWriter,
-            CreateFileOptions(),
-            Host_->GetClient(),
-            FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
 
         auto* stderrTableWriter = JobIO_->GetStderrTableWriter();
@@ -672,7 +673,7 @@ private:
     void ValidatePrepared()
     {
         if (!Prepared_) {
-            THROW_ERROR_EXCEPTION("Cannot operate on job: job has not been prepared yet");
+            THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been prepared yet");
         }
     }
 
@@ -684,6 +685,17 @@ private:
             valueConsumers.push_back(WritingValueConsumers_.back().get());
         }
         return valueConsumers;
+    }
+
+    void UploadStderrFile()
+    {
+        if (JobErrorPromise_.IsSet() || UserJobSpec_.upload_stderr_if_completed()) {
+            ErrorOutput_->Upload(
+                JobIOConfig_->ErrorFileWriter,
+                CreateFileOptions(),
+                Host_->GetClient(),
+                FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()));
+        }
     }
 
     void PrepareOutputTablePipes()
@@ -1203,7 +1215,7 @@ private:
         i64 memoryLimit = UserJobSpec_.memory_limit();
         i64 currentMemoryUsage = rss + tmpfsSize;
 
-        CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / MB) * MemoryWatchdogPeriod_.Seconds();
+        CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / 1_MB) * MemoryWatchdogPeriod_.Seconds();
 
         LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
             tmpfsSize,
@@ -1279,6 +1291,26 @@ private:
         } else {
             LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe");
         }
+    }
+
+    TNullable<TString> CreateCoreDumpHandlerPath(
+        const TNullable<TString>& socketPath) const
+    {
+        if (JobEnvironmentType_ == EJobEnvironmentType::Porto &&
+            UserJobSpec_.has_core_table_spec() &&
+            socketPath)
+        {
+            // We do not want to rely on passing PATH environment to core handler container.
+            auto binaryPathOrError = ResolveBinaryPath("ytserver-core-forwarder");
+            if (binaryPathOrError.IsOK()) {
+                return binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
+                    " 1 /dev/null /dev/null " + socketPath.Get();
+            } else {
+                LOG_ERROR(binaryPathOrError,
+                    "Failed to resolve path for ytserver-core-forwarder");
+            }
+        }
+        return {};
     }
 };
 

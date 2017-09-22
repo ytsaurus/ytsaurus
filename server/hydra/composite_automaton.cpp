@@ -21,9 +21,9 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t SnapshotLoadBufferSize = 64 * KB;
-static const size_t SnapshotSaveBufferSize = 64 * KB;
-static const size_t SnapshotPrefetchWindowSize = 64 * MB;
+static const size_t SnapshotLoadBufferSize = 64_KB;
+static const size_t SnapshotSaveBufferSize = 64_KB;
+static const size_t SnapshotPrefetchWindowSize = 64_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +94,9 @@ void TCompositeAutomatonPart::RegisterLoader(
     descriptor.Name = name;
     descriptor.Callback = BIND([=] (TLoadContext& context) {
         if (!ValidateSnapshotVersion(context.GetVersion())) {
-            THROW_ERROR_EXCEPTION("Unsupported snapshot version %v in part %v",
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidSnapshotVersion,
+                "Unsupported snapshot version %v in part %v",
                 context.GetVersion(),
                 name);
         }

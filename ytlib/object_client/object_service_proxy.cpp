@@ -27,7 +27,7 @@ TObjectServiceProxy::TReqExecuteBatch::Invoke()
     // Push TPrerequisitesExt down to individual requests.
     if (Header_.HasExtension(NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& batchPrerequisitesExt = Header_.GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
-        for (auto& innerRequestMessage : InnerRequestMessages) {
+        for (auto& innerRequestMessage : InnerRequestMessages_) {
             NRpc::NProto::TRequestHeader requestHeader;
             YCHECK(ParseRequestHeader(innerRequestMessage, &requestHeader));
             auto* prerequisitesExt = requestHeader.MutableExtension(NProto::TPrerequisitesExt::prerequisites_ext);
@@ -39,14 +39,14 @@ TObjectServiceProxy::TReqExecuteBatch::Invoke()
     }
 
     // Prepare attachments.
-    for (const auto& innerRequestMessage : InnerRequestMessages) {
+    for (const auto& innerRequestMessage : InnerRequestMessages_) {
         if (innerRequestMessage) {
             Attachments_.insert(Attachments_.end(), innerRequestMessage.Begin(), innerRequestMessage.End());
         }
     }
 
     auto clientContext = CreateClientContext();
-    auto batchRsp = New<TRspExecuteBatch>(clientContext, KeyToIndexes);
+    auto batchRsp = New<TRspExecuteBatch>(clientContext, KeyToIndexes_);
     auto promise = batchRsp->GetPromise();
     if (GetSize() == 0) {
         batchRsp->SetEmpty();
@@ -75,11 +75,11 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
     const TString& key)
 {
     if (!key.empty()) {
-        int index = static_cast<int>(InnerRequestMessages.size());
-        KeyToIndexes.insert(std::make_pair(key, index));
+        int index = static_cast<int>(InnerRequestMessages_.size());
+        KeyToIndexes_.insert(std::make_pair(key, index));
     }
 
-    InnerRequestMessages.push_back(innerRequestMessage);
+    InnerRequestMessages_.push_back(innerRequestMessage);
 
     return this;
 }
@@ -94,20 +94,20 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::
 TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::SetSuppressUpstreamSync(
     bool value)
 {
-    SuppressUpstreamSync = value;
+    SuppressUpstreamSync_ = value;
     return this;
 }
 
 int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
 {
-    return static_cast<int>(InnerRequestMessages.size());
+    return static_cast<int>(InnerRequestMessages_.size());
 }
 
 TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
     NProto::TReqExecute req;
-    req.set_suppress_upstream_sync(SuppressUpstreamSync);
-    for (const auto& innerRequestMessage : InnerRequestMessages) {
+    req.set_suppress_upstream_sync(SuppressUpstreamSync_);
+    for (const auto& innerRequestMessage : InnerRequestMessages_) {
         if (innerRequestMessage) {
             req.add_part_counts(innerRequestMessage.Size());
         } else {
@@ -123,13 +123,12 @@ TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     TClientContextPtr clientContext,
     const std::multimap<TString, int>& keyToIndexes)
     : TClientResponse(std::move(clientContext))
-    , KeyToIndexes(keyToIndexes)
+    , KeyToIndexes_(keyToIndexes)
 { }
 
-TPromise<TObjectServiceProxy::TRspExecuteBatchPtr>
-TObjectServiceProxy::TRspExecuteBatch::GetPromise()
+auto TObjectServiceProxy::TRspExecuteBatch::GetPromise() -> TPromise<TRspExecuteBatchPtr>
 {
-    return Promise;
+    return Promise_;
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::SetEmpty()
@@ -142,11 +141,11 @@ void TObjectServiceProxy::TRspExecuteBatch::SetEmpty()
 void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
 {
     if (error.IsOK()) {
-        Promise.Set(this);
+        Promise_.Set(this);
     } else {
-        Promise.Set(error);
+        Promise_.Set(error);
     }
-    Promise.Reset();
+    Promise_.Reset();
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
@@ -155,16 +154,16 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
     DeserializeFromProtoWithEnvelope(&body, data);
 
     int currentIndex = 0;
-    PartRanges.reserve(body.part_counts_size());
+    PartRanges_.reserve(body.part_counts_size());
     for (int partCount : body.part_counts()) {
-        PartRanges.push_back(std::make_pair(currentIndex, currentIndex + partCount));
+        PartRanges_.push_back(std::make_pair(currentIndex, currentIndex + partCount));
         currentIndex += partCount;
     }
 }
 
 int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
 {
-    return PartRanges.size();
+    return PartRanges_.size();
 }
 
 TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
@@ -190,8 +189,8 @@ std::vector<TErrorOr<NYTree::TYPathResponsePtr>> TObjectServiceProxy::TRspExecut
 TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int index) const
 {
     YCHECK(index >= 0 && index < GetSize());
-    int beginIndex = PartRanges[index].first;
-    int endIndex = PartRanges[index].second;
+    int beginIndex = PartRanges_[index].first;
+    int endIndex = PartRanges_[index].second;
     if (beginIndex == endIndex) {
         // This is an empty response.
         return TSharedRefArray();

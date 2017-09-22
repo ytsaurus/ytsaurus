@@ -85,6 +85,7 @@ private:
         }
         Started_ = true;
         SyncExecutor_->Start();
+        SyncExecutor_->ScheduleOutOfBand();
     }
 
     void DoStop()

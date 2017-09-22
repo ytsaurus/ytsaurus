@@ -78,6 +78,8 @@ private:
     {
         const auto* cell = GetThisImpl();
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         if (key == "leading_peer_id") {
             BuildYsonFluently(consumer)
                 .Value(cell->GetLeadingPeerId());
@@ -144,7 +146,9 @@ private:
 
         if (key == "total_statistics") {
             BuildYsonFluently(consumer)
-                .Value(cell->TotalStatistics());
+                .Value(New<TSerializableTabletCellStatistics>(
+                    cell->TotalStatistics(),
+                    chunkManager));
             return true;
         }
 

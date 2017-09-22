@@ -40,28 +40,28 @@ public:
 
     void Initialize();
 
-    NHydra::TMutationPtr CreateUpdateChunkPropertiesMutation(
+    std::unique_ptr<NHydra::TMutation> CreateUpdateChunkPropertiesMutation(
         const NProto::TReqUpdateChunkProperties& request);
 
     using TCtxExportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExportChunks,
         NChunkClient::NProto::TRspExportChunks>;
     using TCtxExportChunksPtr = TIntrusivePtr<TCtxExportChunks>;
-    NHydra::TMutationPtr CreateExportChunksMutation(
+    std::unique_ptr<NHydra::TMutation> CreateExportChunksMutation(
         TCtxExportChunksPtr context);
 
     using TCtxImportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqImportChunks,
         NChunkClient::NProto::TRspImportChunks>;
     using TCtxImportChunksPtr = TIntrusivePtr<TCtxImportChunks>;
-    NHydra::TMutationPtr CreateImportChunksMutation(
+    std::unique_ptr<NHydra::TMutation> CreateImportChunksMutation(
         TCtxImportChunksPtr context);
 
     using TCtxExecuteBatch = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExecuteBatch,
         NChunkClient::NProto::TRspExecuteBatch>;
     using TCtxExecuteBatchPtr = TIntrusivePtr<TCtxExecuteBatch>;
-    NHydra::TMutationPtr CreateExecuteBatchMutation(
+    std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         TCtxExecuteBatchPtr context);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);

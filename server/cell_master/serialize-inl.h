@@ -92,7 +92,7 @@ struct TSerializerTraits<
     C,
     typename NMpl::TEnableIfC <
         NMpl::TAndC<
-            NMpl::TIsConvertible<T, const NObjectServer::IObjectBase*>::Value,
+            NMpl::TIsConvertible<T, const NObjectServer::TObjectBase*>::Value,
             NMpl::TNotC<
                 NMpl::TIsConvertible<T, const NCypressServer::TCypressNodeBase*>::Value
             >::Value

@@ -1,4 +1,6 @@
 #include "map_controller.h"
+
+#include "auto_merge_task.h"
 #include "legacy_merge_controller.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
@@ -50,56 +52,18 @@ class TUnorderedOperationControllerBase
     : public TOperationControllerBase
 {
 public:
-    TUnorderedOperationControllerBase(
-        TSchedulerConfigPtr config,
-        TUnorderedOperationSpecBasePtr spec,
-        TSimpleOperationOptionsPtr options,
-        IOperationHost* host,
-        TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
-        , Spec(spec)
-        , Options(options)
-    { }
 
-    // Persistence.
-    virtual void Persist(const TPersistenceContext& context) override
-    {
-        TOperationControllerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, JobIOConfig);
-        Persist(context, JobSpecTemplate);
-        Persist(context, IsExplicitJobCount);
-        Persist(context, UnorderedPool);
-        Persist(context, UnorderedTask);
-        Persist(context, UnorderedTaskGroup);
-    }
-
-protected:
-    TUnorderedOperationSpecBasePtr Spec;
-    TSimpleOperationOptionsPtr Options;
-
-    //! Customized job IO config.
-    TJobIOConfigPtr JobIOConfig;
-
-    //! The template for starting new jobs.
-    TJobSpec JobSpecTemplate;
-
-    //! Flag set when job count was explicitly specified.
-    bool IsExplicitJobCount;
-
-
-    class TUnorderedTask
+    class TUnorderedTaskBase
         : public TTask
     {
     public:
         //! For persistence only.
-        TUnorderedTask()
+        TUnorderedTaskBase()
             : Controller(nullptr)
         { }
 
-        explicit TUnorderedTask(TUnorderedOperationControllerBase* controller)
-            : TTask(controller)
+        TUnorderedTaskBase(TUnorderedOperationControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TTask(controller, std::move(edgeDescriptors))
             , Controller(controller)
         { }
 
@@ -154,9 +118,23 @@ protected:
             return Controller->GetJobType();
         }
 
-    private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedTask, 0x8ab75ee7);
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        {
+            TTask::OnJobCompleted(joblet, jobSummary);
 
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+
+            if (jobSummary.InterruptReason != EInterruptReason::None) {
+                SplitByRowsAndReinstall(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
+            }
+        }
+
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
+        }
+
+    private:
         TUnorderedOperationControllerBase* Controller;
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
@@ -176,18 +154,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
-        }
-
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
-        {
-            TTask::OnJobCompleted(joblet, jobSummary);
-
-            RegisterOutput(joblet, joblet->JobIndex, jobSummary);
-
-            if (jobSummary.InterruptReason != EInterruptReason::None) {
-                SplitByRowsAndReinstall(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
-            }
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
         void SplitByRowsAndReinstall(
@@ -238,21 +205,55 @@ protected:
             AddInput(stripes);
             FinishInput();
         }
-
-        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
-        {
-            TTask::OnJobAborted(joblet, jobSummary);
-        }
-
     };
 
-    typedef TIntrusivePtr<TUnorderedTask> TUnorderedTaskPtr;
+    INHERIT_DYNAMIC_PHOENIX_TYPE(TUnorderedTaskBase, TUnorderedTask, 0x8ab75ee7);
+    INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(TAutoMergeableOutputMixin, TAutoMergeableUnorderedTask, 0x9a9bcee3, TUnorderedTaskBase);
+
+    typedef TIntrusivePtr<TUnorderedTaskBase> TUnorderedTaskPtr;
+
+    TUnorderedOperationControllerBase(
+        TSchedulerConfigPtr config,
+        TUnorderedOperationSpecBasePtr spec,
+        TSimpleOperationOptionsPtr options,
+        IOperationHost* host,
+        TOperation* operation)
+        : TOperationControllerBase(config, spec, options, host, operation)
+        , Spec(spec)
+        , Options(options)
+    { }
+
+    // Persistence.
+    virtual void Persist(const TPersistenceContext& context) override
+    {
+        TOperationControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, JobIOConfig);
+        Persist(context, JobSpecTemplate);
+        Persist(context, IsExplicitJobCount);
+        Persist(context, UnorderedPool);
+        Persist(context, UnorderedTask);
+        Persist(context, UnorderedTaskGroup);
+    }
+
+protected:
+    TUnorderedOperationSpecBasePtr Spec;
+    TSimpleOperationOptionsPtr Options;
+
+    //! Customized job IO config.
+    TJobIOConfigPtr JobIOConfig;
+
+    //! The template for starting new jobs.
+    TJobSpec JobSpecTemplate;
+
+    //! Flag set when job count was explicitly specified.
+    bool IsExplicitJobCount;
 
     std::unique_ptr<IChunkPool> UnorderedPool;
 
     TUnorderedTaskPtr UnorderedTask;
     TTaskGroupPtr UnorderedTaskGroup;
-
 
     // Custom bits of preparation pipeline.
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -277,11 +278,14 @@ protected:
     virtual bool IsCompleted() const override
     {
         // Unordered task may be null, if all chunks were teleported.
-        return !UnorderedTask || UnorderedTask->IsCompleted();
+        return TOperationControllerBase::IsCompleted() && (!UnorderedTask || UnorderedTask->IsCompleted());
     }
 
     virtual void CustomPrepare() override
     {
+        // NB: this call should be after TotalEstimatedOutputChunkCount is calculated.
+        TOperationControllerBase::CustomPrepare();
+
         // The total data size for processing (except teleport chunks).
         i64 totalDataWeight = 0;
         i64 totalRowCount = 0;
@@ -327,13 +331,15 @@ protected:
                                 Spec,
                                 Options,
                                 totalDataWeight,
-                                static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+                                DataWeightRatio,
+                                InputCompressionRatio);
 
                         default:
-                            return CreateSimpleJobSizeConstraints(
+                            return CreateUserJobSizeConstraints(
                                 Spec,
                                 Options,
                                 GetOutputTablePaths().size(),
+                                DataWeightRatio,
                                 totalDataWeight,
                                 totalRowCount);
                     }
@@ -341,6 +347,7 @@ protected:
 
                 auto jobSizeConstraints = createJobSizeConstraints();
                 IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
+                InitAutoMerge(jobSizeConstraints->GetJobCount(), DataWeightRatio);
 
                 std::vector<TChunkStripePtr> stripes;
                 SliceUnversionedChunks(mergedChunks, jobSizeConstraints, &stripes);
@@ -350,8 +357,27 @@ protected:
                     std::move(jobSizeConstraints),
                     GetJobSizeAdjusterConfig());
 
-                UnorderedTask = New<TUnorderedTask>(this);
-                UnorderedTask->Initialize();
+
+                bool requiresAutoMerge = false;
+
+                auto edgeDescriptors = GetStandardEdgeDescriptors();
+                if (GetAutoMergeDirector()) {
+                    YCHECK(AutoMergeTasks.size() == edgeDescriptors.size());
+                    for (int index = 0; index < edgeDescriptors.size(); ++index) {
+                        if (AutoMergeTasks[index]) {
+                            edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
+                            edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
+                            edgeDescriptors[index].RequiresRecoveryInfo = true;
+                            requiresAutoMerge = true;
+                        }
+                    }
+                }
+                if (requiresAutoMerge) {
+                    UnorderedTask = New<TAutoMergeableUnorderedTask>(this, std::move(edgeDescriptors));
+                    RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, Spec->JobProxyMemoryDigest);
+                } else {
+                    UnorderedTask = New<TUnorderedTask>(this, std::move(edgeDescriptors));
+                }
                 UnorderedTask->AddInput(stripes);
                 UnorderedTask->FinishInput();
                 RegisterTask(UnorderedTask);
@@ -379,7 +405,6 @@ protected:
         return result;
     }
 
-
     // Progress reporting.
     virtual TString GetLoggingProgress() const override
     {
@@ -395,7 +420,6 @@ protected:
             JobCounter.GetInterruptedTotal(),
             GetUnavailableInputChunkCount());
     }
-
 
     // Unsorted helpers.
     virtual EJobType GetJobType() const = 0;
@@ -419,6 +443,7 @@ protected:
 
     void InitJobIOConfig()
     {
+        // TODO(max42): Looks like InitFinalOutputConfig may be easily removed as well as cloning the JobIO.
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
     }
@@ -456,6 +481,7 @@ protected:
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TUnorderedTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TAutoMergeableUnorderedTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -474,7 +500,7 @@ public:
         , Options(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::Map, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::Map, spec->Mapper->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::Map, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
     }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
@@ -513,7 +539,6 @@ private:
     TMapOperationOptionsPtr Options;
 
     i64 StartRowIndex = 0;
-
 
     // Custom bits of preparation pipeline.
 
@@ -617,6 +642,9 @@ private:
 
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
     {
+        if (joblet->JobType != EJobType::Map) {
+            return;
+        }
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
@@ -631,8 +659,11 @@ private:
     virtual bool IsJobInterruptible() const override
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return !IsExplicitJobCount &&
-            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();
+        return
+            !IsExplicitJobCount &&
+            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options->MaxJobCount > JobCounter.GetTotal() &&
+            TOperationControllerBase::IsJobInterruptible();
     }
 };
 

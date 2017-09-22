@@ -5,6 +5,7 @@
 #include "tablet_manager.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/public.h>
 #include <yt/server/cell_master/world_initializer.h>
@@ -95,12 +96,8 @@ public:
             return;
         }
 
-        if (!IsObjectAlive(tablet) ||
-            !IsObjectAlive(tablet->GetTable()) ||
-            !tablet->GetTable()->IsSorted() ||
-            tablet->GetAction() ||
-            QueuedTabletIds_.find(tablet->GetId()) != QueuedTabletIds_.end() ||
-            !tablet->Replicas().empty())
+        if (!IsTabletReshardable(tablet) ||
+            QueuedTabletIds_.find(tablet->GetId()) != QueuedTabletIds_.end())
         {
             return;
         }
@@ -144,6 +141,20 @@ private:
     int SplitCount_ = 0;
 
     bool BalanceCells_ = false;
+
+    bool IsTabletReshardable(const TTablet* tablet)
+    {
+        return tablet &&
+            IsObjectAlive(tablet) &&
+            !tablet->GetAction() &&
+            IsObjectAlive(tablet->GetTable()) &&
+            tablet->GetTable()->IsSorted() &&
+            IsObjectAlive(tablet->GetCell()) &&
+            IsObjectAlive(tablet->GetCell()->GetCellBundle()) &&
+            tablet->GetCell()->GetCellBundle()->GetEnableTabletBalancer() &&
+            tablet->Replicas().empty() &&
+            IsTabletUntouched(tablet);
+    }
 
     void Balance()
     {
@@ -196,8 +207,12 @@ private:
         // TODO(savrus) balance other tablets.
     }
 
-    void ReassignInMemoryTablets(const TTabletCellBundle* bundle, int* actionCount)
+    void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
     {
+        if (!bundle->GetEnableTabletBalancer()) {
+            return;
+        }
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         std::vector<const TTabletCell*> cells;
 
@@ -232,6 +247,7 @@ private:
             queue.push(pair);
         }
 
+        int actionCount = 0;
         for (int index = memoryUsage.size() - 1; index >= 0; --index) {
             auto cellSize = memoryUsage[index].first;
             auto* cell = memoryUsage[index].second;
@@ -259,10 +275,15 @@ private:
                 }
 
                 if (tabletSize < cellSize - top.first) {
-                    LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v)",
+                    LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v, "
+                        "TabletSize: %v, SrcCellSize: %v, DstCellSize: %v, CellBundle: %v)",
                         tablet->GetId(),
                         cell->GetId(),
-                        top.second->GetId());
+                        top.second->GetId(),
+                        tabletSize,
+                        cellSize,
+                        top.first,
+                        bundle->GetName());
 
                     queue.pop();
                     top.first += tabletSize;
@@ -280,10 +301,16 @@ private:
                     CreateMutation(hydraManager, request)
                         ->CommitAndLog(Logger);
 
-                    ++(*actionCount);
+                    ++actionCount;
                 }
             }
         }
+
+        Profiler.Enqueue(
+            "/in_memory_moves",
+            actionCount,
+            NProfiling::EMetricType::Gauge,
+            {bundle->GetProfilingTag()});
     }
 
     void ReassignInMemoryTablets()
@@ -292,13 +319,10 @@ private:
             return;
         }
 
-        int actionCount = 0;
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletCellBundles()) {
-            ReassignInMemoryTablets(pair.second, &actionCount);
+            ReassignInMemoryTablets(pair.second);
         }
-
-        Profiler.Update(MemoryMoveCounter_, actionCount);
     }
 
     void BalanceTablets()
@@ -327,12 +351,7 @@ private:
             QueuedTabletIds_.erase(tabletId);
 
             auto* tablet = tabletManager->FindTablet(tabletId);
-            if (!tablet ||
-                !IsObjectAlive(tablet) ||
-                !IsObjectAlive(tablet->GetTable()) ||
-                !tablet->Replicas().empty() ||
-                !IsTabletUntouched(tablet))
-            {
+            if (!IsTabletReshardable(tablet)) {
                 continue;
             }
 
@@ -353,7 +372,7 @@ private:
             : statistics.MemorySize;
     }
 
-    bool IsTabletUntouched(TTablet* tablet)
+    bool IsTabletUntouched(const TTablet* tablet)
     {
         return TouchedTablets_.find(tablet) == TouchedTablets_.end();
     }
@@ -469,15 +488,15 @@ private:
         auto* table = tablet->GetTable();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
-        const auto& tableAttributes = tableProxy->Attributes();
 
-        if (tableAttributes.Get<bool>("disable_tablet_balancer", false)) {
+        auto enabled = table->GetEnableTabletBalancer();
+        if (enabled && !*enabled) {
             return TTabletSizeConfig{0, std::numeric_limits<i64>::max(), 0};
         }
 
-        auto tableMinTabletSize = tableAttributes.Find<i64>("min_tablet_size");
-        auto tableMaxTabletSize = tableAttributes.Find<i64>("max_tablet_size");
-        auto tableDesiredTabletSize = tableAttributes.Find<i64>("desired_tablet_size");
+        auto tableMinTabletSize = table->GetMinTabletSize();
+        auto tableMaxTabletSize = table->GetMaxTabletSize();
+        auto tableDesiredTabletSize = table->GetDesiredTabletSize();
 
         if (tableMinTabletSize && tableMaxTabletSize && tableDesiredTabletSize &&
             *tableMinTabletSize < *tableDesiredTabletSize &&
@@ -508,68 +527,18 @@ private:
             return;
         }
 
-        auto wasEnabled = Enabled_;
-
-        try {
-            Enabled_ = IsEnabled();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error updating tablet balancer state, disabling until the next attempt");
+        if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableTabletBalancer) {
+            if (Enabled_) {
+                LOG_INFO("Tablet balancer is disabled, see //sys/@config");
+            }
             Enabled_ = false;
+            return;
         }
 
-        if (Enabled_ && !wasEnabled) {
+        if (!Enabled_) {
             LOG_INFO("Tablet balancer enabled");
         }
-    }
-
-    bool IsEnabled()
-    {
-        return
-            IsEnabledByFlag() &&
-            IsEnabledWorkHours();
-    }
-
-    bool IsEnabledByFlag()
-    {
-        bool enabled = true;
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        auto sysNode = resolver->ResolvePath("//sys");
-        if (sysNode->Attributes().Get<bool>("disable_tablet_balancer", false)) {
-            if (Enabled_) {
-                LOG_INFO("Tablet balancer is disabled by //sys/@disable_tablet_balancer setting");
-            }
-            enabled = false;
-        }
-        return enabled;
-    }
-
-    bool IsEnabledWorkHours()
-    {
-        bool enabled = true;
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        auto sysNode = resolver->ResolvePath("//sys");
-        auto officeHours = sysNode->Attributes().Find<std::vector<int>>("tablet_balancer_office_hours");
-        if (!officeHours) {
-            return enabled;
-        }
-        if (officeHours->size() != 2) {
-            LOG_INFO("Expected two integers in //sys/@tablet_balancer_office_hours, but got %v",
-                *officeHours);
-            return enabled;
-        }
-
-        tm localTime;
-        Now().LocalTime(&localTime);
-        int hour = localTime.tm_hour;
-        if (hour < (*officeHours)[0] || hour > (*officeHours)[1]) {
-            if (Enabled_) {
-                LOG_INFO("Tablet balancer is disabled by //sys/@tablet_balancer_office_hours");
-            }
-            enabled = false;
-        }
-        return enabled;
+        Enabled_ = true;
     }
 };
 

@@ -15,6 +15,7 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
+using namespace NPhoenix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,11 +23,15 @@ class TJobSplitter
     : public IJobSplitter
 {
 public:
+    //! Used only for persistence.
+    TJobSplitter() = default;
+
     TJobSplitter(const TJobSplitterConfigPtr& config, const TOperationId& operationId)
         : Config_(config)
         , Statistics_(config)
+        , OperationId_(operationId)
         , Logger(NLogging::TLogger(OperationLogger)
-            .AddTag("OperationId: %v", operationId))
+            .AddTag("OperationId: %v", OperationId_))
     {
         YCHECK(Config_);
     }
@@ -144,10 +149,31 @@ public:
             .Item("config").Value(Config_);
     }
 
+    virtual void Persist(const TPersistenceContext& context) override
+    {
+        using NYT::Persist;
+
+        Persist(context, Config_);
+        Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, RunningJobs_);
+        Persist(context, Statistics_);
+        Persist(context, MaxRunningJobCount_);
+        Persist(context, OperationId_);
+
+        if (context.IsLoad()) {
+            Logger = OperationLogger;
+            Logger.AddTag("OperationId: %v", OperationId_);
+        }
+    }
+
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TJobSplitter, 0x1ddf34ff);
+
     class TStatistics
     {
     public:
+        //! Used only for persistence.
+        TStatistics() = default;
+
         explicit TStatistics(const TJobSplitterConfigPtr& config)
             : Config_(config)
         { }
@@ -216,6 +242,17 @@ private:
                 .Item("next_update_time").Value(NextUpdateTime_);
         }
 
+        void Persist(const TPersistenceContext& context)
+        {
+            using NYT::Persist;
+
+            Persist(context, Config_);
+            Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, JobIdToCompletionTime_);
+            Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, InterruptCandidateSet_);
+            Persist(context, NextUpdateTime_);
+            Persist(context, MedianCompletionTime_);
+        }
+
     private:
         TJobSplitterConfigPtr Config_;
         yhash<TJobId, TInstant> JobIdToCompletionTime_;
@@ -227,6 +264,9 @@ private:
     class TRunningJob
     {
     public:
+        //! Used only for persistence.
+        TRunningJob() = default;
+
         explicit TRunningJob(const TChunkStripeListPtr& inputStripeList)
             : TotalRowCount_(inputStripeList->TotalRowCount)
             , TotalDataWeight_(inputStripeList->TotalDataWeight)
@@ -286,9 +326,23 @@ private:
                 .Item("remaining_duration").Value(CompletionTime_ - GetInstant());
         }
 
+        void Persist(const TPersistenceContext& context)
+        {
+            using NYT::Persist;
+
+            Persist(context, TotalRowCount_);
+            Persist(context, TotalDataWeight_);
+            Persist(context, PrepareWithoutDownloadDuration_);
+            Persist(context, ExecDuration_);
+            Persist(context, RemainingDuration_);
+            Persist(context, CompletionTime_);
+            Persist(context, RowCount_);
+            Persist(context, SecondsPerRow_);
+        }
+
     private:
-        i64 TotalRowCount_ = 1.0;
-        i64 TotalDataWeight_ = 1.0;
+        i64 TotalRowCount_ = 1;
+        i64 TotalDataWeight_ = 1;
         TDuration PrepareWithoutDownloadDuration_;
         TDuration ExecDuration_;
         TDuration RemainingDuration_;
@@ -297,13 +351,15 @@ private:
         double SecondsPerRow_ = 0;
     };
 
-    const TJobSplitterConfigPtr Config_;
+    TJobSplitterConfigPtr Config_;
 
     yhash<TJobId, TRunningJob> RunningJobs_;
     TStatistics Statistics_;
     i64 MaxRunningJobCount_ = 0;
 
-    const NLogging::TLogger Logger;
+    TOperationId OperationId_;
+
+    NLogging::TLogger Logger;
 
     void OnJobFinished(const TJobSummary& summary)
     {
@@ -323,6 +379,8 @@ private:
         return runningJobCount <= smallJobCount;
     }
 };
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

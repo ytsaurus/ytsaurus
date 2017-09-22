@@ -1,17 +1,11 @@
-#pragma once
+#include "public.h"
 
 namespace NYT {
+namespace NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i64 KB = 1024;
-
-const i64 MB = 1024 * KB;
-
-const i64 GB = 1024 * MB;
-
-const i64 TB = 1024 * GB;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namesapce NYT
+} // namespace NNet
+} // namespace NYT

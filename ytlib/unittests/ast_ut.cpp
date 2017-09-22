@@ -49,6 +49,10 @@ TEST_F(TAstFormatTest, Reference)
 {
     EXPECT_EQ("column", FormatReference(TReference(TString("column"))));
     EXPECT_EQ("table.column", FormatReference(TReference(TString("column"), TString("table"))));
+    EXPECT_EQ("[my.column]", FormatReference(TReference(TString("my.column"))));
+    EXPECT_EQ("table.[my.column]", FormatReference(TReference(TString("my.column"), TString("table"))));
+    EXPECT_EQ("my.column", InferColumnName(TReference(TString("my.column"))));
+    EXPECT_EQ("table.my.column", InferColumnName(TReference(TString("my.column"), TString("table"))));
 }
 
 TEST_F(TAstFormatTest, LiteralValue)
@@ -93,6 +97,8 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("a in ((1), (2))");
     TestExpression("a in ((1, 2), (2, 3))");
     TestExpression("(a,b) in ((1, 2), (2, 3))");
+    TestExpression("transform(a, (1, 2), (2, 3))");
+    TestExpression("transform((a, b), ((1, 2), (2, 3)), (\"x\", \"y\"))");
     TestExpression("a * (b + c)");
     TestExpression("a * b + c");
     TestExpression("0");
@@ -106,6 +112,12 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("f(a, b)");
     TestExpression("f(a, b, c)");
     TestExpression("(a + 1 as x) * x");
+    TestExpression("([x-y] as [x-y])");
+    TestExpression("[a]");
+    TestExpression("[t.a]");
+    TestExpression("t.[a]");
+    TestExpression("[t.a] + b");
+    TestExpression("t.[a] + b");
 }
 
 TEST_F(TAstFormatTest, Query)
@@ -136,6 +148,7 @@ TEST_F(TAstFormatTest, Query)
     TestQuery("* from t1 left join t2 on t1.a = t2.b");
     TestQuery("* from t1 left join t2 on a = b and c > d");
     TestQuery("* from t1 left join t2 on a = b join t3 using x");
+    TestQuery("* from t1 left join t2 on (a1, a2) = (b1, b2) join t3 using x");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

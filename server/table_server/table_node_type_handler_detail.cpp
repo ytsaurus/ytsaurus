@@ -177,15 +177,15 @@ template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     const TImpl* originatingNode,
     TImpl* branchedNode,
-    ELockMode mode)
+    const TLockRequest& lockRequest)
 {
     branchedNode->TableSchema() = originatingNode->TableSchema();
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
-    branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp());
+    branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp(lockRequest.Timestamp));
     branchedNode->SetUpstreamReplicaId(originatingNode->GetUpstreamReplicaId());
 
-    TBase::DoBranch(originatingNode, branchedNode, mode);
+    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 }
 
 template <class TImpl>

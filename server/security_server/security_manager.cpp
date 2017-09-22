@@ -11,6 +11,7 @@
 #include "user_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
@@ -120,7 +121,7 @@ public:
         return EObjectType::Account;
     }
 
-    virtual IObjectBase* CreateObject(
+    virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -164,7 +165,7 @@ public:
             ETypeFlags::Creatable;
     }
 
-    virtual TCellTagList GetReplicationCellTags(const IObjectBase* /*object*/) override
+    virtual TCellTagList GetReplicationCellTags(const TObjectBase* /*object*/) override
     {
         return AllSecondaryCellTags();
     }
@@ -174,7 +175,7 @@ public:
         return EObjectType::User;
     }
 
-    virtual IObjectBase* CreateObject(
+    virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -217,7 +218,7 @@ public:
         return EObjectType::Group;
     }
 
-    virtual IObjectBase* CreateObject(
+    virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -514,7 +515,11 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
-        return DoCreateUser(id, name);
+        auto user = DoCreateUser(id, name);
+        if (user) {
+            LOG_DEBUG("User %Qv created", name);
+        }
+        return user;
     }
 
     void DestroyUser(TUser* user)
@@ -590,7 +595,11 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Group, hintId);
-        return DoCreateGroup(id, name);
+        auto group = DoCreateGroup(id, name);
+        if (group) {
+            LOG_DEBUG("Group %Qv created", name);
+        }
+        return group;
     }
 
     void DestroyGroup(TGroup* group)
@@ -734,21 +743,21 @@ public:
     }
 
 
-    TAccessControlDescriptor* FindAcd(IObjectBase* object)
+    TAccessControlDescriptor* FindAcd(TObjectBase* object)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
         return handler->FindAcd(object);
     }
 
-    TAccessControlDescriptor* GetAcd(IObjectBase* object)
+    TAccessControlDescriptor* GetAcd(TObjectBase* object)
     {
         auto* acd = FindAcd(object);
         YCHECK(acd);
         return acd;
     }
 
-    TAccessControlList GetEffectiveAcl(NObjectServer::IObjectBase* object)
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object)
     {
         TAccessControlList result;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -804,22 +813,29 @@ public:
         }
     }
 
+    bool IsUserRootOrSuperuser(const TUser* user)
+    {
+        // NB: This is also useful for migration when "superusers" is initially created.
+        if (user == RootUser_) {
+            return true;
+        }
+
+        if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
+            return true;
+        }
+
+        return false;
+    }
+
     TPermissionCheckResult CheckPermission(
-        IObjectBase* object,
+        TObjectBase* object,
         TUser* user,
         EPermission permission)
     {
         TPermissionCheckResult result;
 
-        // Fast lane: "root" needs to authorization.
-        // NB: This is also useful for migration when "superusers" is initially created.
-        if (user == RootUser_) {
-            result.Action = ESecurityAction::Allow;
-            return result;
-        }
-
-        // Fast lane: "superusers" need to authorization.
-        if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
+        // Fast lane: "root" and "superusers" need no autorization.
+        if (IsUserRootOrSuperuser(user)) {
             result.Action = ESecurityAction::Allow;
             return result;
         }
@@ -908,12 +924,23 @@ public:
     }
 
     void ValidatePermission(
-        IObjectBase* object,
+        TObjectBase* object,
         TUser* user,
         EPermission permission)
     {
         if (IsHiveMutation()) {
             return;
+        }
+
+        if (!IsUserRootOrSuperuser(user) &&
+            permission != EPermission::Read &&
+            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+        {
+            THROW_ERROR_EXCEPTION("Access denied: cluster is in safe mode. "
+                "Check for the announces before reporting any issues")
+                << TErrorAttribute("permission", permission)
+                << TErrorAttribute("user", user->GetName())
+                << TErrorAttribute("object", object->GetId());
         }
 
         auto result = CheckPermission(object, user, permission);
@@ -949,7 +976,7 @@ public:
     }
 
     void ValidatePermission(
-        IObjectBase* object,
+        TObjectBase* object,
         EPermission permission)
     {
         ValidatePermission(
@@ -1247,7 +1274,7 @@ private:
         accountHolder->SetName(name);
         // Give some reasonable initial resource limits.
         accountHolder->ClusterResourceLimits()
-            .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = GB;
+            .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = 1_GB;
         accountHolder->ClusterResourceLimits().NodeCount = 1000;
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
         accountHolder->ClusterResourceLimits().TabletCount = 100000;
@@ -1439,7 +1466,7 @@ private:
         // COMPAT(savrus)
         ValidateAccountResourceUsage_ = context.GetVersion() >= 606;
         RecomputeAccountResourceUsage_ = context.GetVersion() < 606;
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 606;
+        RecomputeNodeResourceUsage_ = context.GetVersion() < 613;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1713,8 +1740,8 @@ private:
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
                 .SetTabletCount(100000)
-                .SetTabletStaticMemory(10 * TB)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, TB);
+                .SetTabletStaticMemory(10_TB)
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -1726,7 +1753,7 @@ private:
             TmpAccount_->ClusterResourceLimits() = TClusterResources()
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, TB);
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1738,7 +1765,7 @@ private:
             IntermediateAccount_->ClusterResourceLimits() = TClusterResources()
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, TB);
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -2125,7 +2152,7 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-IObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
+TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
@@ -2154,7 +2181,7 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-IObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
+TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
@@ -2183,7 +2210,7 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-IObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
+TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
@@ -2358,17 +2385,17 @@ void TSecurityManager::RenameSubject(TSubject* subject, const TString& newName)
     Impl_->RenameSubject(subject, newName);
 }
 
-TAccessControlDescriptor* TSecurityManager::FindAcd(IObjectBase* object)
+TAccessControlDescriptor* TSecurityManager::FindAcd(TObjectBase* object)
 {
     return Impl_->FindAcd(object);
 }
 
-TAccessControlDescriptor* TSecurityManager::GetAcd(IObjectBase* object)
+TAccessControlDescriptor* TSecurityManager::GetAcd(TObjectBase* object)
 {
     return Impl_->GetAcd(object);
 }
 
-TAccessControlList TSecurityManager::GetEffectiveAcl(IObjectBase* object)
+TAccessControlList TSecurityManager::GetEffectiveAcl(TObjectBase* object)
 {
     return Impl_->GetEffectiveAcl(object);
 }
@@ -2389,7 +2416,7 @@ TUser* TSecurityManager::GetAuthenticatedUser()
 }
 
 TPermissionCheckResult TSecurityManager::CheckPermission(
-    IObjectBase* object,
+    TObjectBase* object,
     TUser* user,
     EPermission permission)
 {
@@ -2400,7 +2427,7 @@ TPermissionCheckResult TSecurityManager::CheckPermission(
 }
 
 void TSecurityManager::ValidatePermission(
-    IObjectBase* object,
+    TObjectBase* object,
     TUser* user,
     EPermission permission)
 {
@@ -2411,7 +2438,7 @@ void TSecurityManager::ValidatePermission(
 }
 
 void TSecurityManager::ValidatePermission(
-    IObjectBase* object,
+    TObjectBase* object,
     EPermission permission)
 {
     Impl_->ValidatePermission(

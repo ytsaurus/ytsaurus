@@ -414,8 +414,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         3,
         rows[2],
         {
-            {6, TString("[\"ab\", 1, 21u, 1]")},
-            {8, TString("[\"ab\", 3, 3u, 2]")},
+            {6, TString("[0#\"ab\", 1#1, 2#21u, 3#1]")},
+            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#2]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -427,8 +427,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         5,
         rows[4],
         {
-            {4, TString("[\"bb\", 2, 23u, 1]")},
-            {8, TString("[\"ab\", 3, 3u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#1]")},
+            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#2]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -440,8 +440,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         5,
         rows[4],
         {
-            {4, TString("[\"bb\", 2, 23u, 1]")},
-            {8, TString("[\"ab\", 3, 3u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#1]")},
+            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#2]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -453,8 +453,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         6,
         rows[5],
         {
-            {4, TString("[\"bb\", 2, 23u, 1]")},
-            {7, TString("[\"ac\", 5, 5u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#1]")},
+            {7, TString("[0#\"ac\", 1#5, 2#5u, 3#2]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -466,8 +466,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         7,
         rows[6],
         {
-            {4, TString("[\"bb\", 2, 23u, 1]")},
-            {7, TString("[\"ac\", 5, 5u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#1]")},
+            {7, TString("[0#\"ac\", 1#5, 2#5u, 3#2]")},
         });
 }
 
@@ -525,8 +525,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         4,
         rows[3],
         {
-            {4, TString("[\"bb\", 2, 23u, 0]")},
-            {8, TString("[\"ab\", 3, 3u, 1]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#1]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -538,8 +538,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         4,
         rows[3],
         {
-            {4, TString("[\"bb\", 2, 23u, 0]")},
-            {8, TString("[\"ab\", 3, 3u, 1]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#1]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -551,8 +551,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         6,
         rows[5],
         {
-            {4, TString("[\"bb\", 2, 23u, 0]")},
-            {7, TString("[\"ac\", 5, 5u, 1]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {7, TString("[0#\"ac\", 1#5, 2#5u, 3#1]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -564,8 +564,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         6,
         rows[5],
         {
-            {4, TString("[\"bb\", 2, 23u, 0]")},
-            {7, TString("[\"ac\", 5, 5u, 1]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {7, TString("[0#\"ac\", 1#5, 2#5u, 3#1]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -577,8 +577,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         8,
         rows[7],
         {
-            {4, TString("[\"bb\", 2, 23u, 0]")},
-            {6, TString("[\"ba\", 7, 7u, 1]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {6, TString("[0#\"ba\", 1#7, 2#7u, 3#1]")},
         });
 }
 
@@ -626,7 +626,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         4,
         rows[3],
         {
-            {4, TString("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -638,7 +638,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         4,
         rows[3],
         {
-            {4, TString("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -650,7 +650,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         5,
         rows[4],
         {
-            {4, TString("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -662,7 +662,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         6,
         rows[5],
         {
-            {4, TString("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -674,7 +674,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         8,
         rows[7],
         {
-            {2, TString("[\"cb\", 3, 25u, 2]")},
+            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#2]")},
         });
 }
 
@@ -720,7 +720,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         4,
         rows[3],
         {
-            {4, TString("[\"bb\", 2, 23u, 0]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -732,7 +732,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         4,
         rows[3],
         {
-            {4, TString("[\"bb\", 2, 23u, 0]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -744,7 +744,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         8,
         rows[7],
         {
-            {2, TString("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -756,7 +756,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         8,
         rows[7],
         {
-            {2, TString("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -768,7 +768,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         8,
         rows[7],
         {
-            {2, TString("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
 }
 
@@ -816,7 +816,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         3,
         rows[2],
         {
-            {5, TString("[\"ab\", 1, 22u, 2]")},
+            {5, TString("[0#\"ab\", 1#1, 2#22u, 3#2]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -828,7 +828,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         4,
         rows[3],
         {
-            {4, TString("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -840,7 +840,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         5,
         rows[4],
         {
-            {4, TString("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -852,7 +852,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         6,
         rows[5],
         {
-            {4, TString("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -864,7 +864,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         7,
         rows[6],
         {
-            {3, TString("[\"bb\", 2, 24u, 2]")},
+            {3, TString("[0#\"bb\", 1#2, 2#24u, 3#2]")},
         });
 }
 
@@ -910,7 +910,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         4,
         rows[3],
         {
-            {4, TString("[\"bb\", 2, 23u, 0]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -922,7 +922,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         4,
         rows[3],
         {
-            {4, TString("[\"bb\", 2, 23u, 0]")},
+            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -934,7 +934,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         7,
         rows[7], // Note: rows[6] should be skipped
         {
-            {3, TString("[\"bb\", 2, 24u, 0]")},
+            {3, TString("[0#\"bb\", 1#2, 2#24u, 3#0]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -946,7 +946,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         8,
         rows[7],
         {
-            {2, TString("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -958,7 +958,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         8,
         rows[7],
         {
-            {2, TString("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
 }
 

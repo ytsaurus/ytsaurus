@@ -46,7 +46,7 @@ public:
             .GreaterThanOrEqual(0)
             .Default(16);
         RegisterParameter("replication_data_size", ReplicationDataSize)
-            .Default(10 * GB)
+            .Default(10_GB)
             .GreaterThanOrEqual(0);
         RegisterParameter("removal_slots", RemovalSlots)
             .GreaterThanOrEqual(0)
@@ -55,7 +55,7 @@ public:
             .GreaterThanOrEqual(0)
             .Default(4);
         RegisterParameter("repair_data_size", RepairDataSize)
-            .Default(4 * GB)
+            .Default(4_GB)
             .GreaterThanOrEqual(0);
         RegisterParameter("seal_slots", SealSlots)
             .GreaterThanOrEqual(0)
@@ -74,6 +74,8 @@ public:
     TResourceLimitsConfigPtr ResourceLimits;
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration WaitingJobsTimeout;
+    TDuration GetJobSpecsTimeout;
+    TDuration StoredJobsSendPeriod;
 
     TJobControllerConfig()
     {
@@ -86,10 +88,16 @@ public:
         RegisterParameter("waiting_jobs_timeout", WaitingJobsTimeout)
             .Default(TDuration::Seconds(30));
 
+        RegisterParameter("get_job_specs_timeout", GetJobSpecsTimeout)
+            .Default(TDuration::Seconds(5));
+
+        RegisterParameter("stored_jobs_send_period", StoredJobsSendPeriod)
+            .Default(TDuration::Minutes(10));
+
         RegisterInitializer([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
             // approximate incoming bandwidth of 1Gbit/sec of the scheduler.
-            StatisticsThrottler->Limit = 100 * KB;
+            StatisticsThrottler->Limit = 100_KB;
         });
     }
 };
@@ -121,9 +129,9 @@ public:
         RegisterParameter("max_repeat_delay", MaxRepeatDelay)
             .Default(TDuration::Minutes(5));
         RegisterParameter("max_in_progress_job_data_size", MaxInProgressJobDataSize)
-            .Default(250 * MB);
+            .Default(250_MB);
         RegisterParameter("max_in_progress_job_spec_data_size", MaxInProgressJobSpecDataSize)
-            .Default(250 * MB);
+            .Default(250_MB);
         RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(1000);
     }

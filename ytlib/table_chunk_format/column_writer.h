@@ -27,6 +27,8 @@ struct IColumnWriterBase
     virtual i32 GetCurrentSegmentSize() const = 0;
 
     virtual const NProto::TColumnMeta& ColumnMeta() const = 0;
+
+    virtual i64 GetMetaSize() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

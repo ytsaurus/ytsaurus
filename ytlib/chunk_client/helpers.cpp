@@ -4,6 +4,7 @@
 #include "input_chunk_slice.h"
 #include "erasure_reader.h"
 #include "replication_reader.h"
+#include "repairing_reader.h"
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -341,7 +342,7 @@ i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChun
 
 IChunkReaderPtr CreateRemoteReader(
     const NProto::TChunkSpec& chunkSpec,
-    TReplicationReaderConfigPtr config,
+    TErasureReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -371,12 +372,14 @@ IChunkReaderPtr CreateRemoteReader(
         }
 
         auto* erasureCodec = GetCodec(erasureCodecId);
-        auto dataPartCount = erasureCodec->GetDataPartCount();
+        auto partCount = config->EnableAutoRepair ?
+            erasureCodec->GetTotalPartCount() :
+            erasureCodec->GetDataPartCount();
 
         std::vector<IChunkReaderPtr> readers;
-        readers.reserve(dataPartCount);
+        readers.reserve(partCount);
 
-        for (int index = 0; index < dataPartCount; ++index) {
+        for (int index = 0; index < partCount; ++index) {
             TChunkReplicaList partReplicas;
             auto nodeId = partIndexToNodeId[index];
             auto mediumIndex = partIndexToMediumIndex[index];
@@ -399,7 +402,7 @@ IChunkReaderPtr CreateRemoteReader(
             readers.push_back(reader);
         }
 
-        return CreateNonRepairingErasureReader(erasureCodec, readers);
+        return CreateRepairingReader(erasureCodec, config, readers);
     } else {
         LOG_DEBUG("Creating regular remote reader (ChunkId: %v)",
             chunkId);
@@ -490,6 +493,11 @@ void LocateChunks(
 TString TUserObject::GetPath() const
 {
     return Path.GetPath();
+}
+
+bool TUserObject::IsPrepared() const
+{
+    return static_cast<bool>(ObjectId);
 }
 
 void TUserObject::Persist(const TStreamPersistenceContext& context)

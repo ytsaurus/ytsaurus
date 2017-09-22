@@ -50,16 +50,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
     const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
-    i64 inputRowLimit = std::numeric_limits<i64>::max(),
-    i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
     const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
-    i64 inputRowLimit = std::numeric_limits<i64>::max(),
-    i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

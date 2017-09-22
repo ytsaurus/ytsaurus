@@ -40,13 +40,15 @@ public:
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
-
     virtual i64 GetRowCount() const override;
 
     virtual TCallback<void(TSaveContext&)> AsyncSave() override;
     virtual void AsyncLoad(TLoadContext& context) override;
 
     virtual TOrderedDynamicStorePtr AsOrderedDynamic() override;
+
+    // IDynamicStore implementation.
+    virtual i64 GetTimestampCount() const override;
 
     // IOrderedStore implementation.
     virtual NTableClient::ISchemafulReaderPtr CreateReader(

@@ -22,9 +22,9 @@ TEST_P(TBooleanFormulaTest, Test)
     const auto& formula = std::get<0>(args);
     const auto& values = std::get<1>(args);
     bool expected = std::get<2>(args);
-   
+
     auto filter = MakeBooleanFormula(formula);
-    
+
     EXPECT_EQ(expected, filter.IsSatisfiedBy(values))
         << "formula: " << formula << std::endl
         << "true variables: " << ::testing::PrintToString(values) << std::endl
@@ -93,6 +93,23 @@ INSTANTIATE_TEST_CASE_P(
         "a|b&c",
         "a&b|c"
 ));
+
+class TBooleanFormulaTest2
+    : public ::testing::Test
+{ };
+
+TEST_F(TBooleanFormulaTest2, Equality)
+{
+    auto formulaA = MakeBooleanFormula("internal");
+    auto formulaB = MakeBooleanFormula("internal");
+    auto formulaC = MakeBooleanFormula("cloud");
+
+    EXPECT_TRUE(formulaA == formulaB);
+    EXPECT_FALSE(formulaA == formulaC);
+
+    EXPECT_TRUE(formulaA.GetHash() == formulaB.GetHash());
+    EXPECT_FALSE(formulaA.GetHash() == formulaC.GetHash());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

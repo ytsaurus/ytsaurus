@@ -73,7 +73,7 @@ private:
 #define QU EReadStartCase::Quote
 #define PC EReadStartCase::Percent
 #define TT(name) (EReadStartCase(static_cast<ui8>(ETokenType::name) << 2) | EReadStartCase::OtherSpecialToken)
-        
+
         static const EReadStartCase lookupTable[] =
         {
             NN,BS,BI,BD,BF,BT,BU,NN,NN,SP,SP,SP,SP,SP,NN,NN,
@@ -118,7 +118,7 @@ private:
 
             // 96
             NN, // '`'
-            
+
             ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST, // 'a' - 'm'
             ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST, // 'n' - 'z'
             TT(LeftBrace), // '{'
@@ -301,7 +301,7 @@ public:
     {
         Lexer.SetBuffer(data.begin(), data.end());
         Lexer.GetToken(token);
-        return Lexer.Begin() - data.begin();
+        return Lexer.Current() - data.begin();
     }
 };
 

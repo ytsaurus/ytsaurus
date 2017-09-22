@@ -21,7 +21,8 @@ DECLARE_REFCOUNTED_STRUCT(TLiteralExpression)
 DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
 DECLARE_REFCOUNTED_STRUCT(TUnaryOpExpression)
 DECLARE_REFCOUNTED_STRUCT(TBinaryOpExpression)
-DECLARE_REFCOUNTED_STRUCT(TInOpExpression)
+DECLARE_REFCOUNTED_STRUCT(TInExpression)
+DECLARE_REFCOUNTED_STRUCT(TTransformExpression)
 
 using TIdentifierList = std::vector<TReferenceExpressionPtr>;
 using TExpressionList = std::vector<TExpressionPtr>;
@@ -230,10 +231,10 @@ DEFINE_REFCOUNTED_TYPE(TBinaryOpExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInOpExpression
+struct TInExpression
     : public TExpression
 {
-    TInOpExpression(
+    TInExpression(
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
         const TLiteralValueTupleList& values)
@@ -246,10 +247,32 @@ struct TInOpExpression
     TLiteralValueTupleList Values;
 };
 
-DEFINE_REFCOUNTED_TYPE(TInOpExpression)
+DEFINE_REFCOUNTED_TYPE(TInExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransformExpression
+    : public TExpression
+{
+    TTransformExpression(
+        const TSourceLocation& sourceLocation,
+        TExpressionList expression,
+        const TLiteralValueTupleList& from,
+        const TLiteralValueTupleList& to)
+        : TExpression(sourceLocation)
+        , Expr(std::move(expression))
+        , From(from)
+        , To(to)
+    { }
+
+    TExpressionList Expr;
+    TLiteralValueTupleList From;
+    TLiteralValueTupleList To;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTransformExpression)
+
+////////////////////////////////////////////////////////////////////////////////
 struct TTableDescriptor
 {
     TTableDescriptor() = default;
@@ -360,7 +383,8 @@ TString FormatReference(const TReference& ref);
 TString FormatExpression(const TExpression& expr);
 TString FormatExpression(const TExpressionList& exprs);
 TString FormatQuery(const TQuery& query);
-TString InferName(const TExpression& expr);
+TString InferColumnName(const TExpression& expr);
+TString InferColumnName(const TReference& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 

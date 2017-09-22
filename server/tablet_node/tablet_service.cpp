@@ -140,7 +140,8 @@ private:
 
         securityManager->ValidateResourceLimits(
             tabletSnapshot->WriterOptions->Account,
-            tabletSnapshot->WriterOptions->MediumName);
+            tabletSnapshot->WriterOptions->MediumName,
+            tabletSnapshot->Config->InMemoryMode);
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);

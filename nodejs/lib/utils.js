@@ -332,14 +332,17 @@ exports.gather = function(object, prefix)
         kp = keys[i].substr(0, l);
         ks = keys[i].substr(l);
         if (kp === prefix) {
-            if (/[0-9]+/.test(ks)) {
+            if (ks[0] === '-') {
+                ks = ks.substr(1);
+            }
+            if (/^[0-9]+$/.test(ks)) {
                 m = parseInt(ks);
                 if (m < 0 || m > 1000) {
                     throw new Error("Too many header parts for '" + prefix + "'");
                 }
                 result[parseInt(ks)] = object[keys[i]];
             } else {
-                throw new Error("Bad header part '" + k[i] + "'");
+                throw new Error("Bad header part '" + keys[i] + "'; suffix '" + ks + "' is not an integer");
             }
         }
     }

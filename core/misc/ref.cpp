@@ -1,5 +1,4 @@
 #include "ref.h"
-#include "ref_counted_tracker.h"
 #include "serialize.h"
 #include "small_vector.h"
 
@@ -40,14 +39,16 @@ TSharedMutableRef::TAllocationHolder::TAllocationHolder(
         ::memset(GetExtraSpacePtr(), 0, Size_);
     }
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Allocate(Cookie_, Size_);
+    TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
+    TRefCountedTrackerFacade::AllocateSpace(Cookie_, Size_);
 #endif
 }
 
 TSharedMutableRef::TAllocationHolder::~TAllocationHolder()
 {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Free(Cookie_, Size_);
+    TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
+    TRefCountedTrackerFacade::FreeSpace(Cookie_, Size_);
 #endif
 }
 
@@ -65,14 +66,16 @@ TSharedRef::TStringHolder::TStringHolder(TString&& string, TRefCountedTypeCookie
 #endif
 {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Allocate(Cookie_, String_.length());
+    TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
+    TRefCountedTrackerFacade::AllocateSpace(Cookie_, String_.length());
 #endif
 }
 
 TSharedRef::TStringHolder::~TStringHolder()
 {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::Get()->Free(Cookie_, String_.length());
+    TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
+    TRefCountedTrackerFacade::FreeSpace(Cookie_, String_.length());
 #endif
 }
 
@@ -117,8 +120,7 @@ class TSharedRefArray::TImpl
     : public TIntrinsicRefCounted
 {
 public:
-    TImpl()
-    { }
+    TImpl() = default;
 
     explicit TImpl(int size)
         : Parts(size)

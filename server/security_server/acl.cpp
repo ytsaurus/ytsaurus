@@ -143,7 +143,7 @@ void Deserilize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccessControlDescriptor::TAccessControlDescriptor(IObjectBase* object)
+TAccessControlDescriptor::TAccessControlDescriptor(TObjectBase* object)
     : Object_(object)
 { }
 

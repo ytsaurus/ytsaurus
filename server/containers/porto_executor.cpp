@@ -22,7 +22,7 @@ using ::rpc::EError;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLogging::TLogger& Logger = ContainersLogger;
+static const NLogging::TLogger& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,14 +347,24 @@ private:
             return;
         } else {
             if (rsp.Error) {
+                LOG_ERROR("Container finished with porto api error"
+                    "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
+                    name,
+                    rsp.Error,
+                    rsp.ErrorMsg,
+                    rsp.Value);
                 it->second.Set(ConvertPortoError(rsp.Error, rsp.ErrorMsg));
             } else {
                 try {
-                    int exitStatus;
-                    exitStatus = std::stoi(rsp.Value);
+                    int exitStatus = std::stoi(rsp.Value);
+                    LOG_DEBUG("Container finished with exit code"
+                        "(Container: %v, ExitCode: %v)",
+                        name,
+                        exitStatus);
+
                     it->second.Set(exitStatus);
                 } catch (const std::exception& ex) {
-                    it->second.Set(TError(ex));
+                    it->second.Set(TError("Failed to parse porto exit status") << ex);
                 }
             }
         }

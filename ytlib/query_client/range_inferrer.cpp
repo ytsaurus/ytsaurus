@@ -380,9 +380,9 @@ TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpress
         auto rhs = GetDivisors(columns, keyIndex, binaryOp->Rhs);
         lhs.append(rhs.begin(), rhs.end());
         return lhs;
-    } else if (auto inOp = expr->As<TInOpExpression>()) {
+    } else if (auto inExpr = expr->As<TInExpression>()) {
         TDivisors result;
-        for (const auto& argument : inOp->Arguments) {
+        for (const auto& argument : inExpr->Arguments) {
             const auto arg = GetDivisors(columns, keyIndex, argument);
             result.append(arg.begin(), arg.end());
         }

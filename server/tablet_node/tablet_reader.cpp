@@ -445,7 +445,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         tabletSnapshot->Config,
         currentTimestamp,
         majorTimestamp,
-        tabletSnapshot->ColumnEvaluator);
+        tabletSnapshot->ColumnEvaluator,
+        false);
 
     std::vector<TOwningKey> boundaries;
     boundaries.reserve(stores.size());

@@ -21,7 +21,7 @@ public:
     explicit TInterDCLimitsConfig()
     {
         RegisterParameter("default_capacity", DefaultCapacity)
-            .Default(TB)
+            .Default(std::numeric_limits<i64>::max())
             .GreaterThanOrEqual(0);
 
         RegisterParameter("update_interval", UpdateInterval)
@@ -227,7 +227,7 @@ public:
             .GreaterThanOrEqual(1)
             .Default(128);
         RegisterParameter("repair_job_memory_usage", RepairJobMemoryUsage)
-            .Default(256 * MB)
+            .Default(256_MB)
             .GreaterThanOrEqual(0);
 
         RegisterParameter("chunk_refresh_delay", ChunkRefreshDelay)

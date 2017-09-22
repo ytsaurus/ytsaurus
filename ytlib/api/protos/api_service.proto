@@ -219,11 +219,28 @@ message TRspSelectRows
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
+message TReqGetInSyncReplicas
+{
+    required string path = 1;
+
+    optional uint64 timestamp = 2 [default = 0];
+
+    required TRowsetDescriptor rowset_descriptor = 200;
+}
+
+message TRspGetInSyncReplicas
+{
+    repeated NYT.NProto.TGuid replica_ids = 1;
+}
+
 message TReqModifyRows
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required string path = 2;
     repeated ERowModificationType row_modification_types = 3;
+
+    optional bool require_sync_replica = 4;
+    optional NYT.NProto.TGuid upstream_replica_id = 5;
 
     required TRowsetDescriptor rowset_descriptor = 200;
 }
@@ -297,6 +314,20 @@ message TTabletRangeOptions
 {
     optional int32 first_tablet_index = 1;
     optional int32 last_tablet_index = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// META
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGenerateTimestamps
+{
+    optional int32 count = 1 [default = 1];
+}
+
+message TRspGenerateTimestamps
+{
+    required uint64 timestamp = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

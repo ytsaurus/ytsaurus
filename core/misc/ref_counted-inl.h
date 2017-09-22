@@ -37,18 +37,10 @@ Y_FORCE_INLINE int AtomicallyIncrementIfNonZero(std::atomic<int>& atomic)
 
 Y_FORCE_INLINE void InitializeRefCountedTracking(
     TRefCountedBase* object,
-    TRefCountedTypeCookie typeCookie,
-    size_t instanceSize)
+    TRefCountedTypeCookie typeCookie)
 {
-    object->InitializeTracking(typeCookie, instanceSize);
+    object->InitializeTracking(typeCookie);
 }
-
-void RefCountedTrackerAllocate(
-    TRefCountedTypeCookie cookie,
-    size_t instanceSize);
-void RefCountedTrackerFree(
-    TRefCountedTypeCookie cookie,
-    size_t instanceSize);
 
 #endif
 
@@ -178,34 +170,19 @@ Y_FORCE_INLINE void TRefCounter<true>::Dispose()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TRefCountedBase::~TRefCountedBase() noexcept
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    FinalizeTracking();
-#endif
-}
-
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
-Y_FORCE_INLINE void TRefCountedBase::InitializeTracking(
-    TRefCountedTypeCookie typeCookie,
-    size_t instanceSize)
+Y_FORCE_INLINE void TRefCountedBase::InitializeTracking(TRefCountedTypeCookie typeCookie)
 {
     Y_ASSERT(TypeCookie_ == NullRefCountedTypeCookie);
     TypeCookie_ = typeCookie;
-
-    Y_ASSERT(InstanceSize_ == 0);
-    Y_ASSERT(instanceSize != 0);
-    InstanceSize_ = instanceSize;
-
-    NDetail::RefCountedTrackerAllocate(typeCookie, instanceSize);
+    TRefCountedTrackerFacade::AllocateInstance(typeCookie);
 }
 
 Y_FORCE_INLINE void TRefCountedBase::FinalizeTracking()
 {
     Y_ASSERT(TypeCookie_ != NullRefCountedTypeCookie);
-    Y_ASSERT(InstanceSize_ != 0);
-    NDetail::RefCountedTrackerFree(TypeCookie_, InstanceSize_);
+    TRefCountedTrackerFacade::FreeInstance(TypeCookie_);
 }
 
 #endif
@@ -215,9 +192,19 @@ Y_FORCE_INLINE void TRefCountedBase::FinalizeTracking()
 template <bool EnableWeak>
 Y_FORCE_INLINE TRefCountedImpl<EnableWeak>::~TRefCountedImpl() noexcept
 {
-    // Failure here typically indicates an attempt to throw an exception
-    // from ctor of ref-counted type.
-    Y_ASSERT(GetRefCount() == 0);
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    // NB: If we are still in the NewImpl(...), TypeCookie_ is still
+    // NullRefCountedTypeCookie and the reference counter should be equal to
+    // 1 since the first strong pointer is not created (and hence
+    // destructed) yet.
+    if (Y_UNLIKELY(TypeCookie_ == NullRefCountedTypeCookie)) {
+        YCHECK(GetRefCount() == 1);
+    } else {
+        FinalizeTracking();
+    }
+#else
+    YCHECK(GetRefCount() == 0);
+#endif
 }
 
 template <bool EnableWeak>

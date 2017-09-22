@@ -87,7 +87,7 @@ void TColumnarChunkReaderBase::ResetExhaustedColumns()
 TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockIndex) const
 {
     YCHECK(ChunkMeta_);
-    const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
+    const auto& blockMeta = ChunkMeta_->BlockMeta()->blocks(blockIndex);
     TBlockFetcher::TBlockInfo blockInfo;
     blockInfo.Index = blockIndex;
     blockInfo.Priority = blockMeta.chunk_row_count() - blockMeta.row_count();
@@ -98,7 +98,7 @@ TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockInd
 i64 TColumnarChunkReaderBase::GetSegmentIndex(const TColumn& column, i64 rowIndex) const
 {
     YCHECK(ChunkMeta_);
-    const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
+    const auto& columnMeta = ChunkMeta_->ColumnMeta()->columns(column.ColumnMetaIndex);
     auto it = std::lower_bound(
         columnMeta.segments().begin(),
         columnMeta.segments().end(),
@@ -127,7 +127,7 @@ i64 TColumnarChunkReaderBase::GetLowerRowIndex(TKey key) const
     --it;
 
     int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
-    const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
+    const auto& blockMeta = ChunkMeta_->BlockMeta()->blocks(blockIndex);
     return blockMeta.chunk_row_count();
 }
 
@@ -162,7 +162,7 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
             SafeUpperRowIndex_ = HardUpperRowIndex_ = std::min(HardUpperRowIndex_, ChunkMeta_->Misc().row_count());
         } else {
             int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
-            const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
+            const auto& blockMeta = ChunkMeta_->BlockMeta()->blocks(blockIndex);
 
             HardUpperRowIndex_ = std::min(
                 HardUpperRowIndex_,
@@ -174,7 +174,7 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
                 --it;
 
                 int prevBlockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
-                const auto& prevBlockMeta = ChunkMeta_->BlockMeta().blocks(prevBlockIndex);
+                const auto& prevBlockMeta = ChunkMeta_->BlockMeta()->blocks(prevBlockIndex);
 
                 SafeUpperRowIndex_ = std::min(
                     SafeUpperRowIndex_,
@@ -228,7 +228,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
             continue;
         }
 
-        const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
+        const auto& columnMeta = ChunkMeta_->ColumnMeta()->columns(column.ColumnMetaIndex);
         i64 segmentIndex = GetSegmentIndex(column, LowerRowIndex_);
         column.BlockIndexSequence.push_back(columnMeta.segments(segmentIndex).block_index());
 
@@ -322,7 +322,7 @@ void TColumnarLookupChunkReaderBase::Initialize()
 
         for (auto rowIndex : RowIndexes_) {
             if (rowIndex < ChunkMeta_->Misc().row_count()) {
-                const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
+                const auto& columnMeta = ChunkMeta_->ColumnMeta()->columns(column.ColumnMetaIndex);
                 auto segmentIndex = GetSegmentIndex(column, rowIndex);
                 const auto& segment = columnMeta.segments(segmentIndex);
                 column.BlockIndexSequence.push_back(segment.block_index());

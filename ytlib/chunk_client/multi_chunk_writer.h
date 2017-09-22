@@ -15,8 +15,6 @@ namespace NChunkClient {
 struct IMultiChunkWriter
     : public virtual IWriterBase
 {
-    virtual void SetProgress(double progress) = 0;
-
     virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunksMasterMeta() const = 0;
 
     virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunksFullMeta() const = 0;

@@ -141,7 +141,7 @@ public:
         return EObjectType::Rack;
     }
 
-    virtual IObjectBase* CreateObject(
+    virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -186,7 +186,7 @@ public:
         return EObjectType::DataCenter;
     }
 
-    virtual IObjectBase* CreateObject(
+    virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -304,7 +304,7 @@ public:
             context,
             &TImpl::HydraFullHeartbeat,
             this);
-        CommitMutationWithSemaphore(mutation, context, FullHeartbeatSemaphore_);
+        CommitMutationWithSemaphore(std::move(mutation), std::move(context), FullHeartbeatSemaphore_);
    }
 
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
@@ -314,7 +314,7 @@ public:
             context,
             &TImpl::HydraIncrementalHeartbeat,
             this);
-        CommitMutationWithSemaphore(mutation, context, IncrementalHeartbeatSemaphore_);
+        CommitMutationWithSemaphore(std::move(mutation), std::move(context), IncrementalHeartbeatSemaphore_);
     }
 
 
@@ -845,7 +845,7 @@ private:
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
         const auto& addresses = GetAddresses(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
-        const auto& statistics = request->statistics();
+        auto& statistics = *request->mutable_statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
         auto tags = FromProto<std::vector<TString>>(request->tags());
 
@@ -863,9 +863,7 @@ private:
         // Kick-out any previous incarnation.
         auto* node = FindNodeByAddress(address);
         if (IsObjectAlive(node)) {
-            if (node->GetBanned()) {
-                THROW_ERROR_EXCEPTION("Node %v is banned", address);
-            }
+            node->ValidateNotBanned();
 
             if (Bootstrap_->IsPrimaryMaster()) {
                 auto localState = node->GetLocalState();
@@ -893,10 +891,17 @@ private:
             node = CreateNode(nodeId, nodeAddresses);
         }
 
+        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
+            node->GetId(),
+            address,
+            tags,
+            leaseTransactionId,
+            statistics);
+
         node->SetLocalState(ENodeState::Registered);
         node->SetNodeTags(tags);
 
-        node->Statistics() = statistics;
+        node->SetStatistics(std::move(statistics));
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
@@ -906,13 +911,6 @@ private:
             node->SetLeaseTransaction(leaseTransaction);
             RegisterLeaseTransaction(node);
         }
-
-        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
-            node->GetId(),
-            address,
-            tags,
-            leaseTransactionId,
-            statistics);
 
         NodeRegistered_.Fire(node);
 
@@ -962,7 +960,7 @@ private:
         TRspFullHeartbeat* /*response*/)
     {
         auto nodeId = request->node_id();
-        const auto& statistics = request->statistics();
+        auto& statistics = *request->mutable_statistics();
 
         auto* node = GetNodeOrThrow(nodeId);
         if (node->GetLocalState() != ENodeState::Registered) {
@@ -983,7 +981,7 @@ private:
             node->SetLocalState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
 
-            node->Statistics() = statistics;
+            node->SetStatistics(std::move(statistics));
 
             UpdateLastSeenTime(node);
 
@@ -1001,7 +999,7 @@ private:
         TRspIncrementalHeartbeat* response)
     {
         auto nodeId = request->node_id();
-        const auto& statistics = request->statistics();
+        auto& statistics = *request->mutable_statistics();
 
         auto* node = GetNodeOrThrow(nodeId);
         if (node->GetLocalState() != ENodeState::Online) {
@@ -1018,7 +1016,7 @@ private:
                 node->GetLocalState(),
                 statistics);
 
-            node->Statistics() = statistics;
+            node->SetStatistics(std::move(statistics));
             node->Alerts() = FromProto<std::vector<TError>>(request->alerts());
 
             UpdateLastSeenTime(node);
@@ -1429,9 +1427,12 @@ private:
     }
 
 
-    void CommitMutationWithSemaphore(TMutationPtr mutation, NRpc::IServiceContextPtr context, TAsyncSemaphorePtr semaphore)
+    void CommitMutationWithSemaphore(
+        std::unique_ptr<TMutation> mutation,
+        NRpc::IServiceContextPtr context,
+        const TAsyncSemaphorePtr& semaphore)
     {
-        auto handler = BIND([=] (TAsyncSemaphoreGuard) {
+        auto handler = BIND([mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
             WaitFor(mutation->CommitAndReply(context));
         });
 
@@ -1451,7 +1452,7 @@ private:
             &TImpl::HydraDisposeNode,
             this);
 
-        auto handler = BIND([=] (TAsyncSemaphoreGuard) {
+        auto handler = BIND([mutation = std::move(mutation)] (TAsyncSemaphoreGuard) {
             WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger));
         });
 
@@ -1834,7 +1835,7 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-IObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
+TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
@@ -1863,7 +1864,7 @@ TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-IObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
+TObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {

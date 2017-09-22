@@ -147,7 +147,6 @@ public:
             *endpointAttributes,
             Config_->Address,
             Config_->UnixDomainName,
-            Config_->Priority,
             handler,
             TTcpDispatcher::TImpl::Get()->GetXferPoller());
         connection->Start();

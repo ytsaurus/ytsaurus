@@ -125,7 +125,7 @@ struct IHydraManager
      *
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) = 0;
+    virtual TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) = 0;
 
     //! Starts a distributed snapshot build operation.
     //! Once finished, returns the snapshot id.

@@ -17,14 +17,14 @@ class TExpiringCache
     : public virtual TRefCounted
 {
 public:
-    typedef typename TFutureCombineTraits<TValue>::TCombined TCombinedValue;
+    typedef typename TFutureCombineTraits<TValue>::TCombinedVector TCombinedValue;
 
     explicit TExpiringCache(TExpiringCacheConfigPtr config);
 
     TFuture<TValue> Get(const TKey& key);
     TFuture<TCombinedValue> Get(const std::vector<TKey>& keys);
 
-    bool TryRemove(const TKey& key);
+    void Invalidate(const TKey& key);
 
     void Clear();
 

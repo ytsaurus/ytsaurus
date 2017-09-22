@@ -179,8 +179,6 @@ public:
 
         i64 dataWeightPerRow = std::max((i64)1, chunkDataWeight / chunkRowCount);
 
-        Cerr << "Data weight per row " << dataWeightPerRow << Endl;
-
         auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(Meta_.extensions());
 
         IndexKeys_.reserve(blockMetaExt.blocks_size() + 0);

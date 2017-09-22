@@ -23,7 +23,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -167,7 +167,7 @@ public:
                 : &TQueryExecutor::DoExecute;
 
             return BIND(execute, MakeStrong(this))
-                .AsyncVia(Connection_->GetHeavyInvoker())
+                .AsyncVia(Connection_->GetInvoker())
                 .Run(
                     std::move(query),
                     std::move(externalCGInfo),
@@ -285,12 +285,13 @@ private:
         const auto& schema = dataSource.Schema;
         std::vector<std::pair<TDataRanges, TString>> subsources;
 
-        auto addSubsource = [&] (const TTabletInfoPtr& tabletInfo) -> TDataRanges* {
+        auto addSubsource = [&] (const TTabletInfoPtr& tabletInfo, size_t keyWidth) -> TDataRanges* {
             TDataRanges dataSource;
             dataSource.Id = tabletInfo->TabletId;
             dataSource.MountRevision = tabletInfo->MountRevision;
             dataSource.Schema = schema;
             dataSource.LookupSupported = tableInfo->IsSorted();
+            dataSource.KeyWidth = keyWidth;
 
             const auto& address = getAddress(tabletInfo);
             subsources.emplace_back(std::move(dataSource), address);
@@ -318,6 +319,11 @@ private:
                 LOG_DEBUG("Splitting %v ranges (TableId: %v)", ranges.Size(), tableId);
             }
 
+            size_t keyWidth = std::numeric_limits<size_t>::max();
+            for (const auto& range : ranges) {
+                keyWidth = std::min({keyWidth, GetSignificantWidth(range.first), GetSignificantWidth(range.second)});
+            }
+
             struct TTraits
             {
                 TRow GetLower(const TRowRange& range)
@@ -342,7 +348,7 @@ private:
                 end(ranges),
                 TTraits(),
                 [&] (auto rangesIt, auto endRangesIt, auto shardIt) {
-                    addSubsource(*shardIt)->Ranges = MakeSharedRange(
+                    addSubsource(*shardIt, keyWidth)->Ranges = MakeSharedRange(
                         MakeRange<TRowRange>(rangesIt, endRangesIt),
                         rowBuffer,
                         ranges.GetHolder());
@@ -350,7 +356,7 @@ private:
                 [&] (auto startShardIt, auto endShardIt, auto rangesIt) {
                     TRow currentBound = rangesIt->first;
 
-                    auto* subsource = addSubsource(*startShardIt++);
+                    auto* subsource = addSubsource(*startShardIt++, keyWidth);
 
                     for (auto it = startShardIt; it != endShardIt; ++it) {
                         const auto& tabletInfo = *it;
@@ -360,7 +366,7 @@ private:
                             rowBuffer,
                             ranges.GetHolder());
 
-                        subsource = addSubsource(tabletInfo);
+                        subsource = addSubsource(tabletInfo, keyWidth);
                         currentBound = nextBound;
                     }
 
@@ -374,6 +380,8 @@ private:
             YCHECK(!dataSource.Schema.empty());
 
             const auto& keys = dataSource.Keys;
+
+            size_t keyWidth = dataSource.Schema.size();
 
             LOG_DEBUG("Splitting %v keys (TableId: %v)", keys.Size(), tableId);
 
@@ -403,7 +411,7 @@ private:
                 end(keys),
                 TTraits{dataSource.Schema.size()},
                 [&] (auto keysIt, auto endKeysIt, auto shardIt) {
-                    addSubsource(*shardIt)->Keys = MakeSharedRange(
+                    addSubsource(*shardIt, keyWidth)->Keys = MakeSharedRange(
                         MakeRange<TRow>(keysIt, endKeysIt),
                         rowBuffer,
                         keys.GetHolder());
@@ -411,17 +419,21 @@ private:
                 [&] (auto startShardIt, auto endShardIt, auto keysIt) {
                     TRow currentBound = *keysIt;
 
-                    auto* subsource = addSubsource(*startShardIt++);
+                    auto targetTabletInfo = *startShardIt++;
 
                     for (auto it = startShardIt; it != endShardIt; ++it) {
                         const auto& tabletInfo = *it;
                         auto nextBound = rowBuffer->Capture(tabletInfo->PivotKey.Get());
-                        subsource->Ranges = MakeSharedRange(
-                            SmallVector<TRowRange, 1>{TRowRange{currentBound, nextBound}},
-                            rowBuffer,
-                            keys.GetHolder());
 
-                        subsource = addSubsource(tabletInfo);
+                        // Fix case when key is equal to pivot key of tablet.
+                        if (currentBound < nextBound) {
+                            addSubsource(targetTabletInfo, keyWidth)->Ranges = MakeSharedRange(
+                                SmallVector<TRowRange, 1>{TRowRange{currentBound, nextBound}},
+                                rowBuffer,
+                                keys.GetHolder());
+                        }
+
+                        targetTabletInfo = tabletInfo;
                         currentBound = nextBound;
                     }
 
@@ -432,7 +444,7 @@ private:
                     }
                     upperBound[bound.GetCount()] = MakeUnversionedSentinelValue(EValueType::Max);
 
-                    subsource->Ranges = MakeSharedRange(
+                    addSubsource(targetTabletInfo, keyWidth)->Ranges = MakeSharedRange(
                         SmallVector<TRowRange, 1>{TRowRange{currentBound, upperBound}},
                         rowBuffer,
                         keys.GetHolder());
@@ -493,7 +505,7 @@ private:
                     std::move(writer),
                     functionGenerators,
                     aggregateGenerators,
-                    options.EnableCodeCache);
+                    options);
             });
     }
 
@@ -616,6 +628,8 @@ private:
             {
                 NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
                 ToProto(req->mutable_query(), query);
+                req->mutable_query()->set_input_row_limit(options.InputRowLimit);
+                req->mutable_query()->set_output_row_limit(options.OutputRowLimit);
                 ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
                 externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
                 ToProto(req->mutable_options(), options);

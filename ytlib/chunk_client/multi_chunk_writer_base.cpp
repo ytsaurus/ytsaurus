@@ -95,11 +95,6 @@ TFuture<void> TNontemplateMultiChunkWriterBase::GetReadyEvent()
     }
 }
 
-void TNontemplateMultiChunkWriterBase::SetProgress(double progress)
-{
-    Progress_ = progress;
-}
-
 const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunksMasterMeta() const
 {
     return WrittenChunks_;
@@ -154,6 +149,8 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
     *chunkSpec.mutable_chunk_meta() = CurrentSession_.TemplateWriter->GetSchedulerMeta();
     ToProto(chunkSpec.mutable_chunk_id(), CurrentSession_.UnderlyingWriter->GetChunkId());
     NYT::ToProto(chunkSpec.mutable_replicas(), CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicas());
+    chunkSpec.set_erasure_codec(static_cast<int>(Options_->ErasureCodec));
+    chunkSpec.set_table_index(Options_->TableIndex);
 
     WrittenChunks_.push_back(chunkSpec);
 
@@ -203,17 +200,11 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
     }
 
     if (CurrentSession_.TemplateWriter->GetDataSize() > Config_->DesiredChunkSize) {
-        i64 currentDataSize = DataStatistics_.compressed_data_size() + CurrentSession_.TemplateWriter->GetDataSize();
-        i64 expectedInputSize = static_cast<i64>(currentDataSize * std::max(0.0, 1.0 - Progress_));
-
-        if (expectedInputSize > Config_->DesiredChunkSize ||
-            // On erasure chunks switch immediately, otherwise we can consume too much memory.
-            Options_->ErasureCodec != ECodec::None ||
+        if (Options_->ErasureCodec != ECodec::None ||
             CurrentSession_.TemplateWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %v, DesiredChunkSize: %v)",
+            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, DesiredChunkSize: %v)",
                 CurrentSession_.TemplateWriter->GetDataSize(),
-                expectedInputSize,
                 Config_->DesiredChunkSize);
 
             SwitchSession();

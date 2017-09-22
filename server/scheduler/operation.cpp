@@ -133,6 +133,7 @@ void TOperation::SetState(EOperationState state)
 {
     State_ = state;
     Events_.emplace_back(TOperationEvent({TInstant::Now(), state}));
+    ShouldFlush_ = true;
 }
 
 const IInvokerPtr& TOperation::GetCancelableControlInvoker()

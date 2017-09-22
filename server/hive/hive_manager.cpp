@@ -987,7 +987,7 @@ private:
     }
 
 
-    TMutationPtr CreateAcknowledgeMessagesMutation(const NHiveServer::NProto::TReqAcknowledgeMessages& req)
+    std::unique_ptr<TMutation> CreateAcknowledgeMessagesMutation(const NHiveServer::NProto::TReqAcknowledgeMessages& req)
     {
         return CreateMutation(
             HydraManager_,
@@ -996,7 +996,7 @@ private:
             this);
     }
 
-    TMutationPtr CreatePostMessagesMutation(const NHiveClient::NProto::TReqPostMessages& request)
+    std::unique_ptr<TMutation> CreatePostMessagesMutation(const NHiveClient::NProto::TReqPostMessages& request)
     {
         return CreateMutation(
             HydraManager_,
@@ -1005,7 +1005,7 @@ private:
             this);
     }
 
-    TMutationPtr CreateSendMessagesMutation(TCtxSendMessagesPtr context)
+    std::unique_ptr<TMutation> CreateSendMessagesMutation(TCtxSendMessagesPtr context)
     {
         return CreateMutation(
             HydraManager_,
@@ -1014,7 +1014,7 @@ private:
             this);
     }
 
-    TMutationPtr CreateUnregisterMailboxMutation(const NHiveServer::NProto::TReqUnregisterMailbox& req)
+    std::unique_ptr<TMutation> CreateUnregisterMailboxMutation(const NHiveServer::NProto::TReqUnregisterMailbox& req)
     {
         return CreateMutation(
             HydraManager_,

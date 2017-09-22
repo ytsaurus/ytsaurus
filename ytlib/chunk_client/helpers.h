@@ -110,7 +110,7 @@ i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChun
 
 IChunkReaderPtr CreateRemoteReader(
     const NProto::TChunkSpec& chunkSpec,
-    TReplicationReaderConfigPtr config,
+    TErasureReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -130,6 +130,8 @@ struct TUserObject
     virtual ~TUserObject() = default;
 
     virtual TString GetPath() const;
+
+    bool IsPrepared() const;
 
     void Persist(const TStreamPersistenceContext& context);
 };

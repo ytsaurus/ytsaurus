@@ -81,6 +81,109 @@ void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TListOperationsCommand::TListOperationsCommand()
+{
+    RegisterParameter("from_time", Options.FromTime)
+        .Optional();
+    RegisterParameter("to_time", Options.ToTime)
+        .Optional();
+    RegisterParameter("cursor_time", Options.CursorTime)
+        .Optional();
+    RegisterParameter("cursor_direction", Options.CursorDirection)
+        .Optional();
+    RegisterParameter("user", Options.UserFilter)
+        .Optional();
+    RegisterParameter("state", Options.StateFilter)
+        .Optional();
+    RegisterParameter("type", Options.TypeFilter)
+        .Optional();
+    RegisterParameter("filter", Options.SubstrFilter)
+        .Optional();
+    RegisterParameter("pool", Options.Pool)
+        .Optional();
+    RegisterParameter("with_failed_jobs", Options.WithFailedJobs)
+        .Optional();
+    RegisterParameter("include_archive", Options.IncludeArchive)
+        .Optional();
+    RegisterParameter("include_counters", Options.IncludeCounters)
+        .Optional();
+    RegisterParameter("limit", Options.Limit)
+        .Optional();
+}
+
+void TListOperationsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->ListOperations(Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("operations").BeginList()
+                .DoFor(result.Operations, [] (TFluentList fluent, const TOperation& operation) {
+                    fluent
+                        .Item().BeginMap()
+                            .Item("id").Value(operation.OperationId)
+                            .Item("type").Value(operation.OperationType)
+                            .Item("state").Value(operation.OperationState)
+                            .Item("authenticated_used").Value(operation.AuthenticatedUser)
+                            .Item("brief_progress").Value(operation.BriefProgress)
+                            .Item("brief_spec").Value(operation.BriefSpec)
+                            .Item("start_time").Value(operation.StartTime)
+                            .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("finish_time").Value(operation.FinishTime);
+                            })
+                            .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("suspended").Value(operation.Suspended);
+                            })
+                            .DoIf(operation.Weight.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("weight").Value(operation.Weight);
+                            })
+                        .EndMap();
+                })  
+            .EndList()
+            .Item("incomplete").Value(result.Incomplete)
+            .DoIf(result.PoolCounts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("pool_counts").BeginMap()
+                .DoFor(*result.PoolCounts, [] (TFluentMap fluent, const auto& item) {
+                    fluent.Item(item.first).Value(item.second);
+                })  
+                .EndMap();
+            })
+            .DoIf(result.UserCounts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("user_counts").BeginMap()
+                .DoFor(*result.UserCounts, [] (TFluentMap fluent, const auto& item) {
+                    fluent.Item(item.first).Value(item.second);
+                })  
+                .EndMap();
+            })
+            .DoIf(result.StateCounts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("state_counts").BeginMap()
+                .DoFor(TEnumTraits<EOperationState>::GetDomainValues(), [&result] (TFluentMap fluent, const EOperationState& item) {
+                    i64 count = (*result.StateCounts)[item];
+                    if (count) {
+                        fluent.Item(FormatEnum(item)).Value(count);
+                    }
+                })  
+                .EndMap();
+            })
+            .DoIf(result.TypeCounts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("type_counts").BeginMap()
+                .DoFor(TEnumTraits<EOperationType>::GetDomainValues(), [&result] (TFluentMap fluent, const EOperationType& item) {
+                    i64 count = (*result.TypeCounts)[item];
+                    if (count) {
+                        fluent.Item(FormatEnum(item)).Value(count);
+                    }
+                })
+                .EndMap();
+            })
+            .DoIf(result.FailedJobsCount.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("failed_jobs_count").Value(*result.FailedJobsCount);
+            })
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TListJobsCommand::TListJobsCommand()
 {
     RegisterParameter("operation_id", OperationId);
@@ -88,6 +191,8 @@ TListJobsCommand::TListJobsCommand()
     RegisterParameter("job_type", Options.JobType)
         .Optional();
     RegisterParameter("job_state", Options.JobState)
+        .Optional();
+    RegisterParameter("address", Options.Address)
         .Optional();
 
     RegisterParameter("sort_field", Options.SortField)
@@ -98,6 +203,9 @@ TListJobsCommand::TListJobsCommand()
     RegisterParameter("limit", Options.Limit)
         .Optional();
     RegisterParameter("offset", Options.Offset)
+        .Optional();
+
+    RegisterParameter("has_stderr", Options.HasStderr)
         .Optional();
 
     RegisterParameter("include_cypress", Options.IncludeCypress)
@@ -201,7 +309,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                 .DoFor(result, [] (TFluentList fluent, const TJob& job) {
                     fluent
                         .Item().BeginMap()
-                            .Item("job_id").Value(job.JobId)
+                            .Item("id").Value(job.JobId)
                             .Item("type").Value(job.JobType)
                             .Item("state").Value(job.JobState)
                             .Item("start_time").Value(job.StartTime)

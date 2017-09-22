@@ -35,7 +35,11 @@ public:
         , WorkloadDescriptor_(workloadDescriptor)
         , BlocksToSave_(blocksToSave)
         , SavedBlocks_(blocksToSave.size())
-    { }
+    {
+        for (size_t index = 0; index < blocksToSave.size(); ++index) {
+            BlockIndexToBlocksToSaveIndex_[blocksToSave[index]] = index;
+        }
+    }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
@@ -52,6 +56,7 @@ public:
         int index = 0;
         while (index < blockIndexes.size() && index < CachedBlocks_.size()) {
             resultBlocks.push_back(CachedBlocks_[index].second);
+            ++index;
         }
 
         YCHECK(index == CachedBlocks_.size());
@@ -63,9 +68,9 @@ public:
                 for (int index = 0; index < blockIndexesToRequest.size(); ++index) {
                     auto blockIndex = blockIndexesToRequest[index];
                     auto block = blocks[index];
-                    auto it = std::lower_bound(BlocksToSave_.begin(), BlocksToSave_.end(), blockIndex);
-                    if (it != BlocksToSave_.end() && *it == blockIndex) {
-                        SavedBlocks_[it - BlocksToSave_.begin()] = block;
+                    auto it = BlockIndexToBlocksToSaveIndex_.find(blockIndex);
+                    if (it != BlockIndexToBlocksToSaveIndex_.end()) {
+                        SavedBlocks_[it->second] = block;
                     }
                     CachedBlocks_.push_back(std::make_pair(blockIndex, block));
                 }
@@ -112,6 +117,7 @@ private:
     const IChunkReaderPtr UnderlyingReader_;
     const TWorkloadDescriptor WorkloadDescriptor_;
     const std::vector<int> BlocksToSave_;
+    yhash<int, int> BlockIndexToBlocksToSaveIndex_;
 
     std::vector<TNullable<TBlock>> SavedBlocks_;
     std::deque<std::pair<int, TBlock>> CachedBlocks_;
@@ -228,7 +234,7 @@ private:
                 TChecksum repairedPartChecksum = writerConsumers[index]->GetPartChecksum();
                 TChecksum expectedPartChecksum = placementExt.part_checksums(ErasedIndices_[index]);
 
-                YCHECK(repairedPartChecksum == expectedPartChecksum);
+                YCHECK(expectedPartChecksum == NullChecksum || repairedPartChecksum == expectedPartChecksum);
             }
         }
 
@@ -313,8 +319,12 @@ public:
 
     virtual TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override
     {
-        YCHECK(range.Begin >= Cursor_);
-        Cursor_ = range.End;
+        if (LastRange_ && *LastRange_ == range) {
+            return VoidFuture;
+        }
+
+        YCHECK(!LastRange_ || LastRange_->End <= range.Begin);
+        LastRange_ = range;
 
         for (int index = 0; index < Ranges_.size(); ++index) {
             auto blockRange = Ranges_[index];
@@ -329,7 +339,7 @@ public:
             SavedBytes_ += intersection.Size();
         }
 
-        return MakeFuture(TError());
+        return VoidFuture;
     }
 
     std::vector<TBlock> GetSavedBlocks()
@@ -348,7 +358,8 @@ private:
     std::vector<TSharedMutableRef> Blocks_;
     i64 TotalBytes_ = 0;
     i64 SavedBytes_ = 0;
-    i64 Cursor_ = 0;
+
+    TNullable<TPartRange> LastRange_;
 };
 
 class TEmptyPartBlockConsumer
@@ -364,11 +375,11 @@ public:
 DECLARE_REFCOUNTED_TYPE(TPartBlockSaver)
 DEFINE_REFCOUNTED_TYPE(TPartBlockSaver)
 
-class TRepairingReaderSession
+class TRepairingErasureReaderSession
     : public TRefCounted
 {
 public:
-    TRepairingReaderSession(
+    TRepairingErasureReaderSession(
         ICodec* codec,
         const TPartIndexList& erasedIndices,
         const std::vector<IChunkReaderPtr>& readers,
@@ -453,11 +464,11 @@ public:
 
     TFuture<std::vector<TBlock>> Run()
     {
-        return BIND(&TRepairingReaderSession::RepairBlocks, MakeStrong(this))
+        return BIND(&TRepairingErasureReaderSession::RepairBlocks, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run()
-            .Apply(BIND(&TRepairingReaderSession::ReadRemainingBlocks, MakeStrong(this)))
-            .Apply(BIND(&TRepairingReaderSession::BuildResult, MakeStrong(this)));
+            .Apply(BIND(&TRepairingErasureReaderSession::ReadRemainingBlocks, MakeStrong(this)))
+            .Apply(BIND(&TRepairingErasureReaderSession::BuildResult, MakeStrong(this)));
     }
 
 private:
@@ -546,7 +557,7 @@ public:
     {
         return PreparePlacementMeta(workloadDescriptor).Apply(
             BIND([=, this_ = MakeStrong(this)] () {
-                auto session = New<TRepairingReaderSession>(
+                auto session = New<TRepairingErasureReaderSession>(
                     Codec_,
                     ErasedIndices_,
                     Readers_,
@@ -564,6 +575,16 @@ public:
     {
         // Implement when first needed.
         Y_UNIMPLEMENTED();
+    }
+
+    virtual bool IsValid() const override
+    {
+        for (size_t i = 0; i < Readers_.size(); ++i) {
+            if (!Readers_[i]->IsValid()) {
+                return false;
+            }
+        }
+        return true;
     }
 
 private:

@@ -11,6 +11,8 @@
 
 #include <yt/server/misc/memory_usage_tracker.h>
 
+#include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
@@ -25,10 +27,12 @@
 namespace NYT {
 namespace NJobAgent {
 
+using namespace NRpc;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NJobTrackerClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NCellNode;
@@ -73,7 +77,9 @@ public:
         const TReqHeartbeatPtr& request);
 
     void ProcessHeartbeatResponse(
-        const TRspHeartbeatPtr& response);
+        const TRspHeartbeatPtr& response,
+        EObjectType jobObjectType,
+        NRpc::IChannelPtr jobSpecsProxyChannel);
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -97,6 +103,9 @@ private:
     TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
+
+    bool IncludeStoredJobsInNextSchedulerHeartbeat_ = false;
+    TInstant LastStoredJobsSendTime_;
 
     //! Starts a new job.
     IJobPtr CreateJob(
@@ -365,7 +374,7 @@ void TJobController::TImpl::OnWaitingJobTimeout(TWeakPtr<IJob> weakJob)
     }
 
     if (strongJob->GetState() == EJobState::Waiting) {
-        strongJob->Abort(TError(NExecAgent::EErrorCode::WaitingJobTimeout, "Job waiting has timed out") 
+        strongJob->Abort(TError(NExecAgent::EErrorCode::WaitingJobTimeout, "Job waiting has timed out")
             << TErrorAttribute("timeout", Config_->WaitingJobsTimeout));
     }
 }
@@ -490,12 +499,27 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
 
     i64 completedJobsStatisticsSize = 0;
 
+    bool includeStoredJobs = false;
+    if (jobObjectType == EObjectType::SchedulerJob) {
+        auto now = TInstant::Now();
+        includeStoredJobs =
+            IncludeStoredJobsInNextSchedulerHeartbeat_ ||
+            LastStoredJobsSendTime_ + Config_->StoredJobsSendPeriod < now;
+        if (includeStoredJobs) {
+            LastStoredJobsSendTime_ = now;
+            LOG_INFO("Including all stored jobs in heartbeat");
+        }
+        request->set_stored_jobs_included(includeStoredJobs);
+    }
+
     for (const auto& pair : Jobs_) {
         const auto& jobId = pair.first;
         const auto& job = pair.second;
         if (CellTagFromId(jobId) != cellTag)
             continue;
         if (TypeFromId(jobId) != jobObjectType)
+            continue;
+        if (job->GetStored() && !includeStoredJobs)
             continue;
 
         auto* jobStatus = request->add_jobs();
@@ -551,7 +575,10 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     }
 }
 
-void TJobController::TImpl::ProcessHeartbeatResponse(const TRspHeartbeatPtr& response)
+void TJobController::TImpl::ProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response,
+    EObjectType jobObjectType,
+    NRpc::IChannelPtr jobSpecsProxyChannel)
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
@@ -559,7 +586,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(const TRspHeartbeatPtr& res
         if (job) {
             RemoveJob(job);
         } else {
-            LOG_WARNING("Requested to remove a non-existing job (JobId: %v)",
+            LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
                 jobId);
         }
     }
@@ -570,7 +597,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(const TRspHeartbeatPtr& res
         if (job) {
             AbortJob(job);
         } else {
-            LOG_WARNING("Requested to abort a non-existing job (JobId: %v)",
+            LOG_WARNING("Requested to abort a non-existent job (JobId: %v)",
                 jobId);
         }
     }
@@ -592,25 +619,97 @@ void TJobController::TImpl::ProcessHeartbeatResponse(const TRspHeartbeatPtr& res
         if (job) {
             FailJob(job);
         } else {
-            LOG_WARNING("Requested to fail a non-existing job (JobId: %v)",
+            LOG_WARNING("Requested to fail a non-existent job (JobId: %v)",
                 jobId);
         }
     }
 
-
-    int attachmentIndex = 0;
-    for (auto& info : *response->mutable_jobs_to_start()) {
-        auto jobId = FromProto<TJobId>(info.job_id());
-        auto operationId = FromProto<TJobId>(info.operation_id());
-        const auto& resourceLimits = info.resource_limits();
-        TJobSpec spec;
-        if (info.has_spec()) {
-            spec.Swap(info.mutable_spec());
+    for (const auto& protoJobId: response->jobs_to_store()) {
+        auto jobId = FromProto<TJobId>(protoJobId);
+        auto job = FindJob(jobId);
+        if (job) {
+            LOG_DEBUG("Storing job (JobId: %v)",
+                jobId);
+            job->SetStored(true);
         } else {
+            LOG_WARNING("Requested to store a non-existent job (JobId: %v)",
+                jobId);
+        }
+    }
+
+    if (jobObjectType == EObjectType::SchedulerJob) {
+        IncludeStoredJobsInNextSchedulerHeartbeat_ = response->include_stored_jobs_in_next_heartbeat();
+    }
+
+    std::vector<TJobSpec> specs(response->jobs_to_start_size());
+
+    if (specs.empty()) {
+        return;
+    }
+
+    bool hasSpecsInAttachments = !response->Attachments().empty();
+
+    if (hasSpecsInAttachments) {
+        int attachmentIndex = 0;
+        for (const auto& info : response->jobs_to_start()) {
+            TJobSpec spec;
             const auto& attachment = response->Attachments()[attachmentIndex++];
             DeserializeFromProtoWithEnvelope(&spec, attachment);
+
+            auto jobId = FromProto<TJobId>(info.job_id());
+            auto operationId = FromProto<TJobId>(info.operation_id());
+            const auto& resourceLimits = info.resource_limits();
+
+            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
         }
-        CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+    } else {
+        YCHECK(jobSpecsProxyChannel);
+        TJobSpecServiceProxy jobSpecServiceProxy(jobSpecsProxyChannel);
+        jobSpecServiceProxy.SetDefaultTimeout(Config_->GetJobSpecsTimeout);
+
+        auto jobSpecRequest = jobSpecServiceProxy.GetJobSpecs();
+        for (const auto& info : response->jobs_to_start()) {
+            auto* subrequest = jobSpecRequest->add_requests();
+            *subrequest->mutable_operation_id() = info.operation_id();
+            *subrequest->mutable_job_id() = info.job_id();
+
+            auto jobId = FromProto<TJobId>(info.job_id());
+            auto operationId = FromProto<TJobId>(info.operation_id());
+            LOG_DEBUG("Getting job spec (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+        }
+
+        auto jobSpecResponseOrError = WaitFor(jobSpecRequest->Invoke());
+        if (!jobSpecResponseOrError.IsOK()) {
+            LOG_DEBUG(jobSpecResponseOrError, "Failed to get job specs from scheduler");
+            return;
+        }
+
+        const auto& jobSpecResponse = jobSpecResponseOrError.Value();
+        for (int index = 0; index < response->jobs_to_start_size(); ++index) {
+            const auto& info = response->jobs_to_start(index);
+            auto jobId = FromProto<TJobId>(info.job_id());
+            auto operationId = FromProto<TJobId>(info.operation_id());
+            const auto& resourceLimits = info.resource_limits();
+
+            const auto& subresponse = jobSpecResponse->mutable_responses(index);
+            if (subresponse->has_error()) {
+                auto error = FromProto<TError>(jobSpecResponse->responses(index).error());
+                if (!error.IsOK()) {
+                    LOG_DEBUG(error, "Failed to get job spec from scheduler (OperationId: %v, JobId: %v)",
+                        operationId,
+                        jobId);
+                    continue;
+                }
+            }
+
+            TJobSpec spec;
+            const auto& attachment = jobSpecResponse->Attachments()[index];
+            DeserializeFromProtoWithEnvelope(&spec, attachment);
+
+            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+        }
     }
 }
 
@@ -737,9 +836,11 @@ void TJobController::PrepareHeartbeatRequest(
 }
 
 void TJobController::ProcessHeartbeatResponse(
-    const TRspHeartbeatPtr& response)
+    const TRspHeartbeatPtr& response,
+    EObjectType jobObjectType,
+    IChannelPtr jobSpecsProxyChannel)
 {
-    Impl_->ProcessHeartbeatResponse(response);
+    Impl_->ProcessHeartbeatResponse(response, jobObjectType, jobSpecsProxyChannel);
 }
 
 IYPathServicePtr TJobController::GetOrchidService()

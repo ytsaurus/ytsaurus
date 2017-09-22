@@ -115,9 +115,7 @@ protected:
                 controller->GetSortedChunkPoolOptions(),
                 controller->CreateChunkSliceFetcherFactory(),
                 controller->GetInputStreamDirectory()))
-        {
-            SetupCallbacks();
-        }
+        { }
 
         virtual TString GetId() const override
         {
@@ -156,17 +154,18 @@ protected:
             using NYT::Persist;
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
+        }
 
-            if (context.IsLoad()) {
-                SetupCallbacks();
-            }
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
         }
 
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
             AddParallelInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
     private:
@@ -209,11 +208,11 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(joblet, 0, jobSummary);
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -221,8 +220,10 @@ protected:
             TTask::OnJobAborted(joblet, jobSummary);
         }
 
-        void SetupCallbacks()
+        virtual void SetupCallbacks() override
         {
+            TTask::SetupCallbacks();
+
             ChunkPool_->SubscribePoolOutputInvalidated(BIND([&] (const TError& error) {
                 YCHECK(false && "Error during resuming stripe in sorted task");
             }));
@@ -290,16 +291,18 @@ protected:
                         Spec_,
                         Options_,
                         PrimaryInputDataWeight,
-                        static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+                        DataWeightRatio,
+                        InputCompressionRatio);
 
                 default:
-                    return CreateSimpleJobSizeConstraints(
+                    return CreateUserJobSizeConstraints(
                         Spec_,
                         Options_,
                         OutputTables_.size(),
+                        DataWeightRatio,
                         PrimaryInputDataWeight,
-                        std::numeric_limits<i32>::max() /* InputRowCount */, // It is not important in sorted operations.
-                        ForeignInputDataWeight);
+                        std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
+                        GetForeignInputDataWeight());
             }
         };
 
@@ -428,6 +431,8 @@ protected:
 
     virtual i64 GetUserJobMemoryReserve() const = 0;
 
+    virtual i64 GetForeignInputDataWeight() const = 0;
+
     virtual void PrepareOutputTables() override
     {
         // NB: we need to do this after locking input tables but before preparing ouput tables.
@@ -446,6 +451,7 @@ protected:
         InitTeleportableInputTables();
 
         SortedTask_ = New<TSortedTask>(this);
+        RegisterTask(SortedTask_);
 
         ProcessInputs();
 
@@ -455,8 +461,6 @@ protected:
             // If teleport chunks were found, then teleport table index should be non-Null.
             RegisterTeleportChunk(teleportChunk, 0, *GetOutputTeleportTableIndex());
         }
-
-        RegisterTask(SortedTask_);
 
         FinishPreparation();
     }
@@ -508,16 +512,13 @@ protected:
         jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
         jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        jobOptions.MaxDataWeightPerJob = Spec_->MaxDataWeightPerJob;
         jobOptions.EnablePeriodicYielder = true;
 
         if (Spec_->NightlyOptions) {
             auto useNewEndpointKeys = Spec_->NightlyOptions->FindChild("use_new_endpoint_keys");
             if (useNewEndpointKeys && useNewEndpointKeys->GetType() == ENodeType::Boolean) {
                 jobOptions.UseNewEndpointKeys = useNewEndpointKeys->AsBoolean()->GetValue();
-            }
-            auto logEndpoints = Spec_->NightlyOptions->FindChild("log_endpoints");
-            if (logEndpoints && logEndpoints->GetType() == ENodeType::Boolean) {
-                jobOptions.LogEndpoints = logEndpoints->AsBoolean()->GetValue();
             }
         }
 
@@ -712,6 +713,11 @@ public:
         }
     }
 
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return 0;
+    }
+
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
@@ -883,7 +889,10 @@ public:
     virtual bool IsJobInterruptible() const override
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return 2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();
+        return
+            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options_->MaxJobCount > JobCounter.GetTotal() &&
+            TOperationControllerBase::IsJobInterruptible();
     }
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
@@ -923,6 +932,11 @@ public:
         return true;
     }
 
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
+    }
+
 protected:
     std::vector<TString> SortKeyColumns_;
 
@@ -948,7 +962,7 @@ public:
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
     }
 
     virtual bool ShouldSlicePrimaryTableByKeys() const override
@@ -1109,7 +1123,7 @@ public:
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
     }
 
     virtual bool ShouldSlicePrimaryTableByKeys() const override
@@ -1169,6 +1183,11 @@ public:
         if (GetOutputTeleportTableIndex()) {
             THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
         }
+    }
+
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
 protected:

@@ -41,59 +41,59 @@ public:
         return ETypeFlags::None;
     }
 
-    virtual TCellTagList GetReplicationCellTags(const IObjectBase* object) override
+    virtual TCellTagList GetReplicationCellTags(const TObjectBase* object) override
     {
         return DoGetReplicationCellTags(object->As<TObject>());
     }
 
-    virtual TString GetName(const IObjectBase* object) override
+    virtual TString GetName(const TObjectBase* object) override
     {
         return DoGetName(object->As<TObject>());
     }
 
     virtual IObjectProxyPtr GetProxy(
-        IObjectBase* object,
+        TObjectBase* object,
         NTransactionServer::TTransaction* transaction) override
     {
         return DoGetProxy(object->As<TObject>(), transaction);
     }
 
-    virtual IObjectBase* CreateObject(
+    virtual TObjectBase* CreateObject(
         const TObjectId& /*hintId*/,
         NYTree::IAttributeDictionary* /*attributes*/) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual void ZombifyObject(IObjectBase* object) throw() override
+    virtual void ZombifyObject(TObjectBase* object) throw() override
     {
         DoZombifyObject(object->As<TObject>());
     }
 
-    virtual void UnstageObject(IObjectBase* object, bool recursive) override
+    virtual void UnstageObject(TObjectBase* object, bool recursive) override
     {
         DoUnstageObject(object->As<TObject>(), recursive);
     }
 
-    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(IObjectBase* object) override
+    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
     {
         return DoFindAcd(object->As<TObject>());
     }
 
-    virtual IObjectBase* GetParent(IObjectBase* object) override
+    virtual TObjectBase* GetParent(TObjectBase* object) override
     {
         return DoGetParent(object->As<TObject>());
     }
 
     virtual void ExportObject(
-        IObjectBase* object,
+        TObjectBase* object,
         NObjectClient::TCellTag destinationCellTag) override
     {
         DoExportObject(object->As<TObject>(), destinationCellTag);
     }
 
     virtual void UnexportObject(
-        IObjectBase* object,
+        TObjectBase* object,
         NObjectClient::TCellTag destinationCellTag,
         int importRefCounter) override
     {
@@ -128,7 +128,7 @@ protected:
         return nullptr;
     }
 
-    virtual IObjectBase* DoGetParent(TObject* /*object*/)
+    virtual TObjectBase* DoGetParent(TObject* /*object*/)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->FindSchema(GetType());
@@ -175,14 +175,14 @@ public:
         , Map_(map)
     { }
 
-    virtual void DestroyObject(IObjectBase* object) throw() override
+    virtual void DestroyObject(TObjectBase* object) throw() override
     {
         this->DoDestroyObject(object->As<TObject>());
         // Remove the object from the map but keep it alive.
         Map_->Release(object->GetId()).release();
     }
 
-    virtual NObjectServer::IObjectBase* FindObject(const TObjectId& id) override
+    virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
     {
         return Map_->Find(id);
     }

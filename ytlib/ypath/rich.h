@@ -100,6 +100,9 @@ public:
     // "erasure_codec"
     TNullable<NErasure::ECodec> GetErasureCodec() const;
 
+    // "auto_merge"
+    bool GetAutoMerge() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;

@@ -66,13 +66,13 @@ public:
     TMutationResponse& Response();
 
 private:
-    TMutationContext* Parent_;
-    TVersion Version_;
+    TMutationContext* const Parent_;
+    const TVersion Version_;
     const TMutationRequest& Request_;
-    TMutationResponse Response_;
-    TInstant Timestamp_;
-    TRandomGenerator RandomGenerator_;
+    const TInstant Timestamp_;
 
+    TMutationResponse Response_;
+    TRandomGenerator RandomGenerator_;
 };
 
 TMutationContext* TryGetCurrentMutationContext();

@@ -94,15 +94,24 @@ struct TDataRanges
     TSharedRange<TRow> Keys;
     //! If |true|, these ranges could be reclassified into a set of discrete lookup keys.
     bool LookupSupported = true;
+
+    size_t KeyWidth = 0;
+};
+
+struct TQueryBaseOptions
+{
+    bool EnableCodeCache = true;
+    i64 InputRowLimit = std::numeric_limits<i64>::max();
+    i64 OutputRowLimit = std::numeric_limits<i64>::max();
 };
 
 struct TQueryOptions
+    : public TQueryBaseOptions
 {
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
     bool VerboseLogging = false;
     int MaxSubqueries = std::numeric_limits<int>::max();
     ui64 RangeExpansionLimit = 0;
-    bool EnableCodeCache = true;
     TWorkloadDescriptor WorkloadDescriptor;
 };
 

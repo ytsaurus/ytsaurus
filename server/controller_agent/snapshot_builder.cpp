@@ -36,8 +36,8 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t PipeWriteBufferSize = MB;
-static const size_t RemoteWriteBufferSize = MB;
+static const size_t PipeWriteBufferSize = 1_MB;
+static const size_t RemoteWriteBufferSize = 1_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,20 +82,22 @@ TFuture<void> TSnapshotBuilder::Run()
 
         auto job = New<TSnapshotJob>();
         job->Operation = operation;
+        job->Controller = operation->GetController();
         auto pipe = TPipeFactory().Create();
         job->Reader = pipe.CreateAsyncReader();
         job->OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
         job->Suspended = false;
         Jobs_.push_back(job);
 
-        operationSuspendFutures.push_back(operation
-            ->GetController()
+        operationSuspendFutures.push_back(job
+            ->Controller
             ->Suspend().Apply(
                 BIND([=, this_ = MakeStrong(this)] () {
                     if (!ControllersSuspended_) {
                         job->Suspended = true;
                         LOG_DEBUG("Controller suspended (OperationId: %v)",
                             operation->GetId());
+                        job->NumberOfJobsToRelease = job->Controller->GetRecentlyCompletedJobCount();
                     } else {
                         LOG_DEBUG("Controller suspended too late (OperationId: %v)",
                             operation->GetId());
@@ -126,7 +128,7 @@ TFuture<void> TSnapshotBuilder::Run()
 
     ControllersSuspended_ = true;
 
-    auto forkFuture = VoidFuture;
+    TFuture<void> forkFuture;
     PROFILE_TIMING ("/fork_time") {
         forkFuture = Fork();
     }
@@ -134,9 +136,7 @@ TFuture<void> TSnapshotBuilder::Run()
     LOG_INFO("Resuming controllers");
 
     for (const auto& job : Jobs_) {
-        if (job->Operation->GetController()) {
-            job->Operation->GetController()->Resume();
-        }
+        job->Controller->Resume();
     }
 
     LOG_INFO("Controllers resumed");
@@ -327,6 +327,12 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         // Commit outer transaction.
         WaitFor(transaction->Commit())
             .ThrowOnError();
+
+        if (auto controller = job->Operation->GetController()) {
+            // Safely remove jobs that we do not need any more.
+            WaitFor(controller->ReleaseJobs(job->NumberOfJobsToRelease))
+                .ThrowOnError();
+        }
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error uploading snapshot");
     }

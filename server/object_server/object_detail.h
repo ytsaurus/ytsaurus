@@ -34,12 +34,13 @@ public:
     TObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
-        IObjectBase* object);
+        TObjectBase* object);
 
     virtual bool ShouldHideAttributes() override;
 
     // IObjectProxy members
     virtual const TObjectId& GetId() const override;
+    virtual TObjectBase* GetObject() const override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
     virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
@@ -52,7 +53,7 @@ public:
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     TObjectTypeMetadata* const Metadata_;
-    IObjectBase* const Object_;
+    TObjectBase* const Object_;
 
     NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
@@ -122,7 +123,7 @@ protected:
         NYTree::EPermission permission) override;
 
     void ValidatePermission(
-        IObjectBase* object,
+        TObjectBase* object,
         NYTree::EPermission permission);
 
     bool IsRecovery() const;
@@ -154,7 +155,7 @@ public:
     TNontemplateNonversionedObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
-        IObjectBase* object);
+        TObjectBase* object);
 
 protected:
     class TCustomAttributeDictionary

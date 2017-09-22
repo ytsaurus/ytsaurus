@@ -53,12 +53,15 @@ class TJoblet
 public:
     //! Default constructor is for serialization only.
     TJoblet();
-    TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTaskPtr task, int jobIndex);
+    TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTask* task, int jobIndex);
 
-    TTaskPtr Task;
+    // Controller encapsulates lifetime of both, tasks and joblets.
+    TTask* Task;
     int JobIndex;
     i64 StartRowIndex;
     bool Restarted = false;
+
+    TFuture<TSharedRef> JobSpecProtoFuture;
 
     NScheduler::TExtendedJobResources EstimatedResourceUsage;
     TNullable<double> JobProxyMemoryReserveFactor;
@@ -79,7 +82,7 @@ public:
     NChunkClient::TChunkListId CoreTableChunkListId;
 
     virtual void Persist(const TPersistenceContext& context) override;
-    void SendJobMetrics(const NJobTrackerClient::TStatistics& jobStatistics, bool flush);
+    void SendJobMetrics(const NScheduler::TJobSummary& jobSummary, bool flush);
 private:
     std::unique_ptr<TJobMetricsUpdater> JobMetricsUpdater_;
 };

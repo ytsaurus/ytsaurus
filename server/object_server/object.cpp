@@ -15,22 +15,22 @@ using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EObjectType IObjectBase::GetType() const
+EObjectType TObjectBase::GetType() const
 {
     return TypeFromId(Id_);
 }
 
-bool IObjectBase::IsBuiltin() const
+bool TObjectBase::IsBuiltin() const
 {
     return IsWellKnownId(Id_);
 }
 
-const TAttributeSet* IObjectBase::GetAttributes() const
+const TAttributeSet* TObjectBase::GetAttributes() const
 {
     return Attributes_.get();
 }
 
-TAttributeSet* IObjectBase::GetMutableAttributes()
+TAttributeSet* TObjectBase::GetMutableAttributes()
 {
     if (!Attributes_) {
         Attributes_ = std::make_unique<TAttributeSet>();
@@ -38,17 +38,17 @@ TAttributeSet* IObjectBase::GetMutableAttributes()
     return Attributes_.get();
 }
 
-void IObjectBase::ClearAttributes()
+void TObjectBase::ClearAttributes()
 {
     Attributes_.reset();
 }
 
-int IObjectBase::GetGCWeight() const
+int TObjectBase::GetGCWeight() const
 {
     return 10;
 }
 
-void IObjectBase::Save(NCellMaster::TSaveContext& context) const
+void TObjectBase::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, RefCounter_);
@@ -62,7 +62,7 @@ void IObjectBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, IsForeign());
 }
 
-void IObjectBase::Load(NCellMaster::TLoadContext& context)
+void TObjectBase::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, RefCounter_);
@@ -78,7 +78,7 @@ void IObjectBase::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TObjectIdFormatter::operator()(TStringBuilder* builder, const IObjectBase* object) const
+void TObjectIdFormatter::operator()(TStringBuilder* builder, const TObjectBase* object) const
 {
     FormatValue(builder, object->GetId(), TStringBuf());
 }

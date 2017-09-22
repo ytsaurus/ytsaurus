@@ -47,7 +47,7 @@ public:
             .Default(5);
         RegisterParameter("desired_uncompressed_response_block_size", DesiredUncompressedResponseBlockSize)
             .GreaterThan(0)
-            .Default(16 * MB);
+            .Default(16_MB);
 
         RegisterParameter("function_impl_cache", FunctionImplCache)
             .DefaultNew();

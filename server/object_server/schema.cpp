@@ -68,14 +68,14 @@ public:
         return SchemaTypeFromType(Type_);
     }
 
-    virtual IObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetSchema(Type_);
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void DestroyObject(IObjectBase* /*object*/) throw() override
+    virtual void DestroyObject(TObjectBase* /*object*/) throw() override
     {
         Y_UNREACHABLE();
     }
@@ -107,7 +107,7 @@ private:
         return &object->Acd();
     }
 
-    virtual IObjectBase* DoGetParent(TSchemaObject* /*object*/) override
+    virtual TObjectBase* DoGetParent(TSchemaObject* /*object*/) override
     {
         return nullptr;
     }

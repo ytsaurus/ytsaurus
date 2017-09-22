@@ -47,6 +47,38 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(EControllerFailureType::None);
 }
 
+TAutoMergeConfig::TAutoMergeConfig()
+{
+    RegisterParameter("job_io", JobIO)
+        .DefaultNew();
+    RegisterParameter("max_intermediate_chunk_count", MaxIntermediateChunkCount)
+        .Default(Null)
+        .GreaterThanOrEqual(1);
+    RegisterParameter("chunk_count_per_merge_job", ChunkCountPerMergeJob)
+        .Default(Null)
+        .GreaterThanOrEqual(1);
+    RegisterParameter("chunk_size_threshold", ChunkSizeThreshold)
+        .Default(128_MB)
+        .GreaterThanOrEqual(1);
+    RegisterParameter("mode", Mode)
+        .Default(EAutoMergeMode::Disabled);
+
+    RegisterValidator([&] {
+        if (Mode == EAutoMergeMode::Manual) {
+            if (!MaxIntermediateChunkCount || !ChunkCountPerMergeJob) {
+                THROW_ERROR_EXCEPTION(
+                    "Maximum intermediate chunk count and chunk count per merge job "
+                    "should both be present when using relaxed mode of auto merge");
+            }
+            if (*MaxIntermediateChunkCount < *ChunkCountPerMergeJob) {
+                THROW_ERROR_EXCEPTION("Maximum intermediate chunk count cannot be less than chunk count per merge job")
+                    << TErrorAttribute("max_intermediate_chunk_count", *MaxIntermediateChunkCount)
+                    << TErrorAttribute("chunk_count_per_merge_job", *ChunkCountPerMergeJob);
+            }
+        }
+    });
+}
+
 TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
 {
     RegisterParameter("scheduling_tag_filter", SchedulingTagFilter)
@@ -96,7 +128,7 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("max_data_weight_per_job", MaxDataWeightPerJob)
         .Alias("max_data_size_per_job")
-        .Default((i64) 200 * GB)
+        .Default(200_GB)
         .GreaterThan(0);
 
     RegisterParameter("max_failed_job_count", MaxFailedJobCount)
@@ -118,9 +150,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("title", Title)
         .Default();
 
-    RegisterParameter("check_multichunk_files", CheckMultichunkFiles)
-        .Default(true);
-
     RegisterParameter("time_limit", TimeLimit)
         .Default();
 
@@ -141,6 +170,9 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("nightly_options", NightlyOptions)
         .Default();
+
+    RegisterParameter("auto_merge", AutoMerge)
+        .DefaultNew();
 
     RegisterValidator([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -186,11 +218,16 @@ TUserJobSpec::TUserJobSpec()
         .Default()
         .GreaterThanOrEqual(TDuration::Seconds(1));
     RegisterParameter("memory_limit", MemoryLimit)
-        .Default(512 * MB)
+        .Default(512_MB)
         .GreaterThan(0)
-        .LessThanOrEqual(TB);
-    RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
+        .LessThanOrEqual(1_TB);
+    RegisterParameter("user_job_memory_digest_default_value", UserJobMemoryDigestDefaultValue)
+        .Alias("memory_reserve_factor")
         .Default(0.5)
+        .GreaterThan(0.)
+        .LessThanOrEqual(1.);
+    RegisterParameter("user_job_memory_digest_lower_bound", UserJobMemoryDigestLowerBound)
+        .Default(0.05)
         .GreaterThan(0.)
         .LessThanOrEqual(1.);
     RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
@@ -200,9 +237,9 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)
         .Default(false);
     RegisterParameter("max_stderr_size", MaxStderrSize)
-        .Default(5 * MB)
+        .Default(5_MB)
         .GreaterThan(0)
-        .LessThanOrEqual(GB);
+        .LessThanOrEqual(1_GB);
     RegisterParameter("custom_statistics_count_limit", CustomStatisticsCountLimit)
         .Default(128)
         .GreaterThan(0)
@@ -230,8 +267,10 @@ TUserJobSpec::TUserJobSpec()
         // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
         if (TmpfsPath) {
             i64 tmpfsSize = TmpfsSize ? *TmpfsSize : MemoryLimit;
-            MemoryReserveFactor = std::min(1.0, std::max(MemoryReserveFactor, double(tmpfsSize) / MemoryLimit));
+            UserJobMemoryDigestDefaultValue = std::min(1.0, std::max(UserJobMemoryDigestDefaultValue, double(tmpfsSize) / MemoryLimit));
+            UserJobMemoryDigestLowerBound = std::min(1.0, std::max(UserJobMemoryDigestLowerBound, double(tmpfsSize) / MemoryLimit));
         }
+        UserJobMemoryDigestDefaultValue = std::max(UserJobMemoryDigestLowerBound, UserJobMemoryDigestDefaultValue);
     });
 
     RegisterValidator([&] () {
@@ -303,8 +342,6 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
         .Alias("data_size_per_job")
         .Default()
         .GreaterThan(0);
-    RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
-        .Default(false);
     RegisterParameter("job_count", JobCount)
         .Default()
         .GreaterThan(0);
@@ -328,7 +365,7 @@ TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
         .NonEmpty();
 
     RegisterInitializer([&] () {
-        JobIO->TableReader->MaxBufferSize = 256 * MB;
+        JobIO->TableReader->MaxBufferSize = 256_MB;
     });
 }
 
@@ -425,6 +462,8 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
         .NonEmpty();
     RegisterParameter("output_table_paths", OutputTablePaths)
         .NonEmpty();
+    RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
+        .Default(false);
 
     RegisterValidator([&] () {
         if (!JoinBy.empty()) {
@@ -499,7 +538,7 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .GreaterThan(0);
     RegisterParameter("data_weight_per_sort_job", DataWeightPerShuffleJob)
         .Alias("data_size_per_sort_job")
-        .Default((i64)2 * GB)
+        .Default(2_GB)
         .GreaterThan(0);
     RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
         .Default(0.75)
@@ -577,10 +616,10 @@ TSortOperationSpec::TSortOperationSpec()
         .Default(Null);
 
     RegisterInitializer([&] () {
-        PartitionJobIO->TableReader->MaxBufferSize = GB;
-        PartitionJobIO->TableWriter->MaxBufferSize = 2 * GB;
+        PartitionJobIO->TableReader->MaxBufferSize = 1_GB;
+        PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
-        SortJobIO->TableReader->MaxBufferSize = GB;
+        SortJobIO->TableReader->MaxBufferSize = 1_GB;
         SortJobIO->TableReader->RetryCount = 3;
         MergeJobIO->TableReader->RetryCount = 3;
 
@@ -652,10 +691,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     //   MapSelectivityFactor
 
     RegisterInitializer([&] () {
-        PartitionJobIO->TableReader->MaxBufferSize = 256 * MB;
-        PartitionJobIO->TableWriter->MaxBufferSize = 2 * GB;
+        PartitionJobIO->TableReader->MaxBufferSize = 256_MB;
+        PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
-        SortJobIO->TableReader->MaxBufferSize = GB;
+        SortJobIO->TableReader->MaxBufferSize = 1_GB;
 
         SortJobIO->TableReader->RetryCount = 3;
         MergeJobIO->TableReader->RetryCount = 3;
@@ -664,7 +703,7 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterValidator([&] () {
         auto throwError = [] (NTableClient::EControlAttribute attribute, const TString& jobType) {
             THROW_ERROR_EXCEPTION(
-                "%Qlv contol attribute is not supported by %v jobs in map-reduce operation",
+                "%Qlv control attribute is not supported by %Qlv jobs in map-reduce operation",
                 attribute,
                 jobType);
         };
@@ -705,7 +744,8 @@ void TMapReduceOperationSpec::OnLoaded()
     if (Mapper) {
         Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
     }
-    Reducer->InitEnableInputTableIndex(1, MergeJobIO);
+    // NB(psushin): don't init input table index for reduce jobs,
+    // they cannot have table index.
 }
 
 TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
@@ -728,7 +768,7 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
     RegisterParameter("concurrency", Concurrency)
         .Default(4);
     RegisterParameter("block_buffer_size", BlockBufferSize)
-        .Default(64 * MB);
+        .Default(64_MB);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 }
@@ -829,7 +869,7 @@ void TPoolConfig::Validate()
     if (MaxOperationCount && MaxRunningOperationCount && *MaxOperationCount < *MaxRunningOperationCount) {
         THROW_ERROR_EXCEPTION("%Qv must be greater that or equal to %Qv, but %v < %v",
             "max_operation_count",
-            "max_runnning_operation_count",
+            "max_running_operation_count",
             *MaxOperationCount,
             *MaxRunningOperationCount);
     }

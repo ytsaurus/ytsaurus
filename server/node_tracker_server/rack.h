@@ -15,7 +15,7 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRack
-    : public NObjectServer::IObjectBase
+    : public NObjectServer::TObjectBase
     , public TRefTracked<TRack>
 {
 public:

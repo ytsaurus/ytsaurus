@@ -5,7 +5,7 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IObjectBase* IObjectTypeHandler::GetObject(const TObjectId& id)
+TObjectBase* IObjectTypeHandler::GetObject(const TObjectId& id)
 {
     auto* object = FindObject(id);
     YCHECK(object);

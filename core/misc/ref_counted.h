@@ -11,6 +11,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSourceLocation;
+
 class TRefCountedBase;
 
 template <bool EnableWeak>
@@ -37,6 +39,32 @@ using TRefCountedTypeCookie = int;
 const int NullRefCountedTypeCookie = -1;
 
 using TRefCountedTypeKey = const void*;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Used to avoid including heavy ref_counted_tracker.h
+class TRefCountedTrackerFacade
+{
+public:
+    static TRefCountedTypeCookie GetCookie(
+        TRefCountedTypeKey typeKey,
+        size_t instanceSize,
+        const NYT::TSourceLocation& location);
+
+    static void AllocateInstance(TRefCountedTypeCookie cookie);
+    static void FreeInstance(TRefCountedTypeCookie cookie);
+
+    static void AllocateTagInstance(TRefCountedTypeCookie cookie);
+    static void FreeTagInstance(TRefCountedTypeCookie cookie);
+
+    static void AllocateSpace(TRefCountedTypeCookie cookie, size_t size);
+    static void FreeSpace(TRefCountedTypeCookie cookie, size_t size);
+    static void ReallocateSpace(TRefCountedTypeCookie cookie, size_t freedSize, size_t allocatedSize);
+
+    // Typically invoked from GDB console.
+    // Dumps the ref-counted statistics sorted by "bytes alive".
+    static void Dump();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,8 +166,7 @@ private:
 //! Normally delegates to #TRefCountedBase::InitializeTracking.
 void InitializeRefCountedTracking(
     TRefCountedBase* object,
-    TRefCountedTypeCookie typeCookie,
-    size_t instanceSize);
+    TRefCountedTypeCookie typeCookie);
 
 } // namespace NDetail
 
@@ -150,7 +177,7 @@ class TRefCountedBase
 {
 public:
     TRefCountedBase() = default;
-    virtual ~TRefCountedBase() noexcept;
+    virtual ~TRefCountedBase() noexcept = default;
 
     void operator delete(void* ptr) noexcept;
 
@@ -165,18 +192,17 @@ private:
     TRefCountedBase& operator=(TRefCountedBase&&) = delete;
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
+protected:
+    TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
+
+    void FinalizeTracking();
+
+private:
     friend void NDetail::InitializeRefCountedTracking(
         TRefCountedBase* object,
-        TRefCountedTypeCookie typeCookie,
-        size_t instanceSize);
+        TRefCountedTypeCookie typeCookie);
 
-    TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
-    size_t InstanceSize_ = 0;
-
-    void InitializeTracking(
-        TRefCountedTypeCookie typeCookie,
-        size_t instanceSize);
-    void FinalizeTracking();
+    void InitializeTracking(TRefCountedTypeCookie typeCookie);
 #endif
 };
 

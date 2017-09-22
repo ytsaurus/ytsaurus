@@ -137,7 +137,7 @@ template <class... TCallArgs>
 bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
 {
     {
-        NConcurrency::TReaderGuard guard(SpinLock_);
+        NConcurrency::TWriterGuard guard(SpinLock_);
         if (Fired_) {
             return false;
         }

@@ -7,6 +7,7 @@
 #include "scheduler_strategy.h"
 
 #include <yt/server/controller_agent/master_connector.h>
+#include <yt/server/controller_agent/controller_agent.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
@@ -57,6 +58,7 @@ using namespace NRpc;
 using namespace NApi;
 using namespace NSecurityClient;
 using namespace NConcurrency;
+using namespace NCellScheduler;
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
 
@@ -78,6 +80,7 @@ public:
         , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Logger))
     {
         Bootstrap
@@ -85,7 +88,7 @@ public:
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
             ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
-                .Via(Bootstrap->GetControlInvoker()));
+                .Via(Bootstrap->GetControlInvoker(EControlQueue::MasterConnector)));
     }
 
     void Start()
@@ -108,11 +111,6 @@ public:
     IInvokerPtr GetCancelableControlInvoker() const
     {
         return CancelableControlInvoker;
-    }
-
-    NControllerAgent::TMasterConnectorPtr GetControllerAgentMasterConnector() const
-    {
-        return ControllerAgentMasterConnector;
     }
 
     TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
@@ -268,13 +266,20 @@ public:
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         Config = config;
-        OnConfigUpdated();
 
-        // NB: this method could be called in disconnected state during registration pipeline.
-        // In such situation ControllersMasterConnector is not initialized.
-        if (ControllerAgentMasterConnector) {
-            ControllerAgentMasterConnector->UpdateConfig(config);
+        if (Connected) {
+            OperationNodesUpdateExecutor_->SetPeriod(Config->OperationsUpdatePeriod);
         }
+        if (WatchersExecutor) {
+            WatchersExecutor->SetPeriod(Config->WatchersUpdatePeriod);
+        }
+        if (AlertsExecutor) {
+            AlertsExecutor->SetPeriod(Config->AlertsUpdatePeriod);
+        }
+
+        ScheduleTestingDisconnection();
+
+        Bootstrap->GetControllerAgent()->UpdateConfig(config);
     }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
@@ -299,7 +304,7 @@ private:
 
     TEnumIndexedVector<TError, ESchedulerAlertType> Alerts;
 
-    NControllerAgent::TMasterConnectorPtr ControllerAgentMasterConnector;
+    const TCallback<TFuture<void>()> VoidCallback_ = BIND([] {return VoidFuture;});
 
     struct TOperationNodeUpdate
     {
@@ -326,11 +331,6 @@ private:
     yhash<TOperationId, TWatcherList> WatcherLists;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-    void OnConfigUpdated()
-    {
-        ScheduleTestingDisconnection();
-    }
 
     void ScheduleTestingDisconnection()
     {
@@ -375,7 +375,8 @@ private:
         Connected.store(true);
 
         CancelableContext = New<TCancelableContext>();
-        CancelableControlInvoker = CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker());
+        CancelableControlInvoker = CancelableContext->CreateInvoker(
+            Bootstrap->GetControlInvoker(EControlQueue::MasterConnector));
 
         const auto& result = resultOrError.Value();
         for (auto operationReport : result.OperationReports) {
@@ -389,10 +390,7 @@ private:
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
                 .Via(CancelableControlInvoker));
 
-        ControllerAgentMasterConnector = New<NControllerAgent::TMasterConnector>(
-            CancelableControlInvoker,
-            Config,
-            Bootstrap);
+        Bootstrap->GetControllerAgent()->Connect(CancelableControlInvoker);
 
         StartPeriodicActivities();
 
@@ -768,7 +766,7 @@ private:
 
         Connected.store(false);
 
-        ControllerAgentMasterConnector.Reset();
+        Bootstrap->GetControllerAgent()->Disconnect();
 
         LockTransaction.Reset();
 
@@ -948,8 +946,18 @@ private:
         return operation->IsFinishedState();
     }
 
+    void OnOperationUpdateFailed(const TError& error)
+    {
+        YCHECK(Connected);
+        YCHECK(!error.IsOK());
+        LOG_ERROR(error, "Failed to update operation node");
+        Disconnect();
+    }
+
     void UpdateOperationNodeAttributes(TOperationPtr operation)
     {
+        operation->SetShouldFlush(false);
+
         auto batchReq = StartObjectBatchRequest();
         auto operationPath = GetOperationPath(operation->GetId());
 
@@ -1012,6 +1020,8 @@ private:
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+
+        LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
     }
 
     void DoUpdateOperationNode(TOperationPtr operation)
@@ -1027,10 +1037,14 @@ private:
 
     TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId&, TOperationNodeUpdate* update)
     {
-        return BIND(&TImpl::DoUpdateOperationNode,
-            MakeStrong(this),
-            update->Operation)
-            .AsyncVia(CancelableControlInvoker);
+        if (update->Operation->GetShouldFlush()) {
+            return BIND(&TImpl::DoUpdateOperationNode,
+                MakeStrong(this),
+                update->Operation)
+                .AsyncVia(CancelableControlInvoker);
+        } else {
+            return VoidCallback_;
+        }
     }
 
     void OnOperationNodeCreated(
@@ -1066,26 +1080,6 @@ private:
         LOG_INFO("Reviving operation node reset (OperationId: %v)",
             operationId);
     }
-
-    void OnOperationNodeFlushed(
-        TOperationPtr operation,
-        const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        auto operationId = operation->GetId();
-
-        if (!error.IsOK()) {
-            LOG_ERROR(error);
-            Disconnect();
-            return;
-        }
-
-        LOG_INFO("Operation node flushed (OperationId: %v)",
-            operationId);
-    }
-
 
     void UpdateWatchers()
     {
@@ -1240,11 +1234,6 @@ void TMasterConnector::Disconnect()
 IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
 {
     return Impl->GetCancelableControlInvoker();
-}
-
-NControllerAgent::TMasterConnectorPtr TMasterConnector::GetControllerAgentMasterConnector() const
-{
-    return Impl->GetControllerAgentMasterConnector();
 }
 
 TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)

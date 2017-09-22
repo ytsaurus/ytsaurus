@@ -41,7 +41,7 @@ struct ISchedulerStrategyHost
         ESchedulerAlertType alertType,
         const TError& alert) = 0;
 
-    virtual void SetOperationAlert(
+    virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) = 0;
@@ -126,6 +126,9 @@ struct ISchedulerStrategy
      *  The implementation must throw no exceptions.
      */
     virtual void UnregisterOperation(const TOperationPtr& operation) = 0;
+
+    //! Register jobs that are already created somewhere outside strategy.
+    virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
 
     virtual void ProcessUpdatedAndCompletedJobs(
         const std::vector<TUpdatedJob>& updatedJobs,

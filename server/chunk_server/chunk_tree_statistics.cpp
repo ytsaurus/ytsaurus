@@ -23,7 +23,6 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     LogicalRowCount += other.LogicalRowCount;
     UncompressedDataSize += other.UncompressedDataSize;
     CompressedDataSize += other.CompressedDataSize;
-    DataWeight += other.DataWeight;
     RegularDiskSpace += other.RegularDiskSpace;
     ErasureDiskSpace += other.ErasureDiskSpace;
     ChunkCount += other.ChunkCount;
@@ -31,6 +30,12 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     ChunkListCount += other.ChunkListCount;
     Rank = std::max(Rank, other.Rank);
     Sealed = other.Sealed;
+
+    if (DataWeight == -1 || other.DataWeight == -1) {
+        DataWeight = -1;
+    } else {
+        DataWeight += other.DataWeight;
+    }
 }
 
 void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
@@ -39,7 +44,6 @@ void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
     LogicalRowCount -= other.LogicalRowCount;
     UncompressedDataSize -= other.UncompressedDataSize;
     CompressedDataSize -= other.CompressedDataSize;
-    DataWeight -= other.DataWeight;
     RegularDiskSpace -= other.RegularDiskSpace;
     ErasureDiskSpace -= other.ErasureDiskSpace;
     ChunkCount -= other.ChunkCount;
@@ -47,6 +51,12 @@ void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
     ChunkListCount -= other.ChunkListCount;
     // NB: Rank and Sealed are ignored intentionally since there's no way to
     // deaccumulate these values.
+
+    if (DataWeight == -1 || other.DataWeight == -1) {
+        DataWeight = -1;
+    } else {
+        DataWeight -= other.DataWeight;
+    }
 }
 
 TDataStatistics TChunkTreeStatistics::ToDataStatistics() const
@@ -113,14 +123,14 @@ bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
         LogicalRowCount == other.LogicalRowCount &&
         UncompressedDataSize == other.UncompressedDataSize &&
         CompressedDataSize == other.CompressedDataSize &&
-        DataWeight == other.DataWeight &&
         RegularDiskSpace == other.RegularDiskSpace &&
         ErasureDiskSpace == other.ErasureDiskSpace &&
         ChunkCount == other.ChunkCount &&
         LogicalChunkCount == other.LogicalChunkCount &&
         ChunkListCount == other.ChunkListCount &&
         Rank == other.Rank &&
-        Sealed == other.Sealed;
+        Sealed == other.Sealed &&
+        (DataWeight == -1 || other.DataWeight == -1 || DataWeight == other.DataWeight);
 }
 
 bool TChunkTreeStatistics::operator != (const TChunkTreeStatistics& other) const

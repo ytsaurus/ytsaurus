@@ -39,6 +39,7 @@ public:
         TUnversionedRow row,
         TWriteContext* context);
 
+    virtual bool IsFlushNeeded() const override;
     virtual bool IsStoreCompactable(IStorePtr store) const override;
     virtual bool IsStoreFlushable(IStorePtr store) const override;
 
@@ -55,8 +56,8 @@ private:
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot) override;
 
+    i64 ComputeStartingRowIndex() const;
     virtual void CreateActiveStore() override;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedStoreManager)

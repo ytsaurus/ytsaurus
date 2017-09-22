@@ -49,6 +49,11 @@ TPartRange::operator bool() const
     return !IsEmpty();
 }
 
+bool operator == (const TPartRange& lhs, const TPartRange& rhs)
+{
+    return lhs.Begin == rhs.Begin && lhs.End == rhs.End;
+}
+
 TPartRange Intersection(const TPartRange& lhs, const TPartRange& rhs)
 {
     i64 beginMax = std::max(lhs.Begin, rhs.Begin);
@@ -246,8 +251,14 @@ public:
 
     virtual TFuture<TSharedRef> Produce(const TPartRange& range)
     {
-        // Requested ranges must be monotonic.
-        YCHECK(!PreviousRange_ || PreviousRange_->End <= range.Begin);
+        if (PreviousRange_ && (*PreviousRange_ == range)) {
+            return MakeFuture(LastResult_);
+        }
+
+        if (PreviousRange_) {
+            // Requested ranges must be monotonic.
+            YCHECK(*PreviousRange_ == range || PreviousRange_->End <= range.Begin);
+        }
         PreviousRange_ = range;
 
         // XXX(ignat): This may be optimized using monotonicity.
@@ -265,10 +276,9 @@ public:
             }
         }
 
-        auto this_ = MakeStrong(this);
         if (!indicesToRequest.empty()) {
             auto blocksFuture = BIND(
-                [=] () {
+                [=, this_ = MakeStrong(this)] () {
                     return Reader_->ReadBlocks(indicesToRequest);
                 })
                 // Or simple Via?
@@ -276,7 +286,7 @@ public:
                 .Run();
 
             return blocksFuture.Apply(BIND(
-                [=] (const TErrorOr<std::vector<TBlock>>& errorOrBlocks) -> TSharedRef {
+                [=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& errorOrBlocks) -> TSharedRef {
                     if (!errorOrBlocks.IsOK()) {
                         THROW_ERROR TError(errorOrBlocks);
                     }
@@ -294,6 +304,8 @@ private:
 
     yhash<int, TSharedRef> RequestedBlocks_;
     TNullable<TPartRange> PreviousRange_;
+
+    TSharedRef LastResult_;
 
     void OnBlocksRead(const std::vector<int>& indicesToRequest, const std::vector<TSharedRef>& blocks)
     {
@@ -325,7 +337,8 @@ private:
             if (innerStart < innerEnd) {
                 auto block = RequestedBlocks_[index];
                 if (range.Size() == innerEnd - innerStart) {
-                    return block.Slice(innerStart, innerEnd);
+                    LastResult_ = block.Slice(innerStart, innerEnd);
+                    return LastResult_;
                 }
 
                 initialize();
@@ -348,7 +361,8 @@ private:
 
         initialize();
 
-        return result;
+        LastResult_ = result;
+        return LastResult_;
     }
 
     std::vector<TPartRange> SizesToConsecutiveRanges(const std::vector<i64>& sizes)
@@ -610,13 +624,21 @@ TChunkId TErasureChunkReaderBase::GetChunkId() const
 
 TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TWorkloadDescriptor& workloadDescriptor)
 {
-    if (!PlacementExt_.part_infos().empty()) {
-        return MakePromise(TError());
+    if (PlacementExtFuture_) {
+        return PlacementExtFuture_;
     }
 
-    return GetPlacementMeta(this, workloadDescriptor).Apply(
-        BIND(&TErasureChunkReaderBase::OnGotPlacementMeta, MakeStrong(this))
-            .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
+    {
+        TGuard<TSpinLock> guard(PlacementExtLock_);
+
+        if (!PlacementExtFuture_) {
+            PlacementExtFuture_ = GetPlacementMeta(this, workloadDescriptor).Apply(
+                BIND(&TErasureChunkReaderBase::OnGotPlacementMeta, MakeStrong(this))
+                    .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
+        }
+
+        return PlacementExtFuture_;
+    }
 }
 
 void TErasureChunkReaderBase::OnGotPlacementMeta(const TErasurePlacementExt& placementExt)

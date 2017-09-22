@@ -7,6 +7,7 @@
 #include <yt/server/controller_agent/job_size_adjuster.h>
 
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/ref_tracked.h>
 
 namespace NYT {
 namespace NChunkPools {
@@ -52,6 +53,7 @@ class TUnorderedChunkPool
     , public TChunkPoolOutputBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    , public TRefTracked<TUnorderedChunkPool>
 {
 public:
     //! For persistence only.
@@ -64,12 +66,16 @@ public:
 
     TUnorderedChunkPool(
         IJobSizeConstraintsPtr jobSizeConstraints,
-        TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig)
+        TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig,
+        EUnorderedChunkPoolMode mode)
         : JobSizeConstraints(std::move(jobSizeConstraints))
+        , Mode(mode)
     {
         YCHECK(JobSizeConstraints);
 
-        JobCounter.Set(JobSizeConstraints->GetJobCount());
+        if (Mode == EUnorderedChunkPoolMode::Normal) {
+            JobCounter.Set(JobSizeConstraints->GetJobCount());
+        }
 
         if (jobSizeAdjusterConfig && JobSizeConstraints->CanAdjustDataWeightPerJob()) {
             JobSizeAdjuster = CreateJobSizeAdjuster(
@@ -94,6 +100,8 @@ public:
         DataWeightCounter.Increment(suspendableStripe.GetStatistics().DataWeight);
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
         MaxBlockSize = std::max(MaxBlockSize, suspendableStripe.GetStatistics().MaxBlockSize);
+
+        TotalDataSliceCount += stripe->DataSlices.size();
 
         if (stripe->Solid) {
             AddSolid(cookie);
@@ -174,30 +182,42 @@ public:
 
     virtual int GetTotalJobCount() const override
     {
-        return JobCounter.GetTotal();
+        return Mode == EUnorderedChunkPoolMode::AutoMerge
+            ? GetPendingJobCount() + JobCounter.GetRunning() + JobCounter.GetCompletedTotal()
+            : JobCounter.GetTotal();
+    }
+
+    virtual i64 GetDataSliceCount() const override
+    {
+        return TotalDataSliceCount;
     }
 
     virtual int GetPendingJobCount() const override
     {
-        // TODO(babenko): refactor
-        bool hasAvailableLostJobs = LostCookies.size() > UnavailableLostCookieCount;
-        if (hasAvailableLostJobs) {
-            return JobCounter.GetPending() - UnavailableLostCookieCount;
+        if (Mode == EUnorderedChunkPoolMode::Normal) {
+            // TODO(babenko): refactor
+            bool hasAvailableLostJobs = LostCookies.size() > UnavailableLostCookieCount;
+            if (hasAvailableLostJobs) {
+                return JobCounter.GetPending() - UnavailableLostCookieCount;
+            }
+
+            int freePendingJobCount = GetFreePendingJobCount();
+            YCHECK(freePendingJobCount >= 0);
+            YCHECK(Mode == EUnorderedChunkPoolMode::AutoMerge ||
+                   !(FreePendingDataWeight > 0 && freePendingJobCount == 0 && JobCounter.GetInterruptedTotal() == 0));
+
+            if (freePendingJobCount == 0) {
+                return 0;
+            }
+
+            if (FreePendingDataWeight == 0) {
+                return 0;
+            }
+
+            return freePendingJobCount;
+        } else {
+            return PendingGlobalStripes.empty() ? 0 : 1;
         }
-
-        int freePendingJobCount = GetFreePendingJobCount();
-        YCHECK(freePendingJobCount >= 0);
-        YCHECK(!(FreePendingDataWeight > 0 && freePendingJobCount == 0 && JobCounter.GetInterruptedTotal() == 0));
-
-        if (freePendingJobCount == 0) {
-            return 0;
-        }
-
-        if (FreePendingDataWeight == 0) {
-            return 0;
-        }
-
-        return freePendingJobCount;
     }
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
@@ -237,8 +257,6 @@ public:
 
     virtual IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
     {
-        YCHECK(Finished);
-
         if (GetPendingJobCount() == 0) {
             return IChunkPoolOutput::NullCookie;
         }
@@ -400,6 +418,7 @@ public:
         Persist(context, ExtractedLists);
         Persist(context, LostCookies);
         Persist(context, ReplayCookies);
+        Persist(context, Mode);
     }
 
 private:
@@ -419,6 +438,8 @@ private:
     i64 PendingStripeCount = 0;
 
     i64 MaxBlockSize = 0;
+
+    i64 TotalDataSliceCount  = 0;
 
     struct TLocalityEntry
     {
@@ -449,13 +470,18 @@ private:
     yhash_set<IChunkPoolOutput::TCookie> LostCookies;
     yhash_set<IChunkPoolOutput::TCookie> ReplayCookies;
 
+    EUnorderedChunkPoolMode Mode;
+
     int GetFreePendingJobCount() const
     {
-        return JobCounter.GetPending() - LostCookies.size();
+        return Mode == EUnorderedChunkPoolMode::AutoMerge ? 1 : JobCounter.GetPending() - LostCookies.size();
     }
 
     i64 GetIdealDataWeightPerJob() const
     {
+        if (Mode == EUnorderedChunkPoolMode::AutoMerge) {
+            return JobSizeConstraints->GetDataWeightPerJob();
+        }
         int freePendingJobCount = GetFreePendingJobCount();
         YCHECK(freePendingJobCount > 0);
         return std::max(
@@ -465,6 +491,10 @@ private:
 
     void UpdateJobCounter()
     {
+        if (Mode == EUnorderedChunkPoolMode::AutoMerge) {
+            return;
+        }
+
         i64 freePendingJobCount = GetFreePendingJobCount();
         if (Finished && FreePendingDataWeight + SuspendedDataWeight == 0 && freePendingJobCount > 0) {
             // Prune job count if all stripe lists are already extracted.
@@ -661,11 +691,13 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     IJobSizeConstraintsPtr jobSizeConstraints,
-    TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig)
+    TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig,
+    EUnorderedChunkPoolMode mode)
 {
-    return std::unique_ptr<IChunkPool>(new TUnorderedChunkPool(
+    return std::make_unique<TUnorderedChunkPool>(
         std::move(jobSizeConstraints),
-        std::move(jobSizeAdjusterConfig)));
+        std::move(jobSizeAdjusterConfig),
+        mode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

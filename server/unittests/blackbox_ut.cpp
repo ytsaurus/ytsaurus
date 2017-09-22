@@ -119,7 +119,7 @@ protected:
     virtual void SetUp() override
     {
         MockCallback_ = std::make_unique<TMockCallback>(this);
-        MockServer_ = std::make_unique<THttpServer>(MockCallback_.get(), THttpServerOptions());
+        MockServer_ = std::make_unique<THttpServer>(MockCallback_.get(), THttpServerOptions().SetHost("localhost"));
         MockServer_->Start();
     }
 

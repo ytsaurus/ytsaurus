@@ -44,6 +44,7 @@ using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NCellNode;
 using namespace NHydra;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,6 +87,8 @@ private:
         externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
 
         auto options = FromProto<TQueryOptions>(request->options());
+        options.InputRowLimit = request->query().input_row_limit();
+        options.OutputRowLimit = request->query().output_row_limit();
 
         auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
@@ -93,8 +96,8 @@ private:
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "DataRangeCount: %v)",
             query->Id,
-            query->InputRowLimit,
-            query->OutputRowLimit,
+            options.InputRowLimit,
+            options.OutputRowLimit,
             options.RangeExpansionLimit,
             options.MaxSubqueries,
             options.EnableCodeCache,
@@ -143,11 +146,19 @@ private:
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto responseCodecId = NCompression::ECodec(request->response_codec());
 
-        context->SetRequestInfo("TabletId: %v, Timestamp: %llxx, RequestCodec: %v, ResponseCodec: %v",
+        TRetentionConfigPtr retentionConfig;
+        if (request->has_retention_config()) {
+            retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonString(request->retention_config()));
+        }
+
+        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, RetentionConfig: %Qv",
             tabletId,
             timestamp,
             requestCodecId,
-            responseCodecId);
+            responseCodecId,
+            retentionConfig
+                ? ConvertToYsonString(retentionConfig, EYsonFormat::Text).GetData()
+                : TString("<nullptr>"));
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
@@ -181,6 +192,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    retentionConfig,
                     &reader,
                     &writer);
 

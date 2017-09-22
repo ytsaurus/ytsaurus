@@ -24,6 +24,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/core/bus/config.h>
+
 #include <yt/core/compression/public.h>
 
 #include <yt/core/misc/config.h>
@@ -131,10 +133,11 @@ public:
     TExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
 
-    int LightPoolSize;
-    int HeavyPoolSize;
+    int ThreadPoolSize;
 
     int MaxConcurrentRequests;
+
+    NBus::TTcpBusConfigPtr BusClient;
 
     TNativeConnectionConfig();
 

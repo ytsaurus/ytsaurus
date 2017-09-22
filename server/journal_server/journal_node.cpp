@@ -192,7 +192,7 @@ protected:
     virtual void DoBranch(
         const TJournalNode* originatingNode,
         TJournalNode* branchedNode,
-        ELockMode mode) override
+        const TLockRequest& lockRequest) override
     {
         // NB: Don't call TBase::DoBranch.
 
@@ -215,14 +215,14 @@ protected:
     virtual void DoLogBranch(
         const TJournalNode* originatingNode,
         TJournalNode* branchedNode,
-        ELockMode mode) override
+        const TLockRequest& lockRequest) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
         LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-            "PrimaryMedium: %v, Properties: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v)",
+            "PrimaryMedium: %v, Properties: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v, LockTimestamp: %llx)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
             GetObjectId(originatingNode->GetChunkList()),
@@ -230,7 +230,8 @@ protected:
             originatingNode->Properties(),
             originatingNode->GetReadQuorum(),
             originatingNode->GetWriteQuorum(),
-            mode);
+            lockRequest.Mode,
+            lockRequest.Timestamp);
     }
 
     virtual void DoMerge(

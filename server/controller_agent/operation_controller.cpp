@@ -16,7 +16,7 @@
 
 #include <yt/ytlib/scheduler/config.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/string.h>
@@ -52,11 +52,11 @@ public:
         DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
             auto Logger = OperationLogger;
             Logger.AddTag("OperationId: %v", id);
-            NProfiling::TScopedTimer timer;
+            NProfiling::TWallTimer timer;
             LOG_INFO("Started destroying operation controller");
             underlying.Reset();
             LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
-                timer.GetElapsed());
+                timer.GetElapsedTime());
         }));
     }
 
@@ -217,6 +217,16 @@ public:
         Underlying_->UpdateConfig(std::move(config));
     }
 
+    virtual bool ShouldUpdateProgress() const override
+    {
+        return Underlying_->ShouldUpdateProgress();
+    }
+
+    virtual void SetProgressUpdated() override
+    {
+        Underlying_->SetProgressUpdated();
+    }
+
     virtual bool HasProgress() const override
     {
         return Underlying_->HasProgress();
@@ -282,9 +292,29 @@ public:
         return Underlying_->BuildJobsYson();
     }
 
+    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override
+    {
+        return Underlying_->ExtractJobSpec(jobId);
+    }
+
     virtual TYsonString BuildSuspiciousJobsYson() const override
     {
         return Underlying_->BuildSuspiciousJobsYson();
+    }
+
+    virtual int GetRecentlyCompletedJobCount() const override
+    {
+        return Underlying_->GetRecentlyCompletedJobCount();
+    }
+
+    virtual TFuture<void> ReleaseJobs(int jobCount) override
+    {
+        return Underlying_->ReleaseJobs(jobCount);
+    }
+
+    virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override
+    {
+        return Underlying_->BuildJobsFromJoblets();
     }
 
 private:

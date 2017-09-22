@@ -85,7 +85,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     TCypressNodeBase* originatingNode,
     TCypressNodeBase* branchedNode,
     TTransaction* transaction,
-    ELockMode mode)
+    const TLockRequest& lockRequest)
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -94,7 +94,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetCreationTime(originatingNode->GetCreationTime());
     branchedNode->SetModificationTime(originatingNode->GetModificationTime());
     branchedNode->SetRevision(originatingNode->GetRevision());
-    branchedNode->SetLockMode(mode);
+    branchedNode->SetLockMode(lockRequest.Mode);
     branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
     branchedNode->SetTransaction(transaction);
     branchedNode->SetOriginator(originatingNode);
@@ -171,6 +171,9 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
     // Copy builtin attributes.
     clonedNode->SetOpaque(sourceNode->GetOpaque());
+    if (mode == ENodeCloneMode::Move) {
+        clonedNode->SetCreationTime(sourceNode->GetCreationTime());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,7 +222,7 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
 
 int TMapNode::GetGCWeight() const
 {
-    return IObjectBase::GetGCWeight() + KeyToChild_.size();
+    return TObjectBase::GetGCWeight() + KeyToChild_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,9 +259,9 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
 void TMapNodeTypeHandler::DoBranch(
     const TMapNode* originatingNode,
     TMapNode* branchedNode,
-    ELockMode mode)
+    const TLockRequest& lockRequest)
 {
-    TBase::DoBranch(originatingNode, branchedNode, mode);
+    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 }
 
 void TMapNodeTypeHandler::DoMerge(
@@ -413,7 +416,7 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
 
 int TListNode::GetGCWeight() const
 {
-    return IObjectBase::GetGCWeight() + IndexToChild_.size();
+    return TObjectBase::GetGCWeight() + IndexToChild_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,9 +460,9 @@ void TListNodeTypeHandler::DoDestroy(TListNode* node)
 void TListNodeTypeHandler::DoBranch(
     const TListNode* originatingNode,
     TListNode* branchedNode,
-    ELockMode mode)
+    const TLockRequest& lockRequest)
 {
-    TBase::DoBranch(originatingNode, branchedNode, mode);
+    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
     branchedNode->IndexToChild() = originatingNode->IndexToChild();
     branchedNode->ChildToIndex() = originatingNode->ChildToIndex();
@@ -607,9 +610,9 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
 void TLinkNodeTypeHandler::DoBranch(
     const TLinkNode* originatingNode,
     TLinkNode* branchedNode,
-    ELockMode mode)
+    const TLockRequest& lockRequest)
 {
-    TBase::DoBranch(originatingNode, branchedNode, mode);
+    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
     branchedNode->SetTargetPath(originatingNode->GetTargetPath());
 }
@@ -695,9 +698,9 @@ ICypressNodeProxyPtr TDocumentNodeTypeHandler::DoGetProxy(
 void TDocumentNodeTypeHandler::DoBranch(
     const TDocumentNode* originatingNode,
     TDocumentNode* branchedNode,
-    ELockMode mode)
+    const TLockRequest& lockRequest)
 {
-    TBase::DoBranch(originatingNode, branchedNode, mode);
+    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
     branchedNode->SetValue(CloneNode(originatingNode->GetValue()));
 }

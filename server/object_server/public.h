@@ -42,14 +42,14 @@ DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterCacheServiceConfig)
 
-class IObjectBase;
+class TObjectBase;
 class TNonversionedObjectBase;
 
 class TObjectProxyBase;
 
 class TAttributeSet;
 
-class IObjectBase;
+class TObjectBase;
 class TNonversionedObjectBase;
 
 struct TObjectTypeMetadata;

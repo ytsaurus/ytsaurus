@@ -285,6 +285,7 @@ PyMemberDef LazyYsonMapMembers[] = {
     {"attributes", T_OBJECT_EX, offsetof(TLazyYsonMap, Attributes), 0, ""},
     {nullptr}
 };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 PyTypeObject TLazyYsonMapType = {

@@ -77,7 +77,7 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TNode::TNode(const TObjectId& objectId)
-    : IObjectBase(objectId)
+    : TObjectBase(objectId)
     , IOWeights_{}
     , FillFactorIterators_{}
     , LoadFactorIterators_{}
@@ -118,6 +118,31 @@ void TNode::ComputeAggregatedState()
 void TNode::ComputeDefaultAddress()
 {
     DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(GetAddressesOrThrow(EAddressType::InternalRpc));
+}
+
+void TNode::SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statistics)
+{
+    Statistics_.Swap(&statistics);
+    ComputeFillFactors();
+}
+
+void TNode::ComputeFillFactors()
+{
+    TPerMediumArray<i64> freeSpace;
+    TPerMediumArray<i64> usedSpace;
+
+    for (const auto& location : Statistics_.locations()) {
+        auto mediumIndex = location.medium_index();
+        freeSpace[mediumIndex] += (location.available_space() - location.low_watermark_space());
+        usedSpace[mediumIndex] += location.used_space();
+    }
+
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        i64 totalSpace = freeSpace[mediumIndex] + usedSpace[mediumIndex];
+        FillFactors_[mediumIndex] = (totalSpace == 0)
+            ? Null
+            : MakeNullable(usedSpace[mediumIndex] / std::max<double>(1.0, totalSpace));
+    }
 }
 
 TNodeId TNode::GetId() const
@@ -214,7 +239,7 @@ ENodeState TNode::GetAggregatedState() const
 
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
-    IObjectBase::Save(context);
+    TObjectBase::Save(context);
 
     using NYT::Save;
     Save(context, Banned_);
@@ -252,7 +277,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
-    IObjectBase::Load(context);
+    TObjectBase::Load(context);
 
     using NYT::Load;
     Load(context, Banned_);
@@ -582,6 +607,13 @@ void TNode::SetVisitMark(int mediumIndex, ui64 mark)
     VisitMarks_[mediumIndex] = mark;
 }
 
+void TNode::ValidateNotBanned()
+{
+    if (Banned_) {
+        THROW_ERROR_EXCEPTION("Node %v is banned", GetDefaultAddress());
+    }
+}
+
 int TNode::GetTotalTabletSlots() const
 {
     return
@@ -603,23 +635,7 @@ bool TNode::HasMedium(int mediumIndex) const
 
 TNullable<double> TNode::GetFillFactor(int mediumIndex) const
 {
-    i64 freeSpace = 0;
-    i64 usedSpace = 0;
-
-    for (const auto& location : Statistics_.locations()) {
-        if (location.medium_index() == mediumIndex) {
-            freeSpace += location.available_space() - location.low_watermark_space();
-            usedSpace += location.used_space();
-        }
-    }
-
-    i64 totalSpace = freeSpace + usedSpace;
-    if (totalSpace == 0) {
-        // No storage of this medium on this node.
-        return Null;
-    } else {
-        return usedSpace / std::max<double>(1.0, totalSpace);
-    }
+    return FillFactors_[mediumIndex];
 }
 
 TNullable<double> TNode::GetLoadFactor(int mediumIndex) const

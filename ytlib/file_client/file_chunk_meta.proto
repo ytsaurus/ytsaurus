@@ -4,7 +4,7 @@ package NYT.NFileClient.NProto;
 
 message TBlockInfo
 {
-    required int32 size = 1;
+    required int64 size = 1;
 }
 
 message TBlocksExt

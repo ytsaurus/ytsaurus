@@ -65,7 +65,7 @@ public:
         NLogging::TLogger logger)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , CommitInvoker_(CreateSerializedInvoker(Client_->GetConnection()->GetHeavyInvoker()))
+        , CommitInvoker_(CreateSerializedInvoker(Client_->GetConnection()->GetInvoker()))
         , Logger(logger.AddTag("TransactionId: %v, ConnectionCellTag: %v",
             GetId(),
             Client_->GetConnection()->GetCellTag()))
@@ -821,9 +821,10 @@ private:
             , TabletInfo_(std::move(tabletInfo))
             , TableSession_(std::move(tableSession))
             , Config_(transaction->Client_->GetNativeConnection()->GetConfig())
+            , ColumnEvaluator_(std::move(columnEvauator))
+            , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
-            , ColumnEvaluator_(std::move(columnEvauator))
             , Logger(NLogging::TLogger(transaction->Logger)
                 .AddTag("TabletId: %v", TabletInfo_->TabletId))
         { }
@@ -894,13 +895,14 @@ private:
         const TTabletInfoPtr TabletInfo_;
         const TTableCommitSessionPtr TableSession_;
         const TNativeConnectionConfigPtr Config_;
+        const TColumnEvaluatorPtr ColumnEvaluator_;
+        const ITableMountCachePtr TableMountCache_;
         const int ColumnCount_;
         const int KeyColumnCount_;
 
         struct TCommitSessionBufferTag
         { };
 
-        TColumnEvaluatorPtr ColumnEvaluator_;
         TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TCommitSessionBufferTag());
 
         NLogging::TLogger Logger;
@@ -1071,7 +1073,7 @@ private:
             ToProto(req->mutable_transaction_id(), transaction->GetId());
             if (transaction->GetAtomicity() == EAtomicity::Full) {
                 req->set_transaction_start_timestamp(transaction->GetStartTimestamp());
-                req->set_transaction_timeout(ToProto(transaction->GetTimeout()));
+                req->set_transaction_timeout(ToProto<i64>(transaction->GetTimeout()));
             }
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             req->set_mount_revision(TabletInfo_->MountRevision);
@@ -1109,6 +1111,7 @@ private:
         {
             if (!rspOrError.IsOK()) {
                 LOG_DEBUG(rspOrError, "Error sending transaction rows");
+                TableMountCache_->InvalidateOnError(rspOrError);
                 InvokePromise_.Set(rspOrError);
                 return;
             }
@@ -1214,7 +1217,7 @@ private:
             auto req = proxy.RegisterTransactionActions();
             ToProto(req->mutable_transaction_id(), owner->GetId());
             req->set_transaction_start_timestamp(owner->GetStartTimestamp());
-            req->set_transaction_timeout(ToProto(owner->GetTimeout()));
+            req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
             req->set_signature(AllocateRequestSignature());
             ToProto(req->mutable_actions(), Actions_);
             return req->Invoke().As<void>();

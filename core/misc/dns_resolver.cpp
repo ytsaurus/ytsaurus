@@ -408,7 +408,7 @@ void TDnsResolver::TImpl::OnNameResolution(
     YCHECK(hostent->h_addr_list && hostent->h_addr_list[0]);
     TNetworkAddress result(hostent->h_addrtype, hostent->h_addr, hostent->h_length);
 
-    if (Logger.IsEnabled(NLogging::ELogLevel::Debug)) {
+    if (Logger.IsLevelEnabled(NLogging::ELogLevel::Debug)) {
         TStringBuilder info;
         bool empty;
         OnNameResolutionDebugLog(&info, &empty, hostent);

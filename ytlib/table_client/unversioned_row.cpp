@@ -281,9 +281,7 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
         default:
             Y_UNREACHABLE();
     }
-
     return output.Buf() - buffer;
-
 }
 
 TString ToString(const TUnversionedValue& value)
@@ -292,6 +290,7 @@ TString ToString(const TUnversionedValue& value)
     if (value.Aggregate) {
         builder.AppendChar('%');
     }
+    builder.AppendFormat("%v#", value.Id);
     switch (value.Type) {
         case EValueType::Null:
         case EValueType::Min:
@@ -844,6 +843,13 @@ void ValidateClientRow(
                 schema.Columns()[index].Name);
         }
     }
+
+    auto dataWeight = GetDataWeight(row);
+    if (dataWeight >= MaxClientVersionedRowDataWeight) {
+        THROW_ERROR_EXCEPTION("Row is too large: data weight %v, limit %v",
+            dataWeight,
+            MaxClientVersionedRowDataWeight);
+    }
 }
 
 } // namespace
@@ -1044,13 +1050,6 @@ void ValidateClientDataRow(
     ValidateClientRow(row, schema, idMapping, nameTable, false);
 }
 
-void ValidateServerDataRow(
-    TUnversionedRow row,
-    const TTableSchema& schema)
-{
-    ValidateDataRow(row, nullptr, schema);
-}
-
 void ValidateClientKey(TKey key)
 {
     for (const auto& value : key) {
@@ -1065,13 +1064,6 @@ void ValidateClientKey(
     const TNameTablePtr& nameTable)
 {
     ValidateClientRow(key, schema, idMapping, nameTable, true);
-}
-
-void ValidateServerKey(
-    TKey key,
-    const TTableSchema& schema)
-{
-    ValidateKey(key, schema);
 }
 
 void ValidateReadTimestamp(TTimestamp timestamp)

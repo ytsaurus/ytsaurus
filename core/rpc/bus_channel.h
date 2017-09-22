@@ -12,8 +12,8 @@ namespace NRpc {
 //! Creates a channel implemented via Bus.
 IChannelPtr CreateBusChannel(NBus::IBusClientPtr client);
 
-//! Returns the factory for creating Bus channels.
-IChannelFactoryPtr GetBusChannelFactory();
+//! Creates a factory for creating Bus channels.
+IChannelFactoryPtr CreateBusChannelFactory(NBus::TTcpBusConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

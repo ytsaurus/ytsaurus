@@ -66,6 +66,7 @@ public:
     explicit TStreamReader(IInputStream* stream);
 
     const char* Begin() const;
+    const char* Current() const;
     const char* End() const;
 
     void RefreshBlock();
@@ -83,6 +84,7 @@ private:
     i64 NextBlobSize_ = 0;
 
     char* BeginPtr_ = nullptr;
+    char* CurrentPtr_ = nullptr;
     char* EndPtr_ = nullptr;
 
     char* PrefixStart_ = nullptr;

@@ -50,19 +50,20 @@ void TPortoProcess::DoSpawn()
         ContainerInstance_->SetCwd(WorkingDirectory_);
     }
     Started_ = true;
+    TFuture<int> execFuture;
+
     try {
-        // First argument must be path to binary
-        ResolvedPath_ = ResolveBinaryPath(Args_[0]).ValueOrThrow();
+        // First argument must be path to binary.
+        ResolvedPath_ = ResolveBinaryPath(Args_[0])
+            .ValueOrThrow();
         Args_[0] = ResolvedPath_.c_str();
-        ContainerInstance_->Exec(Args_, Env_).Apply(BIND([=, this_ = MakeStrong(this)](int exitCode) {
-            Finished_ = true;
-            FinishedPromise_.Set(StatusToError(exitCode));
-        }));
+        execFuture = ContainerInstance_->Exec(Args_, Env_);
         try {
             ProcessId_ = ContainerInstance_->GetPid();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Unable to get pid of root process")
-                << ex;
+            // This could happen if porto container has already died.
+            LOG_WARNING(ex, "Failed to get pid of root process (Container: %v)",
+                ContainerInstance_->GetName());
         }
     } catch (const std::exception& ex) {
         Finished_ = true;
@@ -75,6 +76,13 @@ void TPortoProcess::DoSpawn()
         Args_[0],
         ProcessId_,
         ContainerInstance_->GetName());
+
+    YCHECK(execFuture);
+    execFuture.Apply(BIND([=, this_ = MakeStrong(this)](int exitCode) {
+        LOG_DEBUG("Process inside porto exited (ExitCode: %v)", exitCode);
+        Finished_ = true;
+        FinishedPromise_.Set(StatusToError(exitCode));
+    }));
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif

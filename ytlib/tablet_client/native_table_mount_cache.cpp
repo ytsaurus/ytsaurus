@@ -249,9 +249,38 @@ public:
     {
         for (const auto& weakOwner : tabletInfo->Owners) {
             if (auto owner = weakOwner.Lock()) {
-                TryRemove(owner->Path);
+                Invalidate(owner->Path);
             }
         }
+    }
+
+    virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) override
+    {
+        static std::vector<NTabletClient::EErrorCode> retriableCodes = {
+            NTabletClient::EErrorCode::NoSuchTablet,
+            NTabletClient::EErrorCode::TabletNotMounted,
+            NTabletClient::EErrorCode::InvalidMountRevision
+        };
+
+        if (!error.IsOK()) {
+            for (auto errCode : retriableCodes) {
+                if (auto retriableError = error.FindMatching(errCode)) {
+                    // COMPAT(savrus) Not all above exceptions had tablet_id attribute in early 19.2 versions.
+                    auto tabletId = retriableError->Attributes().Find<TTabletId>("tablet_id");
+                    if (!tabletId) {
+                        continue;
+                    }
+                    auto tabletInfo = FindTablet(*tabletId);
+                    if (tabletInfo) {
+                        LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
+                        InvalidateTablet(tabletInfo);
+                    }
+                    return std::make_pair(true, tabletInfo);
+                }
+            }
+        }
+
+        return std::make_pair(false, nullptr);
     }
 
     virtual void Clear()
@@ -276,8 +305,8 @@ private:
 
         auto req = TTableYPathProxy::GetMountInfo(path);
         auto* cachingHeaderExt = req->Header().MutableExtension(TCachingHeaderExt::caching_header_ext);
-        cachingHeaderExt->set_success_expiration_time(ToProto(Config_->ExpireAfterSuccessfulUpdateTime));
-        cachingHeaderExt->set_failure_expiration_time(ToProto(Config_->ExpireAfterFailedUpdateTime));
+        cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
+        cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
 
         return ObjectProxy_.Execute(req).Apply(
             BIND([= , this_ = MakeStrong(this)] (const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError) {

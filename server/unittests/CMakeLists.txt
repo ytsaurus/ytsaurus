@@ -4,11 +4,11 @@ resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
-add_executable(unittester-server
+add_executable(unittester-ytserver
   ${YT_SRCS_RESOLVED}
 )
 
-target_link_libraries(unittester-server
+target_link_libraries(unittester-ytserver
   yt-core-test-framework
   yt-library-client
   yt-library-server

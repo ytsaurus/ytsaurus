@@ -167,8 +167,8 @@ public:
 
     TFuture<TMutationResponse> TryBeginKeptRequest(const TMutationRequest& request);
 
-    void LogLeaderMutation(
-        const TMutationRequest& request,
+    const TMutationRequest& LogLeaderMutation(
+        TMutationRequest&& request,
         TSharedRef* recordData,
         TFuture<void>* localFlushResult,
         TFuture<TMutationResponse>* commitResult);
@@ -235,6 +235,18 @@ private:
 
     struct TPendingMutation
     {
+        TPendingMutation(
+            TVersion version,
+            TMutationRequest&& request,
+            TInstant timestamp,
+            ui64 randomSeed)
+            : Version(version)
+            , Request(std::move(request))
+            , Timestamp(timestamp)
+            , RandomSeed(randomSeed)
+            , CommitPromise(NewPromise<TMutationResponse>())
+        { }
+
         TVersion Version;
         TMutationRequest Request;
         TInstant Timestamp;

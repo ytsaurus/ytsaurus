@@ -12,7 +12,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -206,10 +206,15 @@ public:
             operation->GetSlotIndex(),
             operation->GetId());
 
-        if (CanAddOperationToPool(pool.Get())) {
-            ActivateOperation(operation->GetId());
-        } else {
+        auto violatedPool = FindPoolViolatingMaxRunningOperationCount(pool.Get());
+        if (violatedPool) {
+            LOG_DEBUG("Max running operation count violated (OperationId: %v, Pool: %v, Limit: %v)",
+                operation->GetId(),
+                violatedPool->GetId(),
+                violatedPool->GetMaxRunningOperationCount());
             OperationQueue.push_back(operation);
+        } else {
+            ActivateOperation(operation->GetId());
         }
     }
 
@@ -315,7 +320,7 @@ public:
             while (it != OperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
                 const auto& operation = *it;
                 auto* operationPool = GetOperationElement(operation->GetId())->GetParent();
-                if (CanAddOperationToPool(operationPool)) {
+                if (FindPoolViolatingMaxRunningOperationCount(operationPool) == nullptr) {
                     ActivateOperation(operation->GetId());
                     auto toRemove = it++;
                     OperationQueue.erase(toRemove);
@@ -529,6 +534,10 @@ public:
 
         Config = config;
         RootElement->UpdateStrategyConfig(Config);
+
+        FairShareUpdateExecutor_->SetPeriod(Config->FairShareUpdatePeriod);
+        FairShareLoggingExecutor_->SetPeriod(Config->FairShareLogPeriod);
+        MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
     }
 
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
@@ -605,6 +614,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        // TODO(ignat): stop using pools from here and remove this section (since it is also presented in fair_share_info subsection).
         BuildPoolsInformation(consumer);
         BuildYsonMapFluently(consumer)
             .Item("fair_share_info").BeginMap()
@@ -752,6 +762,16 @@ public:
         }
     }
 
+    virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        const auto& element = FindOperationElement(operationId);
+        for (const auto& job : jobs) {
+            element->OnJobStarted(job->GetId(), job->ResourceUsage());
+        }
+    }
+
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
@@ -867,7 +887,11 @@ private:
 
         LOG_INFO("Starting min needed job resources update");
         for (const auto& pair : OperationIdToElement) {
-            pair.second->UpdateMinNeededJobResources();
+            const auto& operationElement = pair.second;
+            if (!operationElement->IsSchedulable()) {
+                continue;
+            }
+            operationElement->UpdateMinNeededJobResources();
         }
         LOG_INFO("Min needed job resources successfully updated");
     }
@@ -944,7 +968,7 @@ private:
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
             }
 
-            TScopedTimer timer;
+            TWallTimer timer;
             while (schedulingContext->CanStartMoreJobs()) {
                 ++nonPreemptiveScheduleJobCount;
                 if (!rootElement->ScheduleJob(context)) {
@@ -954,7 +978,7 @@ private:
             profileTimings(
                 NonPreemptiveProfilingCounters,
                 nonPreemptiveScheduleJobCount,
-                timer.GetElapsed() - context.TotalScheduleJobDuration);
+                timer.GetElapsedTime() - context.TotalScheduleJobDuration);
 
             if (nonPreemptiveScheduleJobCount > 0) {
                 logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
@@ -1010,7 +1034,7 @@ private:
             context.ExecScheduleJobDuration = TDuration::Zero();
             std::fill(context.FailedScheduleJob.begin(), context.FailedScheduleJob.end(), 0);
 
-            TScopedTimer timer;
+            TWallTimer timer;
             while (schedulingContext->CanStartMoreJobs()) {
                 ++preemptiveScheduleJobCount;
                 if (!rootElement->ScheduleJob(context)) {
@@ -1024,7 +1048,7 @@ private:
             profileTimings(
                 PreemptiveProfilingCounters,
                 preemptiveScheduleJobCount,
-                timer.GetElapsed() - context.TotalScheduleJobDuration);
+                timer.GetElapsedTime() - context.TotalScheduleJobDuration);
             if (preemptiveScheduleJobCount > 0) {
                 logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
             }
@@ -1192,17 +1216,17 @@ private:
         return params;
     }
 
-    bool CanAddOperationToPool(TCompositeSchedulerElement* pool)
+    TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         while (pool) {
             if (pool->RunningOperationCount() >= pool->GetMaxRunningOperationCount()) {
-                return false;
+                return pool;
             }
             pool = pool->GetParent();
         }
-        return true;
+        return nullptr;
     }
 
     TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element)
@@ -1417,7 +1441,6 @@ private:
         return it->second;
     }
 
-
     TOperationElementPtr FindOperationElement(const TOperationId& operationId)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -1464,6 +1487,7 @@ private:
                         .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
                         .Item("max_operation_count").Value(pool->GetMaxOperationCount())
                         .Item("aggressive_starvation_enabled").Value(pool->IsAggressiveStarvationEnabled())
+                        .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsFobidden())
                         .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                             fluent
                                 .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
@@ -1543,6 +1567,7 @@ private:
             .Item("weight").Value(element->GetWeight())
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
+            .Item("min_share_resources").Value(element->GetMinShareResources())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
             .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
             .Item("guaranteed_resources").Value(guaranteedResources)

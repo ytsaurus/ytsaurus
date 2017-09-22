@@ -2,10 +2,10 @@
 #include "public.h"
 #include "lz.h"
 
-#include <yt/contrib/lz4/lz4.h>
-#include <yt/contrib/lz4/lz4hc.h>
-
 #include <yt/contrib/quicklz/quicklz.h>
+
+#include <contrib/libs/lz4/lz4.h>
+#include <contrib/libs/lz4/lz4hc.h>
 
 namespace NYT {
 namespace NCompression {
@@ -278,7 +278,7 @@ void Lz4Decompress(StreamSource* source, TBlob* sink)
         source,
         sink,
         [] (const char* input, size_t inputSize, char* output, size_t outputSize) {
-            int rv = LZ4_uncompress(input, output, static_cast<int>(outputSize));
+            int rv = LZ4_decompress_fast(input, output, static_cast<int>(outputSize));
             YCHECK(rv > 0 && rv == inputSize);
         }
     );

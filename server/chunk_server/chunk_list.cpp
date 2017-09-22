@@ -194,7 +194,7 @@ ui64 TChunkList::GenerateVisitMark()
 
 int TChunkList::GetGCWeight() const
 {
-    return IObjectBase::GetGCWeight() + Children_.size();
+    return TObjectBase::GetGCWeight() + Children_.size();
 }
 
 void TChunkList::SetKind(EChunkListKind kind)

@@ -396,20 +396,21 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         KwNull = 1019,
         KwBetween = 1020,
         KwIn = 1021,
-        KwFalse = 1022,
-        KwTrue = 1023,
-        Identifier = 1024,
-        Int64Literal = 1025,
-        Uint64Literal = 1026,
-        DoubleLiteral = 1027,
-        StringLiteral = 1028,
+        KwTransform = 1022,
+        KwFalse = 1023,
+        KwTrue = 1024,
+        Identifier = 1025,
+        Int64Literal = 1026,
+        Uint64Literal = 1027,
+        DoubleLiteral = 1028,
+        StringLiteral = 1029,
         OpTilde = 126,
         OpNumberSign = 35,
         OpVerticalBar = 124,
         OpAmpersand = 38,
         OpModulo = 37,
-        OpLeftShift = 1029,
-        OpRightShift = 1030,
+        OpLeftShift = 1030,
+        OpRightShift = 1031,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
@@ -419,11 +420,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         Dot = 46,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1031,
+        OpLessOrEqual = 1032,
         OpEqual = 61,
-        OpNotEqual = 1032,
+        OpNotEqual = 1033,
         OpGreater = 62,
-        OpGreaterOrEqual = 1033
+        OpGreaterOrEqual = 1034
       };
     };
 
@@ -654,6 +655,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
+    make_KwTransform (const location_type& l);
+
+    static inline
+    symbol_type
     make_KwFalse (const location_type& l);
 
     static inline
@@ -822,7 +827,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     /// \param yyvalue   the value to check
     static bool yy_table_value_is_error_ (int yyvalue);
 
-    static const signed char yypact_ninf_;
+    static const short int yypact_ninf_;
     static const signed char yytable_ninf_;
 
     /// Convert a scanner token number \a t to a symbol number.
@@ -964,13 +969,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 226,     ///< Last index in yytable_.
+      yylast_ = 246,     ///< Last index in yytable_.
       yynnts_ = 44,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 43, ///< Termination state number.
+      yyfinal_ = 44, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 55  ///< Number of tokens.
+      yyntokens_ = 56  ///< Number of tokens.
     };
 
 

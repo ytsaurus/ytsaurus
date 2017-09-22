@@ -22,6 +22,7 @@ static const int MaxSchedulingTagRuleCount = 100;
 namespace NProto {
 
 class TSchedulerJobSpecExt;
+class TSchedulerJobResultExt;
 class TTableInputSpec;
 
 } // namespace NProto
@@ -85,6 +86,7 @@ DEFINE_ENUM(EAbortReason,
     (WaitingTimeout)
     (AccountLimitExceeded)
     (Unknown)
+    (RevivalConfirmationTimeout)
     (SchedulingFirst)
     (SchedulingTimeout)
     (SchedulingResourceOvercommit)
@@ -92,6 +94,7 @@ DEFINE_ENUM(EAbortReason,
     (SchedulingJobSpecThrottling)
     (SchedulingOther)
     (SchedulingLast)
+    (IntermediateChunkLimitExceeded)
 );
 
 DEFINE_ENUM(EInterruptReason,
@@ -99,6 +102,7 @@ DEFINE_ENUM(EInterruptReason,
     (Preemption)
     (UserRequest)
     (JobSplit)
+    (Unknown)
 );
 
 DEFINE_ENUM(EJobFinalState,
@@ -118,11 +122,20 @@ DEFINE_ENUM(EFifoSortParameter,
     (PendingJobCount)
 );
 
+DEFINE_ENUM(EAutoMergeMode,
+    (Disabled)
+    (Relaxed)
+    (Economy)
+    (Manual)
+)
+
 class TSchedulerServiceProxy;
 
 DECLARE_REFCOUNTED_CLASS(TJobIOConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTestingOperationOptions)
+
+DECLARE_REFCOUNTED_CLASS(TAutoMergeConfig)
 
 DECLARE_REFCOUNTED_CLASS(TSchedulingTagRuleConfig)
 

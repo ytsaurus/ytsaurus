@@ -9,7 +9,11 @@ namespace NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IChannelPtr CreateChannel(TChannelConfigPtr config);
+//! Creates a channel implemented via GRPC.
+NRpc::IChannelPtr CreateGrpcChannel(TChannelConfigPtr config);
+
+//! Returns the factory for creating GRPC channels.
+NRpc::IChannelFactoryPtr GetGrpcChannelFactory();
 
 ////////////////////////////////////////////////////////////////////////////////
 

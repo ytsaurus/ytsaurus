@@ -599,8 +599,6 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
             item.Type = values[3 * lineNumber + 1];
             item.Value = FromString<ui64>(values[3 * lineNumber + 2]);
 
-            YCHECK(item.DeviceId.StartsWith("8:"));
-
             {
                 auto guard = Guard(SpinLock_);
                 DeviceIds_.insert(item.DeviceId);

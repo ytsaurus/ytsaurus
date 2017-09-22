@@ -123,7 +123,7 @@ TKeyTriePtr ExtractMultipleConstraints(
             functionExpr,
             keyColumns,
             rowBuffer);
-    } else if (auto inExpr = expr->As<TInOpExpression>()) {
+    } else if (auto inExpr = expr->As<TInExpression>()) {
         int argsSize = inExpr->Arguments.size();
 
         std::vector<int> keyMapping(keyColumns.size(), -1);
@@ -158,6 +158,17 @@ TKeyTriePtr ExtractMultipleConstraints(
     }
 
     return TKeyTrie::Universal();
+}
+
+bool IsTrue(TConstExpressionPtr expr)
+{
+    if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        TValue value = literalExpr->Value;
+        if (value.Type == EValueType::Boolean) {
+            return value.Data.Boolean;
+        }
+    }
+    return false;
 }
 
 TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
@@ -244,7 +255,7 @@ void SortRows(
 
 TConstExpressionPtr EliminateInExpression(
     const TRange<TRow>& lookupKeys,
-    const TInOpExpression* inExpr,
+    const TInExpression* inExpr,
     const TKeyColumns& keyColumns,
     size_t keyPrefixSize,
     const std::vector<std::pair<TBound, TBound>>* bounds)
@@ -359,7 +370,7 @@ TConstExpressionPtr EliminateInExpression(
             return falseLiteral;
         } else {
             std::sort(filteredValues.begin(), filteredValues.end());
-            return New<TInOpExpression>(
+            return New<TInExpression>(
                 inExpr->Arguments,
                 MakeSharedRange(std::move(filteredValues), inExpr->Values));
         }
@@ -497,7 +508,7 @@ TConstExpressionPtr EliminatePredicate(
                     }
                 }
             }
-        } else if (auto inExpr = expr->As<TInOpExpression>()) {
+        } else if (auto inExpr = expr->As<TInExpression>()) {
             std::vector<TRow> lookupKeys;
             std::vector<std::pair<TBound, TBound>> bounds;
             for (const auto& keyRange : keyRanges) {
@@ -537,7 +548,7 @@ TConstExpressionPtr EliminatePredicate(
                     refinePredicate(lhsExpr),
                     refinePredicate(rhsExpr));
             }
-        } else if (auto inExpr = expr->As<TInOpExpression>()) {
+        } else if (auto inExpr = expr->As<TInExpression>()) {
             return EliminateInExpression(lookupKeys, inExpr, keyColumns, keyColumns.size(), nullptr);
         }
 
@@ -629,7 +640,7 @@ bool AreAllReferencesInSchema(TConstExpressionPtr expr, const TTableSchema& tabl
             result = result && AreAllReferencesInSchema(argument, tableSchema);
         }
         return result;
-    } else if (auto inExpr = expr->As<TInOpExpression>()) {
+    } else if (auto inExpr = expr->As<TInExpression>()) {
         bool result = true;
         for (const auto& argument : inExpr->Arguments) {
             result = result && AreAllReferencesInSchema(argument, tableSchema);

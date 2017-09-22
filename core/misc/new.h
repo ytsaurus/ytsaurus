@@ -74,19 +74,12 @@ struct TRefCountedTypeTag { };
 template <class T>
 TRefCountedTypeKey GetRefCountedTypeKey();
 
-TRefCountedTypeCookie GetRefCountedTypeCookie(
-    TRefCountedTypeKey typeKey,
-    const TSourceLocation& location);
-
 template <class T>
 TRefCountedTypeCookie GetRefCountedTypeCookie();
 
 template <class T, class TTag, int Counter>
 TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(
     const TSourceLocation& location);
-
-template <class T>
-size_t SpaceUsed(const T* instance);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,7 +100,7 @@ inline TIntrusivePtr<T> NewWithLocation(
     friend ::NYT::TIntrusivePtr<T> NYT::NDetail::NewImpl( \
         ::NYT::TRefCountedTypeCookie cookie, \
         size_t extraSpaceSize, \
-        As&& ... args) noexcept
+        As&& ... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 

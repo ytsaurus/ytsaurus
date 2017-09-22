@@ -30,7 +30,7 @@ message TNameTableExt
 message TBlockMeta
 {
     required int32 row_count = 1;
-    required int32 uncompressed_size = 2;
+    required int64 uncompressed_size = 2;
     required int64 chunk_row_count = 3;
 
     required int32 block_index = 7;

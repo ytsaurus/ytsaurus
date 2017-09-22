@@ -115,18 +115,17 @@ TNativeConnectionConfig::TNativeConnectionConfig()
     RegisterParameter("function_impl_cache", FunctionImplCache)
         .DefaultNew();
 
-    RegisterParameter("light_pool_size", LightPoolSize)
-        .Describe("Number of threads handling light requests")
-        .Default(1);
-
-    RegisterParameter("heavy_pool_size", HeavyPoolSize)
-        .Describe("Number of threads handling heavy requests")
+    RegisterParameter("thread_pool_size", ThreadPoolSize)
+        .Describe("Number of threads handling requests")
         .Default(4);
 
     RegisterParameter("max_concurrent_requests", MaxConcurrentRequests)
         .Describe("Maximum concurrent requests in client")
         .GreaterThan(0)
         .Default(1000);
+
+    RegisterParameter("bus_client", BusClient)
+        .DefaultNew();
 
     RegisterInitializer([&] () {
         FunctionImplCache->Capacity = 100;

@@ -101,7 +101,8 @@ public:
         TRetentionConfigPtr config,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
-        NQueryClient::TColumnEvaluatorPtr columnEvaluator);
+        NQueryClient::TColumnEvaluatorPtr columnEvaluator,
+        bool lookup);
 
     void AddPartialRow(TVersionedRow row);
     TVersionedRow BuildMergedRow();
@@ -117,10 +118,12 @@ private:
     const TTimestamp CurrentTimestamp_;
     const TTimestamp MajorTimestamp_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+    const bool Lookup_ = true;
 
     bool Started_ = false;
 
     SmallVector<int, TypicalColumnCount> ColumnIds_;
+    SmallVector<int, TypicalColumnCount> ColumnIdToIndex_;
     SmallVector<TUnversionedValue, TypicalColumnCount> Keys_;
 
     std::vector<TVersionedValue> PartialValues_;

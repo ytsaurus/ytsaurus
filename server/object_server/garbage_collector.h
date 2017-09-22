@@ -37,12 +37,12 @@ public:
 
     TFuture<void> Collect();
 
-    int WeakRefObject(IObjectBase* object, TEpoch epoch);
-    int WeakUnrefObject(IObjectBase* object, TEpoch epoch);
+    int WeakRefObject(TObjectBase* object, TEpoch epoch);
+    int WeakUnrefObject(TObjectBase* object, TEpoch epoch);
 
-    void RegisterZombie(IObjectBase* object);
-    void UnregisterZombie(IObjectBase* object);
-    void DestroyZombie(IObjectBase* object);
+    void RegisterZombie(TObjectBase* object);
+    void UnregisterZombie(TObjectBase* object);
+    void DestroyZombie(TObjectBase* object);
 
     void Reset();
 
@@ -60,11 +60,11 @@ private:
 
     //! Contains objects with zero ref counter.
     //! These are ready for IObjectTypeHandler::Destroy call.
-    yhash_set<IObjectBase*> Zombies_;
+    yhash_set<TObjectBase*> Zombies_;
 
     //! Contains objects with zero ref counter and positive weak ref counter.
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
-    yhash_set<IObjectBase*> Ghosts_;
+    yhash_set<TObjectBase*> Ghosts_;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise_;

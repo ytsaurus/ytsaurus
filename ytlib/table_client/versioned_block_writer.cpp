@@ -122,7 +122,7 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
     auto strings = StringDataStream_.Flush();
     blockParts.insert(blockParts.end(), strings.begin(), strings.end());
 
-    int size = 0;
+    i64 size = 0;
     for (auto& part : blockParts) {
         size += part.Size();
     }
