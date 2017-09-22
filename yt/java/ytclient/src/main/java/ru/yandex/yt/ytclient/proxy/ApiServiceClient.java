@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import com.google.protobuf.ByteString;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -17,6 +18,7 @@ import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
+import ru.yandex.yt.rpcproxy.TReqSetNode;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
@@ -26,6 +28,7 @@ import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
+import ru.yandex.yt.rpcproxy.TRspSetNode;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.ytclient.misc.YtGuid;
@@ -132,6 +135,18 @@ public class ApiServiceClient {
         RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
         builder.body().setPath(path);
         return RpcUtil.apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getValue()));
+    }
+
+    public CompletableFuture<Void> setNode(String path, byte[] data) {
+        RpcClientRequestBuilder<TReqSetNode.Builder, RpcClientResponse<TRspSetNode>> builder = service.setNode();
+        builder.body()
+            .setPath(path)
+            .setValue(ByteString.copyFrom(data));
+        return RpcUtil.apply(builder.invoke(), response -> null);
+    }
+
+    public CompletableFuture<Void> setNode(String path, YTreeNode data) {
+        return setNode(path, data.toBinary());
     }
 
     public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request, YtTimestamp timestamp) {
