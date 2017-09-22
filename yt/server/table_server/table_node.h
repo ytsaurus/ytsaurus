@@ -48,6 +48,7 @@ private:
         TNullable<i64> MinTabletSize;
         TNullable<i64> MaxTabletSize;
         TNullable<i64> DesiredTabletSize;
+        NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -74,6 +75,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MinTabletSize);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MaxTabletSize);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletSize);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, InMemoryMode);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);

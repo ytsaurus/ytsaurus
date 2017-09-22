@@ -22,10 +22,9 @@ using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NTableServer;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
-
-using NTabletNode::EInMemoryMode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

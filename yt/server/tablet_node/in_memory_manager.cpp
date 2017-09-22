@@ -34,12 +34,13 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NHydra;
-using namespace NConcurrency;
-using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

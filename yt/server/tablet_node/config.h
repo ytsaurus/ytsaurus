@@ -83,7 +83,7 @@ public:
 
     int MaxOverlappingStoreCount;
 
-    EInMemoryMode InMemoryMode;
+    NTabletClient::EInMemoryMode InMemoryMode;
 
     int MaxStoresPerTablet;
 
@@ -192,7 +192,7 @@ public:
             .Default(30);
 
         RegisterParameter("in_memory_mode", InMemoryMode)
-            .Default(EInMemoryMode::None);
+            .Default(NTabletClient::EInMemoryMode::None);
 
         RegisterParameter("max_stores_per_tablet", MaxStoresPerTablet)
             .Default(10000)
@@ -245,7 +245,7 @@ public:
             if (MaxCompactionStoreCount < MinCompactionStoreCount) {
                 THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_chunk_count\"");
             }
-            if (EnableLookupHashTable && InMemoryMode != EInMemoryMode::Uncompressed) {
+            if (EnableLookupHashTable && InMemoryMode != NTabletClient::EInMemoryMode::Uncompressed) {
                 THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can only be true if \"in_memory_mode\" is \"uncompressed\"");
             }
         });

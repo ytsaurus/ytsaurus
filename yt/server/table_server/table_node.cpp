@@ -7,17 +7,20 @@
 namespace NYT {
 namespace NTableServer {
 
-using namespace NTableClient;
-using namespace NCypressServer;
-using namespace NYTree;
-using namespace NYson;
-using namespace NChunkServer;
-using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NChunkClient;
+using namespace NChunkServer;
+using namespace NCypressServer;
 using namespace NObjectServer;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTabletServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
-using namespace NTabletServer;
+using namespace NYTree;
+using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
 
 static auto const& Logger = TableServerLogger;
 
@@ -40,6 +43,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, MinTabletSize);
     Save(context, MaxTabletSize);
     Save(context, DesiredTabletSize);
+    Save(context, InMemoryMode);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -52,13 +56,16 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, LastCommitTimestamp);
     Load(context, TabletCountByState);
     Load(context, Tablets);
-
     //COMPAT(savrus)
     if (context.GetVersion() >= 614) {
         Load(context, EnableTabletBalancer);
         Load(context, MinTabletSize);
         Load(context, MaxTabletSize);
         Load(context, DesiredTabletSize);
+    }
+    //COMPAT(savrus)
+    if (context.GetVersion() >= 621) {
+        Load(context, InMemoryMode);
     }
 }
 
@@ -248,7 +255,7 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
 void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
 {
     //COMPAT(savrus)
-    if (context.GetVersion() < 616) {
+    if (context.GetVersion() < 621) {
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
 
@@ -274,6 +281,7 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
             static const TString minTabletSizeAttributeName("min_tablet_size");
             static const TString maxTabletSizeAttributeName("max_tablet_size");
             static const TString desiredTabletSizeAttributeName("desired_tablet_size");
+            static const TString inMemoryModeAttributeName("in_memory_mode");
             processAttribute(disableTabletBalancerAttributeName, [&] (const TYsonString& val) {
                 SetEnableTabletBalancer(!ConvertTo<bool>(val));
             });
@@ -288,6 +296,9 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
             });
             processAttribute(desiredTabletSizeAttributeName, [&] (const TYsonString& val) {
                 SetDesiredTabletSize(ConvertTo<i64>(val));
+            });
+            processAttribute(inMemoryModeAttributeName, [&] (const TYsonString& val) {
+                SetInMemoryMode(ConvertTo<EInMemoryMode>(val));
             });
 
             if (attributes.empty()) {

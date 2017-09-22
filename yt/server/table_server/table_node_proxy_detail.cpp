@@ -42,18 +42,19 @@
 namespace NYT {
 namespace NTableServer {
 
-using namespace NChunkServer;
 using namespace NChunkClient;
+using namespace NChunkServer;
 using namespace NCypressServer;
+using namespace NNodeTrackerServer;
 using namespace NObjectServer;
 using namespace NRpc;
+using namespace NSecurityServer;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTabletServer;
+using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
-using namespace NTableClient;
-using namespace NTransactionServer;
-using namespace NTabletServer;
-using namespace NNodeTrackerServer;
-using namespace NSecurityServer;
 
 using NChunkClient::TReadLimit;
 
@@ -153,6 +154,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetDesiredTabletSize())));
+    descriptors->push_back(TAttributeDescriptor("in_memory_mode")
+        .SetWritable(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
@@ -376,6 +379,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
         return true;
     }
 
+    if (key == "in_memory_mode") {
+        BuildYsonFluently(consumer)
+            .Value(table->GetInMemoryMode());
+        return true;
+    }
+
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
@@ -453,7 +462,8 @@ bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString&
         ValidateNoTransaction();
 
         auto* lockedTable = LockThisImpl();
-        if (table->GetTabletState() != ETabletState::Unmounted) {
+        auto tabletState = table->GetTabletState();
+        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
             THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
                 ETabletState::Unmounted);
         }
@@ -485,6 +495,22 @@ bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString&
 
         auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(key));
         lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
+
+        return true;
+    }
+
+    if (key == "in_memory_mode") {
+        ValidateNoTransaction();
+
+        auto* lockedTable = LockThisImpl();
+        auto tabletState = table->GetTabletState();
+        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
+            THROW_ERROR_EXCEPTION("Cannot change table memory mode since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
+        }
+
+        auto inMemoryMode = ConvertTo<EInMemoryMode>(value);
+        lockedTable->SetInMemoryMode(inMemoryMode);
 
         return true;
     }

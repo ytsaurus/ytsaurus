@@ -22,12 +22,12 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NConcurrency;
-using namespace NTableClient;
 using namespace NCypressClient;
-using namespace NTabletNode;
+using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTabletServer::NProto;
-using namespace NYson;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
