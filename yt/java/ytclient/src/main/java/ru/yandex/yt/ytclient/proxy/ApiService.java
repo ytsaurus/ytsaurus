@@ -7,6 +7,7 @@ import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
+import ru.yandex.yt.rpcproxy.TReqSetNode;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
@@ -16,6 +17,7 @@ import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
+import ru.yandex.yt.rpcproxy.TRspSetNode;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.ytclient.rpc.DiscoverableRpcService;
@@ -37,6 +39,8 @@ public interface ApiService extends DiscoverableRpcService {
     RpcClientRequestBuilder<TReqAbortTransaction.Builder, RpcClientResponse<TRspAbortTransaction>> abortTransaction();
 
     RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> getNode();
+
+    RpcClientRequestBuilder<TReqSetNode.Builder, RpcClientResponse<TRspSetNode>> setNode();
 
     RpcClientRequestBuilder<TReqLookupRows.Builder, RpcClientResponse<TRspLookupRows>> lookupRows();
 
