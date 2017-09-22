@@ -394,7 +394,12 @@ private:
 
         StartPeriodicActivities();
 
-        MasterConnected_.Fire(result);
+        try {
+            MasterConnected_.Fire(result);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Master connection failed");
+            Disconnect();
+        }
 
         ScheduleTestingDisconnection();
     }
