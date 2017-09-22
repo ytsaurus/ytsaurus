@@ -300,7 +300,7 @@ public:
 
         std::vector<TString> logExcludeCategories;
         if (logExcludeCategoriesStr) {
-            logExcludeCategories = splitStroku(logExcludeCategoriesStr, ",");
+            logExcludeCategories = SplitStroku(logExcludeCategoriesStr, ",");
         }
 
         for (const auto& excludeCategory : logExcludeCategories) {
@@ -309,7 +309,7 @@ public:
 
         std::vector<TString> logIncludeCategories;
         if (logIncludeCategoriesStr) {
-            logIncludeCategories = splitStroku(logIncludeCategoriesStr, ",");
+            logIncludeCategories = SplitStroku(logIncludeCategoriesStr, ",");
         }
 
         if (!logIncludeCategories.empty()) {
