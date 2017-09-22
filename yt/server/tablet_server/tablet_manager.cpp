@@ -2355,6 +2355,10 @@ public:
             return;
         }
 
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change tablet cell bundle: table has mounted tablets");
+        }
+
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, EPermission::Use);
 
