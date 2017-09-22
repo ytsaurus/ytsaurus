@@ -545,10 +545,6 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         {"k0", "k1", "k2", "v3", "v4", "v5"},
         "<id=0> 20; <id=1> 20; <id=2> 20; <id=3> 20;",
         1);
-
-    // Make first row old enough for TTL expiring.
-    Sleep(TDuration::Seconds(2));
-
     WriteUnversionedRow(
         {"k0", "k1", "k2", "v3", "v4", "v5"},
         "<id=0> 20; <id=1> 20; <id=2> 20; <id=3> 21;",
