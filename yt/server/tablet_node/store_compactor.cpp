@@ -52,15 +52,16 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NConcurrency;
-using namespace NYTree;
-using namespace NHydra;
-using namespace NTableClient;
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHydra;
 using namespace NObjectClient;
+using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 

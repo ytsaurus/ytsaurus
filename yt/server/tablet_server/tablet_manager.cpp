@@ -106,7 +106,6 @@ using namespace NCellMaster;
 using namespace NYson;
 
 using NTabletNode::TTableMountConfigPtr;
-using NTabletNode::EInMemoryMode;
 using NTabletNode::EStoreType;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NNodeTrackerClient::TNodeDescriptor;
