@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from yt.common import get_value, get_disk_space_from_resources
+from yt.common import get_value
+from yt.wrapper.common import get_disk_space_from_resources
 import yt.wrapper as yt
 
 import re
