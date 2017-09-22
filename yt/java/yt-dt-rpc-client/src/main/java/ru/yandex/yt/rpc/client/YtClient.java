@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 
+import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.client.responses.VersionedLookupRow;
 import ru.yandex.yt.rpc.client.schema.ColumnSchema;
 import ru.yandex.yt.rpc.client.schema.TableSchema;
@@ -13,6 +14,11 @@ import ru.yandex.yt.rpc.protocol.bus.BusPackage;
 import ru.yandex.yt.rpc.protocol.proto.ProtobufHelpers;
 import ru.yandex.yt.rpc.protocol.rpc.lookup.RpcRspLookupRows;
 import ru.yandex.yt.rpc.protocol.rpc.lookup.RpcRspVersionedLookupRows;
+import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
+import ru.yandex.yt.rpcproxy.TRspGetNode;
+import ru.yandex.yt.rpcproxy.TRspLookupRows;
+import ru.yandex.yt.rpcproxy.TRspSelectRows;
+import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 
 /**
  * @author valri
@@ -23,24 +29,24 @@ abstract class YtClient {
     protected abstract Logger getLogger();
 
     String getGetNode(BusPackage pack) {
-        protocol.Rpc.TResponseHeader responseHeader = ProtobufHelpers.parseResponseHeader(pack);
+        TResponseHeader responseHeader = ProtobufHelpers.parseResponseHeader(pack);
         if (ProtobufHelpers.validateHeader(pack, responseHeader)) {
-            protocol.ApiService.TRspGetNode response = ProtobufHelpers.getProtoFromRsp(
-                    pack, protocol.ApiService.TRspGetNode.parser(), protocol.ApiService.TRspGetNode.class);
+            TRspGetNode response = ProtobufHelpers.getProtoFromRsp(
+                    pack, TRspGetNode.parser(), TRspGetNode.class);
             if (response != null) {
                 getLogger().debug("Successfully received answer for request requestId={}.",
                         ProtobufHelpers.getUuidFromHeader(responseHeader));
-                return new String(response.getData().toByteArray());
+                return new String(response.getValue().toByteArray());
             }
         }
         return null;
     }
 
     List<Map<String, Object>> getLookupRows(BusPackage pack, TableSchema schema) {
-        protocol.Rpc.TResponseHeader responseHeader = ProtobufHelpers.parseResponseHeader(pack);
+        TResponseHeader responseHeader = ProtobufHelpers.parseResponseHeader(pack);
         if (ProtobufHelpers.validateHeader(pack, responseHeader)) {
-            protocol.ApiService.TRspLookupRows tRspLookupRows = ProtobufHelpers.getProtoFromRsp(
-                    pack, protocol.ApiService.TRspLookupRows.parser(), protocol.ApiService.TRspLookupRows.class);
+            TRspLookupRows tRspLookupRows = ProtobufHelpers.getProtoFromRsp(
+                    pack, TRspLookupRows.parser(), TRspLookupRows.class);
             if (tRspLookupRows != null) {
                 getLogger().debug("Successfully received answer for request requestId={}.",
                         ProtobufHelpers.getUuidFromHeader(responseHeader));
@@ -53,17 +59,17 @@ abstract class YtClient {
 
     // TODO: remove copy-paste
     List<Map<String, Object>> getSelectRows(BusPackage pack) {
-        protocol.Rpc.TResponseHeader responseHeader = ProtobufHelpers.parseResponseHeader(pack);
+        TResponseHeader responseHeader = ProtobufHelpers.parseResponseHeader(pack);
         if (ProtobufHelpers.validateHeader(pack, responseHeader)) {
-            protocol.ApiService.TRspSelectRows tRspLookupRows = ProtobufHelpers.getProtoFromRsp(
-                    pack, protocol.ApiService.TRspSelectRows.parser(), protocol.ApiService.TRspSelectRows.class);
+            TRspSelectRows tRspLookupRows = ProtobufHelpers.getProtoFromRsp(
+                    pack, TRspSelectRows.parser(), TRspSelectRows.class);
             if (tRspLookupRows != null) {
                 getLogger().debug("Successfully received answer for request requestId={}.",
                         ProtobufHelpers.getUuidFromHeader(responseHeader));
 
                 List<ColumnSchema> columnSchema = new ArrayList<>(tRspLookupRows.getRowsetDescriptor().getColumnsList().size());
                 int id = 0;
-                for (protocol.ApiService.TRowsetDescriptor.TColumnDescriptor column : tRspLookupRows.getRowsetDescriptor().getColumnsList()) {
+                for (TRowsetDescriptor.TColumnDescriptor column : tRspLookupRows.getRowsetDescriptor().getColumnsList()) {
                     columnSchema.add(new ColumnSchema((short)id, column.getName(), ValueType.fromType((short)column.getType())));
                     id ++;
                 }
@@ -77,11 +83,11 @@ abstract class YtClient {
     }
 
     List<VersionedLookupRow> getVersionedLookupRows(BusPackage pack, TableSchema schema) {
-        protocol.Rpc.TResponseHeader responseHeader = ProtobufHelpers.parseResponseHeader(pack);
+        TResponseHeader responseHeader = ProtobufHelpers.parseResponseHeader(pack);
         if (ProtobufHelpers.validateHeader(pack, responseHeader)) {
-            protocol.ApiService.TRspVersionedLookupRows tRspLookupRows = ProtobufHelpers.getProtoFromRsp(
-                    pack, protocol.ApiService.TRspVersionedLookupRows.parser(),
-                    protocol.ApiService.TRspVersionedLookupRows.class);
+            TRspVersionedLookupRows tRspLookupRows = ProtobufHelpers.getProtoFromRsp(
+                    pack, TRspVersionedLookupRows.parser(),
+                    TRspVersionedLookupRows.class);
             if (tRspLookupRows != null) {
                 getLogger().debug("Successfully received answer for request requestId={}.",
                         ProtobufHelpers.getUuidFromHeader(responseHeader));

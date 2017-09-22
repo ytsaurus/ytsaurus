@@ -8,9 +8,9 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.primitives.Bytes;
-import protocol.Guid;
-import protocol.Rpc;
 
+import ru.yandex.yt.TGuid;
+import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.protocol.proto.ProtoMessageEnvelope;
 import ru.yandex.yt.rpc.protocol.rpc.RpcMessageType;
 import ru.yandex.yt.rpc.protocol.rpc.RpcReqHeader;
@@ -24,7 +24,7 @@ public abstract class RpcRequestMessage {
 
     protected UUID requestId;
     protected RpcReqHeader header;
-    protected Rpc.TRequestCancelationHeader cancellationHeader;
+    protected TRequestCancelationHeader cancellationHeader;
 
     public List<List<Byte>> getBusEnvelope() {
         final List<List<Byte>> fullRequest = new ArrayList<>();
@@ -35,11 +35,11 @@ public abstract class RpcRequestMessage {
     }
 
     public List<List<Byte>> getCancellationBusEnvelope() {
-        final Guid.TGuid.Builder uid = Guid.TGuid.newBuilder();
+        final TGuid.Builder uid = TGuid.newBuilder();
         uid.setFirst(this.requestId.getMostSignificantBits());
         uid.setSecond(this.requestId.getLeastSignificantBits());
 
-        final Rpc.TRequestCancelationHeader.Builder headerBuilder = Rpc.TRequestCancelationHeader.newBuilder();
+        final TRequestCancelationHeader.Builder headerBuilder = TRequestCancelationHeader.newBuilder();
         headerBuilder.setRequestId(uid.build());
         headerBuilder.setMethod(methodName);
         headerBuilder.setService(serviceName);

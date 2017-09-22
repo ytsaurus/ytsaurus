@@ -13,6 +13,7 @@ import ru.yandex.yt.rpc.client.ValueType;
 import ru.yandex.yt.rpc.client.responses.VersionedLookupRow;
 import ru.yandex.yt.rpc.client.schema.TableSchema;
 import ru.yandex.yt.rpc.utils.Utility;
+import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 
 /**
  * @author valri
@@ -25,9 +26,9 @@ public class RpcRspVersionedLookupRows extends RpsLookupRspMessage {
     private static final int KEYS_FOLD = 64;
     private static final int EMPTY_ROW = -1;
 
-    private protocol.ApiService.TRowsetDescriptor desc;
+    private TRowsetDescriptor desc;
 
-    public RpcRspVersionedLookupRows(protocol.ApiService.TRowsetDescriptor desc, TableSchema schema) {
+    public RpcRspVersionedLookupRows(TRowsetDescriptor desc, TableSchema schema) {
         this.desc = desc;
         this.schema = schema;
     }

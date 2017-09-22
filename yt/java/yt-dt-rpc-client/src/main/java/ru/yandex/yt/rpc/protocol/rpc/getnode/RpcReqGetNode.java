@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import ru.yandex.yt.rpc.protocol.RpcRequestMessage;
 import ru.yandex.yt.rpc.protocol.rpc.RpcReqHeader;
+import ru.yandex.yt.rpcproxy.TReqGetNode;
 
 /**
  * @author valri
@@ -15,11 +16,11 @@ public class RpcReqGetNode extends RpcRequestMessage {
     }
 
     private final String path;
-    private final protocol.ApiService.TReqGetNode request;
+    private final TReqGetNode request;
 
     public RpcReqGetNode(final RpcReqHeader.Builder header, final String path, UUID uuid) {
         this.path = path;
-        this.request = protocol.ApiService.TReqGetNode.newBuilder().setPath(this.path).build();
+        this.request = TReqGetNode.newBuilder().setPath(this.path).build();
         this.header = header.setMethod(methodName).setService(serviceName).setUuid(uuid).build();
         this.requestId = this.header.getUuid();
     }

@@ -4,11 +4,13 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import protocol.ApiService;
 
 import ru.yandex.yt.rpc.client.ValueType;
 import ru.yandex.yt.rpc.client.requests.LookupReqInfo;
 import ru.yandex.yt.rpc.protocol.rpc.RpcReqHeader;
+import ru.yandex.yt.rpcproxy.ERowsetKind;
+import ru.yandex.yt.rpcproxy.TReqLookupRows;
+import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 
 /**
  * @author valri
@@ -16,8 +18,8 @@ import ru.yandex.yt.rpc.protocol.rpc.RpcReqHeader;
 public class RpcReqLookupRows extends RpcReqLookupMessage {
     private static Logger logger = LoggerFactory.getLogger(RpcReqLookupRows.class);
 
-    protected ApiService.TReqLookupRows request;
-    private ApiService.ERowsetKind rowSetKind = ApiService.ERowsetKind.UNVERSIONED;
+    protected TReqLookupRows request;
+    private ERowsetKind rowSetKind = ERowsetKind.UNVERSIONED;
 
     static {
         serviceName = "ApiService";
@@ -25,15 +27,15 @@ public class RpcReqLookupRows extends RpcReqLookupMessage {
     }
 
     public RpcReqLookupRows(RpcReqHeader.Builder header, LookupReqInfo info) {
-        ApiService.TReqLookupRows.Builder reqBuilder = ApiService.TReqLookupRows
+        TReqLookupRows.Builder reqBuilder = TReqLookupRows
                 .newBuilder().setPath(info.tableSchema.path);
-        ApiService.TRowsetDescriptor.Builder descriptor = ApiService.TRowsetDescriptor
+        TRowsetDescriptor.Builder descriptor = TRowsetDescriptor
                 .newBuilder()
                 .setWireFormatVersion(info.wireFormat)
                 .setRowsetKind(rowSetKind);
         for (Map.Entry<Short, String> row : info.tableSchema.idToName.entrySet()) {
             ValueType tt = info.tableSchema.nameToType.getOrDefault(row.getValue(), ValueType.ANY);
-            descriptor.addColumns(ApiService.TRowsetDescriptor.TColumnDescriptor
+            descriptor.addColumns(TRowsetDescriptor.TColumnDescriptor
                     .newBuilder()
                     .setName(row.getValue())
                     .setType(tt.getValue())

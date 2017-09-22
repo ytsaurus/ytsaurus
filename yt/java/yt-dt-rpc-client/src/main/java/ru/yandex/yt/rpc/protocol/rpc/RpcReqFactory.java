@@ -7,6 +7,7 @@ import ru.yandex.yt.rpc.protocol.RpcRequestMessage;
 import ru.yandex.yt.rpc.protocol.rpc.getnode.RpcReqGetNode;
 import ru.yandex.yt.rpc.protocol.rpc.lookup.RpcReqLookupRows;
 import ru.yandex.yt.rpc.protocol.rpc.lookup.RpcReqVersionedLookupRows;
+import ru.yandex.yt.rpcproxy.TReqSelectRows;
 
 /**
  * @author valri
@@ -37,13 +38,13 @@ public class RpcReqFactory {
 
     // TReqSelectRows
     class RcpSelectRows extends RpcRequestMessage {
-        private final protocol.ApiService.TReqSelectRows request;
+        private final TReqSelectRows request;
 
         private RcpSelectRows(final RpcReqHeader.Builder header, final String query, UUID uuid) {
             String serviceName = "ApiService";
             String methodName = "SelectRows";
 
-            this.request = protocol.ApiService.TReqSelectRows.newBuilder()
+            this.request = TReqSelectRows.newBuilder()
                 .setQuery(query)
                 .build();
 

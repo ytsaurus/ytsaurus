@@ -6,8 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.primitives.Bytes;
-import protocol.ProtobufHelpers;
 
+import ru.yandex.yt.TSerializedMessageEnvelope;
 import ru.yandex.yt.rpc.protocol.BUSPartable;
 
 /**
@@ -20,7 +20,7 @@ public class ProtoMessageEnvelope implements BUSPartable {
         final int totalLength  = toWrap.length + 2 * Integer.BYTES;
         final ByteBuffer bufForList = ByteBuffer.allocate(totalLength);
         bufForList.order(ByteOrder.LITTLE_ENDIAN);
-        final protocol.ProtobufHelpers.TSerializedMessageEnvelope envelope = ProtobufHelpers.TSerializedMessageEnvelope
+        final TSerializedMessageEnvelope envelope = TSerializedMessageEnvelope
                 .newBuilder().build();
         bufForList.putInt(envelope.toByteArray().length);
         bufForList.putInt(toWrap.length);
