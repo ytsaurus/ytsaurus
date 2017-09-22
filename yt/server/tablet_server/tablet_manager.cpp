@@ -3753,7 +3753,11 @@ private:
                 cellKeys.push_back(TCellKey{getCellSize(cell), cell});
             }
         }
-        YCHECK(!cellKeys.empty());
+        if (cellKeys.empty()) {
+            // NB: Changed ycheck to throw when it was triggered inside tablet action.
+            THROW_ERROR_EXCEPTION("No tablet cells in bundle %Qv",
+                table->GetTabletCellBundle()->GetName());
+        }
         std::sort(cellKeys.begin(), cellKeys.end());
 
         auto getTabletSize = [&] (const TTablet* tablet) -> i64 {
