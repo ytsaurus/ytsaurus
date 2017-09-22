@@ -1,6 +1,6 @@
 package NYT.NRpcProxy.NProto;
 
-option java_package = "ru.yandex.yt.ytlib";
+option java_package = "ru.yandex.yt.rpcproxy";
 option java_outer_classname = "ApiProtos";
 option java_multiple_files = true;
 
