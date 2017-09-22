@@ -131,7 +131,7 @@ public class ApiServiceClient {
     public CompletableFuture<YTreeNode> getNode(String path) {
         RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
         builder.body().setPath(path);
-        return RpcUtil.apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getData()));
+        return RpcUtil.apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getValue()));
     }
 
     public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request, YtTimestamp timestamp) {
