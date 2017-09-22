@@ -10,6 +10,15 @@ message TRspSomeCall
     required int32 b = 1;
 }
 
+message TReqPassCall {}
+
+message TRspPassCall
+{
+    required string user = 1;
+    required string mutation_id = 2;
+    required bool retry = 3;
+}
+
 message TReqRegularAttachments { }
 message TRspRegularAttachments { }
 

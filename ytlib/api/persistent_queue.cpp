@@ -86,7 +86,7 @@ public:
         , PollerId_(TGuid::Create())
         , Logger(NLogging::TLogger(ApiLogger)
             .AddTag("PollerId: %v", PollerId_))
-        , Invoker_(Client_->GetConnection()->GetHeavyInvoker())
+        , Invoker_(Client_->GetConnection()->GetInvoker())
     {
         YCHECK(Config_);
 

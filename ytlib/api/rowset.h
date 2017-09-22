@@ -7,7 +7,6 @@
 #include <yt/ytlib/tablet_client/public.h>
 
 #include <yt/core/actions/future.h>
-#include <yt/ytlib/table_client/row_base.h>
 
 namespace NYT {
 namespace NApi {

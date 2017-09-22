@@ -108,8 +108,9 @@ public:
         return New<TCGroupResourceController>(CGroupsConfig_, Path_ + name);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) override
     {
+        YCHECK(!coreDumpHandler);
         auto process = New<TSimpleProcess>(path, false);
         try {
             {
@@ -198,6 +199,8 @@ public:
     virtual TCpuStatistics GetCpuStatistics() const override
     {
         UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
         auto error = CheckErrors(ResourceUsage_,
             EStatField::CpuUsageSystem,
             EStatField::CpuUsageUser);
@@ -212,6 +215,8 @@ public:
     virtual TBlockIOStatistics GetBlockIOStatistics() const override
     {
         UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
         auto error = CheckErrors(ResourceUsage_,
             EStatField::IOReadByte,
             EStatField::IOWriteByte,
@@ -227,6 +232,8 @@ public:
     virtual TMemoryStatistics GetMemoryStatistics() const override
     {
         UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
         auto error = CheckErrors(ResourceUsage_,
             EStatField::Rss,
             EStatField::MappedFiles,
@@ -242,6 +249,8 @@ public:
     virtual i64 GetMaxMemoryUsage() const override
     {
         UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
         auto error = CheckErrors(ResourceUsage_,
             EStatField::MaxMemoryUsage);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get max memory usage");
@@ -284,12 +293,18 @@ public:
         return New<TPortoResourceController>(ContainerManager_, instance, BlockIOWatchdogPeriod_, UseResourceLimits_);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, const TNullable<TString>& coreDumpHandler) override
     {
+        if (coreDumpHandler) {
+            LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
+                coreDumpHandler.Get());
+            Container_->SetCoreDumpHandler(coreDumpHandler.Get());
+        }
         return New<TPortoProcess>(path, Container_, false);
     }
 
 private:
+    TSpinLock SpinLock_;
     IContainerManagerPtr ContainerManager_;
     IInstancePtr Container_;
     mutable TInstant LastUpdateTime_ = TInstant::Zero();
@@ -322,7 +337,7 @@ private:
     {
         auto now = TInstant::Now();
         if (now > LastUpdateTime_ && now - LastUpdateTime_ > StatUpdatePeriod_) {
-            ResourceUsage_ = Container_->GetResourceUsage({
+            auto resourceUsage = Container_->GetResourceUsage({
                 EStatField::CpuUsageUser,
                 EStatField::CpuUsageSystem,
                 EStatField::IOReadByte,
@@ -333,6 +348,9 @@ private:
                 EStatField::MajorFaults,
                 EStatField::MaxMemoryUsage
             });
+
+            auto guard = Guard(SpinLock_);
+            ResourceUsage_ = resourceUsage;
             LastUpdateTime_ = now;
         }
     }

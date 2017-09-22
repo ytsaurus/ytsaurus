@@ -176,6 +176,7 @@ public:
         REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
         REGISTER(TGetJobInputCommand,          "get_job_input",           Null,       Binary,     false, true);
         REGISTER(TGetJobStderrCommand,         "get_job_stderr",          Null,       Binary,     false, true);
+        REGISTER(TListOperationsCommand,       "list_operations",         Null,       Structured, false, true);
         REGISTER(TListJobsCommand,             "list_jobs",               Null,       Structured, false, true);
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
         REGISTER(TSignalJobCommand,            "signal_job",              Null,       Null,       false, false);
@@ -223,12 +224,8 @@ public:
             entry.Descriptor,
             request);
 
-        auto invoker = entry.Descriptor.Heavy
-            ? Connection_->GetHeavyInvoker()
-            : Connection_->GetLightInvoker();
-
         return BIND(&TDriver::DoExecute, entry.Execute, context)
-            .AsyncVia(invoker)
+            .AsyncVia(Connection_->GetInvoker())
             .Run();
     }
 

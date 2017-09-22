@@ -20,12 +20,12 @@ public:
 
     //! Constructs an non-null instance with given type and content.
     explicit TYsonString(
-        const TString& data,
+        TString data,
         EYsonType type = EYsonType::Node);
 
     TYsonString(
         const char* data,
-        const size_t length, 
+        size_t length,
         EYsonType type = EYsonType::Node);
 
     //! Returns |true| if the instance is not null.

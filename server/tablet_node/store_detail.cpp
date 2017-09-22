@@ -69,6 +69,7 @@ TStoreBase::TStoreBase(
     , Tablet_(tablet)
     , PerformanceCounters_(Tablet_->GetPerformanceCounters())
     , TabletId_(Tablet_->GetId())
+    , TablePath_(Tablet_->GetTablePath())
     , Schema_(Tablet_->PhysicalSchema())
     , KeyColumnCount_(Tablet_->PhysicalSchema().GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->PhysicalSchema().GetColumnCount())
@@ -135,12 +136,12 @@ void TStoreBase::SetMemoryUsage(i64 value)
     }
 }
 
-TOwningKey TStoreBase::RowToKey(TUnversionedRow row)
+TOwningKey TStoreBase::RowToKey(TUnversionedRow row) const
 {
     return NTableClient::RowToKey(Schema_, row);
 }
 
-TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row)
+TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row) const
 {
     return NTabletNode::RowToKey(Schema_, row);
 }
@@ -851,6 +852,7 @@ bool TChunkStoreBase::ValidateBlockCachePreloaded()
     if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
         THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
             << TErrorAttribute("tablet_id", TabletId_)
+            << TErrorAttribute("table_path", TablePath_)
             << TErrorAttribute("store_id", StoreId_);
     }
 

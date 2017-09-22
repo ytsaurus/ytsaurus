@@ -50,9 +50,13 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
-    int MaxDynamicStoreRowCount;
-    int MaxDynamicStoreValueCount;
+    i64 MaxDynamicStoreRowCount;
+    i64 MaxDynamicStoreValueCount;
+    i64 MaxDynamicStoreTimestampCount;
     i64 MaxDynamicStorePoolSize;
+    i64 MaxDynamicStoreRowDataWeight;
+
+    double DynamicStoreOverflowThreshold;
 
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
@@ -91,13 +95,14 @@ public:
     bool EnableLookupHashTable;
 
     TDuration MinReplicationLogTtl;
+    int MaxTimestampsPerReplicationCommit;
     int MaxRowsPerReplicationCommit;
     i64 MaxDataWeightPerReplicationCommit;
     bool EnableReplicationLogging;
 
     bool EnableProfiling;
 
-    bool DisableCompactionAndPartitioning;
+    bool EnableCompactionAndPartitioning;
 
     TTableMountConfig()
     {
@@ -106,22 +111,36 @@ public:
             .Default(1000000);
         RegisterParameter("max_dynamic_store_value_count", MaxDynamicStoreValueCount)
             .GreaterThan(0)
+            .Default(1000000000);
+        RegisterParameter("max_dynamic_store_timestamp_count", MaxDynamicStoreTimestampCount)
+            .GreaterThan(0)
             .Default(10000000)
             // NB: This limit is really important; please consult babenko@
             // before changing it.
             .LessThanOrEqual(SoftRevisionsPerDynamicStoreLimit);
         RegisterParameter("max_dynamic_store_pool_size", MaxDynamicStorePoolSize)
             .GreaterThan(0)
-            .Default(GB);
+            .Default(1_GB);
+        RegisterParameter("max_dynamic_store_row_data_weight", MaxDynamicStoreRowDataWeight)
+            .GreaterThan(0)
+            .Default(NTableClient::MaxClientVersionedRowDataWeight)
+            // NB: This limit is important: it ensures that store is flushable.
+            // Please consult savrus@ before changing.
+            .LessThanOrEqual(NTableClient::MaxServerVersionedRowDataWeight / 2);
+
+        RegisterParameter("dynamic_store_overflow_threshold", DynamicStoreOverflowThreshold)
+            .GreaterThan(0.0)
+            .Default(0.9)
+            .LessThanOrEqual(1.0);
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
-            .Default(320 * MB)
+            .Default(320_MB)
             .GreaterThan(0);
         RegisterParameter("desired_partition_data_size", DesiredPartitionDataSize)
-            .Default(256 * MB)
+            .Default(256_MB)
             .GreaterThan(0);
         RegisterParameter("min_partition_data_size", MinPartitionDataSize)
-            .Default(96 * MB)
+            .Default(96_MB)
             .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
@@ -129,13 +148,13 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("min_partitioning_data_size", MinPartitioningDataSize)
-            .Default(64 * MB)
+            .Default(64_MB)
             .GreaterThan(0);
         RegisterParameter("min_partitioning_store_count", MinPartitioningStoreCount)
             .Default(1)
             .GreaterThan(0);
         RegisterParameter("max_partitioning_data_size", MaxPartitioningDataSize)
-            .Default(GB)
+            .Default(1_GB)
             .GreaterThan(0);
         RegisterParameter("max_partitioning_store_count", MaxPartitioningStoreCount)
             .Default(5)
@@ -148,13 +167,13 @@ public:
             .Default(5)
             .GreaterThan(0);
         RegisterParameter("compaction_data_size_base", CompactionDataSizeBase)
-            .Default(16 * MB)
+            .Default(16_MB)
             .GreaterThan(0);
         RegisterParameter("compaction_data_size_ratio", CompactionDataSizeRatio)
             .Default(2.0)
             .GreaterThan(1.0);
         RegisterParameter("max_compaction_data_size", MaxCompactionDataSize)
-            .Default(320 * MB)
+            .Default(320_MB)
             .GreaterThan(0);
 
         RegisterParameter("samples_per_partition", SamplesPerPartition)
@@ -170,8 +189,7 @@ public:
 
         RegisterParameter("max_overlapping_store_count", MaxOverlappingStoreCount)
             .GreaterThan(0)
-            // XXX(savrus) Raised from 30 until YT-5828 is resolved.
-            .Default(100);
+            .Default(30);
 
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(EInMemoryMode::None);
@@ -193,18 +211,20 @@ public:
 
         RegisterParameter("min_replication_log_ttl", MinReplicationLogTtl)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("max_timestamps_per_replication_commit", MaxTimestampsPerReplicationCommit)
+            .Default(10000);
         RegisterParameter("max_rows_per_replication_commit", MaxRowsPerReplicationCommit)
             .Default(90000);
         RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
-            .Default(128 * MB);
+            .Default(128_MB);
         RegisterParameter("enable_replication_logging", EnableReplicationLogging)
             .Default(false);
 
         RegisterParameter("enable_profiling", EnableProfiling)
             .Default(false);
 
-        RegisterParameter("disable_compaction_and_partitioning", DisableCompactionAndPartitioning)
-            .Default(false);
+        RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
@@ -262,7 +282,7 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 class TTabletChunkReaderConfig
     : public NTableClient::TChunkReaderConfig
-    , public NChunkClient::TReplicationReaderConfig
+    , public NChunkClient::TErasureReaderConfig
 {
 public:
     bool PreferLocalReplicas;
@@ -303,8 +323,8 @@ public:
     TTabletManagerConfig()
     {
         RegisterParameter("pool_chunk_size", PoolChunkSize)
-            .GreaterThan(64 * KB)
-            .Default(MB);
+            .GreaterThan(64_KB)
+            .Default(1_MB);
 
         RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
             .InRange(0.0, 1.0)
@@ -354,7 +374,7 @@ public:
             .Default(1);
         RegisterParameter("min_forced_flush_data_size", MinForcedFlushDataSize)
             .GreaterThan(0)
-            .Default(MB);
+            .Default(1_MB);
     }
 };
 
@@ -498,7 +518,7 @@ public:
             .Default(std::numeric_limits<i64>::max());
         RegisterParameter("tablet_dynamic_memory", TabletDynamicMemory)
             .GreaterThanOrEqual(0)
-            .Default(GB);
+            .Default(1_GB);
     }
 };
 

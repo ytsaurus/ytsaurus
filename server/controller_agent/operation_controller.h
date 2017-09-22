@@ -4,6 +4,8 @@
 
 #include "private.h"
 
+#include <yt/server/cell_scheduler/bootstrap.h>
+
 #include <yt/server/scheduler/scheduling_context.h>
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/job_metrics.h>
@@ -80,7 +82,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual TMasterConnector* GetMasterConnector() = 0;
+    virtual TMasterConnector* GetControllerAgentMasterConnector() = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -91,7 +93,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual IInvokerPtr GetControlInvoker() const = 0;
+    virtual IInvokerPtr GetControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const = 0;
 
     //! Returns invoker for statistics analyzer.
     /*!
@@ -189,7 +191,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual void SetOperationAlert(
+    virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) = 0;
@@ -199,6 +201,13 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual NScheduler::IJobHostPtr GetJobHost(const TJobId& jobId) const = 0;
+
+    //! Tell scheduler the list of jobs that may be safely removed from their containing nodes as their
+    //! results were saved to the corresponding controller snapshot.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TFuture<void> ReleaseJobs(const std::vector<NJobTrackerClient::TJobId>& jobIds) = 0;
 
     virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const NScheduler::TJobMetrics& jobMetrics) = 0;
 };
@@ -404,7 +413,19 @@ struct IOperationController
     virtual void BuildSpec(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
-     *  \note Invoker affinity: Controller invoker
+     *  \note Invoker affinity: any.
+     */
+    //! Marks that progress was dumped to cypress.
+    virtual void SetProgressUpdated() = 0;
+
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    //! Check that progress has changed and should be dumped to the cypress.
+    virtual bool ShouldUpdateProgress() const = 0;
+
+    /*!
+     *  \note Invoker affinity: any.
      */
     //! Returns |true| when controller can build it's progress.
     virtual bool HasProgress() const = 0;
@@ -446,8 +467,33 @@ struct IOperationController
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
     virtual NYson::TYsonString BuildJobsYson() const = 0;
 
+    //! Builds job spec proto blob.
+    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
+
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
+
+    /*!
+     *  \note Invoker affinity: Controller invoker or scheduler control thread when controller is suspended.
+     */
+    //! Return the number of jobs that become completed after the moment of last snapshot save.
+    virtual int GetRecentlyCompletedJobCount() const = 0;
+
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
+    //! Remove `jobCount` oldest jobs from the list of recent jobs waiting their removal inside controller
+    //! and submit them to the scheduler for the removal.
+    //!
+    //!                  (`jobCount` first)           v current moment of time
+    //! completed jobs | x  x xxx xx xx xxx | ** * ** |    <- all these guys are stored in `recentCompletedJobs`
+    //!                |                    |                 inside the controller.
+    //!                ^ snapshot           ^ newly created snapshot
+    virtual TFuture<void> ReleaseJobs(int jobCount) = 0;
+
+    //! Build scheduler jobs from the joblets. Used during revival pipeline.
+    virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

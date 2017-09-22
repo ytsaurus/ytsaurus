@@ -25,6 +25,8 @@ struct TPartRange
     explicit operator bool() const;
 };
 
+bool operator == (const TPartRange& lhs, const TPartRange& rhs);
+
 TPartRange Intersection(const TPartRange& lhs, const TPartRange& rhs);
 
 std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges);
@@ -193,6 +195,9 @@ protected:
 
     NErasure::ICodec* const Codec_;
     const std::vector<IChunkReaderPtr> Readers_;
+
+    TSpinLock PlacementExtLock_;
+    TFuture<void> PlacementExtFuture_;
     NProto::TErasurePlacementExt PlacementExt_;
 };
 

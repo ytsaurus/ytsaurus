@@ -397,7 +397,7 @@ private:
             header->set_method(MethodName_);
             header->set_protocol_version(GenericProtocolVersion);
             if (Timeout_) {
-                header->set_timeout(ToProto(*Timeout_));
+                header->set_timeout(ToProto<i64>(*Timeout_));
             }
             // TODO: start time
             // TODO: user
@@ -495,7 +495,7 @@ private:
             if (responseHeader.has_error() && responseHeader.error().code() != static_cast<int>(NYT::EErrorCode::OK)) {
                 FromProto(&error, responseHeader.error());
                 ErrorMessage_ = ToString(error);
-                TrailingMetadataBuilder_.Add(ErrorMetadataKey, ConvertToYsonString(error).GetData());
+                TrailingMetadataBuilder_.Add(ErrorMetadataKey, SerializeError(error));
             } else {
                 // Attachments are not supported.
                 YCHECK(ResponseMessage_.Size() == 2);

@@ -6,7 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/proxy_connection.h>
 #include <yt/core/logging/log.h>
 
 namespace NYT {
@@ -15,7 +15,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcProxyConnection
-    : public NApi::IConnection
+    : public NApi::IProxyConnection
 {
 public:
     TRpcProxyConnection(
@@ -29,8 +29,7 @@ public:
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
-    virtual const IInvokerPtr& GetLightInvoker() override;
-    virtual const IInvokerPtr& GetHeavyInvoker() override;
+    virtual const IInvokerPtr& GetInvoker() override;
 
     virtual NApi::IAdminPtr CreateAdmin(const NApi::TAdminOptions& options) override;
     virtual NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override;
@@ -42,22 +41,30 @@ public:
 
     virtual void Terminate() override;
 
+    virtual TFuture<std::vector<NApi::TProxyInfo>> DiscoverProxies(
+        const NApi::TDiscoverProxyOptions& options) override;
+
 private:
     const TRpcProxyConnectionConfigPtr Config_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
 
     const NLogging::TLogger Logger;
 
     TSpinLock SpinLock_;
-    yhash_set<TWeakPtr<TRpcProxyTransaction>> Transactions_;
+    yhash_set<TRpcProxyTransaction*> Transactions_;
+    NTransactionClient::ITimestampProviderPtr TimestampProvider_;
 
     NConcurrency::TPeriodicExecutorPtr PingExecutor_;
 
 protected:
     friend class TRpcProxyClient;
     friend class TRpcProxyTransaction;
+    friend class TRpcProxyTimestampProvider;
 
     // Implementation-specific methods.
+
+    NRpc::IChannelPtr GetRandomPeerChannel();
 
     void RegisterTransaction(TRpcProxyTransaction* transaction);
     void UnregisterTransaction(TRpcProxyTransaction* transaction);
@@ -68,7 +75,7 @@ protected:
 
 DEFINE_REFCOUNTED_TYPE(TRpcProxyConnection)
 
-NApi::IConnectionPtr CreateRpcProxyConnection(
+NApi::IProxyConnectionPtr CreateRpcProxyConnection(
     TRpcProxyConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////

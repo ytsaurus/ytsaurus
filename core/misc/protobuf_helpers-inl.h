@@ -9,6 +9,91 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+#define DEFINE_TRIVIAL_PROTO_CONVERSIONS(type)                   \
+    inline void ToProto(type* serialized, type original)         \
+    {                                                            \
+        *serialized = original;                                  \
+    }                                                            \
+                                                                 \
+    inline void FromProto(type* original, type serialized)       \
+    {                                                            \
+        *original = serialized;                                  \
+    }
+
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(TString)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(i8)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui8)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(i16)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui16)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(i32)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui32)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(i64)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui64)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(bool)
+
+#undef DEFINE_TRIVIAL_PROTO_CONVERSIONS
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline void ToProto(::google::protobuf::int64* serialized, TDuration original)
+{
+    *serialized = original.MicroSeconds();
+}
+
+inline void FromProto(TDuration* original, ::google::protobuf::int64 serialized)
+{
+    *original = TDuration::MicroSeconds(serialized);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline void ToProto(::google::protobuf::int64* serialized, TInstant original)
+{
+    *serialized = original.MicroSeconds();
+}
+
+inline void FromProto(TInstant* original, ::google::protobuf::int64 serialized)
+{
+    *original = TInstant::MicroSeconds(serialized);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type ToProto(
+    T* serialized,
+    const T& original)
+{
+    *serialized = original;
+}
+
+template <class T>
+typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type FromProto(
+    T* original,
+    const T& serialized)
+{
+    *original = serialized;
+}
+
+template <class T>
+typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type ToProto(
+    int* serialized,
+    T original)
+{
+    *serialized = static_cast<int>(original);
+}
+
+template <class T>
+typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type FromProto(
+    T* original,
+    int serialized)
+{
+    *original = T(serialized);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 T GetProtoExtension(const NProto::TExtensionSet& extensions)
 {
@@ -174,6 +259,14 @@ void ToProto(
     NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
+template <class TSerialized, class TOriginal>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const yhash_set<TOriginal>& originalArray)
+{
+    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+}
+
 template <class TOriginalArray, class TSerialized>
 void FromProto(
     TOriginalArray* originalArray,
@@ -214,32 +307,54 @@ template <class TProto>
 TRefCountedProto<TProto>::TRefCountedProto(const TRefCountedProto<TProto>& other)
 {
     TProto::CopyFrom(other);
+    RegisterExtraSpace();
 }
 
 template <class TProto>
 TRefCountedProto<TProto>::TRefCountedProto(TRefCountedProto<TProto>&& other)
 {
     TProto::Swap(&other);
+    RegisterExtraSpace();
 }
 
 template <class TProto>
 TRefCountedProto<TProto>::TRefCountedProto(const TProto& other)
 {
     TProto::CopyFrom(other);
+    RegisterExtraSpace();
 }
 
 template <class TProto>
 TRefCountedProto<TProto>::TRefCountedProto(TProto&& other)
 {
     TProto::Swap(&other);
+    RegisterExtraSpace();
 }
 
-//! Gives the extra allocated size for protobuf types.
-//! This function is used for ref counted tracking.
 template <class TProto>
-size_t SpaceUsed(const TRefCountedProto<TProto>* instance)
+TRefCountedProto<TProto>::~TRefCountedProto()
 {
-    return sizeof(TRefCountedProto<TProto>) + instance->TProto::SpaceUsed() - sizeof(TProto);
+    UnregisterExtraSpace();
+}
+
+template <class TProto>
+void TRefCountedProto<TProto>::RegisterExtraSpace()
+{
+    auto spaceUsed = TProto::SpaceUsed();
+    Y_ASSERT(spaceUsed >= sizeof(TProto));
+    Y_ASSERT(ExtraSpace_ == 0);
+    ExtraSpace_ = TProto::SpaceUsed() - sizeof (TProto);
+    auto cookie = GetRefCountedTypeCookie<TRefCountedProtoTag<TProto>>();
+    TRefCountedTrackerFacade::AllocateSpace(cookie, ExtraSpace_);
+}
+
+template <class TProto>
+void TRefCountedProto<TProto>::UnregisterExtraSpace()
+{
+	if (ExtraSpace_ != 0) {
+        auto cookie = GetRefCountedTypeCookie<TRefCountedProtoTag<TProto>>();
+        TRefCountedTrackerFacade::FreeSpace(cookie, ExtraSpace_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

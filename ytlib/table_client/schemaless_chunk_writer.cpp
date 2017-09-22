@@ -70,17 +70,11 @@ using NYT::ToProto;
 using NYT::FromProto;
 using NYT::TRange;
 
-static const i64 PartitionRowCountThreshold = (i64)1000 * 1000;
+static const i64 PartitionRowCountThreshold = 1000 * 1000;
 static const i64 PartitionRowCountLimit = std::numeric_limits<i32>::max() - PartitionRowCountThreshold;
+static const i64 MinRowRangeDataWeight = 64_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-const i64 MinRowRangeDataWeight = (i64) 64 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkTimestamps::TChunkTimestamps()
-{ }
 
 TChunkTimestamps::TChunkTimestamps(TTimestamp minTimestamp, TTimestamp maxTimestamp)
     : MinTimestamp(minTimestamp)
@@ -259,6 +253,8 @@ protected:
                 lastRow.Begin(),
                 lastRow.Begin() + Schema_.GetKeyColumnCount());
         }
+
+        YCHECK(block.Meta.uncompressed_size() > 0);
 
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
 
@@ -581,6 +577,16 @@ public:
             result += blockWriter->GetCurrentSize();
         }
         return result;
+    }
+
+    virtual i64 GetMetaSize() const override
+    {
+        i64 metaSize = 0;
+        for (const auto& valueColumnWriter : ValueColumnWriters_) {
+            metaSize += valueColumnWriter->GetMetaSize();
+        }
+
+        return metaSize + TUnversionedChunkWriterBase::GetMetaSize();
     }
 
 private:
@@ -1561,6 +1567,7 @@ private:
                 "account",
                 "chunk_writer",
                 "compression_codec",
+                "dynamic",
                 "erasure_codec",
                 "optimize_for",
                 "primary_medium",
@@ -1581,6 +1588,10 @@ private:
             const auto& rsp = rspOrError.Value();
             auto node = ConvertToNode(TYsonString(rsp->value()));
             const auto& attributes = node->Attributes();
+
+            if (attributes.Get<bool>("dynamic")) {
+                THROW_ERROR_EXCEPTION("Write to dynamic table is not supported");
+            }
 
             TableUploadOptions_ = GetTableUploadOptions(
                 RichPath_,
@@ -1623,7 +1634,7 @@ private:
                 req->set_update_mode(static_cast<int>(TableUploadOptions_.UpdateMode));
                 req->set_lock_mode(static_cast<int>(TableUploadOptions_.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v", path));
-                req->set_upload_transaction_timeout(ToProto(Config_->UploadTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto<i64>(Config_->UploadTransactionTimeout));
                 SetTransactionId(req, Transaction_);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "begin_upload");

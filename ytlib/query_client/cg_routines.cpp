@@ -14,21 +14,27 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/pipe.h>
 
-#include <yt/core/ytree/ypath_resolver.h>
-
+#include <yt/core/yson/lexer.h>
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/token.h>
+
+#include <yt/core/ytree/ypath_resolver.h>
+#include <yt/core/ytree/convert.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/farm_hash.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <contrib/libs/re2/re2/re2.h>
+
+#include <util/charset/utf8.h>
 
 #include <mutex>
 
 #include <string.h>
+
 
 namespace llvm {
 
@@ -74,6 +80,11 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TRow row)
 
     Y_ASSERT(batch.size() < batch.capacity());
     batch.push_back(rowBuffer->Capture(row));
+
+    // NB: Aggregate flag is neighter set from TCG value nor cleared during row allocation.
+    for (auto* value = batch.back().Begin(); value < batch.back().End(); ++value) {
+        const_cast<TUnversionedValue*>(value)->Aggregate = false;
+    }
 
     if (batch.size() == batch.capacity()) {
         auto& writer = context->Writer;
@@ -289,29 +300,34 @@ public:
         TExecutionContext* context,
         const std::vector<std::pair<TRow, int>>& keysToRows,
         const std::vector<TChainedRow>& chainedRows,
-        TComparerFunction* fullEqComparer,
-        TComparerFunction* fullLessComparer,
+        TTernaryComparerFunction* fullTernaryComparer,
+        TComparerFunction* foreignPrefixEqComparer,
+        TComparerFunction* foreignSuffixLessComparer,
+        bool isPartiallySorted,
         const ISchemafulReaderPtr& reader,
         bool isLeft)
     {
+        std::vector<TRow> sortedForeignSequence;
+        size_t unsortedOffset = 0;
+        TRow lastForeignKey;
+
+
         std::vector<TRow> foreignRows;
         foreignRows.reserve(RowsetProcessingSize);
 
         // Sort-merge join
         auto currentKey = keysToRows.begin();
         auto lastJoined = keysToRows.end();
-        while (currentKey != keysToRows.end()) {
-            bool hasMoreData = reader->Read(&foreignRows);
-            bool shouldWait = foreignRows.empty();
 
-            auto foreignIt = foreignRows.begin();
-            while (foreignIt != foreignRows.end() && currentKey != keysToRows.end()) {
+        auto processSortedForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
+            while (foreignIt != endForeignIt && currentKey != keysToRows.end()) {
                 int startIndex = currentKey->second;
-                if (fullEqComparer(currentKey->first, *foreignIt)) {
+                int cmpResult = fullTernaryComparer(currentKey->first, *foreignIt);
+                if (cmpResult == 0) {
                     JoinRows(chainedRows, startIndex, *foreignIt);
                     ++foreignIt;
                     lastJoined = currentKey;
-                } else if (fullLessComparer(currentKey->first, *foreignIt)) {
+                } else if (cmpResult < 0) {
                     if (isLeft && lastJoined != currentKey) {
                         JoinRowsNull(chainedRows, startIndex);
                         lastJoined = currentKey;
@@ -321,8 +337,43 @@ public:
                     ++foreignIt;
                 }
             }
-
             ConsumeJoinedRows();
+        };
+
+        auto processForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
+            while (foreignIt != endForeignIt) {
+                if (!lastForeignKey || !foreignPrefixEqComparer(*foreignIt, lastForeignKey)) {
+                    std::sort(
+                        sortedForeignSequence.begin() + unsortedOffset,
+                        sortedForeignSequence.end(),
+                        foreignSuffixLessComparer);
+                    unsortedOffset = sortedForeignSequence.size();
+
+                    if (unsortedOffset >= RowsetProcessingSize) {
+                        processSortedForeignSequence(
+                            sortedForeignSequence.begin(),
+                            sortedForeignSequence.end());
+                        sortedForeignSequence.clear();
+                        unsortedOffset = 0;
+                    }
+                    lastForeignKey = *foreignIt;
+                }
+
+                sortedForeignSequence.push_back(*foreignIt);
+                IntermediateBuffer->Capture(*foreignIt);
+                ++foreignIt;
+            }
+        };
+
+        while (currentKey != keysToRows.end()) {
+            bool hasMoreData = reader->Read(&foreignRows);
+            bool shouldWait = foreignRows.empty();
+
+            if (isPartiallySorted) {
+                processForeignSequence(foreignRows.begin(), foreignRows.end());
+            } else {
+                processSortedForeignSequence(foreignRows.begin(), foreignRows.end());
+            }
 
             foreignRows.clear();
 
@@ -335,6 +386,18 @@ public:
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
             }
+        }
+
+        if (isPartiallySorted) {
+            std::sort(
+                sortedForeignSequence.begin() + unsortedOffset,
+                sortedForeignSequence.end(),
+                foreignSuffixLessComparer);
+            processSortedForeignSequence(
+                sortedForeignSequence.begin(),
+                sortedForeignSequence.end());
+            sortedForeignSequence.clear();
+            unsortedOffset = 0;
         }
 
         if (isLeft) {
@@ -427,8 +490,11 @@ void JoinOpHelper(
     TComparerFunction* lookupEqComparer,
     TComparerFunction* sortLessComparer,
     TComparerFunction* prefixEqComparer,
+    TComparerFunction* foreignPrefixEqComparer,
+    TComparerFunction* foreignSuffixLessComparer,
+    TTernaryComparerFunction* fullTernaryComparer,
+    THasherFunction* fullHasher,
     TComparerFunction* fullEqComparer,
-    TComparerFunction* fullLessComparer,
     int keySize,
     void** collectRowsClosure,
     void (*collectRows)(
@@ -486,28 +552,9 @@ void JoinOpHelper(
         auto isLeft = parameters->IsLeft;
 
         if (!parameters->IsOrdered) {
-            auto pipe = New<NTableClient::TSchemafulPipe>();
-
-            TQueryPtr foreignQuery;
-            TDataRanges dataSource;
-
-            std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(
-                std::move(keys),
-                closure.Buffer);
-
-            context->ExecuteCallback(foreignQuery, dataSource, pipe->GetWriter())
-                .Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
-                    if (!error.IsOK()) {
-                        pipe->Fail(error);
-                    }
-                }));
+            auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
 
             LOG_DEBUG("Joining started");
-
-            std::vector<TRow> foreignRows;
-            foreignRows.reserve(RowsetProcessingSize);
-
-            auto reader = pipe->GetReader();
 
             if (parameters->IsSortMergeJoin) {
                 // Sort-merge join
@@ -515,8 +562,10 @@ void JoinOpHelper(
                     context,
                     keysToRows,
                     chainedRows,
-                    fullEqComparer,
-                    fullLessComparer,
+                    fullTernaryComparer,
+                    foreignPrefixEqComparer,
+                    foreignSuffixLessComparer,
+                    parameters->IsPartiallySorted,
                     reader,
                     isLeft);
             } else {
@@ -525,41 +574,49 @@ void JoinOpHelper(
         } else {
             NApi::IUnversionedRowsetPtr rowset;
 
-            {
-                TQueryPtr foreignQuery;
-                TDataRanges dataSource;
+            auto foreignRowsBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
 
-                std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(
-                    std::move(keys),
-                    closure.Buffer);
-
-                ISchemafulWriterPtr writer;
-                TFuture<NApi::IUnversionedRowsetPtr> rowsetFuture;
-                // Any schema, it is not used.
-                std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(TTableSchema());
-                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
-
-                WaitFor(context->ExecuteCallback(foreignQuery, dataSource, writer))
-                    .ThrowOnError();
-
-                YCHECK(rowsetFuture.IsSet());
-                rowset = rowsetFuture.Get()
-                    .ValueOrThrow();
-            }
-
-            auto foreignRows = rowset->GetRows();
-
-            LOG_DEBUG("Got %v foreign rows", foreignRows.Size());
+            std::vector<TRow> foreignRows;
+            foreignRows.reserve(RowsetProcessingSize);
 
             TJoinLookupRows foreignLookup(
                 InitialGroupOpHashtableCapacity,
-                lookupHasher,
-                lookupEqComparer);
+                fullHasher,
+                fullEqComparer);
 
-            for (auto row : foreignRows) {
-                foreignLookup.insert(row);
+            {
+                auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
+
+                std::vector<TRow> rows;
+                rows.reserve(RowsetProcessingSize);
+
+                while (true) {
+                    bool hasMoreData;
+                    {
+                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->ReadTime);
+                        hasMoreData = reader->Read(&rows);
+                    }
+
+                    bool shouldWait = foreignRows.empty();
+
+                    for (auto row : rows) {
+                        foreignLookup.insert(foreignRowsBuffer->Capture(row));
+                    }
+                    rows.clear();
+
+                    if (!hasMoreData) {
+                        break;
+                    }
+
+                    if (shouldWait) {
+                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                    }
+                }
             }
 
+            LOG_DEBUG("Got %v foreign rows", foreignLookup.size());
             LOG_DEBUG("Joining started");
 
             for (const auto& item : chainedRows) {
@@ -745,12 +802,22 @@ char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char IsRowInArray(
-    TComparerFunction* comparer,
-    TRow row,
-    TSharedRange<TRow>* rows)
+char IsRowInArray(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* rows)
 {
     return std::binary_search(rows->Begin(), rows->End(), row, comparer);
+}
+
+// LLVM calling convention for aggregate types is incompatible with C++
+static const TValue NullValue = MakeUnversionedSentinelValue(EValueType::Null);
+const TValue* TransformTuple(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* rows)
+{
+    auto found = std::lower_bound(rows->Begin(), rows->End(), row, comparer);
+
+    if (found != rows->End() && !comparer(row, *found)) {
+        return &(*found)[row.GetCount()];
+    }
+
+    return &NullValue;
 }
 
 size_t StringHash(
@@ -841,12 +908,14 @@ ui64 FarmHashUint64(ui64 value)
 
 void ThrowException(const char* error)
 {
-    THROW_ERROR_EXCEPTION("Error while executing UDF: %s", error);
+    THROW_ERROR_EXCEPTION("Error while executing UDF")
+        << TError(error);
 }
 
 void ThrowQueryException(const char* error)
 {
-    THROW_ERROR_EXCEPTION("Error while executing query: %s", error);
+    THROW_ERROR_EXCEPTION("Error while executing query")
+        << TError(error);
 }
 
 re2::RE2* RegexCreate(TUnversionedValue* regexp)
@@ -892,6 +961,16 @@ void CopyString(TExpressionContext* context, TUnversionedValue* result, const St
     char* data = AllocateBytes(context, str.size());
     memcpy(data, str.c_str(), str.size());
     result->Type = EValueType::String;
+    result->Length = str.size();
+    result->Data.String = data;
+}
+
+template <typename StringType>
+void CopyAny(TExpressionContext* context, TUnversionedValue* result, const StringType& str)
+{
+    char* data = AllocateBytes(context, str.size());
+    memcpy(data, str.c_str(), str.size());
+    result->Type = EValueType::Any;
     result->Length = str.size();
     result->Data.String = data;
 }
@@ -999,11 +1078,218 @@ void RegexEscape(
     DEFINE_YPATH_GET_IMPL(String, \
         CopyString(context, result, *value);)
 
+#define DEFINE_YPATH_GET_ANY \
+    DEFINE_YPATH_GET_IMPL(Any, \
+        CopyAny(context, result, *value);)
+
 DEFINE_YPATH_GET(Int64)
 DEFINE_YPATH_GET(Uint64)
 DEFINE_YPATH_GET(Double)
 DEFINE_YPATH_GET(Boolean)
 DEFINE_YPATH_GET_STRING
+DEFINE_YPATH_GET_ANY
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ThrowCannotCompareTypes(NYson::ETokenType lhsType, NYson::ETokenType rhsType)
+{
+    THROW_ERROR_EXCEPTION("Cannot compare values of types %Qlv and %Qlv",
+        lhsType,
+        rhsType);
+}
+
+int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
+{
+    TStringBuf lhsInput(lhsData, lhsLength);
+    TStringBuf rhsInput(rhsData, rhsLength);
+
+    NYson::TStatelessLexer lexer;
+
+    NYson::TToken lhsToken;
+    NYson::TToken rhsToken;
+    lexer.GetToken(lhsInput, &lhsToken);
+    lexer.GetToken(rhsInput, &rhsToken);
+
+    if (lhsToken.GetType() != rhsToken.GetType()) {
+        ThrowCannotCompareTypes(lhsToken.GetType(), rhsToken.GetType());
+    }
+
+    auto tokenType = lhsToken.GetType();
+
+    switch (tokenType) {
+        case NYson::ETokenType::Boolean: {
+            auto lhsValue = lhsToken.GetBooleanValue();
+            auto rhsValue = rhsToken.GetBooleanValue();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        case NYson::ETokenType::Int64: {
+            auto lhsValue = lhsToken.GetInt64Value();
+            auto rhsValue = rhsToken.GetInt64Value();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        case NYson::ETokenType::Uint64: {
+            auto lhsValue = lhsToken.GetUint64Value();
+            auto rhsValue = rhsToken.GetUint64Value();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        case NYson::ETokenType::Double: {
+            auto lhsValue = lhsToken.GetDoubleValue();
+            auto rhsValue = rhsToken.GetDoubleValue();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        case NYson::ETokenType::String: {
+            auto lhsValue = lhsToken.GetStringValue();
+            auto rhsValue = rhsToken.GetStringValue();
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+            break;
+        }
+        default:
+            THROW_ERROR_EXCEPTION("Values of type %Qlv are not comparable",
+                tokenType);
+    }
+}
+
+
+#define DEFINE_COMPARE_ANY(TYPE, TOKEN_TYPE) \
+int CompareAny##TOKEN_TYPE(char* lhsData, i32 lhsLength, TYPE rhsValue) \
+{ \
+    TStringBuf lhsInput(lhsData, lhsLength); \
+    NYson::TStatelessLexer lexer; \
+    NYson::TToken lhsToken; \
+    lexer.GetToken(lhsInput, &lhsToken); \
+    if (lhsToken.GetType() != NYson::ETokenType::TOKEN_TYPE) { \
+        ThrowCannotCompareTypes(lhsToken.GetType(), NYson::ETokenType::TOKEN_TYPE); \
+    } \
+    auto lhsValue = lhsToken.Get##TOKEN_TYPE##Value(); \
+    if (lhsValue < rhsValue) { \
+        return -1; \
+    } else if (lhsValue > rhsValue) { \
+        return +1; \
+    } else { \
+        return 0; \
+    } \
+}
+
+DEFINE_COMPARE_ANY(bool, Boolean)
+DEFINE_COMPARE_ANY(i64, Int64)
+DEFINE_COMPARE_ANY(ui64, Uint64)
+DEFINE_COMPARE_ANY(double, Double)
+
+int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
+{
+    TStringBuf lhsInput(lhsData, lhsLength);
+    NYson::TStatelessLexer lexer;
+    NYson::TToken lhsToken;
+    lexer.GetToken(lhsInput, &lhsToken);
+    if (lhsToken.GetType() != NYson::ETokenType::String) {
+        ThrowCannotCompareTypes(lhsToken.GetType(), NYson::ETokenType::String);
+    }
+    auto lhsValue = lhsToken.GetStringValue();
+    TStringBuf rhsValue(rhsData, rhsLength);
+    if (lhsValue < rhsValue) {
+        return -1;
+    } else if (lhsValue > rhsValue) {
+        return +1;
+    } else {
+        return 0;
+    }
+}
+
+void ToAny(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value)
+{
+    TStringStream stream;
+    NYson::TYsonWriter writer(&stream);
+
+    switch (value->Type) {
+        case EValueType::Null: {
+            result->Type = EValueType::Null;
+            return;
+        }
+        case EValueType::Any: {
+            *result = *value;
+            return;
+        }
+        case EValueType::String: {
+            writer.OnStringScalar(TStringBuf(value->Data.String, value->Length));
+            break;
+        }
+        case EValueType::Int64: {
+            writer.OnInt64Scalar(value->Data.Int64);
+            break;
+        }
+        case EValueType::Uint64: {
+            writer.OnUint64Scalar(value->Data.Uint64);
+            break;
+        }
+        case EValueType::Double: {
+            writer.OnDoubleScalar(value->Data.Double);
+            break;
+        }
+        case EValueType::Boolean: {
+            writer.OnBooleanScalar(value->Data.Boolean);
+            break;
+        }
+        default:
+            Y_UNREACHABLE();
+    }
+
+    writer.Flush();
+    result->Type = EValueType::Any;
+    result->Length = stream.Size();
+    result->Data.String = stream.Data();
+    *result = context->Capture(*result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, char* source, int sourceLength)
+{
+    auto lowered = ToLowerUTF8(TStringBuf(source, sourceLength));
+    *result = AllocateBytes(context, lowered.size());
+    for (int i = 0; i < lowered.size(); i++) {
+        (*result)[i] = lowered[i];
+    }
+    *resultLength = lowered.size();
+}
+
+TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
+{
+    return NYT::NTableClient::GetFarmFingerprint(begin, end);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1032,6 +1318,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(IsRowInArray);
+    REGISTER_ROUTINE(TransformTuple);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);
     REGISTER_ROUTINE(AddRow);
@@ -1046,11 +1333,21 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(RegexReplaceAll);
     REGISTER_ROUTINE(RegexExtract);
     REGISTER_ROUTINE(RegexEscape);
+    REGISTER_ROUTINE(ToLowerUTF8);
+    REGISTER_ROUTINE(GetFarmFingerprint);
+    REGISTER_ROUTINE(CompareAny);
+    REGISTER_ROUTINE(CompareAnyBoolean);
+    REGISTER_ROUTINE(CompareAnyInt64);
+    REGISTER_ROUTINE(CompareAnyUint64);
+    REGISTER_ROUTINE(CompareAnyDouble);
+    REGISTER_ROUTINE(CompareAnyString);
+    REGISTER_ROUTINE(ToAny);
     REGISTER_YPATH_GET_ROUTINE(Int64);
     REGISTER_YPATH_GET_ROUTINE(Uint64);
     REGISTER_YPATH_GET_ROUTINE(Double);
     REGISTER_YPATH_GET_ROUTINE(Boolean);
     REGISTER_YPATH_GET_ROUTINE(String);
+    REGISTER_YPATH_GET_ROUTINE(Any);
 #undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 

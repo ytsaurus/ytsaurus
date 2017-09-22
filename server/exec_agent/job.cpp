@@ -23,6 +23,8 @@
 #include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
+#include <yt/ytlib/job_proxy/public.h>
+
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -432,13 +434,26 @@ public:
     virtual void Interrupt() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
-        ValidateJobRunning();
+
+        if (JobPhase_ < EJobPhase::Running) {
+            Abort(TError(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet"));
+            return;
+        } else if (JobPhase_ > EJobPhase::Running) {
+            // We're done with this job, no need to interrupt.
+            return;
+        }
 
         try {
             Slot_->GetJobProberClient()->Interrupt();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error interrupting job on job proxy")
+            auto error = TError("Error interrupting job on job proxy")
                 << ex;
+
+            if (error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)) {
+                Abort(error);
+            } else {
+                THROW_ERROR error;
+            }
         }
     }
 
@@ -453,6 +468,16 @@ public:
             THROW_ERROR_EXCEPTION("Error failing job on job proxy")
                     << ex;
         }
+    }
+
+    virtual bool GetStored() const override
+    {
+        return Stored_;
+    }
+
+    virtual void SetStored(bool value) override
+    {
+        Stored_ = value;
     }
 
 private:
@@ -507,6 +532,9 @@ private:
     NLogging::TLogger Logger = ExecAgentLogger;
 
     TJobEvents JobEvents_;
+
+    //! True if scheduler asked to store this job.
+    bool Stored_ = false;
 
     // Helpers.
 
@@ -1088,6 +1116,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
+            resultError.FindMatching(NJobProxy::EErrorCode::JobNotPrepared) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {
             return EAbortReason::Other;

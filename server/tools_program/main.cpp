@@ -18,6 +18,7 @@ REGISTER_TOOL(TRemoveDirAsRootTool)
 REGISTER_TOOL(TRemoveDirContentAsRootTool)
 REGISTER_TOOL(TMountTmpfsAsRootTool)
 REGISTER_TOOL(TUmountAsRootTool)
+REGISTER_TOOL(TSetThreadPriorityAsRootTool)
 REGISTER_TOOL(TFSQuotaTool)
 
 namespace NCGroup {
@@ -27,11 +28,10 @@ REGISTER_TOOL(TKillProcessGroupTool)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TToolsProgram
-    : public TProgram
+    : public TYTProgram
 {
 public:
     TToolsProgram()
-        : TProgram()
     {
         Opts_
             .AddLongOption("tool-name", "tool name to execute")

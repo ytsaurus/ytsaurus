@@ -225,11 +225,16 @@ protected:
             return false;
         }
 
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
+        }
+
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
             AddParallelInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
     private:
@@ -279,11 +284,11 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(joblet, PartitionIndex, jobSummary);
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
             if (jobSummary.InterruptReason != EInterruptReason::None) {
                 Controller->ReinstallUnreadInputDataSlices(jobSummary.UnreadInputDataSlices);
@@ -518,13 +523,15 @@ protected:
                         Spec,
                         Options,
                         PrimaryInputDataWeight,
-                        static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+                        DataWeightRatio,
+                        InputCompressionRatio);
 
                 default:
-                    return CreateSimpleJobSizeConstraints(
+                    return CreateUserJobSizeConstraints(
                         Spec,
                         Options,
                         GetOutputTablePaths().size(),
+                        DataWeightRatio,
                         PrimaryInputDataWeight);
             }
         };
@@ -733,7 +740,7 @@ public:
         , Options(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
     }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
@@ -2204,8 +2211,10 @@ protected:
     virtual bool IsJobInterruptible() const override
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return !IsExplicitJobCount &&
-            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();
+        return
+            !IsExplicitJobCount &&
+            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
+            TOperationControllerBase::IsJobInterruptible();
     }
 
     virtual TCpuResource GetCpuLimit() const override
@@ -2303,7 +2312,7 @@ public:
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
     }
 
     // Persistence.
@@ -2648,7 +2657,7 @@ public:
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
     }
 
     // Persistence.

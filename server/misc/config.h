@@ -130,8 +130,8 @@ public:
         RegisterParameter("check_period", CheckPeriod)
             .Default(TDuration::Minutes(1));
         RegisterParameter("test_size", TestSize)
-            .InRange(0, GB)
-            .Default(MB);
+            .InRange(0, 1_GB)
+            .Default(1_MB);
         RegisterParameter("timeout", Timeout)
             .Default(TDuration::Seconds(60));
     }

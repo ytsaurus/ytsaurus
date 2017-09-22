@@ -123,24 +123,22 @@ void TColumnEvaluator::InitAggregate(
 
 void TColumnEvaluator::UpdateAggregate(
     int index,
-    TUnversionedValue* result,
-    const TUnversionedValue& state,
+    TUnversionedValue* state,
     const TUnversionedValue& update,
     const TRowBufferPtr& buffer) const
 {
-    Columns_[index].Aggregate.Update(buffer.Get(), result, &state, &update);
-    result->Id = index;
+    Columns_[index].Aggregate.Update(buffer.Get(), state, &update);
+    state->Id = index;
 }
 
 void TColumnEvaluator::MergeAggregate(
     int index,
-    TUnversionedValue* result,
-    const TUnversionedValue& state,
+    TUnversionedValue* state,
     const TUnversionedValue& mergeeState,
     const TRowBufferPtr& buffer) const
 {
-    Columns_[index].Aggregate.Merge(buffer.Get(), result, &state, &mergeeState);
-    result->Id = index;
+    Columns_[index].Aggregate.Merge(buffer.Get(), state, &mergeeState);
+    state->Id = index;
 }
 
 void TColumnEvaluator::FinalizeAggregate(

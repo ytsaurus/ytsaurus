@@ -16,6 +16,7 @@ message TReqMount
     optional NYT.NProto.TGuid cell_id = 3;
 
     required bool freeze = 4;
+    optional uint64 mount_timestamp = 5 [default = 0];
 }
 
 message TRspMount

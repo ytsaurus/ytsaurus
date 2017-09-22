@@ -26,6 +26,7 @@ using NYT::NQueryClient::TJoinParameters;
 using NYT::NQueryClient::TJoinClosure;
 using NYT::NQueryClient::TGroupByClosure;
 using NYT::NQueryClient::TWriteOpClosure;
+using NYT::NQueryClient::TExpressionClosure;
 using NYT::NTableClient::TRowBuffer;
 using NYT::TSharedRange;
 
@@ -175,6 +176,31 @@ public:
     {
         return StructType::get(
             THeader::get(context),
+            nullptr);
+    }
+};
+
+template <bool Cross>
+class TypeBuilder<TExpressionClosure, Cross>
+{
+public:
+    enum Fields
+    {
+        RowValues,
+        OpaqueValues,
+        Buffer,
+        FragmentFlags,
+        FragmentResults
+    };
+
+    static StructType* get(LLVMContext& context, size_t size)
+    {
+        return StructType::get(
+            TypeBuilder<TValue*, Cross>::get(context),
+            TypeBuilder<void* const*, Cross>::get(context),
+            TypeBuilder<TRowBuffer*, Cross>::get(context),
+            llvm::ArrayType::get(TypeBuilder<char, false>::get(context), size),
+            llvm::ArrayType::get(TypeBuilder<TValue, false>::get(context), size),
             nullptr);
     }
 };

@@ -11,6 +11,8 @@
 #include <yt/server/misc/build_attributes.h>
 
 #include <yt/server/rpc_proxy/api_service.h>
+#include <yt/server/rpc_proxy/discovery_service.h>
+#include <yt/server/rpc_proxy/proxy_coordinator.h>
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -86,8 +88,10 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    LOG_INFO(
-        "Starting proxy (MasterAddresses: %v)",
+    LocalAddresses_ = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+
+    LOG_INFO("Starting proxy (LocalAddresses: %v, PrimaryMasterAddresses: %v)",
+        GetValues(LocalAddresses_),
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
     TNativeConnectionOptions connectionOptions;
@@ -95,13 +99,14 @@ void TBootstrap::DoRun()
     NativeConnection_ = CreateNativeConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
-    clientOptions.User = NSecurityClient::GuestUserName;
+    clientOptions.User = NSecurityClient::RootUserName;
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
     auto blackbox = CreateDefaultBlackboxService(Config_->Blackbox, GetControlInvoker());
     CookieAuthenticator_ = CreateCookieAuthenticator(Config_->CookieAuthenticator, blackbox);
     TokenAuthenticator_ = CreateBlackboxTokenAuthenticator(Config_->TokenAuthenticator, blackbox);
     TokenAuthenticator_ = CreateCachingTokenAuthenticator(Config_->TokenAuthenticator, TokenAuthenticator_);
+    ProxyCoordinator_ = CreateProxyCoordinator();
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
@@ -144,6 +149,7 @@ void TBootstrap::DoRun()
         orchidRoot,
         GetControlInvoker()));
     RpcServer_->RegisterService(CreateApiService(this));
+    RpcServer_->RegisterService(CreateDiscoveryService(this));
 
     HttpServer_->Register(
         "/orchid",
@@ -185,6 +191,16 @@ const ITokenAuthenticatorPtr& TBootstrap::GetTokenAuthenticator() const
 const ICookieAuthenticatorPtr& TBootstrap::GetCookieAuthenticator() const
 {
     return CookieAuthenticator_;
+}
+
+const IProxyCoordinatorPtr& TBootstrap::GetProxyCoordinator() const
+{
+    return ProxyCoordinator_;
+}
+
+const NNodeTrackerClient::TAddressMap& TBootstrap::GetLocalAddresses() const
+{
+    return LocalAddresses_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

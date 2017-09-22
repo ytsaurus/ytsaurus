@@ -44,6 +44,10 @@ private:
         NTransactionClient::TTimestamp LastCommitTimestamp = NTransactionClient::NullTimestamp;
         TTabletStateIndexedVector TabletCountByState;
         TTabletList Tablets;
+        TNullable<bool> EnableTabletBalancer;
+        TNullable<i64> MinTabletSize;
+        TNullable<i64> MaxTabletSize;
+        TNullable<i64> DesiredTabletSize;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -66,6 +70,10 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastCommitTimestamp);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, Tablets);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableTabletBalancer);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MinTabletSize);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MaxTabletSize);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletSize);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
@@ -87,6 +95,7 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
     void LoadPre609(NCellMaster::TLoadContext& context);
+    void LoadCompatAfter609(NCellMaster::TLoadContext& context);
 
     typedef TTabletList::const_iterator TTabletListIterator;
     std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
@@ -102,11 +111,13 @@ public:
     NTabletClient::ETabletState GetTabletState() const;
 
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
-    NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp() const;
+    NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
+        NTransactionClient::TTimestamp latestTimestamp) const;
 
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
-    NTransactionClient::TTimestamp CalculateUnflushedTimestamp() const;
+    NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
+        NTransactionClient::TTimestamp latestTimestamp) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,12 +2,15 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/protobuf_helpers.pb.h>
+#include <yt/core/misc/error.pb.h>
 
 #include <yt/core/compression/codec.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/byte_buffer.h>
 #include <contrib/libs/grpc/include/grpc/byte_buffer_reader.h>
+
+#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT {
 namespace NGrpc {
@@ -171,6 +174,26 @@ TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data)
     grpc_slice_unref(slice);
 
     return TGrpcByteBufferPtr(buffer);
+}
+
+TString SerializeError(const TError& error)
+{
+    TString serializedError;
+    google::protobuf::io::StringOutputStream output(&serializedError);
+    NProto::TError protoError;
+    ToProto(&protoError, error);
+    YCHECK(protoError.SerializeToZeroCopyStream(&output));
+    return serializedError;
+}
+
+TError DeserializeError(const TStringBuf& serializedError)
+{
+    NProto::TError protoError;
+    google::protobuf::io::ArrayInputStream input(serializedError.data(), serializedError.size());
+    if (!protoError.ParseFromZeroCopyStream(&input)) {
+        THROW_ERROR_EXCEPTION("Error deserializing error");
+    }
+    return FromProto<TError>(protoError);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

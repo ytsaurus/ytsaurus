@@ -25,6 +25,7 @@ using namespace NHydra;
 using namespace NCellMaster;
 using namespace NNodeTrackerClient;
 using namespace NChunkServer;
+using namespace NObjectServer;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,6 +86,11 @@ private:
             statistics);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->FindNodeByAddress(address);
+        if (IsObjectAlive(node)) {
+            node->ValidateNotBanned();
+        }
+
         nodeTracker->ProcessRegisterNode(context);
     }
 

@@ -23,6 +23,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
+#include <yt/core/ytree/yson_serializable.h>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -34,7 +36,7 @@ struct TTabletCellStatistics
     i64 UncompressedDataSize = 0;
     i64 CompressedDataSize = 0;
     i64 MemorySize = 0;
-    i64 DiskSpace[NChunkClient::MaxMediumCount] = {};
+    i64 DiskSpacePerMedium[NChunkClient::MaxMediumCount] = {};
     int ChunkCount = 0;
     int PartitionCount = 0;
     int StoreCount = 0;
@@ -46,11 +48,17 @@ struct TTabletCellStatistics
     void Persist(NCellMaster::TPersistenceContext& context);
 };
 
-struct TTabletStatistics
-    : public TTabletCellStatistics
+struct TTabletStatisticsBase
 {
     int OverlappingStoreCount = 0;
 
+    void Persist(NCellMaster::TPersistenceContext& context);
+};
+
+struct TTabletStatistics
+    : public TTabletCellStatistics
+    , public TTabletStatisticsBase
+{
     void Persist(NCellMaster::TPersistenceContext& context);
 };
 
@@ -63,8 +71,51 @@ TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStati
 TTabletCellStatistics& operator -= (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
 TTabletCellStatistics  operator -  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
 
-void Serialize(const TTabletCellStatistics& statistics, NYson::IYsonConsumer* consumer);
-void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consumer);
+////////////////////////////////////////////////////////////////////////////////
+
+class TSerializableTabletCellStatistics
+    : public virtual NYTree::TYsonSerializable
+    , public TTabletCellStatistics
+{
+public:
+    TSerializableTabletCellStatistics();
+
+    TSerializableTabletCellStatistics(
+        const TTabletCellStatistics& statistics,
+        const NChunkServer::TChunkManagerPtr& chunkManager);
+
+private:
+    int TabletCount_ = 0;
+    i64 DiskSpace_ = 0;
+    yhash<TString, i64> DiskSpacePerMediumMap_;
+
+    void InitParameters();
+};
+
+class TSerializableTabletStatisticsBase
+    : public virtual NYTree::TYsonSerializable
+    , public TTabletStatisticsBase
+{
+public:
+    TSerializableTabletStatisticsBase();
+
+    explicit TSerializableTabletStatisticsBase(const TTabletStatisticsBase& statistics);
+
+private:
+    void InitParameters();
+};
+
+class TSerializableTabletStatistics
+    : public TSerializableTabletCellStatistics
+    , public TSerializableTabletStatisticsBase
+{
+public:
+    TSerializableTabletStatistics();
+
+    TSerializableTabletStatistics(
+        const TTabletStatistics& statistics,
+        const NChunkServer::TChunkManagerPtr& chunkManager);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

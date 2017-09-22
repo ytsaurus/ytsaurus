@@ -39,9 +39,9 @@ var ARCHIVE_ITEMS = [
 ];
 
 var ARCHIVE_COUNTS = [
-    {user: "sandello", state: "completed", type: "map", count: 1},
-    {user: "sandello", state: "failed", type: "map", count: 1},
-    {user: "sandello", state: "aborted", type: "map", count: 1},
+    {pool: "sandello", user: "sandello", state: "completed", type: "map", count: 1},
+    {pool: "sandello", user: "sandello", state: "failed", type: "map", count: 1},
+    {pool: "sandello", user: "sandello", state: "aborted", type: "map", count: 1},
 ];
 
 function testApplicationOperations(version)
@@ -105,7 +105,7 @@ function testApplicationOperations(version)
             .expects("executeSimple")
             .once()
             .withExactArgs("select_rows", sinon.match({
-                query: sinon.match(/user, state, type, sum\(1\) AS count .* GROUP BY .*/)
+                query: sinon.match(/pool, user, state, type, sum\(1\) AS count .* GROUP BY .*/)
             }))
             .returns(result);
      }
@@ -268,6 +268,7 @@ function testApplicationOperations(version)
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -291,6 +292,7 @@ function testApplicationOperations(version)
             from_time: "2016-03-02T00:00:00Z",
             to_time: "2016-03-02T12:00:00Z",
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({psushin: 1});
             expect(result.user_counts).to.deep.equal({psushin: 1});
             expect(result.state_counts).to.deep.equal({running: 1});
             expect(result.type_counts).to.deep.equal({map: 1});
@@ -313,6 +315,7 @@ function testApplicationOperations(version)
             cursor_direction: "past",
         }).then(function(result) {
             // counters are intact
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -337,6 +340,7 @@ function testApplicationOperations(version)
             cursor_direction: "future",
         }).then(function(result) {
             // counters are intact
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -359,6 +363,7 @@ function testApplicationOperations(version)
             max_size: 2
         }).then(function(result) {
             // counters are intact
+            expect(result.pool_counts).to.deep.equal({psushin: 1, odin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, odin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 2});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1, sort: 1});
@@ -381,6 +386,7 @@ function testApplicationOperations(version)
             max_size: 2
         }).then(function(result) {
             // counters are intact
+            expect(result.pool_counts).to.deep.equal({psushin: 1, odin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, odin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 2});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1, sort: 1});
@@ -403,6 +409,7 @@ function testApplicationOperations(version)
             to_time: "2016-03-04T00:00:00Z",
             type: "map_reduce"
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -423,6 +430,7 @@ function testApplicationOperations(version)
             to_time: "2016-03-04T00:00:00Z",
             state: "completed"
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 1});
@@ -443,6 +451,7 @@ function testApplicationOperations(version)
             to_time: "2016-03-04T00:00:00Z",
             user: "psushin"
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({running: 1});
             expect(result.type_counts).to.deep.equal({map: 1});
@@ -463,12 +472,34 @@ function testApplicationOperations(version)
             to_time: "2016-03-04T00:00:00Z",
             filter: "MRPROC"
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({failed: 1});
             expect(result.type_counts).to.deep.equal({map_reduce: 1});
             expect(result.failed_jobs_count).to.deep.equal(1);
             expect(result.operations.map(function(item) { return item.$value; })).to.deep.equal([
                 "d7df8-7d0c30ec-582ebd65-9ad7535a",
+            ]);
+            mock.verify();
+        })
+        .then(done, done);
+    });
+
+    it("should list operations from cypress with pool filter", function(done) {
+        var mock = sinon.mock(this.driver);
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            pool: "ignat"
+        }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({'data-quality_robot': 1, ignat: 1, psushin: 1});
+            expect(result.user_counts).to.deep.equal({ignat: 1});
+            expect(result.state_counts).to.deep.equal({completed: 1});
+            expect(result.type_counts).to.deep.equal({map: 1});
+            expect(result.failed_jobs_count).to.deep.equal(0);
+            expect(result.operations.map(function(item) { return item.$value; })).to.deep.equal([
+                "19b5c14-c41a6620-7fa0d708-29a241d2",
             ]);
             mock.verify();
         })
@@ -483,6 +514,7 @@ function testApplicationOperations(version)
             to_time: "2016-03-04T00:00:00Z",
             with_failed_jobs: true
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -546,6 +578,7 @@ function testApplicationOperations(version)
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -572,6 +605,7 @@ function testApplicationOperations(version)
             to_time: "2016-03-04T00:00:00Z",
             include_archive: true,
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1, sandello: 3});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1, sandello: 3});
             expect(result.state_counts).to.deep.equal({aborted: 1, completed: 2, failed: 2, running: 1});
             expect(result.type_counts).to.deep.equal({map: 5, map_reduce: 1});
@@ -613,6 +647,7 @@ function testApplicationOperations(version)
             to_time: "2016-03-04T00:00:00Z",
             include_archive: true,
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({psushin: 1, ignat: 1, 'data-quality_robot': 1, sandello: 2});
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1, sandello: 2});
             expect(result.state_counts).to.deep.equal({aborted: 1, completed: 1, failed: 2, running: 1});
             expect(result.type_counts).to.deep.equal({map: 4, map_reduce: 1});
@@ -639,6 +674,7 @@ function testApplicationOperations(version)
             from_time: "2016-04-11T00:00:00Z",
             to_time: "2016-04-12T00:00:00Z",
         }).then(function(result) {
+            expect(result.pool_counts).to.deep.equal({odin: 1});
             expect(result.user_counts).to.deep.equal({odin: 1});
             expect(result.state_counts).to.deep.equal({running: 1});
             expect(result.type_counts).to.deep.equal({sort: 1});
@@ -859,3 +895,4 @@ describe("YtApplicationOperations - list, get operations and scheduling info (ve
 describe("YtApplicationOperations - list, get operations and scheduling info (version 6)", function() {
    testApplicationOperations(6);
 });
+

@@ -72,7 +72,7 @@ public:
     //! The same object can only be staged once.
     void StageObject(
         TTransaction* transaction,
-        NObjectServer::IObjectBase* object);
+        NObjectServer::TObjectBase* object);
 
     //! Unregisters the object from its staging transaction (which must be equal to #transaction),
     //! calls IObjectTypeHandler::UnstageObject and
@@ -82,7 +82,7 @@ public:
      */
     void UnstageObject(
         TTransaction* transaction,
-        NObjectServer::IObjectBase* object,
+        NObjectServer::TObjectBase* object,
         bool recursive);
 
     //! Registers (and references) the node with the transaction.
@@ -96,7 +96,7 @@ public:
     //! The same object as be exported more than once.
     void ExportObject(
         TTransaction* transaction,
-        NObjectServer::IObjectBase* object,
+        NObjectServer::TObjectBase* object,
         NObjectClient::TCellTag destinationCellTag);
 
     //! Registers and references the object with the transaction.
@@ -104,7 +104,7 @@ public:
     //! The same object as be exported more than once.
     void ImportObject(
         TTransaction* transaction,
-        NObjectServer::IObjectBase* object);
+        NObjectServer::TObjectBase* object);
 
     void RegisterPrepareActionHandler(const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor);
     void RegisterCommitActionHandler(const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor);
@@ -114,7 +114,7 @@ public:
         NTransactionClient::NProto::TReqStartTransaction,
         NTransactionClient::NProto::TRspStartTransaction>;
     using TCtxStartTransactionPtr = TIntrusivePtr<TCtxStartTransaction>;
-    NHydra::TMutationPtr CreateStartTransactionMutation(
+    std::unique_ptr<NHydra::TMutation> CreateStartTransactionMutation(
         TCtxStartTransactionPtr context,
         const NTransactionServer::NProto::TReqStartTransaction& request);
 
@@ -122,7 +122,7 @@ public:
         NProto::TReqRegisterTransactionActions,
         NProto::TRspRegisterTransactionActions>;
     using TCtxRegisterTransactionActionsPtr = TIntrusivePtr<TCtxRegisterTransactionActions>;
-    NHydra::TMutationPtr CreateRegisterTransactionActionsMutation(
+    std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context);
 
 private:

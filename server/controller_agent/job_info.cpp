@@ -2,6 +2,7 @@
 
 #include "job_helpers.h"
 #include "job_metrics_updater.h"
+#include "task_host.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 
@@ -31,7 +32,7 @@ TJoblet::TJoblet()
     , OutputCookie(-1)
 { }
 
-TJoblet::TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTaskPtr task, int jobIndex)
+TJoblet::TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTask* task, int jobIndex)
     : Task(std::move(task))
     , JobIndex(jobIndex)
     , StartRowIndex(-1)
@@ -39,30 +40,42 @@ TJoblet::TJoblet(std::unique_ptr<TJobMetricsUpdater> jobMetricsUpdater, TTaskPtr
     , JobMetricsUpdater_(std::move(jobMetricsUpdater))
 { }
 
-void TJoblet::SendJobMetrics(const TStatistics& jobStatistics, bool flush)
+void TJoblet::SendJobMetrics(const NScheduler::TJobSummary& jobSummary, bool flush)
 {
-    // NOTE: after snapshot is loaded JobMetricsUpdater_ can be missing.
-    if (JobMetricsUpdater_) {
-        const auto timestamp = jobStatistics.GetTimestamp().Get(CpuInstantToInstant(GetCpuInstant()));
-        const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(jobStatistics);
-        JobMetricsUpdater_->Update(timestamp, jobMetrics);
-        if (flush) {
-            JobMetricsUpdater_->Flush();
-        }
+    YCHECK(JobMetricsUpdater_);
+    const auto timestamp = jobSummary.Statistics->GetTimestamp().Get(GetInstant());
+    const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(
+        *jobSummary.Statistics,
+        jobSummary.State);
+
+    JobMetricsUpdater_->Update(timestamp, jobMetrics);
+    if (flush) {
+        JobMetricsUpdater_->Flush();
     }
 }
 
 void TJoblet::Persist(const TPersistenceContext& context)
 {
-    // NB: Every joblet is aborted after snapshot is loaded.
-    // Here we only serialize a subset of members required for ReinstallJob to work
-    // properly.
+    TJobInfoBase::Persist(context);
+
     using NYT::Persist;
     Persist(context, Task);
+    Persist(context, JobIndex);
+    Persist(context, StartRowIndex);
+    Persist(context, Restarted);
     Persist(context, InputStripeList);
     Persist(context, OutputCookie);
+    Persist(context, EstimatedResourceUsage);
+    Persist(context, JobProxyMemoryReserveFactor);
+    Persist(context, UserJobMemoryReserveFactor);
+    Persist(context, ResourceLimits);
+    Persist(context, ChunkListIds);
+    Persist(context, StderrTableChunkListId);
+    Persist(context, CoreTableChunkListId);
 
-    TJobInfoBase::Persist(context);
+    if (context.IsLoad()) {
+        JobMetricsUpdater_ = Task->GetTaskHost()->CreateJobMetricsUpdater();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +104,8 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, LastActivityTime);
     Persist(context, BriefStatistics);
     Persist(context, Progress);
+    // NB(max42): JobStatistics is not persisted intentionally since
+    // it can increase the size of snapshot significantly.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

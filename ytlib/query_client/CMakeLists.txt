@@ -6,7 +6,7 @@ protoc( ${CMAKE_CURRENT_LIST_DIR}/query.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/functions_cache.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/query_service.proto YT_SOURCE_FILES )
 
-udf_bc(
+udf_bc_header(
   ${CMAKE_CURRENT_LIST_DIR}/udf/hyperloglog.cpp
   YT_SOURCE_FILES
   SYMBOLS
@@ -16,20 +16,13 @@ udf_bc(
     cardinality_finalize
   FILES
     ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
-    ${CMAKE_SOURCE_DIR}/yt/contrib/farmhash/farmhash.cc
+    ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
 )
-udf_bc(
-  ${CMAKE_CURRENT_LIST_DIR}/udf/farm_hash.cpp
-  YT_SOURCE_FILES
-  FILES
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
-    ${CMAKE_SOURCE_DIR}/yt/contrib/farmhash/farmhash.cc
-)
-udf_bc(
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/farm_hash.cpp YT_SOURCE_FILES )
+
+udf_bc_header(
   ${CMAKE_CURRENT_LIST_DIR}/udf/regex.cpp
   YT_SOURCE_FILES
-  FILES
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/function_context.cpp
   SYMBOLS
     regex_full_match
     regex_partial_match
@@ -38,17 +31,18 @@ udf_bc(
     regex_extract
     regex_escape
 )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/avg.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/concat.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/first.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_prefix.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_substr.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/max.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/min.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sleep.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sum.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/avg.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/concat.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/first.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/is_prefix.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/is_substr.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/max.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/min.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/sleep.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/sum.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/to_any.cpp YT_SOURCE_FILES )
 
-udf_bc(
+udf_bc_header(
   ${CMAKE_CURRENT_LIST_DIR}/udf/ypath_get.c
   YT_SOURCE_FILES
   SYMBOLS
@@ -62,16 +56,13 @@ udf_bc(
     get_boolean
     try_get_string
     get_string
+    try_get_any
+    get_any
 )
 
-udf_bc(
-  ${CMAKE_CURRENT_LIST_DIR}/udf/lower.cpp
-  YT_SOURCE_FILES
-  FILES
-    ${CMAKE_SOURCE_DIR}/util/charset/utf8.cpp
-)
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/lower.cpp YT_SOURCE_FILES )
 
-udf_bc(
+udf_bc_header(
   ${CMAKE_CURRENT_LIST_DIR}/udf/dates.c
   YT_SOURCE_FILES
   SYMBOLS

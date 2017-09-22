@@ -37,75 +37,24 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& colum
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExpressionPrinter
+    : TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>
+{
+    using TBase = TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>;
+    TExpressionPrinter(TStringBuilder* builder, bool omitValues)
+        : TBase(builder, omitValues)
+    { }
+};
+
 TString InferName(TConstExpressionPtr expr, bool omitValues)
 {
-    bool newTuple = true;
-    auto comma = [&] {
-        bool isNewTuple = newTuple;
-        newTuple = false;
-        return TString(isNewTuple ? "" : ", ");
-    };
-    auto canOmitParenthesis = [] (TConstExpressionPtr expr) {
-        return
-            expr->As<TLiteralExpression>() ||
-            expr->As<TReferenceExpression>() ||
-            expr->As<TFunctionExpression>();
-    };
-
     if (!expr) {
         return TString();
-    } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return omitValues
-            ? ToString("?")
-            : ToString(static_cast<TUnversionedValue>(literalExpr->Value));
-    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        return referenceExpr->ColumnName;
-    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        auto str = functionExpr->FunctionName + "(";
-        for (const auto& argument : functionExpr->Arguments) {
-            str += comma() + InferName(argument, omitValues);
-        }
-        return str + ")";
-    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        auto rhsName = InferName(unaryOp->Operand, omitValues);
-        if (!canOmitParenthesis(unaryOp->Operand)) {
-            rhsName = "(" + rhsName + ")";
-        }
-        return TString() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
-    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        auto lhsName = InferName(binaryOp->Lhs, omitValues);
-        if (!canOmitParenthesis(binaryOp->Lhs)) {
-            lhsName = "(" + lhsName + ")";
-        }
-        auto rhsName = InferName(binaryOp->Rhs, omitValues);
-        if (!canOmitParenthesis(binaryOp->Rhs)) {
-            rhsName = "(" + rhsName + ")";
-        }
-        return
-            lhsName +
-            " " + GetBinaryOpcodeLexeme(binaryOp->Opcode) + " " +
-            rhsName;
-    } else if (auto inOp = expr->As<TInOpExpression>()) {
-        TString str;
-        for (const auto& argument : inOp->Arguments) {
-            str += comma() + InferName(argument, omitValues);
-        }
-        if (inOp->Arguments.size() > 1) {
-            str = "(" + str + ")";
-        }
-        str += " IN (";
-        if (omitValues) {
-            str += "??";
-        } else {
-            newTuple = true;
-            for (const auto& row : inOp->Values) {
-                str += comma() + ToString(row);
-            }
-        }
-        return str + ")";
-    } else {
-        Y_UNREACHABLE();
     }
+    TStringBuilder builder;
+    TExpressionPrinter expressionPrinter(&builder, omitValues);
+    expressionPrinter.Visit(expr);
+    return builder.Flush();
 }
 
 TString InferName(TConstBaseQueryPtr query, bool omitValues)
@@ -144,10 +93,11 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues)
                 foreignJoinEquation.push_back(InferName(equation, omitValues));
             }
 
-            clauses.push_back(Format("%v JOIN[via ranges: %v, common key prefix: %v] (%v) = (%v)",
+            clauses.push_back(Format(
+                "%v JOIN[common prefix: %v, foreign prefix: %v] (%v) = (%v)",
                 joinClause->IsLeft ? "LEFT" : "INNER",
-                joinClause->CanUseSourceRanges,
                 joinClause->CommonKeyPrefix,
+                joinClause->ForeignKeyPrefix,
                 JoinToString(selfJoinEquation),
                 JoinToString(foreignJoinEquation)));
 
@@ -232,8 +182,8 @@ bool Compare(
         CHECK(binaryLhs->Opcode == binaryRhs->Opcode)
         CHECK(Compare(binaryLhs->Lhs, lhsSchema, binaryRhs->Lhs, rhsSchema, maxIndex))
         CHECK(Compare(binaryLhs->Rhs, lhsSchema, binaryRhs->Rhs, rhsSchema, maxIndex))
-    } else if (auto inLhs = lhs->As<TInOpExpression>()) {
-        auto inRhs = rhs->As<TInOpExpression>();
+    } else if (auto inLhs = lhs->As<TInExpression>()) {
+        auto inRhs = rhs->As<TInExpression>();
         CHECK(inRhs)
         CHECK(inLhs->Arguments.size() == inRhs->Arguments.size())
         for (size_t index = 0; index < inLhs->Arguments.size(); ++index) {
@@ -244,6 +194,18 @@ bool Compare(
         for (size_t index = 0; index < inLhs->Values.Size(); ++index) {
             CHECK(inLhs->Values[index] == inRhs->Values[index])
         }
+    } else if (auto transformLhs = lhs->As<TTransformExpression>()) {
+        auto transformRhs = rhs->As<TTransformExpression>();
+        CHECK(transformRhs)
+        CHECK(transformLhs->Arguments.size() == transformRhs->Arguments.size())
+        for (size_t index = 0; index < transformLhs->Arguments.size(); ++index) {
+            CHECK(Compare(transformLhs->Arguments[index], lhsSchema, transformRhs->Arguments[index], rhsSchema, maxIndex))
+        }
+
+        CHECK(transformLhs->Values.Size() == transformRhs->Values.Size())
+        for (size_t index = 0; index < transformLhs->Values.Size(); ++index) {
+            CHECK(transformLhs->Values[index] == transformRhs->Values[index])
+        }
     } else {
         Y_UNREACHABLE();
     }
@@ -251,7 +213,6 @@ bool Compare(
 
     return true;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -342,13 +303,21 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         proto->set_opcode(static_cast<int>(binaryOpExpr->Opcode));
         ToProto(proto->mutable_lhs(), binaryOpExpr->Lhs);
         ToProto(proto->mutable_rhs(), binaryOpExpr->Rhs);
-    } else if (auto inOpExpr = original->As<TInOpExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::InOp));
-        auto* proto = serialized->MutableExtension(NProto::TInOpExpression::in_op_expression);
-        ToProto(proto->mutable_arguments(), inOpExpr->Arguments);
+    } else if (auto inExpr = original->As<TInExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::In));
+        auto* proto = serialized->MutableExtension(NProto::TInExpression::in_expression);
+        ToProto(proto->mutable_arguments(), inExpr->Arguments);
 
         NTabletClient::TWireProtocolWriter writer;
-        writer.WriteUnversionedRowset(inOpExpr->Values);
+        writer.WriteUnversionedRowset(inExpr->Values);
+        ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
+    } else if (auto transformExpr = original->As<TTransformExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::Transform));
+        auto* proto = serialized->MutableExtension(NProto::TTransformExpression::transform_expression);
+        ToProto(proto->mutable_arguments(), transformExpr->Arguments);
+
+        NTabletClient::TWireProtocolWriter writer;
+        writer.WriteUnversionedRowset(transformExpr->Values);
         ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
     }
 }
@@ -421,13 +390,25 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             return;
         }
 
-        case EExpressionKind::InOp: {
-            auto result = New<TInOpExpression>(type);
-            const auto& ext = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
+        case EExpressionKind::In: {
+            auto result = New<TInExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TInExpression::in_expression);
             FromProto(&result->Arguments, ext.arguments());
             NTabletClient::TWireProtocolReader reader(
                 TSharedRef::FromString(ext.values()),
-                New<TRowBuffer>(TInOpExpressionValuesTag()));
+                New<TRowBuffer>(TInExpressionValuesTag()));
+            result->Values = reader.ReadUnversionedRowset(true);
+            *original = result;
+            return;
+        }
+
+        case EExpressionKind::Transform: {
+            auto result = New<TTransformExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TTransformExpression::transform_expression);
+            FromProto(&result->Arguments, ext.arguments());
+            NTabletClient::TWireProtocolReader reader(
+                TSharedRef::FromString(ext.values()),
+                New<TRowBuffer>());
             result->Values = reader.ReadUnversionedRowset(true);
             *original = result;
             return;
@@ -516,8 +497,13 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
-    proto->set_can_use_source_ranges(original->CanUseSourceRanges);
-    proto->set_common_key_prefix(original->CommonKeyPrefix);
+
+    // COMPAT(lukyan)
+    bool canUseSourceRanges = original->ForeignKeyPrefix == original->ForeignEquations.size();
+    proto->set_can_use_source_ranges(canUseSourceRanges);
+    proto->set_common_key_prefix(canUseSourceRanges ? original->CommonKeyPrefix : 0);
+    proto->set_common_key_prefix_new(original->CommonKeyPrefix);
+    proto->set_foreign_key_prefix(original->ForeignKeyPrefix);
 
     if (original->Predicate) {
         ToProto(proto->mutable_predicate(), original->Predicate);
@@ -535,8 +521,18 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->SelfEquations, serialized.self_equations());
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
-    FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
     FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix());
+
+    if (serialized.has_common_key_prefix_new()) {
+        FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix_new());
+    }
+
+    // COMPAT(lukyan)
+    if (serialized.can_use_source_ranges()) {
+        result->ForeignKeyPrefix = result->ForeignEquations.size();
+    } else {
+        FromProto(&result->ForeignKeyPrefix, serialized.foreign_key_prefix());
+    }
 
     if (serialized.has_predicate()) {
         FromProto(&result->Predicate, serialized.predicate());
@@ -613,9 +609,6 @@ void FromProto(TConstOrderClausePtr* original, const NProto::TOrderClause& seria
 
 void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
 {
-    serialized->set_input_row_limit(original->InputRowLimit);
-    serialized->set_output_row_limit(original->OutputRowLimit);
-
     ToProto(serialized->mutable_id(), original->Id);
 
     serialized->set_limit(original->Limit);
@@ -651,10 +644,7 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
 
 void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 {
-    auto result = New<TQuery>(
-        serialized.input_row_limit(),
-        serialized.output_row_limit(),
-        FromProto<TGuid>(serialized.id()));
+    auto result = New<TQuery>(FromProto<TGuid>(serialized.id()));
 
     result->Limit = serialized.limit();
     result->UseDisjointGroupBy = serialized.use_disjoint_group_by();
@@ -738,6 +728,7 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
         ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter.Finish()));
     }
     serialized->set_lookup_supported(original.LookupSupported);
+    serialized->set_key_width(original.KeyWidth);
 }
 
 void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
@@ -770,6 +761,7 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
         original->Keys = keysReader.ReadSchemafulRowset(schemaData, true);
     }
     original->LookupSupported = serialized.lookup_supported();
+    original->KeyWidth = serialized.key_width();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

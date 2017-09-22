@@ -120,7 +120,7 @@ TEST(TExpiringCacheTest, TestEntryRemoval)
                 cache->Get(0);
 
                 if (rand() % 20 == 0) {
-                    cache->TryRemove(0);
+                    cache->Invalidate(0);
                 }
             }
         });

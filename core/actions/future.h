@@ -159,6 +159,12 @@ public:
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
+     *
+     *  \note
+     *  If the callback throws an exception, the program terminates with
+     *  a call to std::terminate. This is because the subscribers are notified synchronously
+     *  and thus we have to ensure that the promise state remains valid by correctly
+     *  finishing the Set call.
      */
     void Subscribe(TCallback<void(const TErrorOr<T>&)> handler);
 
@@ -478,25 +484,35 @@ private:
 template <class T>
 struct TFutureCombineTraits
 {
-    using TCombined = std::vector<T>;
+    using TCombinedVector = std::vector<T>;
+    template <class K>
+    using TCombinedHashMap = yhash<K, T>;
 };
 
 template <>
 struct TFutureCombineTraits<void>
 {
-    using TCombined = void;
+    using TCombinedVector = void;
+
+    template <class K>
+    using TCombinedHashMap = void;
 };
 
 //! Combines a number of same-typed asynchronous computations into a single one.
 /*!
  *  If |T| is |void|, then the asynchronous return type is |void|, otherwise
- *  it is |std::vector<T>|. The order of results always coincides with that of #futures.
+ *  it is |std::vector<T>| / |yhash<K, T>|.
+ *  The order of results always coincides with that of #futures (for vector variant of Combine).
  *
  *  If any of #futures fails, the others are canceled and the error is propagated immediately.
  */
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
     std::vector<TFuture<T>> futures);
+
+template <class K, class T>
+TFuture<typename TFutureCombineTraits<T>::template TCombinedHashMap<K>> Combine(
+    const yhash<K, TFuture<T>>& futures);
 
 //! Same as #Combine but only wait for #quorum successful results.
 /*!
@@ -504,13 +520,13 @@ TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
  *  In contrast to #Combine, for non-void results their relative order is not guaranteed.
  */
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombined> CombineQuorum(
+TFuture<typename TFutureCombineTraits<T>::TCombinedVector> CombineQuorum(
     std::vector<TFuture<T>> futures,
     int quorum);
 
 //! A variant of |Combine| that accepts future holders instead of futures.
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
     std::vector<TFutureHolder<T>> holders);
 
 //! Similar to #Combine but waits for the results in all components, i.e.

@@ -246,7 +246,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablet
-    : public IObjectBase
+    : public TObjectBase
     , public TRefTracked<TTablet>
 {
 public:

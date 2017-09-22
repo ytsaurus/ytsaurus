@@ -15,13 +15,13 @@ TYsonString::TYsonString()
     : Null_(true)
 { }
 
-TYsonString::TYsonString(const TString& data, EYsonType type)
+TYsonString::TYsonString(TString data, EYsonType type)
     : Null_(false)
-    , Data_(data)
+    , Data_(std::move(data))
     , Type_(type)
 { }
 
-TYsonString::TYsonString(const char* data, const size_t length, EYsonType type)
+TYsonString::TYsonString(const char* data, size_t length, EYsonType type)
     : Null_(false)
     , Data_(data, length)
     , Type_(type)

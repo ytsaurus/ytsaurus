@@ -57,7 +57,7 @@ struct TRecordInfo
 };
 
 //! Tries to read one record from the file.
-//! Returns Null if failed.
+//! Returns error if failed.
 template <class TInput>
 TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
 {
@@ -520,13 +520,25 @@ public:
                 // Read and check header.
                 TChangelogRecordHeader header;
                 ReadPodPadded(inputStream, header);
-                YCHECK(header.RecordId == recordId);
+
+                if (header.RecordId != recordId) {
+                    THROW_ERROR_EXCEPTION("Record data id mismatch in %v", FileName_)
+                        << TErrorAttribute("expected", header.RecordId)
+                        << TErrorAttribute("actual", recordId);
+                }
 
                 // Save and pad data.
                 i64 startOffset = inputStream.Buf() - envelope.Blob.Begin();
                 i64 endOffset = startOffset + header.DataSize;
+
                 auto data = envelope.Blob.Slice(startOffset, endOffset);
                 inputStream.Skip(AlignUp(header.DataSize));
+
+                auto checksum = GetChecksum(data);
+                if (header.Checksum != checksum) {
+                    THROW_ERROR_EXCEPTION("Record data checksum mismatch in %v", FileName_)
+                        << TErrorAttribute("record_id", header.RecordId);
+                }
 
                 // Add data to the records.
                 if (recordId >= firstRecordId) {
@@ -863,7 +875,8 @@ private:
                     THROW_ERROR_EXCEPTION("Broken record found in truncated changelog %v",
                         FileName_)
                         << TErrorAttribute("record_id", RecordCount_)
-                        << TErrorAttribute("offset", CurrentFilePosition_);
+                        << TErrorAttribute("offset", CurrentFilePosition_)
+                        << recordInfoOrError;
                 }
 
                 NFS::ExpectIOErrors([&] () {

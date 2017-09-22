@@ -45,7 +45,7 @@ public:
         return EObjectType::TabletCell;
     }
 
-    virtual IObjectBase* CreateObject(
+    virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override
     {

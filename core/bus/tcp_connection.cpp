@@ -6,8 +6,13 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/socket.h>
+
+#include <yt/core/net/dialer.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -17,21 +22,17 @@
 #include <yt/core/profiling/timing.h>
 
 #include <util/system/error.h>
+#include <util/system/guard.h>
 
 #include <cerrno>
-
-#ifdef _unix_
-    #include <netinet/tcp.h>
-#include <yt/core/profiling/scoped_timer.h>
-
-#endif
 
 namespace NYT {
 namespace NBus {
 
+using namespace NConcurrency;
+using namespace NNet;
 using namespace NYTree;
 using namespace NYson;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +44,9 @@ static constexpr size_t MaxFragmentsPerWrite = 256;
 static constexpr size_t MaxBatchWriteSize    = 64 * 1024;
 static constexpr size_t MaxWriteCoalesceSize = 4 * 1024;
 static constexpr auto WriteTimeWarningThreshold = TDuration::MilliSeconds(100);
+
+static constexpr auto MinRto = TDuration::MilliSeconds(100);
+static constexpr auto MaxRto = TDuration::Seconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +65,6 @@ TTcpConnection::TTcpConnection(
     const IAttributeDictionary& endpointAttributes,
     const TNullable<TString>& address,
     const TNullable<TString>& unixDomainName,
-    int priority,
     IMessageHandlerPtr handler,
     IPollerPtr poller)
     : Config_(std::move(config))
@@ -71,9 +74,6 @@ TTcpConnection::TTcpConnection(
     , EndpointAttributes_(endpointAttributes.Clone())
     , Address_(address)
     , UnixDomainName_(unixDomainName)
-#ifdef _linux_
-    , Priority_(priority)
-#endif
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
     , Logger(NLogging::TLogger(BusLogger)
@@ -109,16 +109,14 @@ void TTcpConnection::Cleanup()
     DiscardUnackedMessages(CloseError_);
 
     while (!QueuedPackets_.empty()) {
-        auto* packet = QueuedPackets_.front();
-        UpdatePendingOut(-1, -packet->Size);
-        delete packet;
+        const auto& packet = QueuedPackets_.front();
+        UpdatePendingOut(-1, -packet.Size);
         QueuedPackets_.pop();
     }
 
     while (!EncodedPackets_.empty()) {
-        auto* packet = EncodedPackets_.front();
-        UpdatePendingOut(-1, -packet->Size);
-        delete packet;
+        const auto& packet = EncodedPackets_.front();
+        UpdatePendingOut(-1, -packet.Size);
         EncodedPackets_.pop();
     }
 
@@ -238,8 +236,9 @@ void TTcpConnection::ResolveAddress()
             return;
         }
 
-        TWriterGuard guard(ControlSpinLock_);
-        OnAddressResolved(GetUnixDomainAddress(*UnixDomainName_), ETcpInterfaceType::Local, guard);
+        OnAddressResolved(
+            TNetworkAddress::CreateUnixDomainAddress(*UnixDomainName_),
+            ETcpInterfaceType::Local);
     } else {
         TStringBuf hostName;
         try {
@@ -273,30 +272,16 @@ void TTcpConnection::OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& r
         interfaceType = ETcpInterfaceType::Local;
     }
 
-    {
-        TWriterGuard guard(ControlSpinLock_);
-        OnAddressResolved(address, interfaceType, guard);
-    }
+    OnAddressResolved(address, interfaceType);
 }
 
 void TTcpConnection::OnAddressResolved(
     const TNetworkAddress& address,
-    ETcpInterfaceType interfaceType,
-    NConcurrency::TWriterGuard& guard)
+    ETcpInterfaceType interfaceType)
 {
-    try {
-        ConnectSocket(address);
-    } catch (const std::exception& ex) {
-        guard.Release();
-        Abort(TError(ex).SetCode(NRpc::EErrorCode::TransportError));
-        return;
-    }
-
     State_ = EState::Opening;
-
     SetupInterfaceType(interfaceType);
-
-    DoArmPoller();
+    ConnectSocket(address);
 }
 
 void TTcpConnection::SetupInterfaceType(ETcpInterfaceType interfaceType)
@@ -312,8 +297,6 @@ void TTcpConnection::SetupInterfaceType(ETcpInterfaceType interfaceType)
     if (interfaceType == ETcpInterfaceType::Local) {
         GenerateChecksums_ = false;
     }
-
-    UpdateConnectionCount(true);
 }
 
 void TTcpConnection::Abort(const TError& error)
@@ -374,97 +357,24 @@ void TTcpConnection::CloseSocket()
 
 void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
 {
-    int family = address.GetSockAddr()->sa_family;
-    int protocol = family == AF_UNIX ? 0 : IPPROTO_TCP;
-    int type = SOCK_STREAM;
+    auto dialer = CreateAsyncDialer(
+        Config_,
+        Poller_,
+        Logger);
+    DialerSession_ = dialer->CreateSession(
+        address,
+        BIND(&TTcpConnection::OnDialerFinished, MakeWeak(this)));
+    DialerSession_->Dial();
+}
 
-#ifdef _linux_
-    type |= SOCK_CLOEXEC;
-#endif
-
-    YCHECK(Socket_ == INVALID_SOCKET);
-    Socket_ = socket(family, type, protocol);
-    if (Socket_ == INVALID_SOCKET) {
-        THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::TransportError,
-            "Failed to create client socket")
-            << TError::FromSystem();
+void TTcpConnection::OnDialerFinished(SOCKET socket, TError error)
+{
+    if (socket != INVALID_SOCKET) {
+        OnSocketConnected(socket);
+    } else {
+        Abort(std::move(error));
     }
-
-    if (family == AF_INET6) {
-        int value = 0;
-        if (setsockopt(Socket_, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &value, sizeof(value)) != 0) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::TransportError,
-                "Failed to configure IPv6 protocol")
-                << TError::FromSystem();
-        }
-    }
-
-    if (Config_->EnableNoDelay && family != AF_UNIX) {
-        if (Config_->EnableNoDelay) {
-            int value = 1;
-            if (setsockopt(Socket_, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to enable socket NODELAY mode")
-                    << TError::FromSystem();
-            }
-        }
-#ifdef _linux_
-        {
-            if (setsockopt(Socket_, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority_, sizeof(Priority_)) != 0) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to set socket priority")
-                    << TError::FromSystem();
-            }
-        }
-#endif
-        {
-            int value = 1;
-            if (setsockopt(Socket_, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to enable keep alive")
-                    << TError::FromSystem();
-            }
-        }
-    }
-
-    {
-        int flags = fcntl(Socket_, F_GETFL);
-        int result = fcntl(Socket_, F_SETFL, flags | O_NONBLOCK);
-        if (result != 0) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::TransportError,
-                "Failed to enable nonblocking mode")
-                << TError::FromSystem();
-        }
-    }
-
-#if defined _unix_ && !defined _linux_
-    {
-        int flags = fcntl(Socket_, F_GETFD);
-        int result = fcntl(Socket_, F_SETFD, flags | FD_CLOEXEC);
-        if (result != 0) {
-            THROW_ERROR_EXCEPTION("Failed to enable close-on-exec mode")
-                << TError::FromSystem();
-        }
-    }
-#endif
-
-    int result = HandleEintr(connect, Socket_, address.GetSockAddr(), address.GetLength());
-    if (result != 0) {
-        int error = LastSystemError();
-        if (IsSocketError(error)) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::TransportError,
-                "Error connecting to %v",
-                EndpointDescription_)
-                << TError::FromSystem(error);
-        }
-    }
+    DialerSession_.Reset();
 }
 
 const TString& TTcpConnection::GetEndpointDescription() const
@@ -490,8 +400,7 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
     }
 
     QueuedMessages_.Enqueue(queuedMessage);
-
-    TryArmPoller();
+    ArmPollerForWrite();
 
     return queuedMessage.Promise;
 }
@@ -531,7 +440,6 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>&
 
 void TTcpConnection::OnEvent(EPollControl control)
 {
-    bool hasUnsentData;
     do {
         TTryGuard<TSpinLock> guard(EventHandlerSpinLock_);
         if (!guard.WasAcquired()) {
@@ -549,16 +457,17 @@ void TTcpConnection::OnEvent(EPollControl control)
             return;
         }
 
-        LOG_TRACE("Event processing started");
-
         // For client sockets the first write notification means that
-        // connection was established (either successfully or not).
+        // connection was established.
+        // This is handled here to avoid race between arming in Send() and OnSocketConnected(). 
         if (Any(control & EPollControl::Write) &&
             ConnectionType_ == EConnectionType::Client &&
             State_ == EState::Opening)
         {
-            OnSocketConnected();
+            Open();
         }
+
+        LOG_TRACE("Event processing started");
 
         ProcessQueuedMessages();
 
@@ -572,12 +481,11 @@ void TTcpConnection::OnEvent(EPollControl control)
             OnSocketWrite();
         }
 
-        hasUnsentData = HasUnsentData();
-
-        LOG_TRACE("Event processing finished (HasUnsentData: %v)", hasUnsentData);
+        HasUnsentData_ = HasUnsentData();
+        LOG_TRACE("Event processing finished (HasUnsentData: %v)", HasUnsentData_.load());
     } while (ArmedForQueuedMessages_);
 
-    RearmPoller(hasUnsentData);
+    RearmPoller();
 }
 
 void TTcpConnection::OnShutdown()
@@ -592,9 +500,11 @@ void TTcpConnection::OnShutdown()
     Terminated_.Fire(CloseError_);
 }
 
-void TTcpConnection::OnSocketConnected()
+void TTcpConnection::OnSocketConnected(int socket)
 {
     Y_ASSERT(State_ == EState::Opening);
+
+    Socket_ = socket;
 
     // Check if connection was established successfully.
     int error = GetSocketError();
@@ -607,7 +517,12 @@ void TTcpConnection::OnSocketConnected()
         return;
     }
 
-    Open();
+    UpdateConnectionCount(true);
+
+    {
+        NConcurrency::TReaderGuard guard(ControlSpinLock_);
+        DoArmPoller();
+    }
 }
 
 void TTcpConnection::OnSocketRead()
@@ -685,9 +600,9 @@ bool TTcpConnection::HasUnreadData() const
 
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
     auto result = HandleEintr(recv, Socket_, buffer, size, 0);
-    auto elapsed = timer.GetElapsed();
+    auto elapsed = timer.GetElapsedTime();
     if (elapsed > ReadTimeWarningThreshold) {
         LOG_DEBUG("Socket read took too long (Elapsed: %v)",
             elapsed);
@@ -703,12 +618,9 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 
     LOG_TRACE("Socket read (BytesRead: %v)", *bytesRead);
 
-#ifdef _linux_
     if (Config_->EnableQuickAck) {
-        int value = 1;
-        setsockopt(Socket_, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value));
+        SetSocketEnableQuickAck(Socket_);
     }
-#endif
 
     return true;
 }
@@ -808,7 +720,7 @@ bool TTcpConnection::OnMessagePacketReceived()
     return true;
 }
 
-TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
+size_t TTcpConnection::EnqueuePacket(
     EPacketType type,
     EPacketFlags flags,
     int checksummedPartCount,
@@ -816,10 +728,9 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     TSharedRefArray message)
 {
     size_t size = TPacketEncoder::GetPacketSize(type, message);
-    auto* packet = new TPacket(type, flags, checksummedPartCount, packetId, std::move(message), size);
-    QueuedPackets_.push(packet);
+    QueuedPackets_.emplace(type, flags, checksummedPartCount, packetId, std::move(message), size);
     UpdatePendingOut(+1, +size);
-    return packet;
+    return size;
 }
 
 void TTcpConnection::OnSocketWrite()
@@ -853,7 +764,7 @@ void TTcpConnection::OnSocketWrite()
 
 bool TTcpConnection::HasUnsentData() const
 {
-    return !EncodedFragments_.empty() || !QueuedPackets_.empty();
+    return !EncodedFragments_.empty() || !QueuedPackets_.empty() || !EncodedPackets_.empty();
 }
 
 bool TTcpConnection::WriteFragments(size_t* bytesWritten)
@@ -880,9 +791,9 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         bytesAvailable -= size;
     }
 
-    NProfiling::TScopedTimer timer;
+    NProfiling::TWallTimer timer;
     auto result = HandleEintr(::writev, Socket_, SendVector_.data(), SendVector_.size());
-    auto elapsed = timer.GetElapsed();
+    auto elapsed = timer.GetElapsedTime();
     if (elapsed > WriteTimeWarningThreshold) {
         LOG_DEBUG("Socket write took too long (Elapsed: %v)",
             elapsed);
@@ -986,20 +897,20 @@ bool TTcpConnection::MaybeEncodeFragments()
            !QueuedPackets_.empty())
     {
         // Move the packet from queued to encoded.
-        auto* packet = QueuedPackets_.front();
+        EncodedPackets_.push(std::move(QueuedPackets_.front()));
         QueuedPackets_.pop();
-        EncodedPackets_.push(packet);
+        const auto& packet = EncodedPackets_.back();
 
         // Encode the packet.
-        LOG_TRACE("Starting encoding packet (PacketId: %v)", packet->PacketId);
+        LOG_TRACE("Starting encoding packet (PacketId: %v)", packet.PacketId);
 
         bool encodeResult = Encoder_.Start(
-            packet->Type,
-            packet->Flags,
+            packet.Type,
+            packet.Flags,
             GenerateChecksums_,
-            packet->ChecksummedPartCount,
-            packet->PacketId,
-            packet->Message);
+            packet.ChecksummedPartCount,
+            packet.PacketId,
+            packet.Message);
         if (!encodeResult) {
             Counters_->EncoderErrors.fetch_add(1, std::memory_order_relaxed);
             Abort(TError(NRpc::EErrorCode::TransportError, "Error encoding outcoming packet"));
@@ -1018,10 +929,10 @@ bool TTcpConnection::MaybeEncodeFragments()
             Encoder_.NextFragment();
         } while (!Encoder_.IsFinished());
 
-        EncodedPacketSizes_.push(packet->Size);
-        encodedSize += packet->Size;
+        EncodedPacketSizes_.push(packet.Size);
+        encodedSize += packet.Size;
 
-        LOG_TRACE("Finished encoding packet (PacketId: %v)", packet->PacketId);
+        LOG_TRACE("Finished encoding packet (PacketId: %v)", packet.PacketId);
     }
 
     flushCoalesced();
@@ -1046,14 +957,14 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
 
 void TTcpConnection::OnPacketSent()
 {
-    const auto* packet = EncodedPackets_.front();
-    switch (packet->Type) {
+    const auto& packet = EncodedPackets_.front();
+    switch (packet.Type) {
         case EPacketType::Ack:
-            OnAckPacketSent(*packet);
+            OnAckPacketSent(packet);
             break;
 
         case EPacketType::Message:
-            OnMessagePacketSent(*packet);
+            OnMessagePacketSent(packet);
             break;
 
         default:
@@ -1061,10 +972,9 @@ void TTcpConnection::OnPacketSent()
     }
 
 
-    UpdatePendingOut(-1, -packet->Size);
+    UpdatePendingOut(-1, -packet.Size);
     Counters_->OutPackets.fetch_add(1, std::memory_order_relaxed);
 
-    delete packet;
     EncodedPackets_.pop();
 }
 
@@ -1106,7 +1016,7 @@ void TTcpConnection::ProcessQueuedMessages()
             ? EPacketFlags::RequestAck
             : EPacketFlags::None;
 
-        auto* packet = EnqueuePacket(
+        auto packetSize = EnqueuePacket(
             EPacketType::Message,
             flags,
             GenerateChecksums_ ? queuedMessage.Options.ChecksummedPartCount : 0,
@@ -1115,7 +1025,7 @@ void TTcpConnection::ProcessQueuedMessages()
 
         LOG_DEBUG("Outcoming message dequeued (PacketId: %v, PacketSize: %v, Flags: %v)",
             packetId,
-            packet->Size,
+            packetSize,
             flags);
 
         if (Any(flags & EPacketFlags::RequestAck)) {
@@ -1164,7 +1074,7 @@ void TTcpConnection::UnregisterFromPoller()
     Poller_->Unregister(this);
 }
 
-void TTcpConnection::TryArmPoller()
+void TTcpConnection::ArmPollerForWrite()
 {
     if (State_ != EState::Open) {
         LOG_TRACE("Cannot arm poller since connection is not open yet");
@@ -1202,7 +1112,7 @@ void TTcpConnection::DoArmPoller()
     LOG_TRACE("Poller armed");
 }
 
-void TTcpConnection::RearmPoller(bool hasUnsentData)
+void TTcpConnection::RearmPoller()
 {
     NConcurrency::TReaderGuard guard(ControlSpinLock_);
 
@@ -1216,28 +1126,29 @@ void TTcpConnection::RearmPoller(bool hasUnsentData)
         return;
     }
 
-    if (hasUnsentData) {
-        LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
-    } else {
-        LastIncompleteWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
-    }
+    auto mustArmForWrite = [&] {
+        return HasUnsentData_.load() || ArmedForQueuedMessages_.load();
+    };
 
     // This loop is to avoid race with #TTcpConnection::Send and to prevent
-    // arming the poller in read-only mode in presence of queued messages.
+    // arming the poller in read-only mode in presence of queued messages or unsent data.
     bool forWrite;
     do {
-        forWrite = hasUnsentData || !QueuedMessages_.IsEmpty();
+        if (HasUnsentData_.load()) {
+            LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
+        } else {
+            LastIncompleteWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
+        }
+
+        forWrite = mustArmForWrite();
         Poller_->Arm(Socket_, this, EPollControl::Read | (forWrite ? EPollControl::Write : EPollControl::None));
         LOG_TRACE("Poller rearmed (ForWrite: %v)", forWrite);
-    } while (!forWrite && !QueuedMessages_.IsEmpty());
+    } while (!forWrite && mustArmForWrite());
 }
 
 int TTcpConnection::GetSocketError() const
 {
-    int error;
-    socklen_t errorLen = sizeof (error);
-    getsockopt(Socket_, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &errorLen);
-    return error;
+    return ::NYT::GetSocketError(Socket_);
 }
 
 bool TTcpConnection::IsSocketError(ssize_t result)

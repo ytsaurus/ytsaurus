@@ -122,37 +122,87 @@ public:
     }
 };
 
+template <class T, size_t Capacity>
+class TStaticRingQueue
+{
+private:
+    static_assert(std::is_pod<T>::value, "T must be POD.");
+
+    T Buffer_[Capacity];
+    size_t EndOffset_ = 0;
+    size_t Size_ = 0;
+
+public:
+    void Append(const T* begin, const T* end)
+    {
+        if (std::distance(begin, end) > Capacity) {
+            begin = end - Capacity;
+        }
+
+        size_t appendSize = std::distance(begin, end);
+        Size_ = std::min(Capacity, Size_ + appendSize);
+
+        EndOffset_ += appendSize;
+        if (EndOffset_ >= Capacity) {
+            EndOffset_ -= Capacity;
+            YCHECK(EndOffset_ < Capacity);
+        }
+
+        size_t tailSize = std::min<size_t>(EndOffset_, appendSize);
+        std::copy(end - tailSize, end, Buffer_ + EndOffset_ - tailSize);
+        end -= tailSize;
+        std::copy(begin, end, Buffer_ + Capacity - (end - begin));
+    }
+
+    void CopyTailTo(size_t copySize, T* begin) const
+    {
+        YCHECK(copySize <= Size_);
+
+        if (copySize > EndOffset_) {
+            size_t tailSize = copySize - EndOffset_;
+            std::copy(Buffer_ + Capacity - tailSize, Buffer_ + Capacity, begin);
+            std::copy(Buffer_, Buffer_ + EndOffset_, begin + tailSize);
+        } else {
+            std::copy(Buffer_ + EndOffset_ - copySize, Buffer_ + EndOffset_, begin);
+        }
+    }
+
+    size_t Size() const
+    {
+        return Size_;
+    }
+};
+
+static constexpr size_t MaxMarginSize = 10;
+static constexpr size_t Npos = -1;
+
 template <class TBlockStream, size_t MaxContextSize>
 class TReaderWithContext
     : public TBlockStream
 {
 private:
-    // ContextBegin points to the first byte of current buffer we want to append to context.
-    // We set ContextBegin to nullptr when we want to write context but we haven't see any data yet,
-    // we'll save context from the first data we'll see.
-    // We set ContextBegin to Null when we don't' write context currently (or saved contexts already reached maximum size).
-    TNullable<const char*> ContextBegin;
-    size_t ContextSize = 0;
+    static_assert(MaxContextSize > MaxMarginSize, "MaxContextSize must be greater than MaxMarginSize.");
+
+    // Checkpoint points to the first byte of current buffer we want to append to context.
+    const char* Checkpoint = nullptr;
+    size_t ContextSize = Npos;
+    size_t ContextPosition = 0;
+
     char Context[MaxContextSize];
 
     // LeftContextQueue keeps characters from previous blocks.
-    // We save MaxLeftMargin characters from the end of the current block when it ends.
+    // We save MaxMarginSize characters from the end of the current block when it ends.
     // It will allow us to keep a left margin of the current context even if it starts at the beginning of the block.
-    std::deque<char> LeftContextQueue;
-    const char* CurrentBlockBegin;
-    size_t ContextPosition = 0;
+    TStaticRingQueue<char, MaxMarginSize> LeftContextQueue;
 
-    const size_t MaxLeftMargin = 10;
 public:
     TReaderWithContext(const TBlockStream& blockStream)
         : TBlockStream(blockStream)
-    {
-        CurrentBlockBegin = TBlockStream::Begin();
-    }
+    { }
 
     void CheckpointContext()
     {
-        ContextBegin = TBlockStream::Begin();
+        Checkpoint = TBlockStream::Current();
         ContextSize = 0;
         ContextPosition = 0;
     }
@@ -165,79 +215,54 @@ public:
     TString GetContextFromCheckpoint()
     {
         TString result;
-        if (ContextSize == 0) {
+        if (ContextSize == 0 && Checkpoint != nullptr) {
             SaveLeftContextToContextBuffer();
         }
         result.append(Context, ContextSize);
-        if (ContextBegin && *ContextBegin != nullptr) {
+        if (Checkpoint != nullptr) {
+            YCHECK(ContextSize != Npos);
             size_t remainingSize = MaxContextSize - ContextSize;
-            remainingSize = std::min<size_t>(remainingSize, TBlockStream::End() - *ContextBegin);
-            result.append(*ContextBegin, *ContextBegin + remainingSize);
+            remainingSize = std::min<size_t>(remainingSize, TBlockStream::End() - Checkpoint);
+            result.append(Checkpoint, Checkpoint + remainingSize);
         }
         return result;
     }
 
     void RefreshBlock()
     {
-        if (ContextBegin) {
-            // ContextBegin can be defined but set to nullptr if someone called CheckpointContext
-            // before any data was read by TBlockStream (when both Begin()/End() == nullptr).
-            if (*ContextBegin != nullptr) {
-                if (ContextSize == 0) {
-                    SaveLeftContextToContextBuffer();
-                }
-
-                const auto sizeToCopy = std::min<size_t>(MaxContextSize - ContextSize, TBlockStream::End() - *ContextBegin);
-                memcpy(Context + ContextSize, *ContextBegin, sizeToCopy);
-                ContextSize += sizeToCopy;
+        if (Checkpoint != nullptr) {
+            YCHECK(ContextSize != Npos);
+            if (ContextSize == 0) {
+                SaveLeftContextToContextBuffer();
             }
-            UpdateLeftContextQueue();
-            TBlockStream::RefreshBlock();
-
-            // If we reached maximum size set ContextBegin to Null (not nullptr).
-            // By doing this we disable further context saving.
-            // Otherwise our context is continued from the beginning of the next block.
-            if (ContextSize == MaxContextSize) {
-                ContextBegin = Null;
-            } else {
-                ContextBegin = TBlockStream::Begin();
-            }
-        } else {
-            UpdateLeftContextQueue();
-            TBlockStream::RefreshBlock();
+            const auto sizeToCopy = std::min<size_t>(MaxContextSize - ContextSize, TBlockStream::End() - Checkpoint);
+            memcpy(Context + ContextSize, Checkpoint, sizeToCopy);
+            ContextSize += sizeToCopy;
         }
-        CurrentBlockBegin = TBlockStream::Begin();
+
+        LeftContextQueue.Append(TBlockStream::Begin(), TBlockStream::End());
+        TBlockStream::RefreshBlock();
+
+        if (ContextSize != Npos) {
+            // ContextSize is not equal to Npos if someone called CheckpointContext
+            // before any data was read by TBlockStream (when both Begin()/End() == nullptr).
+            Checkpoint = TBlockStream::Begin();
+        }
     }
 
-private:
     void SaveLeftContextToContextBuffer()
     {
-        int currentBlockContextMargin = *ContextBegin - CurrentBlockBegin;
-        auto currentBlockMarginBegin = std::max<int>(0, currentBlockContextMargin - MaxLeftMargin);
-        auto sizeFromBlock = currentBlockContextMargin - currentBlockMarginBegin;
-        auto sizeFromDeque = std::min<int>(MaxLeftMargin - sizeFromBlock, LeftContextQueue.size());
+        YCHECK(Checkpoint != nullptr);
+        size_t sizeFromBlock = std::min<size_t>(Checkpoint - TBlockStream::Begin(), MaxMarginSize);
+        if (sizeFromBlock < MaxMarginSize) {
+            size_t sizeFromDeque = std::min(MaxMarginSize - sizeFromBlock, LeftContextQueue.Size());
+            LeftContextQueue.CopyTailTo(sizeFromDeque, Context);
+            ContextSize = sizeFromDeque;
+        }
 
-        auto LeftContextQueueBegin = LeftContextQueue.begin() + LeftContextQueue.size() - sizeFromDeque;
-        std::copy(LeftContextQueueBegin, LeftContextQueueBegin + sizeFromDeque, Context);
-        ContextSize = sizeFromDeque;
-
-        sizeFromBlock = std::min<int>(sizeFromBlock, MaxContextSize - ContextSize);
-        memcpy(Context + ContextSize, CurrentBlockBegin + currentBlockMarginBegin, sizeFromBlock);
+        memcpy(Context + ContextSize, Checkpoint - sizeFromBlock, sizeFromBlock);
         ContextSize += sizeFromBlock;
         ContextPosition = ContextSize;
-    }
-
-    void UpdateLeftContextQueue()
-    {
-        int blockSize = TBlockStream::End() - CurrentBlockBegin;
-        auto LeftContextQueueBegin = std::max<int>(0, blockSize - MaxLeftMargin);
-        auto sizeToCopy = blockSize - LeftContextQueueBegin;
-        int sizeToErase = LeftContextQueue.size() + sizeToCopy - MaxLeftMargin;
-
-        if (sizeToErase > 0) {
-            LeftContextQueue.erase(LeftContextQueue.begin(), LeftContextQueue.begin() + sizeToErase);
-        }
-        LeftContextQueue.insert(LeftContextQueue.end(), CurrentBlockBegin + LeftContextQueueBegin, TBlockStream::End());
     }
 };
 
@@ -276,7 +301,7 @@ public:
 
     bool IsEmpty() const
     {
-        return TBlockStream::Begin() == TBlockStream::End();
+        return TBlockStream::Current() == TBlockStream::End();
     }
 
     template <bool AllowFinish>
@@ -300,7 +325,7 @@ public:
     char GetChar()
     {
         Refresh<AllowFinish>();
-        return !IsEmpty() ? *TBlockStream::Begin() : '\0';
+        return !IsEmpty() ? *TBlockStream::Current() : '\0';
     }
 
     char GetChar()
@@ -310,13 +335,13 @@ public:
 
     void Advance(size_t bytes)
     {
-        TPositionBase::OnRangeConsumed(TBlockStream::Begin(), TBlockStream::Begin() + bytes);
+        TPositionBase::OnRangeConsumed(TBlockStream::Current(), TBlockStream::Current() + bytes);
         TBlockStream::Advance(bytes);
     }
 
     size_t Length() const
     {
-        return TBlockStream::End() - TBlockStream::Begin();
+        return TBlockStream::End() - TBlockStream::Current();
     }
 };
 
@@ -330,7 +355,7 @@ private:
 
     const ui8* BeginByte() const
     {
-        return reinterpret_cast<const ui8*>(TBaseStream::Begin());
+        return reinterpret_cast<const ui8*>(TBaseStream::Current());
     }
 
     const ui8* EndByte() const
@@ -596,7 +621,7 @@ protected:
             if (TBaseStream::IsEmpty()) {
                 TBaseStream::Refresh();
             }
-            char ch = *TBaseStream::Begin();
+            char ch = *TBaseStream::Current();
             TBaseStream::Advance(1);
             if (ch != '"') {
                 PushBack(ch);
@@ -660,8 +685,8 @@ protected:
                 << *this;
         }
 
-        if (TBaseStream::Begin() + length <= TBaseStream::End()) {
-            *value = TStringBuf(TBaseStream::Begin(), length);
+        if (TBaseStream::Current() + length <= TBaseStream::End()) {
+            *value = TStringBuf(TBaseStream::Current(), length);
             TBaseStream::Advance(length);
         } else {
             size_t needToRead = length;
@@ -672,7 +697,7 @@ protected:
                     continue;
                 }
                 size_t readingBytes = std::min(needToRead, TBaseStream::Length());
-                Insert(TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
+                Insert(TBaseStream::Current(), TBaseStream::Current() + readingBytes);
                 needToRead -= readingBytes;
                 TBaseStream::Advance(readingBytes);
             }
@@ -756,8 +781,8 @@ protected:
                     << *this;
             }
             std::copy(
-                TBaseStream::Begin(),
-                TBaseStream::Begin() + chunkSize,
+                TBaseStream::Current(),
+                TBaseStream::Current() + chunkSize,
                 reinterpret_cast<char*>(value) + (sizeof(double) - needToRead));
             needToRead -= chunkSize;
             TBaseStream::Advance(chunkSize);
@@ -782,7 +807,7 @@ protected:
     char SkipSpaceAndGetChar()
     {
         if (!TBaseStream::IsEmpty()) {
-            char ch = *TBaseStream::Begin();
+            char ch = *TBaseStream::Current();
             if (!IsSpace(ch)) {
                 return ch;
             }
@@ -806,7 +831,7 @@ protected:
                 TBaseStream::template Refresh<AllowFinish>();
                 continue;
             }
-            if (!IsSpace(*TBaseStream::Begin())) {
+            if (!IsSpace(*TBaseStream::Current())) {
                 break;
             }
             TBaseStream::Advance(1);
@@ -824,22 +849,30 @@ class TStringReader
 {
 private:
     const char* BeginPtr;
+    const char* CurrentPtr;
     const char* EndPtr;
 
 public:
     TStringReader()
-        : BeginPtr(0)
-        , EndPtr(0)
+        : BeginPtr(nullptr)
+        , CurrentPtr(nullptr)
+        , EndPtr(nullptr)
     { }
 
     TStringReader(const char* begin, const char* end)
         : BeginPtr(begin)
+        , CurrentPtr(begin)
         , EndPtr(end)
     { }
 
     const char* Begin() const
     {
         return BeginPtr;
+    }
+
+    const char* Current() const
+    {
+        return CurrentPtr;
     }
 
     const char* End() const
@@ -854,7 +887,7 @@ public:
 
     void Advance(size_t bytes)
     {
-        BeginPtr += bytes;
+        CurrentPtr += bytes;
     }
 
     bool IsFinished() const
@@ -865,6 +898,7 @@ public:
     void SetBuffer(const char* begin, const char* end)
     {
         BeginPtr = begin;
+        CurrentPtr = begin;
         EndPtr = end;
     }
 };
@@ -878,6 +912,7 @@ private:
     TParserCoroutine& Coroutine;
 
     const char* BeginPtr;
+    const char* CurrentPtr;
     const char* EndPtr;
     bool FinishFlag;
 
@@ -889,6 +924,7 @@ public:
         bool finish)
         : Coroutine(coroutine)
         , BeginPtr(begin)
+        , CurrentPtr(begin)
         , EndPtr(end)
         , FinishFlag(finish)
     { }
@@ -896,6 +932,11 @@ public:
     const char* Begin() const
     {
         return BeginPtr;
+    }
+
+    const char* Current() const
+    {
+        return CurrentPtr;
     }
 
     const char* End() const
@@ -906,11 +947,12 @@ public:
     void RefreshBlock()
     {
         std::tie(BeginPtr, EndPtr, FinishFlag) = Coroutine.Yield(0);
+        CurrentPtr = BeginPtr;
     }
 
     void Advance(size_t bytes)
     {
-        BeginPtr += bytes;
+        CurrentPtr += bytes;
     }
 
     bool IsFinished() const

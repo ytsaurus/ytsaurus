@@ -45,6 +45,7 @@ public:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        NTableClient::TRetentionConfigPtr retentionConfig,
         NTabletClient::TWireProtocolReader* reader,
         NTabletClient::TWireProtocolWriter* writer);
 

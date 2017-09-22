@@ -69,6 +69,10 @@ public:
     //! is complete.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
 
+    //! List of all jobs that should be added to jobs_to_remove
+    //! in the next hearbeat response for this node.
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TJobId>, JobIdsToRemove)
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,

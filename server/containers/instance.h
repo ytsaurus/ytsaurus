@@ -36,6 +36,7 @@ struct IInstance
     virtual void SetStdOut(const TString& outPath) = 0;
     virtual void SetStdErr(const TString& errorPath) = 0;
     virtual void SetCwd(const TString& pwd) = 0;
+    virtual void SetCoreDumpHandler(const TString& handler) = 0;
     virtual void Kill(int signal) = 0;
     virtual void Destroy() = 0;
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
@@ -43,6 +44,9 @@ struct IInstance
     virtual void SetCpuShare(double cores) = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual TString GetName() const = 0;
+
+    //! Returns externally visible pid of the root proccess inside container.
+    //! Throws if container is not running.
     virtual pid_t GetPid() const = 0;
     virtual TFuture<int> Exec(
         const std::vector<const char*>& argv,

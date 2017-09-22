@@ -9,11 +9,6 @@
 
 #include <yt/core/actions/invoker_util.h>
 
-#ifdef _linux_
-    #include <sys/socket.h>
-    #include <sys/un.h>
-#endif
-
 namespace NYT {
 namespace NBus {
 
@@ -29,28 +24,10 @@ static constexpr auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNetworkAddress GetUnixDomainAddress(const TString& name)
-{
-#ifdef _linux_
-    // Abstract unix sockets are supported only on Linux.
-    sockaddr_un sockAddr;
-    memset(&sockAddr, 0, sizeof(sockAddr));
-    sockAddr.sun_family = AF_UNIX;
-    strncpy(sockAddr.sun_path + 1, ~name, name.length());
-    return TNetworkAddress(
-        *reinterpret_cast<sockaddr*>(&sockAddr),
-        sizeof (sockAddr.sun_family) +
-        sizeof (char) +
-        name.length());
-#else
-    Y_UNREACHABLE();
-#endif
-}
-
 TNetworkAddress GetLocalBusAddress(int port)
 {
     auto name = Format("yt-local-bus-%v", port);
-    return GetUnixDomainAddress(name);
+    return TNetworkAddress::CreateUnixDomainAddress(name);
 }
 
 bool IsLocalBusTransportEnabled()

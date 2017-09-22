@@ -128,17 +128,17 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual void RefObject(IObjectBase* object) override
+    virtual void RefObject(TObjectBase* object) override
     {
         Bootstrap_->GetObjectManager()->RefObject(object);
     }
 
-    virtual void UnrefObject(IObjectBase* object) override
+    virtual void UnrefObject(TObjectBase* object) override
     {
         Bootstrap_->GetObjectManager()->UnrefObject(object);
     }
 
-    virtual int GetObjectRefCounter(IObjectBase* object) override
+    virtual int GetObjectRefCounter(TObjectBase* object) override
     {
         return Bootstrap_->GetObjectManager()->GetObjectRefCounter(object);
     }
@@ -188,7 +188,7 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual IObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         return Map_->Find(DecodeChunkId(id).Id);
     }
@@ -317,7 +317,7 @@ public:
         return EObjectType::Medium;
     }
 
-    virtual IObjectBase* CreateObject(
+    virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
@@ -447,7 +447,7 @@ public:
     }
 
 
-    TMutationPtr CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
+    std::unique_ptr<TMutation> CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -456,7 +456,7 @@ public:
             this);
     }
 
-    TMutationPtr CreateExportChunksMutation(TCtxExportChunksPtr context)
+    std::unique_ptr<TMutation> CreateExportChunksMutation(TCtxExportChunksPtr context)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -465,7 +465,7 @@ public:
             this);
     }
 
-    TMutationPtr CreateImportChunksMutation(TCtxImportChunksPtr context)
+    std::unique_ptr<TMutation> CreateImportChunksMutation(TCtxImportChunksPtr context)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -474,7 +474,7 @@ public:
             this);
     }
 
-    TMutationPtr CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
+    std::unique_ptr<TMutation> CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -646,7 +646,6 @@ public:
             &child,
             &child + 1);
     }
-
 
     void DetachFromChunkList(
         TChunkList* chunkList,
@@ -1097,6 +1096,7 @@ private:
     int TotalReplicaCount_ = 0;
 
     bool NeedToRecomputeStatistics_ = false;
+    bool NeedResetDataWeight_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1787,6 +1787,8 @@ private:
         if (context.GetVersion() >= 400) {
             MediumMap_.LoadValues(context);
         }
+        //COMPAT(savrus)
+        NeedResetDataWeight_ = context.GetVersion() < 612;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -1794,11 +1796,28 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedToRecomputeStatistics_ = false;
+        NeedResetDataWeight_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        //COMPAT(savrus)
+        if (NeedResetDataWeight_) {
+            for (const auto& pair : ChunkListMap_) {
+                auto* chunkList = pair.second;
+                chunkList->Statistics().DataWeight = -1;
+            }
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                if (auto* node = dynamic_cast<TChunkOwnerBase*>(pair.second)) {
+                    node->SnapshotStatistics().set_data_weight(-1);
+                    node->DeltaStatistics().set_data_weight(-1);
+                }
+            }
+        }
 
         // Populate nodes' chunk replica sets.
         // Compute chunk replica count.
@@ -2573,7 +2592,7 @@ IObjectProxyPtr TChunkManager::TMediumTypeHandler::DoGetProxy(
     return CreateMediumProxy(Bootstrap_, &Metadata_, medium);
 }
 
-IObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
+TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
@@ -2656,22 +2675,22 @@ TNodeList TChunkManager::AllocateWriteTargets(
         preferredHostName);
 }
 
-TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
+std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
 {
     return Impl_->CreateUpdateChunkPropertiesMutation(request);
 }
 
-TMutationPtr TChunkManager::CreateExportChunksMutation(TCtxExportChunksPtr context)
+std::unique_ptr<TMutation> TChunkManager::CreateExportChunksMutation(TCtxExportChunksPtr context)
 {
     return Impl_->CreateExportChunksMutation(std::move(context));
 }
 
-TMutationPtr TChunkManager::CreateImportChunksMutation(TCtxImportChunksPtr context)
+std::unique_ptr<TMutation> TChunkManager::CreateImportChunksMutation(TCtxImportChunksPtr context)
 {
     return Impl_->CreateImportChunksMutation(std::move(context));
 }
 
-TMutationPtr TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
+std::unique_ptr<TMutation> TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
 {
     return Impl_->CreateExecuteBatchMutation(std::move(context));
 }

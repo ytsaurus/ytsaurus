@@ -28,7 +28,6 @@ DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
 struct TJobStartRequest;
 
 using TJobList = std::list<TJobPtr>;
-using TJobSpecBuilder = TCallback<void(NJobTrackerClient::NProto::TJobSpec* jobSpec)>;
 
 struct TUpdatedJob;
 struct TCompletedJob;

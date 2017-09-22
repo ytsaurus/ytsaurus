@@ -361,7 +361,7 @@ public:
         return epochContext->PendingUpstreamSyncPromise;
     }
 
-    virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) override
+    virtual TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -395,7 +395,7 @@ public:
                     return MakeFuture<TMutationResponse>(error);
                 }
 
-                return epochContext->LeaderCommitter->Commit(request);
+                return epochContext->LeaderCommitter->Commit(std::move(request));
 
             case EPeerState::Following:
                 if (!FollowerRecovered_) {
@@ -410,7 +410,7 @@ public:
                         "Leader mutation forwarding is not allowed"));
                 }
 
-                return epochContext->FollowerCommitter->Forward(request);
+                return epochContext->FollowerCommitter->Forward(std::move(request));
 
             default:
                 return MakeFuture<TMutationResponse>(TError(
@@ -864,16 +864,17 @@ private:
             mutationRequest.MutationId,
             mutationRequest.Retry);
 
-        CommitMutation(mutationRequest).Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
-                return;
-            }
+        CommitMutation(std::move(mutationRequest))
+            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                    return;
+                }
 
-            const auto& mutationResponse = result.Value();
-            response->Attachments() = mutationResponse.Data.ToVector();
-            context->Reply();
-        }));
+                const auto& mutationResponse = result.Value();
+                response->Attachments() = mutationResponse.Data.ToVector();
+                context->Reply();
+            }));
     }
 
 

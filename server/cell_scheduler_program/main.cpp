@@ -12,17 +12,15 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellSchedulerProgram
-    : public TProgram
+    : public TYTProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<NCellScheduler::TCellSchedulerConfig>
 {
 public:
     TCellSchedulerProgram()
-        : TProgram()
-        , TProgramPdeathsigMixin(Opts_)
+        : TProgramPdeathsigMixin(Opts_)
         , TProgramConfigMixin(Opts_)
-    {
-    }
+    { }
 
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override

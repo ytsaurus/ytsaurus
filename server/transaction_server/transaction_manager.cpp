@@ -251,7 +251,7 @@ public:
                 ToProto(startRequest.mutable_parent_id(), parent->GetId());
             }
             if (timeout) {
-                startRequest.set_timeout(ToProto(*timeout));
+                startRequest.set_timeout(ToProto<i64>(*timeout));
             }
             startRequest.set_user_name(user->GetName());
             if (title) {
@@ -443,7 +443,7 @@ public:
         return LeaseTracker_->GetLastPingTime(transaction->GetId());
     }
 
-    void StageObject(TTransaction* transaction, IObjectBase* object)
+    void StageObject(TTransaction* transaction, TObjectBase* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -452,7 +452,7 @@ public:
         objectManager->RefObject(object);
     }
 
-    void UnstageObject(TTransaction* transaction, IObjectBase* object, bool recursive)
+    void UnstageObject(TTransaction* transaction, TObjectBase* object, bool recursive)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -476,7 +476,7 @@ public:
         objectManager->RefObject(trunkNode);
     }
 
-    void ImportObject(TTransaction* transaction, IObjectBase* object)
+    void ImportObject(TTransaction* transaction, TObjectBase* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -486,7 +486,7 @@ public:
         object->ImportRefObject();
     }
 
-    void ExportObject(TTransaction* transaction, IObjectBase* object, TCellTag destinationCellTag)
+    void ExportObject(TTransaction* transaction, TObjectBase* object, TCellTag destinationCellTag)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -500,7 +500,7 @@ public:
     }
 
 
-    TMutationPtr CreateStartTransactionMutation(
+    std::unique_ptr<TMutation> CreateStartTransactionMutation(
         TCtxStartTransactionPtr context,
         const NTransactionServer::NProto::TReqStartTransaction& request)
     {
@@ -512,7 +512,7 @@ public:
             this);
     }
 
-    TMutationPtr CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
+    std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -964,14 +964,14 @@ TFuture<TInstant> TTransactionManager::GetLastPingTime(const TTransaction* trans
 
 void TTransactionManager::StageObject(
     TTransaction* transaction,
-    IObjectBase* object)
+    TObjectBase* object)
 {
     Impl_->StageObject(transaction, object);
 }
 
 void TTransactionManager::UnstageObject(
     TTransaction* transaction,
-    IObjectBase* object,
+    TObjectBase* object,
     bool recursive)
 {
     Impl_->UnstageObject(transaction, object, recursive);
@@ -986,7 +986,7 @@ void TTransactionManager::StageNode(
 
 void TTransactionManager::ExportObject(
     TTransaction* transaction,
-    IObjectBase* object,
+    TObjectBase* object,
     TCellTag destinationCellTag)
 {
     Impl_->ExportObject(transaction, object, destinationCellTag);
@@ -994,7 +994,7 @@ void TTransactionManager::ExportObject(
 
 void TTransactionManager::ImportObject(
     TTransaction* transaction,
-    IObjectBase* object)
+    TObjectBase* object)
 {
     Impl_->ImportObject(transaction, object);
 }
@@ -1014,14 +1014,14 @@ void TTransactionManager::RegisterAbortActionHandler(const TTransactionAbortActi
     Impl_->RegisterAbortActionHandler(descriptor);
 }
 
-TMutationPtr TTransactionManager::CreateStartTransactionMutation(
+std::unique_ptr<TMutation> TTransactionManager::CreateStartTransactionMutation(
     TCtxStartTransactionPtr context,
     const NTransactionServer::NProto::TReqStartTransaction& request)
 {
     return Impl_->CreateStartTransactionMutation(std::move(context), request);
 }
 
-TMutationPtr TTransactionManager::CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
+std::unique_ptr<TMutation> TTransactionManager::CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
 {
     return Impl_->CreateRegisterTransactionActionsMutation(std::move(context));
 }

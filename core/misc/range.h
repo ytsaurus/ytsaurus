@@ -66,8 +66,15 @@ public:
 
     //! Constructs a TRange from a C array.
     template <size_t N>
-    TRange(const T (&a)[N])
-        : Data_(a)
+    TRange(const T (&elements)[N])
+        : Data_(elements)
+        , Length_(N)
+    { }
+
+    //! Constructs a TRange from std::array.
+    template <size_t N>
+    TRange(const std::array<T, N>& elements)
+        : Data_(elements.begin())
         , Length_(N)
     { }
 
@@ -202,6 +209,13 @@ TRange<T> MakeRange(const TRange<T>& range)
 //! Constructs a TRange from an std::vector.
 template <class T>
 TRange<T> MakeRange(const std::vector<T>& elements)
+{
+    return elements;
+}
+
+//! Constructs a TRange from an std::array.
+template <class T, size_t N>
+TRange<T> MakeRange(const std::array<T, N>& elements)
 {
     return elements;
 }

@@ -117,6 +117,11 @@ public:
         SetProperty("cwd", cwd);
     }
 
+    virtual void SetCoreDumpHandler(const TString& handler) override
+    {
+        SetProperty("core_command", handler);
+    }
+
     virtual void Kill(int signal) override
     {
         auto error = WaitFor(Executor_->Kill(Name_, signal));
@@ -215,6 +220,8 @@ public:
 
         LOG_DEBUG("Executing porto container (Command: %v)", command);
 
+        // Enable core dumps for all container instances.
+        SetProperty("ulimit", "core: unlimited");
         SetProperty("controllers", "freezer;memory;cpu;cpuacct;net_cls;blkio;devices");
         SetProperty("command", command);
         SetProperty("isolate", "true");

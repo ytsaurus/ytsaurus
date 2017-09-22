@@ -38,15 +38,13 @@ public:
 
     void UpdateAggregate(
         int index,
-        NTableClient::TUnversionedValue* result,
-        const NTableClient::TUnversionedValue& state,
+        NTableClient::TUnversionedValue* state,
         const NTableClient::TUnversionedValue& update,
         const TRowBufferPtr& buffer) const;
 
     void MergeAggregate(
         int index,
-        NTableClient::TUnversionedValue* result,
-        const NTableClient::TUnversionedValue& state,
+        NTableClient::TUnversionedValue* state,
         const NTableClient::TUnversionedValue& mergeeState,
         const TRowBufferPtr& buffer) const;
 

@@ -1,10 +1,15 @@
 #include "helpers.h"
 
 #include "serialize.h"
+#include "table.h"
 
 #include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/table_client/row_buffer.h>
+
+#include <yt/ytlib/scheduler/output_result.pb.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 
@@ -12,23 +17,26 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NObjectClient;
+using namespace NChunkPools;
 using namespace NScheduler;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleJobSizeConstraints
+class TUserJobSizeConstraints
     : public IJobSizeConstraints
 {
 public:
-    TSimpleJobSizeConstraints()
+    TUserJobSizeConstraints()
         : InputDataWeight_(-1)
         , InputRowCount_(-1)
     { }
 
-    TSimpleJobSizeConstraints(
+    TUserJobSizeConstraints(
         const TSimpleOperationSpecBasePtr& spec,
         const TSimpleOperationOptionsPtr& options,
         int outputTableCount,
+        double dataWeightRatio,
         i64 primaryInputDataWeight,
         i64 inputRowCount,
         i64 foreignInputDataWeight)
@@ -40,9 +48,25 @@ public:
     {
         if (Spec_->JobCount) {
             JobCount_ = *Spec_->JobCount;
-        } else {
+        } else if (PrimaryInputDataWeight_ > 0) {
             i64 dataWeightPerJob = Spec_->DataWeightPerJob.Get(Options_->DataWeightPerJob);
-            JobCount_ = DivCeil(PrimaryInputDataWeight_, dataWeightPerJob);
+
+            if (dataWeightRatio < 1) {
+                // This means that uncompressed data size is larger than data weight,
+                // which may happen for very sparse data.
+                dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio), (i64)1);
+            }
+
+            if (IsSmallForeignRatio()) {
+                // Since foreign tables are quite small, we use primary table to estimate job count.
+                JobCount_ = std::max(
+                    DivCeil(PrimaryInputDataWeight_, dataWeightPerJob),
+                    DivCeil(InputDataWeight_, DivCeil<i64>(Spec_->MaxDataWeightPerJob, 2)));
+            } else {
+                JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
+            }
+        } else {
+            JobCount_ = 0;
         }
 
         i64 maxJobCount = Options_->MaxJobCount;
@@ -60,7 +84,6 @@ public:
         }
 
         YCHECK(JobCount_ >= 0);
-        YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
     }
 
     virtual bool CanAdjustDataWeightPerJob() const override
@@ -82,12 +105,16 @@ public:
 
     virtual i64 GetDataWeightPerJob() const override
     {
-        if (Spec_->ConsiderOnlyPrimarySize) {
-            return std::numeric_limits<i64>::max();
+        if (JobCount_ == 0 ){
+            return 1;
+        } else if (IsSmallForeignRatio()) {
+            return std::min(
+                DivCeil(InputDataWeight_, JobCount_),
+                // We don't want to have much more that primary data weight per job, since that is
+                // what we calculated given data_weight_per_job.
+                2 * GetPrimaryDataWeightPerJob());
         } else {
-            return JobCount_ > 0
-                ? DivCeil(InputDataWeight_, JobCount_)
-                : 1;
+            return DivCeil(InputDataWeight_, JobCount_);
         }
     }
 
@@ -115,7 +142,7 @@ public:
         }
 
         i64 sliceDataWeight = Clamp<i64>(
-            Options_->SliceDataWeightMultiplier * InputDataWeight_ / JobCount_,
+            Options_->SliceDataWeightMultiplier * PrimaryInputDataWeight_ / JobCount_,
             1,
             Options_->MaxSliceDataWeight);
 
@@ -148,7 +175,7 @@ public:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleJobSizeConstraints, 0xb45cfe0d);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUserJobSizeConstraints, 0xb45cfe0d);
 
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
@@ -158,10 +185,27 @@ private:
     i64 InputRowCount_;
 
     i64 JobCount_;
+
+    double GetForeignDataRatio() const
+    {
+        if (PrimaryInputDataWeight_ > 0) {
+            return (InputDataWeight_ - PrimaryInputDataWeight_) / static_cast<double>(PrimaryInputDataWeight_);
+        } else {
+            return 0;
+        }
+    }
+
+    bool IsSmallForeignRatio() const
+    {
+        // ToDo(psushin): make configurable.
+        constexpr double SmallForeignRatio = 0.2;
+
+        return GetForeignDataRatio() < SmallForeignRatio;
+    }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleJobSizeConstraints);
-DEFINE_REFCOUNTED_TYPE(TSimpleJobSizeConstraints)
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUserJobSizeConstraints);
+DEFINE_REFCOUNTED_TYPE(TUserJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,6 +221,7 @@ public:
         const TSimpleOperationSpecBasePtr& spec,
         const TSimpleOperationOptionsPtr& options,
         i64 inputDataWeight,
+        double dataWeightRatio,
         double compressionRatio)
         : Spec_(spec)
         , Options_(options)
@@ -185,9 +230,21 @@ public:
         if (Spec_->JobCount) {
             JobCount_ = *Spec_->JobCount;
         } else if (Spec_->DataWeightPerJob) {
-            JobCount_ = DivCeil(InputDataWeight_, *Spec_->DataWeightPerJob);
+            i64 dataWeightPerJob = *Spec_->DataWeightPerJob;
+            if (dataWeightRatio < 1.0 / 2) {
+                // This means that uncompressed data size is larger than 2x data weight,
+                // which may happen for very sparse data. Than, adjust data weight accordingly.
+                dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio * 2), (i64)1);
+            }
+            JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
         } else {
             i64 dataWeightPerJob = Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio;
+
+            if (dataWeightPerJob / dataWeightRatio > Options_->DataWeightPerJob) {
+                // This means that compression ration w.r.t data weight is very small,
+                // so we would like to limit uncompressed data size per job.
+                dataWeightPerJob = Options_->DataWeightPerJob * dataWeightRatio;
+            }
             JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
         }
 
@@ -409,9 +466,9 @@ public:
     TPartitionJobSizeConstraints(
         const TSortOperationSpecBasePtr& spec,
         const TSortOperationOptionsBasePtr& options,
+        i64 inputDataSize,
         i64 inputDataWeight,
         i64 inputRowCount,
-        // TODO(psushin): this compression ratio must be calculated from data weight.
         double compressionRatio)
         : Spec_(spec)
         , Options_(options)
@@ -441,6 +498,13 @@ public:
 
         YCHECK(JobCount_ >= 0);
         YCHECK(JobCount_ != 0 || InputDataWeight_ == 0);
+
+        if (JobCount_ > 0 && inputDataSize / JobCount_ > Spec_->MaxDataWeightPerJob) {
+            // Sometimes (but rarely) data weight can be smaller than data size. Let's protect from
+            // unreasonable huge jobs.
+            JobCount_ = DivCeil(inputDataSize, 2 * Spec_->MaxDataWeightPerJob);
+        }
+
 
         JobCount_ = std::min(JobCount_, static_cast<i64>(Options_->MaxPartitionJobCount));
         JobCount_ = std::min(JobCount_, InputRowCount_);
@@ -645,46 +709,57 @@ DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
+IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
     int outputTableCount,
+    double dataWeightRatio,
     i64 primaryInputDataSize,
     i64 inputRowCount,
     i64 foreignInputDataSize)
 {
-    return New<TSimpleJobSizeConstraints>(spec, options, outputTableCount, primaryInputDataSize, inputRowCount, foreignInputDataSize);
+    return New<TUserJobSizeConstraints>(
+        spec,
+        options,
+        outputTableCount,
+        dataWeightRatio,
+        primaryInputDataSize,
+        inputRowCount,
+        foreignInputDataSize);
 }
 
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
     const NScheduler::TSimpleOperationOptionsPtr& options,
     i64 inputDataWeight,
+    double dataWeightRatio,
     double compressionRatio)
 {
     return New<TMergeJobSizeConstraints>(
         spec,
         options,
         inputDataWeight,
+        dataWeightRatio,
         compressionRatio);
 }
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,
-    i64 inputDataSize)
+    i64 inputDataWeight)
 {
-    return New<TSimpleSortJobSizeConstraints>(spec, options, inputDataSize);
+    return New<TSimpleSortJobSizeConstraints>(spec, options, inputDataWeight);
 }
 
 IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,
     i64 inputDataSize,
+    i64 inputDataWeight,
     i64 inputRowCount,
     double compressionRatio)
 {
-    return New<TPartitionJobSizeConstraints>(spec, options, inputDataSize, inputRowCount, compressionRatio);
+    return New<TPartitionJobSizeConstraints>(spec, options, inputDataSize, inputDataWeight, inputRowCount, compressionRatio);
 }
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
@@ -692,7 +767,6 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const TSortOperationOptionsBasePtr& options,
     int outputTableCount)
 {
-
     // NB(psushin): I don't know real partition size at this point,
     // but I assume at least 2 sort jobs per partition.
     // Also I don't know exact partition count, so I take the worst case scenario.
@@ -755,6 +829,34 @@ TString TrimCommandForBriefSpec(const TString& command)
 TString TLockedUserObject::GetPath() const
 {
     return FromObjectId(ObjectId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBoundaryKeys BuildBoundaryKeysFromOutputResult(
+    const NScheduler::NProto::TOutputResult& boundaryKeys,
+    const TEdgeDescriptor& edgeDescriptor,
+    const TRowBufferPtr& rowBuffer)
+{
+    YCHECK(!boundaryKeys.empty());
+    YCHECK(boundaryKeys.sorted());
+    YCHECK(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
+
+    auto trimAndCaptureKey = [&] (const TOwningKey& key) {
+        int limit = edgeDescriptor.TableUploadOptions.TableSchema.GetKeyColumnCount();
+        if (key.GetCount() > limit) {
+            // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
+            YCHECK(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys);
+            return rowBuffer->Capture(key.Begin(), limit);
+        } else {
+            return rowBuffer->Capture(key.Begin(), key.GetCount());
+        }
+    };
+
+    return TBoundaryKeys {
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.min())),
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.max())),
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

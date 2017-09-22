@@ -133,6 +133,14 @@ std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateDynamicTableTimestamp(
+    const NYPath::TRichYPath& path,
+    bool dynamic,
+    const TTableSchema& schema,
+    const NYTree::IAttributeDictionary& attributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTableClient
 } // namespace NYT
 

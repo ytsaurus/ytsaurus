@@ -41,7 +41,7 @@ protected:
 
     virtual std::vector<NObjectClient::TObjectId> GetKeys(i64 sizeLimit = std::numeric_limits<i64>::max()) const = 0;
     virtual i64 GetSize() const = 0;
-    virtual bool IsValid(NObjectServer::IObjectBase* object) const = 0;
+    virtual bool IsValid(NObjectServer::TObjectBase* object) const = 0;
     virtual NYPath::TYPath GetWellKnownPath() const = 0;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;

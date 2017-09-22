@@ -21,17 +21,14 @@ TRefCountedTypeKey GetRefCountedTypeKey()
     return &typeid(T);
 }
 
-TRefCountedTypeCookie GetRefCountedTypeCookie(
-    TRefCountedTypeKey typeKey,
-    const TSourceLocation& location);
-
 template <class T>
 Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 {
     static auto cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
-        cookie = GetRefCountedTypeCookie(
+        cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),
+            sizeof(T),
             NYT::TSourceLocation());
     }
     return cookie;
@@ -42,17 +39,12 @@ Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const T
 {
     static auto cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
-        cookie = GetRefCountedTypeCookie(
+        cookie = TRefCountedTrackerFacade::GetCookie(
             GetRefCountedTypeKey<T>(),
+            sizeof(T),
             location);
     }
     return cookie;
-}
-
-template <class T>
-Y_FORCE_INLINE size_t SpaceUsed(const T* /*instance*/)
-{
-    return sizeof(T);
 }
 
 namespace NDetail {
@@ -73,17 +65,23 @@ template <class T, class... As>
 Y_FORCE_INLINE TIntrusivePtr<T> NewImpl(
     TRefCountedTypeCookie cookie,
     size_t extraSpaceSize,
-    As&& ... args) noexcept
+    As&& ... args)
 {
     auto totalSize = sizeof(T) + extraSpaceSize;
     auto* ptr = ::malloc(totalSize);
     auto* instance = static_cast<T*>(ptr);
 
-    new (instance) T(std::forward<As>(args)...);
+    try {
+        new (instance) T(std::forward<As>(args)...);
+    } catch (const std::exception& ex) {
+        // Do not forget to free the memory.
+        ::free(ptr);
+        throw;
+    }
 
     InitializeNewInstance(instance, ptr);
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    InitializeRefCountedTracking(instance, cookie, SpaceUsed(instance));
+    InitializeRefCountedTracking(instance, cookie);
 #endif
 
     return TIntrusivePtr<T>(instance, false);

@@ -129,11 +129,11 @@ public:
         , SyncInput_(Input_)
         , AsyncInput_(CreateAsyncAdapter(
             &SyncInput_,
-            Context_->GetClient()->GetConnection()->GetHeavyInvoker()))
+            Context_->GetClient()->GetConnection()->GetInvoker()))
         , SyncOutput_(Output_)
         , AsyncOutput_(CreateAsyncAdapter(
             &SyncOutput_,
-            Context_->GetClient()->GetConnection()->GetHeavyInvoker()))
+            Context_->GetClient()->GetConnection()->GetInvoker()))
     { }
 
     TFuture<TYsonString> Run()

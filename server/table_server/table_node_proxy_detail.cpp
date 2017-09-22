@@ -118,7 +118,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
         .SetWritable(true)
         .SetPresent(table->GetTrunkNode()->GetTabletCellBundle()));
-    descriptors->push_back("atomicity");
+    descriptors->push_back(TAttributeDescriptor("atomicity")
+        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor("commit_ordering")
         .SetWritable(true)
         .SetPresent(!isSorted));
@@ -132,6 +133,26 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("table_chunk_format_statistics")
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("enable_tablet_balancer")
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
+    descriptors->push_back(TAttributeDescriptor("disable_tablet_balancer")
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
+    descriptors->push_back(TAttributeDescriptor("min_tablet_size")
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetPresent(static_cast<bool>(table->GetMinTabletSize())));
+    descriptors->push_back(TAttributeDescriptor("max_tablet_size")
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetPresent(static_cast<bool>(table->GetMaxTabletSize())));
+    descriptors->push_back(TAttributeDescriptor("desired_tablet_size")
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetPresent(static_cast<bool>(table->GetDesiredTabletSize())));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
@@ -141,11 +162,10 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
     auto statistics = table->ComputeTotalStatistics();
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
-    bool isUnmounted = trunkTable->Tablets().size() ==
-        trunkTable->TabletCountByState()[ETabletState::Unmounted];
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     if (key == "chunk_row_count") {
         BuildYsonFluently(consumer)
@@ -245,7 +265,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
                         })
                         .Item("state").Value(tablet->GetState())
                         .Item("last_commit_timestamp").Value(tablet->NodeStatistics().last_commit_timestamp())
-                        .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
+                        .Item("statistics").Value(New<TSerializableTabletStatistics>(
+                            tabletManager->GetTabletStatistics(tablet),
+                            chunkManager))
                         .Item("tablet_id").Value(tablet->GetId())
                         .DoIf(cell, [&] (TFluentMap fluent) {
                             fluent.Item("cell_id").Value(cell->GetId());
@@ -272,9 +294,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
 
     if (key == "unflushed_timestamp" && isDynamic && isSorted) {
         BuildYsonFluently(consumer)
-            .Value(isUnmounted
-                ? timestampProvider->GetLatestTimestamp()
-                : table->GetCurrentUnflushedTimestamp());
+            .Value(table->GetCurrentUnflushedTimestamp(timestampProvider->GetLatestTimestamp()));
         return true;
     }
 
@@ -284,7 +304,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
             tabletStatistics += tabletManager->GetTabletStatistics(tablet);
         }
         BuildYsonFluently(consumer)
-            .Value(tabletStatistics);
+            .Value(New<TSerializableTabletStatistics>(
+                tabletStatistics,
+                chunkManager));
         return true;
     }
 
@@ -318,6 +340,42 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
         return true;
     }
 
+    if (key == "tablet_count" && isDynamic) {
+        BuildYsonFluently(consumer)
+            .Value(trunkTable->Tablets().size());
+        return true;
+    }
+
+    if (key == "enable_tablet_balancer" && static_cast<bool>(trunkTable->GetEnableTabletBalancer())) {
+        BuildYsonFluently(consumer)
+            .Value(*trunkTable->GetEnableTabletBalancer());
+        return true;
+    }
+
+    if (key == "disable_tablet_balancer" && static_cast<bool>(trunkTable->GetEnableTabletBalancer())) {
+        BuildYsonFluently(consumer)
+            .Value(!*trunkTable->GetEnableTabletBalancer());
+        return true;
+    }
+
+    if (key == "min_tablet_size" && static_cast<bool>(trunkTable->GetMinTabletSize())) {
+        BuildYsonFluently(consumer)
+            .Value(*trunkTable->GetMinTabletSize());
+        return true;
+    }
+
+    if (key == "max_tablet_size" && static_cast<bool>(trunkTable->GetMaxTabletSize())) {
+        BuildYsonFluently(consumer)
+            .Value(*trunkTable->GetDesiredTabletSize());
+        return true;
+    }
+
+    if (key == "desired_tablet_size" && static_cast<bool>(trunkTable->GetDesiredTabletSize())) {
+        BuildYsonFluently(consumer)
+            .Value(*trunkTable->GetDesiredTabletSize());
+        return true;
+    }
+
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
@@ -337,6 +395,165 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(const TString& ke
     }
 
     return TBase::GetBuiltinAttributeAsync(key);
+}
+
+bool TTableNodeProxy::RemoveBuiltinAttribute(const TString& key)
+{
+    if (key == "enable_tablet_balancer") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetEnableTabletBalancer(Null);
+        return true;
+    }
+
+    if (key == "disable_tablet_balancer") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetEnableTabletBalancer(Null);
+        return true;
+    }
+
+    if (key == "min_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetMinTabletSize(Null);
+        return true;
+    }
+
+    if (key == "max_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetMaxTabletSize(Null);
+        return true;
+    }
+
+    if (key == "desired_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetDesiredTabletSize(Null);
+        return true;
+    }
+
+    return TBase::RemoveBuiltinAttribute(key);
+}
+
+bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString& value)
+{
+    const auto* table = GetThisImpl();
+
+    if (key == "tablet_cell_bundle") {
+        ValidateNoTransaction();
+
+        auto name = ConvertTo<TString>(value);
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
+
+        auto* lockedTable = LockThisImpl();
+        tabletManager->SetTabletCellBundle(lockedTable, cellBundle);
+
+        return true;
+    }
+
+    if (key == "atomicity") {
+        ValidateNoTransaction();
+
+        auto* lockedTable = LockThisImpl();
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
+        }
+
+        auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
+        lockedTable->SetAtomicity(atomicity);
+
+        return true;
+    }
+
+    if (key == "commit_ordering" && !table->IsSorted()) {
+        ValidateNoTransaction();
+
+        auto tabletState = table->GetTabletState();
+        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
+            THROW_ERROR_EXCEPTION("Cannot change table commit ordering mode since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
+        }
+
+        auto* lockedTable = LockThisImpl();
+        auto ordering = ConvertTo<NTransactionClient::ECommitOrdering>(value);
+        lockedTable->SetCommitOrdering(ordering);
+
+        return true;
+    }
+
+    if (key == "optimize_for") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(key));
+        lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
+
+        return true;
+    }
+
+    if (key == "enable_tablet_balancer") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetEnableTabletBalancer(ConvertTo<bool>(value));
+        return true;
+    }
+
+    if (key == "disable_tablet_balancer") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetEnableTabletBalancer(!ConvertTo<bool>(value));
+        return true;
+    }
+
+    if (key == "min_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetMinTabletSize(ConvertTo<i64>(value));
+        return true;
+    }
+
+    if (key == "max_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetMaxTabletSize(ConvertTo<i64>(value));
+        return true;
+    }
+
+    if (key == "desired_tablet_size") {
+        auto* lockedTable = LockThisImpl();
+        lockedTable->SetDesiredTabletSize(ConvertTo<i64>(value));
+        return true;
+    }
+
+    return TBase::SetBuiltinAttribute(key, value);
+}
+
+void TTableNodeProxy::ValidateCustomAttributeUpdate(
+    const TString& key,
+    const TYsonString& oldValue,
+    const TYsonString& newValue)
+{
+    if (key == "chunk_writer" && newValue) {
+        ConvertTo<TTableWriterConfigPtr>(newValue);
+        return;
+    }
+
+    TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
+}
+
+void TTableNodeProxy::ValidateFetchParameters(
+    const std::vector<NChunkClient::TReadRange>& ranges)
+{
+    TChunkOwnerNodeProxy::ValidateFetchParameters(ranges);
+
+    const auto* table = GetThisImpl();
+    for (const auto& range : ranges) {
+        const auto& lowerLimit = range.LowerLimit();
+        const auto& upperLimit = range.UpperLimit();
+        if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Key selectors are not supported for unsorted tables");
+        }
+        if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic()) {
+            THROW_ERROR_EXCEPTION("Row index selectors are not supported for dynamic tables");
+        }
+        if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
+            THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
+        }
+    }
 }
 
 void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
@@ -420,100 +637,6 @@ void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
     }
 }
 
-bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString& value)
-{
-    const auto* table = GetThisImpl();
-
-    if (key == "tablet_cell_bundle") {
-        ValidateNoTransaction();
-
-        auto name = ConvertTo<TString>(value);
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
-
-        auto* lockedTable = LockThisImpl();
-        tabletManager->SetTabletCellBundle(lockedTable, cellBundle);
-
-        return true;
-    }
-
-    if (key == "atomicity") {
-        ValidateNoTransaction();
-
-        auto* lockedTable = LockThisImpl();
-        if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
-        }
-
-        auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
-        lockedTable->SetAtomicity(atomicity);
-
-        return true;
-    }
-
-    if (key == "commit_ordering" && !table->IsSorted()) {
-        ValidateNoTransaction();
-
-        auto tabletState = table->GetTabletState();
-        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
-            THROW_ERROR_EXCEPTION("Cannot change table commit ordering mode since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
-        }
-
-        auto* lockedTable = LockThisImpl();
-        auto ordering = ConvertTo<NTransactionClient::ECommitOrdering>(value);
-        lockedTable->SetCommitOrdering(ordering);
-
-        return true;
-    }
-
-    if (key == "optimize_for") {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
-        auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(key));
-        lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
-
-        return true;
-    }
-
-    return TBase::SetBuiltinAttribute(key, value);
-}
-
-void TTableNodeProxy::ValidateCustomAttributeUpdate(
-    const TString& key,
-    const TYsonString& oldValue,
-    const TYsonString& newValue)
-{
-    if (key == "chunk_writer" && newValue) {
-        ConvertTo<TTableWriterConfigPtr>(newValue);
-        return;
-    }
-
-    TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
-}
-
-void TTableNodeProxy::ValidateFetchParameters(
-    const std::vector<NChunkClient::TReadRange>& ranges)
-{
-    TChunkOwnerNodeProxy::ValidateFetchParameters(ranges);
-
-    const auto* table = GetThisImpl();
-    for (const auto& range : ranges) {
-        const auto& lowerLimit = range.LowerLimit();
-        const auto& upperLimit = range.UpperLimit();
-        if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Key selectors are not supported for unsorted tables");
-        }
-        if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic()) {
-            THROW_ERROR_EXCEPTION("Row index selectors are not supported for dynamic tables");
-        }
-        if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
-            THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
-        }
-    }
-}
-
 
 bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
 {
@@ -557,13 +680,15 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
     int lastTabletIndex = request->last_tablet_index();
     auto cellId = FromProto<TTabletCellId>(request->cell_id());
     bool freeze = request->freeze();
+    auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
 
     context->SetRequestInfo(
-        "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v",
+        "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v, MountTimestamp: %v",
         firstTabletIndex,
         lastTabletIndex,
         cellId,
-        freeze);
+        freeze,
+        mountTimestamp);
 
     ValidateNotExternal();
     ValidateNoTransaction();
@@ -583,7 +708,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
         firstTabletIndex,
         lastTabletIndex,
         cell,
-        freeze);
+        freeze,
+        mountTimestamp);
 
     context->Reply();
 }

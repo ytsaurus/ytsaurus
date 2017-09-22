@@ -94,7 +94,7 @@ private:
             ScanPartitionToSample(slot, partition.get());
         }
 
-        if (tablet->GetConfig()->DisableCompactionAndPartitioning) {
+        if (!tablet->GetConfig()->EnableCompactionAndPartitioning) {
             return;
         }
 

@@ -3,8 +3,13 @@
 #include "private.h"
 
 #include "serialize.h"
+#include "data_flow_graph.h"
+
+#include <yt/server/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/misc/phoenix.h>
 
@@ -50,18 +55,22 @@ DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
+//! Fits for operations with user code.
+IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
     const NScheduler::TSimpleOperationOptionsPtr& options,
     int outputTableCount,
+    double dataWeightRatio,
     i64 primaryInputDataWeight,
     i64 inputRowCount = std::numeric_limits<i64>::max(),
     i64 foreignInputDataWeight = 0);
 
+//! Fits for system operations like merge or erase.
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
     const NScheduler::TSimpleOperationOptionsPtr& options,
     i64 inputDataWeight,
+    double dataWeightRatio,
     double compressionRatio);
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
@@ -72,6 +81,7 @@ IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
 IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
     const NScheduler::TSortOperationOptionsBasePtr& options,
+    i64 inputDataSize,
     i64 inputDataWeight,
     i64 inputRowCount,
     double compressionRatio);
@@ -110,6 +120,13 @@ struct TLockedUserObject
 {
     virtual TString GetPath() const override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
+    const NScheduler::NProto::TOutputResult& boundaryKeys,
+    const TEdgeDescriptor& outputTable,
+    const NTableClient::TRowBufferPtr& rowBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,15 +17,15 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
     jobStatus->set_progress(job->GetProgress());
     auto prepareDuration = job->GetPrepareDuration();
     if (prepareDuration) {
-        jobStatus->set_prepare_duration(ToProto(*prepareDuration));
+        jobStatus->set_prepare_duration(ToProto<i64>(*prepareDuration));
     }
     auto downloadDuration = job->GetDownloadDuration();
     if (downloadDuration) {
-        jobStatus->set_download_duration(ToProto(*downloadDuration));
+        jobStatus->set_download_duration(ToProto<i64>(*downloadDuration));
     }
     auto execDuration = job->GetExecDuration();
     if (execDuration) {
-        jobStatus->set_exec_duration(ToProto(*execDuration));
+        jobStatus->set_exec_duration(ToProto<i64>(*execDuration));
     }
 } 
 

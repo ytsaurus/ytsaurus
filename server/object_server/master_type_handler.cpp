@@ -23,14 +23,14 @@ public:
         return EObjectType::Master;
     }
 
-    virtual IObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetMasterObject();
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void DestroyObject(IObjectBase* /*object*/) throw() override
+    virtual void DestroyObject(TObjectBase* /*object*/) throw() override
     {
         Y_UNREACHABLE();
     }

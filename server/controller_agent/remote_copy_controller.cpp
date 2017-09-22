@@ -178,6 +178,11 @@ private:
             Persist(context, Index_);
         }
 
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyTask, 0x83b0dfe3);
 
@@ -228,13 +233,14 @@ private:
         {
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
             AddSequentialInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TTask::OnJobCompleted(joblet, jobSummary);
-            RegisterOutput(joblet, Index_, jobSummary);
+
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet, TChunkStripeKey(Index_));
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -363,7 +369,8 @@ private:
             Spec_,
             Options_,
             TotalEstimatedInputDataWeight,
-            static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight);
+            DataWeightRatio,
+            InputCompressionRatio);
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobSizeConstraints->GetJobCount()) {
             THROW_ERROR_EXCEPTION("Too many chunks per job: actual %v, limit %v; "
@@ -432,7 +439,6 @@ private:
     {
         auto addTask = [this] (const std::vector<TChunkStripePtr>& stripes, int index) {
             auto task = New<TRemoteCopyTask>(this, index);
-            task->Initialize();
             task->AddInput(stripes);
             task->FinishInput();
             RegisterTask(task);
@@ -465,7 +471,7 @@ private:
         return false;
     }
 
-    virtual bool IsParityReplicasFetchEnabled() const override
+    virtual bool CheckParityReplicas() const override
     {
         return true;
     }

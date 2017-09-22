@@ -39,8 +39,6 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
-    virtual void SetProgress(double progress) override;
-
     /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
@@ -88,8 +86,6 @@ private:
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-
-    std::atomic<double> Progress_ = { 0.0 };
 
     TSession CurrentSession_;
 

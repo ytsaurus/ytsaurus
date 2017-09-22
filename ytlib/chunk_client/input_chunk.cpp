@@ -20,6 +20,7 @@ using NYT::ToProto;
 
 TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     : ChunkId_(FromProto<TChunkId>(chunkSpec.chunk_id()))
+    , TableIndex_(chunkSpec.table_index())
     , ErasureCodec_(NErasure::ECodec(chunkSpec.erasure_codec()))
     , TableRowIndex_(chunkSpec.table_row_index())
     , RangeIndex_(chunkSpec.range_index())
@@ -185,8 +186,8 @@ i64 TInputChunk::GetRowCount() const
         ? UpperLimit_->GetRowIndex()
         : TotalRowCount_;
 
-    auto rowCount = upperRowIndex - lowerRowIndex;
-    YCHECK(rowCount > 0 && rowCount <= TotalRowCount_);
+    auto rowCount = std::max(0l, upperRowIndex - lowerRowIndex);
+    YCHECK(rowCount <= TotalRowCount_);
     return rowCount;
 }
 

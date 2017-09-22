@@ -18,6 +18,8 @@ using NTableClient::TLoadContext;
 using NTableClient::TPersistenceContext;
 using IPersistent = NPhoenix::ICustomPersistent<TPersistenceContext>;
 
+using TIntCookie = int;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TJobManager)

@@ -21,11 +21,14 @@ public:
 
     virtual const NProto::TColumnMeta& ColumnMeta() const override;
 
+    virtual i64 GetMetaSize() const override;
+
 protected:
     TDataBlockWriter* BlockWriter_;
 
     i64 RowCount_ = 0;
 
+    i64 MetaSize_ = 0;
     NProto::TColumnMeta ColumnMeta_;
     std::vector<NProto::TSegmentMeta> CurrentBlockSegments_;
 

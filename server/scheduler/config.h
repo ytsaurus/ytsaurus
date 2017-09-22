@@ -291,8 +291,6 @@ private:
 public:
     int MaxPartitionJobCount;
     int MaxPartitionCount;
-    i64 SortJobMaxSliceDataWeight;
-    i64 PartitionJobMaxSliceDataWeight;
     i32 MaxSampleSize;
     i64 CompressedBlockSize;
     i64 MinPartitionWeight;
@@ -409,14 +407,14 @@ class TSchedulerConfig
     , public NChunkClient::TChunkTeleporterConfig
 {
 public:
+    //! Priority of control thread.
+    TNullable<int> ControlThreadPriority;
+
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 
     //! Number of threads for retrieving important fields from job statistics.
     int StatisticsAnalyzerThreadCount;
-
-    //! Number of threads for building job specs.
-    int JobSpecBuilderThreadCount;
 
     //! Number of parallel operation snapshot builders.
     int ParallelSnapshotBuilderCount;
@@ -438,6 +436,8 @@ public:
     TDuration ProfilingUpdatePeriod;
 
     TDuration AlertsUpdatePeriod;
+
+    TDuration ChunkUnstagePeriod;
 
     TDuration NodeShardsUpdatePeriod;
 
@@ -556,8 +556,9 @@ public:
     //! for scheduling tag filter without access.
     TDuration SchedulingTagFilterExpireTimeout;
 
-    //! Time between two consecutive calls in node shard to calculate exec nodes list.
-    TDuration NodeShardUpdateExecNodesInformationDelay;
+    //! Timeout to store cached value of exec nodes information
+    //! for scheduling tag filter without access.
+    TDuration NodeShardExecNodesCacheUpdatePeriod;
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
@@ -691,6 +692,10 @@ public:
 
     // How often job metrics should be updated.
     TDuration JobMetricsBatchInterval;
+
+    // How much time we wait before aborting the revived job that was not confirmed
+    // by the corresponding execution node.
+    TDuration JobRevivalAbortTimeout;
 
     TSchedulerConfig();
 

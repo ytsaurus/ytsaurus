@@ -1,9 +1,13 @@
+#include "discovery_service_proxy.h"
 #include "rpc_proxy_connection.h"
 #include "rpc_proxy_client.h"
 #include "rpc_proxy_transaction.h"
+#include "rpc_proxy_timestamp_provider.h"
 #include "config.h"
 #include "credentials_injecting_channel.h"
 #include "private.h"
+
+#include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 
 #include <yt/core/misc/address.h>
 
@@ -29,6 +33,7 @@ TRpcProxyConnection::TRpcProxyConnection(
     NConcurrency::TActionQueuePtr actionQueue)
     : Config_(std::move(config))
     , ActionQueue_(std::move(actionQueue))
+    , ChannelFactory_(CreateBusChannelFactory(Config_->BusClient))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddTag("ConnectionId: %v", TGuid::Create()))
 { }
@@ -47,15 +52,19 @@ const NTabletClient::ITableMountCachePtr& TRpcProxyConnection::GetTableMountCach
 
 const NTransactionClient::ITimestampProviderPtr& TRpcProxyConnection::GetTimestampProvider()
 {
-    Y_UNIMPLEMENTED();
+    if (!TimestampProvider_) {
+        auto guard = Guard(SpinLock_);
+        if (!TimestampProvider_) {
+            TimestampProvider_ = NTransactionClient::CreateBatchingTimestampProvider(
+                New<TRpcProxyTimestampProvider>(MakeWeak(this), Config_->TimestampProviderRpcTimeout),
+                Config_->TimestampProviderUpdatePeriod
+            );
+        }
+    }
+    return TimestampProvider_;
 }
 
-const IInvokerPtr& TRpcProxyConnection::GetLightInvoker()
-{
-    return ActionQueue_->GetInvoker();
-}
-
-const IInvokerPtr& TRpcProxyConnection::GetHeavyInvoker()
+const IInvokerPtr& TRpcProxyConnection::GetInvoker()
 {
     return ActionQueue_->GetInvoker();
 }
@@ -86,8 +95,7 @@ NApi::IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options
 
     LOG_DEBUG("Originating address is %v", localAddressString);
 
-    const auto& address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
-    auto channel = GetBusChannelFactory()->CreateChannel(address);
+    auto channel = GetRandomPeerChannel();
 
     if (options.Token) {
         channel = CreateTokenInjectingChannel(
@@ -125,10 +133,16 @@ void TRpcProxyConnection::Terminate()
     Y_UNIMPLEMENTED();
 }
 
+NRpc::IChannelPtr TRpcProxyConnection::GetRandomPeerChannel()
+{
+    const auto& address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
+    return ChannelFactory_->CreateChannel(address);
+}
+
 void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)
 {
     auto guard = Guard(SpinLock_);
-    YCHECK(Transactions_.insert(MakeWeak(transaction)).second);
+    YCHECK(Transactions_.insert(transaction).second);
 
     if (!PingExecutor_) {
         PingExecutor_ = New<TPeriodicExecutor>(
@@ -142,7 +156,7 @@ void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)
 void TRpcProxyConnection::UnregisterTransaction(TRpcProxyTransaction* transaction)
 {
     auto guard = Guard(SpinLock_);
-    Transactions_.erase(MakeWeak(transaction));
+    Transactions_.erase(transaction);
 
     if (Transactions_.empty() && PingExecutor_) {
         PingExecutor_->Stop();
@@ -157,10 +171,10 @@ void TRpcProxyConnection::OnPing()
     {
         auto guard = Guard(SpinLock_);
         activeTransactions.reserve(Transactions_.size());
-        for (const auto& transaction : Transactions_) {
-            auto activeTransaction = transaction.Lock();
-            if (activeTransaction) {
-                activeTransactions.push_back(std::move(activeTransaction));
+        for (auto* rawTransaction : Transactions_) {
+            auto transaction = TRpcProxyTransaction::DangerousGetPtr(rawTransaction);
+            if (transaction) {
+                activeTransactions.push_back(std::move(transaction));
             }
         }
     }
@@ -171,21 +185,37 @@ void TRpcProxyConnection::OnPing()
         pingResults.push_back(activeTransaction->Ping());
     }
 
-    CombineAll(pingResults).Subscribe(BIND(&TRpcProxyConnection::OnPingCompleted, MakeWeak(this)));
+    CombineAll(pingResults)
+        .Subscribe(BIND(&TRpcProxyConnection::OnPingCompleted, MakeWeak(this)));
 }
 
 void TRpcProxyConnection::OnPingCompleted(const TErrorOr<std::vector<TError>>& pingResults)
 {
     if (pingResults.IsOK()) {
-        LOG_DEBUG("Pinged %v transactions", pingResults.Value().size());
+        LOG_DEBUG("Transactions pinged (Count: %v)",
+            pingResults.Value().size());
     }
 }
 
-IConnectionPtr CreateRpcProxyConnection(TRpcProxyConnectionConfigPtr config)
+TFuture<std::vector<TProxyInfo>> TRpcProxyConnection::DiscoverProxies(const TDiscoverProxyOptions& /*options*/)
+{
+    TDiscoveryServiceProxy proxy(GetRandomPeerChannel());
+
+    auto req = proxy.DiscoverProxies();
+
+    return req->Invoke().Apply(BIND([] (const TDiscoveryServiceProxy::TRspDiscoverProxiesPtr& rsp) {
+        std::vector<TProxyInfo> proxies;
+        for (auto&& address : rsp->addresses()) {
+            proxies.push_back({address});
+        }
+        return proxies;
+    }));
+}
+
+IProxyConnectionPtr CreateRpcProxyConnection(TRpcProxyConnectionConfigPtr config)
 {
     auto actionQueue = New<TActionQueue>("RpcConnect");
-    auto connection = New<TRpcProxyConnection>(std::move(config), std::move(actionQueue));
-    return connection;
+    return New<TRpcProxyConnection>(std::move(config), std::move(actionQueue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

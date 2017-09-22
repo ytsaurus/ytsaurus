@@ -49,7 +49,8 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCell* hintCell,
-        bool freeze);
+        bool freeze,
+        NTransactionClient::TTimestamp mountTimestamp);
 
     void UnmountTable(
         NTableServer::TTableNode* table,

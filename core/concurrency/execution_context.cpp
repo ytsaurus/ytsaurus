@@ -46,7 +46,7 @@ namespace NConcurrency {
 
 #ifdef CXXABIv1
 static_assert(
-    sizeof(__cxxabiv1::__cxa_eh_globals) == TExecutionContext::EH_SIZE,
+    sizeof(__cxxabiv1::__cxa_eh_globals) == TExecutionContext::EHSize,
     "Size mismatch of __cxa_eh_globals structure");
 #endif
 
@@ -60,7 +60,7 @@ extern "C" void* __attribute__((__regparm__(3))) SwitchExecutionContextImpl(
 TExecutionContext::TExecutionContext()
     : SP_(nullptr)
 {
-    memset(EH_, 0, EH_SIZE);
+    memset(EH_, 0, EHSize);
 }
 
 TExecutionContext::TExecutionContext(void* stackBottom, size_t stackSize)
@@ -73,7 +73,7 @@ TExecutionContext::TExecutionContext(void* stackBottom, size_t stackSize)
     Y_UNUSED(stackBottom);
     Y_UNUSED(stackSize);
 #endif
-    memset(EH_, 0, EH_SIZE);
+    memset(EH_, 0, EHSize);
 }
 
 TExecutionContext::TExecutionContext(TExecutionContext&& other)
@@ -86,8 +86,8 @@ TExecutionContext::TExecutionContext(TExecutionContext&& other)
 #endif
 
 #ifdef CXXABIv1
-    memcpy(EH_, other.EH_, EH_SIZE);
-    memset(other.EH_, 0, EH_SIZE);
+    memcpy(EH_, other.EH_, EHSize);
+    memset(other.EH_, 0, EHSize);
 #endif
 }
 
@@ -133,19 +133,21 @@ void* SwitchExecutionContext(
     void* opaque)
 {
 #if defined(_asan_enabled_)
-    target->San_.BeforeSwitch();
+    // XXX(babenko): YT-7531
+    //target->San_.BeforeSwitch();
     // XXX: Or BeforeFinish(). There is no "finish" flag in
     // SwitchExecutionContext interface now. It will leak when
     // using ASan with detect_stack_use_after_return option enabled.
 #endif
 #ifdef CXXABIv1
     auto* eh = __cxxabiv1::__cxa_get_globals();
-    memcpy(caller->EH_, eh, TExecutionContext::EH_SIZE);
-    memcpy(eh, target->EH_, TExecutionContext::EH_SIZE);
+    memcpy(caller->EH_, eh, TExecutionContext::EHSize);
+    memcpy(eh, target->EH_, TExecutionContext::EHSize);
 #endif
     void* result = SwitchExecutionContextImpl(&caller->SP_, &target->SP_, opaque);
 #if defined(_asan_enabled_)
-    target->San_.AfterSwitch();
+    // XXX(babenko): YT-7531
+    //target->San_.AfterSwitch();
 #endif
     return result;
 }

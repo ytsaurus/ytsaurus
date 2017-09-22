@@ -98,7 +98,7 @@ private:
                     throw;
                 }
             })
-            .AsyncVia(Connection_->GetLightInvoker())
+            .AsyncVia(Connection_->GetInvoker())
             .Run();
     }
 

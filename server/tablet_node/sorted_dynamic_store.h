@@ -105,12 +105,17 @@ public:
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
-
     virtual i64 GetRowCount() const override;
+
+    // IDynamicStore implementation.
+    virtual i64 GetTimestampCount() const override;
 
     // ISortedStore implementation.
     virtual TOwningKey GetMinKey() const override;
     virtual TOwningKey GetMaxKey() const override;
+
+    i64 GetMaxDataWeight() const;
+    TOwningKey GetMaxDataWeightWitnessKey() const;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -163,6 +168,9 @@ private:
     // Reused between ModifyRow calls.
     std::vector<ui32> WriteRevisions_;
 
+    i64 MaxDataWeight_ = 0;
+    TSortedDynamicRow MaxDataWeightWitness_;
+
     virtual void OnSetPassive() override;
 
     TSortedDynamicRow AllocateRow();
@@ -196,16 +204,17 @@ private:
     void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
     void SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys);
     void SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow srcRow);
+    void CommitValue(TSortedDynamicRow row, TValueList list, int index);
 
     struct TLoadScratchData
     {
-        yhash<TTimestamp, ui32> TimestampToRevision;
+        TTimestampToRevisionMap TimestampToRevision;
         std::vector<std::vector<ui32>> WriteRevisions;
     };
 
     void LoadRow(TVersionedRow row, TLoadScratchData* scratchData);
-    ui32 CaptureTimestamp(TTimestamp timestamp, TLoadScratchData* scratchData);
-    ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TLoadScratchData* scratchData);
+    ui32 CaptureTimestamp(TTimestamp timestamp, TTimestampToRevisionMap* scratchData);
+    ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TTimestampToRevisionMap* scratchData);
 
     void CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index);
     void CaptureUnversionedValue(TDynamicValue* dst, const TUnversionedValue& src);

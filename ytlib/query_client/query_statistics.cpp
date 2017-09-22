@@ -35,12 +35,12 @@ void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& query
     serialized->set_rows_read(queryResult.RowsRead);
     serialized->set_bytes_read(queryResult.BytesRead);
     serialized->set_rows_written(queryResult.RowsWritten);
-    serialized->set_sync_time(ToProto(queryResult.SyncTime));
-    serialized->set_async_time(ToProto(queryResult.AsyncTime));
-    serialized->set_execute_time(ToProto(queryResult.ExecuteTime));
-    serialized->set_read_time(ToProto(queryResult.ReadTime));
-    serialized->set_write_time(ToProto(queryResult.WriteTime));
-    serialized->set_codegen_time(ToProto(queryResult.CodegenTime));
+    serialized->set_sync_time(ToProto<i64>(queryResult.SyncTime));
+    serialized->set_async_time(ToProto<i64>(queryResult.AsyncTime));
+    serialized->set_execute_time(ToProto<i64>(queryResult.ExecuteTime));
+    serialized->set_read_time(ToProto<i64>(queryResult.ReadTime));
+    serialized->set_write_time(ToProto<i64>(queryResult.WriteTime));
+    serialized->set_codegen_time(ToProto<i64>(queryResult.CodegenTime));
     serialized->set_incomplete_input(queryResult.IncompleteInput);
     serialized->set_incomplete_output(queryResult.IncompleteOutput);
 }

@@ -51,7 +51,7 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     auto req = proxy.StartTransaction();
     req->set_type(NProto::ETransactionType(type));
     if (options.Timeout) {
-        req->set_timeout(NYT::ToProto(*options.Timeout));
+        req->set_timeout(NYT::ToProto<i64>(*options.Timeout));
     }
     if (options.Id) {
         ToProto(req->mutable_id(), options.Id);
@@ -487,12 +487,27 @@ TFuture<NApi::TSelectRowsResult> TRpcProxyClientBase::SelectRows(
 }
 
 TFuture<std::vector<NTabletClient::TTableReplicaId>> TRpcProxyClientBase::GetInSyncReplicas(
-    const NYPath::TYPath&,
-    NTableClient::TNameTablePtr,
-    const TSharedRange<NTableClient::TKey>&,
-    const NApi::TGetInSyncReplicasOptions&)
+    const NYPath::TYPath& path,
+    NTableClient::TNameTablePtr nameTable,
+    const TSharedRange<NTableClient::TKey>& keys,
+    const NApi::TGetInSyncReplicasOptions& options)
 {
-    Y_UNIMPLEMENTED();
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.GetInSyncReplicas();
+    req->SetTimeout(options.Timeout);
+
+    if (options.Timestamp) {
+        req->set_timestamp(options.Timestamp);
+    }
+
+    req->set_path(path);
+    req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetInSyncReplicasPtr>& rspOrError) -> std::vector<NTabletClient::TTableReplicaId> {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        return FromProto<std::vector<NTabletClient::TTableReplicaId>>(rsp->replica_ids());
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

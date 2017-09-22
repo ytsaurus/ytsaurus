@@ -47,8 +47,8 @@ struct TChunkDynamicData
     NObjectServer::TEpoch ScanEpoch = 0;
 
     //! For each medium, contains a valid iterator for those chunks belonging to the repair queue
-    //! and |Null| for others.
-    std::array<TNullable<TChunkRepairQueueIterator>, MaxMediumCount> RepairQueueIterators;
+    //! and null (default iterator value) for others.
+    std::array<TChunkRepairQueueIterator, MaxMediumCount> RepairQueueIterators;
 
     //! The job that is currently scheduled for this chunk (at most one).
     TJobPtr Job;
@@ -131,8 +131,8 @@ public:
     void ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
     TChunk* GetNextScannedChunk(EChunkScanKind kind) const;
 
-    const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator(int mediumIndex) const;
-    void SetRepairQueueIterator(int mediumIndex, const TNullable<TChunkRepairQueueIterator>& value);
+    TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex) const;
+    void SetRepairQueueIterator(int mediumIndex, TChunkRepairQueueIterator value);
 
     bool IsJobScheduled() const;
     TJobPtr GetJob() const;
@@ -208,7 +208,7 @@ public:
 
     //! Returns the export data w.r.t. to a cell with a given #index.
     /*!
-     *  \see #TMultiCellManager::GetRegisteredMasterCellIndex
+     *  \see #TMulticellManager::GetRegisteredMasterCellIndex
      */
     const TChunkExportData& GetExportData(int cellIndex) const;
 
@@ -228,18 +228,31 @@ private:
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
     TChunkExportDataList ExportDataList_ = {};
 
-    //! This list is usually empty. Keeping a holder is very space efficient.
-    std::unique_ptr<TCachedReplicas> CachedReplicas_;
-    static const TCachedReplicas EmptyCachedReplicas;
+    struct TReplicasData
+    {
+        //! This set is usually empty. Keeping a holder is very space efficient.
+        std::unique_ptr<TCachedReplicas> CachedReplicas;
+
+        //! Just all the stored replicas.
+        TStoredReplicas StoredReplicas;
+
+        //! Null entries are InvalidNodeId.
+        TLastSeenReplicas LastSeenReplicas;
+        //! Indicates the position in LastSeenReplicas to be written next.
+        int CurrentLastSeenReplicaIndex = 0;
+    };
 
     //! This additional indirection helps to save up some space since
     //! no replicas are being maintained for foreign chunks.
-    std::unique_ptr<TStoredReplicas> StoredReplicas_;
-    static const TStoredReplicas EmptyStoredReplicas;
+    //! Is also separates relatively mutable data from static one,
+    //! which helps to avoid excessive CoW during snapshot construction.
+    std::unique_ptr<TReplicasData> ReplicasData_;
 
-    TLastSeenReplicas LastSeenReplicas_;
-    int CurrentLastSeenReplicaIndex_ = 0;
+    const TReplicasData& ReplicasData() const;
+    TReplicasData* MutableReplicasData();
 
+    static const TCachedReplicas EmptyCachedReplicas;
+    static const TReplicasData EmptyReplicasData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

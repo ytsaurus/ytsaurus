@@ -8,6 +8,7 @@
 #include "node_proxy_detail.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 
@@ -33,18 +34,19 @@
 namespace NYT {
 namespace NCypressServer {
 
-using namespace NCellMaster;
 using namespace NBus;
-using namespace NRpc;
-using namespace NYTree;
-using namespace NTransactionServer;
+using namespace NCellMaster;
+using namespace NCypressClient::NProto;
 using namespace NHydra;
-using namespace NObjectClient;
 using namespace NObjectClient::NProto;
+using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
-using namespace NCypressClient::NProto;
+using namespace NTransactionServer;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -385,20 +387,20 @@ public:
         return UnderlyingHandler_->GetObjectType();
     }
 
-    virtual IObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
-    virtual IObjectBase* CreateObject(
+    virtual TObjectBase* CreateObject(
         const TObjectId& /*hintId*/,
         IAttributeDictionary* /*attributes*/) override
     {
         THROW_ERROR_EXCEPTION("Cypress nodes cannot be created via this call");
     }
 
-    virtual void DestroyObject(IObjectBase* object) throw();
+    virtual void DestroyObject(TObjectBase* object) throw();
 
 private:
     TImpl* const Owner_;
@@ -426,7 +428,7 @@ private:
         return &node->GetTrunkNode()->Acd();
     }
 
-    virtual IObjectBase* DoGetParent(TCypressNodeBase* node) override
+    virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override
     {
         return node->GetParent();
     }
@@ -1127,6 +1129,8 @@ private:
 
     // COMPAT(babenko)
     bool FixLinkPaths_ = false;
+    // COMPAT(savrus)
+    bool ClearSysAttributes_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1161,6 +1165,8 @@ private:
 
         // COMPAT(babenko)
         FixLinkPaths_ = context.GetVersion() < 403;
+        // COMPAT(savrus)
+        ClearSysAttributes_ = context.GetVersion() < 620;
     }
 
 
@@ -1272,6 +1278,31 @@ private:
                         }
                     }
                 }
+            }
+        }
+
+        if (ClearSysAttributes_) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            auto* resolver = objectManager->GetObjectResolver();
+            auto sysNodeProxy = resolver->ResolvePath("//sys", nullptr);
+            auto* sysNode = sysNodeProxy->GetObject();
+            auto& attributes = sysNode->GetMutableAttributes()->Attributes();
+            auto processAttribute = [&] (const TString& attributeName)
+            {
+                auto it = attributes.find(attributeName);
+                if (it != attributes.end()) {
+                    LOG_DEBUG("Remove //sys attribute (AttributeName: %Qv, AttributeValue: %v)",
+                        attributeName,
+                        ConvertToYsonString(it->second, EYsonFormat::Text));
+                    attributes.erase(it);
+                }
+            };
+            static const TString enableTabletBalancerAttributeName("enable_tablet_balancer");
+            static const TString disableChunkReplicatorAttributeName("disable_chunk_replicator");
+            processAttribute(enableTabletBalancerAttributeName);
+            processAttribute(disableChunkReplicatorAttributeName);
+            if (attributes.empty()) {
+                sysNode->ClearAttributes();
             }
         }
     }
@@ -1749,13 +1780,13 @@ private:
 
         if (request.Mode == ELockMode::Snapshot) {
             // Branch at requested transaction only.
-            return BranchNode(originatingNode, transaction, request.Mode);
+            return BranchNode(originatingNode, transaction, request);
         } else {
             // Branch at all intermediate transactions.
             std::reverse(intermediateTransactions.begin(), intermediateTransactions.end());
             auto* currentNode = originatingNode;
             for (auto* transactionToBranch : intermediateTransactions) {
-                currentNode = BranchNode(currentNode, transactionToBranch, request.Mode);
+                currentNode = BranchNode(currentNode, transactionToBranch, request);
             }
             return currentNode;
         }
@@ -1960,7 +1991,7 @@ private:
     TCypressNodeBase* BranchNode(
         TCypressNodeBase* originatingNode,
         TTransaction* transaction,
-        ELockMode mode)
+        const TLockRequest& request)
     {
         YCHECK(originatingNode);
         YCHECK(transaction);
@@ -1973,12 +2004,12 @@ private:
 
         // Create a branched node and initialize its state.
         const auto& handler = GetHandler(originatingNode);
-        auto branchedNodeHolder = handler->Branch(originatingNode, transaction, mode);
+        auto branchedNodeHolder = handler->Branch(originatingNode, transaction, request);
 
         TVersionedNodeId versionedId(id, transaction->GetId());
         auto* branchedNode = NodeMap_.Insert(versionedId, std::move(branchedNodeHolder));
 
-        YCHECK(branchedNode->GetLockMode() == mode);
+        YCHECK(branchedNode->GetLockMode() == request.Mode);
 
         // Register the branched node with the transaction.
         transaction->BranchedNodes().push_back(branchedNode);
@@ -2317,7 +2348,7 @@ TCypressManager::TNodeTypeHandler::TNodeTypeHandler(
     , UnderlyingHandler_(underlyingHandler)
 { }
 
-void TCypressManager::TNodeTypeHandler::DestroyObject(IObjectBase* object) throw()
+void TCypressManager::TNodeTypeHandler::DestroyObject(TObjectBase* object) throw()
 {
     Owner_->DestroyNode(object->As<TCypressNodeBase>());
 }

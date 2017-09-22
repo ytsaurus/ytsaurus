@@ -57,7 +57,7 @@ public:
             while (!(TBase::IsFinished() && TBase::IsEmpty())) {
                 if (TBase::template SkipSpaceAndGetChar<true>() != EndSymbol) {
                     THROW_ERROR_EXCEPTION("Stray %Qv found",
-                        *TBase::Begin())
+                        *TBase::Current())
                         << *this;
                 } else if (!TBase::IsEmpty()) {
                     TBase::Advance(1);
@@ -212,6 +212,9 @@ private:
                 } else if (ch == '%') {
                     TBase::Advance(1);
                     Consumer->OnBooleanScalar(TBase::template ReadBoolean<AllowFinish>());
+                } else if (ch == EndSymbol) {
+                    THROW_ERROR_EXCEPTION("Unexpected end of stream while parsing node")
+                        << *this;
                 } else {
                     THROW_ERROR_EXCEPTION("Unexpected %Qv while parsing node", ch)
                         << *this;

@@ -1,6 +1,7 @@
 #include "sort_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
+#include "chunk_pool_adapters.h"
 #include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
@@ -21,6 +22,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/key_set.h>
+
+#include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
@@ -129,6 +132,7 @@ public:
 
         Persist(context, PartitionPool);
         Persist(context, ShufflePool);
+        Persist(context, ShufflePoolInput);
         Persist(context, SimpleSortPool);
 
         Persist(context, PartitionTaskGroup);
@@ -214,16 +218,13 @@ protected:
             SortTask = controller->SimpleSort
                 ? TSortTaskPtr(New<TSimpleSortTask>(controller, this))
                 : TSortTaskPtr(New<TPartitionSortTask>(controller, this));
-            SortTask->Initialize();
             controller->RegisterTask(SortTask);
 
             SortedMergeTask = New<TSortedMergeTask>(controller, this);
-            SortedMergeTask->Initialize();
             controller->RegisterTask(SortedMergeTask);
 
             if (!controller->SimpleSort) {
                 UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this);
-                UnorderedMergeTask->Initialize();
                 controller->RegisterTask(UnorderedMergeTask);
             }
         }
@@ -308,6 +309,7 @@ protected:
 
     std::unique_ptr<IChunkPool> PartitionPool;
     std::unique_ptr<IShuffleChunkPool> ShufflePool;
+    std::unique_ptr<IChunkPoolInput> ShufflePoolInput;
     std::unique_ptr<IChunkPool> SimpleSortPool;
 
     TTaskGroupPtr PartitionTaskGroup;
@@ -327,8 +329,8 @@ protected:
             : Controller(nullptr)
         { }
 
-        TPartitionTask(TSortControllerBase* controller)
-            : TTask(controller)
+        TPartitionTask(TSortControllerBase* controller, TEdgeDescriptor edgeDescriptor)
+            : TTask(controller, {edgeDescriptor})
             , Controller(controller)
         { }
 
@@ -374,7 +376,6 @@ protected:
             return Controller->GetPartitionJobType();
         }
 
-
         virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
@@ -384,6 +385,11 @@ protected:
             Persist(context, NodeIdToAdjustedDataWeight);
             Persist(context, AdjustedScheduledDataWeight);
             Persist(context, MaxDataWeightPerJob);
+        }
+
+        virtual bool SupportsInputPathYson() const override
+        {
+            return true;
         }
 
     private:
@@ -471,7 +477,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
-            AddIntermediateOutputSpec(jobSpec, joblet, TKeyColumns());
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -483,19 +489,11 @@ protected:
             TTask::OnJobStarted(joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TTask::OnJobCompleted(joblet, jobSummary);
 
-            auto& result = const_cast<TJobResult&>(jobSummary.Result);
-            auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
-
-            RegisterIntermediate(
-                joblet,
-                stripe,
-                Controller->ShufflePool->GetInput(),
-                true);
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
             // Kick-start sort and unordered merge tasks.
             // Compute sort data size delta.
@@ -634,6 +632,10 @@ protected:
             return IsActive() ? TTask::GetTotalJobCount() : 0;
         }
 
+        virtual bool SupportsInputPathYson() const override
+        {
+            return false;
+        }
 
     protected:
         TSortControllerBase* Controller;
@@ -696,6 +698,17 @@ protected:
             Persist(context, CurrentInputStreamIndex_);
         }
 
+        // TODO(max42): this is a dirty way to change the edge descriptor when we
+        // finally understand that sorted merge is needed. Re-write this.
+        void OnSortedMergeNeeded()
+        {
+            EdgeDescriptors_.resize(1);
+            EdgeDescriptors_[0].DestinationPool = Partition->SortedMergeTask->GetChunkPoolInput();
+            EdgeDescriptors_[0].TableWriterOptions = Controller->GetIntermediateTableWriterOptions();
+            EdgeDescriptors_[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Controller->Spec->SortBy);
+            EdgeDescriptors_[0].RequiresRecoveryInfo = true;
+        }
+
     protected:
         TExtendedJobResources GetNeededResourcesForChunkStripe(const TChunkStripeStatistics& stat) const
         {
@@ -728,11 +741,10 @@ protected:
         {
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 jobSpec->CopyFrom(Controller->IntermediateSortJobSpecTemplate);
-                AddIntermediateOutputSpec(jobSpec, joblet, Controller->Spec->SortBy);
             } else {
                 jobSpec->CopyFrom(Controller->FinalSortJobSpecTemplate);
-                AddFinalOutputSpecs(jobSpec, joblet);
             }
+            AddOutputTableSpecs(jobSpec, joblet);
 
             auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate);
@@ -767,7 +779,7 @@ protected:
             }
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TPartitionBoundTask::OnJobCompleted(joblet, jobSummary);
 
@@ -779,8 +791,7 @@ protected:
 
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
-                auto& result = const_cast<TJobResult&>(jobSummary.Result);
-                auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+                auto* resultExt = jobSummary.Result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
 
                 for (const auto& dataSlice : stripe->DataSlices) {
@@ -788,16 +799,17 @@ protected:
                     dataSlice->InputStreamIndex = inputStreamIndex;
                 }
 
-                RegisterIntermediate(
-                    joblet,
+                RegisterStripe(
                     stripe,
-                    Partition->SortedMergeTask,
-                    false);
+                    EdgeDescriptors_[0],
+                    joblet);
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
 
-                // Sort outputs in small partitions go directly to the output.
-                RegisterOutput(joblet, Partition->Index, jobSummary);
+                Controller->AccountRows(jobSummary.Statistics);
+
+                RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+
                 Controller->OnPartitionCompleted(Partition);
             }
 
@@ -1019,9 +1031,8 @@ protected:
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
             , ChunkPool_(controller->CreateSortedMergeChunkPool())
-        {
-            SetupCallbacks();
-        }
+            , ChunkPoolInput_(CreateHintAddingAdapter(ChunkPool_.get(), this))
+        { }
 
         virtual TString GetId() const override
         {
@@ -1051,7 +1062,7 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ChunkPool_.get();
+            return ChunkPoolInput_.get();
         }
 
         virtual void Persist(const TPersistenceContext& context) override
@@ -1060,15 +1071,12 @@ protected:
 
             using NYT::Persist;
             Persist(context, ChunkPool_);
+            Persist(context, ChunkPoolInput_);
             Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, ActiveJoblets_);
             Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, InvalidatedJoblets_);
             Persist(context, JobOutputs_);
             Persist(context, Finished_);
             Persist(context, FrozenTotalJobCount_);
-
-            if (context.IsLoad()) {
-                SetupCallbacks();
-            }
         }
 
         virtual TUserJobSpecPtr GetUserJobSpec() const override
@@ -1105,6 +1113,7 @@ protected:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
         std::unique_ptr<IChunkPool> ChunkPool_;
+        std::unique_ptr<IChunkPoolInput> ChunkPoolInput_;
 
         yhash_set<TJobletPtr> ActiveJoblets_;
         yhash_set<TJobletPtr> InvalidatedJoblets_;
@@ -1133,8 +1142,10 @@ protected:
         };
         std::vector<TJobOutput> JobOutputs_;
 
-        void SetupCallbacks()
+        virtual void SetupCallbacks() override
         {
+            TTask::SetupCallbacks();
+
             ChunkPool_->SubscribePoolOutputInvalidated(BIND(&TSortedMergeTask::AbortAllActiveJoblets, MakeWeak(this)));
         }
 
@@ -1157,7 +1168,10 @@ protected:
         void RegisterAllOutputs()
         {
             for (auto& jobOutput : JobOutputs_) {
-                Controller->RegisterOutput(jobOutput.ChunkListIds, jobOutput.PartitionIndex, jobOutput.JobSummary);
+                Controller->AccountRows(jobOutput.JobSummary.Statistics);
+                // We definitely know that output of current job is going directly to the sink, so
+                // it is ok not to specify joblet at all.
+                RegisterOutput(&jobOutput.JobSummary.Result, jobOutput.ChunkListIds, nullptr /* joblet */);
             }
         }
 
@@ -1183,7 +1197,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
             AddParallelInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -1196,7 +1210,7 @@ protected:
             YCHECK(ActiveJoblets_.insert(joblet).second);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TMergeTask::OnJobCompleted(joblet, jobSummary);
 
@@ -1313,7 +1327,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
-            AddFinalOutputSpecs(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
 
             const auto& list = joblet->InputStripeList;
             if (list->PartitionTag) {
@@ -1330,12 +1344,14 @@ protected:
             Controller->UnorderedMergeJobCounter.Start(1);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
+        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->UnorderedMergeJobCounter.Completed(1);
-            RegisterOutput(joblet, Partition->Index, jobSummary);
+
+            Controller->AccountRows(jobSummary.Statistics);
+            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -1500,6 +1516,8 @@ protected:
             static_cast<int>(Partitions.size()),
             Spec->DataWeightPerShuffleJob);
 
+        ShufflePoolInput = CreateIntermediateLivePreviewAdapter(ShufflePool->GetInput(), this);
+
         for (auto partition : Partitions) {
             partition->ChunkPoolOutput = ShufflePool->GetOutput(partition->Index);
         }
@@ -1589,6 +1607,7 @@ protected:
 
         LOG_DEBUG("Partition needs sorted merge (Partition: %v)", partition->Index);
         partition->CachedSortedMergeNeeded = true;
+        partition->SortTask->OnSortedMergeNeeded();
         return true;
     }
 
@@ -1750,7 +1769,7 @@ protected:
             result = *Spec->PartitionCount;
         } else if (Spec->PartitionDataWeight) {
             auto partitionDataWeight = std::max(*Spec->PartitionDataWeight, Options->MinPartitionWeight);
-            result = 1 + dataWeightAfterPartition / partitionDataWeight;
+            result = DivCeil<i64>(dataWeightAfterPartition, partitionDataWeight);
         } else {
             // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
@@ -1766,6 +1785,33 @@ protected:
 
             i64 maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
             result = std::min(static_cast<i64>(dataWeightAfterPartition / partitionDataWeight), maxPartitionCount);
+
+            if (result == 1 && TotalEstimatedInputUncompressedDataSize > Spec->DataWeightPerShuffleJob) {
+                // Sometimes data size can be much larger than data weight.
+                // Let's protect from such outliers and prevent simple sort in such case.
+                result = DivCeil(TotalEstimatedInputUncompressedDataSize, Spec->DataWeightPerShuffleJob);
+            } else if (result > 1) {
+                // Calculate upper limit for partition data weight.
+                auto uncompressedSortedChunkSize = static_cast<i64>(Spec->SortJobIO->TableWriter->DesiredChunkSize /
+                    InputCompressionRatio);
+                uncompressedSortedChunkSize = std::max<i64>(1, uncompressedSortedChunkSize);
+                auto maxInputStreamsPerPartition = std::max<i64>(1,
+                    Spec->MaxDataWeightPerJob / uncompressedSortedChunkSize);
+                auto maxPartitionDataWeight = std::max<i64>(Options->MinPartitionWeight,
+                    static_cast<i64>(0.9 * maxInputStreamsPerPartition * Spec->DataWeightPerShuffleJob));
+
+                if (dataWeightAfterPartition / result > maxPartitionDataWeight) {
+                    result = dataWeightAfterPartition / maxPartitionDataWeight;
+                }
+
+                LOG_DEBUG("Suggesting partition count (UncompressedBlockSize: %v, PartitionDataWeight: %v, "
+                    "MaxPartitionDataWeight: %v, PartitionCount: %v, MaxPartitionCount: %v)",
+                    uncompressedBlockSize,
+                    partitionDataWeight,
+                    maxPartitionDataWeight,
+                    result,
+                    maxPartitionCount);
+            }
         }
         // Cast to int32 is safe since MaxPartitionCount is int32.
         return static_cast<int>(Clamp<i64>(result, 1, Options->MaxPartitionCount));
@@ -1869,7 +1915,7 @@ protected:
             .Item("partition_size_histogram").Value(*sizeHistogram);
     }
 
-    virtual void AnalyzePartitionHistogram() const override
+    virtual TFuture<void> AnalyzePartitionHistogram() const override
     {
         TError error;
 
@@ -1888,17 +1934,7 @@ protected:
             }
         }
 
-        Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
-    }
-
-    virtual void RegisterOutput(
-        const std::vector<TChunkListId>& chunkListIds,
-        TOutputChunkTreeKey key,
-        const TCompletedJobSummary& jobSummary) override
-    {
-        YCHECK(jobSummary.Statistics);
-        TotalOutputRowCount += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
-        TOperationControllerBase::RegisterOutput(chunkListIds, key, jobSummary);
+        return Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
     }
 
     void InitJobIOConfigs()
@@ -1962,6 +1998,12 @@ protected:
                 GetOutputTablePaths().size());
             return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
         }
+    }
+
+    void AccountRows(const TNullable<NJobTrackerClient::TStatistics>& statistics)
+    {
+        YCHECK(statistics);
+        TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
     }
 
     virtual EJobType GetPartitionJobType() const = 0;
@@ -2195,6 +2237,7 @@ private:
             auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
                 Spec,
                 Options,
+                TotalEstimatedInputUncompressedDataSize,
                 TotalEstimatedInputDataWeight,
                 TotalEstimatedInputRowCount,
                 InputCompressionRatio);
@@ -2344,7 +2387,9 @@ private:
 
         InitPartitionPool(partitionJobSizeConstraints, nullptr);
 
-        PartitionTask = New<TPartitionTask>(this);
+        TEdgeDescriptor partitionTaskEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
+        partitionTaskEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
+        PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
@@ -2637,6 +2682,12 @@ private:
         TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TSortController::BuildPartitionsProgressYson, Unretained(this)))
+            .Item(JobTypeAsKey(EJobType::Partition)).Value(GetPartitionJobCounter())
+            .Item(JobTypeAsKey(EJobType::IntermediateSort)).Value(IntermediateSortJobCounter)
+            .Item(JobTypeAsKey(EJobType::FinalSort)).Value(FinalSortJobCounter)
+            .Item(JobTypeAsKey(EJobType::SortedMerge)).Value(SortedMergeJobCounter)
+            .Item(JobTypeAsKey(EJobType::UnorderedMerge)).Value(UnorderedMergeJobCounter)
+            // TODO(ignat): remove when UI migrate to new keys.
             .Item("partition_jobs").Value(GetPartitionJobCounter())
             .Item("intermediate_sort_jobs").Value(IntermediateSortJobCounter)
             .Item("final_sort_jobs").Value(FinalSortJobCounter)
@@ -2689,23 +2740,23 @@ public:
     {
         if (spec->Mapper) {
             RegisterJobProxyMemoryDigest(EJobType::PartitionMap, spec->PartitionJobProxyMemoryDigest);
-            RegisterUserJobMemoryDigest(EJobType::PartitionMap, spec->Mapper->MemoryReserveFactor);
+            RegisterUserJobMemoryDigest(EJobType::PartitionMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
         } else {
             RegisterJobProxyMemoryDigest(EJobType::Partition, spec->PartitionJobProxyMemoryDigest);
         }
 
         if (spec->ReduceCombiner) {
             RegisterJobProxyMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombinerJobProxyMemoryDigest);
-            RegisterUserJobMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombiner->MemoryReserveFactor);
+            RegisterUserJobMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombiner->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
         } else {
             RegisterJobProxyMemoryDigest(EJobType::IntermediateSort, spec->SortJobProxyMemoryDigest);
         }
 
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->SortedReduceJobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
 
         RegisterJobProxyMemoryDigest(EJobType::PartitionReduce, spec->PartitionReduceJobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::PartitionReduce, spec->Reducer->MemoryReserveFactor);
+        RegisterUserJobMemoryDigest(EJobType::PartitionReduce, spec->Reducer->UserJobMemoryDigestDefaultValue, spec->Reducer->UserJobMemoryDigestLowerBound);
     }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
@@ -2887,6 +2938,7 @@ private:
         auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
             Spec,
             Options,
+            TotalEstimatedInputUncompressedDataSize,
             TotalEstimatedInputDataWeight,
             TotalEstimatedInputRowCount,
             InputCompressionRatio);
@@ -2918,7 +2970,9 @@ private:
             ? Options->PartitionJobSizeAdjuster
             : nullptr);
 
-        PartitionTask = New<TPartitionTask>(this);
+        TEdgeDescriptor partitionTaskEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
+        partitionTaskEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
+        PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
@@ -3210,7 +3264,11 @@ private:
 
     virtual bool IsSortedMergeNeeded(const TPartitionPtr& partition) const override
     {
-        return Spec->ForceReduceCombiners || TSortControllerBase::IsSortedMergeNeeded(partition);
+        if (Spec->ForceReduceCombiners) {
+            partition->CachedSortedMergeNeeded = true;
+            partition->SortTask->OnSortedMergeNeeded();
+        }
+        return TSortControllerBase::IsSortedMergeNeeded(partition);
     }
 
     virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(const TPartitionPtr& partition) const override
@@ -3308,6 +3366,11 @@ private:
         TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
+            .Item(JobTypeAsKey(GetPartitionJobType())).Value(GetPartitionJobCounter())
+            .Item(JobTypeAsKey(GetIntermediateSortJobType())).Value(IntermediateSortJobCounter)
+            .Item(JobTypeAsKey(GetFinalSortJobType())).Value(FinalSortJobCounter)
+            .Item(JobTypeAsKey(GetSortedMergeJobType())).Value(SortedMergeJobCounter)
+            // TODO(ignat): remove when UI migrate to new keys.
             .Item(Spec->Mapper ? "map_jobs" : "partition_jobs").Value(GetPartitionJobCounter())
             .Item(Spec->ReduceCombiner ? "reduce_combiner_jobs" : "sort_jobs").Value(IntermediateSortJobCounter)
             .Item("partition_reduce_jobs").Value(FinalSortJobCounter)

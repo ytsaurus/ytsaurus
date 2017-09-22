@@ -71,6 +71,7 @@ public:
         , OperationNodesUpdateExecutor_(New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Logger))
         , TransactionRefreshExecutor_(New<TPeriodicExecutor>(
             Invoker_,
@@ -82,12 +83,18 @@ public:
             BIND(&TImpl::BuildSnapshot, MakeStrong(this)),
             Config_->SnapshotPeriod,
             EPeriodicExecutorMode::Automatic))
+        , UnstageExecutor_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TImpl::UnstageChunks, MakeWeak(this)),
+            Config_->ChunkUnstagePeriod,
+            EPeriodicExecutorMode::Automatic))
     {
         OperationNodesUpdateExecutor_->StartPeriodicUpdates(
             Invoker_,
             Config_->OperationsUpdatePeriod);
         TransactionRefreshExecutor_->Start();
         SnapshotExecutor_->Start();
+        UnstageExecutor_->Start();
     }
 
     const IInvokerPtr& GetInvoker() const
@@ -101,7 +108,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(ControllerMap_.emplace(operationId, controller).second);
+        {
+            TGuard<TSpinLock> guard(ControllersLock_);
+            YCHECK(ControllerMap_.emplace(operationId, controller).second);
+        }
+
         OperationNodesUpdateExecutor_->AddUpdate(operationId, TOperationNodeUpdate(operationId));
     }
 
@@ -179,6 +190,15 @@ public:
             .Run();
     }
 
+    void AddChunksToUnstageList(std::vector<TChunkId> chunkIds)
+    {
+        BIND(&TImpl::DoAddChunksToUnstageList,
+             MakeWeak(this),
+             Passed(std::move(chunkIds)))
+            .Via(Invoker_)
+            .Run();
+    }
+
     void AttachJobContext(
         const TYPath& path,
         const TChunkId& chunkId,
@@ -208,10 +228,15 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Config_ = config;
+
+        OperationNodesUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
+        TransactionRefreshExecutor_->SetPeriod(Config_->TransactionsRefreshPeriod);
+        SnapshotExecutor_->SetPeriod(Config_->SnapshotPeriod);
+        UnstageExecutor_->SetPeriod(Config_->ChunkUnstagePeriod);
     }
 
 private:
-    IInvokerPtr Invoker_;
+    const IInvokerPtr Invoker_;
     TSchedulerConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
 
@@ -248,6 +273,11 @@ private:
 
     TPeriodicExecutorPtr TransactionRefreshExecutor_;
     TPeriodicExecutorPtr SnapshotExecutor_;
+    TPeriodicExecutorPtr UnstageExecutor_;
+
+    yhash<TCellTag, std::vector<TChunkId>> CellTagToChunkUnstageList_;
+
+    const TCallback<TFuture<void>()> VoidCallback_ = BIND([] { return VoidFuture; });
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -417,21 +447,28 @@ private:
         try {
             UpdateOperationNodeAttributes(operationId);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error updating operation node %v",
+            THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
                 << ex;
         }
+
+        LOG_DEBUG("Operation node updated (OperationId: %v)", operationId);
     }
 
     TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& operationId, TOperationNodeUpdate* update)
     {
-        return BIND(&TImpl::DoUpdateOperationNode,
-            MakeStrong(this),
-            operationId,
-            update->TransactionId,
-            Passed(std::move(update->JobRequests)),
-            Passed(std::move(update->LivePreviewRequests)))
-            .AsyncVia(Invoker_);
+        auto controller = GetOperationController(operationId);
+        if (controller && (!update->JobRequests.empty() || !update->LivePreviewRequests.empty() || controller->ShouldUpdateProgress())) {
+            return BIND(&TImpl::DoUpdateOperationNode,
+                MakeStrong(this),
+                operationId,
+                update->TransactionId,
+                Passed(std::move(update->JobRequests)),
+                Passed(std::move(update->LivePreviewRequests)))
+                .AsyncVia(Invoker_);
+        } else {
+            return VoidCallback_;
+        }
     }
 
     void UpdateOperationNodeAttributes(const TOperationId& operationId)
@@ -445,6 +482,8 @@ private:
             return;
         }
 
+        controller->SetProgressUpdated();
+
         GenerateMutationId(batchReq);
 
         // Set progress.
@@ -456,6 +495,7 @@ private:
             req->set_value(progress.GetData());
             batchReq->AddRequest(req, "update_op_node");
         }
+
         // Set brief progress.
         {
             auto progress = controller->GetBriefProgress();
@@ -475,6 +515,10 @@ private:
         const std::vector<TCreateJobNodeRequest>& jobRequests)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        if (jobRequests.empty()) {
+            return;
+        }
 
         auto batchReq = StartObjectBatchRequest();
 
@@ -500,7 +544,9 @@ private:
             }
         }
 
-        LOG_INFO("Created %v job nodes (OperationId: %v)", jobRequests.size(), operationId);
+        LOG_INFO("Job nodes created (Count: %v, OperationId: %v)",
+            jobRequests.size(),
+            operationId);
     }
 
     void AttachLivePreviewChunks(
@@ -753,6 +799,10 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
+        if (files.empty()) {
+            return;
+        }
+
         auto client = Bootstrap_->GetMasterClient();
         auto connection = client->GetNativeConnection();
 
@@ -955,6 +1005,58 @@ private:
     {
         return !GetOperationController(update->OperationId);
     }
+
+    void OnOperationUpdateFailed(const TError& error)
+    {
+        LOG_ERROR(error, "Failed to update operation node");
+    }
+
+    void DoAddChunksToUnstageList(std::vector<TChunkId> chunkIds)
+    {
+        for (const auto& chunkId : chunkIds) {
+            auto cellTag = CellTagFromId(chunkId);
+            CellTagToChunkUnstageList_[cellTag].emplace_back(chunkId);
+        }
+    }
+
+    void UnstageChunks()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (auto& pair : CellTagToChunkUnstageList_) {
+            const auto& cellTag = pair.first;
+            auto& chunkIds = pair.second;
+
+            if (chunkIds.empty()) {
+                continue;
+            }
+
+            LOG_DEBUG("Unstaging %v chunk trees from cell %v", chunkIds.size(), cellTag);
+
+            TChunkServiceProxy proxy(Bootstrap_
+                ->GetMasterClient()
+                ->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag));
+
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& chunkId : chunkIds) {
+                auto req = batchReq->add_unstage_chunk_tree_subrequests();
+                ToProto(req->mutable_chunk_tree_id(), chunkId);
+                // Chunk trees are either single chunks or the chunk lists
+                // that should be unstaged in non-recursive manner (useful for
+                // auto-merge, we destroy each of the containing chunks afterwards).
+                req->set_recursive(false);
+            }
+
+            chunkIds.clear();
+
+            batchReq->Invoke().Apply(
+                BIND([=] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                    if (!batchRspOrError.IsOK()) {
+                        LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees in cell %v", cellTag);
+                    }
+                }));
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1010,6 +1112,11 @@ TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(const TOperationI
 TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
 {
     return Impl_->RemoveSnapshot(operationId);
+}
+
+void TMasterConnector::AddChunksToUnstageList(std::vector<TChunkId> chunkIds)
+{
+    Impl_->AddChunksToUnstageList(std::move(chunkIds));
 }
 
 void TMasterConnector::AttachJobContext(

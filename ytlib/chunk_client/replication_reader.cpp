@@ -23,6 +23,7 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -125,8 +126,13 @@ public:
         , BlockCache_(blockCache)
         , Throttler_(throttler)
         , Networks_(client->GetNativeConnection()->GetNetworks())
+        , LocateChunksInvoker_(CreateFixedPriorityInvoker(
+            TDispatcher::Get()->GetCompressionPoolInvoker(),
+            // We locate chunks with batch workload category.
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch).GetPriority()))
         , InitialSeedReplicas_(seedReplicas)
         , SeedsTimestamp_(TInstant::Zero())
+        , IsFailed_(false)
     {
         Logger.AddTag("ChunkId: %v", ChunkId_);
     }
@@ -172,6 +178,16 @@ public:
         return ChunkId_;
     }
 
+    virtual bool IsValid() const override
+    {
+        return !IsFailed_;
+    }
+
+    void SetFailed()
+    {
+        IsFailed_ = true;
+    }
+
 private:
     class TSessionBase;
     class TReadBlockSetSession;
@@ -188,6 +204,8 @@ private:
     const IThroughputThrottlerPtr Throttler_;
     const TNetworkPreferenceList Networks_;
 
+    const IInvokerPtr LocateChunksInvoker_;
+
     NLogging::TLogger Logger = ChunkClientLogger;
 
     TSpinLock SeedsSpinLock_;
@@ -201,6 +219,8 @@ private:
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
     yhash<TString, int> PeerBanCountMap_;
 
+    std::atomic<bool> IsFailed_;
+
     TFuture<TChunkReplicaList> AsyncGetSeeds()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -210,7 +230,7 @@ private:
             LOG_DEBUG("Need fresh chunk seeds");
             SeedsPromise_ = NewPromise<TChunkReplicaList>();
             auto locateChunk = BIND(&TReplicationReader::LocateChunk, MakeStrong(this))
-                .Via(TDispatcher::Get()->GetReaderInvoker());
+                .Via(LocateChunksInvoker_);
 
             if (SeedsTimestamp_ + Config_->SeedsTimeout > TInstant::Now()) {
                 // Don't ask master for fresh seeds too often.
@@ -265,7 +285,7 @@ private:
             ToProto(req->add_subrequests(), ChunkId_);
             req->Invoke().Subscribe(
                 BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
-                    .Via(TDispatcher::Get()->GetReaderInvoker()));
+                    .Via(LocateChunksInvoker_));
         } catch (const std::exception& ex) {
             SeedsPromise_.Set(TError(
                 "Failed to request seeds for chunk %v from master",
@@ -407,6 +427,9 @@ protected:
     //! Catalogue of peers, seen on current pass.
     yhash<TString, TPeer> Peers_;
 
+    //! Fixed priority invoker build upon CompressionPool.
+    IInvokerPtr SessionInvoker_;
+
 
     TSessionBase(
         TReplicationReader* reader,
@@ -420,6 +443,9 @@ protected:
             .AddTag("SessionId: %v, ChunkId: %v",
                 TGuid::Create(),
                 reader->ChunkId_))
+        , SessionInvoker_(CreateFixedPriorityInvoker(
+            TDispatcher::Get()->GetCompressionPoolInvoker(),
+            WorkloadDescriptor_.GetPriority()))
     {
         ResetPeerQueue();
     }
@@ -603,13 +629,13 @@ protected:
             RetryIndex_ + 1,
             reader->Config_->RetryCount);
 
+        PassIndex_ = 0;
+        BannedPeers_.clear();
+
         SeedsFuture_ = reader->AsyncGetSeeds();
         SeedsFuture_.Subscribe(
             BIND(&TSessionBase::OnGotSeeds, MakeStrong(this))
-                .Via(TDispatcher::Get()->GetReaderInvoker()));
-
-        PassIndex_ = 0;
-        BannedPeers_.clear();
+                .Via(SessionInvoker_));
     }
 
     void OnRetryFailed()
@@ -635,7 +661,7 @@ protected:
 
         TDelayedExecutor::Submit(
             BIND(&TSessionBase::NextRetry, MakeStrong(this))
-                .Via(TDispatcher::Get()->GetReaderInvoker()),
+                .Via(SessionInvoker_),
             GetBackoffDuration(RetryIndex_));
     }
 
@@ -700,7 +726,7 @@ protected:
 
         TDelayedExecutor::Submit(
             BIND(&TSessionBase::NextPass, MakeStrong(this))
-                .Via(TDispatcher::Get()->GetReaderInvoker()),
+                .Via(SessionInvoker_),
             GetBackoffDuration(PassIndex_));
     }
 
@@ -1038,7 +1064,7 @@ private:
     void RequestBlocks()
     {
         BIND(&TReadBlockSetSession::DoRequestBlocks, MakeStrong(this))
-            .Via(TDispatcher::Get()->GetReaderInvoker())
+            .Via(SessionInvoker_)
             .Run();
     }
 
@@ -1223,6 +1249,7 @@ private:
         if (!reader)
             return;
 
+        reader->SetFailed();
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
@@ -1237,9 +1264,7 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto session = New<TReadBlockSetSession>(this, workloadDescriptor, blockIndexes);
-    return BIND(&TReadBlockSetSession::Run, session)
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
+    return session->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1301,7 +1326,7 @@ private:
     void RequestBlocks()
     {
         BIND(&TReadBlockRangeSession::DoRequestBlocks, MakeStrong(this))
-            .Via(TDispatcher::Get()->GetReaderInvoker())
+            .Via(SessionInvoker_)
             .Run();
     }
 
@@ -1431,6 +1456,7 @@ private:
         if (!reader)
             return;
 
+        reader->SetFailed();
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
@@ -1447,9 +1473,7 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto session = New<TReadBlockRangeSession>(this, workloadDescriptor, firstBlockIndex, blockCount);
-    return BIND(&TReadBlockRangeSession::Run, session)
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
+    return session->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1503,7 +1527,7 @@ private:
     {
         // NB: strong ref here is the only reference that keeps session alive.
         BIND(&TGetMetaSession::DoRequestMeta, MakeStrong(this))
-            .Via(TDispatcher::Get()->GetReaderInvoker())
+            .Via(SessionInvoker_)
             .Run();
     }
 
@@ -1585,6 +1609,7 @@ private:
         if (!reader)
             return;
 
+        reader->SetFailed();
         auto error = BuildCombinedError(TError(
             "Error fetching meta for chunk %v",
             reader->ChunkId_));
@@ -1600,9 +1625,7 @@ TFuture<TChunkMeta> TReplicationReader::GetMeta(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto session = New<TGetMetaSession>(this, workloadDescriptor, partitionTag, extensionTags);
-    return BIND(&TGetMetaSession::Run, session)
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
+    return session->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

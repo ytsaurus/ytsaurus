@@ -10,12 +10,16 @@ namespace NTableServer {
 using namespace NTableClient;
 using namespace NCypressServer;
 using namespace NYTree;
+using namespace NYson;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectServer;
+using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTabletServer;
+
+static auto const& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +36,10 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, LastCommitTimestamp);
     Save(context, TabletCountByState);
     Save(context, Tablets);
+    Save(context, EnableTabletBalancer);
+    Save(context, MinTabletSize);
+    Save(context, MaxTabletSize);
+    Save(context, DesiredTabletSize);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -44,6 +52,14 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, LastCommitTimestamp);
     Load(context, TabletCountByState);
     Load(context, Tablets);
+
+    //COMPAT(savrus)
+    if (context.GetVersion() >= 614) {
+        Load(context, EnableTabletBalancer);
+        Load(context, MinTabletSize);
+        Load(context, MaxTabletSize);
+        Load(context, DesiredTabletSize);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +172,9 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
+
+    // NB: All COMPAT's after version 609 should be in this function.
+    LoadCompatAfter609(context);
 }
 
 void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
@@ -221,6 +240,61 @@ void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
     {
         DynamicTableAttributes_ = std::move(dynamic);
     }
+
+    // NB: All COMPAT's after version 609 should be in this function.
+    LoadCompatAfter609(context);
+}
+
+void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
+{
+    //COMPAT(savrus)
+    if (context.GetVersion() < 616) {
+        if (Attributes_) {
+            auto& attributes = Attributes_->Attributes();
+
+            auto processAttribute = [&] (
+                const TString& attributeName,
+                std::function<void(const TYsonString&)> functor)
+            {
+                auto it = attributes.find(attributeName);
+                if (it != attributes.end()) {
+                    LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
+                        attributeName,
+                        ConvertToYsonString(it->second, EYsonFormat::Text),
+                        Id_);
+                    try {
+                        functor(it->second);
+                    } catch (...) {
+                    }
+                    attributes.erase(it);
+                }
+            };
+            static const TString disableTabletBalancerAttributeName("disable_tablet_balancer");
+            static const TString enableTabletBalancerAttributeName("enable_tablet_balancer");
+            static const TString minTabletSizeAttributeName("min_tablet_size");
+            static const TString maxTabletSizeAttributeName("max_tablet_size");
+            static const TString desiredTabletSizeAttributeName("desired_tablet_size");
+            processAttribute(disableTabletBalancerAttributeName, [&] (const TYsonString& val) {
+                SetEnableTabletBalancer(!ConvertTo<bool>(val));
+            });
+            processAttribute(enableTabletBalancerAttributeName, [&] (const TYsonString& val) {
+                SetEnableTabletBalancer(ConvertTo<bool>(val));
+            });
+            processAttribute(minTabletSizeAttributeName, [&] (const TYsonString& val) {
+                SetMinTabletSize(ConvertTo<i64>(val));
+            });
+            processAttribute(maxTabletSizeAttributeName, [&] (const TYsonString& val) {
+                SetMaxTabletSize(ConvertTo<i64>(val));
+            });
+            processAttribute(desiredTabletSizeAttributeName, [&] (const TYsonString& val) {
+                SetDesiredTabletSize(ConvertTo<i64>(val));
+            });
+
+            if (attributes.empty()) {
+                Attributes_.reset();
+            }
+        }
+    }
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
@@ -259,11 +333,12 @@ bool TTableNode::IsEmpty() const
     return ComputeTotalStatistics().chunk_count() == 0;
 }
 
-TTimestamp TTableNode::GetCurrentUnflushedTimestamp() const
+TTimestamp TTableNode::GetCurrentUnflushedTimestamp(
+    TTimestamp latestTimestamp) const
 {
     return UnflushedTimestamp_ != NullTimestamp
         ? UnflushedTimestamp_
-        : CalculateUnflushedTimestamp();
+        : CalculateUnflushedTimestamp(latestTimestamp);
 }
 
 TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
@@ -273,7 +348,8 @@ TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
         : CalculateRetainedTimestamp();
 }
 
-TTimestamp TTableNode::CalculateUnflushedTimestamp() const
+TTimestamp TTableNode::CalculateUnflushedTimestamp(
+    TTimestamp latestTimestamp) const
 {
     auto* trunkNode = GetTrunkNode();
     if (!trunkNode->IsDynamic()) {
@@ -282,12 +358,12 @@ TTimestamp TTableNode::CalculateUnflushedTimestamp() const
 
     auto result = MaxTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
-        if (tablet->GetState() != ETabletState::Unmounted) {
-            auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
-            result = std::min(result, timestamp);
-        }
+        auto timestamp = tablet->GetState() != ETabletState::Unmounted
+            ? static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp())
+            : latestTimestamp;
+        result = std::min(result, timestamp);
     }
-    return result != MaxTimestamp ? result : NullTimestamp;
+    return result;
 }
 
 TTimestamp TTableNode::CalculateRetainedTimestamp() const

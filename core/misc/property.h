@@ -25,6 +25,23 @@ public: \
         return name##_; \
     }
 
+//! Defines a trivial public read-write property that is passed by reference
+//! and is not inline-initialized.
+#define DEFINE_BYREF_RW_PROPERTY_NO_INIT(type, name) \
+protected: \
+    type name##_; \
+    \
+public: \
+    Y_FORCE_INLINE type& name() \
+    { \
+        return name##_; \
+    } \
+    \
+    Y_FORCE_INLINE const type& name() const \
+    { \
+        return name##_; \
+    }
+
 //! Forwards a trivial public read-write property that is passed by reference.
 #define DELEGATE_BYREF_RW_PROPERTY(declaringType, type, name, delegateTo) \
     type& declaringType::name() \
@@ -49,6 +66,18 @@ public: \
 #define DEFINE_BYREF_RO_PROPERTY(type, name, ...) \
 protected: \
     type name##_ { __VA_ARGS__ }; \
+    \
+public: \
+    Y_FORCE_INLINE const type& name() const \
+    { \
+        return name##_; \
+    }
+
+//! Defines a trivial public read-only property that is passed by reference
+//! and is not inline-initialized.
+#define DEFINE_BYREF_RO_PROPERTY_NO_INIT(type, name) \
+protected: \
+    type name##_; \
     \
 public: \
     Y_FORCE_INLINE const type& name() const \
@@ -88,6 +117,24 @@ public: \
         name##_ = value; \
     } \
 
+
+//! Defines a trivial public read-write property that is passed by value
+//! and is not inline-initialized.
+#define DEFINE_BYVAL_RW_PROPERTY_NO_INIT(type, name, ...) \
+protected: \
+    type name##_; \
+    \
+public: \
+    Y_FORCE_INLINE type Get##name() const \
+    { \
+        return name##_; \
+    } \
+    \
+    Y_FORCE_INLINE void Set##name(type value) \
+    { \
+        name##_ = value; \
+    } \
+
 //! Forwards a trivial public read-write property that is passed by value.
 #define DELEGATE_BYVAL_RW_PROPERTY(declaringType, type, name, delegateTo) \
     type declaringType::Get##name() \
@@ -112,6 +159,19 @@ public: \
 #define DEFINE_BYVAL_RO_PROPERTY(type, name, ...) \
 protected: \
     type name##_ { __VA_ARGS__ }; \
+    \
+public: \
+    Y_FORCE_INLINE type Get##name() const \
+    { \
+        return name##_; \
+    }
+
+
+//! Defines a trivial public read-only property that is passed by value
+//! and is not inline-initialized.
+#define DEFINE_BYVAL_RO_PROPERTY_NO_INIT(type, name) \
+protected: \
+    type name##_; \
     \
 public: \
     Y_FORCE_INLINE type Get##name() const \

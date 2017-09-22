@@ -220,7 +220,7 @@ private:
             return FetchMergeableAttribute(
                 key,
                 BIND([=, this_ = MakeStrong(this)] {
-                    return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const IObjectBase* object) {
+                    return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
                         fluent.Item().Value(object->GetId());
                     });
                 }));
@@ -238,7 +238,7 @@ private:
             return FetchMergeableAttribute(
                 key,
                 BIND([=, this_ = MakeStrong(this)] {
-                    return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const IObjectBase* object) {
+                    return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
                         fluent.Item().Value(object->GetId());
                     });
                 }));

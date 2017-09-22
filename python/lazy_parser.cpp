@@ -191,7 +191,7 @@ PyObject* TLazyDictParser::DoParse(EYsonType parsingMode)
         while (!(TBase::IsFinished() && TBase::IsEmpty())) {
             if (TBase::template SkipSpaceAndGetChar<true>() != EndSymbol) {
                 THROW_ERROR_EXCEPTION("Stray %Qv found",
-                    *TBase::Begin())
+                    *TBase::Current())
                     << *this;
             } else if (!TBase::IsEmpty()) {
                 TBase::Advance(1);
@@ -242,8 +242,8 @@ void TLazyDictParser::ParseNode()
     NYson::TYsonParser parser(objectBuilder.get());
 
     auto readData = [&] {
-        size_t readBytesCount = TBase::End() - TBase::Begin();
-        parser.Read(TStringBuf(TBase::Begin(), readBytesCount));
+        size_t readBytesCount = TBase::End() - TBase::Current();
+        parser.Read(TStringBuf(TBase::Current(), readBytesCount));
         TBase::Advance(readBytesCount);
     };
 

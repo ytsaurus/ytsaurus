@@ -85,6 +85,11 @@ const char* TStreamReader::Begin() const
     return BeginPtr_;
 }
 
+const char* TStreamReader::Current() const
+{
+    return CurrentPtr_;
+}
+
 const char* TStreamReader::End() const
 {
     return EndPtr_;
@@ -92,11 +97,12 @@ const char* TStreamReader::End() const
 
 void TStreamReader::RefreshBlock()
 {
-    YCHECK(BeginPtr_ == EndPtr_);
+    YCHECK(CurrentPtr_ == EndPtr_);
     YCHECK(!Finished_);
 
     Blobs_.push_back(NextBlob_);
     BeginPtr_ = NextBlob_.Begin();
+    CurrentPtr_ = BeginPtr_;
     EndPtr_ = NextBlob_.Begin() + NextBlobSize_;
 
     if (NextBlobSize_ < BlockSize_) {
@@ -108,7 +114,7 @@ void TStreamReader::RefreshBlock()
 
 void TStreamReader::Advance(size_t bytes)
 {
-    BeginPtr_ += bytes;
+    CurrentPtr_ += bytes;
     ReadByteCount_ += bytes;
 }
 
@@ -128,7 +134,7 @@ TSharedRef TStreamReader::ExtractPrefix()
     TSharedMutableRef result;
 
     if (Blobs_.size() == 1) {
-        result = Blobs_[0].Slice(PrefixStart_, BeginPtr_);
+        result = Blobs_[0].Slice(PrefixStart_, CurrentPtr_);
     } else {
         result = TSharedMutableRef::Allocate<TInputStreamBlobTag>(ReadByteCount_, false);
 
@@ -142,14 +148,14 @@ TSharedRef TStreamReader::ExtractPrefix()
         for (int i = 1; i + 1 < Blobs_.size(); ++i) {
             append(Blobs_[i].Begin(), Blobs_[i].End());
         }
-        append(Blobs_.back().Begin(), BeginPtr_);
+        append(Blobs_.back().Begin(), CurrentPtr_);
 
         while (Blobs_.size() > 1) {
             Blobs_.pop_front();
         }
     }
 
-    PrefixStart_ = BeginPtr_;
+    PrefixStart_ = CurrentPtr_;
     ReadByteCount_ = 0;
 
     return result;

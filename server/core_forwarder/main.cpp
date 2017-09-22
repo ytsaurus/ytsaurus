@@ -27,19 +27,19 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoreForwarderProgram
-    : public TProgram
+    : public TYTProgram
 {
 public:
     TCoreForwarderProgram()
-        : TProgram()
     {
-        Opts_.SetFreeArgsNum(6);
+        Opts_.SetFreeArgsNum(6, 7);
         Opts_.SetFreeArgTitle(0, "PID");
         Opts_.SetFreeArgTitle(1, "UID");
         Opts_.SetFreeArgTitle(2, "EXECUTABLE_NAME");
         Opts_.SetFreeArgTitle(3, "RLIMIT_CORE");
         Opts_.SetFreeArgTitle(4, "JOB_PROXY_SOCKET_DIRECTORY");
         Opts_.SetFreeArgTitle(5, "FALLBACK_PATH");
+        Opts_.SetFreeArgTitle(6, "JOB_PROXY_SOCKET");
 
         openlog("ytserver-core-forwarder", LOG_PID | LOG_PERROR, LOG_USER);
     }
@@ -63,8 +63,10 @@ protected:
         }
 
         TString jobProxySocketNameFile = JobProxySocketNameDirectory_ + "/" + ToString(UserId_);
-        if (Exists(jobProxySocketNameFile)) {
-            auto jobProxySocketName = TFileInput(jobProxySocketNameFile).ReadLine();
+        if (JobProxySocketPath_ || Exists(jobProxySocketNameFile)) {
+            auto jobProxySocketName = JobProxySocketPath_
+                ? JobProxySocketPath_.Get()
+                : TFileInput(jobProxySocketNameFile).ReadLine();
             ForwardCore(jobProxySocketName);
         } else {
             WriteCoreToDisk();
@@ -86,6 +88,9 @@ protected:
         RLimitCore_ = FromString<ui64>(args[3]);
         JobProxySocketNameDirectory_ = args[4];
         FallbackPath_ = args[5];
+        if (args.size() == 7) {
+            JobProxySocketPath_ = args[6];
+        }
 
         syslog(LOG_INFO,
             "Processing core dump (Pid: %d, Uid: %d, ExecutableName: %s, RLimitCore: %" PRId64 ", FallbackPath: %s)",
@@ -145,6 +150,7 @@ protected:
 
     TString JobProxySocketNameDirectory_;
     TString FallbackPath_;
+    TNullable<TString> JobProxySocketPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

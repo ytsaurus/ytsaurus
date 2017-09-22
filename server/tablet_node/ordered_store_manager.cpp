@@ -114,6 +114,18 @@ TOrderedDynamicRowRef TOrderedStoreManager::WriteRow(
         dynamicRow);
 }
 
+i64 TOrderedStoreManager::ComputeStartingRowIndex() const
+{
+    const auto& storeRowIndexMap = Tablet_->StoreRowIndexMap();
+    if (storeRowIndexMap.empty()) {
+        return Tablet_->GetTrimmedRowCount();
+    }
+
+    const auto& lastStore = storeRowIndexMap.rbegin()->second;
+    YCHECK(lastStore->GetRowCount() > 0);
+    return lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
+}
+
 void TOrderedStoreManager::CreateActiveStore()
 {
     auto storeId = TabletContext_->GenerateId(EObjectType::OrderedDynamicTabletStore);
@@ -121,13 +133,7 @@ void TOrderedStoreManager::CreateActiveStore()
         ->CreateStore(Tablet_, EStoreType::OrderedDynamic, storeId, nullptr)
         ->AsOrderedDynamic();
 
-    i64 startingRowIndex = 0;
-    const auto& storeRowIndexMap = Tablet_->StoreRowIndexMap();
-    if (!storeRowIndexMap.empty()) {
-        const auto& lastStore = storeRowIndexMap.rbegin()->second;
-        YCHECK(lastStore->GetRowCount() > 0);
-        startingRowIndex = lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
-    }
+    auto startingRowIndex = ComputeStartingRowIndex();
     ActiveStore_->SetStartingRowIndex(startingRowIndex);
 
     Tablet_->AddStore(ActiveStore_);
@@ -145,6 +151,11 @@ void TOrderedStoreManager::ResetActiveStore()
 
 void TOrderedStoreManager::OnActiveStoreRotated()
 { }
+
+bool TOrderedStoreManager::IsFlushNeeded() const
+{
+    return ActiveStore_->GetRowCount() > 0;
+}
 
 bool TOrderedStoreManager::IsStoreCompactable(IStorePtr /*store*/) const
 {

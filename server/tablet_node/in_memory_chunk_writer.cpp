@@ -207,11 +207,6 @@ public:
         return result;
     }
 
-    virtual void SetProgress(double progress) override
-    {
-        UnderlyingWriter_->SetProgress(progress);
-    }
-
     virtual const std::vector<TChunkSpec>& GetWrittenChunksMasterMeta() const override
     {
         return UnderlyingWriter_->GetWrittenChunksMasterMeta();

@@ -18,7 +18,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -273,10 +273,10 @@ void TBlobChunkBase::DoReadBlockSet(
             Location_->GetId(),
             workloadDescriptor);
 
-        TScopedTimer timer;
+        TWallTimer timer;
         // NB: The reader is synchronous.
         auto blocksOrError = reader->ReadBlocks(workloadDescriptor, firstBlockIndex, blocksToRead).Get();
-        auto readTime = timer.GetElapsed();
+        auto readTime = timer.GetElapsedTime();
 
         if (!blocksOrError.IsOK()) {
             auto error = TError(

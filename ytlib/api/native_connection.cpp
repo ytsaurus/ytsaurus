@@ -70,12 +70,12 @@ public:
             .AddTag("PrimaryCellTag: %v, ConnectionId: %",
                 CellTagFromId(Config_->PrimaryMaster->CellId),
                 TGuid::Create()))
+        , ChannelFactory_(CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)))
     { }
 
     void Initialize()
     {
-        LightPool_ = New<TThreadPool>(Config_->LightPoolSize, "ClientLight");
-        HeavyPool_ = New<TThreadPool>(Config_->HeavyPoolSize, "ClientHeavy");
+        ThreadPool_ = New<TThreadPool>(Config_->ThreadPoolSize, "Client");
 
         PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
         PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
@@ -178,14 +178,9 @@ public:
         return TimestampProvider_;
     }
 
-    virtual const IInvokerPtr& GetLightInvoker() override
+    virtual const IInvokerPtr& GetInvoker() override
     {
-        return LightPool_->GetInvoker();
-    }
-
-    virtual const IInvokerPtr& GetHeavyInvoker() override
-    {
-        return HeavyPool_->GetInvoker();
+        return ThreadPool_->GetInvoker();
     }
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
@@ -357,8 +352,7 @@ public:
 
     virtual void Terminate() override
     {
-        LightPool_->Shutdown();
-        HeavyPool_->Shutdown();
+        ThreadPool_->Shutdown();
 
         ClusterDirectory_->Clear();
         ClusterDirectorySynchronizer_->Stop();
@@ -373,7 +367,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    const NRpc::IChannelFactoryPtr ChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
 
     TCellId PrimaryMasterCellId_;
     TCellTag PrimaryMasterCellTag_;
@@ -393,8 +387,7 @@ private:
     TClusterDirectoryPtr ClusterDirectory_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
-    TThreadPoolPtr LightPool_;
-    TThreadPoolPtr HeavyPool_;
+    TThreadPoolPtr ThreadPool_;
 
     struct TStickyTransactionEntry
     {

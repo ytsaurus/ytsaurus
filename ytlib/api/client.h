@@ -48,6 +48,8 @@
 
 #include <yt/core/yson/string.h>
 
+#include <yt/core/misc/enum.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -323,7 +325,9 @@ struct TLookupRowsOptions
 
 struct TVersionedLookupRowsOptions
     : public TLookupRowsOptionsBase
-{ };
+{
+    NTableClient::TRetentionConfigPtr RetentionConfig;
+};
 
 struct TSelectRowsOptions
     : public TTabletReadOptions
@@ -567,6 +571,30 @@ struct TGetJobStderrOptions
     : public TTimeoutOptions
 { };
 
+DEFINE_ENUM(EOperationSortDirection,
+    ((None)   (0))
+    ((Past)   (1))
+    ((Future) (2))
+);
+
+struct TListOperationsOptions 
+    : public TTimeoutOptions
+{
+    TNullable<TInstant> FromTime;
+    TNullable<TInstant> ToTime;
+    TNullable<TInstant> CursorTime;
+    EOperationSortDirection CursorDirection = EOperationSortDirection::Past;
+    TNullable<TString> UserFilter;
+    TNullable<NScheduler::EOperationState> StateFilter;
+    TNullable<NScheduler::EOperationType> TypeFilter;
+    TNullable<TString> SubstrFilter;
+    TNullable<TString> Pool;
+    TNullable<bool> WithFailedJobs;
+    bool IncludeArchive = false;
+    bool IncludeCounters = true;
+    ui64 Limit = 100;
+};
+
 DEFINE_ENUM(EJobSortField,
     ((None)       (0))
     ((JobType)    (1))
@@ -586,7 +614,9 @@ struct TListJobsOptions
 {
     TNullable<NJobTrackerClient::EJobType> JobType;
     TNullable<NJobTrackerClient::EJobState> JobState;
-
+    TNullable<TString> Address;
+    TNullable<bool> HasStderr;
+    
     EJobSortField SortField = EJobSortField::StartTime;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
 
@@ -646,6 +676,21 @@ struct TClusterMeta
     std::shared_ptr<NChunkClient::NProto::TMediumDirectory> MediumDirectory;
 };
 
+struct TOperation
+{
+    NScheduler::TOperationId OperationId;
+    NScheduler::EOperationType OperationType;
+    NScheduler::EOperationState OperationState;
+    TString Pool;
+    TString AuthenticatedUser;
+    NYson::TYsonString BriefProgress;
+    NYson::TYsonString BriefSpec;
+    TInstant StartTime;
+    TNullable<TInstant> FinishTime;
+    TNullable<bool> Suspended;
+    TNullable<double> Weight;
+};
+
 struct TJob
 {
     NJobTrackerClient::TJobId JobId;
@@ -659,6 +704,16 @@ struct TJob
     TNullable<ui64> StderrSize;
     TNullable<double> Progress;
     TNullable<TString> CoreInfos;
+};
+
+struct TListOperationsResult {
+    std::vector<TOperation> Operations;
+    TNullable<yhash<TString, i64>> PoolCounts;
+    TNullable<yhash<TString, i64>> UserCounts;
+    TNullable<TEnumIndexedVector<i64, NScheduler::EOperationState>> StateCounts;
+    TNullable<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
+    TNullable<i64> FailedJobsCount;
+    bool Incomplete = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -930,6 +985,9 @@ struct IClient
         const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
+
+    virtual TFuture<TListOperationsResult> ListOperations(
+        const TListOperationsOptions& options = TListOperationsOptions()) = 0;
 
     virtual TFuture<std::vector<TJob>> ListJobs(
         const NJobTrackerClient::TOperationId& operationId,

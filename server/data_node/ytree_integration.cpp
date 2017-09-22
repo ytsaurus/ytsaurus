@@ -5,6 +5,11 @@
 #include "chunk_store.h"
 #include "location.h"
 
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/core/concurrency/scheduler.h>
+
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 
@@ -56,11 +61,15 @@ private:
         }
 
         return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {
+            auto chunkMeta = NYT::NConcurrency::WaitFor(chunk->ReadMeta(TWorkloadDescriptor()))
+                .ValueOrThrow();
+            auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta->extensions());
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("disk_space").Value(chunk->GetInfo().disk_space())
                     .Item("location").Value(chunk->GetLocation()->GetPath())
                     .Item("artifact").Value(IsArtifactChunkId(chunk->GetId()))
+                    .Item("block_count").Value(blocksExt.blocks_size())
                 .EndMap();
         }));
     }

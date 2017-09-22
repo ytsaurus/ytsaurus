@@ -31,7 +31,7 @@ template <class TTypedResponse>
 TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
 {
     YCHECK(!key.empty());
-    auto range = KeyToIndexes.equal_range(key);
+    auto range = KeyToIndexes_.equal_range(key);
     if (range.first == range.second) {
         return Null;
     }
@@ -60,7 +60,7 @@ std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspEx
             responses.push_back(GetResponse<TTypedResponse>(index));
         }
     } else {
-        auto range = KeyToIndexes.equal_range(key);
+        auto range = KeyToIndexes_.equal_range(key);
         for (auto it = range.first; it != range.second; ++it) {
             responses.push_back(GetResponse<TTypedResponse>(it->second));
         }
@@ -78,7 +78,7 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 
     auto outerRequest = ExecuteBatch();
     outerRequest->AddRequest(innerRequest);
-    return outerRequest->Invoke().Apply(BIND([] (TRspExecuteBatchPtr outerResponse) {
+    return outerRequest->Invoke().Apply(BIND([] (const TRspExecuteBatchPtr& outerResponse) {
         return outerResponse->GetResponse<TTypedResponse>(0)
             .ValueOrThrow();
     }));

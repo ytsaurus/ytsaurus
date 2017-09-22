@@ -110,7 +110,7 @@ public:
                 }
                 if (Refs_ != 1) {
                     // Things gone really bad.
-                    NYT::DumpRefCountedTracker();
+                    TRefCountedTrackerFacade::Dump();
                     YCHECK(false && "Hung during ShutdownFinalizerThread");
                 }
             }

@@ -15,7 +15,7 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataCenter
-    : public NObjectServer::IObjectBase
+    : public NObjectServer::TObjectBase
     , public TRefTracked<TDataCenter>
 {
 public:

@@ -1,4 +1,5 @@
 #include "timing.h"
+#include "profiler.h"
 
 #include <util/system/hp_timer.h>
 
@@ -94,11 +95,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuInstant GetCpuInstant()
-{
-    return GetCycleCount();
-}
-
 TInstant GetInstant()
 {
     return CpuInstantToInstant(GetCpuInstant());
@@ -143,6 +139,84 @@ TValue CpuDurationToValue(TCpuDuration duration)
     return duration > 0
         ? DurationToValue(CpuDurationToDuration(duration))
         : -DurationToValue(CpuDurationToDuration(-duration));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TWallTimer::TWallTimer()
+{
+    Restart();
+}
+
+TInstant TWallTimer::GetStartTime() const
+{
+    return CpuInstantToInstant(StartTime_);
+}
+
+TDuration TWallTimer::GetElapsedTime() const
+{
+    return CpuDurationToDuration(Duration_ + GetCurrentDuration());
+}
+
+TValue TWallTimer::GetElapsedValue() const
+{
+    return DurationToValue(GetElapsedTime());
+}
+
+void TWallTimer::Start()
+{
+    StartTime_ = GetCpuInstant();
+}
+
+void TWallTimer::Stop()
+{
+    Duration_ += GetCurrentDuration();
+    StartTime_ = 0;
+}
+
+void TWallTimer::Restart()
+{
+    Duration_ = 0;
+    Start();
+}
+
+TCpuDuration TWallTimer::GetCurrentDuration() const
+{
+    return Max<TCpuDuration>(GetCpuInstant() - StartTime_, 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCpuTimer::TCpuTimer()
+    : NConcurrency::TContextSwitchGuard(
+        [this] () noexcept { Stop(); },
+        [this] () noexcept { Start(); })
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAggregatingTimingGuard::TAggregatingTimingGuard(TDuration* value)
+    : Value_(value)
+    , StartInstant_(GetCpuInstant())
+{ }
+
+TAggregatingTimingGuard::~TAggregatingTimingGuard()
+{
+    *Value_ += CpuDurationToDuration(GetCpuInstant() - StartInstant_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TProfilingTimingGuard::TProfilingTimingGuard(const TProfiler& profiler, TSimpleCounter* counter)
+    : Profiler_(profiler)
+    , Counter_(counter)
+    , StartInstant_(GetCpuInstant())
+{ }
+
+TProfilingTimingGuard::~TProfilingTimingGuard()
+{
+    auto duration = CpuDurationToDuration(GetCpuInstant() - StartInstant_);
+    Profiler_.Increment(*Counter_, duration.MicroSeconds());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

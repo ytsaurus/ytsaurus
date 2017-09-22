@@ -40,7 +40,8 @@ struct TFunctionRegistryBuilder
         TType repeatedArgType,
         TType resultType,
         TSharedRef implementationFile,
-        ICallingConventionPtr callingConvention);
+        ICallingConventionPtr callingConvention,
+        bool useFunctionContext = false);
 
     void RegisterFunction(
         const TString& functionName,

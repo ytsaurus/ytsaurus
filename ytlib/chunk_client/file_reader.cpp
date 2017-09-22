@@ -112,6 +112,11 @@ TChunkId TFileReader::GetChunkId() const
     return ChunkId_;
 }
 
+bool TFileReader::IsValid() const
+{
+    return true;
+}
+
 std::vector<TBlock> TFileReader::DoReadBlocks(
     int firstBlockIndex,
     int blockCount)

@@ -243,7 +243,8 @@ public:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::NoSuchTablet,
                 "No such tablet %v",
-                id);
+                id)
+                << TErrorAttribute("tablet_id", id);
         }
         return tablet;
     }
@@ -254,6 +255,7 @@ public:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -268,6 +270,7 @@ public:
                 timestamp,
                 user,
                 workloadDescriptor,
+                retentionConfig,
                 reader,
                 writer);
         }
@@ -366,7 +369,7 @@ public:
                 TReqWriteRows hydraRequest;
                 ToProto(hydraRequest.mutable_transaction_id(), transactionId);
                 hydraRequest.set_transaction_start_timestamp(transactionStartTimestamp);
-                hydraRequest.set_transaction_timeout(ToProto(transactionTimeout));
+                hydraRequest.set_transaction_timeout(ToProto<i64>(transactionTimeout));
                 ToProto(hydraRequest.mutable_tablet_id(), tabletId);
                 hydraRequest.set_mount_revision(tablet->GetMountRevision());
                 hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
@@ -376,17 +379,17 @@ public:
                 hydraRequest.set_row_count(writeRecord.RowCount);
                 hydraRequest.set_data_weight(writeRecord.DataWeight);
                 ToProto(hydraRequest.mutable_sync_replica_ids(), syncReplicaIds);
-                *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-                    ->SetHandler(BIND(
-                        &TImpl::HydraLeaderExecuteWrite,
-                        MakeStrong(this),
-                        transactionId,
-                        adjustedSignature,
-                        lockless,
-                        writeRecord,
-                        user))
-                    ->Commit()
-                    .As<void>();
+
+                auto mutation = CreateMutation(Slot_->GetHydraManager(), hydraRequest);
+                mutation->SetHandler(BIND(
+                    &TImpl::HydraLeaderExecuteWrite,
+                    MakeStrong(this),
+                    transactionId,
+                    adjustedSignature,
+                    lockless,
+                    writeRecord,
+                    user));
+                *commitResult = mutation->Commit().As<void>();
             } else if (transactionIsFresh) {
                 transactionManager->DropTransaction(transaction);
             }
@@ -1003,6 +1006,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(mountConfig, readerConfig, writerConfig, writerOptions);
 
+        tablet->FillProfilerTags(Slot_->GetCellId());
+        tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
@@ -1097,7 +1102,7 @@ private:
 
                 const auto& storeManager = tablet->GetStoreManager();
                 if (requestedState == ETabletState::UnmountFlushing ||
-                    tablet->GetActiveStore()->GetRowCount() > 0)
+                    storeManager->IsFlushNeeded())
                 {
                     storeManager->Rotate(requestedState == ETabletState::FreezeFlushing);
                 }
@@ -1352,8 +1357,8 @@ private:
                 TWriteContext context;
                 context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
-                YCHECK(storeManager->ExecuteWrites(&reader, &context));
                 UpdateLastCommitTimestamp(tablet, nullptr, context.CommitTimestamp);
+                YCHECK(storeManager->ExecuteWrites(&reader, &context));
 
                 LOG_DEBUG_UNLESS(IsRecovery(), "Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
                     "RowCount: %v, WriteRecordSize: %v, Signature: %x)",
@@ -2051,8 +2056,8 @@ private:
             }
 
             ++lockedRowCount;
-            rowRef.StoreManager->CommitRow(transaction, rowRef);
             UpdateLastCommitTimestamp(rowRef.Store->GetTablet(), transaction, transaction->GetCommitTimestamp());
+            rowRef.StoreManager->CommitRow(transaction, rowRef);
         }
         lockedRows.clear();
 
@@ -2073,9 +2078,9 @@ private:
 
             TWireProtocolReader reader(record.Data);
 
+            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
-            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
 
             locklessRowCount += context.RowCount;
         }
@@ -2174,9 +2179,9 @@ private:
 
             TWireProtocolReader reader(record.Data);
 
+            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
-            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
 
             rowCount += context.RowCount;
         }
@@ -2434,6 +2439,7 @@ private:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -2455,6 +2461,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    std::move(retentionConfig),
                     reader,
                     writer);
                 break;
@@ -2577,8 +2584,9 @@ private:
     void CommitTabletMutation(const ::google::protobuf::MessageLite& message)
     {
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
-        Slot_->GetEpochAutomatonInvoker()->Invoke(
-            BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
+        Slot_->GetEpochAutomatonInvoker()->Invoke(BIND([=, this_ = MakeStrong(this), mutation = std::move(mutation)] {
+            mutation->CommitAndLog(Logger);
+        }));
     }
 
     void PostMasterMutation(const ::google::protobuf::MessageLite& message)
@@ -2814,6 +2822,7 @@ private:
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Too many stores in tablet, all writes disabled")
                 << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
                 << TErrorAttribute("store_count", storeCount)
                 << TErrorAttribute("store_limit", storeLimit);
         }
@@ -2825,8 +2834,19 @@ private:
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Too many overlapping stores in tablet, all writes disabled")
                 << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
                 << TErrorAttribute("overlapping_store_count", overlappingStoreCount)
                 << TErrorAttribute("overlapping_store_limit", overlappingStoreLimit);
+        }
+
+        auto overflow = tablet->GetStoreManager()->CheckOverflow();
+        if (!overflow.IsOK()) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::AllWritesDisabled,
+                "Active store is overflown, all writes disabled")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
+                << overflow;
         }
     }
 
@@ -2848,7 +2868,9 @@ private:
                 NTabletClient::EErrorCode::TabletNotMounted,
                 "Tablet %v is not in %Qlv state",
                 tablet->GetId(),
-                ETabletState::Mounted);
+                ETabletState::Mounted)
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath());
         }
     }
 
@@ -3026,7 +3048,6 @@ private:
         }
 
         tablet->UpdateReplicaCounters();
-
         UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
@@ -3243,6 +3264,7 @@ void TTabletManager::Read(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
@@ -3251,6 +3273,7 @@ void TTabletManager::Read(
         timestamp,
         user,
         workloadDescriptor,
+        std::move(retentionConfig),
         reader,
         writer);
 }

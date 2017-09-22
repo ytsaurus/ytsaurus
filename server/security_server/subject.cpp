@@ -55,7 +55,7 @@ TGroup* TSubject::AsGroup()
     return static_cast<TGroup*>(this);
 }
 
-void TSubject::LinkObject(IObjectBase* object)
+void TSubject::LinkObject(TObjectBase* object)
 {
     auto it = LinkedObjects_.find(object);
     if (it == LinkedObjects_.end()) {
@@ -65,7 +65,7 @@ void TSubject::LinkObject(IObjectBase* object)
     }
 }
 
-void TSubject::UnlinkObject(IObjectBase* object)
+void TSubject::UnlinkObject(TObjectBase* object)
 {
     auto it = LinkedObjects_.find(object);
     YCHECK(it != LinkedObjects_.end());

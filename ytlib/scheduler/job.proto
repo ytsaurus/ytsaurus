@@ -66,6 +66,7 @@ message TUserJobSpec
     optional bool use_yamr_descriptors = 10 [default = false];
 
     required int64 max_stderr_size = 11;
+    optional bool upload_stderr_if_completed = 33 [default = true];
 
     optional bool check_input_fully_consumed = 16 [default = false];
 

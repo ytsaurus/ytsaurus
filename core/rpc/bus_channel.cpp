@@ -17,7 +17,7 @@
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/rpc.pb.h>
 
@@ -66,16 +66,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        TSessionPtr session;
+
         try {
-            auto session = GetOrCreateSession(options.MultiplexingBand);
-            return session->Send(
-                std::move(request),
-                std::move(responseHandler),
-                options);
+            session = GetOrCreateSession(options.MultiplexingBand);
         } catch (const std::exception& ex) {
             responseHandler->HandleError(TError(ex));
             return nullptr;
         }
+
+        return session->Send(
+            std::move(request),
+            std::move(responseHandler),
+            options);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -275,9 +278,9 @@ private:
                 std::move(responseHandler));
 
             auto& header = request->Header();
-            header.set_start_time(ToProto(TInstant::Now()));
+            header.set_start_time(ToProto<i64>(TInstant::Now()));
             if (options.Timeout) {
-                header.set_timeout(ToProto(*options.Timeout));
+                header.set_timeout(ToProto<i64>(*options.Timeout));
                 auto timeoutCookie = TDelayedExecutor::Submit(
                     BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
                     *options.Timeout);
@@ -375,22 +378,20 @@ private:
             {
                 auto guard = Guard(SpinLock_);
 
-                auto it = ActiveRequestMap_.find(requestId);
-                if (it == ActiveRequestMap_.end()) {
-                    LOG_DEBUG("Timeout occurred for an unknown request, ignored (RequestId: %v)",
-                        requestId);
+                if (!requestControl->IsActive(guard)) {
                     return;
                 }
 
-                if (requestControl != it->second) {
-                    LOG_DEBUG("Timeout occurred for a resent request, ignored (RequestId: %v)",
+                auto it = ActiveRequestMap_.find(requestId);
+                if (it != ActiveRequestMap_.end() && requestControl == it->second) {
+                    ActiveRequestMap_.erase(it);
+                } else {
+                    LOG_DEBUG("Timeout occurred for an unknown or resent request (RequestId: %v)",
                         requestId);
-                    return;
                 }
 
                 requestControl->ProfileTimeout();
                 requestControl->Finalize(guard, &responseHandler);
-                ActiveRequestMap_.erase(it);
             }
 
             NotifyError(
@@ -827,13 +828,13 @@ private:
         TDelayedExecutorCookie TimeoutCookie_;
         IClientResponseHandlerPtr ResponseHandler_;
 
-        NProfiling::TScopedTimer Timer_;
+        NProfiling::TWallTimer Timer_;
         TDuration TotalTime_;
 
 
         TDuration DoProfile(NProfiling::TAggregateCounter& counter)
         {
-            auto elapsed = Timer_.GetElapsed();
+            auto elapsed = Timer_.GetElapsedTime();
             Profiler.Update(counter, NProfiling::DurationToValue(elapsed));
             return elapsed;
         }
@@ -853,18 +854,25 @@ class TBusChannelFactory
     : public IChannelFactory
 {
 public:
+    explicit TBusChannelFactory(TTcpBusConfigPtr config)
+        : Config_(ConvertToNode(std::move(config)))
+    { }
+
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto config = TTcpBusClientConfig::CreateTcp(address);
-        auto client = CreateTcpBusClient(config);
-        return CreateBusChannel(client);
+        config->Load(Config_, true, false);
+        auto client = CreateTcpBusClient(std::move(config));
+        return CreateBusChannel(std::move(client));
     }
 
+private:
+    const INodePtr Config_;
 };
 
-IChannelFactoryPtr GetBusChannelFactory()
+IChannelFactoryPtr CreateBusChannelFactory(TTcpBusConfigPtr config)
 {
-    return RefCountedSingleton<TBusChannelFactory>();
+    return New<TBusChannelFactory>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

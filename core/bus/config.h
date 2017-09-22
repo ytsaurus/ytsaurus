@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/net/config.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -10,11 +12,9 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpBusConfig
-    : public NYTree::TYsonSerializable
+    : public NNet::TDialerConfig
 {
 public:
-    int Priority;
-    bool EnableNoDelay;
     bool EnableQuickAck;
 
     int BindRetryCount;
@@ -28,11 +28,6 @@ public:
 
     TTcpBusConfig()
     {
-        RegisterParameter("priority", Priority)
-            .InRange(0, 6)
-            .Default(0);
-        RegisterParameter("enable_no_delay", EnableNoDelay)
-            .Default(true);
         RegisterParameter("enable_quick_ack", EnableQuickAck)
             .Default(true);
         RegisterParameter("bind_retry_count", BindRetryCount)

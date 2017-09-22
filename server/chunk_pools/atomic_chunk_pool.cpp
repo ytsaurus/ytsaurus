@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/core/misc/ref_tracked.h>
+
 namespace NYT {
 namespace NChunkPools {
 
@@ -18,6 +20,7 @@ class TAtomicChunkPool
     , public TChunkPoolOutputBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    , public TRefTracked<TAtomicChunkPool>
 {
 public:
     TAtomicChunkPool()
@@ -41,6 +44,8 @@ public:
 
         DataWeightCounter.Increment(suspendableStripe.GetStatistics().DataWeight);
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
+
+        TotalDataSliceCount += stripe->DataSlices.size();
 
         return cookie;
     }
@@ -94,6 +99,11 @@ public:
     virtual int GetTotalJobCount() const override
     {
         return Finished && HasPrimaryStripes && DataWeightCounter.GetTotal() > 0 ? 1 : 0;
+    }
+
+    virtual i64 GetDataSliceCount() const override
+    {
+        return TotalDataSliceCount;
     }
 
     virtual int GetPendingJobCount() const override
@@ -220,6 +230,11 @@ public:
         Persist(context, ExtractedList);
         Persist(context, SuspendedStripeCount);
         Persist(context, HasPrimaryStripes);
+
+        // COMPAT(psushin).
+        if (context.GetVersion() >= 200512) {
+            Persist(context, TotalDataSliceCount);
+        }
     }
 
 private:
@@ -229,6 +244,8 @@ private:
     TChunkStripeListPtr ExtractedList;
     int SuspendedStripeCount = 0;
     bool HasPrimaryStripes = false;
+
+    i64 TotalDataSliceCount = 0;
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAtomicChunkPool);

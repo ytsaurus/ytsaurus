@@ -34,6 +34,7 @@ TRowRange Intersect(const TRowRange& first, const TRowRange& second);
 bool IsEmpty(const TKeyRange& keyRange);
 bool IsEmpty(const TRowRange& keyRange);
 
+bool IsTrue(TConstExpressionPtr expr);
 TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs);
 TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs);
 

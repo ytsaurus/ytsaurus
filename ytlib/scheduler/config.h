@@ -195,6 +195,24 @@ DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAutoMergeConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TJobIOConfigPtr JobIO;
+
+    TNullable<i64> MaxIntermediateChunkCount;
+    TNullable<i64> ChunkCountPerMergeJob;
+    i64 ChunkSizeThreshold;
+    EAutoMergeMode Mode;
+
+    TAutoMergeConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TAutoMergeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -259,6 +277,8 @@ public:
     //! Generic map to turn on/off different experimental options.
     NYTree::IMapNodePtr NightlyOptions;
 
+    TAutoMergeConfigPtr AutoMerge;
+
     TOperationSpecBase();
 
 private:
@@ -289,7 +309,8 @@ public:
     double CpuLimit;
     TNullable<TDuration> JobTimeLimit;
     i64 MemoryLimit;
-    double MemoryReserveFactor;
+    double UserJobMemoryDigestDefaultValue;
+    double UserJobMemoryDigestLowerBound;
 
     bool IncludeMemoryMappedFiles;
 
@@ -375,8 +396,6 @@ public:
     //! This number, however, is merely an estimate, i.e. some tasks may still
     //! be larger.
     TNullable<i64> DataWeightPerJob;
-
-    bool ConsiderOnlyPrimarySize;
 
     TNullable<int> JobCount;
     TNullable<int> MaxJobCount;
@@ -549,6 +568,8 @@ public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     NTableClient::TKeyColumns JoinBy;
+
+    bool ConsiderOnlyPrimarySize;
 
     TReduceOperationSpecBase();
 

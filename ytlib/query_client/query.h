@@ -33,7 +33,8 @@ DEFINE_ENUM(EExpressionKind,
     (Function)
     (UnaryOp)
     (BinaryOp)
-    (InOp)
+    (In)
+    (Transform)
 );
 
 struct TExpression
@@ -155,20 +156,40 @@ struct TBinaryOpExpression
     TConstExpressionPtr Rhs;
 };
 
-struct TInOpExpressionValuesTag
+struct TInExpressionValuesTag
 { };
 
-struct TInOpExpression
+struct TInExpression
     : public TExpression
 {
-    explicit TInOpExpression(EValueType type)
+    explicit TInExpression(EValueType type)
         : TExpression(type)
     { }
 
-    TInOpExpression(
+    TInExpression(
         std::vector<TConstExpressionPtr> arguments,
         TSharedRange<TRow> values)
         : TExpression(EValueType::Boolean)
+        , Arguments(std::move(arguments))
+        , Values(std::move(values))
+    { }
+
+    std::vector<TConstExpressionPtr> Arguments;
+    TSharedRange<TRow> Values;
+};
+
+struct TTransformExpression
+    : public TExpression
+{
+    explicit TTransformExpression(EValueType type)
+        : TExpression(type)
+    { }
+
+    TTransformExpression(
+        EValueType type,
+        std::vector<TConstExpressionPtr> arguments,
+        TSharedRange<TRow> values)
+        : TExpression(type)
         , Arguments(std::move(arguments))
         , Values(std::move(values))
     { }
@@ -239,11 +260,11 @@ struct TJoinClause
 
     TConstExpressionPtr Predicate;
 
-    bool CanUseSourceRanges;
     std::vector<TConstExpressionPtr> ForeignEquations;
     std::vector<std::pair<TConstExpressionPtr, bool>> SelfEquations;
 
     size_t CommonKeyPrefix = 0;
+    size_t ForeignKeyPrefix = 0;
 
     bool IsLeft = false;
 
@@ -332,7 +353,7 @@ struct TGroupClause
         }
 
         for (const auto& item : AggregateItems) {
-            result.emplace_back(item.Name, isFinal ? item.Expression->Type : item.StateType);
+            result.emplace_back(item.Name, isFinal ? item.ResultType : item.StateType);
         }
 
         return TTableSchema(result);
@@ -385,19 +406,12 @@ DEFINE_REFCOUNTED_TYPE(TProjectClause)
 struct TBaseQuery
     : public TIntrinsicRefCounted
 {
-    TBaseQuery(
-        i64 inputRowLimit,
-        i64 outputRowLimit,
-        const TGuid& id = TGuid::Create())
-        : InputRowLimit(inputRowLimit)
-        , OutputRowLimit(outputRowLimit)
-        , Id(id)
+    explicit TBaseQuery(const TGuid& id = TGuid::Create())
+        : Id(id)
     { }
 
     TBaseQuery(const TBaseQuery& other)
-        : InputRowLimit(other.InputRowLimit)
-        , OutputRowLimit(other.OutputRowLimit)
-        , Id(TGuid::Create())
+        : Id(TGuid::Create())
         , IsFinal(other.IsFinal)
         , GroupClause(other.GroupClause)
         , HavingClause(other.HavingClause)
@@ -408,8 +422,6 @@ struct TBaseQuery
         , InferRanges(other.InferRanges)
     { }
 
-    i64 InputRowLimit;
-    i64 OutputRowLimit;
     TGuid Id;
 
     // Merge and Final
@@ -446,11 +458,8 @@ DEFINE_REFCOUNTED_TYPE(TBaseQuery)
 struct TQuery
     : public TBaseQuery
 {
-    TQuery(
-        i64 inputRowLimit,
-        i64 outputRowLimit,
-        const TGuid& id = TGuid::Create())
-        : TBaseQuery(inputRowLimit, outputRowLimit, id)
+    explicit TQuery(const TGuid& id = TGuid::Create())
+        : TBaseQuery(id)
     { }
 
     TQuery(const TQuery& other)
@@ -537,11 +546,8 @@ DEFINE_REFCOUNTED_TYPE(TQuery)
 struct TFrontQuery
     : public TBaseQuery
 {
-    TFrontQuery(
-        i64 inputRowLimit,
-        i64 outputRowLimit,
-        const TGuid& id = TGuid::Create())
-        : TBaseQuery(inputRowLimit, outputRowLimit, id)
+    explicit TFrontQuery(const TGuid& id = TGuid::Create())
+        : TBaseQuery(id)
     { }
 
     TFrontQuery(const TFrontQuery& other)
@@ -576,6 +582,404 @@ struct TFrontQuery
 };
 
 DEFINE_REFCOUNTED_TYPE(TFrontQuery)
+
+template <class TResult, class TDerived, class TNode, class... TArgs>
+struct TAbstractVisitor
+{
+    TDerived* Derived()
+    {
+        return static_cast<TDerived*>(this);
+    }
+
+    TResult Visit(TNode node, TArgs... args)
+    {
+        auto expr = Derived()->GetExpression(node);
+
+        if (auto literalExpr = expr->template As<TLiteralExpression>()) {
+            return Derived()->OnLiteral(literalExpr, args...);
+        } else if (auto referenceExpr = expr->template As<TReferenceExpression>()) {
+            return Derived()->OnReference(referenceExpr, args...);
+        } else if (auto unaryOp = expr->template As<TUnaryOpExpression>()) {
+            return Derived()->OnUnary(unaryOp, args...);
+        } else if (auto binaryOp = expr->template As<TBinaryOpExpression>()) {
+            return Derived()->OnBinary(binaryOp, args...);
+        } else if (auto functionExpr = expr->template As<TFunctionExpression>()) {
+            return Derived()->OnFunction(functionExpr, args...);
+        } else if (auto inExpr = expr->template As<TInExpression>()) {
+            return Derived()->OnIn(inExpr, args...);
+        } else if (auto transformExpr = expr->template As<TTransformExpression>()) {
+            return Derived()->OnTransform(transformExpr, args...);
+        }
+        Y_UNREACHABLE();
+    }
+
+};
+
+template <class TResult, class TDerived>
+struct TBaseVisitor
+    : TAbstractVisitor<TResult, TDerived, TConstExpressionPtr>
+{
+    const TExpression* GetExpression(const TConstExpressionPtr& expr)
+    {
+        return &*expr;
+    }
+
+};
+
+template <class TDerived>
+struct TVisitor
+    : public TBaseVisitor<void, TDerived>
+{
+    using TBase = TBaseVisitor<void, TDerived>;
+    using TBase::Derived;
+    using TBase::Visit;
+
+    void OnLiteral(const TLiteralExpression* literalExpr)
+    { }
+
+    void OnReference(const TReferenceExpression* referenceExpr)
+    { }
+
+    void OnUnary(const TUnaryOpExpression* unaryExpr)
+    {
+        Visit(unaryExpr->Operand);
+    }
+
+    void OnBinary(const TBinaryOpExpression* binaryExpr)
+    {
+        Visit(binaryExpr->Lhs);
+        Visit(binaryExpr->Rhs);
+    }
+
+    void OnFunction(const TFunctionExpression* functionExpr)
+    {
+        for (auto argument : functionExpr->Arguments) {
+            Visit(argument);
+        }
+    }
+
+    void OnIn(const TInExpression* inExpr)
+    {
+        for (auto argument : inExpr->Arguments) {
+            Visit(argument);
+        }
+    }
+
+    void OnTransform(const TTransformExpression* transformExpr)
+    {
+        for (auto argument : transformExpr->Arguments) {
+            Visit(argument);
+        }
+    }
+
+};
+
+template <class TDerived>
+struct TRewriter
+    : public TBaseVisitor<TConstExpressionPtr, TDerived>
+{
+    using TBase = TBaseVisitor<TConstExpressionPtr, TDerived>;
+    using TBase::Derived;
+    using TBase::Visit;
+
+    TConstExpressionPtr OnLiteral(const TLiteralExpression* literalExpr)
+    {
+        return literalExpr;
+    }
+
+    TConstExpressionPtr OnReference(const TReferenceExpression* referenceExpr)
+    {
+        return referenceExpr;
+    }
+
+    TConstExpressionPtr OnUnary(const TUnaryOpExpression* unaryExpr)
+    {
+        auto newOperand = Visit(unaryExpr->Operand);
+
+        if (newOperand == unaryExpr->Operand) {
+            return unaryExpr;
+        }
+
+        return New<TUnaryOpExpression>(
+            unaryExpr->Type,
+            unaryExpr->Opcode,
+            newOperand);
+    }
+
+    TConstExpressionPtr OnBinary(const TBinaryOpExpression* binaryExpr)
+    {
+        auto newLhs = Visit(binaryExpr->Lhs);
+        auto newRhs = Visit(binaryExpr->Rhs);
+
+        if (newLhs == binaryExpr->Lhs && newRhs == binaryExpr->Rhs) {
+            return binaryExpr;
+        }
+
+        return New<TBinaryOpExpression>(
+            binaryExpr->Type,
+            binaryExpr->Opcode,
+            newLhs,
+            newRhs);
+    }
+
+    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
+    {
+        std::vector<TConstExpressionPtr> newArguments;
+        bool allEqual = true;
+        for (auto argument : functionExpr->Arguments) {
+            auto newArgument = Visit(argument);
+            allEqual = allEqual && newArgument == argument;
+            newArguments.push_back(newArgument);
+        }
+
+        if (allEqual) {
+            return functionExpr;
+        }
+
+        return New<TFunctionExpression>(
+            functionExpr->Type,
+            functionExpr->FunctionName,
+            std::move(newArguments));
+    }
+
+    TConstExpressionPtr OnIn(const TInExpression* inExpr)
+    {
+        std::vector<TConstExpressionPtr> newArguments;
+        bool allEqual = true;
+        for (auto argument : inExpr->Arguments) {
+            auto newArgument = Visit(argument);
+            allEqual = allEqual && newArgument == argument;
+            newArguments.push_back(newArgument);
+        }
+
+        if (allEqual) {
+            return inExpr;
+        }
+
+        return New<TInExpression>(
+            std::move(newArguments),
+            inExpr->Values);
+    }
+
+    TConstExpressionPtr OnTransform(const TTransformExpression* transformExpr)
+    {
+        std::vector<TConstExpressionPtr> newArguments;
+        bool allEqual = true;
+        for (auto argument : transformExpr->Arguments) {
+            auto newArgument = Visit(argument);
+            allEqual = allEqual && newArgument == argument;
+            newArguments.push_back(newArgument);
+        }
+
+        if (allEqual) {
+            return transformExpr;
+        }
+
+        return New<TTransformExpression>(
+            transformExpr->Type,
+            std::move(newArguments),
+            transformExpr->Values);
+    }
+
+};
+
+template <class TDerived, class TNode, class... TArgs>
+struct TAbstractExpressionPrinter
+    : TAbstractVisitor<void, TDerived, TNode, TArgs...>
+{
+    using TBase = TAbstractVisitor<void, TDerived, TNode, TArgs...>;
+    using TBase::Derived;
+    using TBase::Visit;
+
+    TStringBuilder* Builder;
+    bool OmitValues;
+
+    TAbstractExpressionPrinter(TStringBuilder* builder, bool omitValues)
+        : Builder(builder)
+        , OmitValues(omitValues)
+    { }
+
+    static bool CanOmitParenthesis(TConstExpressionPtr expr)
+    {
+        return
+            expr->As<TLiteralExpression>() ||
+            expr->As<TReferenceExpression>() ||
+            expr->As<TFunctionExpression>();
+    };
+
+    const TExpression* GetExpression(const TConstExpressionPtr& expr)
+    {
+        return &*expr;
+    }
+
+    void OnOperand(const TUnaryOpExpression* unaryExpr, TArgs... args)
+    {
+        Visit(unaryExpr->Operand, args...);
+    }
+
+    void OnLhs(const TBinaryOpExpression* binaryExpr, TArgs... args)
+    {
+        Visit(binaryExpr->Lhs, args...);
+    }
+
+    void OnRhs(const TBinaryOpExpression* binaryExpr, TArgs... args)
+    {
+        Visit(binaryExpr->Rhs, args...);
+    }
+
+    template <class T>
+    void OnArguments(const T* expr, TArgs... args)
+    {
+        bool needComma = false;
+        for (const auto& argument : expr->Arguments) {
+            if (needComma) {
+                Builder->AppendString(", ");
+            }
+            Visit(argument, args...);
+            needComma = true;
+        }
+    }
+
+    void OnLiteral(const TLiteralExpression* literalExpr, TArgs... args)
+    {
+        if (OmitValues) {
+            Builder->AppendChar('?');
+        } else {
+            Builder->AppendString(ToString(static_cast<TValue>(literalExpr->Value)));
+        }
+    }
+
+    void OnReference(const TReferenceExpression* referenceExpr, TArgs... args)
+    {
+        Builder->AppendString(referenceExpr->ColumnName);
+    }
+
+    void OnUnary(const TUnaryOpExpression* unaryExpr, TArgs... args)
+    {
+        Builder->AppendString(GetUnaryOpcodeLexeme(unaryExpr->Opcode));
+        Builder->AppendChar(' ');
+
+        auto needParenthesis = !CanOmitParenthesis(unaryExpr->Operand);
+        if (needParenthesis) {
+            Builder->AppendChar('(');
+        }
+        Derived()->OnOperand(unaryExpr, args...);
+        if (needParenthesis) {
+            Builder->AppendChar(')');
+        }
+    }
+
+    void OnBinary(const TBinaryOpExpression* binaryExpr, TArgs... args)
+    {
+        auto needParenthesisLhs = !CanOmitParenthesis(binaryExpr->Lhs);
+        if (needParenthesisLhs) {
+            Builder->AppendChar('(');
+        }
+        Derived()->OnLhs(binaryExpr, args...);
+        if (needParenthesisLhs) {
+            Builder->AppendChar(')');
+        }
+
+        Builder->AppendChar(' ');
+        Builder->AppendString(GetBinaryOpcodeLexeme(binaryExpr->Opcode));
+        Builder->AppendChar(' ');
+
+        auto needParenthesisRhs = !CanOmitParenthesis(binaryExpr->Rhs);
+        if (needParenthesisRhs) {
+            Builder->AppendChar('(');
+        }
+        Derived()->OnRhs(binaryExpr, args...);
+        if (needParenthesisRhs) {
+            Builder->AppendChar(')');
+        }
+    }
+
+    void OnFunction(const TFunctionExpression* functionExpr, TArgs... args)
+    {
+        Builder->AppendString(functionExpr->FunctionName);
+        Builder->AppendChar('(');
+        Derived()->OnArguments(functionExpr, args...);
+        Builder->AppendChar(')');
+    }
+
+    void OnIn(const TInExpression* inExpr, TArgs... args)
+    {
+        auto needParenthesis = inExpr->Arguments.size() > 1;
+        if (needParenthesis) {
+            Builder->AppendChar('(');
+        }
+        Derived()->OnArguments(inExpr, args...);
+        if (needParenthesis) {
+            Builder->AppendChar(')');
+        }
+
+        Builder->AppendString(" IN (");
+
+        if (OmitValues) {
+            Builder->AppendString("??");
+        } else {
+            JoinToString(
+                Builder,
+                inExpr->Values.begin(),
+                inExpr->Values.end(),
+                [&] (TStringBuilder* builder, const TRow& row) {
+                    builder->AppendString(ToString(row));
+                });
+        }
+        Builder->AppendChar(')');
+    }
+
+    void OnTransform(const TTransformExpression* transformExpr, TArgs... args)
+    {
+        Builder->AppendString("TRANSFORM(");
+        size_t argumentCount = transformExpr->Arguments.size();
+        auto needParenthesis = argumentCount > 1;
+        if (needParenthesis) {
+            Builder->AppendChar('(');
+        }
+        Derived()->OnArguments(transformExpr, args...);
+        if (needParenthesis) {
+            Builder->AppendChar(')');
+        }
+
+        Builder->AppendString(", (");
+        if (OmitValues) {
+            Builder->AppendString("??");
+        } else {
+            JoinToString(
+                Builder,
+                transformExpr->Values.begin(),
+                transformExpr->Values.end(),
+                [&] (TStringBuilder* builder, const TRow& row) {
+                    builder->AppendChar('[');
+                    JoinToString(
+                        builder,
+                        row.Begin(),
+                        row.Begin() + argumentCount,
+                        [] (TStringBuilder* builder, const TValue& value) {
+                            builder->AppendString(ToString(value));
+                        });
+                    builder->AppendChar(']');
+                });
+        }
+        Builder->AppendString("), (");
+
+        if (OmitValues) {
+            Builder->AppendString("??");
+        } else {
+            JoinToString(
+                Builder,
+                transformExpr->Values.begin(),
+                transformExpr->Values.end(),
+                [&] (TStringBuilder* builder, const TRow& row) {
+                    builder->AppendString(ToString(row[argumentCount]));
+                });
+        }
+
+        Builder->AppendString("))");
+    }
+
+};
 
 void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original);
 void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized);

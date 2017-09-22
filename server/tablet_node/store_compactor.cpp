@@ -236,7 +236,7 @@ private:
         }
 
         const auto& config = tablet->GetConfig();
-        if (config->DisableCompactionAndPartitioning) {
+        if (!config->EnableCompactionAndPartitioning) {
             return;
         }
 
@@ -1052,7 +1052,8 @@ private:
 
             partition->SetCompactionTime(TInstant::Now());
 
-            LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
+            LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, "
+                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),

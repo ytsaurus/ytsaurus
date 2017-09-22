@@ -48,8 +48,10 @@ void ExtractFunctionNames(
     } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
         ExtractFunctionNames(binaryExpr->Lhs, functions);
         ExtractFunctionNames(binaryExpr->Rhs, functions);
-    } else if (auto inExpr = expr->As<NAst::TInOpExpression>()) {
+    } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
         ExtractFunctionNames(inExpr->Expr, functions);
+    } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
+        ExtractFunctionNames(transformExpr->Expr, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (expr->As<NAst::TAliasExpression>()) {
@@ -118,7 +120,17 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
         THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
     }
 
-    if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>() || op->As<TInOpExpression>()) {
+    if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>()) {
+        return;
+    } if (auto inExpr = op->As<TInExpression>()) {
+        for (const auto& argument : inExpr->Arguments) {
+            CheckExpressionDepth(argument, depth + 1);
+        }
+        return;
+    } if (auto transformExpr = op->As<TTransformExpression>()) {
+        for (const auto& argument : transformExpr->Arguments) {
+            CheckExpressionDepth(argument, depth + 1);
+        }
         return;
     } else if (auto functionExpr = op->As<TFunctionExpression>()) {
         for (const auto& argument : functionExpr->Arguments) {
@@ -236,11 +248,14 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
                 EValueType::Uint64,
                 EValueType::Double});
         case NAst::TLiteralValue::TagOf<double>():
-            return TTypeSet({EValueType::Double});
+            return TTypeSet({
+                EValueType::Double});
         case NAst::TLiteralValue::TagOf<bool>():
-            return TTypeSet({EValueType::Boolean});
+            return TTypeSet({
+                EValueType::Boolean});
         case NAst::TLiteralValue::TagOf<TString>():
-            return TTypeSet({EValueType::String});
+            return TTypeSet({
+                EValueType::String});
         default:
             Y_UNREACHABLE();
     }
@@ -259,10 +274,11 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
             return MakeUnversionedDoubleValue(literalValue.As<double>());
         case NAst::TLiteralValue::TagOf<bool>():
             return MakeUnversionedBooleanValue(literalValue.As<bool>());
-        case NAst::TLiteralValue::TagOf<TString>():
-            return MakeUnversionedStringValue(
-                literalValue.As<TString>().c_str(),
-                literalValue.As<TString>().length());
+        case NAst::TLiteralValue::TagOf<TString>():{
+            const auto& data = literalValue.As<TString>();
+            return MakeUnversionedStringValue(TStringBuf(data.c_str(), data.length()));
+        }
+
         default:
             Y_UNREACHABLE();
     }
@@ -278,7 +294,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
     std::vector<TRow> rows;
     for (const auto& tuple : literalTuples) {
         if (tuple.size() != argTypes.size()) {
-            THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
+            THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
                 << TErrorAttribute("source", source);
         }
         for (int i = 0; i < tuple.size(); ++i) {
@@ -291,7 +307,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
                 if (IsArithmeticType(valueType) && IsArithmeticType(argTypes[i])) {
                     value = CastValueWithCheck(value, argTypes[i]);
                 } else {
-                    THROW_ERROR_EXCEPTION("IN operator types mismatch")
+                    THROW_ERROR_EXCEPTION("Types mismatch in tuple")
                     << TErrorAttribute("source", source)
                     << TErrorAttribute("actual_type", valueType)
                     << TErrorAttribute("expected_type", argTypes[i]);
@@ -582,163 +598,6 @@ TNullable<TUnversionedValue> FoldConstants(
     return Null;
 }
 
-template <class TResult, class TDerived>
-struct TBaseVisitor
-{
-    TDerived* Derived()
-    {
-        return static_cast<TDerived*>(this);
-    }
-
-    TResult Visit(TConstExpressionPtr expr)
-    {
-        if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-            return Derived()->OnReference(referenceExpr);
-        } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
-            return Derived()->OnLiteral(literalExpr);
-        } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-            return Derived()->OnUnary(unaryOp);
-        } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-            return Derived()->OnBinary(binaryOp);
-        } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-            return Derived()->OnFunction(functionExpr);
-        } else if (auto inExpr = expr->As<TInOpExpression>()) {
-            return Derived()->OnIn(inExpr);
-        }
-        Y_UNREACHABLE();
-    }
-};
-
-template <class TDerived>
-struct TVisitor
-    : public TBaseVisitor<void, TDerived>
-{
-    using TBase = TBaseVisitor<TConstExpressionPtr, TDerived>;
-    using TBase::Derived;
-    using TBase::Visit;
-
-    void OnLiteral(const TLiteralExpression* literalExpr)
-    { }
-
-    void OnReference(const TReferenceExpression* referenceExpr)
-    { }
-
-    void OnUnary(const TUnaryOpExpression* unaryExpr)
-    {
-        Derived()->Visit(unaryExpr->Operand);
-    }
-
-    void OnBinary(const TBinaryOpExpression* binaryExpr)
-    {
-        Derived()->Visit(binaryExpr->Lhs);
-        Derived()->Visit(binaryExpr->Rhs);
-    }
-
-    void OnFunction(const TFunctionExpression* functionExpr)
-    {
-        for (auto argument : functionExpr->Arguments) {
-            Derived()->Visit(argument);
-        }
-    }
-
-    void OnIn(const TInOpExpression* inExpr)
-    {
-        for (auto argument : inExpr->Arguments) {
-            Derived()->Visit(argument);
-        }
-    }
-
-};
-
-template <class TDerived>
-struct TRewriter
-    : public TBaseVisitor<TConstExpressionPtr, TDerived>
-{
-    using TBase = TBaseVisitor<TConstExpressionPtr, TDerived>;
-    using TBase::Derived;
-    using TBase::Visit;
-
-    TConstExpressionPtr OnLiteral(const TLiteralExpression* literalExpr)
-    {
-        return literalExpr;
-    }
-
-    TConstExpressionPtr OnReference(const TReferenceExpression* referenceExpr)
-    {
-        return referenceExpr;
-    }
-
-    TConstExpressionPtr OnUnary(const TUnaryOpExpression* unaryExpr)
-    {
-        auto newOperand = Visit(unaryExpr->Operand);
-
-        if (newOperand == unaryExpr->Operand) {
-            return unaryExpr;
-        }
-
-        return New<TUnaryOpExpression>(
-            unaryExpr->Type,
-            unaryExpr->Opcode,
-            newOperand);
-    }
-
-    TConstExpressionPtr OnBinary(const TBinaryOpExpression* binaryExpr)
-    {
-        auto newLhs = Visit(binaryExpr->Lhs);
-        auto newRhs = Visit(binaryExpr->Rhs);
-
-        if (newLhs == binaryExpr->Lhs && newRhs == binaryExpr->Rhs) {
-            return binaryExpr;
-        }
-
-        return New<TBinaryOpExpression>(
-            binaryExpr->Type,
-            binaryExpr->Opcode,
-            newLhs,
-            newRhs);
-    }
-
-    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
-    {
-        std::vector<TConstExpressionPtr> newArguments;
-        bool allEqual = true;
-        for (auto argument : functionExpr->Arguments) {
-            auto newArgument = Visit(argument);
-            allEqual = allEqual && newArgument == argument;
-            newArguments.push_back(newArgument);
-        }
-
-        if (allEqual) {
-            return functionExpr;
-        }
-
-        return New<TFunctionExpression>(
-            functionExpr->Type,
-            functionExpr->FunctionName,
-            std::move(newArguments));
-    }
-
-    TConstExpressionPtr OnIn(const TInOpExpression* inExpr)
-    {
-        std::vector<TConstExpressionPtr> newArguments;
-        bool allEqual = true;
-        for (auto argument : inExpr->Arguments) {
-            auto newArgument = Visit(argument);
-            allEqual = allEqual && newArgument == argument;
-            newArguments.push_back(newArgument);
-        }
-
-        if (allEqual) {
-            return inExpr;
-        }
-
-        return New<TInOpExpression>(
-            std::move(newArguments),
-            inExpr->Values);
-    }
-
-};
-
 struct TNotExpressionPropagator
     : TRewriter<TNotExpressionPropagator>
 {
@@ -794,6 +653,54 @@ struct TNotExpressionPropagator
         }
 
         return TBase::OnUnary(unaryExpr);
+    }
+};
+
+struct TCastEliminator
+    : TRewriter<TCastEliminator>
+{
+    using TBase = TRewriter<TCastEliminator>;
+
+    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
+    {
+        if (IsUserCastFunction(functionExpr->FunctionName)) {
+            YCHECK(functionExpr->Arguments.size() == 1);
+
+            if (functionExpr->Type == functionExpr->Arguments[0]->Type) {
+                return Visit(functionExpr->Arguments[0]);
+            }
+        }
+
+        return TBase::OnFunction(functionExpr);
+    }
+};
+
+struct TExpressionSimplifier
+    : TRewriter<TExpressionSimplifier>
+{
+    using TBase = TRewriter<TExpressionSimplifier>;
+
+    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
+    {
+        if (functionExpr->FunctionName == "if") {
+            if (auto functionCondition = functionExpr->Arguments[0]->As<TFunctionExpression>()) {
+                auto reference1 = functionExpr->Arguments[2]->As<TReferenceExpression>();
+                if (functionCondition->FunctionName == "is_null" && reference1) {
+                    auto reference0 = functionCondition->Arguments[0]->As<TReferenceExpression>();
+                    if (reference0 && reference1->ColumnName == reference0->ColumnName) {
+                        return New<TFunctionExpression>(
+                            functionExpr->Type,
+                            "if_null",
+                            std::vector<TConstExpressionPtr>{
+                                functionCondition->Arguments[0],
+                                functionExpr->Arguments[1]});
+
+                    }
+                }
+            }
+        }
+
+        return TBase::OnFunction(functionExpr);
     }
 };
 
@@ -974,7 +881,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
         EBinaryOp::Divide})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double}),
+            TTypeSet({EValueType::Int64, EValueType::Uint64, EValueType::Double}),
             Null
         };
     }
@@ -987,7 +894,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
         EBinaryOp::BitAnd})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64}),
+            TTypeSet({EValueType::Int64, EValueType::Uint64}),
             Null
         };
     }
@@ -997,7 +904,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
         EBinaryOp::Or})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Boolean}),
+            TTypeSet({EValueType::Boolean}),
             EValueType::Boolean
         };
     }
@@ -1012,12 +919,12 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
     {
         result[op] = {
             TTypeSet({
-                EValueType::Null,
                 EValueType::Int64,
                 EValueType::Uint64,
                 EValueType::Double,
                 EValueType::Boolean,
-                EValueType::String}),
+                EValueType::String,
+                EValueType::Any}),
             EValueType::Boolean
         };
     }
@@ -1040,18 +947,18 @@ TEnumIndexedVector<TOperatorTyper, EUnaryOp> BuildUnaryOperatorTypers()
         EUnaryOp::Minus})
     {
         result[op] = {
-            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double}),
+            TTypeSet({EValueType::Int64, EValueType::Uint64, EValueType::Double}),
             Null
         };
     }
 
     result[EUnaryOp::BitNot] = {
-        TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64}),
+        TTypeSet({EValueType::Int64, EValueType::Uint64}),
         Null
     };
 
     result[EUnaryOp::Not] = {
-        TTypeSet({EValueType::Null, EValueType::Boolean}),
+        TTypeSet({EValueType::Boolean}),
         Null
     };
 
@@ -1072,6 +979,10 @@ TTypeSet InferBinaryExprTypes(
     const TStringBuf& lhsSource,
     const TStringBuf& rhsSource)
 {
+    if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
+        return TTypeSet{EValueType::Boolean};
+    }
+
     const auto& binaryOperators = GetBinaryOperatorTypers();
 
     *genericAssignments = binaryOperators[opCode].Constraint;
@@ -1107,8 +1018,27 @@ TTypeSet InferBinaryExprTypes(
 std::pair<EValueType, EValueType> RefineBinaryExprTypes(
     EBinaryOp opCode,
     EValueType resultType,
-    TTypeSet* genericAssignments)
+    const TTypeSet& lhsTypes,
+    const TTypeSet& rhsTypes,
+    TTypeSet* genericAssignments,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource)
 {
+    if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
+        // empty intersersection (Any, alpha) || (alpha, Any), where alpha = {bool, int, uint, double, string}
+        if (lhsTypes.Get(EValueType::Any)) {
+            return std::make_pair(EValueType::Any, rhsTypes.GetFront());
+        }
+
+        if (rhsTypes.Get(EValueType::Any)) {
+            return std::make_pair(lhsTypes.GetFront(), EValueType::Any);
+        }
+
+        THROW_ERROR_EXCEPTION("Type mismatch in expression")
+            << TErrorAttribute("lhs_source", lhsSource)
+            << TErrorAttribute("rhs_source", rhsSource);
+    }
+
     const auto& binaryOperators = GetBinaryOperatorTypers();
 
     EValueType argType;
@@ -1170,6 +1100,17 @@ EValueType RefineUnaryExprTypes(
     return argType;
 }
 
+EValueType GetFrontWithCheck(const TTypeSet& typeSet, const TStringBuf& source)
+{
+    auto result = typeSet.GetFront();
+    if (result == EValueType::Null) {
+        THROW_ERROR_EXCEPTION("Type inference failed")
+            << TErrorAttribute("actual_type", EValueType::Null)
+            << TErrorAttribute("source", source);
+    }
+    return result;
+}
+
 struct TTypedExpressionBuilder
 {
     const TString& Source;
@@ -1206,7 +1147,7 @@ struct TTypedExpressionBuilder
             }
 
             THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-                NAst::FormatReference(reference));
+                NAst::InferColumnName(reference));
         }
 
         TTypeSet resultTypes({column->Type});
@@ -1242,7 +1183,7 @@ struct TTypedExpressionBuilder
             const auto& descriptor = Functions->GetFunction(functionName);
 
             if (const auto* aggregateFunction = descriptor->As<TAggregateTypeInferrer>()) {
-                auto subexprName = InferName(*functionExpr);
+                auto subexprName = InferColumnName(*functionExpr);
 
                 try {
                     if (functionExpr->Arguments.size() != 1) {
@@ -1355,13 +1296,17 @@ struct TTypedExpressionBuilder
                 TNullable<size_t> offset) -> TUntypedExpression
             {
                 TTypeSet genericAssignments;
+
+                auto lhsSource = offset ? binaryExpr->Lhs[*offset]->GetSource(Source) : "";
+                auto rhsSource = offset ? binaryExpr->Rhs[*offset]->GetSource(Source) : "";
+
                 auto resultTypes = InferBinaryExprTypes(
                     op,
                     lhs.FeasibleTypes,
                     rhs.FeasibleTypes,
                     &genericAssignments,
-                    offset ? binaryExpr->Lhs[*offset]->GetSource(Source) : "",
-                    offset ? binaryExpr->Rhs[*offset]->GetSource(Source) : "");
+                    lhsSource,
+                    rhsSource);
 
                 if (lhs.IsConstant && rhs.IsConstant) {
                     auto lhsValue = lhs.Generator(lhs.FeasibleTypes.GetFront());
@@ -1376,11 +1321,22 @@ struct TTypedExpressionBuilder
                     }
                 }
 
-                TExpressionGenerator generator = [op, lhs, rhs, genericAssignments] (EValueType type) mutable {
+                TExpressionGenerator generator = [
+                    op,
+                    lhs,
+                    rhs,
+                    genericAssignments,
+                    lhsSource,
+                    rhsSource
+                ] (EValueType type) mutable {
                     auto argTypes = RefineBinaryExprTypes(
                         op,
                         type,
-                        &genericAssignments);
+                        lhs.FeasibleTypes,
+                        rhs.FeasibleTypes,
+                        &genericAssignments,
+                        lhsSource,
+                        rhsSource);
 
                     return New<TBinaryOpExpression>(
                         type,
@@ -1408,11 +1364,7 @@ struct TTypedExpressionBuilder
                     auto next = gen(offset + 1, keySize, op);
                     auto eq = makeBinaryExpr(
                         EBinaryOp::And,
-                        makeBinaryExpr(
-                            EBinaryOp::Equal,
-                            untypedLhs,
-                            untypedRhs,
-                            offset),
+                        makeBinaryExpr(EBinaryOp::Equal, untypedLhs, untypedRhs, offset),
                         std::move(next),
                         Null);
                     if (op == EBinaryOp::Less || op == EBinaryOp::LessOrEqual) {
@@ -1435,12 +1387,7 @@ struct TTypedExpressionBuilder
                 }
             };
 
-            if (binaryExpr->Opcode == EBinaryOp::Less
-                || binaryExpr->Opcode == EBinaryOp::LessOrEqual
-                || binaryExpr->Opcode == EBinaryOp::Greater
-                || binaryExpr->Opcode == EBinaryOp::GreaterOrEqual
-                || binaryExpr->Opcode == EBinaryOp::Equal) {
-
+            if (IsRelationalBinaryOp(binaryExpr->Opcode)) {
                 if (binaryExpr->Lhs.size() != binaryExpr->Rhs.size()) {
                     THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
                         binaryExpr->Lhs.size(),
@@ -1472,7 +1419,7 @@ struct TTypedExpressionBuilder
 
                 return makeBinaryExpr(binaryExpr->Opcode, std::move(untypedLhs), std::move(untypedRhs), 0);
             }
-        } else if (auto inExpr = expr->As<NAst::TInOpExpression>()) {
+        } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             std::vector<TConstExpressionPtr> typedArguments;
             std::unordered_set<TString> columnNames;
             std::vector<EValueType> argTypes;
@@ -1480,11 +1427,7 @@ struct TTypedExpressionBuilder
             for (const auto& argument : inExpr->Expr) {
                 auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
 
-                if (untypedArgument.FeasibleTypes.GetSize() != 1) {
-                    THROW_ERROR_EXCEPTION("Cannot infer argument type for IN operator")
-                        << TErrorAttribute("source", argument->GetSource(Source));
-                }
-                EValueType argType = untypedArgument.FeasibleTypes.GetFront();
+                EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
                 auto typedArgument = untypedArgument.Generator(argType);
 
                 typedArguments.push_back(typedArgument);
@@ -1498,13 +1441,122 @@ struct TTypedExpressionBuilder
             }
 
             auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, inExpr->GetSource(Source));
-            auto result = New<TInOpExpression>(std::move(typedArguments), std::move(capturedRows));
+            auto result = New<TInExpression>(std::move(typedArguments), std::move(capturedRows));
 
             TTypeSet resultTypes({EValueType::Boolean});
             TExpressionGenerator generator = [result] (EValueType type) mutable {
                 return result;
             };
             return TUntypedExpression{resultTypes, std::move(generator), false};
+        } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
+            std::vector<TConstExpressionPtr> typedArguments;
+            std::unordered_set<TString> columnNames;
+            std::vector<EValueType> argTypes;
+
+            auto source = transformExpr->GetSource(Source);
+
+            for (const auto& argument : transformExpr->Expr) {
+                auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
+
+                EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
+                auto typedArgument = untypedArgument.Generator(argType);
+
+                typedArguments.push_back(typedArgument);
+                argTypes.push_back(argType);
+                if (auto reference = typedArgument->As<TReferenceExpression>()) {
+                    if (!columnNames.insert(reference->ColumnName).second) {
+                        THROW_ERROR_EXCEPTION("TRANSFORM operator has multiple references to column %Qv",
+                        reference->ColumnName)
+                            << TErrorAttribute("source", source);
+                    }
+                }
+            }
+
+            if (transformExpr->From.size() != transformExpr->To.size()) {
+                THROW_ERROR_EXCEPTION("Size mismatch for source and result arrays in TRANSFORM operator")
+                    << TErrorAttribute("source", source);
+            }
+
+            TTypeSet resultTypes({
+                EValueType::Null,
+                EValueType::Int64,
+                EValueType::Uint64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::String,
+                EValueType::Any});
+
+            for (const auto& tuple : transformExpr->To) {
+                if (tuple.size() != 1) {
+                    THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                        << TErrorAttribute("source", source);
+                }
+
+                auto valueTypes = GetTypes(tuple.front());
+
+                if (!Unify(&resultTypes, valueTypes)) {
+                    THROW_ERROR_EXCEPTION("Types mismatch in tuple")
+                        << TErrorAttribute("source", source)
+                        << TErrorAttribute("actual_type", ToString(valueTypes))
+                        << TErrorAttribute("expected_type", ToString(resultTypes));
+                }
+            }
+
+            auto resultType = GetFrontWithCheck(resultTypes, source);
+
+            auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
+            TUnversionedRowBuilder rowBuilder;
+            std::vector<TRow> rows;
+
+            for (size_t index = 0; index < transformExpr->From.size(); ++index) {
+                const auto& sourceTuple = transformExpr->From[index];
+                if (sourceTuple.size() != argTypes.size()) {
+                    THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
+                        << TErrorAttribute("source", source);
+                }
+                for (int i = 0; i < sourceTuple.size(); ++i) {
+                    auto valueType = GetType(sourceTuple[i]);
+                    auto value = GetValue(sourceTuple[i]);
+
+                    if (valueType == EValueType::Null) {
+                        value = MakeUnversionedSentinelValue(EValueType::Null);
+                    } else if (valueType != argTypes[i]) {
+                        if (IsArithmeticType(valueType) && IsArithmeticType(argTypes[i])) {
+                            value = CastValueWithCheck(value, argTypes[i]);
+                        } else {
+                            THROW_ERROR_EXCEPTION("Types mismatch in tuple")
+                            << TErrorAttribute("source", source)
+                            << TErrorAttribute("actual_type", valueType)
+                            << TErrorAttribute("expected_type", argTypes[i]);
+                        }
+                    }
+                    rowBuilder.AddValue(value);
+                }
+
+                const auto& resultTuple = transformExpr->To[index];
+
+                YCHECK(resultTuple.size() == 1);
+                auto value = CastValueWithCheck(GetValue(resultTuple.front()), resultType);
+                rowBuilder.AddValue(value);
+
+                rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
+                rowBuilder.Reset();
+            }
+
+            std::sort(rows.begin(), rows.end(), [argCount = argTypes.size()] (TRow lhs, TRow rhs) {
+                return CompareRows(lhs, rhs, argCount) < 0;
+            });
+
+            auto capturedRows =  MakeSharedRange(std::move(rows), std::move(rowBuffer));
+            auto result = New<TTransformExpression>(
+                resultType,
+                std::move(typedArguments),
+                std::move(capturedRows));
+
+            TExpressionGenerator generator = [result] (EValueType type) mutable {
+                return result;
+            };
+            return TUntypedExpression{TTypeSet({resultType}), std::move(generator), false};
         }
 
         Y_UNREACHABLE();
@@ -1524,7 +1576,14 @@ struct TTypedExpressionBuilder
     {
         auto expressionTyper = BuildUntypedExpression(expr, schema);
         YCHECK(!expressionTyper.FeasibleTypes.IsEmpty());
-        return TNotExpressionPropagator().Visit(expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront()));
+
+        auto result = expressionTyper.Generator(
+            GetFrontWithCheck(expressionTyper.FeasibleTypes, expr->GetSource(Source)));
+
+        result = TCastEliminator().Visit(result);
+        result = TExpressionSimplifier().Visit(result);
+        result = TNotExpressionPropagator().Visit(result);
+        return result;
     }
 
 };
@@ -1640,7 +1699,7 @@ public:
         auto column = SourceTableSchema_.FindColumn(reference.ColumnName);
 
         if (column) {
-            auto formattedName = NAst::FormatReference(reference);
+            auto formattedName = NAst::InferColumnName(reference);
             if (size_t collisionIndex = ColumnsCollisions_.emplace(reference.ColumnName, 0).first->second++) {
                 formattedName = Format("%v#%v", formattedName, collisionIndex);
             }
@@ -1697,7 +1756,7 @@ public:
                 Foreign_->GetColumnPtr(reference))
             {
                 THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables",
-                    NAst::FormatReference(reference));
+                    NAst::InferColumnName(reference));
             }
             SelfJoinedColumns_->push_back(column->Name);
             return column;
@@ -1816,6 +1875,11 @@ public:
             }
 
             auto typedOperand = untypedOperand.Generator(argType);
+
+            typedOperand = TCastEliminator().Visit(typedOperand);
+            typedOperand = TExpressionSimplifier().Visit(typedOperand);
+            typedOperand = TNotExpressionPropagator().Visit(typedOperand);
+
             CheckExpressionDepth(typedOperand);
 
             AggregateItems_->emplace_back(
@@ -1876,7 +1940,7 @@ TConstGroupClausePtr BuildGroupClause(
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
         CheckExpressionDepth(typedExpr);
-        groupClause->AddGroupItem(typedExpr, InferName(*expressionAst));
+        groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
     }
 
     schemaProxy = New<TGroupSchemaProxy>(
@@ -1922,7 +1986,7 @@ TConstProjectClausePtr BuildProjectClause(
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
         CheckExpressionDepth(typedExpr);
-        projectClause->AddProjection(typedExpr, InferName(*expressionAst));
+        projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
     }
 
     schemaProxy = New<TScanSchemaProxy>(projectClause->GetTableSchema(), Null);
@@ -2056,16 +2120,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
     const TFunctionsFetcher& functionsFetcher,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
     TTimestamp timestamp)
 {
     return PreparePlanFragment(
         callbacks,
         *ParseSource(source, EParseMode::Query),
         functionsFetcher,
-        inputRowLimit,
-        outputRowLimit,
         timestamp);
 }
 
@@ -2073,11 +2133,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
     const TFunctionsFetcher& functionsFetcher,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
     TTimestamp timestamp)
 {
-    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
+    auto query = New<TQuery>(TGuid::Create());
 
     auto Logger = MakeQueryLogger(query);
 
@@ -2125,6 +2183,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
 
+    std::vector<TJoinClausePtr> joinClauses;
     for (size_t joinIndex = 0; joinIndex < ast.Joins.size(); ++joinIndex) {
         const auto& join = ast.Joins[joinIndex];
         const auto& foreignDataSplit = dataSplits[joinIndex + 1];
@@ -2152,12 +2211,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
             if (!selfColumn || !foreignColumn) {
                 THROW_ERROR_EXCEPTION("Column %Qv not found",
-                    NAst::FormatReference(referenceExpr->Reference));
+                    NAst::InferColumnName(referenceExpr->Reference));
             }
 
             if (selfColumn->Type != foreignColumn->Type) {
                 THROW_ERROR_EXCEPTION("Column %Qv type mismatch",
-                    NAst::FormatReference(referenceExpr->Reference))
+                    NAst::InferColumnName(referenceExpr->Reference))
                     << TErrorAttribute("self_type", selfColumn->Type)
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
             }
@@ -2200,7 +2259,6 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         std::vector<std::pair<TConstExpressionPtr, bool>> keySelfEquations(foreignKeyColumnsCount);
         std::vector<TConstExpressionPtr> keyForeignEquations(foreignKeyColumnsCount);
 
-        bool canUseSourceRanges = true;
         for (size_t equationIndex = 0; equationIndex < foreignEquations.size(); ++equationIndex) {
             const auto& expr = foreignEquations[equationIndex];
 
@@ -2213,8 +2271,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                     continue;
                 }
             }
-            canUseSourceRanges = false;
-            break;
+
+            keySelfEquations.push_back(selfEquations[equationIndex]);
+            keyForeignEquations.push_back(foreignEquations[equationIndex]);
         }
 
         size_t keyPrefix = 0;
@@ -2299,28 +2358,29 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             }
         }
 
-        // Check that there are no join equations from keyPrefix to foreignKeyColumnsCount
-        for (size_t index = keyPrefix; index < keyForeignEquations.size() && canUseSourceRanges; ++index) {
+        YCHECK(keyForeignEquations.size() == keySelfEquations.size());
+
+        size_t lastEmptyIndex = keyPrefix;
+        for (size_t index = keyPrefix; index < keyForeignEquations.size(); ++index) {
             if (keyForeignEquations[index]) {
                 YCHECK(keySelfEquations[index].first);
-                canUseSourceRanges = false;
+                keyForeignEquations[lastEmptyIndex] = std::move(keyForeignEquations[index]);
+                keySelfEquations[lastEmptyIndex] = std::move(keySelfEquations[index]);
+                ++lastEmptyIndex;
             }
         }
 
-        joinClause->CanUseSourceRanges = canUseSourceRanges;
-        if (canUseSourceRanges) {
-            keyForeignEquations.resize(keyPrefix);
-            keySelfEquations.resize(keyPrefix);
-            joinClause->SelfEquations = std::move(keySelfEquations);
-            joinClause->ForeignEquations = std::move(keyForeignEquations);
-            joinClause->CommonKeyPrefix = commonKeyPrefix;
-            LOG_DEBUG("Creating join via source ranges (CommonKeyPrefix: %v)", commonKeyPrefix);
-        } else {
-            joinClause->SelfEquations = std::move(selfEquations);
-            joinClause->ForeignEquations = std::move(foreignEquations);
-            LOG_DEBUG("Creating join via IN clause");
-            commonKeyPrefix = 0;
-        }
+        keyForeignEquations.resize(lastEmptyIndex);
+        keySelfEquations.resize(lastEmptyIndex);
+
+        joinClause->SelfEquations = std::move(keySelfEquations);
+        joinClause->ForeignEquations = std::move(keyForeignEquations);
+        joinClause->ForeignKeyPrefix = keyPrefix;
+        joinClause->CommonKeyPrefix = commonKeyPrefix;
+
+        LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
+            commonKeyPrefix,
+            keyPrefix);
 
         if (join.Predicate) {
             joinClause->Predicate = BuildPredicate(
@@ -2337,10 +2397,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             schemaProxy,
             foreignSourceProxy);
 
-        query->JoinClauses.push_back(std::move(joinClause));
+        joinClauses.push_back(std::move(joinClause));
     }
 
     PrepareQuery(query, ast, schemaProxy, builder);
+
+    query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
 
     if (auto groupClause = query->GroupClause) {
         auto keyColumns = query->GetKeyColumns();
@@ -2445,10 +2507,7 @@ TQueryPtr PrepareJobQuery(
         THROW_ERROR_EXCEPTION("GROUP BY is not supported in map-reduce queries");
     }
 
-    auto query = New<TQuery>(
-        std::numeric_limits<i64>::max(),
-        std::numeric_limits<i64>::max(),
-        TGuid::Create());
+    auto query = New<TQuery>(TGuid::Create());
     query->OriginalSchema = tableSchema;
 
     TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
@@ -2502,13 +2561,6 @@ TConstExpressionPtr PrepareExpression(
         aliasMap};
 
     auto result = builder.BuildTypedExpression(expr.Get(), schemaProxy);
-
-    auto actualType = result->Type;
-    if (actualType == EValueType::Null) {
-        THROW_ERROR_EXCEPTION("Type inference failed")
-            << TErrorAttribute("source", FormatExpression(*expr))
-            << TErrorAttribute("actual_type", actualType);
-    }
 
     if (references) {
         for (const auto& item : mapping) {

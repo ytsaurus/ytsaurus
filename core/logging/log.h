@@ -30,6 +30,14 @@ struct TLoggingCategory
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLoggingPosition
+{
+    bool Enabled;
+    int CurrentVersion;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TLogEvent
 {
     const TLoggingCategory* Category = nullptr;
@@ -51,7 +59,11 @@ public:
     TLogger(const TLogger& other) = default;
 
     const TLoggingCategory* GetCategory() const;
-    bool IsEnabled(ELogLevel level) const;
+    bool IsLevelEnabled(ELogLevel level) const;
+
+    bool IsPositionUpToDate(const TLoggingPosition& position) const;
+    void UpdatePosition(TLoggingPosition* position, const TString& message) const;
+
     void Write(TLogEvent&& event) const;
 
     TLogger& AddRawTag(const TString& tag);
@@ -117,11 +129,26 @@ protected:
 
 #define LOG_EVENT(logger, level, ...) \
     do { \
-        if (logger.IsEnabled(level)) { \
+        if (!logger.IsLevelEnabled(level)) { \
+            break; \
+        } \
+        \
+        static ::NYT::NLogging::TLoggingPosition position__##__LINE__; \
+        bool positionUpToDate__##__LINE__ = logger.IsPositionUpToDate(position__##__LINE__); \
+        if (positionUpToDate__##__LINE__ && !position__##__LINE__.Enabled) { \
+            break; \
+        } \
+        \
+        auto message__##__LINE__ = ::NYT::NLogging::NDetail::FormatLogMessage(__VA_ARGS__); \
+        if (!positionUpToDate__##__LINE__) { \
+            logger.UpdatePosition(&position__##__LINE__, message__##__LINE__); \
+        } \
+        \
+        if (position__##__LINE__.Enabled) { \
             ::NYT::NLogging::NDetail::LogEventImpl( \
                 logger, \
                 level, \
-                ::NYT::NLogging::NDetail::FormatLogMessage(__VA_ARGS__)); \
+                std::move(message__##__LINE__)); \
         } \
     } while (false)
 

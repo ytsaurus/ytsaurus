@@ -82,6 +82,7 @@
 %token KwNull "keyword `NULL`"
 %token KwBetween "keyword `BETWEEN`"
 %token KwIn "keyword `IN`"
+%token KwTransform "keyword `TRANSFORM`"
 
 %token KwFalse "keyword `TRUE`"
 %token KwTrue "keyword `FALSE`"
@@ -224,7 +225,7 @@ join-predicate
         {
             $$ = $predicate;
         }
-    |
+    | { }
 ;
 
 join-clause
@@ -556,6 +557,10 @@ atomic-expr
     | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
         {
             $$ = MakeExpression<TFunctionExpression>(@$, $name, $args);
+        }
+    | KwTransform LeftParenthesis expression[expr] Comma LeftParenthesis const-tuple-list[from] RightParenthesis Comma LeftParenthesis const-tuple-list[to] RightParenthesis RightParenthesis
+        {
+            $$ = MakeExpression<TTransformOpExpression>(@$, $expr, $from, $to);
         }
     | LeftParenthesis comma-expr[expr] RightParenthesis
         {

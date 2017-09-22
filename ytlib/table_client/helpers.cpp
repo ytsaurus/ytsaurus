@@ -24,15 +24,15 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NChunkClient;
+using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NCypressClient;
 using namespace NFormats;
 using namespace NProto;
 using namespace NScheduler::NProto;
-using namespace NYson;
 using namespace NYTree;
-using namespace NCypressClient;
-using namespace NChunkClient;
+using namespace NYson;
 
 using NYPath::TRichYPath;
 using NYT::FromProto;
@@ -434,6 +434,30 @@ TTableUploadOptions GetTableUploadOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void YTreeNodeToUnversionedValue(TUnversionedOwningRowBuilder* builder, const INodePtr& value, int id, bool aggregate)
+{
+    switch (value->GetType()) {
+        case ENodeType::Entity:
+            builder->AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, aggregate));
+            break;
+        case ENodeType::Int64:
+            builder->AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id, aggregate));
+            break;
+        case ENodeType::Uint64:
+            builder->AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id, aggregate));
+            break;
+        case ENodeType::Double:
+            builder->AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, aggregate));
+            break;
+        case ENodeType::String:
+            builder->AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, aggregate));
+            break;
+        default:
+            builder->AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id, aggregate));
+            break;
+    }
+}
+
 TUnversionedOwningRow YsonToSchemafulRow(
     const TString& yson,
     const TTableSchema& tableSchema,
@@ -446,29 +470,33 @@ TUnversionedOwningRow YsonToSchemafulRow(
 
     TUnversionedOwningRowBuilder rowBuilder;
     auto addValue = [&] (int id, INodePtr value) {
-        switch (value->GetType()) {
-            case ENodeType::Int64:
-                rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
-                break;
-            case ENodeType::Uint64:
-                rowBuilder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id));
-                break;
-            case ENodeType::Double:
-                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
-                break;
-            case ENodeType::Boolean:
+        if (value->GetType() == ENodeType::Entity) {
+            rowBuilder.AddValue(MakeUnversionedSentinelValue(
+                value->Attributes().Get<EValueType>("type", EValueType::Null), id));
+            return;
+        }
+
+        switch (tableSchema.Columns()[id].Type) {
+            case EValueType::Boolean:
                 rowBuilder.AddValue(MakeUnversionedBooleanValue(value->GetValue<bool>(), id));
                 break;
-            case ENodeType::String:
+            case EValueType::Int64:
+                rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
+                break;
+            case EValueType::Uint64:
+                rowBuilder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id));
+                break;
+            case EValueType::Double:
+                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
+                break;
+            case EValueType::String:
                 rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id));
                 break;
-            case ENodeType::Entity:
-                rowBuilder.AddValue(MakeUnversionedSentinelValue(
-                    value->Attributes().Get<EValueType>("type", EValueType::Null), id));
-                break;
-            default:
+            case EValueType::Any:
                 rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
                 break;
+            default:
+                Y_UNREACHABLE();
         }
     };
 
@@ -498,7 +526,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
     for (const auto& pair : rowParts) {
         int id = nameTable->GetIdOrRegisterName(pair.first);
         if (id >= tableSchema.Columns().size()) {
-            addValue(id, pair.second);
+            YTreeNodeToUnversionedValue(&rowBuilder, pair.second, id, false);
         }
     }
 
@@ -513,26 +541,7 @@ TUnversionedOwningRow YsonToSchemalessRow(const TString& valueYson)
     for (const auto& value : values) {
         int id = value->Attributes().Get<int>("id");
         bool aggregate = value->Attributes().Find<bool>("aggregate").Get(false);
-        switch (value->GetType()) {
-            case ENodeType::Entity:
-                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, aggregate));
-                break;
-            case ENodeType::Int64:
-                builder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id, aggregate));
-                break;
-            case ENodeType::Uint64:
-                builder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id, aggregate));
-                break;
-            case ENodeType::Double:
-                builder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, aggregate));
-                break;
-            case ENodeType::String:
-                builder.AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, aggregate));
-                break;
-            default:
-                builder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id, aggregate));
-                break;
-        }
+        YTreeNodeToUnversionedValue(&builder, value, id, aggregate);
     }
 
     return builder.FinishRow();
@@ -548,26 +557,25 @@ TVersionedRow YsonToVersionedRow(
 
     auto keys = ConvertTo<std::vector<INodePtr>>(TYsonString(keyYson, EYsonType::ListFragment));
 
-    int keyId = 0;
     for (auto key : keys) {
+        int id = key->Attributes().Get<int>("id");
         switch (key->GetType()) {
             case ENodeType::Int64:
-                builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), keyId));
+                builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), id));
                 break;
             case ENodeType::Uint64:
-                builder.AddKey(MakeUnversionedUint64Value(key->GetValue<ui64>(), keyId));
+                builder.AddKey(MakeUnversionedUint64Value(key->GetValue<ui64>(), id));
                 break;
             case ENodeType::Double:
-                builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), keyId));
+                builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), id));
                 break;
             case ENodeType::String:
-                builder.AddKey(MakeUnversionedStringValue(key->GetValue<TString>(), keyId));
+                builder.AddKey(MakeUnversionedStringValue(key->GetValue<TString>(), id));
                 break;
             default:
                 Y_UNREACHABLE();
                 break;
         }
-        ++keyId;
     }
 
     auto values = ConvertTo<std::vector<INodePtr>>(TYsonString(valueYson, EYsonType::ListFragment));
@@ -691,6 +699,35 @@ std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
     auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
     auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
     return std::make_pair(minKey, maxKey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateDynamicTableTimestamp(
+    const TRichYPath& path,
+    bool dynamic,
+    const TTableSchema& schema,
+    const IAttributeDictionary& attributes)
+{
+    auto nullableRequested = path.GetTimestamp();
+    if (nullableRequested && !(dynamic && schema.IsSorted())) {
+        THROW_ERROR_EXCEPTION("Invalid attribute %Qv: table %Qv is not sorted dynamic",
+            "timestamp",
+            path.GetPath());
+    }
+
+    auto requested = nullableRequested.Get(AsyncLastCommittedTimestamp);
+    if (requested != AsyncLastCommittedTimestamp) {
+        auto retained = attributes.Get<TTimestamp>("retained_timestamp");
+        auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
+        if (requested < retained || requested >= unflushed) {
+            THROW_ERROR_EXCEPTION("Requested timestamp is out of range for table %v",
+                path.GetPath())
+                << TErrorAttribute("requested_timestamp", requested)
+                << TErrorAttribute("retained_timestamp", retained)
+                << TErrorAttribute("unflushed_timestamp", unflushed);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

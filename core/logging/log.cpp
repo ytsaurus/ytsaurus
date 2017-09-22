@@ -21,17 +21,27 @@ const TLoggingCategory* TLogger::GetCategory() const
     return Category_;
 }
 
-bool TLogger::IsEnabled(ELogLevel level) const
+bool TLogger::IsLevelEnabled(ELogLevel level) const
 {
     if (!Category_) {
         return false;
     }
 
     if (Category_->CurrentVersion != Category_->ActualVersion->load(std::memory_order_relaxed)) {
-        LogManager_->UpdateCategory(Category_);
+        LogManager_->UpdateCategory(const_cast<TLoggingCategory*>(Category_));
     }
 
     return level >= Category_->MinLevel;
+}
+
+bool TLogger::IsPositionUpToDate(const TLoggingPosition& position) const
+{
+    return !Category_ || position.CurrentVersion == Category_->ActualVersion->load(std::memory_order_relaxed);
+}
+
+void TLogger::UpdatePosition(TLoggingPosition* position, const TString& message) const
+{
+    LogManager_->UpdatePosition(position, message);
 }
 
 void TLogger::Write(TLogEvent&& event) const

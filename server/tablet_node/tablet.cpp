@@ -276,7 +276,7 @@ void TTableReplicaInfo::MergeFromStatistics(const TTableReplicaStatistics& stati
 TTablet::TTablet(
     const TTabletId& tabletId,
     ITabletContext* context)
-    : IObjectBase(tabletId)
+    : TObjectBase(tabletId)
     , Config_(New<TTableMountConfig>())
     , ReaderConfig_(New<TTabletChunkReaderConfig>())
     , WriterConfig_(New<TTabletChunkWriterConfig>())
@@ -300,7 +300,7 @@ TTablet::TTablet(
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
     const TTableReplicaId& upstreamReplicaId)
-    : IObjectBase(tabletId)
+    : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
     , TablePath_(path)
@@ -526,6 +526,8 @@ void TTablet::Load(TLoadContext& context)
             PartitionList_.push_back(std::move(partition));
         }
     }
+
+    UpdateOverlappingStoreCount();
 }
 
 TCallback<void(TSaveContext&)> TTablet::AsyncSave()
@@ -1131,6 +1133,7 @@ void TTablet::Initialize()
 
 void TTablet::FillProfilerTags(const TCellId& cellId)
 {
+    ProfilerTags_.clear();
     if (!Config_->EnableProfiling) {
         return;
     }
@@ -1149,17 +1152,20 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
 
 void TTablet::UpdateReplicaCounters()
 {
-    if (!IsProfilingEnabled()) {
-        return;
-    }
-    for (auto& replica : Replicas_) {
+    auto getCounters = [&] (TReplicaMap::const_reference replica) -> TReplicaCounters* {
+        if (!IsProfilingEnabled()) {
+            return nullptr;
+        }
         auto replicaTags = ProfilerTags_;
-        // replica_id must be the last tag. See tablet_profiling.cpp for details.
         replicaTags.append({
+            // replica_id must be the last tag. See tablet_profiling.cpp for details.
             TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
             TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
             TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
-        replica.second.SetCounters(&GetGloballyCachedValue<TReplicaProfilerTrait>(replicaTags));
+        return &GetGloballyCachedValue<TReplicaProfilerTrait>(replicaTags);
+    };
+    for (auto& replica : Replicas_) {
+        replica.second.SetCounters(getCounters(replica));
     }
 }
 

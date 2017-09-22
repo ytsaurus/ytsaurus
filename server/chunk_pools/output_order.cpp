@@ -1,19 +1,20 @@
 #include "output_order.h"
 
+#include <yt/ytlib/chunk_client/input_chunk.h>
+
 namespace NYT {
 namespace NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NChunkClient;
-using TCookie = IChunkPoolOutput::TCookie;
 
 TInputChunkPtr TOutputOrder::TEntry::GetTeleportChunk() const
 {
     return Content_.As<TInputChunkPtr>();
 }
 
-TCookie TOutputOrder::TEntry::GetCookie() const
+TOutputOrder::TCookie TOutputOrder::TEntry::GetCookie() const
 {
     return Content_.As<TCookie>();
 }

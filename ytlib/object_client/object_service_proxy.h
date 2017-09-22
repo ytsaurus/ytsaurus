@@ -34,9 +34,9 @@ public:
     class TRspExecuteBatch;
 
     //! Mimics the types introduced by |DEFINE_RPC_PROXY_METHOD|.
-    typedef TIntrusivePtr<TReqExecuteBatch> TReqExecuteBatchPtr;
-    typedef TIntrusivePtr<TRspExecuteBatch> TRspExecuteBatchPtr;
-    typedef TErrorOr<TRspExecuteBatchPtr> TErrorOrRspExecuteBatchPtr;
+    using TReqExecuteBatchPtr = TIntrusivePtr<TReqExecuteBatch>;
+    using TRspExecuteBatchPtr = TIntrusivePtr<TRspExecuteBatch>;
+    using TErrorOrRspExecuteBatchPtr = TErrorOr<TRspExecuteBatchPtr>;
 
     //! A batched request to Cypress that holds a vector of individual requests that
     //! are transferred within a single RPC envelope.
@@ -77,19 +77,16 @@ public:
         int GetSize() const;
 
     private:
-        typedef std::multimap<TString, int> TKeyToIndexMultimap;
+        std::vector<TSharedRefArray> InnerRequestMessages_;
+        std::multimap<TString, int> KeyToIndexes_;
 
-        std::vector<TSharedRefArray> InnerRequestMessages;
-        TKeyToIndexMultimap KeyToIndexes;
-
-        bool SuppressUpstreamSync = false;
+        bool SuppressUpstreamSync_ = false;
 
 
         explicit TReqExecuteBatch(NRpc::IChannelPtr channel);
         DECLARE_NEW_FRIEND();
 
         virtual TSharedRef SerializeBody() const override;
-
     };
 
     //! A response to a batched request.
@@ -109,8 +106,6 @@ public:
         : public NRpc::TClientResponse
     {
     public:
-        typedef std::multimap<TString, int> TKeyToIndexMultimap;
-
         TPromise<TRspExecuteBatchPtr> GetPromise();
 
         //! Returns the number of individual responses in the batch.
@@ -154,25 +149,23 @@ public:
     private:
         friend class TReqExecuteBatch;
 
-        TKeyToIndexMultimap KeyToIndexes;
-        TPromise<TRspExecuteBatchPtr> Promise = NewPromise<TRspExecuteBatchPtr>();
-        std::vector<std::pair<int, int>> PartRanges;
+        std::multimap<TString, int> KeyToIndexes_;
+        TPromise<TRspExecuteBatchPtr> Promise_ = NewPromise<TRspExecuteBatchPtr>();
+        std::vector<std::pair<int, int>> PartRanges_;
 
         TRspExecuteBatch(
             NRpc::TClientContextPtr clientContext,
-            const TKeyToIndexMultimap& keyToIndexes);
+            const std::multimap<TString, int>& keyToIndexes);
         DECLARE_NEW_FRIEND();
 
         void SetEmpty();
 
         virtual void SetPromise(const TError& error) override;
         virtual void DeserializeBody(const TRef& data) override;
-
     };
 
     //! Executes a batched Cypress request.
     TReqExecuteBatchPtr ExecuteBatch();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

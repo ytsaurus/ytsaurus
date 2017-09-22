@@ -168,7 +168,7 @@ private:
     size_t Capacity_ = 0;
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
+    TRefCountedTypeCookie TagCookie_ = NullRefCountedTypeCookie;
 #endif
 
     void Allocate(size_t newCapacity);
@@ -177,8 +177,8 @@ private:
 
     void Reset();
 
-    void SetTypeCookie(TRefCountedTypeCookie tagCookie);
-    void SetTypeCookie(const TBlob& other);
+    void SetTagCookie(TRefCountedTypeCookie tagCookie);
+    void SetTagCookie(const TBlob& other);
 };
 
 void swap(TBlob& left, TBlob& right);

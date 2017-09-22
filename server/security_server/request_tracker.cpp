@@ -117,9 +117,9 @@ void TRequestTracker::DoChargeUser(
     auto* entry = Request_.mutable_entries(index);
     auto* statistics = entry->mutable_statistics();
     statistics->set_request_count(statistics->request_count() + requestCount);
-    statistics->set_read_request_time(ToProto(FromProto<TDuration>(statistics->read_request_time()) + readRequestTime));
-    statistics->set_write_request_time(ToProto(FromProto<TDuration>(statistics->write_request_time()) + writeRequestTime));
-    statistics->set_access_time(ToProto(now));
+    statistics->set_read_request_time(ToProto<i64>(FromProto<TDuration>(statistics->read_request_time()) + readRequestTime));
+    statistics->set_write_request_time(ToProto<i64>(FromProto<TDuration>(statistics->write_request_time()) + writeRequestTime));
+    statistics->set_access_time(ToProto<i64>(now));
 }
 
 TFuture<void> TRequestTracker::ThrottleUser(TUser* user, int requestCount)
@@ -194,9 +194,9 @@ void TRequestTracker::OnFlush()
         Request_.entries_size());
 
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-    auto asyncResult = CreateMutation(hydraFacade->GetHydraManager(), Request_)
-        ->SetAllowLeaderForwarding(true)
-        ->CommitAndLog(Logger);
+    auto mutation = CreateMutation(hydraFacade->GetHydraManager(), Request_);
+    mutation->SetAllowLeaderForwarding(true);
+    auto asyncResult = mutation->CommitAndLog(Logger);
 
     Reset();
 
