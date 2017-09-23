@@ -1060,6 +1060,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@max_dynamic_store_row_count", 10)
         self.sync_mount_table("//tmp/t")
 
+        with pytest.raises(YtError):
+            set("//tmp/t/@in_memory_mode", "none")
+
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = self._get_tablet_leader_address(tablet_id)
 
