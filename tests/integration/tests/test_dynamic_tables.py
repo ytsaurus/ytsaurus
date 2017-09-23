@@ -715,8 +715,6 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         self.sync_flush_table("//tmp/t")
 
         def _test(mode):
-            with pytest.raises(YtError):
-                remount_table("//tmp/t")
             data_size = get("//tmp/t/@{0}_data_size".format(mode))
             set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", data_size)
             self.sync_unmount_table("//tmp/t")
