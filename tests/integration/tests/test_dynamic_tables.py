@@ -1054,7 +1054,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
     def test_tablet_split(self):
         set("//sys/@config/enable_tablet_balancer", False)
-        self.sync_create_cells(1)
+        self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
 
         # Create two chunks excelled from eden
@@ -1084,6 +1084,19 @@ class TestTabletActions(TestDynamicTablesBase):
         sleep(1)
         self._wait_for_tablets("//tmp/t", "mounted")
         assert get("//tmp/t/@tablet_count") == 1
+
+        remove("//tmp/t/@min_tablet_size")
+        remove("//tmp/t/@max_tablet_size")
+        remove("//tmp/t/@desired_tablet_size")
+        sleep(1)
+        self._wait_for_tablets("//tmp/t", "mounted")
+        assert get("//tmp/t/@tablet_count") == 2
+
+        set("//tmp/t/@desired_tablet_count", 1)
+        sleep(1)
+        self._wait_for_tablets("//tmp/t", "mounted")
+        assert get("//tmp/t/@tablet_count") == 1
+
 
     def test_tablet_balancer_disabled(self):
         self.sync_create_cells(1)

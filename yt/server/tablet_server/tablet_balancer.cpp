@@ -148,6 +148,7 @@ private:
             IsObjectAlive(tablet) &&
             !tablet->GetAction() &&
             IsObjectAlive(tablet->GetTable()) &&
+            tablet->GetTable()->GetEnableTabletBalancer().Get(true) &&
             tablet->GetTable()->IsSorted() &&
             IsObjectAlive(tablet->GetCell()) &&
             IsObjectAlive(tablet->GetCell()->GetCellBundle()) &&
@@ -384,6 +385,10 @@ private:
         i64 desiredSize = bounds.DesiredTabletSize;
         i64 size = GetTabletSize(tablet);
 
+        if (desiredSize == 0) {
+            desiredSize = 1;
+        }
+
         int startIndex = tablet->GetIndex();
         int endIndex = tablet->GetIndex();
 
@@ -475,36 +480,54 @@ private:
 
     TTabletSizeConfig GetTabletSizeConfig(TTablet* tablet)
     {
-        i64 minTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? Config_->MinTabletSize
-            : Config_->MinInMemoryTabletSize;
-        i64 maxTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? Config_->MaxTabletSize
-            : Config_->MaxInMemoryTabletSize;
-        i64 desiredTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? Config_->DesiredTabletSize
-            : Config_->DesiredInMemoryTabletSize;
+        i64 minTabletSize;
+        i64 maxTabletSize;
+        i64 desiredTabletSize = 0;
 
         auto* table = tablet->GetTable();
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto tableProxy = objectManager->GetProxy(table);
+        const auto& desiredTabletCount = table->GetDesiredTabletCount();
+        auto statistics = table->ComputeTotalStatistics();
+        i64 tableSize = tablet->GetInMemoryMode() == EInMemoryMode::Compressed
+            ? statistics.compressed_data_size()
+            : statistics.uncompressed_data_size();
+        i64 cellCount = tablet->GetCell()->GetCellBundle()->TabletCells().size();
 
-        auto enabled = table->GetEnableTabletBalancer();
-        if (enabled && !*enabled) {
-            return TTabletSizeConfig{0, std::numeric_limits<i64>::max(), 0};
+        if (!desiredTabletCount) {
+            minTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
+                ? Config_->MinTabletSize
+                : Config_->MinInMemoryTabletSize;
+            maxTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
+                ? Config_->MaxTabletSize
+                : Config_->MaxInMemoryTabletSize;
+            desiredTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
+                ? Config_->DesiredTabletSize
+                : Config_->DesiredInMemoryTabletSize;
+
+            auto tableMinTabletSize = table->GetMinTabletSize();
+            auto tableMaxTabletSize = table->GetMaxTabletSize();
+            auto tableDesiredTabletSize = table->GetDesiredTabletSize();
+
+            if (tableMinTabletSize && tableMaxTabletSize && tableDesiredTabletSize &&
+                *tableMinTabletSize < *tableDesiredTabletSize &&
+                *tableDesiredTabletSize < *tableMaxTabletSize)
+            {
+                minTabletSize = *tableMinTabletSize;
+                maxTabletSize = *tableMaxTabletSize;
+                desiredTabletSize = *tableDesiredTabletSize;
+            }
+        } else if (*desiredTabletCount < cellCount) {
+            cellCount = *desiredTabletCount;
         }
 
-        auto tableMinTabletSize = table->GetMinTabletSize();
-        auto tableMaxTabletSize = table->GetMaxTabletSize();
-        auto tableDesiredTabletSize = table->GetDesiredTabletSize();
+        if (cellCount == 0) {
+            cellCount = 1;
+        }
 
-        if (tableMinTabletSize && tableMaxTabletSize && tableDesiredTabletSize &&
-            *tableMinTabletSize < *tableDesiredTabletSize &&
-            *tableDesiredTabletSize < *tableMaxTabletSize)
-        {
-            minTabletSize = *tableMinTabletSize;
-            maxTabletSize = *tableMaxTabletSize;
-            desiredTabletSize = *tableDesiredTabletSize;
+        auto tabletSize = DivCeil(tableSize, cellCount);
+        if (desiredTabletSize < tabletSize) {
+            desiredTabletSize = tabletSize;
+            minTabletSize = desiredTabletSize / 1.9;
+            maxTabletSize = desiredTabletSize * 1.9;
         }
 
         return TTabletSizeConfig{minTabletSize, maxTabletSize, desiredTabletSize};
