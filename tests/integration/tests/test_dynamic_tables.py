@@ -72,16 +72,22 @@ class TestDynamicTablesBase(YTEnvSetup):
         return result
 
     def _find_tablet_orchid(self, address, tablet_id):
-        path = "//sys/nodes/" + address + "/orchid/tablet_cells"
-        cells = ls(path)
-        for cell_id in cells:
-            if get(path + "/" + cell_id + "/state") == "leading":
-                tablets = ls(path + "/" + cell_id + "/tablets")
-                if tablet_id in tablets:
-                    try:
-                        return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
-                    except:
-                        return None
+        def do():
+            path = "//sys/nodes/" + address + "/orchid/tablet_cells"
+            cells = ls(path)
+            for cell_id in cells:
+                if get(path + "/" + cell_id + "/state") == "leading":
+                    tablets = ls(path + "/" + cell_id + "/tablets")
+                    if tablet_id in tablets:
+                        try:
+                            return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
+                        except:
+                            return None
+            return None
+        for attempt in xrange(5):
+            data = do()
+            if data is not None:
+                return data
         return None
 
     def _get_pivot_keys(self, path):
