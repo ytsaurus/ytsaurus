@@ -1067,6 +1067,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         address = self._get_tablet_leader_address(tablet_id)
 
         def _check_preload_state(state):
+            sleep(1.0)
             tablet_data = self._find_tablet_orchid(address, tablet_id)
             assert len(tablet_data["eden"]["stores"]) == 1
             for partition in tablet_data["partitions"]:
