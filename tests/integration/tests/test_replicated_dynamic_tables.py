@@ -222,13 +222,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         with pytest.raises(YtError):
             self._create_replicated_table("//tmp/t", attributes={"in_memory_mode": "uncompressed"})
 
-    def test_replicated_in_memory_remount_fail(self):
-        self._create_cells()
-        self._create_replicated_table("//tmp/t")
-        set("//tmp/t/@in_memory_mode", "compressed")
-        with pytest.raises(YtError):
-            remount_table("//tmp/t")
-
     def test_add_replica_fail1(self):
         with pytest.raises(YtError): create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
 
