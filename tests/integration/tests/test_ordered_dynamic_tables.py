@@ -569,6 +569,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         address = self._get_tablet_leader_address(tablet_id)
 
         def _check_preload_state(state):
+            sleep(1.0)
             tablet_data = self._find_tablet_orchid(address, tablet_id)
             assert all(s["preload_state"] == state for s in tablet_data["stores"].itervalues() if s["store_state"] == "persistent")
             actual_preload_completed = get("//tmp/t/@tablets/0/statistics/preload_completed_store_count")
