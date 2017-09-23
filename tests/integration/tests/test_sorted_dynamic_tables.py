@@ -1066,9 +1066,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         def _check_preload_state(state):
             tablet_data = self._find_tablet_orchid(address, tablet_id)
             assert len(tablet_data["eden"]["stores"]) == 1
-            assert len(tablet_data["partitions"]) == 1
-            assert len(tablet_data["partitions"][0]["stores"]) >= 1
-            assert all(s["preload_state"] == state for _, s in tablet_data["partitions"][0]["stores"].iteritems())
+            for partition in tablet_data["partitions"]:
+                assert all(s["preload_state"] == state for _, s in partition["stores"].iteritems())
             actual_preload_completed = get("//tmp/t/@tablets/0/statistics/preload_completed_store_count")
             if state == "complete":
                 assert actual_preload_completed >= 1
@@ -1083,9 +1082,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-
-        sleep(3.0)
-
+        self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
 
@@ -1094,35 +1091,28 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         keys = [{"key" : row["key"]} for row in rows]
         insert_rows("//tmp/t", rows)
         self.sync_flush_table("//tmp/t")
-
-        sleep(3.0)
-
+        self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
 
         # Check preload after compaction.
         self.sync_compact_table("//tmp/t")
-
-        sleep(3.0)
-
+        self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
 
         # Disable in-memory mode
+        self.sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "none")
-        remount_table("//tmp/t")
-
-        sleep(3.0)
-
+        self.sync_mount_table("//tmp/t")
         _check_preload_state("disabled")
         assert lookup_rows("//tmp/t", keys) == rows
 
         # Re-enable in-memory mode
+        self.sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", mode)
-        remount_table("//tmp/t")
-
-        sleep(3.0)
-
+        self.sync_mount_table("//tmp/t")
+        self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
 

@@ -715,12 +715,13 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         self.sync_flush_table("//tmp/t")
 
         def _test(mode):
-            set("//tmp/t/@in_memory_mode", mode)
             with pytest.raises(YtError):
                 remount_table("//tmp/t")
             data_size = get("//tmp/t/@{0}_data_size".format(mode))
             set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", data_size)
-            remount_table("//tmp/t")
+            self.sync_unmount_table("//tmp/t")
+            set("//tmp/t/@in_memory_mode", mode)
+            self.sync_mount_table("//tmp/t")
             resource_usage = get("//sys/accounts/test_account/@resource_usage")
             committed_resource_usage = get("//sys/accounts/test_account/@committed_resource_usage")
             assert resource_usage["tablet_static_memory"] == data_size
@@ -1217,11 +1218,15 @@ class TestTabletActions(TestDynamicTablesBase):
         move(cells[1])
         assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size
 
+        self.sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "none")
-        move(cells[0])
+        self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
+        move(cells[1])
         assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == 0
 
+        self.sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "compressed")
+        self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         move(cells[1])
         assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size
 

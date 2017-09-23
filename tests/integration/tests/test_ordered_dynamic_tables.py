@@ -34,6 +34,15 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         attributes.update(kwargs)
         create("table", path, attributes=attributes)
 
+    def _wait_for_in_memory_stores_preload(self, table):
+        for tablet in get(table + "/@tablets"):
+            tablet_id = tablet["tablet_id"]
+            address = self._get_tablet_leader_address(tablet_id)
+            def all_preloaded():
+                tablet_data = self._find_tablet_orchid(address, tablet_id)
+                return all(s["preload_state"] == "complete" for s in tablet_data["stores"].itervalues() if s["store_state"] == "persistent")
+            wait(lambda: all_preloaded())
+
     def test_mount(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -576,9 +585,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-
-        sleep(3.0)
-
+        self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1
 
@@ -586,27 +593,22 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         rows2 = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i + 1)} for i in xrange(0, 10)]
         insert_rows("//tmp/t", rows2)
         self.sync_flush_table("//tmp/t")
-
-        sleep(3.0)
-
+        self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
         # Disable in-memory mode
+        self.sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "none")
-        remount_table("//tmp/t")
-
-        sleep(3.0)
-
+        self.sync_mount_table("//tmp/t")
         _check_preload_state("disabled")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
         # Re-enable in-memory mode
+        self.sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", mode)
-        remount_table("//tmp/t")
-
-        sleep(3.0)
-
+        self.sync_mount_table("//tmp/t")
+        self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
