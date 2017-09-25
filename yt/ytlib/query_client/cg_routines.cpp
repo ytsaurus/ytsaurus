@@ -359,8 +359,7 @@ public:
                     lastForeignKey = *foreignIt;
                 }
 
-                sortedForeignSequence.push_back(*foreignIt);
-                IntermediateBuffer->Capture(*foreignIt);
+                sortedForeignSequence.push_back(IntermediateBuffer->Capture(*foreignIt));
                 ++foreignIt;
             }
         };
