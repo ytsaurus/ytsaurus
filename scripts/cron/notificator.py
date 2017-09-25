@@ -4,7 +4,7 @@ import logging
 import time
 from argparse import ArgumentParser
 from email.mime.text import MIMEText
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, CalledProcessError
 from sys import exit
 
 import yt.wrapper as yt
