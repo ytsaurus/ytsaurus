@@ -641,7 +641,8 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
             # Since 18.5 scheduler Orchid consists of a static part (that is periodically cached)
             # and a dynamic part, so the name of the option was changed.
             del config["scheduler"]["orchid_cache_update_period"]
-            set_at(config, "scheduler/static_orchid_cache_update_period", 0)
+            set_at(config, "scheduler/static_orchid_cache_update_period", 100)
+            set_at(config, "scheduler/orchid_keys_update_period", 100)
 
         return configs
 
