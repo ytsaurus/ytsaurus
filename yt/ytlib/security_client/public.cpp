@@ -8,6 +8,7 @@ namespace NSecurityClient {
 const TString TmpAccountName("tmp");
 const TString SysAccountName("sys");
 const TString IntermediateAccountName("intermediate");
+const TString ChunkWiseAccountingMigrationAccountName("chunk_wise_accounting_migration");
 
 const TString GuestUserName("guest");
 const TString JobUserName("job");

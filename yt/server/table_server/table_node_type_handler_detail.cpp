@@ -46,8 +46,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     TCellTag cellTag,
     TTransaction* transaction,
     IAttributeDictionary* attributes,
-    TAccount* account,
-    bool enableAccounting)
+    TAccount* account)
 {
     const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
 
@@ -119,7 +118,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         transaction,
         attributes,
         account,
-        enableAccounting,
         replicationFactor,
         compressionCodec,
         erasureCodec);
@@ -234,42 +232,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
-}
-
-template <class TImpl>
-TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetTabletResourceUsage(
-    const TCypressNodeBase* node)
-{
-    int tabletCount = 0;
-    i64 memorySize = 0;
-
-    if (node->IsTrunk()) {
-        const auto* table = node->As<TImpl>();
-        tabletCount = table->Tablets().size();
-        for (const auto* tablet : table->Tablets()) {
-            if (tablet->GetState() != ETabletState::Unmounted) {
-                memorySize += tablet->GetTabletStaticMemorySize();
-            }
-        }
-    }
-
-    return TClusterResources()
-        .SetTabletCount(tabletCount)
-        .SetTabletStaticMemory(memorySize);
-}
-
-template <class TImpl>
-TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetTotalResourceUsage(
-    const TCypressNodeBase* node)
-{
-    return TBase::GetTotalResourceUsage(node) + GetTabletResourceUsage(node);
-}
-
-template <class TImpl>
-TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetAccountingResourceUsage(
-    const TCypressNodeBase* node)
-{
-    return TBase::GetAccountingResourceUsage(node) + GetTabletResourceUsage(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

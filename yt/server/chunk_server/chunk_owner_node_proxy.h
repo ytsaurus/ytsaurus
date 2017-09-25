@@ -48,7 +48,7 @@ protected:
 private:
     void SetReplicationFactor(int replicationFactor);
     void SetVital(bool vital);
-    void SetMediaProperties(const TChunkProperties& properties);
+    void SetReplication(const TChunkReplication& replication);
     void SetPrimaryMedium(TMedium* medium);
 };
 

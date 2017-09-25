@@ -1221,7 +1221,7 @@ void TOperationControllerBase::TeleportOutputChunks()
             const auto& id = pair.second;
             if (TypeFromId(id) == EObjectType::ChunkList)
                 continue;
-            table.ChunkPropertiesUpdateNeeded = true;
+            table.ChunkRequisitionUpdateNeeded = true;
             teleporter->RegisterChunk(id, table.CellTag);
         }
     }
@@ -1384,7 +1384,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = table->DataStatistics;
-            req->set_chunk_properties_update_needed(table->ChunkPropertiesUpdateNeeded);
+            req->set_chunk_requisition_update_needed(table->ChunkRequisitionUpdateNeeded);
             ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema);
             req->set_schema_mode(static_cast<int>(table->TableUploadOptions.SchemaMode));
             req->set_optimize_for(static_cast<int>(table->TableUploadOptions.OptimizeFor));
@@ -3330,6 +3330,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         TCellTag cellTag,
         int replicationFactor,
         NCompression::ECodec compressionCodec,
+        TNullable<TString> account,
         const TString& key,
         const TYsonString& acl,
         TNullable<TTableSchema> schema)
@@ -3337,7 +3338,6 @@ void TOperationControllerBase::CreateLivePreviewTables()
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(static_cast<int>(EObjectType::Table));
         req->set_ignore_existing(true);
-        req->set_enable_accounting(false);
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("replication_factor", replicationFactor);
@@ -3352,6 +3352,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
         attributes->Set("inherit_acl", false);
         if (schema) {
             attributes->Set("schema", *schema);
+        }
+        if (account) {
+            attributes->Set("account", *account);
         }
         ToProto(req->mutable_node_attributes(), *attributes);
         GenerateMutationId(req);
@@ -3371,6 +3374,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 table.CellTag,
                 table.Options->ReplicationFactor,
                 table.Options->CompressionCodec,
+                table.Options->Account,
                 "create_output",
                 table.EffectiveAcl,
                 table.TableUploadOptions.TableSchema);
@@ -3385,6 +3389,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             StderrTable_->CellTag,
             StderrTable_->Options->ReplicationFactor,
             StderrTable_->Options->CompressionCodec,
+            Null /* account */,
             "create_stderr",
             StderrTable_->EffectiveAcl,
             StderrTable_->TableUploadOptions.TableSchema);
@@ -3399,6 +3404,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             IntermediateOutputCellTag,
             1,
             Spec_->IntermediateCompressionCodec,
+            Null /* account */,
             "create_intermediate",
             BuildYsonStringFluently()
                 .BeginList()
@@ -3422,7 +3428,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
                         fluent.Item().Value(node);
                     })
                 .EndList(),
-            Null);
+            Null /* schema */);
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());

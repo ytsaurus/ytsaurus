@@ -164,7 +164,6 @@ public:
 
     virtual ICypressNodeProxyPtr CreateNode(
         EObjectType type,
-        bool enableAccounting = true,
         IAttributeDictionary* attributes = nullptr) override
     {
         ValidateCreatedNodeType(type);
@@ -244,7 +243,6 @@ public:
             cellTag,
             handler,
             account,
-            enableAccounting,
             Transaction_,
             attributes);
 
@@ -264,7 +262,6 @@ public:
             replicationRequest.set_type(static_cast<int>(type));
             ToProto(replicationRequest.mutable_node_attributes(), *replicationAttributes);
             ToProto(replicationRequest.mutable_account_id(), account->GetId());
-            replicationRequest.set_enable_accounting(enableAccounting);
             multicellManager->PostToMaster(replicationRequest, cellTag);
         }
 
@@ -640,7 +637,6 @@ public:
         TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         TAccount* account,
-        bool enableAccounting,
         TTransaction* transaction,
         IAttributeDictionary* attributes)
     {
@@ -649,22 +645,19 @@ public:
         YCHECK(account);
         YCHECK(attributes);
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(account, user, NSecurityServer::EPermission::Use);
+
         auto nodeHolder = handler->Create(
             hintId,
             externalCellTag,
             transaction,
             attributes,
-            account,
-            enableAccounting);
+            account);
         auto* node = RegisterNode(std::move(nodeHolder));
 
-        // Set account.
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->SetAccount(node, account);
-        securityManager->SetNodeResourceAccounting(node, enableAccounting);
-
         // Set owner.
-        auto* user = securityManager->GetAuthenticatedUser();
         auto* acd = securityManager->GetAcd(node);
         acd->SetOwner(user);
 
@@ -677,7 +670,7 @@ public:
         TCellTag externalCellTag)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        
+
         auto type = TypeFromId(id);
         const auto& handler = GetHandler(type);
         auto nodeHolder = handler->Instantiate(TVersionedNodeId(id), externalCellTag);
@@ -1998,7 +1991,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         const auto& id = originatingNode->GetId();
 
@@ -2017,10 +2009,6 @@ private:
         // The branched node holds an implicit reference to its originator.
         objectManager->RefObject(originatingNode->GetTrunkNode());
 
-        // Update resource usage.
-        auto* account = originatingNode->GetAccount();
-        securityManager->SetAccount(branchedNode, account);
-
         return branchedNode;
     }
 
@@ -2029,7 +2017,6 @@ private:
         TCypressNodeBase* branchedNode)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         const auto& handler = GetHandler(branchedNode);
 
@@ -2052,9 +2039,6 @@ private:
             if (trunkNode == RootNode_ && !parentTransaction) {
                 originatingNode->SetCreationTime(originatingNode->GetModificationTime());
             }
-
-            // Update resource usage.
-            securityManager->UpdateAccountNodeUsage(originatingNode);
         } else {
             // Destroy the branched copy.
             handler->Destroy(branchedNode);
@@ -2136,7 +2120,6 @@ private:
         ENodeCloneMode mode)
     {
         // Prepare account.
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = factory->GetClonedNodeAccount(sourceNode);
 
         const auto& handler = GetHandler(sourceNode);
@@ -2147,16 +2130,14 @@ private:
             mode,
             account);
 
-        // Set account.
-        securityManager->SetAccount(clonedNode, account);
-
         // Set owner.
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         auto* acd = securityManager->GetAcd(clonedNode);
         acd->SetOwner(user);
 
         // Copy expiration time.
-        auto expirationTime = sourceNode->GetTrunkNode()->GetExpirationTime(); 
+        auto expirationTime = sourceNode->GetTrunkNode()->GetExpirationTime();
         if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedNode, *expirationTime);
         }
@@ -2211,15 +2192,12 @@ private:
             ? FromProto(request->node_attributes())
             : std::unique_ptr<IAttributeDictionary>();
 
-        auto enableAccounting = request->enable_accounting();
-
         auto versionedNodeId = TVersionedNodeId(nodeId, transactionId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v, EnableAccounting: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v)",
             versionedNodeId,
             type,
-            account ? MakeNullable(account->GetName()) : Null,
-            enableAccounting);
+            account ? MakeNullable(account->GetName()) : Null);
 
         const auto& handler = GetHandler(type);
 
@@ -2228,7 +2206,6 @@ private:
             NotReplicatedCellTag,
             handler,
             account,
-            enableAccounting,
             transaction,
             attributes.get());
 
@@ -2417,7 +2394,6 @@ TCypressNodeBase* TCypressManager::CreateNode(
     TCellTag externalCellTag,
     INodeTypeHandlerPtr handler,
     TAccount* account,
-    bool enableAccounting,
     TTransaction* transaction,
     IAttributeDictionary* attributes)
 {
@@ -2426,7 +2402,6 @@ TCypressNodeBase* TCypressManager::CreateNode(
         externalCellTag,
         std::move(handler),
         account,
-        enableAccounting,
         transaction,
         attributes);
 }

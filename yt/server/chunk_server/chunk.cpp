@@ -1,8 +1,11 @@
 #include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_tree_statistics.h"
+#include "medium.h"
 
 #include <yt/server/cell_master/serialize.h>
+
+#include <yt/server/security_server/account.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -27,8 +30,15 @@ const TChunk::TReplicasData TChunk::EmptyReplicasData = {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkRequisitionRegistry* ChunkRequisitionRegistry = nullptr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
+    , LocalRequisitionIndex_(IsErasure()
+        ? MigrationErasureChunkRequisitionIndex
+        : MigrationChunkRequisitionIndex)
 {
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
@@ -59,21 +69,6 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     return result;
 }
 
-TClusterResources TChunk::GetResourceUsage() const
-{
-    auto result = TClusterResources().SetChunkCount(1);
-    if (!IsConfirmed()) {
-        return result;
-    }
-
-    for (int index = 0; index < MaxMediumCount; ++index) {
-        // NB: Use just the local RF as this only makes sense for staged chunks.
-        result.DiskSpace[index] = ChunkInfo_.disk_space() * LocalProperties_[index].GetReplicationFactor();
-    }
-
-    return result;
-}
-
 i64 TChunk::GetPartDiskSpace() const
 {
     auto result = ChunkInfo_.disk_space();
@@ -93,7 +88,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ChunkInfo_);
     Save(context, ChunkMeta_);
-    Save(context, LocalProperties_);
+    Save(context, LocalRequisitionIndex_);
     Save(context, ReadQuorum_);
     Save(context, WriteQuorum_);
     Save(context, GetErasureCodec());
@@ -116,15 +111,32 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     }
 }
 
+namespace {
+
 // Compatibility stuff; used by Load().
-struct TOldChunkExportData
+struct TChunkExportDataBefore400
 {
     ui32 RefCounter : 24;
     bool Vital : 1;
     ui8 ReplicationFactor : 7;
 };
-static_assert(sizeof(TOldChunkExportData) == 4, "sizeof(TOldChunkExportData) != 4");
-using TOldChunkExportDataList = TOldChunkExportData[NObjectClient::MaxSecondaryMasterCells];
+static_assert(sizeof(TChunkExportDataBefore400) == 4, "sizeof(TChunkExportDataBefore400) != 4");
+using TChunkExportDataListBefore400 = TChunkExportDataBefore400[NObjectClient::MaxSecondaryMasterCells];
+
+struct TChunkExportDataBefore619
+{
+    // Removing this ctor causes internal compiler error on gcc 4.9.2.
+    TChunkExportDataBefore619()
+        : RefCounter(0)
+    { }
+
+    ui32 RefCounter;
+    TChunkReplication Replication;
+};
+static_assert(sizeof(TChunkExportDataBefore619) == 12, "sizeof(TChunkExportDataBefore619) != 12");
+using TChunkExportDataListBefore619 = TChunkExportDataBefore619[NObjectClient::MaxSecondaryMasterCells];
+
+} // namespace
 
 void TChunk::Load(NCellMaster::TLoadContext& context)
 {
@@ -133,20 +145,52 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
+
+    auto* account = GetStagingAccount();
+    auto isStaged = IsStaged();
+    Y_ASSERT(isStaged == !!account);
+
+    i8 replicationFactorBefore400 = 0;
+
     // COMPAT(shakurov)
+    // Previously, chunks didn't store info on which account requested which RF
+    // - just the maximum of those RFs. Chunk requisition can't be computed from
+    // such limited data. Thus, we have to fallback to default requisition for
+    // the local cell and empty requisition for other cells. This will be
+    // corrected by the next requisition update - which will happen soon since
+    // it's requested on each leader change.
+    // For staged chunks, however, it *is* possible to compute requisitions.
     if (context.GetVersion() < 400) {
-        LocalProperties_[DefaultStoreMediumIndex].SetReplicationFactor(Load<i8>(context));
+        Load(context, replicationFactorBefore400);
+    } else if (context.GetVersion() < 623) {
+        auto oldReplication = Load<TChunkReplication>(context);
+        if (isStaged) {
+            TChunkRequisition requisition;
+            requisition.CombineWith(oldReplication, account->GetId(), false /* committed */);
+            LocalRequisitionIndex_ = ChunkRequisitionRegistry->GetIndex(requisition);
+        } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
     } else {
-        Load(context, LocalProperties_);
+        LocalRequisitionIndex_ = Load<ui32>(context);
     }
+
     SetReadQuorum(Load<i8>(context));
     SetWriteQuorum(Load<i8>(context));
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
     // COMPAT(shakurov)
     if (context.GetVersion() < 400) {
-        SetLocalVital(Load<bool>(context));
-    } // Local vital flag is now part of LocalProperties_.
+        auto oldVital = Load<bool>(context);
+        if (isStaged) {
+            TChunkReplication oldReplication;
+            oldReplication.SetVital(oldVital);
+            oldReplication[DefaultStoreMediumIndex].SetReplicationFactor(replicationFactorBefore400);
+
+            TChunkRequisition requisition;
+            requisition.CombineWith(oldReplication, account->GetId(), false /* committed */);
+            LocalRequisitionIndex_ = ChunkRequisitionRegistry->GetIndex(requisition);
+        } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
+    }
+
     Load(context, Parents_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 616) {
@@ -186,21 +230,27 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     if (ExportCounter_ > 0) {
         // COMPAT(shakurov)
         if (context.GetVersion() < 400) {
-            TOldChunkExportDataList oldExportDataList = {};
+            TChunkExportDataListBefore400 oldExportDataList = {};
+            TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
+            for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
+                auto& exportData = ExportDataList_[i];
+                exportData.RefCounter = oldExportDataList[i].RefCounter;
+                // Drop RF and vitality.
+                exportData.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
+            }
+        } else if (context.GetVersion() < 623) {
+            TChunkExportDataListBefore619 oldExportDataList = {};
             TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
             for (int i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
                 auto& exportData = ExportDataList_[i];
-                auto& properties = exportData.Properties;
-                auto& oldExportData = oldExportDataList[i];
-                exportData.RefCounter = oldExportData.RefCounter;
-                properties[DefaultStoreMediumIndex].SetReplicationFactor(oldExportData.ReplicationFactor);
-                properties.SetVital(oldExportData.Vital);
+                exportData.RefCounter = oldExportDataList[i].RefCounter;
+                // Drop TChunkReplication.
+                exportData.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
             }
         } else {
             TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
         }
     }
-
     if (IsConfirmed()) {
         MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     }
@@ -397,41 +447,16 @@ void TChunk::Seal(const TMiscExt& info)
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 
-const TChunkProperties& TChunk::ExternalProperties(int cellIndex) const
-{
-    return ExportDataList_[cellIndex].Properties;
-}
-
-TChunkProperties& TChunk::ExternalProperties(int cellIndex)
-{
-    return ExportDataList_[cellIndex].Properties;
-}
-
-int TChunk::ComputeReplicationFactor(int mediumIndex) const
-{
-    int result = LocalProperties_[mediumIndex].GetReplicationFactor();
-
-    // Shortcut for non-exported chunk.
-    if (ExportCounter_ == 0) {
-        return result;
-    }
-
-    for (const auto& data : ExportDataList_) {
-        result = std::max<int>(
-            result,
-            data.Properties[mediumIndex].GetReplicationFactor());
-    }
-
-    return result;
-}
-
-int TChunk::GetMaxReplicasPerRack(int mediumIndex, TNullable<int> replicationFactorOverride) const
+int TChunk::GetMaxReplicasPerRack(
+    int mediumIndex,
+    TNullable<int> replicationFactorOverride,
+    const TChunkRequisitionRegistry& registry) const
 {
     switch (GetType()) {
         case EObjectType::Chunk: {
-            int replicationFactor = replicationFactorOverride
+            auto replicationFactor = replicationFactorOverride
                 ? *replicationFactorOverride
-                : ComputeReplicationFactor(mediumIndex);
+                : ComputeReplicationFactor(mediumIndex, registry);
             return std::max(replicationFactor - 1, 1);
         }
 
@@ -461,13 +486,13 @@ void TChunk::Export(int cellIndex)
     }
 }
 
-void TChunk::Unexport(int cellIndex, int importRefCounter)
+void TChunk::Unexport(int cellIndex, int importRefCounter, TChunkRequisitionRegistry& registry)
 {
     auto& data = ExportDataList_[cellIndex];
     if ((data.RefCounter -= importRefCounter) == 0) {
-        // NB: Reset the entry to the neutral state as ComputeReplicationFactor and
-        // ComputeVital always scan the whole array.
-        data = {};
+        // NB: Reset the entry to the neutral state as it affects ComputeReplication() etc.
+        data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
+        registry.Ref(EmptyChunkRequisitionIndex);
         --ExportCounter_;
     }
 }
@@ -477,4 +502,5 @@ void TChunk::Unexport(int cellIndex, int importRefCounter)
 } // namespace NChunkServer
 } // namespace NYT
 
-Y_DECLARE_PODTYPE(NYT::NChunkServer::TOldChunkExportDataList);
+Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore400);
+Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore619);

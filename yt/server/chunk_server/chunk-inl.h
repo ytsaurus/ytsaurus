@@ -103,37 +103,47 @@ inline void TChunk::SetJob(TJobPtr job)
     GetDynamicData()->Job = std::move(job);
 }
 
-inline bool TChunk::ComputeVital() const
+inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry& registry) const
 {
-    // NB: Shortcut for non-exported chunk.
-    if (ExportCounter_ == 0) {
-        return GetLocalVital();
+    registry.Ref(LocalRequisitionIndex_);
+    // Don't check TChunk::ExportCounter_ or TChunkExportData::RefCounter here:
+    // for those cells into which the chunk isn't exported, EmptyChunkRequisitionIndex is used.
+    // And we should Ref() that, too.
+    for (auto cellIndex = 0; cellIndex < NObjectClient::MaxSecondaryMasterCells; ++cellIndex) {
+        registry.Ref(ExportDataList_[cellIndex].ChunkRequisitionIndex);
     }
-
-    if (GetLocalVital()) {
-        return true;
-    }
-    for (const auto& data : ExportDataList_) {
-        if (data.Properties.GetVital()) {
-            return true;
-        }
-    }
-    return false;
 }
 
-inline bool TChunk::GetLocalVital() const
+inline ui32 TChunk::GetLocalRequisitionIndex() const
 {
-    return LocalProperties_.GetVital();
+    return LocalRequisitionIndex_;
 }
 
-inline void TChunk::SetLocalVital(bool value)
+inline void TChunk::SetLocalRequisitionIndex(ui32 requisitionIndex, TChunkRequisitionRegistry& registry)
 {
-    LocalProperties_.SetVital(value);
+    registry.Unref(LocalRequisitionIndex_);
+    LocalRequisitionIndex_ = requisitionIndex;
+    registry.Ref(LocalRequisitionIndex_);
 }
 
-inline TChunkProperties TChunk::ComputeProperties() const
+inline ui32 TChunk::GetExternalRequisitionIndex(int cellIndex) const
 {
-    auto result = LocalProperties_;
+    const auto& data = ExportDataList_[cellIndex];
+    YCHECK(data.RefCounter != 0);
+    return data.ChunkRequisitionIndex;
+}
+
+inline void TChunk::SetExternalRequisitionIndex(int cellIndex, ui32 requisitionIndex, TChunkRequisitionRegistry& registry)
+{
+    auto& exportData = ExportDataList_[cellIndex];
+    registry.Unref(exportData.ChunkRequisitionIndex);
+    exportData.ChunkRequisitionIndex = requisitionIndex;
+    registry.Ref(exportData.ChunkRequisitionIndex);
+}
+
+inline TChunkRequisition TChunk::ComputeRequisition(const TChunkRequisitionRegistry& registry) const
+{
+    auto result = registry.GetRequisition(LocalRequisitionIndex_);
 
     // Shortcut for non-exported chunk.
     if (ExportCounter_ == 0) {
@@ -141,19 +151,44 @@ inline TChunkProperties TChunk::ComputeProperties() const
     }
 
     for (const auto& data : ExportDataList_) {
-        result |= data.Properties;
+        if (data.RefCounter != 0) {
+            result |= registry.GetRequisition(data.ChunkRequisitionIndex);
+        }
     }
     return result;
 }
 
-inline TPerMediumIntArray TChunk::ComputeReplicationFactors() const
+inline TChunkReplication TChunk::ComputeReplication(const TChunkRequisitionRegistry& registry) const
+{
+    auto result = registry.GetReplication(LocalRequisitionIndex_);
+
+    // Shortcut for non-exported chunk.
+    if (ExportCounter_ == 0) {
+        return result;
+    }
+
+    for (const auto& data : ExportDataList_) {
+        if (data.RefCounter != 0) {
+            result |= registry.GetReplication(data.ChunkRequisitionIndex);
+        }
+    }
+    return result;
+}
+
+inline int TChunk::ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry& registry) const
+{
+    auto replication = ComputeReplication(registry);
+    return replication[mediumIndex].GetReplicationFactor();
+}
+
+inline TPerMediumIntArray TChunk::ComputeReplicationFactors(const TChunkRequisitionRegistry& registry) const
 {
     TPerMediumIntArray result;
 
-    auto props = ComputeProperties();
+    auto replication = ComputeReplication(registry);
     auto resultIt = std::begin(result);
-    for (const auto& mediumProps : props) {
-        *resultIt++ = mediumProps.GetReplicationFactor();
+    for (const auto& policy : replication) {
+        *resultIt++ = policy.GetReplicationFactor();
     }
 
     return result;
@@ -202,6 +237,16 @@ inline bool TChunk::IsJournal() const
 inline bool TChunk::IsRegular() const
 {
     return GetType() == NObjectClient::EObjectType::Chunk;
+}
+
+inline bool TChunk::DiskSizeIsFinal() const
+{
+    return IsJournal() ? IsSealed() : IsConfirmed();
+}
+
+inline int TChunk::ExportCounter() const
+{
+    return ExportCounter_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

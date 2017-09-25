@@ -56,7 +56,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
     // Medium-wise unsafely placed chunks: all replicas are on transient media
-    // (and properties of these chunks demand otherwise).
+    // (and requisitions of these chunks demand otherwise).
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousVitalChunks);
 
@@ -85,9 +85,9 @@ public:
         TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes);
 
-    void SchedulePropertiesUpdate(TChunkTree* chunkTree);
-    void SchedulePropertiesUpdate(TChunk* chunk);
-    void SchedulePropertiesUpdate(TChunkList* chunkList);
+    void ScheduleRequisitionUpdate(TChunkTree* chunkTree);
+    void ScheduleRequisitionUpdate(TChunk* chunk);
+    void ScheduleRequisitionUpdate(TChunkList* chunkList);
 
     void TouchChunk(TChunk* chunk);
 
@@ -105,7 +105,7 @@ public:
     bool IsEnabled();
 
     int GetRefreshQueueSize() const;
-    int GetPropertiesUpdateQueueSize() const;
+    int GetRequisitionUpdateQueueSize() const;
 
 private:
     struct TPerMediumChunkStatistics
@@ -143,6 +143,17 @@ private:
         ECrossMediumChunkStatus Status = ECrossMediumChunkStatus::None;
     };
 
+    // This is for a simple optimization: updating adjacent chunks in the
+    // requisition update queue is likely to produce identical results.
+    struct TChunkRequisitionCache
+    {
+        TChunk::TParents LastChunkParents;
+        ui32 LastChunkUpdatedRequisitionIndex;
+        ui32 LastErasureChunkUpdatedRequisitionIndex;
+    };
+
+    TChunkRequisitionCache ChunkRequisitionCache;
+
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
     const TChunkPlacementPtr ChunkPlacement_;
@@ -152,8 +163,8 @@ private:
     const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     const std::unique_ptr<TChunkScanner> RefreshScanner_;
 
-    const NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor_;
-    const std::unique_ptr<TChunkScanner> PropertiesUpdateScanner_;
+    const NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
+    const std::unique_ptr<TChunkScanner> RequisitionUpdateScanner_;
 
     yhash<TJobId, TJobPtr> JobMap_;
 
@@ -257,11 +268,13 @@ private:
 
     bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
 
-    void OnPropertiesUpdate();
-    void UpdateChunkProperties(TChunk* chunk, NProto::TReqUpdateChunkProperties* request);
+    void OnRequisitionUpdate();
+    void ComputeChunkRequisitionUpdate(TChunk* chunk, NProto::TReqUpdateChunkRequisition* request);
 
-    //! Computes the actual properties the chunk must have.
-    TChunkProperties ComputeChunkProperties(TChunk* chunk);
+    void ClearChunkRequisitionCache();
+
+    //! Computes the actual requisition the chunk must have. Returns the index of that requisition.
+    ui32 ComputeChunkRequisition(const TChunk* chunk);
 
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.
@@ -284,6 +297,7 @@ private:
     void OnCheckEnabledPrimary();
     void OnCheckEnabledSecondary();
 
+    TChunkRequisitionRegistry& GetChunkRequisitionRegistry();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

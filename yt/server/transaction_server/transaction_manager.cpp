@@ -335,6 +335,10 @@ public:
                 parent->ImportedObjects().end(),
                 transaction->ImportedObjects().begin(),
                 transaction->ImportedObjects().end());
+
+            if (parent->GetAccountingEnabled()) {
+                parent->RecomputeResourceUsage();
+            }
         } else {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* object : transaction->ImportedObjects()) {

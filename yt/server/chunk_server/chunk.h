@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_properties.h"
+#include "chunk_requisition.h"
 #include "chunk_replica.h"
 #include "chunk_tree.h"
 
@@ -29,10 +29,10 @@ namespace NChunkServer {
 struct TChunkExportData
 {
     ui32 RefCounter;
-    TChunkProperties Properties;
+    ui32 ChunkRequisitionIndex;
 };
 
-static_assert(sizeof(TChunkExportData) == sizeof(TChunkProperties) + 4, "sizeof(TChunkExportData) != sizeof(TChunkProperties) + 4");
+static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
 using TChunkExportDataList = TChunkExportData[NObjectClient::MaxSecondaryMasterCells];
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +78,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Movable);
-    DEFINE_BYREF_RW_PROPERTY(TChunkProperties, LocalProperties);
 
 public:
     explicit TChunk(const TChunkId& id);
@@ -86,7 +85,6 @@ public:
     TChunkDynamicData* GetDynamicData() const;
 
     TChunkTreeStatistics GetStatistics() const;
-    NSecurityServer::TClusterResources GetResourceUsage() const;
 
     //! Get disk size of a single part of the chunk.
     /*!
@@ -138,24 +136,36 @@ public:
     TJobPtr GetJob() const;
     void SetJob(TJobPtr job);
 
-    //! Computes the vitality flag by ORing the local and the external values.
-    bool ComputeVital() const;
+    //! Refs all (local and external) requisitions this chunk uses.
+    //! Supposed to be called soon after the chunk is constructed or loaded.
+    void RefUsedRequisitions(TChunkRequisitionRegistry& registry) const;
 
-    bool GetLocalVital() const;
-    void SetLocalVital(bool value);
+    ui32 GetLocalRequisitionIndex() const;
+    void SetLocalRequisitionIndex(ui32 requisitionIndex, TChunkRequisitionRegistry& registry);
 
-    //! Computes properties of the chunk by combining local and external values.
-    //! For semantics of combining, see #TChunkProperties::operator|=().
-    TChunkProperties ComputeProperties() const;
+    ui32 GetExternalRequisitionIndex(int cellIndex) const;
+    void SetExternalRequisitionIndex(int cellIndex, ui32 requisitionIndex, TChunkRequisitionRegistry& registry);
+
+    //! Computes chunk's requisition by combining local and external values.
+    //! For semantics of combining, see #TChunkRequisition::operator|=().
+    TChunkRequisition ComputeRequisition(const TChunkRequisitionRegistry& registry) const;
+
+    //! Computes chunk's replication by combining local and external values.
+    //! For semantics of combining, see #TChunkReplication::operator|=().
+    /*!
+     *  NB: by default only COMMITTED OWNERS affect this. If the chunk has no
+     *  committed owners, then non-committed ones are taken into account.
+     */
+    TChunkReplication ComputeReplication(const TChunkRequisitionRegistry& registry) const;
 
     //! Computes the replication factor for the specified medium by combining the
-    //! local and the external values. See #ComputeProperties(int).
-    int ComputeReplicationFactor(int mediumIndex) const;
+    //! local and the external values. See #ComputeReplication().
+    int ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry& registry) const;
 
     //! Computes the replication factors for all media by combining the local and
-    //! the external values. See #ComputeProperties(int).
+    //! the external values. See #ComputeReplication().
     //! NB: most of the time, most of the elements of the returned array will be zero.
-    TPerMediumIntArray ComputeReplicationFactors() const;
+    TPerMediumIntArray ComputeReplicationFactors(const TChunkRequisitionRegistry& registry) const;
 
     int GetReadQuorum() const;
     void SetReadQuorum(int value);
@@ -192,19 +202,23 @@ public:
     //! Marks the chunk as sealed, i.e. sets its ultimate row count, data size etc.
     void Seal(const NChunkClient::NProto::TMiscExt& info);
 
-    //! Provides read-only access to external properties.
-    const TChunkProperties& ExternalProperties(int cellIndex) const;
-
-    //! Provides write access to external properties.
-    TChunkProperties& ExternalProperties(int cellIndex);
+    //! For journal chunks, returns true iff the chunk is sealed.
+    //! For non-journal chunks, return true iff the chunk is confirmed.
+    bool DiskSizeIsFinal() const;
 
     //! Returns the maximum number of replicas that can be stored in the same
     //! rack without violating the availability guarantees.
     /*!
+     *  As #ComputeReplication(), takes into account only committed owners of
+     *  this chunk, if there're any. Otherwise falls back to all owners.
+     *
      *  \param replicationFactorOverride An override for replication factor;
      *  used when one wants to upload fewer replicas but still guarantee placement safety.
      */
-    int GetMaxReplicasPerRack(int mediumIndex, TNullable<int> replicationFactorOverride) const;
+    int GetMaxReplicasPerRack(
+        int mediumIndex,
+        TNullable<int> replicationFactorOverride,
+        const TChunkRequisitionRegistry& registry) const;
 
     //! Returns the export data w.r.t. to a cell with a given #index.
     /*!
@@ -212,19 +226,24 @@ public:
      */
     const TChunkExportData& GetExportData(int cellIndex) const;
 
+    int ExportCounter() const;
+
     //! Increments export ref counter.
     void Export(int cellIndex);
 
     //! Decrements export ref counter.
-    void Unexport(int cellIndex, int importRefCounter);
+    void Unexport(int cellIndex, int importRefCounter, TChunkRequisitionRegistry& registry);
 
 private:
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;
     NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
 
+    ui32 LocalRequisitionIndex_;
+
     //! The number of non-empty entries in #ExportDataList_.
     ui8 ExportCounter_ = 0;
+
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
     TChunkExportDataList ExportDataList_ = {};
 

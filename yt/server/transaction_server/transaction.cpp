@@ -3,6 +3,8 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/serialize.h>
 
+#include <yt/server/chunk_server/chunk_owner_base.h>
+
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/subject.h>
 
@@ -16,6 +18,7 @@ namespace NTransactionServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NCellMaster;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +91,30 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, StagedNodes_);
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
+}
+
+void TTransaction::RecomputeResourceUsage()
+{
+    Y_ASSERT(AccountingEnabled_);
+
+    AccountResourceUsage_.clear();
+
+    for (auto* node : BranchedNodes_) {
+        AddNodeResourceUsage(node, false);
+    }
+    for (auto* node : StagedNodes_) {
+        AddNodeResourceUsage(node, true);
+    }
+}
+
+void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged)
+{
+    if (node->IsExternal()) {
+        return;
+    }
+
+    auto* account = node->GetAccount();
+    AccountResourceUsage_[account] += node->GetDeltaResourceUsage();
 }
 
 TYsonString TTransaction::GetErrorDescription() const

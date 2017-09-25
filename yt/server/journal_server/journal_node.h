@@ -15,6 +15,8 @@ class TJournalNode
     : public NChunkServer::TChunkOwnerBase
 {
 public:
+    using TBase = NChunkServer::TChunkOwnerBase;
+
     DEFINE_BYVAL_RW_PROPERTY(int, ReadQuorum);
     DEFINE_BYVAL_RW_PROPERTY(int, WriteQuorum);
 
@@ -33,6 +35,9 @@ public:
 
     bool GetSealed() const;
     void SetSealed(bool value);
+
+    virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
 
 private:
     // Only maintained at trunk nodes.

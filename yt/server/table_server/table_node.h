@@ -94,6 +94,11 @@ public:
         NTableClient::ETableSchemaMode schemaMode,
         TNullable<NTableClient::EOptimizeFor> optimizeFor) override;
 
+    virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
+
+    NSecurityServer::TClusterResources GetTabletResourceUsage() const;
+
     virtual bool IsSorted() const override;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;

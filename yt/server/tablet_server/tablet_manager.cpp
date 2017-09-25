@@ -22,6 +22,7 @@
 #include <yt/server/chunk_server/chunk_list.h>
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_tree_traverser.h>
+#include <yt/server/chunk_server/medium.h>
 
 #include <yt/server/cypress_server/cypress_manager.h>
 
@@ -270,7 +271,6 @@ public:
 
         try {
             // NB: Users typically are not allowed to create these types.
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto* rootUser = securityManager->GetRootUser();
             TAuthenticatedUserGuard userGuard(securityManager, rootUser);
 
@@ -1239,7 +1239,7 @@ public:
         }
         for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
             tabletStatistics.DiskSpacePerMedium[mediumIndex] = CalculateDiskSpaceUsage(
-                table->Properties()[mediumIndex].GetReplicationFactor(),
+                table->Replication()[mediumIndex].GetReplicationFactor(),
                 treeStatistics.RegularDiskSpace,
                 treeStatistics.ErasureDiskSpace);
         }
@@ -1401,6 +1401,7 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto nodeProxy = cypressManager->GetNodeProxy(table);
         TYPath path = nodeProxy->GetPath();
+        const auto resourceUsageBefore = table->GetTabletResourceUsage();
         const auto& allTablets = table->Tablets();
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
@@ -1504,7 +1505,7 @@ public:
             }
         }
 
-        CommitTabletStaticMemoryUpdate(table);
+        CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
     }
 
     void UnmountTable(
@@ -1558,6 +1559,8 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+
+        auto resourceUsageBefore = table->GetTabletResourceUsage();
 
         TTableMountConfigPtr mountConfig;
         NTabletNode::TTabletChunkReaderConfigPtr readerConfig;
@@ -1620,7 +1623,7 @@ public:
             }
         }
 
-        CommitTabletStaticMemoryUpdate(table);
+        CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
     }
 
     void FreezeTable(
@@ -1807,6 +1810,8 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+
+        auto resourceUsageBefore = table->GetTabletResourceUsage();
 
         auto& tablets = table->MutableTablets();
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
@@ -2062,7 +2067,8 @@ public:
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
-        securityManager->UpdateAccountNodeUsage(table);
+        auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
+        securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
     }
 
     void CloneTable(
@@ -2143,6 +2149,12 @@ public:
 
             clonedTablets.push_back(clonedTablet);
         }
+
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        securityManager->UpdateTabletResourceUsage(
+            trunkClonedTable,
+            trunkSourceTable->GetAccount(),
+            trunkClonedTable->GetTabletResourceUsage());
     }
 
     void MakeTableDynamic(TTableNode* table)
@@ -2216,7 +2228,8 @@ public:
         oldRootChunkList->RemoveOwningNode(table);
         objectManager->UnrefObject(oldRootChunkList);
 
-        securityManager->UpdateAccountNodeUsage(table);
+        auto tabletResourceUsage = table->GetTabletResourceUsage();
+        securityManager->UpdateTabletResourceUsage(table, tabletResourceUsage);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
             table->GetId());
@@ -2242,6 +2255,8 @@ public:
         if (table->GetTabletState() != ETabletState::Unmounted) {
             THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table has mounted tablets");
         }
+
+        auto tabletResourceUsage = table->GetTabletResourceUsage();
 
         auto* oldRootChunkList = table->GetChunkList();
 
@@ -2271,7 +2286,7 @@ public:
         table->SetLastCommitTimestamp(NullTimestamp);
 
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
-        securityManager->UpdateAccountNodeUsage(table);
+        securityManager->UpdateTabletResourceUsage(table, -tabletResourceUsage);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
@@ -3239,6 +3254,7 @@ private:
             cell->GetId());
 
         cell->TotalStatistics() -= GetTabletStatistics(tablet);
+        auto resourceUsageBefore = table->GetTabletResourceUsage();
 
         tablet->NodeStatistics().Clear();
         tablet->PerformanceCounters() = TTabletPerformanceCounters();
@@ -3247,11 +3263,11 @@ private:
         tablet->SetCell(nullptr);
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
-        CommitTabletStaticMemoryUpdate(table);
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
+
+        CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
     }
 
     void CopyChunkListIfShared(
@@ -3508,26 +3524,29 @@ private:
         // Update cell statistics.
         cell->TotalStatistics() += deltaStatistics;
 
-        // Unstage just attached chunks.
         // Update table resource usage.
+        // Unstage just attached chunks.
         for (auto* chunk : chunksToAttach) {
             chunkManager->UnstageChunk(chunk->AsChunk());
+        }
+        for (auto* chunk : chunksToAttach) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
+        }
+        for (auto* chunk : chunksToDetach) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
         }
 
         if (tablet->GetStoresUpdatePreparedTransaction() == transaction) {
             tablet->SetStoresUpdatePreparedTransaction(nullptr);
         }
 
-        // Update node resource usage.
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto deltaResources = TClusterResources()
-            .SetChunkCount(deltaStatistics.ChunkCount)
+        auto resourceUsageDelta = TClusterResources()
+            .SetTabletCount(0)
             .SetTabletStaticMemory(newMemorySize - oldMemorySize);
-        std::copy(
-            std::begin(deltaStatistics.DiskSpacePerMedium),
-            std::end(deltaStatistics.DiskSpacePerMedium),
-            std::begin(deltaResources.DiskSpace));
-        securityManager->IncrementAccountNodeUsage(table, deltaResources);
+        securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
+        // TODO(shakurov): charge transaction with chunk count/disk space usage here?
+        // deltaStatistics.{ChunkCount,DiskSpace}.
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkIds: %v, "
@@ -3625,7 +3644,7 @@ private:
         }
     }
 
-    
+
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -4001,10 +4020,13 @@ private:
             TClusterResources().SetTabletStaticMemory(memorySize));
     }
 
-    void CommitTabletStaticMemoryUpdate(TTableNode* table)
+    void CommitTabletStaticMemoryUpdate(
+        TTableNode* table,
+        const TClusterResources& resourceUsageBefore,
+        const TClusterResources& resourceUsageAfter)
     {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateAccountNodeUsage(table);
+         const auto& securityManager = Bootstrap_->GetSecurityManager();
+         securityManager->UpdateTabletResourceUsage(table, resourceUsageAfter - resourceUsageBefore);
     }
 
     void ValidateTableMountConfig(
@@ -4052,17 +4074,17 @@ private:
         }
 
         // Prepare tablet writer options.
-        const auto& chunkProperties = table->Properties();
+        const auto& chunkReplication = table->Replication();
         auto primaryMediumIndex = table->GetPrimaryMediumIndex();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         *writerOptions = New<TTableWriterOptions>();
-        (*writerOptions)->ReplicationFactor = chunkProperties[primaryMediumIndex].GetReplicationFactor();
+        (*writerOptions)->ReplicationFactor = chunkReplication[primaryMediumIndex].GetReplicationFactor();
         (*writerOptions)->MediumName = primaryMedium->GetName();
         (*writerOptions)->Account = table->GetAccount()->GetName();
         (*writerOptions)->CompressionCodec = table->GetCompressionCodec();
         (*writerOptions)->ErasureCodec = table->GetErasureCodec();
-        (*writerOptions)->ChunksVital = chunkProperties.GetVital();
+        (*writerOptions)->ChunksVital = chunkReplication.GetVital();
         (*writerOptions)->OptimizeFor = table->GetOptimizeFor();
     }
 

@@ -12,7 +12,11 @@
 
 #include <yt/server/object_server/public.h>
 
+#include <yt/server/chunk_server/public.h>
+
 #include <yt/server/security_server/security_manager.pb.h>
+
+#include <yt/server/table_server/public.h>
 
 #include <yt/server/transaction_server/public.h>
 
@@ -95,30 +99,38 @@ public:
     //! Return "intermediate" built-in account.
     TAccount* GetIntermediateAccount();
 
+    //! Return "chunk_wise_accounting_migration" built-in account ID.
+    /*!
+     *  When migrating to chunk-wise accounting, all the chunks will belong to
+     *  this account for some time.
+     *
+     *  The account will be removed shortly after the migration.
+     */
+    TAccountId GetChunkWiseAccountingMigrationAccountId();
+
+    //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
+    void UpdateResourceUsage(const NChunkServer::TChunk& chunk, const NChunkServer::TChunkRequisition& requisition, i64 delta);
+
+    //! Updates tablet-related resource usage. Only table count and static
+    //! memory are used; everything else in #resourceUsageDelta must be zero.
+    void UpdateTabletResourceUsage(NCypressServer::TCypressNodeBase* node, const TClusterResources& resourceUsageDelta);
+    void UpdateTabletResourceUsage(NCypressServer::TCypressNodeBase* node, TAccount* account, const TClusterResources& resourceUsageDelta);
+
+    //! Adds the #chunk to the resource usage of its staging transaction.
+    void UpdateTransactionResourceUsage(const NChunkServer::TChunk& chunk, const NChunkServer::TChunkRequisition& requisition, i64 delta);
 
     //! Assigns node to a given account, updates the total resource usage.
-    void SetAccount(NCypressServer::TCypressNodeBase* node, TAccount* account);
+    void SetAccount(
+        NCypressServer::TCypressNodeBase* node,
+        TAccount* oldAccount,
+        TAccount* newAccount,
+        NTransactionServer::TTransaction* transaction);
 
     //! Removes account association (if any) from the node.
     void ResetAccount(NCypressServer::TCypressNodeBase* node);
 
     //! Updates the name of the account.
     void RenameAccount(TAccount* account, const TString& newName);
-
-    //! Updates the account to accommodate recent changes in #node resource usage.
-    void UpdateAccountNodeUsage(NCypressServer::TCypressNodeBase* node);
-
-    //! Increments #node resource usage and updates the account to accomodate these changes.
-    void IncrementAccountNodeUsage(NCypressServer::TCypressNodeBase* node, const TClusterResources& delta);
-
-    //! Enables or disables accounting for a given node updating account usage appropriately.
-    void SetNodeResourceAccounting(NCypressServer::TCypressNodeBase* node, bool enable);
-
-    //! Updates the staging resource usage for a given account.
-    void UpdateAccountStagingUsage(
-        NTransactionServer::TTransaction* transaction,
-        TAccount* account,
-        const TClusterResources& delta);
 
     //! Returns user with a given name (|nullptr| if none).
     TUser* FindUserByName(const TString& name);
@@ -265,7 +277,7 @@ private:
     class TAccountTypeHandler;
     class TUserTypeHandler;
     class TGroupTypeHandler;
-    
+
     const TIntrusivePtr<TImpl> Impl_;
 
 };

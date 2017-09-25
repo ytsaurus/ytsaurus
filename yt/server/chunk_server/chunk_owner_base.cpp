@@ -1,5 +1,6 @@
 #include "chunk_owner_base.h"
 #include "chunk_list.h"
+#include "helpers.h"
 
 #include <yt/server/cell_master/serialize.h>
 
@@ -21,9 +22,9 @@ using namespace NCypressClient::NProto;
 TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 {
-    Properties_.SetVital(true);
-    for (auto& mediumProperties : Properties_) {
-        mediumProperties.Clear();
+    Replication_.SetVital(true);
+    for (auto& policy : Replication_) {
+        policy.Clear();
     }
     if (IsTrunk()) {
         CompressionCodec_.Set(NCompression::ECodec::None);
@@ -38,9 +39,9 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ChunkList_);
     Save(context, UpdateMode_);
-    Save(context, Properties_);
+    Save(context, Replication_);
     Save(context, PrimaryMediumIndex_);
-    Save(context, ChunkPropertiesUpdateNeeded_);
+    Save(context, ChunkRequisitionUpdateNeeded_);
     Save(context, SnapshotStatistics_);
     Save(context, DeltaStatistics_);
     Save(context, CompressionCodec_);
@@ -57,13 +58,13 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     // COMPAT(shakurov)
     if (context.GetVersion() < 400) {
         PrimaryMediumIndex_ = DefaultStoreMediumIndex;
-        Properties_[DefaultStoreMediumIndex].SetReplicationFactor(Load<int>(context));
-        Properties_.SetVital(Load<bool>(context));
+        Replication_[DefaultStoreMediumIndex].SetReplicationFactor(Load<int>(context));
+        Replication_.SetVital(Load<bool>(context));
     } else {
-        Load(context, Properties_);
+        Load(context, Replication_);
         PrimaryMediumIndex_ = Load<int>(context);
     }
-    Load(context, ChunkPropertiesUpdateNeeded_);
+    Load(context, ChunkRequisitionUpdateNeeded_);
     Load(context, SnapshotStatistics_);
     Load(context, DeltaStatistics_);
     // COMPAT(babenko)
@@ -216,6 +217,44 @@ TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
 bool TChunkOwnerBase::HasDataWeight() const
 {
     return !HasInvalidDataWeight(SnapshotStatistics_) && !HasInvalidDataWeight(DeltaStatistics_);
+}
+
+NSecurityServer::TClusterResources TChunkOwnerBase::GetTotalResourceUsage() const
+{
+    return TBase::GetTotalResourceUsage() + GetDiskUsage(ComputeTotalStatistics());
+}
+
+NSecurityServer::TClusterResources TChunkOwnerBase::GetDeltaResourceUsage() const
+{
+    TDataStatistics statistics;
+    if (IsTrunk()) {
+        statistics = DeltaStatistics_ + SnapshotStatistics_;
+    } else {
+        switch (UpdateMode_) {
+            case EUpdateMode::Append:
+                statistics = DeltaStatistics_;
+                break;
+            case EUpdateMode::Overwrite:
+                statistics = SnapshotStatistics_;
+                break;
+            default:
+                break; // Leave statistics empty - this is a newly branched node.
+        }
+    }
+    return TBase::GetDeltaResourceUsage() + GetDiskUsage(statistics);
+}
+
+NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStatistics& statistics) const
+{
+    NSecurityServer::TClusterResources result;
+    for (auto mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        result.DiskSpace[mediumIndex] = CalculateDiskSpaceUsage(
+            Replication()[mediumIndex].GetReplicationFactor(),
+            statistics.regular_disk_space(),
+            statistics.erasure_disk_space());
+    }
+    result.ChunkCount = statistics.chunk_count();
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

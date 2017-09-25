@@ -73,8 +73,12 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    void RecomputeResourceUsage();
+
     NYson::TYsonString GetErrorDescription() const;
 
+private:
+    void AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
 #include "chunk.h"
 #include "chunk_manager.h"
 #include "job.h"
+#include "medium.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
@@ -622,7 +623,10 @@ int TChunkPlacement::GetMaxReplicasPerRack(
     TChunk* chunk,
     TNullable<int> replicationFactorOverride)
 {
-    int result = chunk->GetMaxReplicasPerRack(mediumIndex, replicationFactorOverride);
+    auto result = chunk->GetMaxReplicasPerRack(
+        mediumIndex,
+        replicationFactorOverride,
+        Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry());
     result = std::min(result, Config_->MaxReplicasPerRack);
     switch (chunk->GetType()) {
         case EObjectType::Chunk:         result = std::min(result, Config_->MaxRegularReplicasPerRack); break;

@@ -15,6 +15,7 @@ namespace NCypressServer {
 
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 
@@ -110,13 +111,26 @@ bool TCypressNodeBase::IsExternal() const
     return ExternalCellTag_ >= MinValidCellTag && ExternalCellTag_ <= MaxValidCellTag;
 }
 
+TClusterResources TCypressNodeBase::GetDeltaResourceUsage() const
+{
+    NSecurityServer::TClusterResources result;
+    result.NodeCount = 1;
+    return result;
+}
+
+TClusterResources TCypressNodeBase::GetTotalResourceUsage() const
+{
+    NSecurityServer::TClusterResources result;
+    result.NodeCount = 1;
+    return result;
+}
+
 void TCypressNodeBase::Save(TSaveContext& context) const
 {
     TObjectBase::Save(context);
 
     using NYT::Save;
     Save(context, ExternalCellTag_);
-    Save(context, AccountingEnabled_);
     if (LockingState_) {
         Save(context, true);
         Save(context, *LockingState_);
@@ -130,7 +144,6 @@ void TCypressNodeBase::Save(TSaveContext& context) const
     Save(context, ModificationTime_);
     Save(context, Revision_);
     Save(context, Account_);
-    Save(context, CachedResourceUsage_);
     Save(context, Acd_);
     Save(context, Opaque_);
     Save(context, AccessTime_);
@@ -143,7 +156,10 @@ void TCypressNodeBase::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, ExternalCellTag_);
-    Load(context, AccountingEnabled_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 623) {
+        Load<bool>(context); // Drop AccountingEnabled_.
+    }
     // COMPAT(babenko)
     if (context.GetVersion() < 400) {
         YCHECK(TSizeSerializer::Load(context) == 0);
@@ -162,7 +178,10 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, ModificationTime_);
     Load(context, Revision_);
     Load(context, Account_);
-    Load(context, CachedResourceUsage_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 623) {
+        Load<NSecurityServer::TClusterResources>(context); // Drop CachedResourceUsage_.
+    }
     Load(context, Acd_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 505) {

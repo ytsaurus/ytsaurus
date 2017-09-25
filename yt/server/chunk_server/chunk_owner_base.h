@@ -25,13 +25,15 @@ class TChunkOwnerBase
     : public NCypressServer::TCypressNodeBase
 {
 public:
+    using TBase = NCypressServer::TCypressNodeBase;
+
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode, NChunkClient::EUpdateMode::None);
-    DEFINE_BYREF_RW_PROPERTY(TChunkProperties, Properties);
+    DEFINE_BYREF_RW_PROPERTY(TChunkReplication, Replication);
     DEFINE_BYVAL_RW_PROPERTY(int, PrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
     //! Only makes sense for branched nodes.
-    //! If |true| then properties update will be performed for the newly added chunks upon top-level commit.
-    DEFINE_BYVAL_RW_PROPERTY(bool, ChunkPropertiesUpdateNeeded, false);
+    //! If |true| then requisition update will be performed for the newly added chunks upon top-level commit.
+    DEFINE_BYVAL_RW_PROPERTY(bool, ChunkRequisitionUpdateNeeded, false);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, SnapshotStatistics);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, DeltaStatistics);
 
@@ -54,14 +56,20 @@ public:
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
+    virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
+
     NChunkClient::NProto::TDataStatistics ComputeTotalStatistics() const;
-    NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
 
     bool HasDataWeight() const;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
+private:
+    NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
+
+    NSecurityServer::TClusterResources GetDiskUsage(const NChunkClient::NProto::TDataStatistics& statistics) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

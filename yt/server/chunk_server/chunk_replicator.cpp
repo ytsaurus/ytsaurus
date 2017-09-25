@@ -8,6 +8,7 @@
 #include "job.h"
 #include "chunk_scanner.h"
 #include "chunk_replica.h"
+#include "medium.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
@@ -28,6 +29,8 @@
 #include <yt/server/node_tracker_server/node_tracker.h>
 
 #include <yt/server/object_server/object.h>
+
+#include <yt/server/security_server/account.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -81,7 +84,7 @@ static const auto& Logger = ChunkServerLogger;
 static const auto& Profiler = ChunkServerProfiler;
 
 static NProfiling::TAggregateCounter RefreshTimeCounter("/refresh_time");
-static NProfiling::TAggregateCounter PropertiesUpdateTimeCounter("/properties_update_time");
+static NProfiling::TAggregateCounter RequisitionUpdateTimeCounter("/requisition_update_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,13 +111,13 @@ TChunkReplicator::TChunkReplicator(
     , RefreshScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
         EChunkScanKind::Refresh))
-    , PropertiesUpdateExecutor_(New<TPeriodicExecutor>(
+    , RequisitionUpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
-        BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
-        Config_->ChunkPropertiesUpdatePeriod))
-    , PropertiesUpdateScanner_(std::make_unique<TChunkScanner>(
+        BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this)),
+        Config_->ChunkRequisitionUpdatePeriod))
+    , RequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
-        EChunkScanKind::PropertiesUpdate))
+        EChunkScanKind::RequisitionUpdate))
     , ChunkRepairQueueBalancer_(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
@@ -142,9 +145,9 @@ TChunkReplicator::TChunkReplicator(
 void TChunkReplicator::Start(TChunk* frontChunk, int chunkCount)
 {
     RefreshScanner_->Start(frontChunk, chunkCount);
-    PropertiesUpdateScanner_->Start(frontChunk, chunkCount);
+    RequisitionUpdateScanner_->Start(frontChunk, chunkCount);
     RefreshExecutor_->Start();
-    PropertiesUpdateExecutor_->Start();
+    RequisitionUpdateExecutor_->Start();
     EnabledCheckExecutor_->Start();
 }
 
@@ -228,7 +231,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 {
     TChunkStatistics result;
 
-    auto replicationFactors = chunk->ComputeReplicationFactors();
+    auto replicationFactors = chunk->ComputeReplicationFactors(GetChunkRequisitionRegistry());
 
     TPerMediumArray<bool> hasUnsafelyPlacedReplicas{};
     TPerMediumArray<std::array<ui8, RackIndexBound>> perRackReplicaCounters{};
@@ -276,8 +279,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
         // NB: some very counter-intuitive scenarios are possible here.
         // E.g. mediumReplicationFactor == 0, but mediumReplicaCount != 0.
-        // This happens when medium-related properties of a chunk change.
-        // One should be careful about one's assumptions.
+        // This happens when chunk's requisition changes. One should be careful
+        // with one's assumptions.
 
         if (mediumReplicationFactor == 0 &&
             mediumReplicaCount == 0 &&
@@ -433,10 +436,10 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     TPerMediumArray<NErasure::TPartIndexSet> mediumToErasedIndexes{};
     TMediumSet activeMedia;
 
-    auto chunkProperties = chunk->ComputeProperties();
+    const auto& chunkReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
 
-    for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
-        auto* medium = mediumIdAndPtrPair.second;
+    for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
+        auto* medium = pair.second;
         if (medium->GetCache()) {
             continue;
         }
@@ -444,8 +447,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         auto mediumIndex = medium->GetIndex();
         auto mediumTransient = medium->GetTransient();
 
-        auto dataPartsOnly = chunkProperties[mediumIndex].GetDataPartsOnly();
-        auto mediumReplicationFactor = chunkProperties[mediumIndex].GetReplicationFactor();
+        auto dataPartsOnly = chunkReplication[mediumIndex].GetDataPartsOnly();
+        auto mediumReplicationFactor = chunkReplication[mediumIndex].GetReplicationFactor();
 
         if (mediumReplicationFactor == 0 &&
             totalReplicaCounts[mediumIndex] == 0 &&
@@ -659,10 +662,10 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatistics(TChunk* chunk)
 {
     // NB: Journal chunks always have a single configured medium.
-    auto properties = chunk->ComputeProperties();
-    int mediumIndex = -1;
-    for (int index = 0; index < MaxMediumCount; ++index) {
-        if (properties[index]) {
+    const auto& replication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
+    auto mediumIndex = -1;
+    for (auto index = 0; index < MaxMediumCount; ++index) {
+        if (replication[index]) {
             mediumIndex = index;
             break;
         }
@@ -672,7 +675,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     TChunkStatistics results;
     auto& result = results.PerMediumStatistics[mediumIndex];
 
-    int replicationFactor = chunk->ComputeReplicationFactor(mediumIndex);
+    auto replicationFactor = replication[mediumIndex].GetReplicationFactor();
     int readQuorum = chunk->GetReadQuorum();
 
     int replicaCount = 0;
@@ -802,7 +805,7 @@ void TChunkReplicator::OnNodeDisposed(TNode* node)
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     RefreshScanner_->OnChunkDestroyed(chunk);
-    PropertiesUpdateScanner_->OnChunkDestroyed(chunk);
+    RequisitionUpdateScanner_->OnChunkDestroyed(chunk);
     ResetChunkStatus(chunk);
     RemoveChunkFromQueuesOnDestroy(chunk);
     CancelChunkJobs(chunk);
@@ -968,7 +971,7 @@ bool TChunkReplicator::CreateReplicationJob(
     }
 
     int targetMediumIndex = targetMedium->GetIndex();
-    auto replicationFactor = chunk->ComputeReplicationFactor(targetMediumIndex);
+    auto replicationFactor = chunk->ComputeReplicationFactor(targetMediumIndex, GetChunkRequisitionRegistry());
     auto statistics = ComputeChunkStatistics(chunk);
     const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
     int replicaCount = mediumStatistics.ReplicaCount[replicaIndex];
@@ -1484,6 +1487,8 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
     auto durabilityRequired = false;
 
+    auto replication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
+
     for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
         auto* medium = mediumIdAndPtrPair.second;
         // For now, chunk cache-as-medium support is rudimentary, and replicator
@@ -1499,9 +1504,8 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             continue;
         }
 
-        auto replicationFactor = chunk->ComputeReplicationFactor(mediumIndex);
-        auto durabilityRequiredOnMedium =
-            chunk->ComputeVital() && (chunk->IsErasure() || replicationFactor > 1);
+        auto replicationFactor = replication[mediumIndex].GetReplicationFactor();
+        auto durabilityRequiredOnMedium = replication.GetVital() && (chunk->IsErasure() || replicationFactor > 1);
         durabilityRequired = durabilityRequired || durabilityRequiredOnMedium;
 
         if (Any(statistics.Status & EChunkStatus::Overreplicated)) {
@@ -1882,22 +1886,22 @@ int TChunkReplicator::GetRefreshQueueSize() const
     return RefreshScanner_->GetQueueSize();
 }
 
-int TChunkReplicator::GetPropertiesUpdateQueueSize() const
+int TChunkReplicator::GetRequisitionUpdateQueueSize() const
 {
-    return PropertiesUpdateScanner_->GetQueueSize();
+    return RequisitionUpdateScanner_->GetQueueSize();
 }
 
-void TChunkReplicator::SchedulePropertiesUpdate(TChunkTree* chunkTree)
+void TChunkReplicator::ScheduleRequisitionUpdate(TChunkTree* chunkTree)
 {
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
             // Erasure chunks have no RF but still can update Vital.
-            SchedulePropertiesUpdate(chunkTree->AsChunk());
+            ScheduleRequisitionUpdate(chunkTree->AsChunk());
             break;
 
         case EObjectType::ChunkList:
-            SchedulePropertiesUpdate(chunkTree->AsChunkList());
+            ScheduleRequisitionUpdate(chunkTree->AsChunkList());
             break;
 
         default:
@@ -1905,7 +1909,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkTree* chunkTree)
     }
 }
 
-void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
+void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 {
     class TVisitor
         : public IChunkVisitor
@@ -1925,7 +1929,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
         {
             auto callbacks = CreatePreemptableChunkTraverserCallbacks(
                 Bootstrap_,
-                NCellMaster::EAutomatonThreadQueue::ChunkPropertiesUpdateTraverser);
+                NCellMaster::EAutomatonThreadQueue::ChunkRequisitionUpdateTraverser);
             TraverseChunkTree(std::move(callbacks), this, Root_);
         }
 
@@ -1941,7 +1945,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
             const TReadLimit& /*startLimit*/,
             const TReadLimit& /*endLimit*/) override
         {
-            Owner_->SchedulePropertiesUpdate(chunk);
+            Owner_->ScheduleRequisitionUpdate(chunk);
             return true;
         }
 
@@ -1963,50 +1967,53 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
     New<TVisitor>(Bootstrap_, this, chunkList)->Run();
 }
 
-void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
+void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
 {
     if (!IsObjectAlive(chunk)) {
         return;
     }
 
-    PropertiesUpdateScanner_->EnqueueChunk(chunk);
+    RequisitionUpdateScanner_->EnqueueChunk(chunk);
 }
 
-void TChunkReplicator::OnPropertiesUpdate()
+void TChunkReplicator::OnRequisitionUpdate()
 {
     if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader()) {
         return;
     }
 
-    TReqUpdateChunkProperties request;
+    TReqUpdateChunkRequisition request;
     request.set_cell_tag(Bootstrap_->GetCellTag());
 
     int totalCount = 0;
     int aliveCount = 0;
     NProfiling::TWallTimer timer;
 
-    LOG_DEBUG("Chunk properties update iteration started");
+    LOG_DEBUG("Chunk requisition update iteration started");
 
-    PROFILE_AGGREGATED_TIMING (PropertiesUpdateTimeCounter) {
-        while (totalCount < Config_->MaxChunksPerPropertiesUpdate &&
-               PropertiesUpdateScanner_->HasUnscannedChunk())
+    PROFILE_AGGREGATED_TIMING (RequisitionUpdateTimeCounter) {
+        ClearChunkRequisitionCache();
+        while (totalCount < Config_->MaxChunksPerRequisitionUpdate &&
+               RequisitionUpdateScanner_->HasUnscannedChunk())
         {
-            if (timer.GetElapsedTime() > Config_->MaxTimePerPropertiesUpdate) {
+            if (timer.GetElapsedTime() > Config_->MaxTimePerRequisitionUpdate) {
                 break;
             }
 
             ++totalCount;
-            auto* chunk = PropertiesUpdateScanner_->DequeueChunk();
+            auto* chunk = RequisitionUpdateScanner_->DequeueChunk();
             if (!chunk) {
                 continue;
             }
 
-            UpdateChunkProperties(chunk, &request);
+            ComputeChunkRequisitionUpdate(chunk, &request);
             ++aliveCount;
         }
     }
 
-    LOG_DEBUG("Chunk chunk properties update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
+    Bootstrap_->GetChunkManager()->FillChunkRequisitionDict(&request);
+
+    LOG_DEBUG("Chunk requisition update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
         totalCount,
         aliveCount,
         request.updates_size());
@@ -2014,41 +2021,50 @@ void TChunkReplicator::OnPropertiesUpdate()
     if (request.updates_size() > 0) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto asyncResult = chunkManager
-            ->CreateUpdateChunkPropertiesMutation(request)
+            ->CreateUpdateChunkRequisitionMutation(request)
             ->CommitAndLog(Logger);
         WaitFor(asyncResult);
     }
 }
 
-void TChunkReplicator::UpdateChunkProperties(TChunk* chunk, TReqUpdateChunkProperties* request)
+void TChunkReplicator::ClearChunkRequisitionCache()
 {
-    const auto& oldProperties = chunk->LocalProperties();
-    auto newProperties = ComputeChunkProperties(chunk);
-    if (newProperties != oldProperties) {
+    ChunkRequisitionCache.LastChunkParents.clear();
+    ChunkRequisitionCache.LastChunkUpdatedRequisitionIndex = EmptyChunkRequisitionIndex;
+    ChunkRequisitionCache.LastErasureChunkUpdatedRequisitionIndex = EmptyChunkRequisitionIndex;
+}
+
+void TChunkReplicator::ComputeChunkRequisitionUpdate(TChunk* chunk, TReqUpdateChunkRequisition* request)
+{
+    auto oldRequisitionIndex = chunk->GetLocalRequisitionIndex();
+    auto newRequisitionIndex = ComputeChunkRequisition(chunk);
+    if (newRequisitionIndex != oldRequisitionIndex) {
         auto* update = request->add_updates();
         ToProto(update->mutable_chunk_id(), chunk->GetId());
-        update->set_vital(newProperties.GetVital());
-        int mediumIndex = 0;
-        for (const auto& mediumProperties : newProperties) {
-            auto* mediumUpdate = update->add_medium_updates();
-            mediumUpdate->set_medium_index(mediumIndex);
-            mediumUpdate->set_replication_factor(mediumProperties.GetReplicationFactor());
-            mediumUpdate->set_data_parts_only(mediumProperties.GetDataPartsOnly());
-            ++mediumIndex;
-        }
+        update->set_chunk_requisition_index(newRequisitionIndex);
     }
 }
 
-TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
+ui32 TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
 {
-    bool found = false;
-    TChunkProperties properties;
-    // Below, properties of this chunk's owners are combined together. Since
-    // 'data parts only' flags are combined by ANDing, we should start with
-    // true to avoid affecting the result.
-    for (auto& mediumProperties : properties) {
-        mediumProperties.SetDataPartsOnly(true);
+    if (chunk->IsStaged()) {
+        ClearChunkRequisitionCache();
+    } else if (chunk->Parents() == ChunkRequisitionCache.LastChunkParents) {
+        if (!chunk->IsErasure() &&
+            ChunkRequisitionCache.LastChunkUpdatedRequisitionIndex != EmptyChunkRequisitionIndex)
+        {
+            return ChunkRequisitionCache.LastChunkUpdatedRequisitionIndex;
+        }
+
+        if (chunk->IsErasure() &&
+            ChunkRequisitionCache.LastErasureChunkUpdatedRequisitionIndex != EmptyChunkRequisitionIndex)
+        {
+            return ChunkRequisitionCache.LastErasureChunkUpdatedRequisitionIndex;
+        }
     }
+
+    bool found = false;
+    TChunkRequisition requisition;
 
     // Unique number used to distinguish already visited chunk lists.
     auto mark = TChunkList::GenerateVisitMark();
@@ -2072,15 +2088,24 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
         }
     }
 
+    auto updateRequisition = [&] (const TChunkOwnerBase* owningNode) {
+        const auto* account = owningNode->GetAccount();
+        if (account) {
+            requisition.CombineWith(owningNode->Replication(), account->GetId(), owningNode->IsTrunk());
+        }
+    };
+
     // The main BFS loop.
     while (frontIndex < queue.size()) {
         auto* chunkList = queue[frontIndex++];
 
         // Examine owners, if any.
         for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
-            // Overloaded; MAXes replication factors, ANDs "data-part-only"s,
-            // ORs vitalities.
-            properties |= owningNode->Properties();
+            updateRequisition(owningNode);
+            found = true;
+        }
+        for (const auto* owningNode : chunkList->BranchedOwningNodes()) {
+            updateRequisition(owningNode);
             found = true;
         }
 
@@ -2096,21 +2121,32 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
     if (chunk->IsErasure()) {
         static_assert(MinReplicationFactor <= 1 && 1 <= MaxReplicationFactor,
                      "Replication factor limits are incorrect.");
-        for (auto& mediumProperties : properties) {
-            if (mediumProperties) {
-                mediumProperties.SetReplicationFactor(1);
-            }
+        requisition.ForceReplicationFactor(1);
+    }
+
+    ui32 result = EmptyChunkRequisitionIndex;
+    if (found) {
+        Y_ASSERT(requisition.ToReplication().IsValid());
+        result = GetChunkRequisitionRegistry().GetIndex(requisition);
+    } else {
+        result = chunk->GetLocalRequisitionIndex();
+    }
+
+    if (!chunk->IsStaged()) {
+        ChunkRequisitionCache.LastChunkParents = chunk->Parents();
+        if (chunk->IsErasure()) {
+            ChunkRequisitionCache.LastErasureChunkUpdatedRequisitionIndex = result;
+        } else {
+            ChunkRequisitionCache.LastChunkUpdatedRequisitionIndex = result;
         }
     }
 
-    Y_ASSERT(!found || properties.IsValid());
-
-    return found ? properties : chunk->LocalProperties();
+    return result;
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
 {
-    while (chunkList->TrunkOwningNodes().Empty()) {
+    while (chunkList->TrunkOwningNodes().Empty() && chunkList->BranchedOwningNodes().Empty()) {
         const auto& parents = chunkList->Parents();
         auto parentCount = parents.Size();
         if (parentCount == 0) {
@@ -2321,6 +2357,11 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(const TJobPtr& job, int size
 bool TChunkReplicator::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcDataCenter)
 {
     return !UnsaturatedInterDCEdges[srcDataCenter].empty();
+}
+
+TChunkRequisitionRegistry& TChunkReplicator::GetChunkRequisitionRegistry()
+{
+    return Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

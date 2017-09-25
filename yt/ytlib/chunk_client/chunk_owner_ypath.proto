@@ -51,7 +51,7 @@ message TRspGetUploadParams
 message TReqEndUpload
 {
     optional TDataStatistics statistics = 1;
-    optional bool chunk_properties_update_needed = 4 [default = false];
+    optional bool chunk_requisition_update_needed = 4 [default = false];
     optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 6;
     optional int32 schema_mode = 7;
     optional int32 optimize_for = 8;

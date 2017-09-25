@@ -19,7 +19,7 @@ namespace NChunkServer {
  *  chunks enqueued up to a certain deadline instant.
  *
  *  2. Handles "global chunk scan" on startup.
- *  For #EChunkScanKind::Refresh and #EChunkScanKind::PropertiesUpdate all
+ *  For #EChunkScanKind::Refresh and #EChunkScanKind::RequisitionUpdate all
  *  chunks are scanned, for #EChunkScanKind::Seal only journal chunks are scanned.
  *  To this aim, all chunks are included into double-linked lists
  *  (cf. #TChunkDynamicData::AllLinkedListNode and #TChunkDynamicData::JournalLinkedListNode).

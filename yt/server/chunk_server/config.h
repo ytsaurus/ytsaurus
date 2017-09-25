@@ -136,14 +136,14 @@ public:
     //! Maximum amount of time allowed to spend during a refresh iteration.
     TDuration MaxTimePerRefresh;
 
-    //! Interval between consequent chunk properties update iterations.
-    TDuration ChunkPropertiesUpdatePeriod;
+    //! Interval between consequent chunk requisition update iterations.
+    TDuration ChunkRequisitionUpdatePeriod;
 
-    //! Maximum number of chunks to process during a properties update iteration.
-    int MaxChunksPerPropertiesUpdate;
+    //! Maximum number of chunks to process during a requisition update iteration.
+    int MaxChunksPerRequisitionUpdate;
 
-    //! Maximum amount of time allowed to spend during a properties update iteration.
-    TDuration MaxTimePerPropertiesUpdate;
+    //! Maximum amount of time allowed to spend during a requisition update iteration.
+    TDuration MaxTimePerRequisitionUpdate;
 
     //! Interval between consequent seal attempts.
     TDuration ChunkSealBackoffTime;
@@ -239,11 +239,11 @@ public:
         RegisterParameter("max_time_per_refresh", MaxTimePerRefresh)
             .Default(TDuration::MilliSeconds(100));
 
-        RegisterParameter("chunk_properties_update_period", ChunkPropertiesUpdatePeriod)
+        RegisterParameter("chunk_requisition_update_period", ChunkRequisitionUpdatePeriod)
             .Default(TDuration::MilliSeconds(100));
-        RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
+        RegisterParameter("max_chunks_per_requisition_update", MaxChunksPerRequisitionUpdate)
             .Default(10000);
-        RegisterParameter("max_time_per_properties_update", MaxTimePerPropertiesUpdate)
+        RegisterParameter("max_time_per_requisition_update", MaxTimePerRequisitionUpdate)
             .Default(TDuration::MilliSeconds(100));
 
         RegisterParameter("max_chunks_per_seal", MaxChunksPerSeal)

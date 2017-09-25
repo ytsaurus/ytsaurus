@@ -2,6 +2,9 @@
 
 #include <yt/server/cell_master/serialize.h>
 
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/medium.h>
+
 #include <yt/server/security_server/security_manager.pb.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -130,7 +133,7 @@ void FromProto(TClusterResources* resources, const NProto::TClusterResources& pr
     resources->TabletCount = protoResources.tablet_count();
     resources->TabletStaticMemory = protoResources.tablet_static_memory_size();
 
-    std::fill_n(resources->DiskSpace, MaxMediumCount, 0);
+    std::fill_n(resources->DiskSpace.begin(), MaxMediumCount, 0);
     for (const auto& spaceStats : protoResources.disk_space_per_medium()) {
         resources->DiskSpace[spaceStats.medium_index()] = spaceStats.disk_space();
     }
@@ -285,7 +288,7 @@ TClusterResources operator -  (const TClusterResources& resources)
 
 bool operator == (const TClusterResources& lhs, const TClusterResources& rhs)
 {
-    if (!std::equal(lhs.DiskSpace, lhs.DiskSpace + MaxMediumCount, rhs.DiskSpace)) {
+    if (lhs.DiskSpace != rhs.DiskSpace) {
         return false;
     }
     if (lhs.NodeCount != rhs.NodeCount) {
@@ -312,7 +315,7 @@ void FormatValue(TStringBuilder* builder, const TClusterResources& resources, co
 {
     builder->AppendString(STRINGBUF("{DiskSpace: ["));
     bool firstDiskSpace = true;
-    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+    for (auto mediumIndex = 0; mediumIndex < resources.DiskSpace.size(); ++mediumIndex) {
         auto diskSpace = resources.DiskSpace[mediumIndex];
         if (diskSpace != 0) {
             if (!firstDiskSpace) {

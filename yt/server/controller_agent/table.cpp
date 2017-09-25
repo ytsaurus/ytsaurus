@@ -54,7 +54,7 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, TableUploadOptions);
     Persist(context, Options);
-    Persist(context, ChunkPropertiesUpdateNeeded);
+    Persist(context, ChunkRequisitionUpdateNeeded);
     Persist(context, OutputType);
     Persist(context, Type);
     Persist(context, DataStatistics);

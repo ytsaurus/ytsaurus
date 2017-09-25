@@ -65,8 +65,7 @@ protected:
         TCellTag cellTag,
         TTransaction* transaction,
         IAttributeDictionary* attributes,
-        TAccount* account,
-        bool enableAccounting) override
+        TAccount* account) override
     {
         const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
 
@@ -82,7 +81,6 @@ protected:
             transaction,
             attributes,
             account,
-            enableAccounting,
             replicationFactor,
             compressionCodec,
             erasureCodec);

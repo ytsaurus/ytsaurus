@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "chunk_list.h"
+#include "medium.h"
 
 #include <yt/server/cypress_server/type_handler.h>
 
@@ -27,12 +28,6 @@ public:
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
-    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
-        const NCypressServer::TCypressNodeBase* node) override;
-
-    virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(
-        const NCypressServer::TCypressNodeBase* node) override;
-
 private:
     NSecurityServer::TClusterResources GetChunkOwnerDiskUsage(
         const NChunkClient::NProto::TDataStatistics& statistics,
@@ -47,7 +42,6 @@ protected:
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes,
         NSecurityServer::TAccount* account,
-        bool enableAccounting,
         int replicationFactor,
         NCompression::ECodec compressionCodec,
         NErasure::ECodec erasureCodec);

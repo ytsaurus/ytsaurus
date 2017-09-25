@@ -56,10 +56,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_owner_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_owner_node_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_placement.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_properties.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_replica.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_replicator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_requisition.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_sealer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree.cpp
