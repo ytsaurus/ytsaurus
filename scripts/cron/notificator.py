@@ -101,8 +101,11 @@ def send_notification(cluster, notification_id, notification, recipients, major_
     msg["To"] = ", ".join(map(lambda name: name + "@yandex-team.ru", final_recipients))
     logger.debug("Sending the following mail: %s", msg.as_string())
     if not dry_run:
-        p = Popen(["/usr/sbin/sendmail", "-t", "-oi"], stdin=PIPE)
-        p.communicate(msg.as_string())
+        cmd = ["/usr/sbin/sendmail", "-t", "-oi"]
+        proc = Popen(cmd, stdin=PIPE)
+        proc.communicate(msg.as_string())
+        if proc.returncode != 0:
+            raise CalledProcessError(proc.return_code, " ".join(cmd))
 
 def process_email(config, dry_run):
     for cluster, cluster_config in config.items():
