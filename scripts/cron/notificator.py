@@ -1,13 +1,16 @@
 #!/usr/bin/python
 
-from sys import exit
-import yt.wrapper as yt
 import logging
-from email.mime.text import MIMEText
-from subprocess import Popen, PIPE
 import time
-
 from argparse import ArgumentParser
+from email.mime.text import MIMEText
+from subprocess import PIPE, Popen
+from sys import exit
+
+import yt.wrapper as yt
+
+import calendar_api
+
 
 class MalformedNotificationError(ValueError):
     def __init__(self, message, notification):
@@ -61,6 +64,21 @@ mail_body_templates = {
 }
 
 
+def add_notification_to_calendar(calendar_proxy, calendar_id, cluster, notification, dry_run):
+    author = (notification["author"] + "@") if "author" in notification else "(N/A)"
+    description = "{0}\n\nSeverity: {1}\nAuthor: {2}".format(notification.get("description", "(No description given)"),
+                                                             notification.get("severity", "(N/A)"),
+                                                             author)
+    name = "**{}**: {}".format(cluster, notification.get("title", ""))
+
+    if not dry_run:
+        calendar_proxy.create_event(calendar_id,
+                                    name,
+                                    description,
+                                    time.gmtime(notification["estimated_start_time"]),
+                                    time.gmtime(notification["estimated_finish_time"]))
+
+
 def send_notification(cluster, notification_id, notification, recipients, major_recipients, dry_run):
     if recipients is None:
         recipients = []
@@ -72,20 +90,19 @@ def send_notification(cluster, notification_id, notification, recipients, major_
         return
 
     logger.debug("Notification %s content:\n%s", notification_id, notification)
-   
     description = notification.get("description", "No description")
     if not ("<" in description and ">" in description):
-        # Seems like the author of description forgot about html-format, let's 
+        # Seems like the author of description forgot about html-format, let's
         # fix newlines for him.
-        description = description.replace("\n", "<br />") 
+        description = description.replace("\n", "<br />")
     is_feature = (notification.get("type") == "feature")
     mail_subject = "**{0}**: {1}".format("feature" if is_feature else cluster,
-                                          notification.get("title", "(no subject)"))
+                                         notification.get("title", "(no subject)"))
     notification_type = notification.get("type")
-    if notification_type is None: 
+    if notification_type is None:
         raise MalformedNotificationError("must have 'type' field", notification)
     if notification_type not in ["issue", "maintenance", "feature"]:
-        raise MalformedNotificationError("type must be one of 'issue', 'maintenance' or 'feature'", notification)
+        raise MalformedNotificationError("'type' must be one of 'issue', 'maintenance' or 'feature'", notification)
     mail_body = mail_body_templates[notification_type].format(
         cluster=cluster,
         description=description,
@@ -107,37 +124,78 @@ def send_notification(cluster, notification_id, notification, recipients, major_
         if proc.returncode != 0:
             raise CalledProcessError(proc.return_code, " ".join(cmd))
 
-def process_email(config, dry_run):
-    for cluster, cluster_config in config.items():
-        if cluster == "global":
-            logger.info("Processing global notifications")
-            notifications_url = "//sys/notifications/global"
-        else:
-            logger.info("Processing cluster %s", cluster)
-            notifications_url = "//sys/notifications/local/" + cluster
-        notifications = yt.get(notifications_url)
-        for notification_id, notification in notifications.items(): 
-            if notification.get("sent_via_mail", False) or (not notification.get("published", False)):
-                continue
-            logger.info("Sending notification %s", notification_id)
-            try:
-                send_notification(cluster, 
-                                  notification_id, 
-                                  notification, 
-                                  cluster_config.get("send_all", []), 
-                                  cluster_config.get("send_major", []),
-                                  dry_run)
-            except MalformedNotificationError as exception:
-                logger.error("Malformed notification: %s\n%s", exception.message, exception.notification)
-            if not dry_run:
-                yt.set("{0}/{1}/sent_via_mail".format(notifications_url, notification_id), True)
+
+def get_notifications_path(config, cluster):
+    if cluster == "global":
+        return config["global_notifications_path"]
+    else:
+        return "{}/{}".format(config["cluster_notifications_root_path"], cluster)
+
+
+def add_calendars_for_clusters(config, config_path):
+    calendar_proxy = calendar_api.CalendarProxy(config["calendar_backend"], config["user_id"])
+    for cluster, cluster_config in config["rules"].items():
+        if "calendar_id" not in cluster_config:
+            calendar_id = calendar_proxy.create_calendar("{0} maintenance".format(cluster), True)
+            cluster_config["calendar_id"] = calendar_id
+            yt.set("{0}/rules/{1}/calendar_id".format(config_path, cluster), calendar_id)
+
+
+def email_notifications(config, dry_run):
+    for cluster, cluster_config in config["rules"].items():
+        notifications_path = get_notifications_path(config, cluster)
+        notifications = yt.get(notifications_path)
+        logger.info("Processing cluster %s", cluster)
+        for notification_id, notification in notifications.items():
+            if not notification.get("sent_via_mail", False) and notification.get("published", False):
+                logger.info("Mailing notification %s", notification_id)
+                try:
+                    send_notification(cluster,
+                                      notification_id,
+                                      notification,
+                                      cluster_config.get("send_all", []),
+                                      cluster_config.get("send_major", []),
+                                      dry_run)
+                except MalformedNotificationError as exception:
+                    logger.exception("Malformed notification: %s\n%s", exception.message, exception.notification)
+                if not dry_run:
+                    yt.set("{0}/{1}/sent_via_mail".format(notifications_path, notification_id), True)
+
+
+def add_notifications_to_calendars(config, dry_run):
+    calendar_proxy = calendar_api.CalendarProxy(config["calendar_backend"], config["user_id"])
+    for cluster, cluster_config in config["rules"].items():
+        notifications_path = get_notifications_path(config, cluster)
+        notifications = yt.get(notifications_path)
+        logger.info("Processing cluster %s", cluster)
+        for notification_id, notification in notifications.items():
+            if not notification.get("added_to_calendar", False) and \
+                    notification.get("published", False) and \
+                    notification.get("type") == "maintenance":
+                logger.debug("Notification times: %s -- %s",
+                             time.ctime(notification["estimated_start_time"]),
+                             time.ctime(notification["estimated_finish_time"]))
+                logger.info("Adding notification %s to calendar", notification_id)
+                try:
+                    add_notification_to_calendar(calendar_proxy,
+                                                 cluster_config["calendar_id"],
+                                                 cluster,
+                                                 notification,
+                                                 dry_run)
+                except MalformedNotificationError as exception:
+                    logger.exception("Malformed notification: %s\n%s", exception.message, exception.notification)
+                except calendar_api.HttpResponseNotOkError as exception:
+                    logger.exception("HTTP response not OK: %s", exception.message)
+                if not dry_run:
+                    yt.set("{0}/{1}/added_to_calendar".format(notifications_path, notification_id), True)
+
 
 def main():
     parser = ArgumentParser()
     parser.add_argument("-d", "--dry-run", action="store_true")
-    parser.add_argument("-c", "--config",  default="//sys/notifications/config")
+    parser.add_argument("-c", "--config", default="//sys/notifications/config")
     args = parser.parse_args()
-    
+
     if args.dry_run:
         logger.setLevel(logging.DEBUG)
 
@@ -148,7 +206,10 @@ def main():
         logger.exception("Error while reading configuration from '%s'. Didn't you forget to specify locke as YT_PROXY?", args.config)
         exit(1)
 
-    process_email(config, args.dry_run)
-                
+    add_calendars_for_clusters(config, args.config)
+    add_notifications_to_calendars(config, args.dry_run)
+    email_notifications(config, args.dry_run)
+
+
 if __name__ == "__main__":
     main()
