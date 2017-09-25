@@ -766,9 +766,12 @@ class YTInstance(object):
     def start_schedulers(self, sync=True):
         self._remove_scheduler_lock()
 
-        self._run_yt_component("scheduler")
-
         client = self.create_client()
+        client.create("map_node", "//sys/pool_trees/default", ignore_existing=True)
+        client.link("//sys/pool_trees/default", "//sys/pools", ignore_existing=True)
+        client.set("//sys/pool_trees/@default_tree", "default")
+
+        self._run_yt_component("scheduler")
 
         def schedulers_ready():
             self._validate_processes_is_running("scheduler")
