@@ -307,6 +307,7 @@ public:
         const ISchemafulReaderPtr& reader,
         bool isLeft)
     {
+        auto foreignRowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
         std::vector<TRow> sortedForeignSequence;
         size_t unsortedOffset = 0;
         TRow lastForeignKey;
@@ -354,12 +355,14 @@ public:
                             sortedForeignSequence.begin(),
                             sortedForeignSequence.end());
                         sortedForeignSequence.clear();
+                        foreignRowBuffer->Clear();
                         unsortedOffset = 0;
                     }
-                    lastForeignKey = *foreignIt;
+
                 }
 
-                sortedForeignSequence.push_back(IntermediateBuffer->Capture(*foreignIt));
+                sortedForeignSequence.push_back(foreignRowBuffer->Capture(*foreignIt));
+                lastForeignKey = sortedForeignSequence.back();
                 ++foreignIt;
             }
         };
@@ -396,6 +399,7 @@ public:
                 sortedForeignSequence.begin(),
                 sortedForeignSequence.end());
             sortedForeignSequence.clear();
+            foreignRowBuffer->Clear();
             unsortedOffset = 0;
         }
 
