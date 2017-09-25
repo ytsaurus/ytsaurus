@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_replica.h"
+#include "chunk_requisition.h"
 
 #include <yt/server/cell_master/public.h>
 
@@ -40,8 +41,8 @@ public:
 
     void Initialize();
 
-    std::unique_ptr<NHydra::TMutation> CreateUpdateChunkPropertiesMutation(
-        const NProto::TReqUpdateChunkProperties& request);
+    std::unique_ptr<NHydra::TMutation> CreateUpdateChunkRequisitionMutation(
+        const NProto::TReqUpdateChunkRequisition& request);
 
     using TCtxExportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExportChunks,
@@ -132,7 +133,7 @@ public:
 
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
-    void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree);
+    void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree);
     void ScheduleChunkSeal(TChunk* chunk);
 
     const yhash_set<TChunk*>& LostVitalChunks() const;
@@ -176,6 +177,10 @@ public:
 
     //! Returns the medium with a given name (throws if none).
     TMedium* GetMediumByNameOrThrow(const TString& name) const;
+
+    TChunkRequisitionRegistry& GetChunkRequisitionRegistry();
+
+    void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request);
 
 private:
     class TImpl;

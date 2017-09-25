@@ -2,6 +2,7 @@
 #include "private.h"
 #include "chunk.h"
 #include "chunk_manager.h"
+#include "medium.h"
 #include "helpers.h"
 
 #include <yt/server/cell_master/bootstrap.h>
@@ -247,12 +248,6 @@ private:
                 return true;
             }
 
-            if (key == "vital") {
-                BuildYsonFluently(consumer)
-                    .Value(chunk->ComputeVital());
-                return true;
-            }
-
             if (key == "replication_status") {
                 RequireLeader();
                 auto statuses = chunkManager->ComputeChunkStatuses(chunk);
@@ -290,11 +285,18 @@ private:
             }
         }
 
-        if (key == "media") {
-            const auto& properties = chunk->ComputeProperties();
-            BuildYsonFluently(consumer)
-                .Value(TSerializableChunkProperties(properties, chunkManager));
-            return true;
+        if (key == "vital" || key == "media" ) {
+            const auto& replication = chunk->ComputeReplication(chunkManager->GetChunkRequisitionRegistry());
+
+            if (key == "vital") {
+                BuildYsonFluently(consumer)
+                    .Value(replication.GetVital());
+                return true;
+            } else {
+                BuildYsonFluently(consumer)
+                    .Value(TSerializableChunkReplication(replication, chunkManager));
+                return true;
+            }
         }
 
         if (chunk->IsErasure() && key == "erasure_codec") {
@@ -322,12 +324,14 @@ private:
                     auto cellTag = cellTags[index];
                     const auto& exportData = chunk->GetExportData(index);
                     if (exportData.RefCounter > 0) {
-                        const auto& props = exportData.Properties;
+                        auto requisitionIndex = exportData.ChunkRequisitionIndex;
+                        const auto& requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+                        const auto& replication = requisitionRegistry.GetReplication(requisitionIndex);
                         fluent
                             .Item(ToString(cellTag)).BeginMap()
                                 .Item("ref_counter").Value(exportData.RefCounter)
-                                .Item("vital").Value(props.GetVital())
-                                .Item("media").Value(TSerializableChunkProperties(props, chunkManager))
+                                .Item("vital").Value(replication.GetVital())
+                                .Item("media").Value(TSerializableChunkReplication(replication, chunkManager))
                             .EndMap();
                     }
                 });

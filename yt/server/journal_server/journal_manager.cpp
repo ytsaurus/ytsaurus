@@ -55,14 +55,18 @@ public:
     {
         YCHECK(trunkNode->IsTrunk());
 
+        auto* chunkList = trunkNode->GetChunkList();
+
         trunkNode->SnapshotStatistics() = statistics
             ? *statistics
-            :  trunkNode->GetChunkList()->Statistics().ToDataStatistics();
+            :  chunkList->Statistics().ToDataStatistics();
 
         trunkNode->SetSealed(true);
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateAccountNodeUsage(trunkNode);
+        if (chunkList && !trunkNode->IsExternal()) {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
+        }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Journal node sealed (NodeId: %v)",
             trunkNode->GetId());

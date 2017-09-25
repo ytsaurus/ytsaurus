@@ -2697,7 +2697,7 @@ private:
                     ToProto(req->mutable_table_schema(), outputSchemaInferer->GetOutputTableSchema());
                     req->set_schema_mode(static_cast<int>(outputSchemaInferer->GetOutputTableSchemaMode()));
                 }
-                req->set_chunk_properties_update_needed(true);
+                req->set_chunk_requisition_update_needed(true);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
                 NRpc::GenerateMutationId(req);
 
@@ -3427,7 +3427,7 @@ private:
         }
 
         textFactor = to_lower(textFactor);
- 
+
         return textFactor;
     }
 
@@ -3482,7 +3482,7 @@ private:
             "state",
             "suspended",
             "title",
-            "weight"  
+            "weight"
         };
         if (deadline) {
             listNodeOptions.Timeout = *deadline - Now();
@@ -3578,7 +3578,7 @@ private:
             }
 
             auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
-            bool hasFailedJobs = 
+            bool hasFailedJobs =
                 briefProgressMapNode->FindChild("jobs") &&
                 briefProgressMapNode->GetChild("jobs")->AsMap()->
                 GetChild("failed")->AsInt64()->GetValue() > 0;
@@ -3638,7 +3638,7 @@ private:
                 }
                 itemsSortDirection = "ASC";
             }
-            
+
             if (options.Pool) {
                 itemsConditions.push_back(Format("pool = %Qv", *options.Pool));
             }
@@ -3656,7 +3656,7 @@ private:
             }
 
             TString queryForItemsIds = Format(
-                "id_hi, id_lo FROM [%v] WHERE %v ORDER BY start_time %v LIMIT %v", 
+                "id_hi, id_lo FROM [%v] WHERE %v ORDER BY start_time %v LIMIT %v",
                 GetOperationsArchivePathOrderedByStartTime(),
                 JoinSeq(" AND ", itemsConditions),
                 itemsSortDirection,
@@ -3721,7 +3721,7 @@ private:
                 ids.FinishTime,
             });
             lookupOptions.KeepMissingRows = true;
-            
+
             if (deadline) {
                 lookupOptions.Timeout = *deadline - Now();
             }
@@ -3741,14 +3741,14 @@ private:
                 }
             };
 
-            auto checkWithFailedJobsFilter = 
+            auto checkWithFailedJobsFilter =
                 [&options] (bool hasFailedJobs) {
                     if (options.WithFailedJobs) {
                         if (*options.WithFailedJobs) {
                             return hasFailedJobs;
                         } else {
                             return !hasFailedJobs;
-                        }   
+                        }
                     }
 
                     return true;
@@ -3800,9 +3800,9 @@ private:
 
         std::sort(
             cypressData.begin(),
-            cypressData.end(), 
+            cypressData.end(),
             [] (const TOperation& lhs, const TOperation& rhs) {
-                return lhs.OperationId < rhs.OperationId;    
+                return lhs.OperationId < rhs.OperationId;
             });
 
         auto mergeOperations = [&] (const std::vector<TOperation>& source1, const std::vector<TOperation>& source2) {

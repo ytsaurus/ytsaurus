@@ -97,6 +97,24 @@ void TJournalNode::SetSealed(bool value)
     Sealed_ = value;
 }
 
+TClusterResources TJournalNode::GetDeltaResourceUsage() const
+{
+    if (IsTrunk()) {
+        return TBase::GetDeltaResourceUsage();
+    } else {
+        return GetTrunkNode()->GetDeltaResourceUsage(); // Recurse once.
+    }
+}
+
+TClusterResources TJournalNode::GetTotalResourceUsage() const
+{
+    if (IsTrunk()) {
+        return TBase::GetTotalResourceUsage();
+    } else {
+        return GetTrunkNode()->GetTotalResourceUsage(); // Recurse once.
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalNodeTypeHandler
@@ -122,16 +140,6 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual TClusterResources GetTotalResourceUsage(const TCypressNodeBase* node) override
-    {
-        return TBase::GetTotalResourceUsage(node->GetTrunkNode());
-    }
-
-    virtual TClusterResources GetAccountingResourceUsage(const TCypressNodeBase* node) override
-    {
-        return TBase::GetAccountingResourceUsage(node->GetTrunkNode());
-    }
-
 protected:
     typedef TChunkOwnerTypeHandler<TJournalNode> TBase;
 
@@ -151,8 +159,7 @@ protected:
         TCellTag cellTag,
         TTransaction* transaction,
         IAttributeDictionary* attributes,
-        NSecurityServer::TAccount* account,
-        bool enableAccounting) override
+        NSecurityServer::TAccount* account) override
     {
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
 
@@ -177,7 +184,6 @@ protected:
             transaction,
             attributes,
             account,
-            enableAccounting,
             replicationFactor,
             NCompression::ECodec::None,
             NErasure::ECodec::None);
@@ -197,7 +203,7 @@ protected:
         // NB: Don't call TBase::DoBranch.
 
         branchedNode->SetPrimaryMediumIndex(originatingNode->GetPrimaryMediumIndex());
-        branchedNode->Properties() = originatingNode->Properties();
+        branchedNode->Replication() = originatingNode->Replication();
         branchedNode->SetReadQuorum(originatingNode->GetReadQuorum());
         branchedNode->SetWriteQuorum(originatingNode->GetWriteQuorum());
 
@@ -222,12 +228,12 @@ protected:
         LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-            "PrimaryMedium: %v, Properties: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v, LockTimestamp: %llx)",
+            "PrimaryMedium: %v, Replication: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v, LockTimestamp: %llx)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
             GetObjectId(originatingNode->GetChunkList()),
             primaryMedium->GetName(),
-            originatingNode->Properties(),
+            originatingNode->Replication(),
             originatingNode->GetReadQuorum(),
             originatingNode->GetWriteQuorum(),
             lockRequest.Mode,

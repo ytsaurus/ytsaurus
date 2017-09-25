@@ -103,8 +103,7 @@ public:
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes,
-        NSecurityServer::TAccount* account,
-        bool enableAccounting) override
+        NSecurityServer::TAccount* account) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(GetObjectType(), hintId);
@@ -113,8 +112,7 @@ public:
             externalCellTag,
             transaction,
             attributes,
-            account,
-            enableAccounting);
+            account);
     }
 
     virtual void Destroy(TCypressNodeBase* node) override
@@ -201,22 +199,6 @@ public:
         return clonedNode;
     }
 
-    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
-        const TCypressNodeBase* node) override
-    {
-        NSecurityServer::TClusterResources result;
-        result.NodeCount = 1;
-        return result;
-    }
-
-    virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(
-        const TCypressNodeBase* node) override
-    {
-        NSecurityServer::TClusterResources result;
-        result.NodeCount = 1;
-        return result;
-    }
-
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TImpl* trunkNode,
@@ -225,34 +207,39 @@ protected:
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
-        NTransactionServer::TTransaction* /*transaction*/,
+        NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* /*attributes*/,
-        NSecurityServer::TAccount* account,
-        bool enableAccounting)
+        NSecurityServer::TAccount* account)
     {
         auto nodeHolder = std::make_unique<TImpl>(id);
         nodeHolder->SetExternalCellTag(externalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
 
-        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         securityManager->ValidatePermission(account, user, NSecurityServer::EPermission::Use);
-        securityManager->SetAccount(nodeHolder.get(), account);
+        securityManager->SetAccount(nodeHolder.get(), nullptr, account, transaction);
 
         return nodeHolder;
     }
 
     virtual void DoDestroy(TImpl* node)
     {
-        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ResetAccount(node);
     }
 
     virtual void DoBranch(
-        const TImpl* /*originatingNode*/,
-        TImpl* /*branchedNode*/,
+        const TImpl* originatingNode,
+        TImpl* branchedNode,
         const TLockRequest& /*lockRequest*/)
-    { }
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* transaction = branchedNode->GetTransaction();
+        auto* account = originatingNode->GetAccount();
+        YCHECK(!branchedNode->GetAccount());
+        securityManager->SetAccount(branchedNode, nullptr, account, transaction);
+    }
 
     virtual void DoLogBranch(
         const TImpl* originatingNode,
@@ -271,8 +258,11 @@ protected:
 
     virtual void DoMerge(
         TImpl* /*originatingNode*/,
-        TImpl* /*branchedNode*/)
-    { }
+        TImpl* branchedNode)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ResetAccount(branchedNode);
+    }
 
     virtual void DoLogMerge(
         TImpl* originatingNode,
@@ -298,11 +288,14 @@ protected:
 
     virtual void DoClone(
         TImpl* /*sourceNode*/,
-        TImpl* /*clonedNode*/,
-        ICypressNodeFactory* /*factory*/,
+        TImpl* clonedNode,
+        ICypressNodeFactory* factory,
         ENodeCloneMode /*mode*/,
-        NSecurityServer::TAccount* /*account*/)
-    { }
+        NSecurityServer::TAccount* account)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->SetAccount(clonedNode, nullptr /* oldAccount */, account, factory->GetTransaction());
+    }
 
 };
 
@@ -379,7 +372,7 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override
     {
         TCypressNodeBase::Save(context);
-        
+
         using NYT::Save;
         Save(context, Value_);
     }
@@ -618,8 +611,7 @@ private:
         NObjectClient::TCellTag cellTag,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes,
-        NSecurityServer::TAccount* account,
-        bool enableAccounting) override;
+        NSecurityServer::TAccount* account) override;
 
     virtual void DoBranch(
         const TLinkNode* originatingNode,

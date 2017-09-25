@@ -13,7 +13,9 @@
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
 
+#include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/job.h>
+#include <yt/server/chunk_server/medium.h>
 
 #include <yt/server/cypress_server/cypress_manager.h>
 

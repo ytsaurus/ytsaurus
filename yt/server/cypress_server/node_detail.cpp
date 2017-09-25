@@ -4,7 +4,7 @@
 
 #include <yt/server/cell_master/hydra_facade.h>
 
-#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/account.h>
 #include <yt/server/security_server/user.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -17,7 +17,8 @@ using namespace NYson;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
-using namespace NSecurityServer;
+
+using NSecurityServer::TAccount;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,17 +66,12 @@ bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
 
 void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
 {
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-
     // Reset parent links from immediate descendants.
     for (auto* descendant : node->ImmediateDescendants()) {
         descendant->ResetParent();
     }
     node->ImmediateDescendants().clear();
     node->SetParent(nullptr);
-
-    // Reset account.
-    securityManager->ResetAccount(node);
 
     // Clear ACD to unregister the node from linked objects.
     node->Acd().Clear();
@@ -101,9 +97,6 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
     branchedNode->SetOpaque(originatingNode->GetOpaque());
 
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    securityManager->SetNodeResourceAccounting(branchedNode, originatingNode->GetAccountingEnabled());
-
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode, branchedNode);
 }
@@ -113,16 +106,12 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     TCypressNodeBase* branchedNode)
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     // Merge user attributes.
     objectManager->MergeAttributes(originatingNode, branchedNode);
 
     // Perform cleanup by resetting the parent link of the branched node.
     branchedNode->SetParent(nullptr);
-
-    // Reset account.
-    securityManager->ResetAccount(branchedNode);
 
     // Merge modification time.
     const auto* mutationContext = NHydra::GetCurrentMutationContext();
@@ -340,7 +329,6 @@ void TMapNodeTypeHandler::DoClone(
     ICypressNodeFactory* factory,
     ENodeCloneMode mode,
     TAccount* account)
-
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
@@ -581,8 +569,7 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
     TCellTag cellTag,
     TTransaction* transaction,
     IAttributeDictionary* attributes,
-    TAccount* account,
-    bool enableAccounting)
+    TAccount* account)
 {
     // Make sure that target_path is valid upon creation.
     auto targetPath = attributes->GetAndRemove<TString>("target_path");
@@ -595,8 +582,7 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
         cellTag,
         transaction,
         attributes,
-        account,
-        enableAccounting);
+        account);
 
     implHolder->SetTargetPath(targetPath);
 

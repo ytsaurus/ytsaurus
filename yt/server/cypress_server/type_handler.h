@@ -45,8 +45,7 @@ struct INodeTypeHandler
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes,
-        NSecurityServer::TAccount* account,
-        bool enableAccounting) = 0;
+        NSecurityServer::TAccount* account) = 0;
 
     //! Performs cleanup on node destruction.
     /*!
@@ -90,15 +89,6 @@ struct INodeTypeHandler
 
     //! Returns |true| if nodes of this type can be stored at external cells.
     virtual bool IsExternalizable() const = 0;
-
-    //! Returns the total resource usage as seen by the user.
-    //! These values are exposed via |resource_usage| attribute.
-    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(const TCypressNodeBase* node) = 0;
-
-    //! Returns the incremental resource usage for accounting purposes.
-    //! E.g. when a node is branched in append mode, its initial incremental usage is zero.
-    virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(const TCypressNodeBase* node) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeTypeHandler)

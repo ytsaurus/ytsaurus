@@ -549,6 +549,7 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
     }
 
     def _verify_resource_usage(self, account, resource, expected):
+        sleep(0.5)
         assert get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource)) == expected
         assert get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource)) == expected
 
@@ -684,6 +685,7 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
             mount_table("//tmp/t")
 
         def _verify():
+            sleep(0.5)
             data_size = get("//tmp/t/@{0}_data_size".format(mode))
             resource_usage = get("//sys/accounts/test_account/@resource_usage")
             committed_resource_usage = get("//sys/accounts/test_account/@committed_resource_usage")

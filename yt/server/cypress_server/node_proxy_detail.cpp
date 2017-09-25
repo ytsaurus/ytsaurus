@@ -8,6 +8,10 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 
+#include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_owner_base.h>
+
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
@@ -208,8 +212,7 @@ private:
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
-        const auto& handler = cypressManager->GetHandler(node);
-        ResourceUsage_ += handler->GetTotalResourceUsage(node);
+        ResourceUsage_ += node->GetTotalResourceUsage();
     }
 
     virtual void OnError(const TError& error) override
@@ -380,7 +383,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const TString& key, c
         if (node->GetAccount() != account) {
             // TODO(savrus) See YT-7050
             securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
-            securityManager->SetAccount(node, account);
+            securityManager->SetAccount(node, node->GetAccount(), account, nullptr /* transaction */);
         }
 
         return true;
@@ -470,7 +473,6 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back("external");
     descriptors->push_back(TAttributeDescriptor("external_cell_tag")
         .SetPresent(isExternal));
-    descriptors->push_back("accounting_enabled");
     descriptors->push_back(TAttributeDescriptor("locks")
         .SetOpaque(true));
     descriptors->push_back("lock_count");
@@ -523,12 +525,6 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     if (key == "external_cell_tag" && isExternal) {
         BuildYsonFluently(consumer)
             .Value(node->GetExternalCellTag());
-        return true;
-    }
-
-    if (key == "accounting_enabled") {
-        BuildYsonFluently(consumer)
-            .Value(node->GetAccountingEnabled());
         return true;
     }
 
@@ -621,10 +617,8 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     }
 
     if (key == "resource_usage") {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto& handler = cypressManager->GetHandler(node);
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, handler->GetTotalResourceUsage(node));
+        auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, node->GetTotalResourceUsage());
         BuildYsonFluently(consumer)
             .Value(resourceSerializer);
         return true;
@@ -1024,11 +1018,6 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     Y_UNREACHABLE();
 }
 
-TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
-{
-    return TClusterResources().SetNodeCount(1);
-}
-
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 {
     DeclareMutating();
@@ -1081,7 +1070,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         Transaction,
         lockRequest,
         waitable);
-    
+
     auto lockId = lock->GetId();
     ToProto(response->mutable_lock_id(), lockId);
     ToProto(response->mutable_node_id(), lock->GetTrunkNode()->GetId());
@@ -1169,7 +1158,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto newProxy = factory->CreateNode(
         type,
-        request->enable_accounting(),
         attributes.get());
 
     if (replace) {

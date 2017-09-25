@@ -516,23 +516,23 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
     if (key == "media") {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& properties = node->Properties();
+        const auto& replication = node->Replication();
         BuildYsonFluently(consumer)
-            .Value(TSerializableChunkProperties(properties, chunkManager));
+            .Value(TSerializableChunkReplication(replication, chunkManager));
         return true;
     }
 
     if (key == "replication_factor") {
-        const auto& properties = node->Properties();
+        const auto& replication = node->Replication();
         auto primaryMediumIndex = node->GetPrimaryMediumIndex();
         BuildYsonFluently(consumer)
-            .Value(properties[primaryMediumIndex].GetReplicationFactor());
+            .Value(replication[primaryMediumIndex].GetReplicationFactor());
         return true;
     }
 
     if (key == "vital") {
         BuildYsonFluently(consumer)
-            .Value(node->Properties().GetVital());
+            .Value(node->Replication().GetVital());
         return true;
     }
 
@@ -632,10 +632,11 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
     if (key == "media") {
         ValidateStorageParametersUpdate();
-        auto serializableProperties = ConvertTo<TSerializableChunkProperties>(value);
-        auto properties = node->Properties(); // Copying for modification.
-        serializableProperties.ToChunkProperties(&properties, chunkManager);
-        SetMediaProperties(properties);
+        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+        auto replication = node->Replication(); // Copying for modification.
+        // Preserves vitality.
+        serializableReplication.ToChunkReplication(&replication, chunkManager);
+        SetReplication(replication);
         return true;
     }
 
@@ -657,6 +658,18 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         return true;
     }
 
+    if (key == "account") {
+        if (!TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value)) {
+            return false;
+        }
+
+        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
+        if (!node->IsExternal()) {
+            chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
+        }
+        return true;
+    }
+
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
 }
 
@@ -669,24 +682,21 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
 
-    auto properties = node->Properties();
-    if (properties[mediumIndex].GetReplicationFactor() == replicationFactor) {
+    auto replication = node->Replication();
+    if (replication[mediumIndex].GetReplicationFactor() == replicationFactor) {
         return;
     }
 
     ValidateReplicationFactor(replicationFactor);
     ValidatePermission(medium, EPermission::Use);
 
-    properties[mediumIndex].SetReplicationFactor(replicationFactor);
-    ValidateChunkProperties(chunkManager, properties, node->GetPrimaryMediumIndex());
+    replication[mediumIndex].SetReplicationFactor(replicationFactor);
+    ValidateChunkReplication(chunkManager, replication, node->GetPrimaryMediumIndex());
 
-    node->Properties() = properties;
-
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    securityManager->UpdateAccountNodeUsage(node);
+    node->Replication() = replication;
 
     if (!node->IsExternal()) {
-        chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
+        chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
     }
 }
 
@@ -695,33 +705,33 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->IsTrunk());
 
-    auto& properties = node->Properties();
-    if (properties.GetVital() == vital) {
+    auto& replication = node->Replication();
+    if (replication.GetVital() == vital) {
         return;
     }
 
-    properties.SetVital(vital);
+    replication.SetVital(vital);
 
     if (!node->IsExternal()) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
+        chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
     }
 }
 
-void TChunkOwnerNodeProxy::SetMediaProperties(const TChunkProperties& properties)
+void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     YCHECK(node->IsTrunk());
 
-    if (node->Properties() == properties) {
+    if (node->Replication() == replication) {
         return;
     }
 
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        const auto& mediumProperties = properties[mediumIndex];
-        if (mediumProperties) {
+        const auto& policy = replication[mediumIndex];
+        if (policy) {
             auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
             ValidatePermission(medium, EPermission::Use);
         }
@@ -730,28 +740,25 @@ void TChunkOwnerNodeProxy::SetMediaProperties(const TChunkProperties& properties
     auto primaryMediumIndex = node->GetPrimaryMediumIndex();
     const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
 
-    if (!properties[primaryMediumIndex]) {
+    if (!replication[primaryMediumIndex]) {
         THROW_ERROR_EXCEPTION("Cannot remove primary medium %Qv",
             primaryMedium->GetName());
     }
 
-    ValidateChunkProperties(chunkManager, properties, primaryMediumIndex);
+    ValidateChunkReplication(chunkManager, replication, primaryMediumIndex);
 
-    node->Properties() = properties;
-
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    securityManager->UpdateAccountNodeUsage(node);
+    node->Replication() = replication;
 
     if (!node->IsExternal()) {
-        chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
+        chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
     }
 
     LOG_DEBUG_UNLESS(
         IsRecovery(),
-        "Chunk owner medium properties changed (NodeId: %v, PrimaryMedium: %v, Properties: %v)",
+        "Chunk owner replication changed (NodeId: %v, PrimaryMedium: %v, Replication: %v)",
         node->GetId(),
         primaryMedium->GetName(),
-        node->Properties());
+        node->Replication());
  }
 
 void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
@@ -766,24 +773,24 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
 
     ValidatePermission(medium, EPermission::Use);
 
-    auto properties = node->Properties();
-    if (!properties[mediumIndex]) {
+    auto replication = node->Replication();
+    if (!replication[mediumIndex]) {
         // The user is trying to set a medium with zero replication count
         // as primary. This is regarded as a request to move from one medium to
         // another.
         auto oldMediumIndex = node->GetPrimaryMediumIndex();
-        properties[mediumIndex] = properties[oldMediumIndex];
-        properties[oldMediumIndex].Clear();
+        replication[mediumIndex] = replication[oldMediumIndex];
+        replication[oldMediumIndex].Clear();
     }
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    ValidateChunkProperties(chunkManager, properties, mediumIndex);
+    ValidateChunkReplication(chunkManager, replication, mediumIndex);
 
-    node->Properties() = properties;
+    node->Replication() = replication;
     node->SetPrimaryMediumIndex(mediumIndex);
 
     if (!node->IsExternal()) {
-        chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
+        chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
     }
 
     LOG_DEBUG_UNLESS(
@@ -919,14 +926,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         EmptyAttributes(),
         uploadTransactionIdHint);
 
-    uploadTransaction->SetAccountingEnabled(node->GetAccountingEnabled());
-
     auto* lockedNode = cypressManager
         ->LockNode(TrunkNode, uploadTransaction, lockMode)
         ->As<TChunkOwnerBase>();
-
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    securityManager->SetNodeResourceAccounting(lockedNode, false);
 
     switch (updateMode) {
         case EUpdateMode::Append: {
@@ -1065,11 +1067,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         : TTableSchema();
     auto schemaMode = ETableSchemaMode(request->schema_mode());
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
-    bool chunkPropertiesUpdateNeeded = request->chunk_properties_update_needed();
+    bool chunkRequisitionUpdateNeeded = request->chunk_requisition_update_needed();
 
-    context->SetRequestInfo("Schema: %v, ChunkPropertiesUpdateNeeded: %v",
+    context->SetRequestInfo("Schema: %v, ChunkRequisitionUpdateNeeded: %v",
         schema,
-        chunkPropertiesUpdateNeeded);
+        chunkRequisitionUpdateNeeded);
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
@@ -1093,7 +1095,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     node->EndUpload(statistics, schema, schemaMode, optimizeFor);
 
-    node->SetChunkPropertiesUpdateNeeded(chunkPropertiesUpdateNeeded);
+    node->SetChunkRequisitionUpdateNeeded(chunkRequisitionUpdateNeeded);
 
     SetModified();
 

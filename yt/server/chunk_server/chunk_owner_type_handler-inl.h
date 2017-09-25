@@ -38,60 +38,12 @@ NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType() const
 }
 
 template <class TChunkOwner>
-NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetTotalResourceUsage(
-    const NCypressServer::TCypressNodeBase* node)
-{
-    const auto* chunkOwnerNode = node->As<TChunkOwner>();
-    auto result = TBase::GetTotalResourceUsage(node);
-    auto statistics = chunkOwnerNode->ComputeTotalStatistics();
-
-    result += GetChunkOwnerDiskUsage(statistics, *chunkOwnerNode);
-    return result;
-}
-
-template <class TChunkOwner>
-NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetAccountingResourceUsage(
-    const NCypressServer::TCypressNodeBase* node)
-{
-    const auto* chunkOwnerNode = node->As<TChunkOwner>();
-    NChunkClient::NProto::TDataStatistics statistics;
-    if (chunkOwnerNode->GetUpdateMode() == NChunkClient::EUpdateMode::Append) {
-        statistics = chunkOwnerNode->DeltaStatistics();
-    } else if (
-        chunkOwnerNode->GetUpdateMode() == NChunkClient::EUpdateMode::Overwrite ||
-        chunkOwnerNode->IsTrunk())
-    {
-        statistics = chunkOwnerNode->SnapshotStatistics();
-    }
-    return
-        TBase::GetAccountingResourceUsage(node) +
-        GetChunkOwnerDiskUsage(statistics, *chunkOwnerNode);
-}
-
-template <class TChunkOwner>
-NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetChunkOwnerDiskUsage(
-    const NChunkClient::NProto::TDataStatistics& statistics,
-    const TChunkOwner& chunkOwner)
-{
-    NSecurityServer::TClusterResources result;
-    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        result.DiskSpace[mediumIndex] = CalculateDiskSpaceUsage(
-            chunkOwner.Properties()[mediumIndex].GetReplicationFactor(),
-            statistics.regular_disk_space(),
-            statistics.erasure_disk_space());
-    }
-    result.ChunkCount = statistics.chunk_count();
-    return result;
-}
-
-template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     const NCypressServer::TVersionedNodeId& id,
     NObjectClient::TCellTag externalCellTag,
     NTransactionServer::TTransaction* transaction,
     NYTree::IAttributeDictionary* attributes,
     NSecurityServer::TAccount* account,
-    bool enableAccounting,
     int replicationFactor,
     NCompression::ECodec compressionCodec,
     NErasure::ECodec erasureCodec)
@@ -107,13 +59,12 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
         externalCellTag,
         transaction,
         attributes,
-        account,
-        enableAccounting);
+        account);
     auto* node = nodeHolder.get();
 
     try {
         node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
-        node->Properties()[primaryMedium->GetIndex()].SetReplicationFactor(replicationFactor);
+        node->Replication()[primaryMedium->GetIndex()].SetReplicationFactor(replicationFactor);
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);
 
@@ -139,9 +90,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 
     auto* chunkList = node->GetChunkList();
     if (chunkList) {
-        if (node->IsTrunk()) {
+        if (!node->IsExternal() && node->IsTrunk()) {
             const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
-            chunkManager->ScheduleChunkPropertiesUpdate(chunkList);
+            chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
         }
 
         chunkList->RemoveOwningNode(node);
@@ -170,7 +121,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
     }
 
     branchedNode->SetPrimaryMediumIndex(originatingNode->GetPrimaryMediumIndex());
-    branchedNode->Properties() = originatingNode->Properties();
+    branchedNode->Replication() = originatingNode->Replication();
     branchedNode->SnapshotStatistics() = originatingNode->ComputeTotalStatistics();
 }
 
@@ -185,12 +136,12 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
         "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-        "PrimaryMedium: %v, Properties: %v, Mode: %v, LockTimestamp: %llx)",
+        "PrimaryMedium: %v, Replication: %v, Mode: %v, LockTimestamp: %llx)",
         originatingNode->GetVersionedId(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
         primaryMedium->GetName(),
-        originatingNode->Properties(),
+        originatingNode->Replication(),
         lockRequest.Mode,
         lockRequest.Timestamp);
 }
@@ -230,15 +181,14 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     }
 
     bool topmostCommit = !originatingNode->GetTransaction();
-    bool propertiesMismatch = originatingNode->Properties() != branchedNode->Properties();
-    bool propertiesUpdateNeeded =
-        topmostCommit &&
-        (propertiesMismatch || branchedNode->GetChunkPropertiesUpdateNeeded());
     auto newOriginatingMode = topmostCommit || originatingNode->GetType() == NObjectClient::EObjectType::Journal
         ? NChunkClient::EUpdateMode::None
         : originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
             ? NChunkClient::EUpdateMode::Overwrite
             : NChunkClient::EUpdateMode::Append;
+
+    // Below, chunk requisition update is scheduled no matter what (for non-external chunks,
+    // of course). If nothing else, this is necessary to  update 'committed' flags on chunks.
 
     if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
         if (!isExternal) {
@@ -246,9 +196,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             branchedChunkList->AddOwningNode(originatingNode);
             originatingNode->SetChunkList(branchedChunkList);
 
-            if (propertiesUpdateNeeded) {
-                chunkManager->ScheduleChunkPropertiesUpdate(branchedChunkList);
-            }
+            chunkManager->ScheduleChunkRequisitionUpdate(originatingChunkList);
+            chunkManager->ScheduleChunkRequisitionUpdate(branchedChunkList);
 
             objectManager->UnrefObject(originatingChunkList);
         }
@@ -272,7 +221,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
 
         if (originatingMode == NChunkClient::EUpdateMode::Append) {
-            YCHECK(!topmostCommit); // No need to update properties.
+            YCHECK(!topmostCommit);
             if (!isExternal) {
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList->Children()[0]);
                 auto* newDeltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
@@ -286,10 +235,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             if (!isExternal) {
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
                 chunkManager->AttachToChunkList(newOriginatingChunkList, deltaTree);
-
-                if (propertiesUpdateNeeded) {
-                    chunkManager->ScheduleChunkPropertiesUpdate(deltaTree);
-                }
             }
 
             if (newOriginatingMode == NChunkClient::EUpdateMode::Append) {
@@ -300,13 +245,15 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
 
         if (!isExternal) {
+            chunkManager->ScheduleChunkRequisitionUpdate(deltaTree);
+
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
         }
     }
 
-    if (!topmostCommit && branchedNode->GetChunkPropertiesUpdateNeeded()) {
-        originatingNode->SetChunkPropertiesUpdateNeeded(true);
+    if (!topmostCommit && branchedNode->GetChunkRequisitionUpdateNeeded()) {
+        originatingNode->SetChunkRequisitionUpdateNeeded(true);
     }
 
     auto* newOriginatingChunkList = originatingNode->GetChunkList();
@@ -330,17 +277,17 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
         "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, "
-        "OriginatingProperties: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
-        "BranchedUpdateMode: %v, BranchedPrimaryMedium: %v, BranchedProperties: %v, "
+        "OriginatingReplication: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
+        "BranchedUpdateMode: %v, BranchedPrimaryMedium: %v, BranchedReplication: %v, "
         "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v)",
         originatingNode->GetVersionedId(),
         originatingPrimaryMedium->GetName(),
-        originatingNode->Properties(),
+        originatingNode->Replication(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(branchedNode->GetChunkList()),
         branchedNode->GetUpdateMode(),
         branchedPrimaryMedium->GetName(),
-        branchedNode->Properties(),
+        branchedNode->Replication(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
         originatingNode->GetUpdateMode());
 }
@@ -355,6 +302,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
+    clonedNode->SetPrimaryMediumIndex(sourceNode->GetPrimaryMediumIndex());
+    clonedNode->Replication() = sourceNode->Replication();
+    clonedNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
+    clonedNode->DeltaStatistics() = sourceNode->DeltaStatistics();
+    clonedNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
+    clonedNode->SetErasureCodec(sourceNode->GetErasureCodec());
+
     if (!sourceNode->IsExternal()) {
         const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
         auto* chunkList = sourceNode->GetChunkList();
@@ -362,14 +316,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
         clonedNode->SetChunkList(chunkList);
         objectManager->RefObject(chunkList);
         chunkList->AddOwningNode(clonedNode);
+        if (clonedNode->IsTrunk() && sourceNode->GetAccount() != clonedNode->GetAccount()) {
+            const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+            chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
+        }
     }
-
-    clonedNode->SetPrimaryMediumIndex(sourceNode->GetPrimaryMediumIndex());
-    clonedNode->Properties() = sourceNode->Properties();
-    clonedNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
-    clonedNode->DeltaStatistics() = sourceNode->DeltaStatistics();
-    clonedNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
-    clonedNode->SetErasureCodec(sourceNode->GetErasureCodec());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

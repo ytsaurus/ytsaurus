@@ -13,7 +13,7 @@ namespace NChunkServer {
 
 namespace NProto {
 
-class TReqUpdateChunkProperties;
+class TReqUpdateChunkPresence;
 
 } // namespace NProto
 

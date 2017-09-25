@@ -17,6 +17,7 @@ typedef NObjectClient::TObjectId TGroupId;
 extern const TString TmpAccountName;
 extern const TString SysAccountName;
 extern const TString IntermediateAccountName;
+extern const TString ChunkWiseAccountingMigrationAccountName;
 
 using NRpc::RootUserName;
 extern const TString GuestUserName;

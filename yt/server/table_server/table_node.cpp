@@ -12,6 +12,7 @@ using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletServer;
@@ -116,6 +117,35 @@ void TTableNode::EndUpload(
         OptimizeFor_.Set(*optimizeFor);
     }
     TChunkOwnerBase::EndUpload(statistics, schema, schemaMode, optimizeFor);
+}
+
+TClusterResources TTableNode::GetDeltaResourceUsage() const
+{
+    return TChunkOwnerBase::GetDeltaResourceUsage() + GetTabletResourceUsage();
+}
+
+TClusterResources TTableNode::GetTotalResourceUsage() const
+{
+    return TChunkOwnerBase::GetTotalResourceUsage() + GetTabletResourceUsage();
+}
+
+TClusterResources TTableNode::GetTabletResourceUsage() const
+{
+    int tabletCount = 0;
+    i64 memorySize = 0;
+
+    if (IsTrunk()) {
+        tabletCount = Tablets().size();
+        for (const auto* tablet : Tablets()) {
+            if (tablet->GetState() != ETabletState::Unmounted) {
+                memorySize += tablet->GetTabletStaticMemorySize();
+            }
+        }
+    }
+
+    return TClusterResources()
+        .SetTabletCount(tabletCount)
+        .SetTabletStaticMemory(memorySize);
 }
 
 bool TTableNode::IsSorted() const

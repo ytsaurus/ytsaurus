@@ -46,7 +46,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ChunkLocator)
     (ChunkFetchingTraverser)
     (ChunkStatisticsTraverser)
-    (ChunkPropertiesUpdateTraverser)
+    (ChunkRequisitionUpdateTraverser)
     (ChunkReplicaAllocator)
     (ChunkService)
     (CypressTraverser)

@@ -4,6 +4,7 @@
 #include "chunk_manager.h"
 #include "helpers.h"
 #include "chunk_owner_base.h"
+#include "medium.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>

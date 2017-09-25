@@ -66,6 +66,10 @@ class TChunkTree;
 class TChunkOwnerBase;
 class TDataNode;
 
+class TChunkReplication;
+class TChunkRequisition;
+class TChunkRequisitionRegistry;
+
 template <class T>
 class TPtrWithIndex;
 
@@ -130,7 +134,7 @@ DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
 DEFINE_BIT_ENUM(EChunkScanKind,
     ((None)             (0x0000))
     ((Refresh)          (0x0001))
-    ((PropertiesUpdate) (0x0002))
+    ((RequisitionUpdate) (0x0002))
     ((Seal)             (0x0004))
 );
 
@@ -158,6 +162,18 @@ using TPerMediumArray = std::array<T, MaxMediumCount>;
 using TPerMediumIntArray = TPerMediumArray<int>;
 
 constexpr int MediumDefaultPriority = 0;
+
+// Refers to a requisition specifying that a chunk is not required by any account
+// on any medium.
+constexpr ui32 EmptyChunkRequisitionIndex = 0;
+
+// Refers to a requisition specifying default RF on default medium under the
+// special migration account. After we've migrated to chunk-wise accounting,
+// that account and this index will be removed.
+constexpr ui32 MigrationChunkRequisitionIndex = EmptyChunkRequisitionIndex + 1;
+// Same as above, but specifies replication factor of 1, which is suitable for
+// erasure-coded chunks.
+constexpr ui32 MigrationErasureChunkRequisitionIndex = MigrationChunkRequisitionIndex + 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

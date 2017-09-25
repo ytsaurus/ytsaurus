@@ -121,10 +121,6 @@ public:
     //! was delegated to. For non-external nodes, this is #NotReplicatedCellTag.
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTag);
 
-    //! If |false| then resource accounting ignores this node completely.
-    //! Used by upload transactions, live preview etc.
-    DEFINE_BYVAL_RW_PROPERTY(bool, AccountingEnabled, true);
-
     //! Contains all nodes with parent pointing here.
     //! When a node dies parent pointers of its immediate descendants are reset.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TCypressNodeBase*>, ImmediateDescendants);
@@ -146,7 +142,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, Revision);
 
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
-    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
@@ -187,6 +182,14 @@ public:
     //! Returns |true| if the node is external, i.e. was delegated
     //! to another cell.
     bool IsExternal() const;
+
+    //! Returns the resource usage of the node. For trunk nodes, this is total
+    //! resource usage; for branched nodes, this is delta.
+    virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const;
+
+    //! Returns the resource usage as seen by the user.
+    //! These values are exposed via |resource_usage| attribute.
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const;
 
     // Similar methods are also declared in TObjectBase but starting from TCypressNodeBase
     // they become virtual.

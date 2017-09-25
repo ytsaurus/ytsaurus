@@ -189,9 +189,6 @@ protected:
         NYTree::INodePtr child,
         bool recursive);
 
-    NSecurityServer::TClusterResources GetResourceUsage() const;
-
-
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);

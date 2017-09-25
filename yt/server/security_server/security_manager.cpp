@@ -16,6 +16,10 @@
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
 
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_requisition.h>
+#include <yt/server/chunk_server/medium.h>
+
 #include <yt/server/cypress_server/node.h>
 #include <yt/server/cypress_server/cypress_manager.h>
 
@@ -23,6 +27,8 @@
 #include <yt/server/hydra/entity_map.h>
 
 #include <yt/server/object_server/type_handler_detail.h>
+
+#include <yt/server/table_server/table_node.h>
 
 #include <yt/server/transaction_server/transaction.h>
 
@@ -33,6 +39,8 @@
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
 #include <yt/ytlib/security_client/helpers.h>
 
+#include <yt/core/erasure/codec.h>
+
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/ypath/token.h>
@@ -40,6 +48,8 @@
 namespace NYT {
 namespace NSecurityServer {
 
+using namespace NChunkServer;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NCellMaster;
@@ -50,6 +60,7 @@ using namespace NYTree;
 using namespace NYPath;
 using namespace NCypressServer;
 using namespace NSecurityClient;
+using namespace NTableServer;
 using namespace NObjectServer;
 using namespace NHiveServer;
 using namespace NProfiling;
@@ -278,6 +289,7 @@ public:
         SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xffffffffffffffff);
         TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
         IntermediateAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffd);
+        ChunkWiseAccountingMigrationAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffc);
 
         RootUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffff);
         GuestUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffe);
@@ -372,31 +384,139 @@ public:
         return GetBuiltin(IntermediateAccount_);
     }
 
+    TAccountId GetChunkWiseAccountingMigrationAccountId()
+    {
+        return ChunkWiseAccountingMigrationAccountId_;
+    }
 
-    void SetAccount(TCypressNodeBase* node, TAccount* account)
+    void UpdateResourceUsage(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta)
+    {
+        auto doCharge = [] (TClusterResources& usage, int mediumIndex, int chunkCount, i64 diskSpace) {
+            usage.DiskSpace[mediumIndex] += diskSpace;
+            usage.ChunkCount += chunkCount;
+        };
+
+        ComputeChunkResourceDelta(
+            chunk,
+            requisition,
+            delta,
+            [=] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool committed) {
+                doCharge(account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
+                doCharge(account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
+                if (committed) {
+                    doCharge(account->ClusterStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
+                    doCharge(account->LocalStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
+                }
+            });
+    }
+
+    template <typename T>
+    void ComputeChunkResourceDelta(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta, T doCharge)
+    {
+        auto chunkDiskSpace = chunk.ChunkInfo().disk_space();
+        auto erasureCodec = chunk.GetErasureCodec();
+
+        TAccount* lastAccount = nullptr;
+        auto lastMediumIndex = InvalidMediumIndex;
+        i64 lastDiskSpace = 0;
+
+        for (const auto& entry : requisition) {
+            Y_ASSERT(entry.AccountId != NObjectClient::NullObjectId);
+
+            auto* account = FindAccount(entry.AccountId);
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+
+            auto mediumIndex = entry.MediumIndex;
+            Y_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
+
+            auto policy = entry.ReplicationPolicy;
+            auto diskSpace = delta * GetDiskSpaceToCharge(chunkDiskSpace, erasureCodec, policy);
+            auto chunkCount = delta * ((account == lastAccount) ? 0 : 1); // Charge once per account.
+
+            if (account == lastAccount && mediumIndex == lastMediumIndex) {
+                // TChunkRequisition keeps entries sorted, which means an
+                // uncommitted entry for account A and medium M, if any,
+                // immediately follows a committed entry for A and M (if any).
+                YCHECK(!entry.Committed);
+
+                // Avoid overcharging: if, for example, a chunk has 3 'committed' and
+                // 5 'uncommitted' replicas (for the same account and medium), the account
+                // have already been charged for 3 and should now be charged for 2 only.
+                if (delta > 0) {
+                    diskSpace = std::max(i64(0), diskSpace - lastDiskSpace);
+                } else {
+                    diskSpace = std::min(i64(0), diskSpace - lastDiskSpace);
+                }
+            }
+
+            doCharge(account, mediumIndex, chunkCount, diskSpace, entry.Committed);
+
+            if (entry.Committed) {
+                lastAccount = account;
+                lastMediumIndex = mediumIndex;
+                lastDiskSpace = diskSpace;
+            } else {
+                lastAccount = nullptr;
+                lastMediumIndex = InvalidMediumIndex;
+                lastDiskSpace = 0;
+            }
+        }
+    }
+
+    void UpdateTransactionResourceUsage(
+        const TChunk& chunk,
+        const TChunkRequisition& requisition,
+        i64 delta)
+    {
+        Y_ASSERT(chunk.IsStaged());
+        Y_ASSERT(chunk.DiskSizeIsFinal());
+
+        auto* stagingTransaction = chunk.GetStagingTransaction();
+        if (!stagingTransaction->GetAccountingEnabled()) {
+            return;
+        }
+
+        auto* stagingAccount = chunk.GetStagingAccount();
+
+        Y_ASSERT(requisition.EntryCount() == 1);
+        Y_ASSERT(requisition.begin()->AccountId == stagingAccount->GetId());
+
+        auto diskSpace = chunk.ChunkInfo().disk_space();
+        auto erasureCodec = chunk.GetErasureCodec();
+        auto replication = requisition.ToReplication();
+        auto resourceDelta = GetStagedResourceUsage(diskSpace, erasureCodec, replication) * delta;
+        auto* transactionUsage = GetTransactionAccountUsage(stagingTransaction, stagingAccount);
+        *transactionUsage += resourceDelta;
+    }
+
+    void SetAccount(
+        TCypressNodeBase* node,
+        TAccount* oldAccount,
+        TAccount* newAccount,
+        TTransaction* transaction)
     {
         YCHECK(node);
-        YCHECK(account);
+        YCHECK(newAccount);
+        YCHECK(!oldAccount || !transaction);
 
-        auto* oldAccount = node->GetAccount();
-        if (oldAccount == account) {
+        if (oldAccount == newAccount) {
             return;
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         if (oldAccount) {
-            AddNodeCachedResourceUsageToAccount(node, oldAccount, -1);
+            UpdateAccountNodeCountUsage(node, oldAccount, nullptr, -1);
             objectManager->UnrefObject(oldAccount);
         }
 
-        node->SetAccount(account);
+        node->SetAccount(newAccount);
+        UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
+        objectManager->RefObject(newAccount);
 
-        UpdateNodeCachedResourceUsage(node);
-
-        AddNodeCachedResourceUsageToAccount(node, account, +1);
-
-        objectManager->RefObject(account);
+        UpdateAccountTabletResourceUsage(node, oldAccount, newAccount);
     }
 
     void ResetAccount(TCypressNodeBase* node)
@@ -406,13 +526,69 @@ public:
             return;
         }
 
-        AddNodeCachedResourceUsageToAccount(node, account, -1);
-
-        node->CachedResourceUsage() = TClusterResources();
         node->SetAccount(nullptr);
+
+        UpdateAccountNodeCountUsage(node, account, node->GetTransaction(), -1);
+        UpdateAccountTabletResourceUsage(node, account, nullptr);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(account);
+    }
+
+    void UpdateAccountNodeCountUsage(TCypressNodeBase* node, TAccount* account, TTransaction* transaction, i64 delta)
+    {
+        if (node->IsExternal()) {
+            return;
+        }
+
+        auto resources = TClusterResources().SetNodeCount(node->GetDeltaResourceUsage().NodeCount) * delta;
+
+        account->ClusterStatistics().ResourceUsage += resources;
+        account->LocalStatistics().ResourceUsage += resources;
+
+        if (transaction) {
+            auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
+            *transactionUsage += resources;
+        } else {
+            account->ClusterStatistics().CommittedResourceUsage += resources;
+            account->LocalStatistics().CommittedResourceUsage += resources;
+        }
+    }
+
+    void UpdateAccountTabletResourceUsage(TCypressNodeBase* node, TAccount* oldAccount, TAccount* newAccount)
+    {
+        if (node->IsExternal()) {
+            return;
+        }
+
+        auto resources = node->GetDeltaResourceUsage()
+            .SetNodeCount(0)
+            .SetChunkCount(0);
+        resources.DiskSpace.fill(0);
+
+        UpdateTabletResourceUsage(node, oldAccount, -resources);
+        UpdateTabletResourceUsage(node, newAccount, resources);
+    }
+
+    void UpdateTabletResourceUsage(TCypressNodeBase* node, const TClusterResources& resourceUsageDelta)
+    {
+        UpdateTabletResourceUsage(node, node->GetAccount(), resourceUsageDelta);
+    }
+
+    void UpdateTabletResourceUsage(TCypressNodeBase* node, TAccount* account, const TClusterResources& resourceUsageDelta)
+    {
+        if (!account) {
+            return;
+        }
+
+        Y_ASSERT(resourceUsageDelta.NodeCount == 0);
+        Y_ASSERT(resourceUsageDelta.ChunkCount == 0);
+        Y_ASSERT(resourceUsageDelta.DiskSpace == TPerMediumArray<i64>{});
+
+        account->ClusterStatistics().ResourceUsage += resourceUsageDelta;
+        account->LocalStatistics().ResourceUsage += resourceUsageDelta;
+        account->ClusterStatistics().CommittedResourceUsage += resourceUsageDelta;
+        account->LocalStatistics().CommittedResourceUsage += resourceUsageDelta;
     }
 
     void RenameAccount(TAccount* account, const TString& newName)
@@ -433,51 +609,6 @@ public:
         YCHECK(AccountNameMap_.erase(account->GetName()) == 1);
         YCHECK(AccountNameMap_.insert(std::make_pair(newName, account)).second);
         account->SetName(newName);
-    }
-
-    void IncrementAccountNodeUsage(TCypressNodeBase* node, const TClusterResources& delta)
-    {
-        IncrementNodeCachedResourceUsage(node, delta);
-    }
-
-    void UpdateAccountNodeUsage(TCypressNodeBase* node)
-    {
-        auto* account = node->GetAccount();
-        if (!account) {
-            return;
-        }
-
-        AddNodeCachedResourceUsageToAccount(node, account, -1);
-
-        UpdateNodeCachedResourceUsage(node);
-
-        AddNodeCachedResourceUsageToAccount(node, account, +1);
-    }
-
-    void SetNodeResourceAccounting(TCypressNodeBase* node, bool enable)
-    {
-        if (node->GetAccountingEnabled() == enable) {
-            return;
-        }
-
-        node->SetAccountingEnabled(enable);
-
-        UpdateAccountNodeUsage(node);
-    }
-
-    void UpdateAccountStagingUsage(
-        TTransaction* transaction,
-        TAccount* account,
-        const TClusterResources& delta)
-    {
-        if (!transaction->GetAccountingEnabled()) {
-            return;
-        }
-
-        IncrementAccountResourceUsage(account, delta, false);
-
-        auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
-        *transactionUsage += delta;
     }
 
     void DestroySubject(TSubject* subject)
@@ -865,7 +996,7 @@ public:
                     if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
                         continue;
                     }
-  
+
                     if (CheckPermissionMatch(ace.Permissions, permission)) {
                         for (auto* subject : ace.Subjects) {
                             auto* adjustedSubject = subject == GetOwnerUser() && owner
@@ -1151,6 +1282,10 @@ private:
     TAccountId IntermediateAccountId_;
     TAccount* IntermediateAccount_ = nullptr;
 
+    TAccountId ChunkWiseAccountingMigrationAccountId_;
+    TAccount* ChunkWiseAccountingMigrationAccount_ = nullptr;
+
+
     NHydra::TEntityMap<TUser> UserMap_;
     yhash<TString, TUser*> UserNameMap_;
     yhash<TString, TTagId> UserNameToProfilingTagId_;
@@ -1188,71 +1323,40 @@ private:
     TUser* AuthenticatedUser_ = nullptr;
 
     // COMPAT(babenko)
-    bool RecomputeNodeResourceUsage_ = false;
-    bool ValidateAccountResourceUsage_ = false;
     bool RecomputeAccountResourceUsage_ = false;
+    bool ValidateAccountResourceUsage_ = false;
 
-
-    void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
+    TClusterResources GetStagedResourceUsage(
+        i64 diskSpace,
+        NErasure::ECodec erasureCodec,
+        const TChunkReplication& replication) const
     {
-        if (!node->IsExternal() && node->GetAccountingEnabled()) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            const auto& handler = cypressManager->GetHandler(node);
-            node->CachedResourceUsage() = handler->GetAccountingResourceUsage(node);
-        } else {
-            node->CachedResourceUsage() = TClusterResources();
+        auto result = TClusterResources().SetChunkCount(1);
+
+        for (auto index = 0; index < MaxMediumCount; ++index) {
+            const auto& policy = replication[index];
+            result.DiskSpace[index] = GetDiskSpaceToCharge(diskSpace, erasureCodec, policy);
         }
+
+        return result;
     }
 
-    void IncrementNodeCachedResourceUsage(TCypressNodeBase* node, const TClusterResources& delta)
+    static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
-        if (!node->IsExternal() && node->GetAccountingEnabled()) {
-            node->CachedResourceUsage() += delta;
-            auto* account = node->GetAccount();
-            if (account) {
-                IncrementAccountResourceUsage(account, delta, node->IsTrunk());
-            }
-        }
-    }
+        auto isErasure = erasureCodec != NErasure::ECodec::None;
+        auto replicationFactor = isErasure ? 1 : policy.GetReplicationFactor();
+        auto result = diskSpace *  replicationFactor;
 
-    static void AddNodeCachedResourceUsageToAccount(TCypressNodeBase* node, TAccount* account, int delta)
-    {
-        auto resourceUsage = node->CachedResourceUsage() * delta;
+        if (policy.GetDataPartsOnly() && isErasure) {
+            auto* codec = NErasure::GetCodec(erasureCodec);
+            auto dataPartCount = codec->GetDataPartCount();
+            auto totalPartCount = codec->GetTotalPartCount();
 
-        IncrementAccountResourceUsage(account, resourceUsage, node->IsTrunk());
-
-        auto* transactionUsage = FindTransactionAccountUsage(node);
-        if (transactionUsage) {
-            *transactionUsage += resourceUsage;
-        }
-    }
-
-    static void IncrementAccountResourceUsage(
-        TAccount* account,
-        const TClusterResources& delta,
-        bool incrementCommittedResourceUsage)
-    {
-        account->ClusterStatistics().ResourceUsage += delta;
-        account->LocalStatistics().ResourceUsage += delta;
-
-        if (incrementCommittedResourceUsage) {
-            account->ClusterStatistics().CommittedResourceUsage += delta;
-            account->LocalStatistics().CommittedResourceUsage += delta;
+            // Should only charge for data parts.
+            result = result * dataPartCount / totalPartCount;
         }
 
-        CheckSanity(account);
-    }
-
-
-    static TClusterResources* FindTransactionAccountUsage(TCypressNodeBase* node)
-    {
-        auto* account = node->GetAccount();
-        auto* transaction = node->GetTransaction();
-        if (!transaction) {
-            return nullptr;
-        }
-
-        return GetTransactionAccountUsage(transaction, account);
+        return result;
     }
 
     static TClusterResources* GetTransactionAccountUsage(TTransaction* transaction, TAccount* account)
@@ -1463,10 +1567,10 @@ private:
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
-        // COMPAT(savrus)
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 606;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 606;
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 613;
+
+        // COMPAT(shakurov)
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 623;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 623;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1507,101 +1611,152 @@ private:
 
         InitBuiltins();
 
-        // COMPAT(babenko)
-        if (RecomputeNodeResourceUsage_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                UpdateAccountNodeUsage(node);
+        // COMPAT(shakurov)
+        RecomputeAccountResourceUsage();
+    }
+
+    void RecomputeAccountResourceUsage()
+    {
+        if (!ValidateAccountResourceUsage_ && !RecomputeAccountResourceUsage_) {
+            return;
+        }
+
+        // NB: transaction resource usage isn't recomputed.
+
+        // For migration purposes, assume all chunks except for staged ones
+        // belong to a special migration account. This will be corrected by the
+        // next chunk requisition update, but the initial state must be correct!
+
+        // Reset resource usage: some chunks are (probably) taken into account
+        // multiple times here, which renders chunk count and disk space numbers useless.
+        // Node counts, tablet counts and tablet static memory usage are probably
+        // correct, but we'll recompute them anyway.
+        for (const auto& pair : AccountMap_) {
+            auto* account = pair.second;
+
+            account->LocalStatistics().ResourceUsage = TClusterResources();
+            account->LocalStatistics().CommittedResourceUsage = TClusterResources();
+            if (Bootstrap_->IsPrimaryMaster()) {
+                account->ClusterStatistics().ResourceUsage = TClusterResources();
+                account->ClusterStatistics().CommittedResourceUsage = TClusterResources();
             }
         }
 
-        // COMPAT(babenko)
-        if (ValidateAccountResourceUsage_ || RecomputeAccountResourceUsage_) {
-            struct TStat
-            {
-                TClusterResources NodeUsage;
-                TClusterResources NodeCommittedUsage;
-                TClusterResources StagingUsage;
-            };
+        struct TStat
+        {
+            TClusterResources NodeUsage;
+            TClusterResources NodeCommittedUsage;
+        };
 
-            yhash<TAccount*, TStat> statMap;
+        yhash<TAccount*, TStat> statMap;
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+        // Recompute everything except chunk count and disk space.
+        for (const auto& pair : cypressManager->Nodes()) {
+            const auto* node = pair.second;
+            auto* account = node->GetAccount();
+
+            auto usage = node->GetDeltaResourceUsage();
+            usage.ChunkCount = 0;
+            usage.DiskSpace.fill(0);
+
+            auto& stat = statMap[account];
+            stat.NodeUsage += usage;
+            if (node->IsTrunk()) {
+                stat.NodeCommittedUsage += usage;
+            }
+        }
+
+        auto chargeStatMap = [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool committed) {
+            auto& stat = statMap[account];
+            stat.NodeUsage.DiskSpace[mediumIndex] += diskSpace;
+            stat.NodeUsage.ChunkCount += chunkCount;
+            if (committed) {
+                stat.NodeCommittedUsage.DiskSpace[mediumIndex] += diskSpace;
+                stat.NodeCommittedUsage.ChunkCount += chunkCount;
+            }
+        };
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+        const auto& migrationRequisition =
+            requisitionRegistry.GetRequisition(MigrationChunkRequisitionIndex);
+        const auto& migrationErasureRequisition =
+            requisitionRegistry.GetRequisition(MigrationErasureChunkRequisitionIndex);
+
+        for (const auto& pair : chunkManager->Chunks()) {
+            auto* chunk = pair.second;
+
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            if (chunk->DiskSizeIsFinal()) {
+                if (chunk->IsStaged()) {
+                    const auto& requisition = requisitionRegistry.GetRequisition(chunk->GetLocalRequisitionIndex());
+                    ComputeChunkResourceDelta(*chunk, requisition, +1, chargeStatMap);
+                } else {
+                    ComputeChunkResourceDelta(
+                        *chunk,
+                        chunk->IsErasure() ? migrationErasureRequisition : migrationRequisition,
+                        +1,
+                        chargeStatMap);
+                }
+            }  // Else this'll be done later when the chunk is confirmed/sealed.
+        }
+
+
+        for (const auto& pair : statMap) {
+            auto* account = pair.first;
+            const auto& stat = pair.second;
+            bool log = false;
+            const auto& expectedUsage = stat.NodeUsage;
+            const auto& expectedCommittedUsage = stat.NodeCommittedUsage;
+            if (ValidateAccountResourceUsage_) {
+                if (account->LocalStatistics().ResourceUsage != expectedUsage) {
+                    LOG_ERROR("XXX %v account usage mismatch",
+                              account->GetName());
+                    log = true;
+                }
+                if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
+                    LOG_ERROR("XXX %v account committed usage mismatch",
+                              account->GetName());
+                    log = true;
+                }
+                if (log) {
+                    LOG_ERROR("XXX %v account usage %v",
+                              account->GetName(),
+                              account->LocalStatistics().ResourceUsage);
+                    LOG_ERROR("XXX %v account committed usage %v",
+                              account->GetName(),
+                              account->LocalStatistics().CommittedResourceUsage);
+                    LOG_ERROR("XXX %v node usage %v",
+                              account->GetName(),
+                              stat.NodeUsage);
+                    LOG_ERROR("XXX %v node committed usage %v",
+                              account->GetName(),
+                              stat.NodeCommittedUsage);
+                }
+            }
+            if (RecomputeAccountResourceUsage_) {
+                account->LocalStatistics().ResourceUsage = expectedUsage;
+                account->LocalStatistics().CommittedResourceUsage = expectedCommittedUsage;
+                if (Bootstrap_->IsPrimaryMaster()) {
+                    account->ClusterStatistics() = TAccountStatistics();
+                    for (const auto& pair : account->MulticellStatistics()) {
+                        account->ClusterStatistics() += pair.second;
+                    }
+                }
+            }
+        }
+
+        if (Bootstrap_->IsPrimaryMaster()) {
             for (const auto& pair : AccountMap_) {
-                statMap.emplace(pair.second, TStat());
-            }
-
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-
-            for (const auto& pair : cypressManager->Nodes()) {
-                const auto* node = pair.second;
-                const auto& usage = node->CachedResourceUsage();
-                auto* account = node->GetAccount();
-                auto& stat = statMap[account];
-                stat.NodeUsage += usage;
-                if (node->IsTrunk()) {
-                    stat.NodeCommittedUsage += usage;
-                }
-            }
-
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            for (const auto& pair : chunkManager->Chunks()) {
-                const auto* chunk = pair.second;
-                if (!chunk->IsStaged() || !chunk->IsConfirmed() || chunk->IsJournal()) {
-                    continue;
-                }
-                auto* transaction = chunk->GetStagingTransaction();
-                if (!transaction->GetAccountingEnabled()) {
-                    continue;
-                }
-                auto* account = chunk->GetStagingAccount();
-                auto& stat = statMap[account];
-                stat.StagingUsage += chunk->GetResourceUsage();
-            }
-
-            for (const auto& pair : statMap) {
-                auto* account = pair.first;
-                const auto& stat = pair.second;
-                bool log = false;
-                auto expectedUsage = stat.NodeUsage + stat.StagingUsage;
-                auto expectedCommittedUsage = stat.NodeCommittedUsage;
-                if (ValidateAccountResourceUsage_) {
-                    if (account->LocalStatistics().ResourceUsage != expectedUsage) {
-                        LOG_ERROR("XXX %v account usage mismatch",
-                            account->GetName());
-                        log = true;
-                    }
-                    if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
-                        LOG_ERROR("XXX %v account committed usage mismatch",
-                            account->GetName());
-                        log = true;
-                    }
-                    if (log) {
-                        LOG_ERROR("XXX %v account usage %v",
-                            account->GetName(),
-                            account->LocalStatistics().ResourceUsage);
-                        LOG_ERROR("XXX %v account committed usage %v",
-                            account->GetName(),
-                            account->LocalStatistics().CommittedResourceUsage);
-                        LOG_ERROR("XXX %v node usage %v",
-                            account->GetName(),
-                            stat.NodeUsage);
-                        LOG_ERROR("XXX %v node committed usage %v",
-                            account->GetName(),
-                            stat.NodeCommittedUsage);
-                        LOG_ERROR("XXX %v staging usage %v",
-                            account->GetName(),
-                            stat.StagingUsage);
-                    }
-                }
-                if (RecomputeAccountResourceUsage_) {
-                    account->LocalStatistics().ResourceUsage = expectedUsage;
-                    account->LocalStatistics().CommittedResourceUsage = expectedCommittedUsage;
-                    if (Bootstrap_->IsPrimaryMaster()) {
-                        account->ClusterStatistics() = TAccountStatistics();
-                        for (const auto& pair : account->MulticellStatistics()) {
-                            account->ClusterStatistics() += pair.second;
-                        }
-                    }
+                auto* account = pair.second;
+                account->ClusterStatistics() = TAccountStatistics();
+                for (const auto& pair : account->MulticellStatistics()) {
+                    account->ClusterStatistics() += pair.second;
                 }
             }
         }
@@ -1769,6 +1924,19 @@ private:
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
+                EPermission::Use));
+        }
+
+        // chunk_wise_accounting_migration, maximum disk space, maximum nodes, maximum chunks allowed for: root
+        if (EnsureBuiltinAccountInitialized(ChunkWiseAccountingMigrationAccount_, ChunkWiseAccountingMigrationAccountId_, ChunkWiseAccountingMigrationAccountName)) {
+            ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits() = TClusterResources()
+                .SetNodeCount(std::numeric_limits<int>::max())
+                .SetChunkCount(std::numeric_limits<int>::max());
+            ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits()
+                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = std::numeric_limits<i64>::max();
+            ChunkWiseAccountingMigrationAccount_->Acd().AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                RootUser_,
                 EPermission::Use));
         }
     }
@@ -2093,7 +2261,7 @@ private:
         for (auto* group : groups) {
             objectManager->ReplicateObjectAttributesToSecondaryMaster(group, cellTag);
         }
-        
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto replicateMembership = [&] (TSubject* subject) {
             for (auto* group : subject->MemberOf()) {
@@ -2125,18 +2293,6 @@ private:
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");
-        }
-    }
-
-
-    // XXX(babenko)
-    static void CheckSanity(TAccount* account)
-    {
-        // XXX(babenko)
-        if (account->LocalStatistics().ResourceUsage.DiskSpace[NChunkClient::DefaultStoreMediumIndex] <
-            account->LocalStatistics().CommittedResourceUsage.DiskSpace[NChunkClient::DefaultStoreMediumIndex])
-        {
-            LOG_ERROR("Unexpected error: usage < committed usage for %v", account->GetName());
         }
     }
 };
@@ -2272,9 +2428,34 @@ TAccount* TSecurityManager::GetIntermediateAccount()
     return Impl_->GetIntermediateAccount();
 }
 
-void TSecurityManager::SetAccount(TCypressNodeBase* node, TAccount* account)
+TAccountId TSecurityManager::GetChunkWiseAccountingMigrationAccountId()
 {
-    Impl_->SetAccount(node, account);
+    return Impl_->GetChunkWiseAccountingMigrationAccountId();
+}
+
+void TSecurityManager::UpdateResourceUsage(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta)
+{
+    Impl_->UpdateResourceUsage(chunk, requisition, delta);
+}
+
+void TSecurityManager::UpdateTabletResourceUsage(TCypressNodeBase* node, const TClusterResources& resourceUsageDelta)
+{
+    Impl_->UpdateTabletResourceUsage(node, resourceUsageDelta);
+}
+
+void TSecurityManager::UpdateTabletResourceUsage(TCypressNodeBase* node, TAccount* account, const TClusterResources& resourceUsageDelta)
+{
+    Impl_->UpdateTabletResourceUsage(node, account, resourceUsageDelta);
+}
+
+void TSecurityManager::UpdateTransactionResourceUsage(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta)
+{
+    Impl_->UpdateTransactionResourceUsage(chunk, requisition, delta);
+}
+
+void TSecurityManager::SetAccount(TCypressNodeBase* node, TAccount* oldAccount, TAccount* newAccount, TTransaction* transaction)
+{
+    Impl_->SetAccount(node, oldAccount, newAccount, transaction);
 }
 
 void TSecurityManager::ResetAccount(TCypressNodeBase* node)
@@ -2285,29 +2466,6 @@ void TSecurityManager::ResetAccount(TCypressNodeBase* node)
 void TSecurityManager::RenameAccount(TAccount* account, const TString& newName)
 {
     Impl_->RenameAccount(account, newName);
-}
-
-void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)
-{
-    Impl_->UpdateAccountNodeUsage(node);
-}
-
-void TSecurityManager::IncrementAccountNodeUsage(TCypressNodeBase* node, const TClusterResources& delta)
-{
-    Impl_->IncrementAccountNodeUsage(node, delta);
-}
-
-void TSecurityManager::SetNodeResourceAccounting(NCypressServer::TCypressNodeBase* node, bool enable)
-{
-    Impl_->SetNodeResourceAccounting(node, enable);
-}
-
-void TSecurityManager::UpdateAccountStagingUsage(
-    TTransaction* transaction,
-    TAccount* account,
-    const TClusterResources& delta)
-{
-    Impl_->UpdateAccountStagingUsage(transaction, account, delta);
 }
 
 TUser* TSecurityManager::FindUserByName(const TString& name)

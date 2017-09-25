@@ -40,7 +40,7 @@ struct TClusterResources
      *  This takes replication into account. At intermediate stages
      *  the actual space may be different.
      */
-    i64 DiskSpace[NChunkClient::MaxMediumCount];
+    NChunkServer::TPerMediumArray<i64> DiskSpace;
 
     //! Number of Cypress nodes created at master.
     /*!

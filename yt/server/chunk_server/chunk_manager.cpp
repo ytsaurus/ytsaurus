@@ -203,24 +203,9 @@ protected:
 
     virtual void DoUnstageObject(TChunk* chunk, bool recursive) override;
 
-    virtual void DoExportObject(
-        TChunk* chunk,
-        TCellTag destinationCellTag) override
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
-        chunk->Export(cellIndex);
-    }
+    virtual void DoExportObject(TChunk* chunk, TCellTag destinationCellTag) override;
 
-    virtual void DoUnexportObject(
-        TChunk* chunk,
-        TCellTag destinationCellTag,
-        int importRefCounter) override
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
-        chunk->Unexport(cellIndex, importRefCounter);
-    }
+    virtual void DoUnexportObject(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -375,6 +360,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(shakurov)
+// This is an ugly global variable that's used by the migration code in
+// TChunk::Load(). Will be removed once migration is done.
+extern TChunkRequisitionRegistry* ChunkRequisitionRegistry;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -385,8 +377,9 @@ public:
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
+        , ChunkRequisitionRegistry_(Bootstrap_->GetSecurityManager())
     {
-        RegisterMethod(BIND(&TImpl::HydraUpdateChunkProperties, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExecuteBatch, Unretained(this)));
@@ -447,12 +440,12 @@ public:
     }
 
 
-    std::unique_ptr<TMutation> CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
+    std::unique_ptr<TMutation> CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
-            &TImpl::HydraUpdateChunkProperties,
+            &TImpl::HydraUpdateChunkRequisition,
             this);
     }
 
@@ -570,15 +563,38 @@ public:
         }
 
         // Increase staged resource usage.
-        if (chunk->IsStaged() && !chunk->IsJournal()) {
-            auto* stagingTransaction = chunk->GetStagingTransaction();
-            auto* stagingAccount = chunk->GetStagingAccount();
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto delta = chunk->GetResourceUsage();
-            securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
+        if (!chunk->IsJournal()) {
+            if (chunk->IsStaged()) {
+                UpdateTransactionResourceUsage(*chunk, +1);
+            }
+            UpdateAccountResourceUsage(*chunk, +1);
         }
 
         ScheduleChunkRefresh(chunk);
+    }
+
+    // Adds #chunk to its staging transaction resource usage.
+    void UpdateTransactionResourceUsage(const TChunk& chunk, i64 delta)
+    {
+        Y_ASSERT(chunk.IsStaged());
+        Y_ASSERT(chunk.DiskSizeIsFinal());
+
+        // NB: Use just the local replication as this only makes sense for staged chunks.
+        const auto& requisition = ChunkRequisitionRegistry_.GetRequisition(chunk.GetLocalRequisitionIndex());
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateTransactionResourceUsage(chunk, requisition, delta);
+    }
+
+    // Adds #chunk to accounts' resource usage.
+    void UpdateAccountResourceUsage(TChunk& chunk, i64 delta, TChunkRequisition* forcedRequisition = nullptr)
+    {
+        Y_ASSERT(chunk.DiskSizeIsFinal());
+
+        const auto& requisition = forcedRequisition
+            ? *forcedRequisition
+            : chunk.ComputeRequisition(ChunkRequisitionRegistry_);
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateResourceUsage(chunk, requisition, delta);
     }
 
     void SealChunk(TChunk* chunk, const TMiscExt& miscExt)
@@ -696,6 +712,20 @@ public:
     }
 
 
+    void StageChunkList(TChunkList* chunkList, TTransaction* transaction, TAccount* account)
+    {
+        StageChunkTree(chunkList, transaction, account);
+    }
+
+    void StageChunk(TChunk* chunk, TTransaction* transaction, TAccount* account)
+    {
+        StageChunkTree(chunk, transaction, account);
+
+        if (chunk->DiskSizeIsFinal()) {
+            UpdateTransactionResourceUsage(*chunk, +1);
+        }
+    }
+
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
     {
         Y_ASSERT(transaction);
@@ -703,43 +733,24 @@ public:
 
         chunkTree->SetStagingTransaction(transaction);
 
-        if (account) {
-            chunkTree->SetStagingAccount(account);
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->RefObject(account);
+        if (!account) {
+            return;
         }
+
+        chunkTree->SetStagingAccount(account);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(account);
     }
 
     void UnstageChunk(TChunk* chunk)
     {
-        auto* transaction = chunk->GetStagingTransaction();
-        auto* account = chunk->GetStagingAccount();
-
-        if (account) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(account);
-        }
-
-        if (account && chunk->IsConfirmed() && !chunk->IsJournal()) {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto delta = -chunk->GetResourceUsage();
-            securityManager->UpdateAccountStagingUsage(transaction, account, delta);
-        }
-
-        chunk->SetStagingTransaction(nullptr);
-        chunk->SetStagingAccount(nullptr);
+        UnstageChunkTree(chunk);
     }
 
     void UnstageChunkList(TChunkList* chunkList, bool recursive)
     {
-        auto* account = chunkList->GetStagingAccount();
-        if (account) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(account);
-        }
-
-        chunkList->SetStagingTransaction(nullptr);
-        chunkList->SetStagingAccount(nullptr);
+        UnstageChunkTree(chunkList);
 
         if (recursive) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -749,6 +760,17 @@ public:
                 }
             }
         }
+    }
+
+    void UnstageChunkTree(TChunkTree* chunkTree)
+    {
+        if (auto* account = chunkTree->GetStagingAccount()) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(account);
+        }
+
+        chunkTree->SetStagingTransaction(nullptr);
+        chunkTree->SetStagingAccount(nullptr);
     }
 
     TNodePtrWithIndexesList LocateChunk(TChunkPtrWithIndexes chunkWithIndexes)
@@ -861,10 +883,10 @@ public:
         }
     }
 
-    void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
+    void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree)
     {
         if (ChunkReplicator_) {
-            ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
+            ChunkReplicator_->ScheduleRequisitionUpdate(chunkTree);
         }
     }
 
@@ -1077,6 +1099,33 @@ public:
             Bootstrap_->GetNodeChannelFactory());
     }
 
+    TChunkRequisitionRegistry& GetChunkRequisitionRegistry()
+    {
+        return ChunkRequisitionRegistry_;
+    }
+
+    void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request)
+    {
+        YCHECK(request->chunk_requisition_dict_size() == 0);
+
+        if (request->updates_size() == 0) {
+            return;
+        }
+
+        std::vector<ui32> indexes;
+        for (const auto& update : request->updates()) {
+            indexes.push_back(update.chunk_requisition_index());
+        }
+        std::sort(indexes.begin(), indexes.end());
+        indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
+
+        for (auto index : indexes) {
+            const auto& requisition = ChunkRequisitionRegistry_.GetRequisition(index);
+            auto* protoDictItem = request->add_chunk_requisition_dict();
+            protoDictItem->set_chunk_requisition_index(index);
+            requisition.ToProto(protoDictItem->mutable_chunk_requisition());
+        }
+    }
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
@@ -1130,6 +1179,8 @@ private:
     TMediumId DefaultCacheMediumId_;
     TMedium* DefaultCacheMedium_ = nullptr;
 
+    TChunkRequisitionRegistry ChunkRequisitionRegistry_;
+
     TChunk* DoCreateChunk(EObjectType chunkType)
     {
         auto id = Bootstrap_->GetObjectManager()->GenerateId(chunkType, NullObjectId);
@@ -1160,6 +1211,10 @@ private:
         }
         if (ChunkSealer_) {
             ChunkSealer_->OnChunkDestroyed(chunk);
+        }
+
+        if (chunk->DiskSizeIsFinal()) {
+            UpdateAccountResourceUsage(*chunk, -1);
         }
 
         // Unregister chunk replicas from all known locations.
@@ -1344,71 +1399,115 @@ private:
         }
     }
 
-
-    void HydraUpdateChunkProperties(NProto::TReqUpdateChunkProperties* request)
+    void HydraUpdateChunkRequisition(NProto::TReqUpdateChunkRequisition* request)
     {
+        // NB: this is necessary even for local requests as it makes sure all
+        // the requisitions referred to by the request exist. (They may be
+        // removed between sending and receiving the request, and re-inserting
+        // them back will most likely assign a different index.)
+        auto translateRequisitionIndex = BuildChunkRequisitionIndexTranslation(request);
+
         // NB: Ordered map is a must to make the behavior deterministic.
-        std::map<TCellTag, NProto::TReqUpdateChunkProperties> crossCellRequestMap;
-        auto getCrossCellRequest = [&] (const TChunk* chunk) -> NProto::TReqUpdateChunkProperties& {
+        std::map<TCellTag, NProto::TReqUpdateChunkRequisition> crossCellRequestMap;
+        auto getCrossCellRequest = [&] (const TChunk* chunk) -> NProto::TReqUpdateChunkRequisition& {
             auto cellTag = CellTagFromId(chunk->GetId());
             auto it = crossCellRequestMap.find(cellTag);
             if (it == crossCellRequestMap.end()) {
-                it = crossCellRequestMap.emplace(cellTag, NProto::TReqUpdateChunkProperties()).first;
+                it = crossCellRequestMap.emplace(cellTag, NProto::TReqUpdateChunkRequisition()).first;
                 it->second.set_cell_tag(Bootstrap_->GetCellTag());
             }
             return it->second;
         };
 
-        bool local = request->cell_tag() == Bootstrap_->GetCellTag();
-
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto local = request->cell_tag() == Bootstrap_->GetCellTag();
         int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request->cell_tag());
 
-        for (const auto& update : request->updates()) {
-            auto chunkId = FromProto<TChunkId>(update.chunk_id());
-            auto* chunk = FindChunk(chunkId);
-            if (!IsObjectAlive(chunk)) {
-                continue;
-            }
-
-            TChunkProperties newProperties;
-            newProperties.SetVital(update.vital());
-            for (const auto& mediumUpdate : update.medium_updates()) {
-                if (mediumUpdate.has_medium_index() &&
-                    mediumUpdate.has_replication_factor() &&
-                    mediumUpdate.has_data_parts_only())
-                {
-                    auto mediumIndex = mediumUpdate.medium_index();
-                    newProperties[mediumIndex].SetReplicationFactor(mediumUpdate.replication_factor());
-                    newProperties[mediumIndex].SetDataPartsOnly(mediumUpdate.data_parts_only());
+        auto forEachChunk = [&] (auto doChunk) {
+            for (const auto& update : request->updates()) {
+                auto chunkId = FromProto<TChunkId>(update.chunk_id());
+                auto* chunk = FindChunk(chunkId);
+                if (!IsObjectAlive(chunk)) {
+                    continue;
                 }
+
+                auto newRequisitionIndex = translateRequisitionIndex(update.chunk_requisition_index());
+                doChunk(chunkId, chunk, newRequisitionIndex);
+            }
+        };
+
+        // Below, we ref chunks' new requisitions and unref old ones. Such unrefing may
+        // remove a requisition which may happen to be the new requisition of subsequent chunks.
+        // To avoid such thrashing, ref everything here and unref it afterwards.
+        forEachChunk([&] (const TChunkId& chunkId, TChunk*, ui32 newRequisitionIndex) {
+            ChunkRequisitionRegistry_.Ref(newRequisitionIndex);
+        });
+
+        forEachChunk([&] (const TChunkId& chunkId, TChunk* chunk, ui32 newRequisitionIndex) {
+            auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(cellIndex);
+            if (newRequisitionIndex == curRequisitionIndex) {
+                return;
             }
 
-            Y_ASSERT(!local || newProperties.IsValid());
+            auto requisitionBefore = chunk->IsForeign()
+                ? TChunkRequisition() // Not used.
+                : chunk->ComputeRequisition(ChunkRequisitionRegistry_);
 
-            auto& curProperties = local ? chunk->LocalProperties() : chunk->ExternalProperties(cellIndex);
-            if (newProperties == curProperties) {
-                continue;
+            if (local) {
+                chunk->SetLocalRequisitionIndex(newRequisitionIndex, ChunkRequisitionRegistry_);
+            } else {
+                chunk->SetExternalRequisitionIndex(cellIndex, newRequisitionIndex, ChunkRequisitionRegistry_);
             }
 
-            curProperties = newProperties;
             if (chunk->IsForeign()) {
                 Y_ASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
-                *crossCellRequest.add_updates() = update;
+                auto* crossCellUpdate = crossCellRequest.add_updates();
+                ToProto(crossCellUpdate->mutable_chunk_id(), chunkId);
+                crossCellUpdate->set_chunk_requisition_index(newRequisitionIndex);
             } else {
+                if (chunk->DiskSizeIsFinal()) {
+                    UpdateAccountResourceUsage(*chunk, -1, &requisitionBefore);
+                    UpdateAccountResourceUsage(*chunk, +1, nullptr);
+                }
+
                 ScheduleChunkRefresh(chunk);
             }
-        }
+        });
 
-        for (const auto& pair : crossCellRequestMap) {
+        for (auto& pair : crossCellRequestMap) {
             auto cellTag = pair.first;
-            const auto& request = pair.second;
+            auto& request = pair.second;
+            FillChunkRequisitionDict(&request);
             multicellManager->PostToMaster(request, cellTag);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to update properties of imported chunks (CellTag: %v, Count: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to update requisition of imported chunks (CellTag: %v, Count: %v)",
                 cellTag,
                 request.updates_size());
         }
+
+        forEachChunk([&] (const TChunkId& chunkId, TChunk*, ui32 newRequisitionIndex) {
+            ChunkRequisitionRegistry_.Unref(newRequisitionIndex);
+        });
+    }
+
+    std::function<ui32(ui32)> BuildChunkRequisitionIndexTranslation(NProto::TReqUpdateChunkRequisition* request)
+    {
+        yhash<ui32, ui32> remoteToLocalIndexMap;
+        remoteToLocalIndexMap.reserve(request->chunk_requisition_dict_size());
+        for (const auto& pair : request->chunk_requisition_dict()) {
+            auto remoteIndex = pair.chunk_requisition_index();
+
+            TChunkRequisition requisition = TChunkRequisition::FromProto(pair.chunk_requisition());
+            auto localIndex = ChunkRequisitionRegistry_.GetIndex(requisition);
+            YCHECK(remoteToLocalIndexMap.emplace(remoteIndex, localIndex).second);
+        }
+
+        return [=] (ui32 remoteIndex) {
+            auto it = remoteToLocalIndexMap.find(remoteIndex);
+            // The remote side must provide a dictionary entry for every index it sends us.
+            YCHECK(it != remoteToLocalIndexMap.end());
+            return it->second;
+        };
     }
 
     void HydraExportChunks(const TCtxExportChunksPtr& /*context*/, TReqExportChunks* request, TRspExportChunks* response)
@@ -1477,6 +1576,7 @@ private:
                 chunk->SetForeign();
                 chunk->Confirm(importData.mutable_info(), importData.mutable_meta());
                 chunk->SetErasureCodec(NErasure::ECodec(importData.erasure_codec()));
+                chunk->RefUsedRequisitions(ChunkRequisitionRegistry_);
                 YCHECK(ForeignChunks_.insert(chunk).second);
             }
 
@@ -1572,10 +1672,10 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
-        auto resourceUsageIncrease = TClusterResources()
-            .SetChunkCount(1)
-            .SetMediumDiskSpace(mediumIndex, 1);
         if (subrequest->validate_resource_usage_increase()) {
+            auto resourceUsageIncrease = TClusterResources()
+                .SetChunkCount(1)
+                .SetMediumDiskSpace(mediumIndex, 1);
             securityManager->ValidateResourceUsageIncrease(account, resourceUsageIncrease);
         }
 
@@ -1593,15 +1693,26 @@ private:
         chunk->SetWriteQuorum(writeQuorum);
         chunk->SetErasureCodec(erasureCodecId);
         chunk->SetMovable(subrequest->movable());
-        chunk->SetLocalVital(subrequest->vital());
+        chunk->RefUsedRequisitions(ChunkRequisitionRegistry_);
+
+        Y_ASSERT(chunk->GetLocalRequisitionIndex() ==
+                 (isErasure
+                      ? MigrationErasureChunkRequisitionIndex
+                      : MigrationChunkRequisitionIndex));
+
+        TChunkRequisition requisition(
+            account->GetId(),
+            mediumIndex,
+            TReplicationPolicy(replicationFactor, false /* dataPartsOnly */),
+            false /* committed */);
+        requisition.SetVital(subrequest->vital());
+        auto requisitionIndex = ChunkRequisitionRegistry_.GetIndex(requisition);
+
+        chunk->SetLocalRequisitionIndex(requisitionIndex, ChunkRequisitionRegistry_);
 
         auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
 
-        auto& chunkProperties = chunk->LocalProperties();
-        chunkProperties[mediumIndex].SetReplicationFactor(replicationFactor);
-        chunkProperties.SetVital(subrequest->vital());
-
-        StageChunkTree(chunk, transaction, account);
+        StageChunk(chunk, transaction, account);
 
         transactionManager->StageObject(transaction, chunk);
 
@@ -1688,7 +1799,7 @@ private:
         chunkListIds.reserve(count);
         for (int index = 0; index < count; ++index) {
             auto* chunkList = DoCreateChunkList(EChunkListKind::Static);
-            StageChunkTree(chunkList, transaction, nullptr);
+            StageChunkList(chunkList, transaction, nullptr);
             transactionManager->StageObject(transaction, chunkList);
             ToProto(subresponse->add_chunk_list_ids(), chunkList->GetId());
             chunkListIds.push_back(chunkList->GetId());
@@ -1759,6 +1870,7 @@ private:
         ChunkMap_.SaveKeys(context);
         ChunkListMap_.SaveKeys(context);
         MediumMap_.SaveKeys(context);
+        Save(context, ChunkRequisitionRegistry_);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -1777,11 +1889,25 @@ private:
         if (context.GetVersion() >= 400) {
             MediumMap_.LoadKeys(context);
         }
+
+        Load(context, ChunkRequisitionRegistry_);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
+        // COMPAT(shakurov)
+        // An ugly hack: set the global variable here, use it in TChunk::Load().
+        // Once the migration to chunk-wise accounting is done, this'll be removed.
+        ChunkRequisitionRegistry = &ChunkRequisitionRegistry_;
+
         ChunkMap_.LoadValues(context);
+
+        // Recompute requisitions' ref counts.
+        for (const auto& pair : ChunkMap_) {
+            const auto* chunk = pair.second;
+            chunk->RefUsedRequisitions(ChunkRequisitionRegistry_);
+        }
+
         ChunkListMap_.LoadValues(context);
         // COMPAT(shakurov)
         if (context.GetVersion() >= 400) {
@@ -2363,14 +2489,11 @@ private:
         auto statisticsDelta = chunk->GetStatistics();
         AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-
         auto owningNodes = GetOwningNodes(chunk);
 
         bool journalNodeLocked = false;
         TJournalNode* trunkJournalNode = nullptr;
         for (auto* node : owningNodes) {
-            securityManager->UpdateAccountNodeUsage(node);
             if (node->GetType() == EObjectType::Journal) {
                 auto* journalNode = node->As<TJournalNode>();
                 if (journalNode->GetUpdateMode() != EUpdateMode::None) {
@@ -2382,6 +2505,13 @@ private:
                     trunkJournalNode = journalNode->GetTrunkNode();
                 }
             }
+        }
+
+        if (chunk->IsJournal()) {
+            if (chunk->IsStaged()) {
+                UpdateTransactionResourceUsage(*chunk, +1);
+            }
+            UpdateAccountResourceUsage(*chunk, +1);
         }
 
         if (!journalNodeLocked && IsObjectAlive(trunkJournalNode)) {
@@ -2398,7 +2528,7 @@ private:
         }
 
         Profiler.Enqueue("/refresh_queue_size", ChunkReplicator_->GetRefreshQueueSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/properties_update_queue_size", ChunkReplicator_->GetPropertiesUpdateQueueSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/requisition_update_queue_size", ChunkReplicator_->GetRequisitionUpdateQueueSize(), EMetricType::Gauge);
         Profiler.Enqueue("/seal_queue_size", ChunkSealer_->GetQueueSize(), EMetricType::Gauge);
 
         Profiler.Enqueue("/chunk_count", ChunkMap_.GetSize(), EMetricType::Gauge);
@@ -2550,6 +2680,25 @@ void TChunkManager::TChunkTypeHandlerBase::DoUnstageObject(
     Owner_->UnstageChunk(chunk);
 }
 
+void TChunkManager::TChunkTypeHandlerBase::DoExportObject(
+    TChunk* chunk,
+    TCellTag destinationCellTag)
+{
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
+    chunk->Export(cellIndex);
+}
+
+void TChunkManager::TChunkTypeHandlerBase::DoUnexportObject(
+    TChunk* chunk,
+    TCellTag destinationCellTag,
+    int importRefCounter)
+{
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
+    chunk->Unexport(cellIndex, importRefCounter, Owner_->ChunkRequisitionRegistry_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
@@ -2675,9 +2824,9 @@ TNodeList TChunkManager::AllocateWriteTargets(
         preferredHostName);
 }
 
-std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
+std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request)
 {
-    return Impl_->CreateUpdateChunkPropertiesMutation(request);
+    return Impl_->CreateUpdateChunkRequisitionMutation(request);
 }
 
 std::unique_ptr<TMutation> TChunkManager::CreateExportChunksMutation(TCtxExportChunksPtr context)
@@ -2809,9 +2958,9 @@ void TChunkManager::ScheduleNodeRefresh(TNode* node)
     Impl_->ScheduleNodeRefresh(node);
 }
 
-void TChunkManager::ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
+void TChunkManager::ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree)
 {
-    Impl_->ScheduleChunkPropertiesUpdate(chunkTree);
+    Impl_->ScheduleChunkRequisitionUpdate(chunkTree);
 }
 
 void TChunkManager::ScheduleChunkSeal(TChunk* chunk)
@@ -2867,6 +3016,16 @@ TMedium* TChunkManager::FindMediumByName(const TString& name) const
 TMedium* TChunkManager::GetMediumByNameOrThrow(const TString& name) const
 {
     return Impl_->GetMediumByNameOrThrow(name);
+}
+
+TChunkRequisitionRegistry& TChunkManager::GetChunkRequisitionRegistry()
+{
+    return Impl_->GetChunkRequisitionRegistry();
+}
+
+void TChunkManager::FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request)
+{
+    return Impl_->FillChunkRequisitionDict(request);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)

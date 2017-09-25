@@ -10,6 +10,8 @@
 #include <yt/server/table_server/table_node.h>
 
 #include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/medium.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
