@@ -463,6 +463,11 @@ private:
         }
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
+
     virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     { }
 

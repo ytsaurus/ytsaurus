@@ -1571,6 +1571,11 @@ protected:
         TOperationControllerBase::OnOperationCompleted(interrupted);
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
+
     void OnPartitionCompleted(TPartitionPtr partition)
     {
         YCHECK(!partition->Completed);
