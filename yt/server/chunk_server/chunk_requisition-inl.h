@@ -169,14 +169,14 @@ inline bool TRequisitionEntry::operator==(const TRequisitionEntry& rhs) const
         Committed == rhs.Committed;
 }
 
-inline size_t TRequisitionEntry::Hash() const
+inline size_t TRequisitionEntry::GetHash() const
 {
-    return
-        13 * NObjectClient::TDirectObjectIdHash()(AccountId) +
-        17 * hash<int>()(MediumIndex) +
-        19 * hash<int>()(ReplicationPolicy.GetReplicationFactor()) +
-        23 * hash<bool>()(ReplicationPolicy.GetDataPartsOnly()) +
-        29 * hash<bool>()(Committed);
+    auto result = NObjectClient::TDirectObjectIdHash()(AccountId);
+    HashCombine(result, MediumIndex);
+    HashCombine(result, ReplicationPolicy.GetReplicationFactor());
+    HashCombine(result, ReplicationPolicy.GetDataPartsOnly());
+    HashCombine(result, Committed);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -209,7 +209,7 @@ inline TChunkRequisition::const_iterator TChunkRequisition::cend() const
     return end();
 }
 
-inline size_t TChunkRequisition::EntryCount() const
+inline size_t TChunkRequisition::GetEntryCount() const
 {
     return Entries_.size();
 }
@@ -233,13 +233,13 @@ inline bool TChunkRequisition::operator==(const TChunkRequisition& rhs) const
     return Entries_ == rhs.Entries_ && Vital_ == rhs.Vital_;
 }
 
-inline size_t TChunkRequisition::Hash() const
+inline size_t TChunkRequisition::GetHash() const
 {
     size_t result = hash<bool>()(Vital_);
 
     Y_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
 
-    for(const auto& entry : Entries_) {
+    for (const auto& entry : Entries_) {
         HashCombine(result, entry);
     }
 
@@ -248,70 +248,69 @@ inline size_t TChunkRequisition::Hash() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TChunkRequisition& TChunkRequisitionRegistry::GetRequisition(ui32 index) const
+inline const TChunkRequisition& TChunkRequisitionRegistry::GetRequisition(TChunkRequisitionIndex index) const
 {
-    auto it = Index_.find(index);
-    YCHECK(it != Index_.end());
+    auto it = IndexToItem_.find(index);
+    YCHECK(it != IndexToItem_.end());
     return it->second.Requisition;
 }
 
-inline const TChunkReplication& TChunkRequisitionRegistry::GetReplication(ui32 index) const
+inline const TChunkReplication& TChunkRequisitionRegistry::GetReplication(TChunkRequisitionIndex index) const
 {
-    auto it = Index_.find(index);
-    YCHECK(it != Index_.end());
+    auto it = IndexToItem_.find(index);
+    YCHECK(it != IndexToItem_.end());
     return it->second.Replication;
 }
 
-inline ui32 TChunkRequisitionRegistry::GetIndex(const TChunkRequisition& requisition)
+inline TChunkRequisitionIndex TChunkRequisitionRegistry::GetIndex(const TChunkRequisition& requisition)
 {
-    auto it = ReverseIndex_.find(requisition);
-    if (it != ReverseIndex_.end()) {
-        auto it2 = Index_.find(it->second);
-        Y_ASSERT(it2 != Index_.end());
+    auto it = RequisitionToIndex_.find(requisition);
+    if (it != RequisitionToIndex_.end()) {
+        Y_ASSERT(IndexToItem_.find(it->second) != IndexToItem_.end());
         return it->second;
     }
 
     return Insert(requisition);
 }
 
-inline void TChunkRequisitionRegistry::Ref(ui32 index)
+inline void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
 {
-    auto it = Index_.find(index);
-    YCHECK(it != Index_.end());
+    auto it = IndexToItem_.find(index);
+    YCHECK(it != IndexToItem_.end());
     ++it->second.RefCount;
 }
 
-inline void TChunkRequisitionRegistry::Unref(ui32 index)
+inline void TChunkRequisitionRegistry::Unref(TChunkRequisitionIndex index)
 {
-    auto it = Index_.find(index);
-    YCHECK(it != Index_.end());
+    auto it = IndexToItem_.find(index);
+    YCHECK(it != IndexToItem_.end());
     YCHECK(it->second.RefCount != 0);
     --it->second.RefCount;
 
     if (it->second.RefCount == 0) {
-        ReverseIndex_.erase(it->second.Requisition);
-        Index_.erase(it);
+        RequisitionToIndex_.erase(it->second.Requisition);
+        IndexToItem_.erase(it);
     }
 }
 
-inline ui32 TChunkRequisitionRegistry::Insert(const TChunkRequisition& requisition)
+inline TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(const TChunkRequisition& requisition)
 {
-    auto index = NextIndex();
+    auto index = GenerateIndex();
 
     TIndexedItem item;
     item.Requisition = requisition;
     item.Replication = requisition.ToReplication();
     item.RefCount = 0; // This is ok, Ref()/Unref() will be called soon.
-    YCHECK(Index_.emplace(index, item).second);
-    YCHECK(ReverseIndex_.emplace(requisition, index).second);
+    YCHECK(IndexToItem_.emplace(index, item).second);
+    YCHECK(RequisitionToIndex_.emplace(requisition, index).second);
 
     return index;
 }
 
-inline ui32 TChunkRequisitionRegistry::NextIndex()
+inline TChunkRequisitionIndex TChunkRequisitionRegistry::GenerateIndex()
 {
     auto result = NextIndex_++;
-    while (Index_.has(NextIndex_)) {
+    while (IndexToItem_.has(NextIndex_)) {
         ++NextIndex_;
     }
     return result;

@@ -35,6 +35,7 @@ using namespace NChunkClient::NProto;
 using namespace NCellMaster;
 
 using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,7 +11,8 @@ message TReqUpdateChunkRequisition
         required NYT.NProto.TGuid chunk_id = 1;
         required uint32 chunk_requisition_index = 2;
     }
-    message TChunkRequisition {
+    message TChunkRequisition
+    {
         message TAccountingEntry
         {
             required NYT.NProto.TGuid account_id = 4;
@@ -25,8 +26,8 @@ message TReqUpdateChunkRequisition
     }
     message TChunkRequisitionDictItem
     {
-        required uint32 chunk_requisition_index = 1;
-        required TChunkRequisition chunk_requisition = 2;
+        required uint32 index = 1;
+        required TChunkRequisition requisition = 2;
     }
 
     required int32 cell_tag = 1;

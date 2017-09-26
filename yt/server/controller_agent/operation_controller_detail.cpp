@@ -3330,7 +3330,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         TCellTag cellTag,
         int replicationFactor,
         NCompression::ECodec compressionCodec,
-        TNullable<TString> account,
+        const TNullable<TString>& account,
         const TString& key,
         const TYsonString& acl,
         TNullable<TTableSchema> schema)

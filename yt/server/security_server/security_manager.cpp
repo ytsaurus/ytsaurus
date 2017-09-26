@@ -400,7 +400,7 @@ public:
             chunk,
             requisition,
             delta,
-            [=] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool committed) {
+            [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool committed) {
                 doCharge(account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 doCharge(account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 if (committed) {
@@ -408,61 +408,6 @@ public:
                     doCharge(account->LocalStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
                 }
             });
-    }
-
-    template <typename T>
-    void ComputeChunkResourceDelta(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta, T doCharge)
-    {
-        auto chunkDiskSpace = chunk.ChunkInfo().disk_space();
-        auto erasureCodec = chunk.GetErasureCodec();
-
-        TAccount* lastAccount = nullptr;
-        auto lastMediumIndex = InvalidMediumIndex;
-        i64 lastDiskSpace = 0;
-
-        for (const auto& entry : requisition) {
-            Y_ASSERT(entry.AccountId != NObjectClient::NullObjectId);
-
-            auto* account = FindAccount(entry.AccountId);
-            if (!IsObjectAlive(account)) {
-                continue;
-            }
-
-            auto mediumIndex = entry.MediumIndex;
-            Y_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
-
-            auto policy = entry.ReplicationPolicy;
-            auto diskSpace = delta * GetDiskSpaceToCharge(chunkDiskSpace, erasureCodec, policy);
-            auto chunkCount = delta * ((account == lastAccount) ? 0 : 1); // Charge once per account.
-
-            if (account == lastAccount && mediumIndex == lastMediumIndex) {
-                // TChunkRequisition keeps entries sorted, which means an
-                // uncommitted entry for account A and medium M, if any,
-                // immediately follows a committed entry for A and M (if any).
-                YCHECK(!entry.Committed);
-
-                // Avoid overcharging: if, for example, a chunk has 3 'committed' and
-                // 5 'uncommitted' replicas (for the same account and medium), the account
-                // have already been charged for 3 and should now be charged for 2 only.
-                if (delta > 0) {
-                    diskSpace = std::max(i64(0), diskSpace - lastDiskSpace);
-                } else {
-                    diskSpace = std::min(i64(0), diskSpace - lastDiskSpace);
-                }
-            }
-
-            doCharge(account, mediumIndex, chunkCount, diskSpace, entry.Committed);
-
-            if (entry.Committed) {
-                lastAccount = account;
-                lastMediumIndex = mediumIndex;
-                lastDiskSpace = diskSpace;
-            } else {
-                lastAccount = nullptr;
-                lastMediumIndex = InvalidMediumIndex;
-                lastDiskSpace = 0;
-            }
-        }
     }
 
     void UpdateTransactionResourceUsage(
@@ -480,7 +425,7 @@ public:
 
         auto* stagingAccount = chunk.GetStagingAccount();
 
-        Y_ASSERT(requisition.EntryCount() == 1);
+        Y_ASSERT(requisition.GetEntryCount() == 1);
         Y_ASSERT(requisition.begin()->AccountId == stagingAccount->GetId());
 
         auto diskSpace = chunk.ChunkInfo().disk_space();
@@ -1285,7 +1230,6 @@ private:
     TAccountId ChunkWiseAccountingMigrationAccountId_;
     TAccount* ChunkWiseAccountingMigrationAccount_ = nullptr;
 
-
     NHydra::TEntityMap<TUser> UserMap_;
     yhash<TString, TUser*> UserNameMap_;
     yhash<TString, TTagId> UserNameToProfilingTagId_;
@@ -1368,6 +1312,61 @@ private:
             return &pair.first->second;
         } else {
             return &it->second;
+        }
+    }
+
+    template <class T>
+    void ComputeChunkResourceDelta(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta, T doCharge)
+    {
+        auto chunkDiskSpace = chunk.ChunkInfo().disk_space();
+        auto erasureCodec = chunk.GetErasureCodec();
+
+        TAccount* lastAccount = nullptr;
+        auto lastMediumIndex = InvalidMediumIndex;
+        i64 lastDiskSpace = 0;
+
+        for (const auto& entry : requisition) {
+            Y_ASSERT(entry.AccountId);
+
+            auto* account = FindAccount(entry.AccountId);
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+
+            auto mediumIndex = entry.MediumIndex;
+            Y_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
+
+            auto policy = entry.ReplicationPolicy;
+            auto diskSpace = delta * GetDiskSpaceToCharge(chunkDiskSpace, erasureCodec, policy);
+            auto chunkCount = delta * ((account == lastAccount) ? 0 : 1); // charge once per account
+
+            if (account == lastAccount && mediumIndex == lastMediumIndex) {
+                // TChunkRequisition keeps entries sorted, which means an
+                // uncommitted entry for account A and medium M, if any,
+                // immediately follows a committed entry for A and M (if any).
+                YCHECK(!entry.Committed);
+
+                // Avoid overcharging: if, for example, a chunk has 3 'committed' and
+                // 5 'uncommitted' replicas (for the same account and medium), the account
+                // have already been charged for 3 and should now be charged for 2 only.
+                if (delta > 0) {
+                    diskSpace = std::max(i64(0), diskSpace - lastDiskSpace);
+                } else {
+                    diskSpace = std::min(i64(0), diskSpace - lastDiskSpace);
+                }
+            }
+
+            doCharge(account, mediumIndex, chunkCount, diskSpace, entry.Committed);
+
+            if (entry.Committed) {
+                lastAccount = account;
+                lastMediumIndex = mediumIndex;
+                lastDiskSpace = diskSpace;
+            } else {
+                lastAccount = nullptr;
+                lastMediumIndex = InvalidMediumIndex;
+                lastDiskSpace = 0;
+            }
         }
     }
 
@@ -1679,11 +1678,9 @@ private:
         };
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
-        const auto& migrationRequisition =
-            requisitionRegistry.GetRequisition(MigrationChunkRequisitionIndex);
-        const auto& migrationErasureRequisition =
-            requisitionRegistry.GetRequisition(MigrationErasureChunkRequisitionIndex);
+        const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+        const auto& migrationRequisition = requisitionRegistry->GetRequisition(MigrationChunkRequisitionIndex);
+        const auto& migrationErasureRequisition = requisitionRegistry->GetRequisition(MigrationErasureChunkRequisitionIndex);
 
         for (const auto& pair : chunkManager->Chunks()) {
             auto* chunk = pair.second;
@@ -1694,7 +1691,7 @@ private:
 
             if (chunk->DiskSizeIsFinal()) {
                 if (chunk->IsStaged()) {
-                    const auto& requisition = requisitionRegistry.GetRequisition(chunk->GetLocalRequisitionIndex());
+                    const auto& requisition = requisitionRegistry->GetRequisition(chunk->GetLocalRequisitionIndex());
                     ComputeChunkResourceDelta(*chunk, requisition, +1, chargeStatMap);
                 } else {
                     ComputeChunkResourceDelta(
@@ -1705,7 +1702,6 @@ private:
                 }
             }  // Else this'll be done later when the chunk is confirmed/sealed.
         }
-
 
         for (const auto& pair : statMap) {
             auto* account = pair.first;
