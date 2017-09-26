@@ -11,9 +11,9 @@ namespace NYT {
 
 enum ETabletState
 {
-    ST_MOUNTED /* "mounted" */,
-    ST_UNMOUNTED /* "unmounted" */,
-    ST_FROZEN /* "frozen" */,
+    TS_MOUNTED /* "mounted" */,
+    TS_UNMOUNTED /* "unmounted" */,
+    TS_FROZEN /* "frozen" */,
 };
 
 struct TWaitForTabletsStateOptions
