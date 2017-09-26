@@ -506,244 +506,82 @@ void CheckFormats(const char *jobName, const char* direction, const TMultiFormat
     }
 }
 
-template <class TMapper>
-IOperationPtr IOperationClient::Map(
-    const TMapOperationSpec& spec,
-    TMapper* mapper,
-    const TOperationOptions& options)
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TReader, class TWriter>
+void IMapper<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc)
 {
-    static_assert(TMapper::JobType == IJob::EType::Mapper,
-        "This class cannot be used as a mapper");
-
-    using TMapInputRow = typename TMapper::TReader::TRowType;
-    using TMapOutputRow = typename TMapper::TWriter::TRowType;
-
-    CheckFormats<TMapInputRow>("mapper", "input", spec.InputDesc_);
-    CheckFormats<TMapOutputRow>("mapper", "output", spec.OutputDesc_);
-
-    ::TIntrusivePtr<TMapper> mapperPtr(mapper);
-
-    return DoMap(
-        spec,
-        mapper,
-        options);
+    NYT::CheckFormats<typename TReader::TRowType>(jobName, "input", desc);
 }
 
-template <class TReducer>
-IOperationPtr IOperationClient::Reduce(
-    const TReduceOperationSpec& spec,
-    TReducer* reducer,
-    const TOperationOptions& options)
+template <class TReader, class TWriter>
+void IMapper<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc)
 {
-    static_assert(
-        TReducer::JobType == IJob::EType::Reducer
-        || TReducer::JobType == IJob::EType::ReducerAggregator,
-        "This class cannot be used as a reducer");
-
-    using TReduceInputRow = typename TReducer::TReader::TRowType;
-    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
-
-    CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
-    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
-
-    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
-
-    return DoReduce(
-        spec,
-        reducer,
-        options);
+    NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
 }
 
-template <class TReducer>
-IOperationPtr IOperationClient::JoinReduce(
-    const TJoinReduceOperationSpec& spec,
-    TReducer* reducer,
-    const TOperationOptions& options)
+template <class TReader, class TWriter>
+void IMapper<TReader, TWriter>::AddInputFormatDescription(TMultiFormatDesc* desc)
 {
-    static_assert(TReducer::JobType == IJob::EType::Reducer
-        || TReducer::JobType == IJob::EType::ReducerAggregator,
-        "This class cannot be used as a reducer");
-
-    using TReduceInputRow = typename TReducer::TReader::TRowType;
-    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
-
-    CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
-    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
-
-    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
-
-    return DoJoinReduce(
-        spec,
-        reducer,
-        options);
+    TOperationIOSpecBase::TFormatAdder<typename TReader::TRowType>::Add(*desc);
 }
 
-template <class TMapper, class TReducer>
-IOperationPtr IOperationClient::MapReduce(
-    const TMapReduceOperationSpec& spec,
-    TMapper* mapper,
-    TReducer* reducer,
-    const TOperationOptions& options)
+template <class TReader, class TWriter>
+void IMapper<TReader, TWriter>::AddOutputFormatDescription(TMultiFormatDesc* desc)
 {
-    static_assert(TMapper::JobType == IJob::EType::Mapper,
-        "This class cannot be used as a mapper");
-    static_assert(TReducer::JobType == IJob::EType::Reducer
-        || TReducer::JobType == IJob::EType::ReducerAggregator,
-        "This class cannot be used as a reducer");
-
-    using TMapInputRow = typename TMapper::TReader::TRowType;
-    using TMapOutputRow = typename TMapper::TWriter::TRowType;
-    using TReduceInputRow = typename TReducer::TReader::TRowType;
-    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
-
-    CheckFormats<TMapInputRow>("mapper", "input", spec.InputDesc_);
-    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
-
-    TMultiFormatDesc dummy, outputMapperDesc, inputReducerDesc;
-    TOperationIOSpecBase::TFormatAdder<TMapOutputRow>::Add(outputMapperDesc);
-    TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
-
-    ::TIntrusivePtr<TMapper> mapperPtr(mapper);
-    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
-
-    return DoMapReduce(
-        spec,
-        mapper,
-        nullptr,
-        reducer,
-        outputMapperDesc,
-        dummy,
-        dummy,
-        inputReducerDesc,
-        options);
+    TOperationIOSpecBase::TFormatAdder<typename TWriter::TRowType>::Add(*desc);
 }
 
-template <class TReducer>
-IOperationPtr IOperationClient::MapReduce(
-    const TMapReduceOperationSpec& spec,
-    nullptr_t,
-    TReducer* reducer,
-    const TOperationOptions& options)
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TReader, class TWriter>
+void IReducer<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc)
 {
-    static_assert(TReducer::JobType == IJob::EType::Reducer
-        || TReducer::JobType == IJob::EType::ReducerAggregator,
-        "This class cannot be used as a reducer");
-
-    using TReduceInputRow = typename TReducer::TReader::TRowType;
-    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
-
-    CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
-    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
-
-    TMultiFormatDesc dummy, inputReducerDesc;
-    TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
-
-    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
-
-    return DoMapReduce(
-        spec,
-        nullptr,
-        nullptr,
-        reducer,
-        dummy,
-        dummy,
-        dummy,
-        inputReducerDesc,
-        options);
+    NYT::CheckFormats<typename TReader::TRowType>(jobName, "input", desc);
 }
 
-template <class TMapper, class TReduceCombiner, class TReducer>
-IOperationPtr IOperationClient::MapReduce(
-    const TMapReduceOperationSpec& spec,
-    TMapper* mapper,
-    TReduceCombiner* reduceCombiner,
-    TReducer* reducer,
-    const TOperationOptions& options)
+template <class TReader, class TWriter>
+void IReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc)
 {
-    static_assert(TMapper::JobType == IJob::EType::Mapper,
-        "This job cannot be used as a mapper");
-    static_assert(TReduceCombiner::JobType == IJob::EType::Reducer
-        || TReduceCombiner::JobType == IJob::EType::ReducerAggregator,
-        "This class cannot be used as a reducer");
-    static_assert(TReducer::JobType == IJob::EType::Reducer
-        || TReducer::JobType == IJob::EType::ReducerAggregator,
-        "This class cannot be used as a reducer");
-
-    using TMapInputRow = typename TMapper::TReader::TRowType;
-    using TMapOutputRow = typename TMapper::TWriter::TRowType;
-    using TReduceCombinerInputRow = typename TReduceCombiner::TReader::TRowType;
-    using TReduceCombinerOutputRow = typename TReduceCombiner::TWriter::TRowType;
-    using TReduceInputRow = typename TReducer::TReader::TRowType;
-    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
-
-    CheckFormats<TMapInputRow>("mapper", "input", spec.InputDesc_);
-    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
-
-    TMultiFormatDesc outputMapperDesc, inputReducerDesc,
-        inputReduceCombinerDesc, outputReduceCombinerDesc;
-    TOperationIOSpecBase::TFormatAdder<TMapOutputRow>::Add(outputMapperDesc);
-    TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
-    TOperationIOSpecBase::TFormatAdder<TReduceCombinerInputRow>::Add(inputReduceCombinerDesc);
-    TOperationIOSpecBase::TFormatAdder<TReduceCombinerOutputRow>::Add(outputReduceCombinerDesc);
-
-    ::TIntrusivePtr<TMapper> mapperPtr(mapper);
-    ::TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
-    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
-
-    return DoMapReduce(
-        spec,
-        mapper,
-        reduceCombiner,
-        reducer,
-        outputMapperDesc,
-        inputReduceCombinerDesc,
-        outputReduceCombinerDesc,
-        inputReducerDesc,
-        options);
+    NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
 }
 
-template <class TReduceCombiner, class TReducer>
-IOperationPtr IOperationClient::MapReduce(
-    const TMapReduceOperationSpec& spec,
-    nullptr_t,
-    TReduceCombiner* reduceCombiner,
-    TReducer* reducer,
-    const TOperationOptions& options)
+template <class TReader, class TWriter>
+void IReducer<TReader, TWriter>::AddInputFormatDescription(TMultiFormatDesc* desc)
 {
-    static_assert(TReduceCombiner::JobType == IJob::EType::Reducer
-        || TReduceCombiner::JobType == IJob::EType::ReducerAggregator,
-        "This class cannot be used as a reducer");
-    static_assert(TReducer::JobType == IJob::EType::Reducer
-        || TReducer::JobType == IJob::EType::ReducerAggregator,
-        "This class cannot be used as a reducer");
+    TOperationIOSpecBase::TFormatAdder<typename TReader::TRowType>::Add(*desc);
+}
 
-    using TReduceCombinerInputRow = typename TReduceCombiner::TReader::TRowType;
-    using TReduceCombinerOutputRow = typename TReduceCombiner::TWriter::TRowType;
-    using TReduceInputRow = typename TReducer::TReader::TRowType;
-    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
+template <class TReader, class TWriter>
+void IReducer<TReader, TWriter>::AddOutputFormatDescription(TMultiFormatDesc* desc)
+{
+    TOperationIOSpecBase::TFormatAdder<typename TWriter::TRowType>::Add(*desc);
+}
 
-    CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
-    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
+////////////////////////////////////////////////////////////////////////////////
 
-    TMultiFormatDesc dummy, inputReducerDesc,
-        inputReduceCombinerDesc, outputReduceCombinerDesc;
-    TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
-    TOperationIOSpecBase::TFormatAdder<TReduceCombinerInputRow>::Add(inputReduceCombinerDesc);
-    TOperationIOSpecBase::TFormatAdder<TReduceCombinerOutputRow>::Add(outputReduceCombinerDesc);
+template <class TReader, class TWriter>
+void IAggregatorReducer<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc)
+{
+    NYT::CheckFormats<typename TReader::TRowType>(jobName, "input", desc);
+}
 
-    ::TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
-    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
+template <class TReader, class TWriter>
+void IAggregatorReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc)
+{
+    NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
+}
 
-    return DoMapReduce(
-        spec,
-        nullptr,
-        reduceCombiner,
-        reducer,
-        dummy,
-        inputReduceCombinerDesc,
-        outputReduceCombinerDesc,
-        inputReducerDesc,
-        options);
+template <class TReader, class TWriter>
+void IAggregatorReducer<TReader, TWriter>::AddInputFormatDescription(TMultiFormatDesc* desc)
+{
+    TOperationIOSpecBase::TFormatAdder<typename TReader::TRowType>::Add(*desc);
+}
+
+template <class TReader, class TWriter>
+void IAggregatorReducer<TReader, TWriter>::AddOutputFormatDescription(TMultiFormatDesc* desc)
+{
+    TOperationIOSpecBase::TFormatAdder<typename TWriter::TRowType>::Add(*desc);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
