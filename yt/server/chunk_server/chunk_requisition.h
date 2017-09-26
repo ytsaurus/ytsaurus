@@ -30,7 +30,6 @@ struct TReplicationPolicy
 {
 public:
     TReplicationPolicy();
-
     TReplicationPolicy(int replicationFactor, bool dataPartsOnly);
 
     void Clear();
@@ -57,8 +56,8 @@ public:
 
 protected:
     ui8 ReplicationFactor_ : 7;
-    // For certain media, it may be helpful to be able to store just the data
-    // parts of erasure coded chunks.
+    //! For certain media, it may be helpful to be able to store just the data
+    //! parts of erasure coded chunks.
     bool DataPartsOnly_ : 1;
 };
 
@@ -67,7 +66,7 @@ static_assert(sizeof(TReplicationPolicy) == 1, "sizeof(TReplicationPolicy) != 1"
 bool operator==(TReplicationPolicy lhs, TReplicationPolicy rhs);
 bool operator!=(TReplicationPolicy lhs, TReplicationPolicy rhs);
 
-void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, const TStringBuf& format);
+void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, const TStringBuf& /*spec*/);
 TString ToString(TReplicationPolicy policy);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,18 +88,19 @@ public:
     using const_iterator = typename TMediumReplicationPolicyArray::const_iterator;
     using iterator = typename TMediumReplicationPolicyArray::iterator;
 
-    //! Clear everything and prepare for combining (via operator|=()).
+    //! Constructs an 'empty' replication.
     /*!
-     *  In particular, this sets 'data parts only' to true for all media.
+     *  THE STATE CONSTRUCTED BY THE DEFAULT CTOR IS UNSAFE!
+     *  It has replication factors set to zero and thus doesn't represent a
+     *  sensible set of defaults for a chunk owner.
      *
-     *  NB: this method is necessary because THE STATE CONSTRUCTED BY THE
-     *  DEFAULT CTOR IS UNSAFE! It has replication factors set to zero and thus
-     *  doesn't represent a sensible set of defaults for a chunk owner. Neither
-     *  it is suitable for combining with other sets via #operator|=(). In
-     *  particular, 'data parts only' flags are combined by ANDing, and the
-     *  default value (of |false|) would affect the end result of combining.
+     *  By default, 'data parts only' flags are set to |false| for all media.
+     *
+     *  If #clearForCombining is |true|, these flags are set to |true|. Since these
+     *  flags are combined by ANDing, this makes the replication suitable for
+     *  combining via operator|=().
      */
-    void ClearForCombining();
+    TChunkReplication(bool clearForCombining = false);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -141,7 +141,7 @@ static_assert(sizeof(TChunkReplication) == 8, "TChunkReplication's size is wrong
 bool operator==(const TChunkReplication& lhs, const TChunkReplication& rhs);
 bool operator!=(const TChunkReplication& lhs, const TChunkReplication& rhs);
 
-void FormatValue(TStringBuilder* builder, const TChunkReplication& replication, const TStringBuf& format);
+void FormatValue(TStringBuilder* builder, TChunkReplication replication, const TStringBuf& /*spec*/);
 TString ToString(const TChunkReplication& replication);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,15 +202,15 @@ struct TRequisitionEntry
     int MediumIndex = NChunkClient::InvalidMediumIndex;
     TReplicationPolicy ReplicationPolicy;
     // The 'committed' flag is necessary in order to decide which quota usage to
-    // charge (committed or uncommitted).
+    // charge to (committed or uncommitted).
     //
     // NB: when accounting is involved, this flag is tricky: a combination of
     // two entries: "committed, RF == 5" and "not committed, RF == 3" (accounts
-    // and media being equal) should be charged from the committed quota
-    // only. On the other hand, a combination of "committed, RF == 3" and "not
-    // committed, RF == 5" should be charged from the committed quota with a
-    // factor of 3 and from the non-committed quota with a factor of 2. Thus, in
-    // a sense, committed entries are charged first and non-committed - second.
+    // and media being equal) should be charged to the committed quota only. On
+    // the other hand, a combination of "committed, RF == 3" and "not committed,
+    // RF == 5" should be charged to the committed quota with a factor of 3 and
+    // to the non-committed quota with a factor of 2. Thus, in a sense,
+    // committed entries are charged first and non-committed - second.
     bool Committed = false;
 
     TRequisitionEntry(
@@ -227,9 +227,10 @@ struct TRequisitionEntry
 
     bool operator<(const TRequisitionEntry& rhs) const;
     bool operator==(const TRequisitionEntry& rhs) const;
-    size_t Hash() const;
+    size_t GetHash() const;
 };
 
+void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const TStringBuf& /*spec*/ = {});
 TString ToString(const TRequisitionEntry& entry);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -255,8 +256,6 @@ public:
     using TEntries = SmallVector<TRequisitionEntry, 4>;
     using const_iterator = TEntries::const_iterator;
 
-    static TChunkRequisition FromProto(const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequsition);
-
     //! Constructs an 'empty' requisition with no entries.
     TChunkRequisition() = default;
 
@@ -273,7 +272,6 @@ public:
     TChunkRequisition& operator=(const TChunkRequisition&) = default;
     TChunkRequisition& operator=(TChunkRequisition&&) = default;
 
-    void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequsition) const;
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
@@ -282,7 +280,7 @@ public:
     const_iterator cbegin() const;
     const_iterator cend() const;
 
-    size_t EntryCount() const;
+    size_t GetEntryCount() const;
 
     bool GetVital() const;
     void SetVital(bool vital);
@@ -292,7 +290,10 @@ public:
     //! Combines this with #rhs ORing vitalities and merging entries.
     TChunkRequisition& operator|=(const TChunkRequisition& rhs);
 
-    void CombineWith(const TChunkReplication& replication, const NSecurityServer::TAccountId accountId, bool committed);
+    void CombineWith(
+        const TChunkReplication& replication,
+        const NSecurityServer::TAccountId& accountId,
+        bool committed);
 
     //! Convert this requisition to a replication.
     /*!
@@ -309,20 +310,33 @@ public:
 
     bool operator==(const TChunkRequisition& rhs) const;
 
-    size_t Hash() const;
+    size_t GetHash() const;
 
 private:
-    void CombineEntries(const TEntries& newEntries);
-
-    void NormalizeEntries();
-
     // Maintained sorted.
     TEntries Entries_;
     // The default value matters! Because operator|=() ORs vitalities, empty
     // chunk requisition must start with false.
     bool Vital_ = false;
+
+    void CombineEntries(const TEntries& newEntries);
+
+    void NormalizeEntries();
+
+    // NB: does not normalize entries.
+    void AddEntry(
+        const NSecurityClient::TAccountId& accountId,
+        int mediumIndex,
+        TReplicationPolicy replicationPolicy,
+        bool committed);
+
+    friend void FromProto(TChunkRequisition* requisition, const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequsition);
 };
 
+void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition, const TChunkRequisition& requisition);
+void FromProto(TChunkRequisition* requisition, const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition);
+
+void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, const TStringBuf& /*spec*/ = {});
 TString ToString(const TChunkRequisition& requisition);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,7 +349,7 @@ struct hash<NYT::NChunkServer::TRequisitionEntry>
 {
     size_t operator()(const NYT::NChunkServer::TRequisitionEntry& entry) const
     {
-        return entry.Hash();
+        return entry.GetHash();
     }
 };
 
@@ -344,7 +358,7 @@ struct hash<NYT::NChunkServer::TChunkRequisition>
 {
     size_t operator()(const NYT::NChunkServer::TChunkRequisition& requisition) const
     {
-        return requisition.Hash();
+        return requisition.GetHash();
     }
 };
 
@@ -356,7 +370,7 @@ namespace NChunkServer {
 class TChunkRequisitionRegistry
 {
 public:
-    TChunkRequisitionRegistry(const NSecurityServer::TSecurityManagerPtr& securityManager);
+    explicit TChunkRequisitionRegistry(const NSecurityServer::TAccountId& chunkWiseAccountingMigrationAccountId);
     // For persistence only.
     TChunkRequisitionRegistry() = default;
 
@@ -367,25 +381,20 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    const TChunkRequisition& GetRequisition(ui32 index) const;
-    const TChunkReplication& GetReplication(ui32 index) const;
+    const TChunkRequisition& GetRequisition(TChunkRequisitionIndex index) const;
+    const TChunkReplication& GetReplication(TChunkRequisitionIndex index) const;
 
     //! Returns specified requisition's index. Allocates a new index if necessary.
     /*!
      *  Newly allocated indexes are not automatically Ref()ed and should be
-     *  either Ref()ed manually.
+     *  Ref()ed manually.
      */
-    ui32 GetIndex(const TChunkRequisition& requisition);
+    TChunkRequisitionIndex GetIndex(const TChunkRequisition& requisition);
 
     // NB: even though items are refcounted, items with zero RC may be
     // intermittently present in the registry.
-    void Ref(ui32 index);
-    void Unref(ui32 index);
-
-private:
-    ui32 Insert(const TChunkRequisition& requisition);
-
-    ui32 NextIndex();
+    void Ref(TChunkRequisitionIndex index);
+    void Unref(TChunkRequisitionIndex index);
 
 private:
     struct TIndexedItem
@@ -398,10 +407,14 @@ private:
         void Load(NCellMaster::TLoadContext& context);
     };
 
-    yhash<ui32, TIndexedItem> Index_;
-    yhash<TChunkRequisition, ui32> ReverseIndex_;
+    yhash<TChunkRequisitionIndex, TIndexedItem> IndexToItem_;
+    yhash<TChunkRequisition, TChunkRequisitionIndex> RequisitionToIndex_;
 
-    ui32 NextIndex_;
+    TChunkRequisitionIndex NextIndex_;
+
+    TChunkRequisitionIndex GenerateIndex();
+
+    TChunkRequisitionIndex Insert(const TChunkRequisition& requisition);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

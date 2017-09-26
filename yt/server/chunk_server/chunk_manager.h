@@ -178,7 +178,7 @@ public:
     //! Returns the medium with a given name (throws if none).
     TMedium* GetMediumByNameOrThrow(const TString& name) const;
 
-    TChunkRequisitionRegistry& GetChunkRequisitionRegistry();
+    TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
 
     void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request);
 

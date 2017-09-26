@@ -3263,11 +3263,11 @@ private:
         tablet->SetCell(nullptr);
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
+        CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
-
-        CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
     }
 
     void CopyChunkListIfShared(
@@ -4025,8 +4025,8 @@ private:
         const TClusterResources& resourceUsageBefore,
         const TClusterResources& resourceUsageAfter)
     {
-         const auto& securityManager = Bootstrap_->GetSecurityManager();
-         securityManager->UpdateTabletResourceUsage(table, resourceUsageAfter - resourceUsageBefore);
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateTabletResourceUsage(table, resourceUsageAfter - resourceUsageBefore);
     }
 
     void ValidateTableMountConfig(

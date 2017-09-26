@@ -170,7 +170,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
             LocalRequisitionIndex_ = ChunkRequisitionRegistry->GetIndex(requisition);
         } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
     } else {
-        LocalRequisitionIndex_ = Load<ui32>(context);
+        LocalRequisitionIndex_ = Load<TChunkRequisitionIndex>(context);
     }
 
     SetReadQuorum(Load<i8>(context));
@@ -450,7 +450,7 @@ void TChunk::Seal(const TMiscExt& info)
 int TChunk::GetMaxReplicasPerRack(
     int mediumIndex,
     TNullable<int> replicationFactorOverride,
-    const TChunkRequisitionRegistry& registry) const
+    const TChunkRequisitionRegistry* registry) const
 {
     switch (GetType()) {
         case EObjectType::Chunk: {
@@ -486,13 +486,13 @@ void TChunk::Export(int cellIndex)
     }
 }
 
-void TChunk::Unexport(int cellIndex, int importRefCounter, TChunkRequisitionRegistry& registry)
+void TChunk::Unexport(int cellIndex, int importRefCounter, TChunkRequisitionRegistry* registry)
 {
     auto& data = ExportDataList_[cellIndex];
     if ((data.RefCounter -= importRefCounter) == 0) {
         // NB: Reset the entry to the neutral state as it affects ComputeReplication() etc.
         data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
-        registry.Ref(EmptyChunkRequisitionIndex);
+        registry->Ref(EmptyChunkRequisitionIndex);
         --ExportCounter_;
     }
 }

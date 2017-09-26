@@ -148,11 +148,11 @@ private:
     struct TChunkRequisitionCache
     {
         TChunk::TParents LastChunkParents;
-        ui32 LastChunkUpdatedRequisitionIndex;
-        ui32 LastErasureChunkUpdatedRequisitionIndex;
+        TChunkRequisitionIndex LastChunkUpdatedRequisitionIndex;
+        TChunkRequisitionIndex LastErasureChunkUpdatedRequisitionIndex;
     };
 
-    TChunkRequisitionCache ChunkRequisitionCache;
+    TChunkRequisitionCache ChunkRequisitionCache_;
 
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -272,9 +272,12 @@ private:
     void ComputeChunkRequisitionUpdate(TChunk* chunk, NProto::TReqUpdateChunkRequisition* request);
 
     void ClearChunkRequisitionCache();
+    bool CanServeRequisitionFromCache(const TChunk* chunk);
+    TChunkRequisitionIndex GetRequisitionFromCache(const TChunk* chunk);
+    void CacheRequisition(const TChunk* chunk, TChunkRequisitionIndex index);
 
     //! Computes the actual requisition the chunk must have. Returns the index of that requisition.
-    ui32 ComputeChunkRequisition(const TChunk* chunk);
+    TChunkRequisitionIndex ComputeChunkRequisition(const TChunk* chunk);
 
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.
@@ -297,7 +300,7 @@ private:
     void OnCheckEnabledPrimary();
     void OnCheckEnabledSecondary();
 
-    TChunkRequisitionRegistry& GetChunkRequisitionRegistry();
+    TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

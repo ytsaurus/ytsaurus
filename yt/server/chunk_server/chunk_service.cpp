@@ -37,6 +37,7 @@ using namespace NHydra;
 using namespace NTransactionClient;
 using namespace NRpc;
 
+using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////

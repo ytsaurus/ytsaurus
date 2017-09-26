@@ -104,7 +104,7 @@ public:
      *  When migrating to chunk-wise accounting, all the chunks will belong to
      *  this account for some time.
      *
-     *  The account will be removed shortly after the migration.
+     *  The account will be deprecated shortly after the migration.
      */
     TAccountId GetChunkWiseAccountingMigrationAccountId();
 

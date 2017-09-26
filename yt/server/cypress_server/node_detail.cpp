@@ -14,11 +14,10 @@ namespace NCypressServer {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
-
-using NSecurityServer::TAccount;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -29,7 +29,7 @@ namespace NChunkServer {
 struct TChunkExportData
 {
     ui32 RefCounter;
-    ui32 ChunkRequisitionIndex;
+    TChunkRequisitionIndex ChunkRequisitionIndex;
 };
 
 static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
@@ -138,17 +138,17 @@ public:
 
     //! Refs all (local and external) requisitions this chunk uses.
     //! Supposed to be called soon after the chunk is constructed or loaded.
-    void RefUsedRequisitions(TChunkRequisitionRegistry& registry) const;
+    void RefUsedRequisitions(TChunkRequisitionRegistry* registry) const;
 
-    ui32 GetLocalRequisitionIndex() const;
-    void SetLocalRequisitionIndex(ui32 requisitionIndex, TChunkRequisitionRegistry& registry);
+    TChunkRequisitionIndex GetLocalRequisitionIndex() const;
+    void SetLocalRequisitionIndex(TChunkRequisitionIndex requisitionIndex, TChunkRequisitionRegistry* registry);
 
-    ui32 GetExternalRequisitionIndex(int cellIndex) const;
-    void SetExternalRequisitionIndex(int cellIndex, ui32 requisitionIndex, TChunkRequisitionRegistry& registry);
+    TChunkRequisitionIndex GetExternalRequisitionIndex(int cellIndex) const;
+    void SetExternalRequisitionIndex(int cellIndex, TChunkRequisitionIndex requisitionIndex, TChunkRequisitionRegistry* registry);
 
     //! Computes chunk's requisition by combining local and external values.
     //! For semantics of combining, see #TChunkRequisition::operator|=().
-    TChunkRequisition ComputeRequisition(const TChunkRequisitionRegistry& registry) const;
+    TChunkRequisition ComputeRequisition(const TChunkRequisitionRegistry* registry) const;
 
     //! Computes chunk's replication by combining local and external values.
     //! For semantics of combining, see #TChunkReplication::operator|=().
@@ -156,16 +156,16 @@ public:
      *  NB: by default only COMMITTED OWNERS affect this. If the chunk has no
      *  committed owners, then non-committed ones are taken into account.
      */
-    TChunkReplication ComputeReplication(const TChunkRequisitionRegistry& registry) const;
+    TChunkReplication ComputeReplication(const TChunkRequisitionRegistry* registry) const;
 
     //! Computes the replication factor for the specified medium by combining the
     //! local and the external values. See #ComputeReplication().
-    int ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry& registry) const;
+    int ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
 
     //! Computes the replication factors for all media by combining the local and
     //! the external values. See #ComputeReplication().
     //! NB: most of the time, most of the elements of the returned array will be zero.
-    TPerMediumIntArray ComputeReplicationFactors(const TChunkRequisitionRegistry& registry) const;
+    TPerMediumIntArray ComputeReplicationFactors(const TChunkRequisitionRegistry* registry) const;
 
     int GetReadQuorum() const;
     void SetReadQuorum(int value);
@@ -218,7 +218,7 @@ public:
     int GetMaxReplicasPerRack(
         int mediumIndex,
         TNullable<int> replicationFactorOverride,
-        const TChunkRequisitionRegistry& registry) const;
+        const TChunkRequisitionRegistry* registry) const;
 
     //! Returns the export data w.r.t. to a cell with a given #index.
     /*!
@@ -232,14 +232,14 @@ public:
     void Export(int cellIndex);
 
     //! Decrements export ref counter.
-    void Unexport(int cellIndex, int importRefCounter, TChunkRequisitionRegistry& registry);
+    void Unexport(int cellIndex, int importRefCounter, TChunkRequisitionRegistry* registry);
 
 private:
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;
     NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
 
-    ui32 LocalRequisitionIndex_;
+    TChunkRequisitionIndex LocalRequisitionIndex_;
 
     //! The number of non-empty entries in #ExportDataList_.
     ui8 ExportCounter_ = 0;

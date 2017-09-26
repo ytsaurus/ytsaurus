@@ -6,7 +6,6 @@
 #include <yt/server/cell_master/automaton.h>
 
 #include <yt/server/security_server/account.h>
-#include <yt/server/security_server/security_manager.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -19,12 +18,16 @@ namespace NChunkServer {
 
 using namespace NYTree;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicationPolicy& TReplicationPolicy::operator|=(const TReplicationPolicy& rhs)
 {
-    if (this == &rhs)
+    if (this == &rhs) {
         return *this;
+    }
 
     SetReplicationFactor(std::max(GetReplicationFactor(), rhs.GetReplicationFactor()));
     SetDataPartsOnly(GetDataPartsOnly() && rhs.GetDataPartsOnly());
@@ -60,12 +63,12 @@ TString ToString(TReplicationPolicy policy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkReplication::ClearForCombining()
+TChunkReplication::TChunkReplication(bool clearForCombining)
 {
-    Vital_ = false;
-
-    for (auto& policy : MediumReplicationPolicies) {
-        policy.SetDataPartsOnly(true);
+    if (clearForCombining) {
+        for (auto& policy : MediumReplicationPolicies) {
+            policy.SetDataPartsOnly(true);
+        }
     }
 }
 
@@ -110,10 +113,8 @@ bool TChunkReplication::IsValid() const
     return false;
 }
 
-void FormatValue(TStringBuilder* builder, const TChunkReplication& replication, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, TChunkReplication replication, const TStringBuf& /*spec*/)
 {
-    builder->AppendFormat("{Vital: %v, Media: {", replication.GetVital());
-
     // We want to accompany medium policies with medium indexes.
     using TIndexPolicyPair = std::pair<int, TReplicationPolicy>;
 
@@ -126,12 +127,15 @@ void FormatValue(TStringBuilder* builder, const TChunkReplication& replication, 
         ++mediumIndex;
     }
 
-    JoinToString(builder, filteredPolicies.begin(), filteredPolicies.end(),
-        [&] (TStringBuilder* aBuilder, const TIndexPolicyPair& pair) {
-            aBuilder->AppendFormat("%v: %v", pair.first, pair.second);
-        });
+    return builder->AppendFormat(
+        "{Vital: %v, Media: {%v}}",
+        replication.GetVital(),
+        MakeFormattableRange(
+            filteredPolicies,
+            [&] (TStringBuilder* aBuilder, const TIndexPolicyPair& pair) {
+                aBuilder->AppendFormat("%v: %v", pair.first, pair.second);
+            }));
 
-    builder->AppendString("}}");
 }
 
 TString ToString(const TChunkReplication& replication)
@@ -285,7 +289,7 @@ void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, ReplicationPolicy);
 }
 
-void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const TStringBuf& /*spec*/ = {})
+void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const TStringBuf& /*spec*/)
 {
     return builder->AppendFormat(
         "{AccountId: %v, MediumIndex: %v, ReplicationPolicy: %v, Committed: %v}",
@@ -302,36 +306,29 @@ TString ToString(const TRequisitionEntry& entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*static*/ TChunkRequisition TChunkRequisition::FromProto(const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition)
+void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition, const TChunkRequisition& requisition)
 {
-    using NYT::FromProto;
-
-    TChunkRequisition result;
-    result.Vital_ = protoRequisition.vital();
-
-    for (const auto& entry : protoRequisition.entries()) {
-        result.Entries_.emplace_back(
-            FromProto<NSecurityServer::TAccountId>(entry.account_id()),
-            entry.medium_index(),
-            TReplicationPolicy(entry.replication_factor(), entry.data_parts_only()),
-            entry.committed());
-    }
-
-    return result;
-}
-
-void TChunkRequisition::ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition) const
-{
-    using NYT::ToProto;
-
-    protoRequisition->set_vital(GetVital());
-    for (const auto& entry : Entries_) {
+    protoRequisition->set_vital(requisition.GetVital());
+    for (const auto& entry : requisition) {
         auto* protoEntry = protoRequisition->add_entries();
         ToProto(protoEntry->mutable_account_id(), entry.AccountId);
         protoEntry->set_medium_index(entry.MediumIndex);
         protoEntry->set_replication_factor(entry.ReplicationPolicy.GetReplicationFactor());
         protoEntry->set_data_parts_only(entry.ReplicationPolicy.GetDataPartsOnly());
         protoEntry->set_committed(entry.Committed);
+    }
+}
+
+void FromProto(TChunkRequisition* requisition, const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition)
+{
+    requisition->SetVital(protoRequisition.vital());
+
+    for (const auto& entry : protoRequisition.entries()) {
+        requisition->AddEntry(
+            FromProto<NSecurityServer::TAccountId>(entry.account_id()),
+            entry.medium_index(),
+            TReplicationPolicy(entry.replication_factor(), entry.data_parts_only()),
+            entry.committed());
     }
 }
 
@@ -377,7 +374,10 @@ TChunkRequisition& TChunkRequisition::operator|=(const TChunkRequisition& rhs)
     return *this;
 }
 
-void TChunkRequisition::CombineWith(const TChunkReplication& replication, const NSecurityServer::TAccountId accountId, bool committed)
+void TChunkRequisition::CombineWith(
+    const TChunkReplication& replication,
+    const NSecurityServer::TAccountId& accountId,
+    bool committed)
 {
     Vital_ = Vital_ || replication.GetVital();
 
@@ -393,10 +393,7 @@ void TChunkRequisition::CombineWith(const TChunkReplication& replication, const 
 
 TChunkReplication TChunkRequisition::ToReplication() const
 {
-    TChunkReplication result;
-
-    result.ClearForCombining();
-    result.SetVital(Vital_);
+    TChunkReplication result(true /* clearForCombining */);
 
     auto foundCommitted = false;
     for (const auto& entry : Entries_) {
@@ -459,22 +456,30 @@ void TChunkRequisition::NormalizeEntries()
             }
         }
     }
-    Entries_.erase(mergeRangeBegin+1, Entries_.end());
+    Entries_.erase(mergeRangeBegin + 1, Entries_.end());
 
     Y_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
 }
 
+void TChunkRequisition::AddEntry(
+    const NSecurityClient::TAccountId& accountId,
+    int mediumIndex,
+    TReplicationPolicy replicationPolicy,
+    bool committed)
+{
+    Entries_.emplace_back(accountId, mediumIndex, replicationPolicy, committed);
+}
+
 void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, const TStringBuf& /*spec*/)
 {
-    builder->AppendFormat("{Vital: %v, Entries: {", requisition.GetVital());
-    JoinToString(
-        builder,
-        requisition.begin(),
-        requisition.end(),
-        [] (TStringBuilder* builder, const TRequisitionEntry& entry) {
-            FormatValue(builder, entry);
-        });
-    builder->AppendFormat("}}");
+    builder->AppendFormat(
+        "{Vital: %v, Entries: {%v}}",
+        requisition.GetVital(),
+        MakeFormattableRange(
+            requisition,
+            [] (TStringBuilder* builder, const TRequisitionEntry& entry) {
+                FormatValue(builder, entry);
+            }));
 }
 
 TString ToString(const TChunkRequisition& requisition)
@@ -500,7 +505,7 @@ void TChunkRequisitionRegistry::TIndexedItem::Load(NCellMaster::TLoadContext& co
 }
 
 TChunkRequisitionRegistry::TChunkRequisitionRegistry(
-    const NSecurityServer::TSecurityManagerPtr& securityManager)
+    const NSecurityServer::TAccountId& chunkWiseAccountingMigrationAccountId)
     : NextIndex_(EmptyChunkRequisitionIndex)
 {
     YCHECK(Insert(TChunkRequisition()) == EmptyChunkRequisitionIndex);
@@ -509,7 +514,7 @@ TChunkRequisitionRegistry::TChunkRequisitionRegistry(
     // When migrating to chunk-wise accounting, assume all chunks belong to a
     // special migration account.
     TChunkRequisition defaultRequisition(
-        securityManager->GetChunkWiseAccountingMigrationAccountId(),
+        chunkWiseAccountingMigrationAccountId,
         DefaultStoreMediumIndex,
         TReplicationPolicy(NChunkClient::DefaultReplicationFactor, false /* dataPartsOnly */),
         true /* committed */);
@@ -517,7 +522,7 @@ TChunkRequisitionRegistry::TChunkRequisitionRegistry(
     Ref(MigrationChunkRequisitionIndex); // Fake reference - always keep the migration requisition.
 
     TChunkRequisition defaultErasureRequisition(
-        securityManager->GetChunkWiseAccountingMigrationAccountId(),
+        chunkWiseAccountingMigrationAccountId,
         DefaultStoreMediumIndex,
         TReplicationPolicy(1 /*replicationFactor*/, false /* dataPartsOnly */),
         true /* committed */);
@@ -528,17 +533,16 @@ TChunkRequisitionRegistry::TChunkRequisitionRegistry(
 void TChunkRequisitionRegistry::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    using TSortedIndexItem = std::pair<ui32, TIndexedItem>;
+    using TSortedIndexItem = std::pair<TChunkRequisitionIndex, TIndexedItem>;
 
-    std::vector<TSortedIndexItem> sortedIndex(Index_.begin(), Index_.end());
+    std::vector<TSortedIndexItem> sortedIndex(IndexToItem_.begin(), IndexToItem_.end());
     std::sort(
         sortedIndex.begin(),
         sortedIndex.end(),
-        [](const TSortedIndexItem& lhs, const TSortedIndexItem& rhs) {
+        [] (const TSortedIndexItem& lhs, const TSortedIndexItem& rhs) {
             return lhs.first < rhs.first;
         });
     Save(context, sortedIndex);
-
     Save(context, NextIndex_);
 
 }
@@ -546,26 +550,26 @@ void TChunkRequisitionRegistry::Save(NCellMaster::TSaveContext& context) const
 void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    using TSortedIndexItem = std::pair<ui32, TIndexedItem>;
+    using TSortedIndexItem = std::pair<TChunkRequisitionIndex, TIndexedItem>;
 
     std::vector<TSortedIndexItem> sortedIndex;
     Load(context, sortedIndex);
 
-    Index_.reserve(sortedIndex.size());
-    ReverseIndex_.reserve(sortedIndex.size());
+    IndexToItem_.reserve(sortedIndex.size());
+    RequisitionToIndex_.reserve(sortedIndex.size());
 
     for (const auto& pair: sortedIndex) {
-        Index_.emplace(pair.first, pair.second);
-        ReverseIndex_.emplace(pair.second.Requisition, pair.first);
+        IndexToItem_.emplace(pair.first, pair.second);
+        RequisitionToIndex_.emplace(pair.second.Requisition, pair.first);
     }
 
-    YCHECK(Index_.has(EmptyChunkRequisitionIndex));
-    YCHECK(Index_.has(MigrationChunkRequisitionIndex));
-    YCHECK(Index_.has(MigrationErasureChunkRequisitionIndex));
+    YCHECK(IndexToItem_.has(EmptyChunkRequisitionIndex));
+    YCHECK(IndexToItem_.has(MigrationChunkRequisitionIndex));
+    YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
 
     Load(context, NextIndex_);
 
-    YCHECK(!Index_.has(NextIndex_));
+    YCHECK(!IndexToItem_.has(NextIndex_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

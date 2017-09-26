@@ -44,6 +44,9 @@ using namespace NNodeTrackerServer;
 using NChunkClient::NProto::TMiscExt;
 using NTableClient::NProto::TBoundaryKeysExt;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkProxy
@@ -325,8 +328,8 @@ private:
                     const auto& exportData = chunk->GetExportData(index);
                     if (exportData.RefCounter > 0) {
                         auto requisitionIndex = exportData.ChunkRequisitionIndex;
-                        const auto& requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
-                        const auto& replication = requisitionRegistry.GetReplication(requisitionIndex);
+                        const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+                        const auto& replication = requisitionRegistry->GetReplication(requisitionIndex);
                         fluent
                             .Item(ToString(cellTag)).BeginMap()
                                 .Item("ref_counter").Value(exportData.RefCounter)

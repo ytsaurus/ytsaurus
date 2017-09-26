@@ -57,6 +57,9 @@ using NChunkClient::NProto::TReqFetch;
 using NChunkClient::NProto::TRspFetch;
 using NChunkClient::NProto::TMiscExt;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;

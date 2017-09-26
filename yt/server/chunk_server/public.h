@@ -163,17 +163,23 @@ using TPerMediumIntArray = TPerMediumArray<int>;
 
 constexpr int MediumDefaultPriority = 0;
 
-// Refers to a requisition specifying that a chunk is not required by any account
-// on any medium.
-constexpr ui32 EmptyChunkRequisitionIndex = 0;
+using TChunkRequisitionIndex = ui32;
 
-// Refers to a requisition specifying default RF on default medium under the
-// special migration account. After we've migrated to chunk-wise accounting,
-// that account and this index will be removed.
-constexpr ui32 MigrationChunkRequisitionIndex = EmptyChunkRequisitionIndex + 1;
-// Same as above, but specifies replication factor of 1, which is suitable for
-// erasure-coded chunks.
-constexpr ui32 MigrationErasureChunkRequisitionIndex = MigrationChunkRequisitionIndex + 1;
+//! Refers to a requisition specifying that a chunk is not required by any account
+//! on any medium.
+constexpr TChunkRequisitionIndex EmptyChunkRequisitionIndex = 0;
+
+//! Refers to a requisition specifying default RF on default medium under the
+//! special migration account.
+// NB: After we've migrated to chunk-wise accounting, that account and this
+// index will be removed.
+constexpr TChunkRequisitionIndex MigrationChunkRequisitionIndex = EmptyChunkRequisitionIndex + 1;
+
+//! Refers to a requisition specifying RF of 1 on default medium under the special
+//! migration account. Such requisition is suitable for erasure-coded chunks.
+// NB: After we've migrated to chunk-wise accounting, that account and this
+// index will be removed.
+constexpr TChunkRequisitionIndex MigrationErasureChunkRequisitionIndex = MigrationChunkRequisitionIndex + 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -436,7 +436,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     TPerMediumArray<NErasure::TPartIndexSet> mediumToErasedIndexes{};
     TMediumSet activeMedia;
 
-    const auto& chunkReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
+    auto chunkReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
 
     for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
         auto* medium = pair.second;
@@ -2027,13 +2027,6 @@ void TChunkReplicator::OnRequisitionUpdate()
     }
 }
 
-void TChunkReplicator::ClearChunkRequisitionCache()
-{
-    ChunkRequisitionCache.LastChunkParents.clear();
-    ChunkRequisitionCache.LastChunkUpdatedRequisitionIndex = EmptyChunkRequisitionIndex;
-    ChunkRequisitionCache.LastErasureChunkUpdatedRequisitionIndex = EmptyChunkRequisitionIndex;
-}
-
 void TChunkReplicator::ComputeChunkRequisitionUpdate(TChunk* chunk, TReqUpdateChunkRequisition* request)
 {
     auto oldRequisitionIndex = chunk->GetLocalRequisitionIndex();
@@ -2045,22 +2038,10 @@ void TChunkReplicator::ComputeChunkRequisitionUpdate(TChunk* chunk, TReqUpdateCh
     }
 }
 
-ui32 TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
+TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
 {
-    if (chunk->IsStaged()) {
-        ClearChunkRequisitionCache();
-    } else if (chunk->Parents() == ChunkRequisitionCache.LastChunkParents) {
-        if (!chunk->IsErasure() &&
-            ChunkRequisitionCache.LastChunkUpdatedRequisitionIndex != EmptyChunkRequisitionIndex)
-        {
-            return ChunkRequisitionCache.LastChunkUpdatedRequisitionIndex;
-        }
-
-        if (chunk->IsErasure() &&
-            ChunkRequisitionCache.LastErasureChunkUpdatedRequisitionIndex != EmptyChunkRequisitionIndex)
-        {
-            return ChunkRequisitionCache.LastErasureChunkUpdatedRequisitionIndex;
-        }
+    if (CanServeRequisitionFromCache(chunk)) {
+        return GetRequisitionFromCache(chunk);
     }
 
     bool found = false;
@@ -2124,24 +2105,56 @@ ui32 TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         requisition.ForceReplicationFactor(1);
     }
 
-    ui32 result = EmptyChunkRequisitionIndex;
+    TChunkRequisitionIndex result;
     if (found) {
         Y_ASSERT(requisition.ToReplication().IsValid());
-        result = GetChunkRequisitionRegistry().GetIndex(requisition);
+        result = GetChunkRequisitionRegistry()->GetIndex(requisition);
     } else {
         result = chunk->GetLocalRequisitionIndex();
     }
 
-    if (!chunk->IsStaged()) {
-        ChunkRequisitionCache.LastChunkParents = chunk->Parents();
-        if (chunk->IsErasure()) {
-            ChunkRequisitionCache.LastErasureChunkUpdatedRequisitionIndex = result;
-        } else {
-            ChunkRequisitionCache.LastChunkUpdatedRequisitionIndex = result;
-        }
-    }
+    CacheRequisition(chunk, result);
 
     return result;
+}
+
+void TChunkReplicator::ClearChunkRequisitionCache()
+{
+    ChunkRequisitionCache_.LastChunkParents.clear();
+    ChunkRequisitionCache_.LastChunkUpdatedRequisitionIndex = EmptyChunkRequisitionIndex;
+    ChunkRequisitionCache_.LastErasureChunkUpdatedRequisitionIndex = EmptyChunkRequisitionIndex;
+}
+
+bool TChunkReplicator::CanServeRequisitionFromCache(const TChunk* chunk)
+{
+    if (chunk->IsStaged() || chunk->Parents() != ChunkRequisitionCache_.LastChunkParents) {
+        return false;
+    }
+
+    return chunk->IsErasure()
+        ? ChunkRequisitionCache_.LastErasureChunkUpdatedRequisitionIndex != EmptyChunkRequisitionIndex
+        : ChunkRequisitionCache_.LastChunkUpdatedRequisitionIndex != EmptyChunkRequisitionIndex;
+}
+
+TChunkRequisitionIndex TChunkReplicator::GetRequisitionFromCache(const TChunk* chunk)
+{
+    return chunk->IsErasure()
+        ? ChunkRequisitionCache_.LastErasureChunkUpdatedRequisitionIndex
+        : ChunkRequisitionCache_.LastChunkUpdatedRequisitionIndex;
+}
+
+void TChunkReplicator::CacheRequisition(const TChunk* chunk, TChunkRequisitionIndex index)
+{
+    if (chunk->IsStaged()) {
+        return;
+    }
+
+    ChunkRequisitionCache_.LastChunkParents = chunk->Parents();
+    if (chunk->IsErasure()) {
+        ChunkRequisitionCache_.LastErasureChunkUpdatedRequisitionIndex = index;
+    } else {
+        ChunkRequisitionCache_.LastChunkUpdatedRequisitionIndex = index;
+    }
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
@@ -2359,7 +2372,7 @@ bool TChunkReplicator::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* 
     return !UnsaturatedInterDCEdges[srcDataCenter].empty();
 }
 
-TChunkRequisitionRegistry& TChunkReplicator::GetChunkRequisitionRegistry()
+TChunkRequisitionRegistry* TChunkReplicator::GetChunkRequisitionRegistry()
 {
     return Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry();
 }

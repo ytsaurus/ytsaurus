@@ -103,47 +103,47 @@ inline void TChunk::SetJob(TJobPtr job)
     GetDynamicData()->Job = std::move(job);
 }
 
-inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry& registry) const
+inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) const
 {
-    registry.Ref(LocalRequisitionIndex_);
+    registry->Ref(LocalRequisitionIndex_);
     // Don't check TChunk::ExportCounter_ or TChunkExportData::RefCounter here:
     // for those cells into which the chunk isn't exported, EmptyChunkRequisitionIndex is used.
     // And we should Ref() that, too.
     for (auto cellIndex = 0; cellIndex < NObjectClient::MaxSecondaryMasterCells; ++cellIndex) {
-        registry.Ref(ExportDataList_[cellIndex].ChunkRequisitionIndex);
+        registry->Ref(ExportDataList_[cellIndex].ChunkRequisitionIndex);
     }
 }
 
-inline ui32 TChunk::GetLocalRequisitionIndex() const
+inline TChunkRequisitionIndex TChunk::GetLocalRequisitionIndex() const
 {
     return LocalRequisitionIndex_;
 }
 
-inline void TChunk::SetLocalRequisitionIndex(ui32 requisitionIndex, TChunkRequisitionRegistry& registry)
+inline void TChunk::SetLocalRequisitionIndex(TChunkRequisitionIndex requisitionIndex, TChunkRequisitionRegistry* registry)
 {
-    registry.Unref(LocalRequisitionIndex_);
+    registry->Unref(LocalRequisitionIndex_);
     LocalRequisitionIndex_ = requisitionIndex;
-    registry.Ref(LocalRequisitionIndex_);
+    registry->Ref(LocalRequisitionIndex_);
 }
 
-inline ui32 TChunk::GetExternalRequisitionIndex(int cellIndex) const
+inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(int cellIndex) const
 {
     const auto& data = ExportDataList_[cellIndex];
     YCHECK(data.RefCounter != 0);
     return data.ChunkRequisitionIndex;
 }
 
-inline void TChunk::SetExternalRequisitionIndex(int cellIndex, ui32 requisitionIndex, TChunkRequisitionRegistry& registry)
+inline void TChunk::SetExternalRequisitionIndex(int cellIndex, TChunkRequisitionIndex requisitionIndex, TChunkRequisitionRegistry* registry)
 {
     auto& exportData = ExportDataList_[cellIndex];
-    registry.Unref(exportData.ChunkRequisitionIndex);
+    registry->Unref(exportData.ChunkRequisitionIndex);
     exportData.ChunkRequisitionIndex = requisitionIndex;
-    registry.Ref(exportData.ChunkRequisitionIndex);
+    registry->Ref(exportData.ChunkRequisitionIndex);
 }
 
-inline TChunkRequisition TChunk::ComputeRequisition(const TChunkRequisitionRegistry& registry) const
+inline TChunkRequisition TChunk::ComputeRequisition(const TChunkRequisitionRegistry* registry) const
 {
-    auto result = registry.GetRequisition(LocalRequisitionIndex_);
+    auto result = registry->GetRequisition(LocalRequisitionIndex_);
 
     // Shortcut for non-exported chunk.
     if (ExportCounter_ == 0) {
@@ -152,15 +152,15 @@ inline TChunkRequisition TChunk::ComputeRequisition(const TChunkRequisitionRegis
 
     for (const auto& data : ExportDataList_) {
         if (data.RefCounter != 0) {
-            result |= registry.GetRequisition(data.ChunkRequisitionIndex);
+            result |= registry->GetRequisition(data.ChunkRequisitionIndex);
         }
     }
     return result;
 }
 
-inline TChunkReplication TChunk::ComputeReplication(const TChunkRequisitionRegistry& registry) const
+inline TChunkReplication TChunk::ComputeReplication(const TChunkRequisitionRegistry* registry) const
 {
-    auto result = registry.GetReplication(LocalRequisitionIndex_);
+    auto result = registry->GetReplication(LocalRequisitionIndex_);
 
     // Shortcut for non-exported chunk.
     if (ExportCounter_ == 0) {
@@ -169,19 +169,19 @@ inline TChunkReplication TChunk::ComputeReplication(const TChunkRequisitionRegis
 
     for (const auto& data : ExportDataList_) {
         if (data.RefCounter != 0) {
-            result |= registry.GetReplication(data.ChunkRequisitionIndex);
+            result |= registry->GetReplication(data.ChunkRequisitionIndex);
         }
     }
     return result;
 }
 
-inline int TChunk::ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry& registry) const
+inline int TChunk::ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
 {
     auto replication = ComputeReplication(registry);
     return replication[mediumIndex].GetReplicationFactor();
 }
 
-inline TPerMediumIntArray TChunk::ComputeReplicationFactors(const TChunkRequisitionRegistry& registry) const
+inline TPerMediumIntArray TChunk::ComputeReplicationFactors(const TChunkRequisitionRegistry* registry) const
 {
     TPerMediumIntArray result;
 
