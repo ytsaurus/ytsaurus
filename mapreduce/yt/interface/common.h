@@ -1,7 +1,7 @@
 #pragma once
 
 #include "fwd.h"
-#include "node.h"
+#include <mapreduce/yt/node/node.h>
 
 #include <util/generic/guid.h>
 #include <util/generic/maybe.h>
@@ -157,11 +157,23 @@ struct TColumnSchema
 
 struct TTableSchema
 {
+public:
     using TSelf = TTableSchema;
 
     FLUENT_VECTOR_FIELD(TColumnSchema, Column);
     FLUENT_FIELD_DEFAULT(bool, Strict, true);
     FLUENT_FIELD_DEFAULT(bool, UniqueKeys, false);
+
+public:
+    // Some helper methods
+
+    TTableSchema& AddColumn(const TString& name, EValueType type) &;
+    TTableSchema AddColumn(const TString& name, EValueType type) &&;
+
+    TTableSchema& AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &;
+    TTableSchema AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &&;
+
+    TNode ToNode() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
