@@ -274,9 +274,27 @@ void Initialize(int argc, const char* argv[]);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Interface for classes that can be Saved/Loaded.
+// Can be used with Y_SAVELOAD_JOB
+class ISerializableForJob
+{
+public:
+    virtual ~ISerializableForJob() = default;
+
+    virtual void Save(IOutputStream& stream) const = 0;
+    virtual void Load(IInputStream& stream) = 0;
+};
+
 class IJob
     : public TThrRefBase
 {
+private:
+    friend struct IOperationClient;
+    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) = 0;
+    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) = 0;
+    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) = 0;
+    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) = 0;
+
 public:
     enum EType {
         Mapper,
@@ -304,9 +322,13 @@ public:
     virtual void Load(IInputStream& stream) override { Load(&stream); } \
     Y_PASS_VA_ARGS(Y_SAVELOAD_DEFINE(__VA_ARGS__));
 
+class IMapperBase
+    : public IJob
+{ };
+
 template <class TR, class TW>
 class IMapper
-    : public IJob
+    : public IMapperBase
 {
 public:
     static constexpr EType JobType = EType::Mapper;
@@ -324,17 +346,31 @@ public:
     {
         Y_UNUSED(writer);
     }
+
+private:
+    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
+    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
+    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
+    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
+
+// Common base for IReducer and IAggregatorReducer
+class IReducerBase
+    : public IJob
+{ };
 
 template <class TR, class TW>
 class IReducer
-    : public IJob
+    : public IReducerBase
 {
 public:
-    static constexpr EType JobType = EType::Reducer;
     using TReader = TR;
     using TWriter = TW;
 
+public:
+    static constexpr EType JobType = EType::Reducer;
+
+public:
     virtual void Start(TWriter* writer)
     {
         Y_UNUSED(writer);
@@ -348,6 +384,12 @@ public:
     }
 
     void Break(); // do not process other keys
+
+private:
+    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
+    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
+    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
+    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
 
 //
@@ -358,14 +400,16 @@ public:
 // Template argument TR must be TTableRangesReader.
 template <class TR, class TW>
 class IAggregatorReducer
-    : public IJob
+    : public IReducerBase
 {
 public:
-    static constexpr EType JobType = EType::ReducerAggregator;
-
     using TReader = TR;
     using TWriter = TW;
 
+public:
+    static constexpr EType JobType = EType::ReducerAggregator;
+
+public:
     virtual void Start(TWriter* writer)
     {
         Y_UNUSED(writer);
@@ -377,6 +421,12 @@ public:
     {
         Y_UNUSED(writer);
     }
+
+private:
+    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
+    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
+    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
+    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,58 +548,36 @@ struct TOperationOptions
 
 struct IOperationClient
 {
-    template <class TMapper>
     IOperationPtr Map(
         const TMapOperationSpec& spec,
-        TMapper* mapper,
+        ::TIntrusivePtr<IMapperBase> mapper,
         const TOperationOptions& options = TOperationOptions());
 
-    template <class TReducer>
     IOperationPtr Reduce(
         const TReduceOperationSpec& spec,
-        TReducer* reducer,
+        ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
 
-    template <class TReducer>
     IOperationPtr JoinReduce(
         const TJoinReduceOperationSpec& spec,
-        TReducer* reducer,
+        ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
 
-    // mapper, reducer
-    template <class TMapper, class TReducer>
+    //
+    // mapper might be nullptr in that case it's assumed to be identity mapper
     IOperationPtr MapReduce(
         const TMapReduceOperationSpec& spec,
-        TMapper* mapper,
-        TReducer* reducer,
-        const TOperationOptions& options = TOperationOptions());
-
-    // identity mapper, reducer
-    template <class TReducer>
-    IOperationPtr MapReduce(
-        const TMapReduceOperationSpec& spec,
-        nullptr_t,
-        TReducer* reducer,
+        ::TIntrusivePtr<IMapperBase> mapper,
+        ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
 
     // mapper, reduce combiner, reducer
-    template <class TMapper, class TReduceCombiner, class TReducer>
     IOperationPtr MapReduce(
         const TMapReduceOperationSpec& spec,
-        TMapper* mapper,
-        TReduceCombiner* reduceCombiner,
-        TReducer* reducer,
+        ::TIntrusivePtr<IMapperBase> mapper,
+        ::TIntrusivePtr<IReducerBase> reduceCombiner,
+        ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
-
-    // identity mapper, reduce combiner, reducer
-    template <class TReduceCombiner, class TReducer>
-    IOperationPtr MapReduce(
-        const TMapReduceOperationSpec& spec,
-        nullptr_t,
-        TReduceCombiner* reduceCombiner,
-        TReducer* reducer,
-        const TOperationOptions& options = TOperationOptions());
-
 
     virtual IOperationPtr Sort(
         const TSortOperationSpec& spec,
