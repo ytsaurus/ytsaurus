@@ -163,27 +163,27 @@ struct TExpressionFragmentPrinter
     {
         if (Expressions[id].IsOutOfLine()) {
             Builder->AppendString(Format("$%v", id));
+        } else {
+            Visit(id, id);
         }
-
-        Visit(id, id);
     }
 
     void OnOperand(const TUnaryOpExpression* unaryExpr, size_t id)
     {
         auto operandId = DebugExpressions[id].Args[0];
-        Visit(operandId, operandId);
+        InferNameArg(operandId);
     }
 
     void OnLhs(const TBinaryOpExpression* binaryExpr, size_t id)
     {
         auto lhsId = DebugExpressions[id].Args[0];
-        Visit(lhsId, lhsId);
+        InferNameArg(lhsId);
     }
 
     void OnRhs(const TBinaryOpExpression* binaryExpr, size_t id)
     {
         auto rhsId = DebugExpressions[id].Args[1];
-        Visit(rhsId, rhsId);
+        InferNameArg(rhsId);
     }
 
     template <class T>
@@ -213,9 +213,9 @@ struct TExpressionFragmentPrinter
 
             Builder->AppendString(
                 Format("[%x%v]", FarmFingerprint(columnName.data(), columnName.size()), columnName));
+        } else {
+            Builder->AppendString(Format("[%v]", columnName));
         }
-
-        Builder->AppendString(Format("[%v]", columnName));
     }
 
 };
