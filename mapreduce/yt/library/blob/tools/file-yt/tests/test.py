@@ -20,7 +20,7 @@ _FILE_0B_MD5 = 'd41d8cd98f00b204e9800998ecf8427e'
 @pytest.fixture(scope='module')  # noqa
 def prepare_yt(yt_stuff):
     yt = yt_stuff.get_yt_wrapper()
-    yt.create('map_node', '//tmp/yt_wrapper', recursive=True, )
+    yt.create('map_node', '//tmp/yt_wrapper', recursive=True, ignore_existing=True, )
 
 
 #  via http://stackoverflow.com/a/3431835/2513489
