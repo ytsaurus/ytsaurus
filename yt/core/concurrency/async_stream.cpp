@@ -1,6 +1,11 @@
 #include "async_stream.h"
 #include "scheduler.h"
 
+#include <util/stream/buffered.h>
+
+#include <yt/core/misc/checkpointable_stream.h>
+#include <yt/core/misc/checkpointable_stream_block_header.h>
+
 #include <queue>
 
 namespace NYT {
@@ -104,44 +109,187 @@ IAsyncInputStreamPtr CreateAsyncAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSyncOutputStreamAdapter
+class TSyncBufferedOutputStreamAdapter
     : public IOutputStream
 {
 public:
-    TSyncOutputStreamAdapter(
+    TSyncBufferedOutputStreamAdapter(
         IAsyncOutputStreamPtr underlyingStream,
-        ESyncStreamAdapterStrategy strategy)
-        : UnderlyingStream_(std::move(underlyingStream))
+        ESyncStreamAdapterStrategy strategy,
+        size_t bufferCapacity)
+        : UnderlyingStream_(underlyingStream)
         , Strategy_(strategy)
-    { }
+        , BufferCapacity_(bufferCapacity)
+    {
+        Reset();
+    }
 
-    virtual ~TSyncOutputStreamAdapter() throw()
-    { }
+    friend class TSyncBufferedCheckpointableOutputStreamAdapter;
+
+    virtual ~TSyncBufferedOutputStreamAdapter()
+    {
+        try {
+            Finish();
+        } catch (...) {
+            YCHECK(false);
+        }
+    }
 
 private:
     const IAsyncOutputStreamPtr UnderlyingStream_;
     const ESyncStreamAdapterStrategy Strategy_;
+    const size_t BufferCapacity_;
+    size_t CurrentBufferSize_;
+    TSharedMutableRef Buffer_;
 
-    virtual void DoWrite(const void* buffer, size_t length) override
+    struct TBufferTag
+    { };
+
+    void Reset()
     {
-        struct TBufferTag
-        { };
+        CurrentBufferSize_ = 0;
+        Buffer_ = TSharedMutableRef::Allocate<TBufferTag>(BufferCapacity_);
+    }
 
-        auto sharedBuffer = TSharedRef::MakeCopy<TBufferTag>(TRef(buffer, length));
+    void WriteToBuffer(const void* data, size_t length)
+    {
+        ::memcpy(Buffer_.Begin() + CurrentBufferSize_, data, length);
+        CurrentBufferSize_ += length;
+    }
+
+    size_t SpaceLeft() const
+    {
+        return BufferCapacity_ - CurrentBufferSize_;
+    }
+
+    void WriteToStream(const void* data, size_t length)
+    {
+        auto sharedBuffer = TSharedRef::MakeCopy<TBufferTag>(TRef(data, length));
         auto future = UnderlyingStream_->Write(std::move(sharedBuffer));
         WaitForWithStrategy(std::move(future), Strategy_)
             .ThrowOnError();
     }
+
+    size_t BufferSize() const
+    {
+        return CurrentBufferSize_;
+    }
+
+protected:
+    virtual void DoWrite(const void* buffer, size_t length) override
+    {
+        if (length > SpaceLeft()) {
+            DoFlush();
+        }
+
+        if (length <= SpaceLeft()) {
+            WriteToBuffer(buffer, length);
+        } else {
+            WriteToStream(buffer, length);
+        }
+    }
+
+    virtual void DoFlush() override
+    {
+        if (!CurrentBufferSize_) {
+            return;
+        }
+        auto writeFuture = UnderlyingStream_->Write(Buffer_.Slice(0, CurrentBufferSize_));
+        WaitForWithStrategy(std::move(writeFuture), Strategy_)
+            .ThrowOnError();
+        Reset();
+    }
+
 };
 
-std::unique_ptr<IOutputStream> CreateSyncAdapter(
+std::unique_ptr<IOutputStream> CreateBufferedSyncAdapter(
     IAsyncOutputStreamPtr underlyingStream,
-    ESyncStreamAdapterStrategy strategy)
+    ESyncStreamAdapterStrategy strategy,
+    size_t bufferSize)
 {
     YCHECK(underlyingStream);
-    return std::make_unique<TSyncOutputStreamAdapter>(
+    return std::make_unique<TSyncBufferedOutputStreamAdapter>(
         std::move(underlyingStream),
-        strategy);
+        strategy,
+        bufferSize);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSyncBufferedCheckpointableOutputStreamAdapter
+    : public ICheckpointableOutputStream
+{
+public:
+    TSyncBufferedCheckpointableOutputStreamAdapter(
+        IAsyncOutputStreamPtr underlyingStream,
+        ESyncStreamAdapterStrategy strategy,
+        size_t bufferCapacity)
+        : Adapter_(std::make_unique<TSyncBufferedOutputStreamAdapter>(
+            underlyingStream,
+            strategy,
+            bufferCapacity))
+    { }
+
+    virtual void MakeCheckpoint() override
+    {
+        DoFlush();
+        TBlockHeader sentinel{TBlockHeader::CheckpointSentinel};
+        Adapter_->WriteToStream(&sentinel, sizeof(sentinel));
+    }
+
+    virtual ~TSyncBufferedCheckpointableOutputStreamAdapter()
+    {
+        try {
+            Finish();
+        } catch (...) {
+            YCHECK(false);
+        }
+    }
+
+protected:
+    virtual void DoFlush() override
+    {
+        if (!Adapter_->BufferSize()) {
+            return;
+        }
+        WriteSize(Adapter_->BufferSize());
+        Adapter_->Flush();
+    }
+
+    virtual void DoWrite(const void* data, size_t length) override
+    {
+        if (length > Adapter_->SpaceLeft()) {
+            DoFlush();
+        }
+
+        if (length > Adapter_->SpaceLeft()) {
+            WriteSize(length);
+        }
+
+        Adapter_->Write(data, length);
+    }
+
+private:
+    std::unique_ptr<TSyncBufferedOutputStreamAdapter> Adapter_;
+
+    void WriteSize(size_t size)
+    {
+        TBlockHeader length{size};
+        Adapter_->WriteToStream(&length, sizeof(length));
+    }
+
+};
+
+std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableSyncAdapter(
+    IAsyncOutputStreamPtr underlyingStream,
+    ESyncStreamAdapterStrategy strategy,
+    size_t bufferSize)
+{
+    YCHECK(underlyingStream);
+    return std::make_unique<TSyncBufferedCheckpointableOutputStreamAdapter>(
+        std::move(underlyingStream),
+        strategy,
+        bufferSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
