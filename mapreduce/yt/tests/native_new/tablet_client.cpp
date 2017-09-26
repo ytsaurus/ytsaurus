@@ -1,6 +1,7 @@
 #include "lib.h"
 
 #include <mapreduce/yt/http/error.h>
+#include <mapreduce/yt/util/wait_for_tablets_state.h>
 
 #include <library/unittest/registar.h>
 
@@ -9,7 +10,10 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-void WaitForTableState(const IClientPtr& client, const TYPath& table, TStringBuf state);
+const auto WaitTabletsOptions =
+    TWaitForTabletsStateOptions()
+        .Timeout(TDuration::Seconds(30))
+        .CheckInterval(TDuration::MilliSeconds(50));
 
 class TTabletFixture
 {
@@ -98,29 +102,6 @@ void CreateTestAggregatingTable(const IClientPtr& client, const TYPath& table)
              .Add(TNode()("name", "value")("type", "int64")("aggregate", "sum")))));
 }
 
-void WaitForTableState(const IClientPtr& client, const TYPath& table, TStringBuf state)
-{
-    yvector<TYPath> tabletStatePathList;
-    const TInstant deadline = TInstant::Now() + TDuration::Seconds(30);
-    while (TInstant::Now() < deadline) {
-        auto tabletList = client->Get(TStringBuilder() << table << "/@tablets");
-
-        bool good = true;
-        for (const auto& tablet : tabletList.AsList()) {
-            if (tablet["state"].AsString() != state) {
-                good = false;
-                break;
-            }
-        }
-        if (good) {
-            return;
-        }
-
-        Sleep(TDuration::MilliSeconds(100));
-    }
-    ythrow yexception() << "WaitForTableState timeout";
-}
-
 SIMPLE_UNIT_TEST_SUITE(TabletClient) {
     SIMPLE_UNIT_TEST(TestMountUnmount)
     {
@@ -130,19 +111,19 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         CreateTestTable(client, tablePath);
 
         client->MountTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         client->RemountTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
 
         client->MountTable(tablePath, TMountTableOptions().Freeze(true));
-        WaitForTableState(client, tablePath, "frozen");
+        WaitForTabletsState(client, tablePath, ST_FROZEN, WaitTabletsOptions);
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
     }
 
     SIMPLE_UNIT_TEST(TestFreezeUnfreeze)
@@ -153,16 +134,16 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         CreateTestTable(client, tablePath);
 
         client->MountTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         client->FreezeTable(tablePath);
-        WaitForTableState(client, tablePath, "frozen");
+        WaitForTabletsState(client, tablePath, ST_FROZEN, WaitTabletsOptions);
 
         client->UnfreezeTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
     }
 
     SIMPLE_UNIT_TEST(TestReshard)
@@ -172,7 +153,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         const TString tablePath = "//testing/test-reshard";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         TNode::TList rows;
         for (int i = 0; i < 16; ++i) {
@@ -181,7 +162,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         client->InsertRows(tablePath, rows);
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
 
         yvector<TKey> pivotKeys;
         pivotKeys.push_back(TKey());
@@ -195,7 +176,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         UNIT_ASSERT_VALUES_EQUAL(tabletList.AsList().size(), 4);
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
     }
 
     SIMPLE_UNIT_TEST(TestInsertLookupDelete)
@@ -205,7 +186,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         const TString tablePath = "//testing/test-insert-lookup-delete";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         TNode::TList rows = {
             TNode()("key", 1)("value", "one"),
@@ -226,7 +207,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         }
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
     }
 
     SIMPLE_UNIT_TEST(TestAtomicityNoneInsert)
@@ -237,7 +218,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         CreateTestTable(client, tablePath);
         client->Set(tablePath + "/@atomicity", "none");
         client->MountTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         TNode::TList rows = {
             TNode()("key", 1)("value", "one"),
@@ -267,7 +248,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         }
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
     }
 
     SIMPLE_UNIT_TEST(TestTimeoutType)
@@ -277,7 +258,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         const TString tablePath = "//testing/test-timeout-type";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         TNode::TList rows = {
             TNode()("key", 1)("value", "one"),
@@ -301,7 +282,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         }
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
     }
 
     SIMPLE_UNIT_TEST(TestUpdateInsert)
@@ -311,7 +292,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         const TString tablePath = "//testing/test-update-insert";
         CreateTestMulticolumnTable(client, tablePath);
         client->MountTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         client->InsertRows(tablePath, {TNode()("key", 1)("value1", "one")("value2", "odin")});
 
@@ -333,7 +314,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         }
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
     }
 
     SIMPLE_UNIT_TEST(TestAggregateInsert)
@@ -343,7 +324,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         const TString tablePath = "//testing/test-aggregate-insert";
         CreateTestAggregatingTable(client, tablePath);
         client->MountTable(tablePath);
-        WaitForTableState(client, tablePath, "mounted");
+        WaitForTabletsState(client, tablePath, ST_MOUNTED, WaitTabletsOptions);
 
         client->InsertRows(tablePath, {TNode()("key", "one")("value", 5)});
 
@@ -365,6 +346,6 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         }
 
         client->UnmountTable(tablePath);
-        WaitForTableState(client, tablePath, "unmounted");
+        WaitForTabletsState(client, tablePath, ST_UNMOUNTED, WaitTabletsOptions);
     }
 }
