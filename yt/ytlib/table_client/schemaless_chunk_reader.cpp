@@ -2498,7 +2498,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         chunkSpecs,
         versionedReadSchema,
         performanceCounters,
-        timestamp
+        timestamp,
+        throttler
     ] (int index) -> IVersionedReaderPtr {
         const auto& chunkSpec = chunkSpecs[index];
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -2528,18 +2529,18 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             lowerLimit,
             upperLimit);
 
-        auto chunkReader = CreateReplicationReader(
+        auto remoteReader = CreateRemoteReader(
+            chunkSpec,
             config,
             options,
             client,
             nodeDirectory,
             localDescriptor,
-            chunkId,
-            replicas,
-            blockCache);
+            blockCache,
+            throttler);
 
         auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
-            chunkReader,
+            remoteReader,
             config->WorkloadDescriptor,
             versionedReadSchema);
         auto chunkMeta = WaitFor(asyncChunkMeta)
@@ -2554,7 +2555,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
         return CreateVersionedChunkReader(
             config,
-            std::move(chunkReader),
+            std::move(remoteReader),
             std::move(chunkState),
             lowerLimit.GetKey(),
             upperLimit.GetKey(),

@@ -12,8 +12,7 @@ from time import sleep
 ##################################################################
 
 class TestOrderedDynamicTables(TestDynamicTablesBase):
-    def _create_simple_table(self, path, dynamic=True, commit_ordering=None, tablet_count=None,
-                             pivot_keys=None, optimize_for=None, **kwargs):
+    def _create_simple_table(self, path, dynamic=True, **extra_attributes):
         attributes={
             "dynamic": dynamic,
             "external": False,
@@ -23,15 +22,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
                 {"name": "c", "type": "string"}
             ]
         }
-        if commit_ordering is not None:
-            attributes["commit_ordering"] = commit_ordering
-        if tablet_count is not None:
-            attributes["tablet_count"] = tablet_count
-        if pivot_keys is not None:
-            attributes["pivot_keys"] = pivot_keys
-        if optimize_for is not None:
-            attributes["optimize_for"] = optimize_for
-        attributes.update(kwargs)
+        attributes.update(extra_attributes)
         create("table", path, attributes=attributes)
 
     def _wait_for_in_memory_stores_preload(self, table):
@@ -541,9 +532,11 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         actual = select_rows("a, b, c from [//tmp/t]")
         assert_items_equal(actual, rows)
 
-    def test_read_table(self):
+    @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_read_table(self, optimize_for, erasure_codec):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec)
         self.sync_mount_table("//tmp/t")
 
         rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
