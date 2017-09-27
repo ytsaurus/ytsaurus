@@ -1544,7 +1544,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
-        jobSummary->UnreadInputDataSlices = ExtractInputDataSlices(*jobSummary);
+        ExtractInterruptDescriptor(*jobSummary);
     }
 
     JobCounter.Completed(1, jobSummary->InterruptReason);
@@ -4701,26 +4701,29 @@ void TOperationControllerBase::ReinstallUnreadInputDataSlices(
     Y_UNREACHABLE();
 }
 
-std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const
+void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
 {
     std::vector<TInputDataSlicePtr> dataSliceList;
 
     const auto& result = jobSummary.Result;
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+    std::vector<TDataSliceDescriptor> unreadDataSliceDescriptors;
+    std::vector<TDataSliceDescriptor> readDataSliceDescriptors;
     if (schedulerResultExt.unread_chunk_specs_size() > 0) {
         FromProto(
-            &dataSliceDescriptors,
+            &unreadDataSliceDescriptors,
             schedulerResultExt.unread_chunk_specs(),
-            schedulerResultExt.chunk_spec_count_per_data_slice());
-    } else if (schedulerResultExt.unread_input_data_slice_descriptors_size() > 0) {
-        // COMPAT(psushin).
-        dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(
-            schedulerResultExt.unread_input_data_slice_descriptors());
+            schedulerResultExt.chunk_spec_count_per_unread_data_slice());
+    }
+    if (schedulerResultExt.read_chunk_specs_size() > 0) {
+        FromProto(
+            &readDataSliceDescriptors,
+            schedulerResultExt.read_chunk_specs(),
+            schedulerResultExt.chunk_spec_count_per_read_data_slice());
     }
 
-    for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
+    auto extractDataSlice = [&] (const TDataSliceDescriptor& dataSliceDescriptor) {
         std::vector<TInputChunkSlicePtr> chunkSliceList;
         chunkSliceList.reserve(dataSliceDescriptor.ChunkSpecs.size());
         for (const auto& protoChunkSpec : dataSliceDescriptor.ChunkSpecs) {
@@ -4738,15 +4741,23 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
+        TInputDataSlicePtr dataSlice;
         if (InputTables[dataSliceDescriptor.GetDataSourceIndex()].IsDynamic) {
-            dataSliceList.emplace_back(CreateVersionedInputDataSlice(chunkSliceList));
+            dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
         } else {
             YCHECK(chunkSliceList.size() == 1);
-            dataSliceList.emplace_back(CreateUnversionedInputDataSlice(chunkSliceList[0]));
+            dataSlice = CreateUnversionedInputDataSlice(chunkSliceList[0]);
         }
-        dataSliceList.back()->Tag = dataSliceDescriptor.GetTag();
+        dataSlice->Tag = dataSliceDescriptor.GetTag();
+        return dataSlice;
+    };
+
+    for (const auto& dataSliceDescriptor : unreadDataSliceDescriptors) {
+        jobSummary.UnreadInputDataSlices.emplace_back(extractDataSlice(dataSliceDescriptor));
     }
-    return dataSliceList;
+    for (const auto& dataSliceDescriptor : readDataSliceDescriptors) {
+        jobSummary.ReadInputDataSlices.emplace_back(extractDataSlice(dataSliceDescriptor));
+    }
 }
 
 int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)

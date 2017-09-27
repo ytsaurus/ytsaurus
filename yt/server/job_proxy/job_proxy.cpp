@@ -277,20 +277,32 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        auto unreadDescriptors = Job_->GetUnreadDataSliceDescriptors();
+        auto interruptDescriptor = Job_->GetInterruptDescriptor();
 
-        // COMPAT(psushin): currently we use old and new ways simultaneously to return unread descriptors to scheduler.
-        ToProto(schedulerResultExt->mutable_unread_input_data_slice_descriptors(), unreadDescriptors);
-        ToProto(
-            schedulerResultExt->mutable_unread_chunk_specs(),
-            schedulerResultExt->mutable_chunk_spec_count_per_data_slice(),
-            unreadDescriptors);
+        if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
+            if (!interruptDescriptor.ReadDataSliceDescriptors.empty()) {
+                ToProto(
+                    schedulerResultExt->mutable_unread_chunk_specs(),
+                    schedulerResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
+                    interruptDescriptor.UnreadDataSliceDescriptors);
+                ToProto(
+                    schedulerResultExt->mutable_read_chunk_specs(),
+                    schedulerResultExt->mutable_chunk_spec_count_per_read_data_slice(),
+                    interruptDescriptor.ReadDataSliceDescriptors);
 
-        LOG_DEBUG_IF(
-            unreadDescriptors.size() > 0,
-            "Unread input data slice descriptors found (DescriptorCount: %v, SchedulerResultExt: %v)",
-            unreadDescriptors.size(),
-            schedulerResultExt->ShortDebugString());
+                LOG_DEBUG(
+                    "Found interrupt descriptor (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
+                    interruptDescriptor.UnreadDataSliceDescriptors.size(),
+                    interruptDescriptor.ReadDataSliceDescriptors.size(),
+                    schedulerResultExt->ShortDebugString());
+            } else {
+                if (result.error().code() == 0) {
+                    ToProto(
+                        result.mutable_error(),
+                        TError(EErrorCode::JobNotPrepared, "Job did not read anything"));
+                }
+            }
+        }
     }
 
     auto statistics = ConvertToYsonString(GetStatistics());

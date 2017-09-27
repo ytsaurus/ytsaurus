@@ -217,12 +217,11 @@ message TSchedulerJobResultExt
     repeated NYT.NCoreDump.NProto.TCoreInfo core_infos = 11;
     optional TOutputResult core_table_boundary_keys = 12;
 
-    // List of unread input chunks for job.
-    // NB: Only filled when job was interrupted.
-    repeated NYT.NChunkClient.NProto.TDataSliceDescriptor unread_input_data_slice_descriptors = 13;
-
+    // NB: these fields are used only if job is interrupted.
     repeated NYT.NChunkClient.NProto.TChunkSpec unread_chunk_specs = 14;
-    repeated int32 chunk_spec_count_per_data_slice = 15;
+    repeated int32 chunk_spec_count_per_unread_data_slice = 15;
+    repeated NYT.NChunkClient.NProto.TChunkSpec read_chunk_specs = 16;
+    repeated int32 chunk_spec_count_per_read_data_slice = 17;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

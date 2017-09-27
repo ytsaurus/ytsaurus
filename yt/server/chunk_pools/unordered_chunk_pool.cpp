@@ -343,6 +343,14 @@ public:
         DataWeightCounter.Completed(list->TotalDataWeight);
         RowCounter.Completed(list->TotalRowCount);
 
+        if (jobSummary.InterruptReason != EInterruptReason::None) {
+            list->Stripes.clear();
+            list->Stripes.reserve(jobSummary.ReadInputDataSlices.size());
+            for (const auto& dataSlice : jobSummary.ReadInputDataSlices) {
+                list->Stripes.emplace_back(New<TChunkStripe>(dataSlice));
+            }
+        }
+
         //! If we don't have enough pending jobs - don't adjust data size per job.
         if (JobSizeAdjuster && JobCounter.GetPending() > JobCounter.GetRunning()) {
             JobSizeAdjuster->UpdateStatistics(jobSummary);
