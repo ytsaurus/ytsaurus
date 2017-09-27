@@ -47,7 +47,7 @@ protected:
     {
         Writer_ = CreateSchemalessWriterForWebJson(
             Config_,
-            CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
+            CreateAsyncAdapter(static_cast<IOutputStream*>(&OutputStream_)),
             NameTable_);
     }
 };
