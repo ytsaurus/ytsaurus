@@ -394,6 +394,7 @@ void TChunkRequisition::CombineWith(
 TChunkReplication TChunkRequisition::ToReplication() const
 {
     TChunkReplication result(true /* clearForCombining */);
+    result.SetVital(Vital_);
 
     auto foundCommitted = false;
     for (const auto& entry : Entries_) {
