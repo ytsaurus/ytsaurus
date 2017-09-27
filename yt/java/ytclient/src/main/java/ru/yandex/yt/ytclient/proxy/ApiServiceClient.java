@@ -213,6 +213,9 @@ public class ApiServiceClient {
                 service.modifyRows();
         builder.body().setTransactionId(transactionId.toProto());
         builder.body().setPath(request.getPath());
+        if (request.getRequireSyncReplica().isPresent()){
+            builder.body().setRequireSyncReplica(request.getRequireSyncReplica().get());
+        }
         builder.body().addAllRowModificationTypes(request.getRowModificationTypes());
         builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
         request.serializeRowsetTo(builder.attachments());
