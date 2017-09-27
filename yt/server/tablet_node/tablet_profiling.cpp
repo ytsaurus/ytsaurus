@@ -27,7 +27,7 @@ struct TUserTagTrait
     }
 };
 
-TTagIdList GetUserProfilerTags(const TString& user, TTagIdList tags)
+TTagIdList AddUserTag(const TString& user, TTagIdList tags)
 {
     tags.push_back(GetLocallyCachedValue<TUserTagTrait>(user));
     return tags;
@@ -39,7 +39,7 @@ ui64 TTabletProfilerTraitBase::ToKey(const TTagIdList& list)
 {
     /*
      * The magic is the following:
-     * - front() returns tablet_id tag,
+     * - front() returns tablet_id tag or table_name tag.
      * - back()  returns user tag or replica_id tag.
      *
      * Those 2 tags are unique to lookup appropriate counters for specific tablet.
@@ -51,7 +51,8 @@ ui64 TTabletProfilerTraitBase::ToKey(const TTagIdList& list)
 
 TSimpleProfilerTraitBase::TKey TSimpleProfilerTraitBase::ToKey(const TTagIdList& list)
 {
-    return list[0];
+    // list.back() is user tag.
+    return list.back();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

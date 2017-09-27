@@ -136,7 +136,7 @@ using TSelectProfilerTrait = TSimpleProfilerTrait<TSelectCounters>;
 
 auto& GetProfilerCounters(const TString& user)
 {
-    return GetLocallyGloballyCachedValue<TSelectProfilerTrait>(GetUserProfilerTags(user));
+    return GetLocallyGloballyCachedValue<TSelectProfilerTrait>(AddUserTag(user));
 }
 
 } // namespace

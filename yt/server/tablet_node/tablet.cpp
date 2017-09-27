@@ -1134,20 +1134,22 @@ void TTablet::Initialize()
 void TTablet::FillProfilerTags(const TCellId& cellId)
 {
     ProfilerTags_.clear();
-    if (!Config_->EnableProfiling) {
-        return;
-    }
     if (TablePath_.empty()) {
         LOG_WARNING("Table path is empty, profiling will be disabled (TabletId: %v, CellId: %v)",
             Id_,
             cellId);
         return;
     }
-    ProfilerTags_.assign({
-        // tablet_id must be the first. See tablet_profiling.cpp for details.
-        TProfileManager::Get()->RegisterTag("tablet_id", Id_),
-        TProfileManager::Get()->RegisterTag("cell_id", cellId),
-        TProfileManager::Get()->RegisterTag("table_path", TablePath_)});
+    if (Config_->EnableProfiling) {
+        ProfilerTags_.assign({
+            // tablet_id must be the first. See tablet_profiling.cpp for details.
+            TProfileManager::Get()->RegisterTag("tablet_id", Id_),
+            TProfileManager::Get()->RegisterTag("cell_id", cellId),
+            TProfileManager::Get()->RegisterTag("table_path", TablePath_)});
+    } else {
+        ProfilerTags_.assign({
+            TProfileManager::Get()->RegisterTag("table_path", TablePath_)});
+    }
 }
 
 void TTablet::UpdateReplicaCounters()
@@ -1157,11 +1159,16 @@ void TTablet::UpdateReplicaCounters()
             return nullptr;
         }
         auto replicaTags = ProfilerTags_;
-        replicaTags.append({
-            // replica_id must be the last tag. See tablet_profiling.cpp for details.
-            TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
-            TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
-            TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
+        if (Config_->EnableProfiling) {
+            replicaTags.append({
+                // replica_id must be the last tag. See tablet_profiling.cpp for details.
+                TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
+                TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
+                TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
+        } else {
+            replicaTags.push_back(
+                TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()));
+        }
         return &GetGloballyCachedValue<TReplicaProfilerTrait>(replicaTags);
     };
     for (auto& replica : Replicas_) {

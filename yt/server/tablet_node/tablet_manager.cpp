@@ -1264,7 +1264,7 @@ private:
 
         if (tablet->IsProfilingEnabled() && user) {
             auto& counters = GetLocallyGloballyCachedValue<TWriteProfilerTrait>(
-                GetUserProfilerTags(user, tablet->GetProfilerTags()));
+                AddUserTag(user, tablet->GetProfilerTags()));
             TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
             TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
         }
@@ -2141,7 +2141,7 @@ private:
                     }
 
                     auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
-                        GetUserProfilerTags(transaction->GetUser(), tablet->GetProfilerTags()));
+                        AddUserTag(transaction->GetUser(), tablet->GetProfilerTags()));
                     TabletNodeProfiler.Increment(counters.RowCount, record.RowCount);
                     TabletNodeProfiler.Increment(counters.DataWeight, record.DataWeight);
                 }
