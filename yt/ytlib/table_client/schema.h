@@ -62,6 +62,7 @@ class TTableSchema
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
+    //! Strict schema forbids columns not specified in the schema.
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys);
 

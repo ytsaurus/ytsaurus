@@ -8,6 +8,7 @@
 #include "table_ypath_proxy.h"
 #include "helpers.h"
 #include "row_buffer.h"
+#include "skynet_column_evaluator.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -290,6 +291,10 @@ protected:
         }
         if (ChunkTimestamps_.MaxTimestamp != NullTimestamp) {
             miscExt.set_max_timestamp(ChunkTimestamps_.MaxTimestamp);
+        }
+
+        if (Options_->EnableSkynetSharing) {
+            miscExt.set_shared_to_skynet(true);
         }
 
         auto& meta = EncodingChunkWriter_->Meta();
@@ -848,6 +853,10 @@ public:
         if (Options_->EvaluateComputedColumns) {
             ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
         }
+
+        if (Options_->EnableSkynetSharing) {
+            SkynetColumnEvaluator_ = New<TSkynetColumnEvaluator>(schema);
+        }
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -951,6 +960,7 @@ protected:
             mutableRow.SetCount(columnCount);
 
             EvaluateComputedColumns(mutableRow);
+            EvaluateSkynetColumns(mutableRow);
 
             result.push_back(mutableRow);
         }
@@ -966,6 +976,7 @@ private:
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
 
     TColumnEvaluatorPtr ColumnEvaluator_;
+    TSkynetColumnEvaluatorPtr SkynetColumnEvaluator_;
 
     // Maps global name table indexes into chunk name table indexes.
     std::vector<int> IdMapping_;
@@ -978,6 +989,13 @@ private:
     {
         if (ColumnEvaluator_) {
             ColumnEvaluator_->EvaluateKeys(row, RowBuffer_);
+        }
+    }
+
+    void EvaluateSkynetColumns(TMutableUnversionedRow row)
+    {
+        if (SkynetColumnEvaluator_) {
+            SkynetColumnEvaluator_->ValidateAndComputeHashes(row, RowBuffer_);
         }
     }
 
@@ -1575,7 +1593,8 @@ private:
                 "row_count",
                 "schema",
                 "schema_mode",
-                "vital"
+                "vital",
+                "enable_skynet_sharing"
             };
             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
@@ -1605,6 +1624,7 @@ private:
             Options_->ErasureCodec = TableUploadOptions_.ErasureCodec;
             Options_->Account = attributes.Get<TString>("account");
             Options_->ChunksVital = attributes.Get<bool>("vital");
+            Options_->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
             Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
             Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
             Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;

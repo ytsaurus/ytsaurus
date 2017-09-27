@@ -81,6 +81,7 @@ public:
     bool ExplodeOnValidationError;
     bool ValidateColumnCount;
     bool EvaluateComputedColumns;
+    bool EnableSkynetSharing;
 
     EOptimizeFor OptimizeFor;
 
@@ -104,6 +105,8 @@ public:
             .Default(EOptimizeFor::Lookup);
         RegisterParameter("evaluate_computed_columns", EvaluateComputedColumns)
             .Default(true);
+        RegisterParameter("enable_skynet_sharing", EnableSkynetSharing)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (ValidateUniqueKeys && !ValidateSorted) {
