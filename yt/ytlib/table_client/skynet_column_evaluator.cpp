@@ -9,7 +9,7 @@
 namespace NYT {
 namespace NTableClient {
 
-static constexpr i64 SkynetDataSize = 4 * MB;
+static constexpr i64 SkynetDataSize = 4_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
