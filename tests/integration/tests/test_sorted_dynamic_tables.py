@@ -223,6 +223,42 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert tablet_profiling.get_counter("lookup/cpu_time") > 0
         assert select_profiling.get_counter("select/cpu_time") > 0
 
+    def test_sorted_default_enabled_tablet_node_profiling(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t_unique_name")
+        self.sync_mount_table("//tmp/t_unique_name")
+
+        table_profiling = self._get_table_profiling("//tmp/t_unique_name")
+
+        def get_all_counters(count_name):
+            return (
+                table_profiling.get_counter("lookup/" + count_name),
+                table_profiling.get_counter("write/" + count_name),
+                table_profiling.get_counter("commit/" + count_name))
+
+        assert get_all_counters("row_count") == (0, 0, 0)
+        assert get_all_counters("data_weight") == (0, 0, 0)
+        assert table_profiling.get_counter("lookup/cpu_time") == 0
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t_unique_name", rows)
+
+        sleep(2)
+
+        assert get_all_counters("row_count") == (0, 1, 1)
+        assert get_all_counters("data_weight") == (0, 10, 10)
+        assert table_profiling.get_counter("lookup/cpu_time") == 0
+
+        actual = lookup_rows("//tmp/t_unique_name", keys)
+        assert_items_equal(actual, rows)
+
+        sleep(2)
+
+        assert get_all_counters("row_count") == (1, 1, 1)
+        assert get_all_counters("data_weight") == (10, 10, 10)
+        assert table_profiling.get_counter("lookup/cpu_time") > 0
+
     def test_sorted_tablet_node_profiling_remount(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")

@@ -162,13 +162,13 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         sleep(2)
 
         assert get_lag_row_count() == 1
-        assert 1 < get_lag_time() < 7
+        assert 2 <= get_lag_time() <= 8
 
         insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 123}], require_sync_replica=False)
         sleep(2)
 
         assert get_lag_row_count() == 2
-        assert 2 < get_lag_time() < 8
+        assert 4 <= get_lag_time() <= 10
 
         self.sync_mount_table("//tmp/r", driver=self.replica_driver)
         sleep(2)

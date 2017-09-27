@@ -108,12 +108,12 @@ class TestDynamicTablesBase(YTEnvSetup):
         for addr in addresses:
             self.set_node_decommissioned(addr, decomission)
 
-    def _get_profiling(self, table, filter=None):
-        tablets = get("//tmp/t/@tablets")
+    def _get_profiling(self, table, filter=None, filter_table=False):
+        tablets = get(table + "/@tablets")
         assert len(tablets) == 1
         tablet = tablets[0]
         address = get("#%s/@peers/0/address" % tablet["cell_id"])
-        filter_value = (filter, tablet[filter]) if filter else None
+        filter_value = (filter, table if filter_table else tablet[filter]) if filter else None
 
         class Profiling:
             def __init__(self):
@@ -121,15 +121,19 @@ class TestDynamicTablesBase(YTEnvSetup):
 
             def _get_counter_impl(self, counter_name):
                 try:
-                    last_counter = get("//sys/nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))[-1]
-                    return (
-                        0
-                        if filter_value and last_counter["tags"][filter_value[0]] != filter_value[1]
-                        else last_counter["value"])
+                    counters = get("//sys/nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
+                    if filter_value:
+                        filter, value = filter_value
+                        for counter in counters[::-1]:
+                            tags = counter["tags"]
+                            if filter in tags and tags[filter] == value:
+                                return counter["value"]
+                    else:
+                        return counters[-1]["value"]
                 except YtResponseError as error:
-                    if error.is_resolve_error():
-                        return 0
-                    raise
+                    if not error.is_resolve_error():
+                        raise
+                return 0
 
             def get_counter(self, counter_name):
                 result = self._get_counter_impl(counter_name)
@@ -141,6 +145,9 @@ class TestDynamicTablesBase(YTEnvSetup):
 
     def _get_tablet_profiling(self, table):
         return self._get_profiling(table, "tablet_id")
+
+    def _get_table_profiling(self, table):
+        return self._get_profiling(table, "table_path", filter_table=True)
 
 ##################################################################
 

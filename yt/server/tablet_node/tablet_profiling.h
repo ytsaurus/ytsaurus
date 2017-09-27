@@ -7,8 +7,8 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Adds user tags to specified tags and returns them.
-NProfiling::TTagIdList GetUserProfilerTags(const TString& user, NProfiling::TTagIdList tags = {});
+// Adds user tag to specified tags and returns the resultant tag list.
+NProfiling::TTagIdList AddUserTag(const TString& user, NProfiling::TTagIdList tags = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
