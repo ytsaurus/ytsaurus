@@ -14,8 +14,7 @@ from yt.environment.helpers import assert_items_equal
 ##################################################################
 
 class TestSortedDynamicTablesBase(TestDynamicTablesBase):
-    def _create_simple_table(self, path, atomicity=None, optimize_for=None, tablet_cell_bundle=None,
-                             tablet_count=None, pivot_keys=None, **extra_attributes):
+    def _create_simple_table(self, path, **extra_attributes):
         attributes = {
             "dynamic": True,
             "schema": [
@@ -24,16 +23,6 @@ class TestSortedDynamicTablesBase(TestDynamicTablesBase):
             ]
         }
         attributes.update(extra_attributes)
-        if atomicity is not None:
-            attributes["atomicity"] = atomicity
-        if optimize_for is not None:
-            attributes["optimize_for"] = optimize_for
-        if tablet_cell_bundle is not None:
-            attributes["tablet_cell_bundle"] = tablet_cell_bundle
-        if tablet_count is not None:
-            attributes["tablet_count"] = tablet_count
-        if pivot_keys is not None:
-            attributes["pivot_keys"] = pivot_keys
         create("table", path, attributes=attributes)
 
     def _create_table_with_computed_column(self, path, optimize_for="lookup"):
@@ -459,11 +448,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError): read_table("//tmp/t[#5:]")
         with pytest.raises(YtError): read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
+    @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_read_table(self, optimize_for):
+    def test_read_table(self, optimize_for, erasure_codec):
         self.sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec)
         self.sync_mount_table("//tmp/t")
 
         rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
