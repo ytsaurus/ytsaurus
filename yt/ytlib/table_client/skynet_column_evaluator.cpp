@@ -65,8 +65,8 @@ void ValidateSkynetSchema(const TTableSchema& schema)
 
         if (columnSchema->Type != type) {
             validationErrors.push_back(TError("Column %Qv has invalid type", name)
-                << TErrorAttribute("expected", type)
-                << TErrorAttribute("actual", columnSchema->Type));
+                << TErrorAttribute("expected", ToString(type))
+                << TErrorAttribute("actual", ToString(columnSchema->Type)));
         }
 
         if (columnSchema->Group != group) {
