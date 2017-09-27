@@ -662,8 +662,7 @@ private:
         return
             !IsExplicitJobCount &&
             2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options->MaxJobCount > JobCounter.GetTotal() &&
-            TOperationControllerBase::IsJobInterruptible();
+            2 * Options->MaxJobCount > JobCounter.GetTotal();
     }
 };
 

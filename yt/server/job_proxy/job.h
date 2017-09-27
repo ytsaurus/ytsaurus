@@ -74,7 +74,7 @@ struct IJob
     virtual void Cleanup() = 0;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
-    virtual std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const = 0;
+    virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
 
     virtual double GetProgress() const = 0;
 

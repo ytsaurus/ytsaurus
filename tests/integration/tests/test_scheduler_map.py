@@ -236,7 +236,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
-        command = "cat >/dev/null; echo {key=2; value=one}; {key=1; value=two}"
+        command = "cat >/dev/null; echo \"{key=2; value=one}; {key=1; value=two}\""
 
         with pytest.raises(YtError):
             map(in_="//tmp/t1",
