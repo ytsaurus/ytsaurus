@@ -5,7 +5,7 @@ import sys
 def fix_object_type_for_erasure_chunk(chunk_id):
     parts = map(lambda s: int(s, 16), chunk_id.split("-"))
     if parts[2] % (2 ** 16) > 100:
-        parts[2] = (parts[2] / 2 ** 16) * (2 ** 16) + 100
+        parts[2] = (parts[2] / 2 ** 16) * (2 ** 16) + 102
     return "-".join(map(lambda i: hex(i)[2:], parts))
 
 def erase_chunk(path, chunk_id):
@@ -22,7 +22,7 @@ def main():
     original_chunk_id = fix_object_type_for_erasure_chunk(chunk_id)
     paths = yt.get("#{}/@owning_nodes".format(original_chunk_id))
     for path in paths:
-        erase_chunk(path, chunk_id)
+        erase_chunk(path, original_chunk_id)
 
 if __name__ == "__main__":
     main()
