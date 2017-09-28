@@ -6,6 +6,7 @@
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/transaction.h>
+#include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <util/stream/output.h>
 #include <util/generic/buffer.h>
@@ -52,6 +53,10 @@ public:
         secondaryPath.ErasureCodec_.Clear();
         secondaryPath.OptimizeFor_.Clear();
         SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
+
+        auto append = path.Append_.GetOrElse(false);
+        auto lockMode = (append  ? LM_SHARED : LM_EXCLUSIVE);
+        NDetail::Lock(Auth_, WriteTransaction_.GetId(), path.Path_, lockMode, TLockOptions());
     }
 
     ~TBlockWriter();
