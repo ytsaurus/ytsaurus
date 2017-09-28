@@ -4,6 +4,9 @@
 #include "medium.h"
 
 #include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/bootstrap.h>
+
+#include <yt/server/chunk_server/chunk_manager.h>
 
 #include <yt/server/security_server/account.h>
 
@@ -27,10 +30,6 @@ using namespace NCellMaster;
 
 const TChunk::TCachedReplicas TChunk::EmptyCachedReplicas;
 const TChunk::TReplicasData TChunk::EmptyReplicasData = {};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkRequisitionRegistry* ChunkRequisitionRegistry = nullptr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,9 +164,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     } else if (context.GetVersion() < 623) {
         auto oldReplication = Load<TChunkReplication>(context);
         if (isStaged) {
+            auto* chunkRequisitionRegistry = context.GetBootstrap()->GetChunkManager()->GetChunkRequisitionRegistry();
+
             TChunkRequisition requisition;
             requisition.CombineWith(oldReplication, account->GetId(), false /* committed */);
-            LocalRequisitionIndex_ = ChunkRequisitionRegistry->GetIndex(requisition);
+            LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition);
         } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
     } else {
         LocalRequisitionIndex_ = Load<TChunkRequisitionIndex>(context);
@@ -181,13 +182,15 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() < 400) {
         auto oldVital = Load<bool>(context);
         if (isStaged) {
+            auto* chunkRequisitionRegistry = context.GetBootstrap()->GetChunkManager()->GetChunkRequisitionRegistry();
+
             TChunkReplication oldReplication;
             oldReplication.SetVital(oldVital);
             oldReplication[DefaultStoreMediumIndex].SetReplicationFactor(replicationFactorBefore400);
 
             TChunkRequisition requisition;
             requisition.CombineWith(oldReplication, account->GetId(), false /* committed */);
-            LocalRequisitionIndex_ = ChunkRequisitionRegistry->GetIndex(requisition);
+            LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition);
         } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
     }
 
