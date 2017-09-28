@@ -70,7 +70,7 @@ if __name__ == "__main__":
             node = choice(list(up_nodes))
             restart_node(node)
         elif mode == 3:
-            if should_restart_scheduler:
+            if not should_restart_scheduler:
                 continue
             scheduler = choice(list(schedulers))
             restart_scheduler(scheduler)
