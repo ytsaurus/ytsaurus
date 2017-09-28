@@ -439,4 +439,25 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_VALUES_EQUAL(actualKeys, expectedKeys);
         UNIT_ASSERT_VALUES_EQUAL(actualRowIndices, expectedRowIndices);
     }
+
+    SIMPLE_UNIT_TEST(TableLockedForWriterLifetime)
+    {
+        auto client = CreateTestClient();
+        {
+            auto path = TRichYPath("//testing/table").Append(false);
+            auto writer = client->CreateTableWriter<TNode>(path);
+            UNIT_ASSERT_EXCEPTION(client->CreateTableWriter<TNode>(path), TErrorResponse);
+            writer->Finish();
+        }
+        {
+            auto path = TRichYPath("//testing/table").Append(true);
+            auto firstWriter = client->CreateTableWriter<TNode>(path);
+            // we expect no exception here
+            auto secondWriter = client->CreateTableWriter<TNode>(path);
+            firstWriter->AddRow(TNode()("key", 100500));
+            secondWriter->AddRow(TNode()("key", 2001000));
+            firstWriter->Finish();
+            secondWriter->Finish();
+        }
+    }
 }
