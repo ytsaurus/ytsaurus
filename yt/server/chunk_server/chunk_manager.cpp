@@ -363,13 +363,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(shakurov)
-// This is an ugly global variable that's used by the migration code in
-// TChunk::Load(). Will be removed once migration is done.
-extern TChunkRequisitionRegistry* ChunkRequisitionRegistry;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -1898,11 +1891,6 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        // COMPAT(shakurov)
-        // An ugly hack: set the global variable here, use it in TChunk::Load().
-        // Once the migration to chunk-wise accounting is done, this'll be removed.
-        ChunkRequisitionRegistry = &ChunkRequisitionRegistry_;
-
         ChunkMap_.LoadValues(context);
 
         // Recompute requisitions' ref counts.
