@@ -31,7 +31,7 @@ TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     , StringDataStream_(TSimpleVersionedBlockWriterTag())
 {
     for (const auto& column : Schema_.Columns()) {
-        if (column.Aggregate) {
+        if (column.Aggregate()) {
             ValueAggregateFlags_ = TBitmap();
             break;
         }

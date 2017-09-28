@@ -89,10 +89,10 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     TColumnFilter columnFilter;
     columnFilter.All = false;
     for (const auto& column : desiredSchema.Columns()) {
-        const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
+        const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name());
         if (tabletColumn.GetPhysicalType() != column.GetPhysicalType()) {
             THROW_ERROR_EXCEPTION("Mismatched type of column %Qv in schema: expected %Qlv, found %Qlv",
-                column.Name,
+                column.Name(),
                 tabletColumn.GetPhysicalType(),
                 column.GetPhysicalType());
         }

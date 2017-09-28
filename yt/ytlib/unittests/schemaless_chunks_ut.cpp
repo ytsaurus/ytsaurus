@@ -468,7 +468,7 @@ protected:
         auto row = TMutableUnversionedRow::Allocate(&Pool_, schema.Columns().size());
         for (int index = 0; index < schema.Columns().size(); ++index) {
             const auto& column = schema.Columns()[index];
-            row[index] = CreateValue(rowIndex, nameTable->GetIdOrRegisterName(column.Name), column);
+            row[index] = CreateValue(rowIndex, nameTable->GetIdOrRegisterName(column.Name()), column);
         }
         return row;
     }

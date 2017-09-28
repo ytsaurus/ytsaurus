@@ -1109,12 +1109,12 @@ void TTablet::Initialize()
         int lockIndex = TSortedDynamicRow::PrimaryLockIndex;
         // No locking supported for non-atomic tablets, however we still need the primary
         // lock descriptor to maintain last commit timestamps.
-        if (columnSchema.Lock && Atomicity_ == EAtomicity::Full) {
-            auto it = groupToIndex.find(*columnSchema.Lock);
+        if (columnSchema.Lock() && Atomicity_ == EAtomicity::Full) {
+            auto it = groupToIndex.find(*columnSchema.Lock());
             if (it == groupToIndex.end()) {
                 lockIndex = groupToIndex.size() + 1;
-                YCHECK(groupToIndex.insert(std::make_pair(*columnSchema.Lock, lockIndex)).second);
-                LockIndexToName_.push_back(*columnSchema.Lock);
+                YCHECK(groupToIndex.insert(std::make_pair(*columnSchema.Lock(), lockIndex)).second);
+                LockIndexToName_.push_back(*columnSchema.Lock());
             } else {
                 lockIndex = it->second;
             }

@@ -134,24 +134,24 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
     for (int readerIndex = 0; readerIndex < readerSchema.GetKeyColumnCount(); ++readerIndex) {
         auto& column = readerSchema.Columns()[readerIndex];
-        YCHECK (column.SortOrder);
+        YCHECK (column.SortOrder());
 
         if (readerIndex < ChunkSchema_.GetKeyColumnCount()) {
             const auto& chunkColumn = ChunkSchema_.Columns()[readerIndex];
-            YCHECK(chunkColumn.SortOrder);
+            YCHECK(chunkColumn.SortOrder());
 
-            if (chunkColumn.Name != column.Name ||
+            if (chunkColumn.Name() != column.Name() ||
                 chunkColumn.GetPhysicalType() != column.GetPhysicalType() ||
-                chunkColumn.SortOrder != column.SortOrder)
+                chunkColumn.SortOrder() != column.SortOrder())
             {
                 throwIncompatibleKeyColumns();
             }
         } else {
-            auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
+            auto* chunkColumn = ChunkSchema_.FindColumn(column.Name());
             if (chunkColumn) {
                 THROW_ERROR_EXCEPTION(
                     "Incompatible reader key columns: %Qv is a non-key column in chunk schema %v",
-                    column.Name,
+                    column.Name(),
                     ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).GetData());
             }
         }
@@ -159,7 +159,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
     for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < readerSchema.Columns().size(); ++readerIndex) {
         auto& column = readerSchema.Columns()[readerIndex];
-        auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
+        auto* chunkColumn = ChunkSchema_.FindColumn(column.Name());
         if (!chunkColumn) {
             // This is a valid case, simply skip the column.
             continue;
@@ -169,7 +169,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
             THROW_ERROR_EXCEPTION(
                 "Incompatible type %Qlv for column %Qv in chunk schema %v",
                 column.GetPhysicalType(),
-                column.Name,
+                column.Name(),
                 ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).GetData());
         }
 

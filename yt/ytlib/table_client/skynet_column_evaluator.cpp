@@ -65,16 +65,16 @@ void ValidateSkynetSchema(const TTableSchema& schema)
             return;
         }
 
-        if (columnSchema->GetLogicalType()!= type) {
+        if (columnSchema->LogicalType()!= type) {
             validationErrors.push_back(TError("Column %Qv has invalid type", name)
                 << TErrorAttribute("expected", ToString(type))
-                << TErrorAttribute("actual", ToString(columnSchema->GetLogicalType())));
+                << TErrorAttribute("actual", ToString(columnSchema->LogicalType())));
         }
 
-        if (columnSchema->Group != group) {
+        if (columnSchema->Group() != group) {
             validationErrors.push_back(TError("Column %Qv has invalid group", name)
                 << TErrorAttribute("expected", group)
-                << TErrorAttribute("actual", columnSchema->Group.Get("#;")));
+                << TErrorAttribute("actual", columnSchema->Group().Get("#;")));
         }
     };
 

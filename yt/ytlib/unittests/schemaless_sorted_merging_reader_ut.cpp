@@ -73,7 +73,7 @@ public:
         TableSchema_ = ConvertTo<TTableSchema>(TYsonString(tableData.Schema));
         NameTable_ = New<TNameTable>();
         for (int i = 0; i < TableSchema_.GetColumnCount(); ++i) {
-            NameTable_->RegisterName(TableSchema_.Columns()[i].Name);
+            NameTable_->RegisterName(TableSchema_.Columns()[i].Name());
         }
         NameTable_->RegisterName(TableIndexColumnName);
     }

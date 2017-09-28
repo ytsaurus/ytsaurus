@@ -1186,7 +1186,7 @@ private:
                 ChunkMeta_->ChunkSchema().Columns()[columnIndex],
                 ChunkMeta_->ColumnMeta()->columns(columnIndex),
                 valueIndex,
-                NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
+                NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name()));
 
             RowColumnReaders_.emplace_back(columnReader.get());
             Columns_.emplace_back(std::move(columnReader), columnIndex);
@@ -1595,7 +1595,7 @@ private:
                     ChunkMeta_->ChunkSchema().Columns()[columnIndex],
                     ChunkMeta_->ColumnMeta()->columns(columnIndex),
                     valueIndex,
-                    NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
+                    NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name()));
 
                 RowColumnReaders_.emplace_back(columnReader.get());
                 Columns_.emplace_back(std::move(columnReader), columnIndex);
@@ -2363,7 +2363,7 @@ private:
                 break;
             }
 
-            KeyColumns_.push_back(Schema_.Columns()[index].Name);
+            KeyColumns_.push_back(Schema_.Columns()[index].Name());
         }
     }
 
@@ -2437,7 +2437,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         for (int columnIndex = 0; columnIndex < versionedReadSchema.Columns().size(); ++columnIndex) {
             const auto& column = versionedReadSchema.Columns()[columnIndex];
             if (versionedColumnFilter.Contains(columnIndex)) {
-                idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name);
+                idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name());
             } else {
                 // We should skip this column in schemaless reading.
                 idMapping[columnIndex] = -1;
