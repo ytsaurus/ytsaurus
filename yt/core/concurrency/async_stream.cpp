@@ -131,7 +131,6 @@ public:
         try {
             Finish();
         } catch (...) {
-            YCHECK(false);
         }
     }
 
@@ -242,7 +241,6 @@ public:
         try {
             Finish();
         } catch (...) {
-            YCHECK(false);
         }
     }
 
