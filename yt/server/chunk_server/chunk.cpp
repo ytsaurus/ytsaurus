@@ -167,7 +167,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
             auto* chunkRequisitionRegistry = context.GetBootstrap()->GetChunkManager()->GetChunkRequisitionRegistry();
 
             TChunkRequisition requisition;
-            requisition.CombineWith(oldReplication, account->GetId(), false /* committed */);
+            requisition.CombineWith(oldReplication, account, false /* committed */);
             LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition);
         } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
     } else {
@@ -189,7 +189,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
             oldReplication[DefaultStoreMediumIndex].SetReplicationFactor(replicationFactorBefore400);
 
             TChunkRequisition requisition;
-            requisition.CombineWith(oldReplication, account->GetId(), false /* committed */);
+            requisition.CombineWith(oldReplication, account, false /* committed */);
             LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition);
         } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
     }

@@ -2070,9 +2070,9 @@ TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* c
     }
 
     auto updateRequisition = [&] (const TChunkOwnerBase* owningNode) {
-        const auto* account = owningNode->GetAccount();
+        auto* account = owningNode->GetAccount();
         if (account) {
-            requisition.CombineWith(owningNode->Replication(), account->GetId(), owningNode->IsTrunk());
+            requisition.CombineWith(owningNode->Replication(), account, owningNode->IsTrunk());
         }
     };
 

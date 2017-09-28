@@ -4,8 +4,10 @@
 #include "medium.h"
 
 #include <yt/server/cell_master/automaton.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <yt/server/security_server/account.h>
+#include <yt/server/security_server/security_manager.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -276,7 +278,8 @@ void ValidateChunkReplication(
 void TRequisitionEntry::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, AccountId);
+
+    Save(context, Account);
     Save(context, MediumIndex);
     Save(context, ReplicationPolicy);
 }
@@ -284,7 +287,8 @@ void TRequisitionEntry::Save(NCellMaster::TSaveContext& context) const
 void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, AccountId);
+
+    Load(context, Account);
     Load(context, MediumIndex);
     Load(context, ReplicationPolicy);
 }
@@ -293,7 +297,7 @@ void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const 
 {
     return builder->AppendFormat(
         "{AccountId: %v, MediumIndex: %v, ReplicationPolicy: %v, Committed: %v}",
-        entry.AccountId,
+        entry.Account->GetId(),
         entry.MediumIndex,
         entry.ReplicationPolicy,
         entry.Committed);
@@ -311,7 +315,7 @@ void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisi
     protoRequisition->set_vital(requisition.GetVital());
     for (const auto& entry : requisition) {
         auto* protoEntry = protoRequisition->add_entries();
-        ToProto(protoEntry->mutable_account_id(), entry.AccountId);
+        ToProto(protoEntry->mutable_account_id(), entry.Account->GetId());
         protoEntry->set_medium_index(entry.MediumIndex);
         protoEntry->set_replication_factor(entry.ReplicationPolicy.GetReplicationFactor());
         protoEntry->set_data_parts_only(entry.ReplicationPolicy.GetDataPartsOnly());
@@ -319,13 +323,17 @@ void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisi
     }
 }
 
-void FromProto(TChunkRequisition* requisition, const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition)
+void FromProto(
+    TChunkRequisition* requisition,
+    const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition,
+    const NSecurityServer::TSecurityManagerPtr& securityManager)
 {
     requisition->SetVital(protoRequisition.vital());
 
     for (const auto& entry : protoRequisition.entries()) {
+        auto* account = securityManager->FindAccount(FromProto<NSecurityServer::TAccountId>(entry.account_id()));
         requisition->AddEntry(
-            FromProto<NSecurityServer::TAccountId>(entry.account_id()),
+            account,
             entry.medium_index(),
             TReplicationPolicy(entry.replication_factor(), entry.data_parts_only()),
             entry.committed());
@@ -376,15 +384,17 @@ TChunkRequisition& TChunkRequisition::operator|=(const TChunkRequisition& rhs)
 
 void TChunkRequisition::CombineWith(
     const TChunkReplication& replication,
-    const NSecurityServer::TAccountId& accountId,
+    NSecurityServer::TAccount* account,
     bool committed)
 {
+    Y_ASSERT(account);
+
     Vital_ = Vital_ || replication.GetVital();
 
     for (auto mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
         const auto& policy = replication[mediumIndex];
         if (policy) {
-            Entries_.emplace_back(accountId, mediumIndex, policy, committed);
+            Entries_.emplace_back(account, mediumIndex, policy, committed);
         }
     }
 
@@ -444,7 +454,11 @@ void TChunkRequisition::NormalizeEntries()
     // Second, merge entries by "account, medium, committed" triplets.
     auto mergeRangeBegin = Entries_.begin();
     for (auto mergeRangeIt = mergeRangeBegin + 1; mergeRangeIt != Entries_.end(); ++mergeRangeIt) {
-        if (mergeRangeBegin->AccountId == mergeRangeIt->AccountId &&
+        Y_ASSERT(
+            (mergeRangeBegin->Account == mergeRangeIt->Account) ==
+            (mergeRangeBegin->Account->GetId() == mergeRangeIt->Account->GetId()));
+
+        if (mergeRangeBegin->Account == mergeRangeIt->Account &&
             mergeRangeBegin->MediumIndex == mergeRangeIt->MediumIndex &&
             mergeRangeBegin->Committed == mergeRangeIt->Committed)
         {
@@ -463,12 +477,13 @@ void TChunkRequisition::NormalizeEntries()
 }
 
 void TChunkRequisition::AddEntry(
-    const NSecurityClient::TAccountId& accountId,
+    NSecurityServer::TAccount* account,
     int mediumIndex,
     TReplicationPolicy replicationPolicy,
     bool committed)
 {
-    Entries_.emplace_back(accountId, mediumIndex, replicationPolicy, committed);
+    Y_ASSERT(account);
+    Entries_.emplace_back(account, mediumIndex, replicationPolicy, committed);
 }
 
 void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, const TStringBuf& /*spec*/)
@@ -505,17 +520,32 @@ void TChunkRequisitionRegistry::TIndexedItem::Load(NCellMaster::TLoadContext& co
     Replication = Requisition.ToReplication();
 }
 
-TChunkRequisitionRegistry::TChunkRequisitionRegistry(
-    const NSecurityServer::TAccountId& chunkWiseAccountingMigrationAccountId)
-    : NextIndex_(EmptyChunkRequisitionIndex)
+////////////////////////////////////////////////////////////////////////////////
+
+void TChunkRequisitionRegistry::Clear()
 {
+    NextIndex_ = EmptyChunkRequisitionIndex;
+    IndexToItem_.clear();
+    RequisitionToIndex_.clear();
+}
+
+void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
+    NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount)
+{
+    if (IndexToItem_.has(EmptyChunkRequisitionIndex)) {
+        YCHECK(IndexToItem_.has(MigrationChunkRequisitionIndex));
+        YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
+
+        return;
+    }
+
     YCHECK(Insert(TChunkRequisition()) == EmptyChunkRequisitionIndex);
     Ref(EmptyChunkRequisitionIndex); // Fake reference - always keep the empty requisition.
 
     // When migrating to chunk-wise accounting, assume all chunks belong to a
     // special migration account.
     TChunkRequisition defaultRequisition(
-        chunkWiseAccountingMigrationAccountId,
+        chunkWiseAccountingMigrationAccount,
         DefaultStoreMediumIndex,
         TReplicationPolicy(NChunkClient::DefaultReplicationFactor, false /* dataPartsOnly */),
         true /* committed */);
@@ -523,7 +553,7 @@ TChunkRequisitionRegistry::TChunkRequisitionRegistry(
     Ref(MigrationChunkRequisitionIndex); // Fake reference - always keep the migration requisition.
 
     TChunkRequisition defaultErasureRequisition(
-        chunkWiseAccountingMigrationAccountId,
+        chunkWiseAccountingMigrationAccount,
         DefaultStoreMediumIndex,
         TReplicationPolicy(1 /*replicationFactor*/, false /* dataPartsOnly */),
         true /* committed */);
@@ -545,7 +575,6 @@ void TChunkRequisitionRegistry::Save(NCellMaster::TSaveContext& context) const
         });
     Save(context, sortedIndex);
     Save(context, NextIndex_);
-
 }
 
 void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
