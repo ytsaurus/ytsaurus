@@ -267,9 +267,9 @@ void TMasterConnector::RegisterAtMaster()
 
     try {
         InitMedia();
-        SyncDirectories();
         StartLeaseTransaction();
-        SendRegisterRequest();
+        RegisterAtPrimaryMaster();
+        SyncDirectories();
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Error registering at primary master");
         ResetAndScheduleRegisterAtMaster();
@@ -379,7 +379,7 @@ void TMasterConnector::StartLeaseTransaction()
             .Via(HeartbeatInvoker_));
 }
 
-void TMasterConnector::SendRegisterRequest()
+void TMasterConnector::RegisterAtPrimaryMaster()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
