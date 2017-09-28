@@ -6,6 +6,8 @@
 #include <contrib/libs/openssl/crypto/md5/md5.h>
 #include <contrib/libs/openssl/crypto/sha/sha.h>
 
+#include <array>
+
 namespace NYT {
 namespace NTableClient {
 
