@@ -127,11 +127,11 @@ inline bool operator!=(const TChunkReplication& lhs, const TChunkReplication& rh
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TRequisitionEntry::TRequisitionEntry(
-    const NSecurityClient::TAccountId& accountId,
+    NSecurityServer::TAccount* account,
     int mediumIndex,
     TReplicationPolicy replicationPolicy,
     bool committed)
-    : AccountId(accountId)
+    : Account(account)
     , MediumIndex(mediumIndex)
     , ReplicationPolicy(replicationPolicy)
     , Committed(committed)
@@ -141,16 +141,18 @@ inline bool TRequisitionEntry::operator<(const TRequisitionEntry& rhs) const
 {
     // TChunkRequisition merges entries by the "account, medium, committed" triplet.
     // TSecurityManager relies on that order. Don't change it lightly.
-    if (AccountId != rhs.AccountId) {
-        return AccountId < rhs.AccountId;
+    Y_ASSERT((Account == rhs.Account) == (Account->GetId() == rhs.Account->GetId()));
+    if (Account != rhs.Account) {
+        return Account->GetId() < rhs.Account->GetId();
     }
+
 
     if (MediumIndex != rhs.MediumIndex) {
         return MediumIndex < rhs.MediumIndex;
     }
 
     if (Committed != rhs.Committed) {
-        return Committed && !rhs.Committed; // Committed entries come first.
+        return Committed && !rhs.Committed; // committed entries come first
     }
 
     if (ReplicationPolicy.GetReplicationFactor() != rhs.ReplicationPolicy.GetReplicationFactor()) {
@@ -162,8 +164,10 @@ inline bool TRequisitionEntry::operator<(const TRequisitionEntry& rhs) const
 
 inline bool TRequisitionEntry::operator==(const TRequisitionEntry& rhs) const
 {
+    Y_ASSERT((Account == rhs.Account) == (Account->GetId() == rhs.Account->GetId()));
+
     return
-        AccountId == rhs.AccountId &&
+        Account == rhs.Account &&
         MediumIndex == rhs.MediumIndex &&
         ReplicationPolicy == rhs.ReplicationPolicy &&
         Committed == rhs.Committed;
@@ -171,7 +175,7 @@ inline bool TRequisitionEntry::operator==(const TRequisitionEntry& rhs) const
 
 inline size_t TRequisitionEntry::GetHash() const
 {
-    auto result = NObjectClient::TDirectObjectIdHash()(AccountId);
+    auto result = NObjectClient::TDirectObjectIdHash()(Account->GetId());
     HashCombine(result, MediumIndex);
     HashCombine(result, ReplicationPolicy.GetReplicationFactor());
     HashCombine(result, ReplicationPolicy.GetDataPartsOnly());
@@ -182,11 +186,11 @@ inline size_t TRequisitionEntry::GetHash() const
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TChunkRequisition::TChunkRequisition(
-    const NSecurityClient::TAccountId& accountId,
+    NSecurityServer::TAccount* account,
     int mediumIndex,
     TReplicationPolicy replicationPolicy,
     bool committed)
-    : Entries_(1, TRequisitionEntry(accountId, mediumIndex, replicationPolicy, committed))
+    : Entries_(1, TRequisitionEntry(account, mediumIndex, replicationPolicy, committed))
 { }
 
 inline TChunkRequisition::const_iterator TChunkRequisition::begin() const

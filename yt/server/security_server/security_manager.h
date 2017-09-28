@@ -106,7 +106,7 @@ public:
      *
      *  The account will be deprecated shortly after the migration.
      */
-    TAccountId GetChunkWiseAccountingMigrationAccountId();
+    TAccount* GetChunkWiseAccountingMigrationAccount();
 
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
     void UpdateResourceUsage(const NChunkServer::TChunk& chunk, const NChunkServer::TChunkRequisition& requisition, i64 delta);

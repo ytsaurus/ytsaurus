@@ -6,6 +6,7 @@
 #include <yt/server/chunk_server/chunk_manager.pb.h>
 
 #include <yt/server/security_server/public.h>
+#include <yt/server/security_server/account.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -198,7 +199,7 @@ void ValidateChunkReplication(
 
 struct TRequisitionEntry
 {
-    NSecurityClient::TAccountId AccountId = NObjectClient::NullObjectId;
+    NSecurityServer::TAccount* Account = nullptr;
     int MediumIndex = NChunkClient::InvalidMediumIndex;
     TReplicationPolicy ReplicationPolicy;
     // The 'committed' flag is necessary in order to decide which quota usage to
@@ -214,7 +215,7 @@ struct TRequisitionEntry
     bool Committed = false;
 
     TRequisitionEntry(
-        const NSecurityClient::TAccountId& accountId,
+        NSecurityServer::TAccount* account,
         int mediumIndex,
         TReplicationPolicy replicationPolicy,
         bool committed);
@@ -261,7 +262,7 @@ public:
 
     //! Constructs a requisition with a single entry.
     TChunkRequisition(
-        const NSecurityClient::TAccountId& accountId,
+        NSecurityServer::TAccount* account,
         int mediumIndex,
         TReplicationPolicy replicationPolicy,
         bool committed);
@@ -292,7 +293,7 @@ public:
 
     void CombineWith(
         const TChunkReplication& replication,
-        const NSecurityServer::TAccountId& accountId,
+        NSecurityServer::TAccount* account,
         bool committed);
 
     //! Convert this requisition to a replication.
@@ -325,16 +326,24 @@ private:
 
     // NB: does not normalize entries.
     void AddEntry(
-        const NSecurityClient::TAccountId& accountId,
+        NSecurityServer::TAccount* account,
         int mediumIndex,
         TReplicationPolicy replicationPolicy,
         bool committed);
 
-    friend void FromProto(TChunkRequisition* requisition, const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequsition);
+    friend void FromProto(
+        TChunkRequisition* requisition,
+        const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequsition,
+        const NSecurityServer::TSecurityManagerPtr& securityManager);
 };
 
-void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition, const TChunkRequisition& requisition);
-void FromProto(TChunkRequisition* requisition, const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition);
+void ToProto(
+    NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition,
+    const TChunkRequisition& requisition);
+void FromProto(
+    TChunkRequisition* requisition,
+    const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition,
+    const NSecurityServer::TSecurityManagerPtr& securityManager);
 
 void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, const TStringBuf& /*spec*/ = {});
 TString ToString(const TChunkRequisition& requisition);
@@ -370,12 +379,19 @@ namespace NChunkServer {
 class TChunkRequisitionRegistry
 {
 public:
-    explicit TChunkRequisitionRegistry(const NSecurityServer::TAccountId& chunkWiseAccountingMigrationAccountId);
-    // For persistence only.
+    //! Constructs an empty registry. It lacks even chunk-wise migration related
+    //! requisitions, so #EnsureBuiltinRequisitionsInitialized() must be called
+    //! subsequently.
     TChunkRequisitionRegistry() = default;
 
     TChunkRequisitionRegistry(const TChunkRequisitionRegistry&) = delete;
     TChunkRequisitionRegistry& operator=(const TChunkRequisitionRegistry&) = delete;
+
+    // Makes the registry empty. #EnsureBuiltinRequisitionsInitialized() must be
+    // called subsequently.
+    void Clear();
+
+    void EnsureBuiltinRequisitionsInitialized(NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount);
 
     // NB: ref counts are not persisted.
     void Save(NCellMaster::TSaveContext& context) const;

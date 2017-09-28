@@ -373,7 +373,6 @@ public:
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
-        , ChunkRequisitionRegistry_(Bootstrap_->GetSecurityManager()->GetChunkWiseAccountingMigrationAccountId())
     {
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this)));
@@ -1493,7 +1492,9 @@ private:
         for (const auto& pair : request.chunk_requisition_dict()) {
             auto remoteIndex = pair.index();
 
-            auto requisition = FromProto<TChunkRequisition>(pair.requisition());
+            // Can't use the usual FromProto<T>() here: deserializing TChunkRequisition requires security manager.
+            TChunkRequisition requisition;
+            FromProto(&requisition, pair.requisition(), Bootstrap_->GetSecurityManager());
             auto localIndex = ChunkRequisitionRegistry_.GetIndex(requisition);
             YCHECK(remoteToLocalIndexMap.emplace(remoteIndex, localIndex).second);
         }
@@ -1697,7 +1698,7 @@ private:
                       : MigrationChunkRequisitionIndex));
 
         TChunkRequisition requisition(
-            account->GetId(),
+            account,
             mediumIndex,
             TReplicationPolicy(replicationFactor, false /* dataPartsOnly */),
             false /* committed */);
@@ -1866,7 +1867,6 @@ private:
         ChunkMap_.SaveKeys(context);
         ChunkListMap_.SaveKeys(context);
         MediumMap_.SaveKeys(context);
-        Save(context, ChunkRequisitionRegistry_);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -1874,8 +1874,8 @@ private:
         ChunkMap_.SaveValues(context);
         ChunkListMap_.SaveValues(context);
         MediumMap_.SaveValues(context);
+        Save(context, ChunkRequisitionRegistry_);
     }
-
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
@@ -1885,19 +1885,11 @@ private:
         if (context.GetVersion() >= 400) {
             MediumMap_.LoadKeys(context);
         }
-
-        Load(context, ChunkRequisitionRegistry_);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         ChunkMap_.LoadValues(context);
-
-        // Recompute requisitions' ref counts.
-        for (const auto& pair : ChunkMap_) {
-            const auto* chunk = pair.second;
-            chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
-        }
 
         ChunkListMap_.LoadValues(context);
         // COMPAT(shakurov)
@@ -1906,6 +1898,11 @@ private:
         }
         //COMPAT(savrus)
         NeedResetDataWeight_ = context.GetVersion() < 612;
+
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= 623) {
+            Load(context, ChunkRequisitionRegistry_);
+        }
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -1971,6 +1968,12 @@ private:
 
         InitBuiltins();
 
+        // Recompute requisitions' ref counts.
+        for (const auto& pair : ChunkMap_) {
+            const auto* chunk = pair.second;
+            chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
+        }
+
         if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
             NeedToRecomputeStatistics_ = false;
@@ -1990,6 +1993,8 @@ private:
         ChunkListMap_.Clear();
         ForeignChunks_.clear();
         TotalReplicaCount_ = 0;
+
+        ChunkRequisitionRegistry_.Clear();
 
         MediumMap_.Clear();
         NameToMediumMap_.clear();
@@ -2018,6 +2023,10 @@ private:
     void InitBuiltins()
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        // Chunk requisition registry
+        ChunkRequisitionRegistry_.EnsureBuiltinRequisitionsInitialized(
+            securityManager->GetChunkWiseAccountingMigrationAccount());
 
         // Media
 

@@ -384,9 +384,9 @@ public:
         return GetBuiltin(IntermediateAccount_);
     }
 
-    TAccountId GetChunkWiseAccountingMigrationAccountId()
+    TAccount* GetChunkWiseAccountingMigrationAccount()
     {
-        return ChunkWiseAccountingMigrationAccountId_;
+        return GetBuiltin(ChunkWiseAccountingMigrationAccount_);
     }
 
     void UpdateResourceUsage(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta)
@@ -426,7 +426,7 @@ public:
         auto* stagingAccount = chunk.GetStagingAccount();
 
         Y_ASSERT(requisition.GetEntryCount() == 1);
-        Y_ASSERT(requisition.begin()->AccountId == stagingAccount->GetId());
+        Y_ASSERT(requisition.begin()->Account == stagingAccount);
 
         auto diskSpace = chunk.ChunkInfo().disk_space();
         auto erasureCodec = chunk.GetErasureCodec();
@@ -1321,18 +1321,16 @@ private:
         auto chunkDiskSpace = chunk.ChunkInfo().disk_space();
         auto erasureCodec = chunk.GetErasureCodec();
 
-        TAccount* lastAccount = nullptr;
+        const TAccount* lastAccount = nullptr;
         auto lastMediumIndex = InvalidMediumIndex;
         i64 lastDiskSpace = 0;
 
         for (const auto& entry : requisition) {
-            Y_ASSERT(entry.AccountId);
-
-            auto* account = FindAccount(entry.AccountId);
-            if (!IsObjectAlive(account)) {
+            if (!IsObjectAlive(entry.Account)) {
                 continue;
             }
 
+            auto* account = entry.Account;
             auto mediumIndex = entry.MediumIndex;
             Y_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
 
@@ -2424,9 +2422,9 @@ TAccount* TSecurityManager::GetIntermediateAccount()
     return Impl_->GetIntermediateAccount();
 }
 
-TAccountId TSecurityManager::GetChunkWiseAccountingMigrationAccountId()
+TAccount* TSecurityManager::GetChunkWiseAccountingMigrationAccount()
 {
-    return Impl_->GetChunkWiseAccountingMigrationAccountId();
+    return Impl_->GetChunkWiseAccountingMigrationAccount();
 }
 
 void TSecurityManager::UpdateResourceUsage(const TChunk& chunk, const TChunkRequisition& requisition, i64 delta)
