@@ -553,7 +553,7 @@ class TestTableCommands(object):
                                final_action=lambda: shutil.rmtree(new_temp_dir)):
             assert os.listdir(yt.config["local_temp_directory"]) == []
 
-            params = OperationParameters(input_format=None, output_format=None, operation_type="mapper", group_by=None)
+            params = OperationParameters(input_format=None, output_format=None, operation_type="map", job_type="mapper", group_by=None)
             with pytest.raises(Exception):
                 py_wrapper.wrap(function=foo, uploader=None, params=params, client=None)
             assert os.listdir(yt.config["local_temp_directory"]) == []

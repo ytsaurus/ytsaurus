@@ -1227,21 +1227,34 @@ if __name__ == "__main__":
             for row in rows:
                 yield {"row_index": context.row_index}
 
+        @yt.with_context
+        def mapper_table_index(row, context):
+            yield {"table_index": context.table_index}
+
         input = TEST_DIR + "/input"
+        input2 = TEST_DIR + "/input2"
         output = TEST_DIR + "/output"
         yt.write_table(input, [{"x": 1, "y": "a"}, {"x": 1, "y": "b"}, {"x": 2, "y": "b"}])
         yt.run_map(mapper, input, output,
                    format=yt.YsonFormat(),
                    spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
 
-        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)], ordered=True)
+        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
 
         yt.run_sort(input, input, sort_by=["x"])
         yt.run_reduce(reducer, input, output,
                       reduce_by=["x"],
                       format=yt.YsonFormat(),
                       spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
-        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)], ordered=True)
+        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
+
+        yt.write_table(input, [{"x": 1, "y": "a"}])
+        yt.run_map(mapper_table_index, input, output, format=yt.YsonFormat(control_attributes_mode="iterator"))
+        check(yt.read_table(output), [{"table_index": 0}])
+
+        yt.write_table(input2, [{"x": 1, "y": "a"}])
+        yt.run_map(mapper_table_index, [input, input2], output, format=yt.YsonFormat(control_attributes_mode="iterator"))
+        check(yt.read_table(output), [{"table_index": 0}, {"table_index": 1}], ordered=False)
 
     def test_relative_imports_with_run_module(self, yt_env):
         yt.write_table("//tmp/input_table", [{"value": 0}])

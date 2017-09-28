@@ -54,15 +54,17 @@ class WrapResult(object):
         self.title = title
 
 class OperationParameters(object):
-    __slots__ = ["input_format", "output_format", "operation_type", "group_by", "output_table_count",
+    __slots__ = ["input_format", "output_format", "operation_type", "job_type", "group_by", "input_table_count", "output_table_count",
                  "use_yamr_descriptors", "attributes", "python_version", "is_local_mode"]
 
-    def __init__(self, input_format=None, output_format=None, operation_type=None, group_by=None, python_version=None,
-                 output_table_count=None, use_yamr_descriptors=None, attributes=None, is_local_mode=None):
+    def __init__(self, input_format=None, output_format=None, operation_type=None, job_type=None, group_by=None, python_version=None,
+                 input_table_count=None, output_table_count=None, use_yamr_descriptors=None, attributes=None, is_local_mode=None):
         self.input_format = input_format
         self.output_format = output_format
         self.operation_type = operation_type
+        self.job_type = job_type
         self.group_by = group_by
+        self.input_table_count = input_table_count
         self.output_table_count = output_table_count
         self.use_yamr_descriptors = use_yamr_descriptors
         self.attributes = attributes
@@ -530,7 +532,7 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
     return [file_argument_builder(main_filename), module_import_path, main_module_type]
 
 def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
-    assert params.operation_type in ["mapper", "reducer", "reduce_combiner"]
+    assert params.job_type in ["mapper", "reducer", "reduce_combiner"]
 
     def create_temp_file(prefix="", suffix=""):
         return tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],

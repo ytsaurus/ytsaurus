@@ -228,14 +228,15 @@ class MapJobIOSpecBuilder(JobIOSpecBuilder):
         return self._end_job_io()
 
 class UserJobSpecBuilder(object):
-    def __init__(self, spec_builder=None, job_name=None, spec=None):
+    def __init__(self, spec_builder=None, operation_type=None, job_type=None, spec=None):
         self._spec = {}
         if spec:
             self._spec = spec
         self._spec_override = {}
 
         self._spec_builder = spec_builder
-        self._job_name = job_name
+        self._operation_type = operation_type
+        self._job_type = job_type
 
     def command(self, binary_or_python_obj):
         return _set_spec_value(self, "command", binary_or_python_obj)
@@ -329,20 +330,22 @@ class UserJobSpecBuilder(object):
         assert self._spec_builder is not None
         spec_builder = self._spec_builder
         self._spec_builder = None
-        builder_func = getattr(spec_builder, self._job_name)
+        builder_func = getattr(spec_builder, self._job_type)
         builder_func(self)
         return spec_builder
 
-    def _prepare_job_files(self, spec, group_by, local_files_to_remove, input_format,
-                           output_format, output_table_count, client):
+    def _prepare_job_files(self, spec, group_by, operation_type, local_files_to_remove, input_format,
+                           output_format, input_table_count, output_table_count, client):
         file_uploader = FileUploader(client=client)
         files = file_uploader(spec.get("local_files"))
 
         params = OperationParameters(
             input_format=input_format,
             output_format=output_format,
-            operation_type=self._job_name,
+            operation_type=operation_type,
+            job_type=self._job_type,
             group_by=group_by,
+            input_table_count=input_table_count,
             output_table_count=output_table_count,
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False))
 
@@ -442,7 +445,7 @@ class UserJobSpecBuilder(object):
     def _set_spec_override(self, spec):
         self._spec_override = spec
 
-    def build(self, output_table_count, local_files_to_remove=None, group_by=None, client=None):
+    def build(self, input_table_count, output_table_count, operation_type, local_files_to_remove=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
         spec = update(self._spec_override, self._deepcopy_spec())
@@ -455,8 +458,8 @@ class UserJobSpecBuilder(object):
         spec["output_format"] = output_format.to_yson_type()
 
         spec = self._prepare_ld_library_path(spec, client)
-        spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, local_files_to_remove,
-                                                              input_format, output_format, output_table_count, client)
+        spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, operation_type, local_files_to_remove,
+                                                              input_format, output_format, input_table_count, output_table_count, client)
         spec.setdefault("use_yamr_descriptors",
                         bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]))
         spec.setdefault("check_input_fully_consumed",
@@ -467,21 +470,21 @@ class UserJobSpecBuilder(object):
 
 class MapperSpecBuilder(UserJobSpecBuilder):
     def __init__(self, spec_builder=None):
-        super(MapperSpecBuilder, self).__init__(spec_builder, "mapper")
+        super(MapperSpecBuilder, self).__init__(spec_builder, job_type="mapper")
 
     def end_mapper(self):
         return self._end_script()
 
 class ReducerSpecBuilder(UserJobSpecBuilder):
     def __init__(self, spec_builder=None):
-        super(ReducerSpecBuilder, self).__init__(spec_builder, "reducer")
+        super(ReducerSpecBuilder, self).__init__(spec_builder, job_type="reducer")
 
     def end_reducer(self):
         return self._end_script()
 
 class ReduceCombinerSpecBuilder(UserJobSpecBuilder):
     def __init__(self, spec_builder=None):
-        super(ReduceCombinerSpecBuilder, self).__init__(spec_builder, "reduce_combiner")
+        super(ReduceCombinerSpecBuilder, self).__init__(spec_builder, job_type="reduce_combiner")
 
     def end_reduce_combiner(self):
         return self._end_script()
@@ -575,11 +578,13 @@ class SpecBuilder(object):
         if single_output_table:
             spec[output_tables_param] = unlist(spec[output_tables_param])
 
-    def _build_user_job_spec(self, spec, job_name, output_table_count=1, group_by=None, client=None):
-        if isinstance(spec[job_name], UserJobSpecBuilder):
-            job_spec_builder = spec[job_name]
-            spec[job_name] = job_spec_builder.build(group_by=group_by,
+    def _build_user_job_spec(self, spec, job_type, operation_type, input_table_count, output_table_count, group_by=None, client=None):
+        if isinstance(spec[job_type], UserJobSpecBuilder):
+            job_spec_builder = spec[job_type]
+            spec[job_type] = job_spec_builder.build(group_by=group_by,
                                                     local_files_to_remove=self._local_files_to_remove,
+                                                    operation_type=operation_type,
+                                                    input_table_count=input_table_count,
                                                     output_table_count=output_table_count,
                                                     client=client)
         return spec
@@ -599,7 +604,7 @@ class SpecBuilder(object):
     def _apply_spec_patches(self, spec, spec_patches):
         for user_job_script in self._user_job_scripts:
             if user_job_script in spec_patches:
-                spec.setdefault(user_job_script, UserJobSpecBuilder(job_name=user_job_script))
+                spec.setdefault(user_job_script, UserJobSpecBuilder(job_type=user_job_script))
 
                 user_job_spec = None
                 if isinstance(spec_patches[user_job_script], UserJobSpecBuilder):
@@ -746,7 +751,11 @@ class ReduceSpecBuilder(SpecBuilder):
             group_by = spec.get("join_by")
 
         if "reducer" in spec:
-            spec = self._build_user_job_spec(spec, job_name="reducer",
+            spec = self._build_user_job_spec(spec,
+                                             job_type="reducer",
+                                             operation_type=self.operation_type,
+                                             input_table_count=len(self.get_input_table_paths()),
+                                             output_table_count=len(self.get_output_table_paths()),
                                              group_by=group_by,
                                              client=client)
         return spec
@@ -798,7 +807,10 @@ class JoinReduceSpecBuilder(SpecBuilder):
         spec = self._prepared_spec
 
         if "reducer" in spec:
-            spec = self._build_user_job_spec(spec, job_name="reducer",
+            spec = self._build_user_job_spec(spec,
+                                             job_type="reducer",
+                                             operation_type=self.operation_type,
+                                             input_table_count=len(self.get_output_table_paths()),
                                              output_table_count=len(self.get_output_table_paths()),
                                              group_by=spec.get("join_by"),
                                              client=client)
@@ -853,8 +865,12 @@ class MapSpecBuilder(SpecBuilder):
         spec = self._prepared_spec
 
         if "mapper" in spec:
-            spec = self._build_user_job_spec(spec=spec, job_name="mapper",
-                                             output_table_count=len(self.get_output_table_paths()), client=client)
+            spec = self._build_user_job_spec(spec=spec,
+                                             job_type="mapper",
+                                             operation_type=self.operation_type,
+                                             input_table_count=len(self.get_input_table_paths()),
+                                             output_table_count=len(self.get_output_table_paths()),
+                                             client=client)
         return spec
 
     def supports_user_job_spec(self):
@@ -966,16 +982,26 @@ class MapReduceSpecBuilder(SpecBuilder):
         spec = self._prepared_spec
 
         if "mapper" in spec:
-            spec = self._build_user_job_spec(spec, job_name="mapper", client=client)
+            spec = self._build_user_job_spec(spec,
+                                             job_type="mapper",
+                                             operation_type=self.operation_type,
+                                             input_table_count=len(self.get_input_table_paths()),
+                                             output_table_count=1,
+                                             client=client)
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
-                                             job_name="reducer",
+                                             job_type="reducer",
+                                             operation_type=self.operation_type,
+                                             input_table_count=1,
                                              output_table_count=len(self.get_output_table_paths()),
                                              group_by=spec.get("reduce_by"),
                                              client=client)
         if "reduce_combiner" in spec:
             spec = self._build_user_job_spec(spec,
-                                             job_name="reduce_combiner",
+                                             job_type="reduce_combiner",
+                                             operation_type=self.operation_type,
+                                             input_table_count=1,
+                                             output_table_count=1,
                                              group_by=spec.get("reduce_by"),
                                              client=client)
         return spec
