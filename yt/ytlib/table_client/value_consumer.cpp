@@ -41,7 +41,7 @@ void TValueConsumerBase::InitializeIdToTypeMapping()
 {
     const auto& nameTable = GetNameTable();
     for (const auto& column : Schema_.Columns()) {
-        int id = nameTable->GetIdOrRegisterName(column.Name);
+        int id = nameTable->GetIdOrRegisterName(column.Name());
         if (id >= static_cast<int>(NameTableIdToType_.size())) {
             NameTableIdToType_.resize(id + 1, EValueType::Any);
         }
@@ -290,7 +290,7 @@ void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
     }
     auto valueCopy = value;
     const auto& columnSchema = Schema_.Columns()[valueCopy.Id];
-    if (columnSchema.Aggregate) {
+    if (columnSchema.Aggregate()) {
         valueCopy.Aggregate = Aggregate_;
     }
     if (columnSchema.GetPhysicalType() == EValueType::Any && valueCopy.Type != EValueType::Any) {
@@ -307,11 +307,11 @@ void TBuildingValueConsumer::OnEndRow()
     for (int id = 0; id < WrittenFlags_.size(); ++id) {
         if (WrittenFlags_[id]) {
             WrittenFlags_[id] = false;
-        } else if ((TreatMissingAsNull_ || id < Schema_.GetKeyColumnCount()) && !Schema_.Columns()[id].Expression) {
+        } else if ((TreatMissingAsNull_ || id < Schema_.GetKeyColumnCount()) && !Schema_.Columns()[id].Expression()) {
             Builder_.AddValue(MakeUnversionedSentinelValue(
                 EValueType::Null,
                 id,
-                Schema_.Columns()[id].Aggregate && Aggregate_));
+                Schema_.Columns()[id].Aggregate() && Aggregate_));
         }
     }
 

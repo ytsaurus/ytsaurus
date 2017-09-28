@@ -111,14 +111,14 @@ void TSchemaProfiler::Profile(const TTableSchema& tableSchema)
     for (int index = 0; index < columns.size(); ++index) {
         const auto& column = columns[index];
         Fold(static_cast<ui16>(column.GetPhysicalType()));
-        Fold(column.Name.c_str());
-        int aux = (column.Expression ? 1 : 0) | ((column.Aggregate ? 1 : 0) << 1);
+        Fold(column.Name().c_str());
+        int aux = (column.Expression() ? 1 : 0) | ((column.Aggregate() ? 1 : 0) << 1);
         Fold(aux);
-        if (column.Expression) {
-            Fold(column.Expression.Get().c_str());
+        if (column.Expression()) {
+            Fold(column.Expression().Get().c_str());
         }
-        if (column.Aggregate) {
-            Fold(column.Aggregate.Get().c_str());
+        if (column.Aggregate()) {
+            Fold(column.Aggregate().Get().c_str());
         }
     }
 }
@@ -960,7 +960,7 @@ void TQueryProfiler::Profile(
                 if (std::binary_search(
                     selfColumnNames.begin(),
                     selfColumnNames.end(),
-                    selfTableColumns[index].Name))
+                    selfTableColumns[index].Name()))
                 {
                     selfColumns.push_back(index);
                 }
@@ -976,15 +976,15 @@ void TQueryProfiler::Profile(
                 if (std::binary_search(
                     foreignColumnNames.begin(),
                     foreignColumnNames.end(),
-                    joinRenamedTableColumns[index].Name))
+                    joinRenamedTableColumns[index].Name()))
                 {
                     foreignColumns.push_back(projectClause->Projections.size());
 
                     projectClause->AddProjection(
                         New<TReferenceExpression>(
                             joinRenamedTableColumns[index].GetPhysicalType(),
-                            joinRenamedTableColumns[index].Name),
-                        joinRenamedTableColumns[index].Name);
+                            joinRenamedTableColumns[index].Name()),
+                        joinRenamedTableColumns[index].Name());
                 }
             };
 

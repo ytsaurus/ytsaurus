@@ -513,16 +513,16 @@ public:
         // Only scan-optimized version for now.
         yhash<TString, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {
-            if (column.Group && groupBlockWriters.find(*column.Group) == groupBlockWriters.end()) {
+            if (column.Group() && groupBlockWriters.find(*column.Group()) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
-                groupBlockWriters[*column.Group] = blockWriter.get();
+                groupBlockWriters[*column.Group()] = blockWriter.get();
                 BlockWriters_.emplace_back(std::move(blockWriter));
             }
         }
 
         auto getBlockWriter = [&] (const NTableClient::TColumnSchema& columnSchema) -> TDataBlockWriter* {
-            if (columnSchema.Group) {
-                return groupBlockWriters[*columnSchema.Group];
+            if (columnSchema.Group()) {
+                return groupBlockWriters[*columnSchema.Group()];
             } else {
                 BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>());
                 return BlockWriters_.back().get();

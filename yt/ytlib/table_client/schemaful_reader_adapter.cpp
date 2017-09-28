@@ -156,7 +156,7 @@ ISchemafulReaderPtr CreateSchemafulReaderAdapter(
 {
     TKeyColumns keyColumns;
     for (const auto& columnSchema : schema.Columns()) {
-        keyColumns.push_back(columnSchema.Name);
+        keyColumns.push_back(columnSchema.Name());
     }
 
     auto nameTable = TNameTable::FromSchema(schema);

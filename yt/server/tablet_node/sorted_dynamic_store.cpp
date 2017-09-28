@@ -269,7 +269,7 @@ protected:
             // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
             // no "phantom" value is listed.
             auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-            if (schemaColumns[index].Aggregate) {
+            if (schemaColumns[index].Aggregate()) {
                 ExtractByTimestamp(
                     list,
                     latestDeleteTimestamp,

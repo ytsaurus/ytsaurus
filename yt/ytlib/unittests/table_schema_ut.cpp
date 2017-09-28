@@ -557,16 +557,16 @@ TEST_F(TTableSchemaTest, ColumnSchemaProtobufBackwardCompatibility)
     TColumnSchema columnSchema;
     FromProto(&columnSchema, columnSchemaProto);
 
-    EXPECT_EQ(columnSchema.GetLogicalType(), ELogicalValueType::Uint64);
+    EXPECT_EQ(columnSchema.LogicalType(), ELogicalValueType::Uint64);
     EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
-    EXPECT_EQ(columnSchema.Name, "foo");
+    EXPECT_EQ(columnSchema.Name(), "foo");
 
     columnSchemaProto.set_logical_type(static_cast<int>(ELogicalValueType::Uint32));
     FromProto(&columnSchema, columnSchemaProto);
 
-    EXPECT_EQ(columnSchema.GetLogicalType(), ELogicalValueType::Uint32);
+    EXPECT_EQ(columnSchema.LogicalType(), ELogicalValueType::Uint32);
     EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
-    EXPECT_EQ(columnSchema.Name, "foo");
+    EXPECT_EQ(columnSchema.Name(), "foo");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
