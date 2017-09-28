@@ -291,7 +291,7 @@ const TProtobufEnumType* TProtobufTypeRegistry::ReflectEnumType(const EnumDescri
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TProtobufMessageType* ReflectProtobufMessageType(const ::google::protobuf::Descriptor* descriptor)
+const TProtobufMessageType* ReflectProtobufMessageType(const Descriptor* descriptor)
 {
     return TProtobufTypeRegistry::Get()->ReflectMessageType(descriptor);
 }
