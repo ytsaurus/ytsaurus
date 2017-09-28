@@ -56,7 +56,7 @@ def set_config_options(options_dict):
         for key, value in iteritems(old_values):
             yt.config._set(key, value)
 
-# Check equality of records in dsv format
+# Check equality of records
 def check(rowsA, rowsB, ordered=True):
     def prepare(rows):
         def fix_unicode(obj):

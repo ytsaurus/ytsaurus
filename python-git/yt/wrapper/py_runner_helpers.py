@@ -1,4 +1,4 @@
-from .common import EMPTY_GENERATOR, YtError, get_binary_std_stream
+from .common import EMPTY_GENERATOR, YtError, get_binary_std_stream, get_value
 
 from yt.packages.six.moves import xrange
 
@@ -43,10 +43,10 @@ class WrappedStreams(object):
        sys.stdout = self.stdout
 
 class Context(object):
-    def __init__(self):
-        self.table_index = None
-        self.row_index = None
-        self.range_index = None
+    def __init__(self, table_index=None, row_index=None, range_index=None):
+        self.table_index = table_index
+        self.row_index = row_index
+        self.range_index = range_index
 
 def convert_callable_to_generator(func):
     def generator(*args):
@@ -79,12 +79,13 @@ def extract_operation_methods(operation, context):
 
     return start, convert_callable_to_generator(operation_func), finish
 
-def extract_context(rows):
-    context = Context()
+def extract_context(rows, set_zero_table_index):
+    table_index = 0 if set_zero_table_index else None
+    context = Context(table_index=table_index)
 
     def generate_rows():
         for row in rows:
-            context.table_index = getattr(rows, "table_index", None)
+            context.table_index = get_value(getattr(rows, "table_index", None), table_index)
             context.row_index = getattr(rows, "row_index", None)
             context.range_index = getattr(rows, "range_index", None)
             yield row
@@ -164,14 +165,16 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
     context = None
     if params.attributes.get("with_context", False):
-        rows, context = extract_context(rows)
+        set_zero_table_index = params.operation_type in ("reduce", "map") \
+            and params.input_table_count == 1
+        rows, context = extract_context(rows, set_zero_table_index)
     start, run, finish = yt.wrapper.py_runner_helpers.extract_operation_methods(operation, context)
     wrap_stdin = wrap_stdout = yt.wrapper.config["pickling"]["safe_stream_mode"]
     with yt.wrapper.py_runner_helpers.WrappedStreams(wrap_stdin, wrap_stdout):
         if params.attributes.get("is_aggregator", False):
             result = run(rows)
         else:
-            if params.operation_type == "mapper" or raw:
+            if params.job_type == "mapper" or raw:
                 result = chain(
                     start(),
                     chain.from_iterable(imap(run, rows)),
