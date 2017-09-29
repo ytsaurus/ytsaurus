@@ -3,8 +3,7 @@
 #include "name_table.h"
 #include "row_buffer.h"
 
-#include <contrib/libs/openssl/crypto/md5/md5.h>
-#include <contrib/libs/openssl/crypto/sha/sha.h>
+#include <yt/core/misc/crypto.h>
 
 #include <array>
 
@@ -15,42 +14,32 @@ static constexpr i64 SkynetDataSize = 4_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Compute SHA1 of each block and rolling md5.
+//! Compute SHA1 of each block and rolling MD5.
 class TSkynetHashState
 {
 public:
-    TSkynetHashState()
-    {
-        MD5_Init(&Md5Ctx_);
-    }
-
     void Update(TStringBuf data)
     {
-        MD5_Update(&Md5Ctx_, data.Data(), data.Size());
+        MD5_.Append(data);
 
-        SHA1_Init(&Sha1Ctx_);
-        SHA1_Update(&Sha1Ctx_, data.Data(), data.Size());
+        SHA1_ = TSHA1Hasher();
+        SHA1_.Append(data);
     }
 
-    std::array<char, 16> GetMD5()
+    TMD5Hash GetMD5()
     {
-        std::array<char, 16> md5;
-
-        MD5_CTX ctx = Md5Ctx_;
-        MD5_Final(reinterpret_cast<unsigned char*>(md5.data()), &ctx);
-        return md5;
+        auto md5Copy = MD5_;
+        return md5Copy.Digest();
     }
 
-    std::array<char, 20> GetSHA1()
+    TSHA1Hash GetSHA1()
     {
-        std::array<char, 20> sha1;
-        SHA1_Final(reinterpret_cast<unsigned char*>(sha1.data()), &Sha1Ctx_);
-        return sha1;
+        return SHA1_.Digest();
     }
 
 private:
-    MD5_CTX Md5Ctx_;
-    SHA_CTX Sha1Ctx_;
+    TMD5Hasher MD5_;
+    TSHA1Hasher SHA1_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
