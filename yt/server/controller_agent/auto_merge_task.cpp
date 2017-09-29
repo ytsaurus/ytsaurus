@@ -46,12 +46,8 @@ void TAutoMergeChunkPoolAdapter::Resume(TCookie cookie, NChunkPools::TChunkStrip
 {
     ProcessStripe(stripe, false /* teleportLargeChunks */);
 
-    if (stripe->DataSlices.empty()) {
-        return;
-    } else {
-        CookieChunkCount_[cookie] = stripe->GetChunkCount();
-        return TChunkPoolInputAdapterBase::Resume(cookie, stripe);
-    }
+    CookieChunkCount_[cookie] = stripe->GetChunkCount();
+    return TChunkPoolInputAdapterBase::Resume(cookie, stripe);
 }
 
 void TAutoMergeChunkPoolAdapter::Suspend(TCookie cookie)
