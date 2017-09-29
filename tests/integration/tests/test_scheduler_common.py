@@ -1361,6 +1361,51 @@ class TestJobRevival(YTEnvSetup):
         for output_table in output_tables:
             assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
 
+    def test_user_slots_limit(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        row_count = 20
+        for i in range(row_count):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+        user_slots_limit = 10
+
+        events = EventsOnFs()
+
+        map_cmd = " ; ".join([
+            "sleep 2",
+            "echo '{a=1};'",
+            events.notify_event_cmd("ready_for_revival_${YT_JOB_INDEX}"),
+            events.wait_event_cmd("complete_operation"),
+            "echo '{a=2};'"])
+
+        op = map(dont_track=True,
+                 command=map_cmd,
+                 in_="//tmp/t_in",
+                 out="//tmp/t_out",
+                 spec={
+                     "data_size_per_job": 1,
+                     "resource_limits": {"user_slots": user_slots_limit},
+                     "auto_merge": {"mode": "manual", "chunk_count_per_merge_job": 3, "max_intermediate_chunk_count": 100}
+                 })
+
+        for i in range(user_slots_limit):
+            events.wait_event("ready_for_revival_" + str(i))
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        for i in range(1000):
+            jobs = get("//sys/operations/{0}/@brief_progress/jobs".format(op.id), verbose=False)
+            if i == 300:
+                events.notify_event("complete_operation")
+            running = jobs["running"]
+            aborted = jobs["aborted"]["total"]
+            assert running <= user_slots_limit
+            # TODO(ignat): uncomment this after dealing with strange preemptions.
+            # assert aborted == 0
+
+        op.track()
 
 ##################################################################
 

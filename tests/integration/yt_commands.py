@@ -516,7 +516,7 @@ class EventsOnFs(object):
             pass
 
     def notify_event_cmd(self, event_name):
-        return "touch '{0}'".format(self._get_event_filename(event_name))
+        return "touch \"{0}\"".format(self._get_event_filename(event_name))
 
     def wait_event(self, event_name, timeout=timedelta(seconds=60)):
         file_name = self._get_event_filename(event_name)
