@@ -176,7 +176,7 @@ class TestCypressCommands(object):
                 correct_result = [
                     TEST_DIR + "/search_test", TEST_DIR + "/search_test/link_to_table",
                     TEST_DIR + "/search_test/test_dir", TEST_DIR + "/search_test/test_dir/table",
-                    TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link/table"]
+                    TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link", TEST_DIR + "/search_test/test_dir_link/table"]
                 if opaque:
                     correct_result[3:5] = correct_result[4:2:-1]
                 assert list(yt.search(TEST_DIR + "/search_test", follow_links=True)) == correct_result
