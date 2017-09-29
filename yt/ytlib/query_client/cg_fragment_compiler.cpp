@@ -2433,6 +2433,198 @@ size_t MakeCodegenJoinOp(
     return consumerSlot;
 }
 
+size_t MakeCodegenMultiJoinOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    int index,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<TSingleJoinCGParameters> parameters,
+    std::vector<std::pair<size_t, EValueType>> primaryColumns,
+    TComparerManagerPtr comparerManager)
+{
+    size_t consumerSlot = (*slotCount)++;
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
+        index,
+        MOVE(fragmentInfos),
+        MOVE(parameters),
+        MOVE(comparerManager),
+        MOVE(primaryColumns),
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        auto collectRows = MakeClosure<void(TJoinClosure*, TRowBuffer*)>(builder, "CollectRows", [&] (
+            TCGOperatorContext& builder,
+            Value* joinClosure,
+            Value* buffer
+        ) {
+            Value* keyPtrs = builder->CreateAlloca(
+                TypeBuilder<TRow, false>::get(builder->getContext()),
+                builder->getInt32(parameters.size()));
+
+            Value* primaryValuesPtr = builder->CreateAlloca(TypeBuilder<TValue*, false>::get(builder->getContext()));
+
+            builder->CreateStore(
+                builder->CreateCall(
+                    builder.Module->GetRoutine("AllocateJoinKeys"),
+                    {
+                        builder.GetExecutionContext(),
+                        joinClosure,
+                        keyPtrs
+                    }),
+                primaryValuesPtr);
+
+            builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+                Value* joinClosureRef = builder->ViaClosure(joinClosure);
+                Value* keyPtrsRef = builder->ViaClosure(keyPtrs);
+
+                auto rowBuilder = TCGExprContext::Make(
+                    builder,
+                    *fragmentInfos,
+                    row,
+                    builder.Buffer);
+
+                for (size_t index = 0; index < parameters.size(); ++index) {
+                    Value* keyValues = CodegenValuesPtrFromRow(
+                        builder,
+                        builder->CreateLoad(builder->CreateConstGEP1_32(keyPtrsRef, index)));
+
+                    const auto& equations = parameters[index].Equations;
+                    for (size_t column = 0; column < equations.size(); ++column) {
+                        if (!equations[column].second) {
+                            auto joinKeyValue = CodegenFragment(rowBuilder, equations[column].first);
+                            joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
+                        }
+                    }
+
+                    builder->CreateStore(
+                        keyValues,
+                        builder->CreateStructGEP(
+                            nullptr,
+                            rowBuilder.GetExpressionClosurePtr(),
+                            TypeBuilder<TExpressionClosure, false>::Fields::RowValues));
+
+                    TCGExprContext evaluatedColumnsBuilder(builder, TCGExprData{
+                        *fragmentInfos,
+                        rowBuilder.Buffer,
+                        keyValues,
+                        rowBuilder.ExpressionClosurePtr});
+
+                    for (size_t column = 0; column < equations.size(); ++column) {
+                        if (equations[column].second) {
+                            auto evaluatedColumn = CodegenFragment(
+                                evaluatedColumnsBuilder,
+                                equations[column].first);
+                            evaluatedColumn.StoreToValues(evaluatedColumnsBuilder, keyValues, column);
+                        }
+                    }
+                }
+
+                Value* primaryValuesPtrRef = builder->ViaClosure(primaryValuesPtr);
+                Value* primaryValues = builder->CreateLoad(primaryValuesPtrRef);
+                Value* rowValues = CodegenValuesPtrFromRow(builder, row);
+                for (size_t column = 0; column < primaryColumns.size(); ++column) {
+                    TCGValue::CreateFromRowValues(
+                        builder,
+                        rowValues,
+                        primaryColumns[column].first,
+                        primaryColumns[column].second)
+                        .StoreToValues(builder, primaryValues, column);
+                }
+
+                builder->CreateCall(
+                    builder.Module->GetRoutine("StorePrimaryRow"),
+                    {
+                        builder.GetExecutionContext(),
+                        joinClosureRef,
+                        primaryValuesPtrRef,
+                        keyPtrsRef
+                    });
+
+            };
+
+            codegenSource(builder);
+
+            builder->CreateRetVoid();
+        });
+
+        auto consumeJoinedRows = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ConsumeJoinedRows", [&] (
+            TCGOperatorContext& builder,
+            Value* buffer,
+            Value* joinedRows,
+            Value* size
+        ) {
+            TCGContext innerBuilder(builder, buffer);
+            CodegenForEachRow(
+                innerBuilder,
+                joinedRows,
+                size,
+                builder[consumerSlot]);
+
+            innerBuilder->CreateRetVoid();
+        });
+
+        const auto& module = builder.Module;
+
+        Value* joinComparers = builder->CreateAlloca(
+            TypeBuilder<TJoinComparers, false>::get(builder->getContext()),
+            builder->getInt32(parameters.size()));
+
+        typedef TypeBuilder<TJoinComparers, false>::Fields TFields;
+
+        for (size_t index = 0; index < parameters.size(); ++index) {
+            const auto& lookupKeyTypes = parameters[index].LookupKeyTypes;
+            const auto& commonKeyPrefix = parameters[index].CommonKeyPrefix;
+            const auto& foreignKeyPrefix = parameters[index].ForeignKeyPrefix;
+
+            builder->CreateStore(
+                comparerManager->GetEqComparer(lookupKeyTypes, module, 0, commonKeyPrefix),
+                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::PrefixEqComparer));
+
+            builder->CreateStore(
+                comparerManager->GetHasher(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::SuffixHasher));
+
+            builder->CreateStore(
+                comparerManager->GetEqComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::SuffixEqComparer));
+
+            builder->CreateStore(
+                comparerManager->GetLessComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::SuffixLessComparer));
+
+            builder->CreateStore(
+                comparerManager->GetEqComparer(lookupKeyTypes, module, 0, foreignKeyPrefix),
+                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::ForeignPrefixEqComparer));
+
+            builder->CreateStore(
+                comparerManager->GetLessComparer(lookupKeyTypes, module, foreignKeyPrefix, lookupKeyTypes.size()),
+                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::ForeignSuffixLessComparer));
+
+            builder->CreateStore(
+                comparerManager->GetTernaryComparer(lookupKeyTypes, module),
+                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::FullTernaryComparer));
+        }
+
+        builder->CreateCall(
+            module->GetRoutine("MultiJoinOpHelper"),
+            {
+                builder.GetExecutionContext(),
+                builder.GetOpaqueValue(index),
+                joinComparers,
+
+                collectRows.ClosurePtr,
+                collectRows.Function,
+
+                consumeJoinedRows.ClosurePtr,
+                consumeJoinedRows.Function
+            });
+    };
+
+    return consumerSlot;
+}
+
 size_t MakeCodegenFilterOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
@@ -2787,61 +2979,61 @@ size_t MakeCodegenGroupOp(
                     newRowPtr
                 });
 
-                builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
-                    Value* bufferRef = builder->ViaClosure(buffer);
-                    Value* newRowPtrRef = builder->ViaClosure(newRowPtr);
-                    Value* newRowRef = builder->CreateLoad(newRowPtrRef);
+            builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+                Value* bufferRef = builder->ViaClosure(buffer);
+                Value* newRowPtrRef = builder->ViaClosure(newRowPtr);
+                Value* newRowRef = builder->CreateLoad(newRowPtrRef);
 
-                    codegenEvaluateGroups(builder, row, newRowRef);
+                codegenEvaluateGroups(builder, row, newRowRef);
 
-                    Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
+                Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
 
-                    auto groupRowPtr = builder->CreateCall(
-                        builder.Module->GetRoutine("InsertGroupRow"),
-                        {
-                            builder.GetExecutionContext(),
-                            groupByClosureRef,
-                            newRowRef
-                        });
+                auto groupRowPtr = builder->CreateCall(
+                    builder.Module->GetRoutine("InsertGroupRow"),
+                    {
+                        builder.GetExecutionContext(),
+                        groupByClosureRef,
+                        newRowRef
+                    });
 
-                    auto groupRow = builder->CreateLoad(groupRowPtr);
+                auto groupRow = builder->CreateLoad(groupRowPtr);
 
-                    auto inserted = builder->CreateICmpEQ(
-                        builder->CreateExtractValue(
-                            groupRow,
-                            TypeBuilder<TRow, false>::Fields::Header),
-                        builder->CreateExtractValue(
-                            newRowRef,
-                            TypeBuilder<TRow, false>::Fields::Header));
+                auto inserted = builder->CreateICmpEQ(
+                    builder->CreateExtractValue(
+                        groupRow,
+                        TypeBuilder<TRow, false>::Fields::Header),
+                    builder->CreateExtractValue(
+                        newRowRef,
+                        TypeBuilder<TRow, false>::Fields::Header));
 
-                    TCGContext innerBuilder(builder, bufferRef);
+                TCGContext innerBuilder(builder, bufferRef);
 
-                    CodegenIf<TCGContext>(
-                        builder,
-                        inserted,
-                        [&] (TCGContext& builder) {
-                            codegenInitialize(builder, bufferRef, groupRow);
+                CodegenIf<TCGContext>(
+                    builder,
+                    inserted,
+                    [&] (TCGContext& builder) {
+                        codegenInitialize(builder, bufferRef, groupRow);
 
-                            builder->CreateCall(
-                                builder.Module->GetRoutine("AllocatePermanentRow"),
-                                {
-                                    builder.GetExecutionContext(),
-                                    bufferRef,
-                                    builder->getInt32(groupRowSize),
-                                    newRowPtrRef
-                                });
-                        });
+                        builder->CreateCall(
+                            builder.Module->GetRoutine("AllocatePermanentRow"),
+                            {
+                                builder.GetExecutionContext(),
+                                bufferRef,
+                                builder->getInt32(groupRowSize),
+                                newRowPtrRef
+                            });
+                    });
 
-                    // Here *newRowPtrRef != groupRow.
-                    if (!isMerge) {
-                        auto newRow = builder->CreateLoad(newRowPtrRef);
-                        codegenEvaluateAggregateArgs(builder, row, newRow);
-                        codegenUpdate(builder, bufferRef, newRow, groupRow);
-                    } else {
-                        codegenUpdate(builder, bufferRef, row, groupRow);
-                    }
+                // Here *newRowPtrRef != groupRow.
+                if (!isMerge) {
+                    auto newRow = builder->CreateLoad(newRowPtrRef);
+                    codegenEvaluateAggregateArgs(builder, row, newRow);
+                    codegenUpdate(builder, bufferRef, newRow, groupRow);
+                } else {
+                    codegenUpdate(builder, bufferRef, row, groupRow);
+                }
 
-                };
+            };
 
             codegenSource(builder);
 

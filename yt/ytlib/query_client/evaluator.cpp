@@ -91,7 +91,8 @@ public:
                     functionProfilers,
                     aggregateProfilers,
                     statistics,
-                    options.EnableCodeCache);
+                    options.EnableCodeCache,
+                    options.UseMultijoin);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -149,7 +150,8 @@ private:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         TQueryStatistics& statistics,
-        bool enableCodeCache)
+        bool enableCodeCache,
+        bool useMultijoin)
     {
         llvm::FoldingSetNodeID id;
 
@@ -158,6 +160,7 @@ private:
             &id,
             &variables,
             joinProfiler,
+            useMultijoin,
             functionProfilers,
             aggregateProfilers);
 
