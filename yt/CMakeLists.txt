@@ -30,3 +30,12 @@ if(YT_BUILD_ENABLE_NODEJS)
 else()
   message(STATUS "Omitting NodeJS bindings from build (YT_BUILD_ENABLE_NODEJS = OFF)")
 endif()
+
+if (YT_BUILD_ENABLE_CPP_TESTS)
+  add_subdirectory(tests/cpp)
+endif()
+
+if(CMAKE_VERSION VERSION_GREATER "3.0")
+  file(LOCK ${CMAKE_CURRENT_LIST_DIR}/tests/integration/build_type.py GUARD FILE)
+endif()
+file(WRITE ${CMAKE_CURRENT_LIST_DIR}/tests/integration/build_type.py "BUILD_TYPE = \"${CMAKE_BUILD_TYPE}\"")

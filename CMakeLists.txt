@@ -273,10 +273,6 @@ if (YT_BUILD_HAVE_CYTHON)
   add_subdirectory(yp)
 endif()
 
-if (YT_BUILD_ENABLE_CPP_TESTS)
-  add_subdirectory(tests/cpp)
-endif()
-
 if(YT_BUILD_ENABLE_PERL)
   add_subdirectory(perl)
 endif()
@@ -412,8 +408,4 @@ add_custom_target(version
   COMMENT "Stamping YT..."
 )
 
-if(CMAKE_VERSION VERSION_GREATER "3.0")
-  file(LOCK ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py GUARD FILE)
-endif()
-file(WRITE ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py "BUILD_TYPE = \"${CMAKE_BUILD_TYPE}\"")
 
