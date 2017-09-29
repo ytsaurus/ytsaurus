@@ -221,8 +221,9 @@ private:
     NProfiling::TCpuInstant DemandSanityCheckDeadline_;
     bool CompletedFired_;
 
-    //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
-    yhash<NChunkPools::IChunkPoolOutput::TCookie, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
+    using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IChunkPoolInput*>;
+    //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
+    std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
 
     TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
