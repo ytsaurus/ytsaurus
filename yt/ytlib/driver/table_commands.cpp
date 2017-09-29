@@ -435,6 +435,8 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
         .Optional();
+    RegisterParameter("use_multijoin", Options.UseMultijoin)
+        .Optional();
 }
 
 void TSelectRowsCommand::DoExecute(ICommandContextPtr context)

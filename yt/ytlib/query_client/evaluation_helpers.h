@@ -115,6 +115,22 @@ struct TJoinParameters
     size_t CommonKeyPrefixDebug;
 };
 
+struct TSingleJoinParameters
+{
+    size_t KeySize;
+    bool IsLeft;
+    bool IsPartiallySorted;
+    std::vector<size_t> ForeignColumns;
+    TJoinSubqueryEvaluator ExecuteForeign;
+};
+
+struct TMultiJoinParameters
+{
+    SmallVector<TSingleJoinParameters, 10> Items;
+    size_t PrimaryRowSize;
+    size_t BatchSize;
+};
+
 struct TChainedRow
 {
     TRow Row;
@@ -147,9 +163,45 @@ struct TJoinClosure
         size_t batchSize);
 };
 
+struct TMultiJoinClosure
+{
+    TRowBufferPtr Buffer;
+
+    typedef google::sparsehash::dense_hash_set<
+        TRow,
+        NDetail::TGroupHasher,
+        NDetail::TRowComparer> THashJoinLookup;  // + slot after row
+
+    std::vector<TValue*> PrimaryRows;
+
+    struct TItem
+    {
+        TRowBufferPtr Buffer;
+        size_t KeySize;
+        TComparerFunction* PrefixEqComparer;
+
+        THashJoinLookup Lookup;
+        std::vector<TRow> OrderedKeys;  // + slot after row
+        TRow LastKey;
+
+        TItem(
+            size_t keySize,
+            TComparerFunction* prefixEqComparer,
+            THasherFunction* lookupHasher,
+            TComparerFunction* lookupEqComparer);
+    };
+
+    SmallVector<TItem, 32> Items;
+
+    size_t PrimaryRowSize;
+    size_t BatchSize;
+    std::function<void(size_t)> ProcessSegment;
+    std::function<void()> ProcessJoinBatch;
+};
+
 struct TGroupByClosure
 {
-    TRowBufferPtr Buffer ;
+    TRowBufferPtr Buffer;
     TLookupRows Lookup;
     std::vector<TRow> GroupedRows;
     int KeySize;
@@ -331,6 +383,17 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TExpressionClosure;
+
+struct TJoinComparers
+{
+    TComparerFunction* PrefixEqComparer;
+    THasherFunction* SuffixHasher;
+    TComparerFunction* SuffixEqComparer;
+    TComparerFunction* SuffixLessComparer;
+    TComparerFunction* ForeignPrefixEqComparer;
+    TComparerFunction* ForeignSuffixLessComparer;
+    TTernaryComparerFunction* FullTernaryComparer;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

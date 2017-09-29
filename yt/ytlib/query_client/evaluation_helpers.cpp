@@ -160,6 +160,22 @@ TJoinClosure::TJoinClosure(
     Lookup.set_empty_key(TRow());
 }
 
+TMultiJoinClosure::TItem::TItem(
+    size_t keySize,
+    TComparerFunction* prefixEqComparer,
+    THasherFunction* lookupHasher,
+    TComparerFunction* lookupEqComparer)
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    , KeySize(keySize)
+    , PrefixEqComparer(prefixEqComparer)
+    , Lookup(
+        InitialGroupOpHashtableCapacity,
+        lookupHasher,
+        lookupEqComparer)
+{
+    Lookup.set_empty_key(TRow());
+}
+
 TGroupByClosure::TGroupByClosure(
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
@@ -217,11 +233,8 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
         }
 
         newQuery->InferRanges = false;
-
-        if (joinClause->CommonKeyPrefix > 0) {
-            // COMPAT(lukyan): Use ordered read without modification of protocol
-            newQuery->Limit = std::numeric_limits<i64>::max() - 1;
-        }
+        // COMPAT(lukyan): Use ordered read without modification of protocol
+        newQuery->Limit = std::numeric_limits<i64>::max() - 1;
     } else {
         TRowRanges ranges;
 

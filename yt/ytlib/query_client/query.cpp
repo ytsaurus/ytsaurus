@@ -688,6 +688,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_max_subqueries(original.MaxSubqueries);
     serialized->set_enable_code_cache(original.EnableCodeCache);
     ToProto(serialized->mutable_workload_descriptor(), original.WorkloadDescriptor);
+    serialized->set_use_multijoin(original.UseMultijoin);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -699,6 +700,7 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     if (serialized.has_workload_descriptor()) {
         FromProto(&original->WorkloadDescriptor, serialized.workload_descriptor());
     }
+    original->UseMultijoin = serialized.use_multijoin();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
