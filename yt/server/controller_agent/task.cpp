@@ -793,8 +793,15 @@ void TTask::RegisterStripe(
             inputCookie = destinationPool->Add(stripe, key);
         } else {
             inputCookie = lostIt->second;
+            YCHECK(inputCookie != IChunkPoolInput::NullCookie);
             destinationPool->Resume(inputCookie, stripe);
             LostJobCookieMap.erase(lostIt);
+        }
+
+        // If destination pool decides not to do anything with this data,
+        // so there is no need to store any recovery info.
+        if (inputCookie == IChunkPoolInput::NullCookie) {
+            return;
         }
 
         // Store recovery info.

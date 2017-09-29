@@ -36,7 +36,7 @@ public:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0xfb888bac);
 
-    void ProcessStripe(const NChunkPools::TChunkStripePtr& stripe) const;
+    void ProcessStripe(const NChunkPools::TChunkStripePtr& stripe, bool teleportLargeChunks) const;
 
     TAutoMergeTask* Task_;
     i64 ChunkSizeThreshold_;

@@ -28,7 +28,7 @@ TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
 
 IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe, TChunkStripeKey key)
 {
-    ProcessStripe(stripe);
+    ProcessStripe(stripe, true /* teleportLargeChunks */);
 
     if (stripe->DataSlices.empty()) {
         return IChunkPoolInput::NullCookie;
@@ -44,7 +44,7 @@ IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe,
 
 void TAutoMergeChunkPoolAdapter::Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe)
 {
-    ProcessStripe(stripe);
+    ProcessStripe(stripe, false /* teleportLargeChunks */);
 
     if (stripe->DataSlices.empty()) {
         return;
@@ -73,14 +73,20 @@ void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
     Persist(context, CookieChunkCount_);
 }
 
-void TAutoMergeChunkPoolAdapter::ProcessStripe(const TChunkStripePtr& stripe) const
+void TAutoMergeChunkPoolAdapter::ProcessStripe(const TChunkStripePtr& stripe, bool teleportLargeChunks) const
 {
     // We perform an in-place filtration of all large chunks.
     int firstUnusedIndex = 0;
     for (auto& slice : stripe->DataSlices) {
         const auto& chunk = slice->GetSingleUnversionedChunkOrThrow();
         if (chunk->IsLargeCompleteChunk(ChunkSizeThreshold_)) {
-            Task_->RegisterTeleportChunk(chunk);
+            if (teleportLargeChunks) {
+                Task_->RegisterTeleportChunk(chunk);
+            } else {
+                // NB: If we process resumed stripe, we should not teleport its large chunks.
+                // Otherwise they would appear twice in the output.
+                // Do nothing.
+            }
         } else {
             stripe->DataSlices[firstUnusedIndex++] = std::move(slice);
         }
