@@ -324,7 +324,11 @@ public:
         YCHECK(variables);
     }
 
-    size_t Profile(TConstExpressionPtr expr, const TTableSchema& schema, TExpressionFragments* fragments);
+    size_t Profile(
+        TConstExpressionPtr expr,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments,
+        bool isIsolated = false);
 
 protected:
     TCGVariables* Variables_;
@@ -335,7 +339,8 @@ protected:
 size_t TExpressionProfiler::Profile(
     TConstExpressionPtr expr,
     const TTableSchema& schema,
-    TExpressionFragments* fragments)
+    TExpressionFragments* fragments,
+    bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<ui16>(expr->Type));
@@ -346,7 +351,7 @@ size_t TExpressionProfiler::Profile(
         id.AddString(ToString(TValue(literalExpr->Value)).c_str());
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second) {
+        if (emplaced.second || isIsolated) {
             Fold(savedId);
 
             int index = Variables_->AddOpaque<TOwningValue>(literalExpr->Value);
@@ -367,7 +372,7 @@ size_t TExpressionProfiler::Profile(
         id.AddInteger(indexInSchema);
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second) {
+        if (emplaced.second || isIsolated) {
             Fold(id);
             fragments->DebugInfos.emplace_back(expr, std::vector<size_t>());
             fragments->Items.emplace_back(
@@ -389,14 +394,14 @@ size_t TExpressionProfiler::Profile(
         auto literalArgs = std::make_unique<bool[]>(functionExpr->Arguments.size());
         size_t index = 0;
         for (const auto& argument : functionExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments));
+            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
             id.AddInteger(argIds.back());
             argumentTypes.push_back(argument->Type);
             literalArgs[index++] = argument->As<TLiteralExpression>() != nullptr;
         }
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second) {
+        if (emplaced.second || isIsolated) {
             Fold(id);
             const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
 
@@ -424,11 +429,11 @@ size_t TExpressionProfiler::Profile(
         id.AddInteger(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
         id.AddInteger(static_cast<int>(unaryOp->Opcode));
 
-        size_t operand = Profile(unaryOp->Operand, schema, fragments);
+        size_t operand = Profile(unaryOp->Operand, schema, fragments, isIsolated);
         id.AddInteger(operand);
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second) {
+        if (emplaced.second || isIsolated) {
             Fold(id);
             ++fragments->Items[operand].UseCount;
             fragments->DebugInfos.emplace_back(expr, std::vector<size_t>{operand});
@@ -445,13 +450,13 @@ size_t TExpressionProfiler::Profile(
         id.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
         id.AddInteger(static_cast<int>(binaryOp->Opcode));
 
-        size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments);
+        size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments, isIsolated);
         id.AddInteger(lhsOperand);
-        size_t rhsOperand = Profile(binaryOp->Rhs, schema, fragments);
+        size_t rhsOperand = Profile(binaryOp->Rhs, schema, fragments, isIsolated);
         id.AddInteger(rhsOperand);
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second) {
+        if (emplaced.second || isIsolated) {
             Fold(id);
             ++fragments->Items[lhsOperand].UseCount;
             ++fragments->Items[rhsOperand].UseCount;
@@ -474,7 +479,7 @@ size_t TExpressionProfiler::Profile(
 
         std::vector<size_t> argIds;
         for (const auto& argument : inExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments));
+            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
             id.AddInteger(argIds.back());
         }
 
@@ -483,7 +488,7 @@ size_t TExpressionProfiler::Profile(
         }
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second) {
+        if (emplaced.second || isIsolated) {
             Fold(id);
             for (size_t argId : argIds) {
                 ++fragments->Items[argId].UseCount;
@@ -502,7 +507,7 @@ size_t TExpressionProfiler::Profile(
 
         std::vector<size_t> argIds;
         for (const auto& argument : transformExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments));
+            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
             id.AddInteger(argIds.back());
         }
 
@@ -511,7 +516,7 @@ size_t TExpressionProfiler::Profile(
         }
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second) {
+        if (emplaced.second || isIsolated) {
             Fold(id);
             for (size_t argId : argIds) {
                 ++fragments->Items[argId].UseCount;
@@ -899,7 +904,11 @@ void TQueryProfiler::Profile(
 
             const auto& expressionSchema = isEvaluated ? joinClause->OriginalSchema : schema;
             selfKeys.emplace_back(
-                TExpressionProfiler::Profile(expression, expressionSchema, &selfEquationFragments),
+                TExpressionProfiler::Profile(
+                    expression,
+                    expressionSchema,
+                    &selfEquationFragments,
+                    isEvaluated),
                 isEvaluated);
         }
 
