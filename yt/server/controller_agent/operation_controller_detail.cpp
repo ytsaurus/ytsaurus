@@ -6330,6 +6330,7 @@ NScheduler::TJobPtr TOperationControllerBase::BuildJobFromJoblet(const TJobletPt
         joblet->ResourceLimits,
         IsJobInterruptible());
     job->SetState(EJobState::Running);
+    job->SetRevived(true);
     job->RevivedNodeDescriptor() = joblet->NodeDescriptor;
     return job;
 }
