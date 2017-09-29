@@ -14,7 +14,7 @@ from yt.packages.six import iteritems
 from yt.packages.six.moves import builtins, map as imap, filter as ifilter
 
 import string
-from copy import deepcopy
+from copy import deepcopy, copy as shallowcopy
 
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
 # instead of None value to distinguish case when default argument
@@ -471,13 +471,21 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
 
         object_type = node.content.attributes["type"]
 
-        should_add = False
-        if is_opaque(node.content) and not node.ignore_opaque and object_type != "link":
-            should_add = True
+        if node.followed_by_link and object_type == "link":
+            return
 
-        if object_type == "link" and follow_links and not node.followed_by_link:
-            node.followed_by_link = True
-            should_add = True
+        if is_opaque(node.content) and not node.ignore_opaque and object_type != "link":
+            new_node = shallowcopy(node)
+            new_node.ignore_opaque = True
+            new_node.yield_path = False
+            nodes_to_request.append(new_node)
+
+        if object_type == "link" and follow_links:
+            assert not node.content
+            new_node = shallowcopy(node)
+            new_node.followed_by_link = True
+            new_node.ignore_opaque = True
+            nodes_to_request.append(new_node)
 
         if node.yield_path and \
                 (node_type is None or object_type in flatten(node_type)) and \
@@ -508,11 +516,6 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                 path = ypath_join(node.path, str(index))
                 for yson_path in process_node(CompositeNode(path, node.depth + 1, value), nodes_to_request):
                     yield yson_path
-
-        if should_add:
-            node.ignore_opaque = True
-            node.yield_path = False
-            nodes_to_request.append(node)
 
     nodes_to_request = []
     nodes_to_request.append(CompositeNode(root, 0, ignore_opaque=True, ignore_resolve_error=ignore_root_path_resolve_error))
