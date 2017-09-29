@@ -12,6 +12,7 @@
 #include <yt/core/ytree/yson_serializable.h>
 
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/finally.h>
 
 #include <unordered_set>
 
@@ -23,7 +24,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int PlanFragmentDepthLimit = 50;
+static constexpr size_t MaxExpressionDepth = 50;
 
 struct TQueryPreparerBufferTag
 { };
@@ -113,40 +114,6 @@ std::vector<TString> ExtractFunctionNames(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
-{
-    if (depth > PlanFragmentDepthLimit) {
-        THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
-    }
-
-    if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>()) {
-        return;
-    } if (auto inExpr = op->As<TInExpression>()) {
-        for (const auto& argument : inExpr->Arguments) {
-            CheckExpressionDepth(argument, depth + 1);
-        }
-        return;
-    } if (auto transformExpr = op->As<TTransformExpression>()) {
-        for (const auto& argument : transformExpr->Arguments) {
-            CheckExpressionDepth(argument, depth + 1);
-        }
-        return;
-    } else if (auto functionExpr = op->As<TFunctionExpression>()) {
-        for (const auto& argument : functionExpr->Arguments) {
-            CheckExpressionDepth(argument, depth + 1);
-        }
-        return;
-    } else if (auto unaryOpExpr = op->As<TUnaryOpExpression>()) {
-        CheckExpressionDepth(unaryOpExpr->Operand, depth + 1);
-        return;
-    } else if (auto binaryOpExpr = op->As<TBinaryOpExpression>()) {
-        CheckExpressionDepth(binaryOpExpr->Lhs, depth + 1);
-        CheckExpressionDepth(binaryOpExpr->Rhs, depth + 1);
-        return;
-    }
-    Y_UNREACHABLE();
-};
 
 TValue CastValueWithCheck(TValue value, EValueType targetType)
 {
@@ -1116,6 +1083,7 @@ struct TTypedExpressionBuilder
     const TString& Source;
     const TConstTypeInferrerMapPtr& Functions;
     const NAst::TAliasMap& AliasMap;
+    mutable size_t Depth;
 
     TUntypedExpression DoBuildUntypedExpression(
         const NAst::TReference& reference,
@@ -1162,6 +1130,16 @@ struct TTypedExpressionBuilder
         ISchemaProxyPtr schema,
         std::set<TString>& usedAliases) const
     {
+        ++Depth;
+        auto depthGuard = Finally([&] {
+            --Depth;
+        });
+
+        if (Depth > MaxExpressionDepth) {
+            THROW_ERROR_EXCEPTION("Maximum expression depth exceeded")
+                << TErrorAttribute("max_expression_depth", MaxExpressionDepth);
+        }
+
         if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             const auto& literalValue = literalExpr->Value;
 
@@ -1880,8 +1858,6 @@ public:
             typedOperand = TExpressionSimplifier().Visit(typedOperand);
             typedOperand = TNotExpressionPropagator().Visit(typedOperand);
 
-            CheckExpressionDepth(typedOperand);
-
             AggregateItems_->emplace_back(
                 typedOperand,
                 name,
@@ -1913,8 +1889,6 @@ TConstExpressionPtr BuildPredicate(
 
     auto typedPredicate = builder.BuildTypedExpression(expressionAst.front().Get(), schemaProxy);
 
-    CheckExpressionDepth(typedPredicate);
-
     auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
@@ -1939,7 +1913,6 @@ TConstGroupClausePtr BuildGroupClause(
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
-        CheckExpressionDepth(typedExpr);
         groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
     }
 
@@ -1963,8 +1936,6 @@ TConstExpressionPtr BuildHavingClause(
 
     auto typedPredicate = builder.BuildTypedExpression(expressionsAst.front().Get(), schemaProxy);
 
-    CheckExpressionDepth(typedPredicate);
-
     auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
@@ -1985,7 +1956,6 @@ TConstProjectClausePtr BuildProjectClause(
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
-        CheckExpressionDepth(typedExpr);
         projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
     }
 
@@ -2179,7 +2149,8 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     TTypedExpressionBuilder builder{
         parsedSource.Source,
         functions,
-        aliasMap};
+        aliasMap,
+        0};
 
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
 
@@ -2523,7 +2494,8 @@ TQueryPtr PrepareJobQuery(
     TTypedExpressionBuilder builder{
         source,
         functions,
-        aliasMap};
+        aliasMap,
+        0};
 
     PrepareQuery(
         query,
@@ -2558,7 +2530,8 @@ TConstExpressionPtr PrepareExpression(
     TTypedExpressionBuilder builder{
         source,
         functions,
-        aliasMap};
+        aliasMap,
+        0};
 
     auto result = builder.BuildTypedExpression(expr.Get(), schemaProxy);
 

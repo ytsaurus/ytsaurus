@@ -133,7 +133,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
 
     ExpectPrepareThrowsWithDiagnostics(
         query,
-        ContainsRegex("Plan fragment depth limit exceeded"));
+        ContainsRegex("Maximum expression depth exceeded"));
 }
 
 TEST_F(TQueryPrepareTest, BigQuery)
