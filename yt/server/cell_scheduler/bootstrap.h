@@ -71,7 +71,7 @@ private:
     NConcurrency::TActionQueuePtr ControllerAgentQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
-    std::unique_ptr<NHttp::TServer> HttpServer_;
+    std::unique_ptr<NXHttp::TServer> HttpServer_;
     NApi::INativeConnectionPtr Connection_;
     NApi::INativeClientPtr Client_;
     NScheduler::TSchedulerPtr Scheduler_;
