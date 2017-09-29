@@ -274,7 +274,11 @@ void TTask::ScheduleJob(
 
     auto jobType = GetJobType();
     joblet->JobId = context->GenerateJobId();
-    auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
+
+    // Job is restarted if LostJobCookieMap contains at least one entry with this output cookie.
+    auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
+    bool restarted = it != LostJobCookieMap.end() && it->first.first == joblet->OutputCookie;
+
     joblet->Account = TaskHost_->Spec()->JobNodeAccount;
     joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
         .AsyncVia(TaskHost_->GetCancelableInvoker())
@@ -393,7 +397,13 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, CompletedFired_);
 
-    Persist(context, LostJobCookieMap);
+    Persist<
+        TMapSerializer<
+            TTupleSerializer<TCookieAndPool, 2>,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, LostJobCookieMap);
 
     Persist(context, EdgeDescriptors_);
 }
@@ -493,7 +503,7 @@ void TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary
 void TTask::OnJobLost(TCompletedJobPtr completedJob)
 {
     YCHECK(LostJobCookieMap.insert(std::make_pair(
-        completedJob->OutputCookie,
+        TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
         completedJob->InputCookie)).second);
 }
 
@@ -788,7 +798,7 @@ void TTask::RegisterStripe(
         YCHECK(joblet);
 
         IChunkPoolInput::TCookie inputCookie;
-        auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
+        auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, edgeDescriptor.DestinationPool));
         if (lostIt == LostJobCookieMap.end()) {
             inputCookie = destinationPool->Add(stripe, key);
         } else {
