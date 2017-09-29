@@ -2368,15 +2368,15 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
     });
 
     auto result = YsonToRows({
-        "x=3",
-        "x=1"
+        "x=1",
+        "x=3"
     }, resultSplit);
 
     Evaluate(
         "a as x FROM [//left] join [//right] using a",
         splits,
         sources,
-        ResultMatcher(result),
+        OrderedResultMatcher(result, {"x"}),
         std::numeric_limits<i64>::max(), 4);
 
     result = YsonToRows({
@@ -2763,27 +2763,27 @@ TEST_F(TQueryEvaluateTest, TestPartialSortMergeJoin)
     });
 
     auto result = YsonToRows({
-        "a=1;b=1;c=3 ;d=1;e=1;f=3 ",
         "a=1;b=2;c=1 ;d=1;e=2;f=1 ",
         "a=1;b=3;c=2 ;d=1;e=3;f=2 ",
+        "a=1;b=1;c=3 ;d=1;e=1;f=3 ",
         "a=1;b=4;c=4 ;d=1;e=4;f=4 ",
+        "a=2;b=4;c=5 ;d=2;e=4;f=5 ",
+        "a=2;b=3;c=6 ;d=2;e=3;f=6 ",
         "a=2;b=1;c=7 ;d=2;e=1;f=7 ",
         "a=2;b=2;c=8 ;d=2;e=2;f=8 ",
-        "a=2;b=3;c=6 ;d=2;e=3;f=6 ",
-        "a=2;b=4;c=5 ;d=2;e=4;f=5 ",
         "a=3;b=1;c=9 ;d=3;e=1;f=9 ",
-        "a=3;b=2;c=12;d=3;e=2;f=12",
-        "a=3;b=3;c=11;d=3;e=3;f=11",
         "a=3;b=4;c=10;d=3;e=4;f=10",
-        "a=4;b=7;c=14;d=4;e=7;f=14",
+        "a=3;b=3;c=11;d=3;e=3;f=11",
+        "a=3;b=2;c=12;d=3;e=2;f=12",
         "a=4;b=8;c=13;d=4;e=8;f=13",
+        "a=4;b=7;c=14;d=4;e=7;f=14",
     }, resultSplit);
 
     {
         auto query = Evaluate("a, b, c, d, e, f FROM [//left] join [//right] on (a, b) = (d, e)",
             splits,
             sources,
-            ResultMatcher(result));
+            OrderedResultMatcher(result, {"c"}));
 
         EXPECT_EQ(query->JoinClauses.size(), 1);
         const auto& joinClauses = query->JoinClauses;
@@ -2819,7 +2819,7 @@ TEST_F(TQueryEvaluateTest, TestPartialSortMergeJoin)
         auto query = Evaluate("a, b, c, d, e, f FROM [//left] join [//right] on (a, b) = (d, e)",
             splits,
             sources,
-            ResultMatcher(result));
+            OrderedResultMatcher(result, {"c"}));
 
         EXPECT_EQ(query->JoinClauses.size(), 1);
         const auto& joinClauses = query->JoinClauses;
