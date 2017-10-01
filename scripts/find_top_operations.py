@@ -39,7 +39,7 @@ class Operation(object):
             self._snapshot_size = snapshot_size.get_result()
         else:
             self.errors.append(snapshot_size.get_error())
-    
+
     def fetch_output_resource_usage(self, in_account=None):
         if self._attrs is None:
             yield
@@ -70,12 +70,12 @@ class Operation(object):
 
         self._output_resource_usage = process_resource_usage(output_resource_usage)
         self._debug_output_resource_usage = process_resource_usage(debug_output_resource_usage)
-            
+
     def fetch_input_locked_nodes(self):
         if self._attrs is None:
             yield
             return
-        
+
         input_tx = self._attrs["input_transaction_id"]
         input_locked_nodes = self._batch_client.get("#{}/@locked_node_ids".format(input_tx))
         yield
@@ -89,7 +89,7 @@ class Operation(object):
         if self._input_locked_nodes is None:
             yield
             return
-            
+
         input_object_attrs = []
         for object_id in self._input_locked_nodes:
             input_object_attrs.append(self._batch_client.get("#{}/@".format(object_id)))
@@ -114,7 +114,7 @@ class Operation(object):
         if orchid.is_ok():
             self._orchid = orchid.get_result()
         else:
-            self.errors.append(orchid.get_error())        
+            self.errors.append(orchid.get_error())
 
     def get_default_attrs(self):
         if self._attrs is None:
@@ -130,24 +130,15 @@ class Operation(object):
     def get_job_count(self):
         if self._attrs is None:
             return None
-<<<<<<< HEAD
-        
-        progress = self._attrs.get("progress")
-=======
 
-        progress = self._attrs.get_result().get("progress")
->>>>>>> stable/19.2
+        progress = self._attrs.get("progress")
         if progress is not None and "jobs" in progress:
             return progress["jobs"]["total"]
         else:
             return None
 
     def get_slice_count(self):
-        if not self._attrs.is_ok():
-            self.errors.append(self._attrs.get_error())
-            return None
-
-        progress = self._attrs.get_result().get("progress")
+        progress = self._attrs.get("progress")
         if progress is not None and "estimated_input_statistics" in progress and \
             "data_slice_count" in progress["estimated_input_statistics"]:
                 return progress["estimated_input_statistics"]["data_slice_count"]
@@ -158,7 +149,8 @@ class Operation(object):
         if not self._attrs.is_ok():
             self.errors.append(self._attrs.get_error())
             return None
-        spec = self._attrs.get_result()["spec"]
+
+        spec = self._attrs["spec"]
         if "input_table_paths" in spec:
             return len(spec["input_table_paths"])
         else:
@@ -168,36 +160,21 @@ class Operation(object):
         if not self._attrs.is_ok():
             self.errors.append(self._attrs.get_error())
             return None
-        spec = self._attrs.get_result()["spec"]
+        spec = self._attrs["spec"]
         if "output_table_paths" in spec:
             return len(spec["output_table_paths"])
         else:
             return 1
 
     def get_snapshot_size(self):
-<<<<<<< HEAD
         return self._snapshot_size
-            
-    def get_output_chunks(self):
-        return self._output_chunks
-=======
-        if not self._snapshot_size.is_ok():
-            self.errors.append(self._snapshot_size.get_error())
-            return None
-
-        return self._snapshot_size.get_result()
 
     def get_output_chunks(self, in_account=None):
-        if not self._output_resource_usage.is_ok():
-            self.errors.append(self._output_resource_usage.get_error())
-            return None
-
         chunks = 0
-        for account, usage in self._output_resource_usage.get_result().items():
+        for account, usage in self._output_resource_usage.items():
             if in_account is None or in_account == account:
                 chunks += usage["chunk_count"]
         return chunks
->>>>>>> stable/19.2
 
     def get_output_disk_space(self):
         return self._output_disk_space
@@ -246,17 +223,15 @@ def fetch_batch(batch_client, operations, fetch):
             next(gen)
         except StopIteration:
             pass
-        
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze running scheduler state.")
     parser.add_argument("-k", type=int, default=10, help="Number of operation to show (default: 10)")
     parser.add_argument("--proxy", help='Proxy alias')
-<<<<<<< HEAD
-    choices = ["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "output-disk-space"]
+
+    choices = ["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "slice-count", "output-disk-space"]
     parser.add_argument("--top-by", choices=choices, default="job-count")
-=======
-    parser.add_argument("--top-by", choices=["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "slice-count", "input-table-count", "output-table-count"], default="job-count")
->>>>>>> stable/19.2
+
     parser.add_argument("--in-account", help="Count resource usage only in this account")
     parser.add_argument("--show-errors", default=False, action="store_true")
 
