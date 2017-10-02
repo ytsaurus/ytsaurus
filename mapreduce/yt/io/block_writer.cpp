@@ -55,7 +55,9 @@ void TBlockWriter::DoFinish()
     if (Started_) {
         Thread_.Join();
     }
-    WriteTransaction_.Commit();
+    if (WriteTransaction_) {
+        WriteTransaction_->Commit();
+    }
 
     if (Exception_) {
         WriterState_ = Error;
@@ -107,7 +109,9 @@ void TBlockWriter::Send(const TBuffer& buffer)
     auto streamMaker = [&buffer] () {
         return new TBufferInput(buffer);
     };
-    RetryHeavyWriteRequest(Auth_, WriteTransaction_.GetId(), header, streamMaker);
+
+    auto transactionId = (WriteTransaction_ ? WriteTransaction_.GetRef().GetId() : ParentTransactionId_);
+    RetryHeavyWriteRequest(Auth_, transactionId, header, streamMaker);
 
     Parameters_ = SecondaryParameters_; // all blocks except the first one are appended
 }

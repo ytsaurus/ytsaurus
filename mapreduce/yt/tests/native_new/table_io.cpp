@@ -452,12 +452,62 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         {
             auto path = TRichYPath("//testing/table").Append(true);
             auto firstWriter = client->CreateTableWriter<TNode>(path);
-            // we expect no exception here
+            UNIT_ASSERT_EXCEPTION(client->StartTransaction()->Lock(path.Path_, LM_EXCLUSIVE), TErrorResponse);
+            // however we don't expect any exception here
             auto secondWriter = client->CreateTableWriter<TNode>(path);
             firstWriter->AddRow(TNode()("key", 100500));
             secondWriter->AddRow(TNode()("key", 2001000));
             firstWriter->Finish();
             secondWriter->Finish();
+        }
+    }
+
+    size_t GetNumTransactions(IClientBasePtr client) {
+        return client->Get("//sys/transactions").AsMap().size();
+    }
+
+    SIMPLE_UNIT_TEST(OptionallyCreateChildTransactionForIO)
+    {
+        auto client = CreateTestClient();
+        auto path = TRichYPath("//testing/table");
+        auto numTransactionsBefore = GetNumTransactions(client);
+        {
+            auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions().CreateTransaction(false));
+            writer->AddRow(TNode()("key", 100500));
+            UNIT_ASSERT_VALUES_EQUAL(GetNumTransactions(client), numTransactionsBefore);
+            writer->Finish();
+        }
+        {
+            auto reader = client->CreateTableReader<TNode>(path, TTableReaderOptions().CreateTransaction(false));
+            reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(GetNumTransactions(client), numTransactionsBefore);
+        }
+        {
+            // CreateTransaction default is true
+            auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions());
+            writer->AddRow(TNode()("key", 2001000));
+            UNIT_ASSERT_VALUES_EQUAL(GetNumTransactions(client), numTransactionsBefore + 1);
+            writer->Finish();
+        }
+        {
+            // CreateTransaction default is true
+            auto reader = client->CreateTableReader<TNode>(path, TTableReaderOptions());
+            reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(GetNumTransactions(client), numTransactionsBefore + 1);
+        }
+        // TableWriter will never write to global transaction if created under a local one
+        client->Remove(path.Path_);
+        {
+            auto transaction = client->StartTransaction();
+            auto writer = transaction->CreateTableWriter<TNode>(path, TTableWriterOptions().CreateTransaction(false));
+            writer->AddRow(TNode()("key", 1234567));
+            writer->Finish();
+            auto transactionReader = transaction->CreateTableReader<TNode>(path);
+            UNIT_ASSERT_VALUES_EQUAL(transactionReader->GetRow(), TNode()("key", 1234567));
+            // For the client the table doesn't exist
+            UNIT_ASSERT(!client->Exists(path.Path_));
+            transaction->Commit();
+            UNIT_ASSERT(client->Exists(path.Path_));
         }
     }
 }

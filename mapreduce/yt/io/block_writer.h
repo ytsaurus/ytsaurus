@@ -39,7 +39,8 @@ public:
         , Format_(format)
         , FormatConfig_(formatConfig)
         , BufferSize_(bufferSize)
-        , WriteTransaction_(auth, parentId)
+        , ParentTransactionId_(parentId)
+        , WriteTransaction_()
         , Buffer_(BufferSize_ * 2)
         , BufferOutput_(Buffer_)
         , Thread_(TThread::TParams{SendThread, this}.SetName("block_writer"))
@@ -54,9 +55,12 @@ public:
         secondaryPath.OptimizeFor_.Clear();
         SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
 
-        auto append = path.Append_.GetOrElse(false);
-        auto lockMode = (append  ? LM_SHARED : LM_EXCLUSIVE);
-        NDetail::Lock(Auth_, WriteTransaction_.GetId(), path.Path_, lockMode, TLockOptions());
+        if (options.CreateTransaction_) {
+            WriteTransaction_.ConstructInPlace(auth, parentId);
+            auto append = path.Append_.GetOrElse(false);
+            auto lockMode = (append  ? LM_SHARED : LM_EXCLUSIVE);
+            NDetail::Lock(Auth_, WriteTransaction_.GetRef().GetId(), path.Path_, lockMode, TLockOptions());
+        }
     }
 
     ~TBlockWriter();
@@ -77,7 +81,8 @@ private:
     TString Parameters_;
     TString SecondaryParameters_;
 
-    TPingableTransaction WriteTransaction_;
+    TTransactionId ParentTransactionId_;
+    TMaybe<TPingableTransaction> WriteTransaction_;
 
     TBuffer Buffer_;
     TBufferOutput BufferOutput_;
