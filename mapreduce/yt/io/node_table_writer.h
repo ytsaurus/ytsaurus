@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mapreduce/yt/interface/io.h>
+#include <library/yson/public.h>
 
 namespace NYT {
 
@@ -13,7 +14,7 @@ class TNodeTableWriter
     : public INodeWriterImpl
 {
 public:
-    explicit TNodeTableWriter(THolder<TProxyOutput> output);
+    explicit TNodeTableWriter(THolder<TProxyOutput> output, EYsonFormat format = YF_BINARY);
     ~TNodeTableWriter() override;
 
     void AddRow(const TNode& row, size_t tableIndex) override;
