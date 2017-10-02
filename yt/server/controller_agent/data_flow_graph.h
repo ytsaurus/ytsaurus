@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "serialize.h"
+#include "progress_counter.h"
 
 #include <yt/server/chunk_pools/public.h>
 
@@ -27,6 +28,25 @@ struct TEdgeDescriptor
     bool ImmediatelyUnstageChunkLists;
 
     void Persist(const TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDataFlowGraph
+{
+public:
+    TDataFlowGraph() = default;
+
+    void BuildYson(NYson::IYsonConsumer* consumer) const;
+
+    const TProgressCounterPtr& ProgressCounter(EJobType jobType);
+
+    void Persist(const TPersistenceContext& context);
+
+    std::vector<EJobType> GetTopologicalOrder() const;
+
+private:
+    yhash<EJobType, TProgressCounterPtr> ProgressCounters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

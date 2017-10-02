@@ -103,7 +103,7 @@ TNullable<i64> TTask::GetMaximumUsedTmpfsSize() const
     return MaximumUsedTmfpsSize_;
 }
 
-const TProgressCounter& TTask::GetJobCounter() const
+const TProgressCounterPtr& TTask::GetJobCounter() const
 {
     return GetChunkPoolOutput()->GetJobCounter();
 }
@@ -122,11 +122,6 @@ TJobResources TTask::GetTotalNeededResources() const
     i64 count = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
     return count == 0 ? ZeroJobResources() : GetMinNeededResources() * count;
-}
-
-bool TTask::IsIntermediateOutput() const
-{
-    return false;
 }
 
 bool TTask::IsStderrTableEnabled() const
@@ -821,6 +816,7 @@ void TTask::RegisterStripe(
         // Store recovery info.
         auto completedJob = New<TCompletedJob>(
             joblet->JobId,
+            joblet->JobType,
             this,
             joblet->OutputCookie,
             joblet->InputStripeList->TotalDataWeight,

@@ -25,7 +25,6 @@ DECLARE_REFCOUNTED_CLASS(TRootElement)
 struct TFairShareContext;
 
 class TJobMetrics;
-class TProgressCounter;
 
 using TOperationElementByIdMap = yhash<TOperationId, TOperationElement*>;
 

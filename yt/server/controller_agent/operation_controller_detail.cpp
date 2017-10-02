@@ -205,7 +205,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Invoker(Host->CreateOperationControllerInvoker())
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
-    , JobCounter(0)
+    , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
@@ -1409,6 +1409,8 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant st
     joblet->StartTime = startTime;
     joblet->LastActivityTime = startTime;
 
+    //DataFlowGraph_.OnJobStarted(joblet->JobType);
+
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
         .Item("operation_id").Value(OperationId)
@@ -1547,9 +1549,11 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         ExtractInterruptDescriptor(*jobSummary);
     }
 
-    JobCounter.Completed(1, jobSummary->InterruptReason);
+    JobCounter->Completed(1, jobSummary->InterruptReason);
 
     auto joblet = GetJoblet(jobId);
+
+    //DataFlowGraph_.OnJobCompleted(joblet->JobType);
 
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
@@ -1624,9 +1628,11 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     auto error = FromProto<TError>(result.error());
 
-    JobCounter.Failed(1);
+    JobCounter->Failed(1);
 
     auto joblet = GetJoblet(jobId);
+
+    //DataFlowGraph_.OnJobFailed(joblet->JobType);
 
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
@@ -1654,7 +1660,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
-    int failedJobCount = JobCounter.GetFailed();
+    int failedJobCount = JobCounter->GetFailed();
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (failedJobCount >= maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit exceeded")
@@ -1669,9 +1675,11 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     auto jobId = jobSummary->Id;
     auto abortReason = jobSummary->AbortReason;
 
-    JobCounter.Aborted(1, abortReason);
+    JobCounter->Aborted(1, abortReason);
 
     auto joblet = GetJoblet(jobId);
+
+    //DataFlowGraph_.OnJobAborted(joblet->JobType, abortReason);
 
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
     const auto& statistics = *jobSummary->Statistics;
@@ -1831,7 +1839,6 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
             fluent.Item("input_paths").Value(job->InputPaths);
         });
 }
-
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
     ELogEventType eventType,
@@ -2028,7 +2035,8 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
         completedJob->OutputCookie,
         completedJob->InputCookie);
 
-    JobCounter.Lost(1);
+    JobCounter->Lost(1);
+    //DataFlowGraph_.OnJobLost(completedJob->JobType);
     completedJob->Lost = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
     completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
@@ -2308,7 +2316,7 @@ TFuture<void> TOperationControllerBase::AnalyzeInputStatistics() const
 TFuture<void> TOperationControllerBase::AnalyzeIntermediateJobsStatistics() const
 {
     TError error;
-    if (JobCounter.GetLost() > 0) {
+    if (JobCounter->GetLost() > 0) {
         error = TError(
             "Some intermediate outputs were lost and will be regenerated; "
             "operation will take longer than usual");
@@ -2527,7 +2535,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     auto scheduleJobResult = New<TScheduleJobResult>();
     DoScheduleJob(context.Get(), jobLimits, scheduleJobResult.Get());
     if (scheduleJobResult->JobStartRequest) {
-        JobCounter.Start(1);
+        JobCounter->Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
 
@@ -2575,9 +2583,9 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
     int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
     CachedPendingJobCount = newPendingJobCount;
 
-    int oldTotalJobCount = JobCounter.GetTotal();
-    JobCounter.Increment(task->GetTotalJobCountDelta());
-    int newTotalJobCount = JobCounter.GetTotal();
+    int oldTotalJobCount = JobCounter->GetTotal();
+    JobCounter->Increment(task->GetTotalJobCountDelta());
+    int newTotalJobCount = JobCounter->GetTotal();
 
     IncreaseNeededResources(task->GetTotalNeededResourcesDelta());
 
@@ -3025,7 +3033,7 @@ int TOperationControllerBase::GetTotalJobCount() const
         return 0;
     }
 
-    return JobCounter.GetTotal();
+    return JobCounter->GetTotal();
 }
 
 bool TOperationControllerBase::IsForgotten() const
@@ -5252,6 +5260,9 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("count").Value(ScheduleJobStatistics_->Count)
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
+        .EndMap()
+        .Item("data_flow_graph").BeginMap()
+            .Do(BIND(&TDataFlowGraph::BuildYson, &DataFlowGraph_))
         .EndMap()
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
