@@ -45,13 +45,10 @@ public:
     virtual int GetTotalJobCount() const;
     int GetTotalJobCountDelta();
 
-    const TProgressCounter& GetJobCounter() const;
+    const TProgressCounterPtr& GetJobCounter() const;
 
     virtual TJobResources GetTotalNeededResources() const;
     TJobResources GetTotalNeededResourcesDelta();
-
-    // TODO(max42): Remove this method in favour of EdgeDescriptors_.
-    virtual bool IsIntermediateOutput() const;
 
     bool IsStderrTableEnabled() const;
 

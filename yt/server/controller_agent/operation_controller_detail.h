@@ -382,7 +382,7 @@ protected:
     int UnavailableInputChunkCount = 0;
 
     // Job counters.
-    TProgressCounter JobCounter;
+    TProgressCounterPtr JobCounter = New<TProgressCounter>();
 
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
@@ -454,6 +454,10 @@ protected:
     //! Auto merge task for each of the output tables.
     std::vector<TAutoMergeTaskPtr> AutoMergeTasks;
     TTaskGroupPtr AutoMergeTaskGroup;
+
+    TDataFlowGraph DataFlowGraph_;
+
+
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
@@ -1024,6 +1028,9 @@ private:
     void BuildFinishedJobAttributes(
         const TFinishedJobInfoPtr& job,
         bool outputStatistics,
+        NYson::IYsonConsumer* consumer) const;
+
+    void BuildDataFlowGraphYson(
         NYson::IYsonConsumer* consumer) const;
 
     void AnalyzeBriefStatistics(

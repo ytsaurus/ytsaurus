@@ -1,10 +1,10 @@
 #include "progress_counter.h"
+
 #include "private.h"
 
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/core/ytree/fluent.h>
-
 
 namespace NYT {
 namespace NControllerAgent {
@@ -25,22 +25,16 @@ TProgressCounter::TProgressCounter()
 { }
 
 TProgressCounter::TProgressCounter(i64 total)
+    : TProgressCounter()
 {
     Set(total);
 }
 
 void TProgressCounter::Set(i64 total)
 {
-    YCHECK(total >= 0);
+    YCHECK(!TotalEnabled_);
     TotalEnabled_ = true;
-    Total_ = total;
-    Running_ = 0;
-    Pending_ = total;
-    Failed_ = 0;
-    Lost_ = 0;
-
-    std::fill(Aborted_.begin(), Aborted_.end(), 0);
-    std::fill(Completed_.begin(), Completed_.end(), 0);
+    Increment(total);
 }
 
 bool TProgressCounter::IsTotalEnabled() const
@@ -55,6 +49,10 @@ void TProgressCounter::Increment(i64 value)
     YCHECK(Total_ >= 0);
     Pending_ += value;
     YCHECK(Pending_ >= 0);
+
+    if (Parent_) {
+        Parent_->Increment(value);
+    }
 }
 
 i64 TProgressCounter::GetTotal() const
@@ -132,6 +130,10 @@ void TProgressCounter::Start(i64 count)
         Pending_ -= count;
     }
     Running_ += count;
+
+    if (Parent_) {
+        Parent_->Start(count);
+    }
 }
 
 void TProgressCounter::Completed(i64 count, EInterruptReason reason)
@@ -139,6 +141,10 @@ void TProgressCounter::Completed(i64 count, EInterruptReason reason)
     YCHECK(Running_ >= count);
     Running_ -= count;
     Completed_[reason] += count;
+
+    if (Parent_) {
+        Parent_->Completed(count, reason);
+    }
 }
 
 void TProgressCounter::Failed(i64 count)
@@ -148,6 +154,10 @@ void TProgressCounter::Failed(i64 count)
     Failed_ += count;
     if (TotalEnabled_) {
         Pending_ += count;
+    }
+
+    if (Parent_) {
+        Parent_->Failed(count);
     }
 }
 
@@ -160,6 +170,10 @@ void TProgressCounter::Aborted(i64 count, EAbortReason reason)
     if (TotalEnabled_) {
         Pending_ += count;
     }
+
+    if (Parent_) {
+        Parent_->Aborted(count, reason);
+    }
 }
 
 void TProgressCounter::Lost(i64 count)
@@ -169,6 +183,10 @@ void TProgressCounter::Lost(i64 count)
     Lost_ += count;
     if (TotalEnabled_) {
         Pending_ += count;
+    }
+
+    if (Parent_) {
+        Parent_->Lost(count);
     }
 }
 
@@ -181,7 +199,13 @@ void TProgressCounter::Finalize()
     }
 }
 
-void TProgressCounter::Persist(const TStreamPersistenceContext& context)
+void TProgressCounter::SetParent(TProgressCounterPtr parent)
+{
+    YCHECK(!Parent_);
+    Parent_ = std::move(parent);
+}
+
+void TProgressCounter::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, TotalEnabled_);
@@ -192,79 +216,80 @@ void TProgressCounter::Persist(const TStreamPersistenceContext& context)
     Persist(context, Failed_);
     Persist(context, Lost_);
     Persist(context, Aborted_);
+    Persist(context, Parent_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TProgressCounter NullProgressCounter;
+const TProgressCounterPtr NullProgressCounter = New<TProgressCounter>();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TProgressCounter& counter)
+TString ToString(const TProgressCounterPtr& counter)
 {
-    return counter.IsTotalEnabled()
+    return counter->IsTotalEnabled()
         ? Format("{T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v, I: %v}",
-            counter.GetTotal(),
-            counter.GetRunning(),
-            counter.GetCompletedTotal(),
-            counter.GetPending(),
-            counter.GetFailed(),
-            counter.GetAbortedTotal(),
-            counter.GetLost(),
-            counter.GetInterruptedTotal())
+            counter->GetTotal(),
+            counter->GetRunning(),
+            counter->GetCompletedTotal(),
+            counter->GetPending(),
+            counter->GetFailed(),
+            counter->GetAbortedTotal(),
+            counter->GetLost(),
+            counter->GetInterruptedTotal())
         : Format("{R: %v, C: %v, F: %v, A: %v, L: %v, I: %v}",
-            counter.GetRunning(),
-            counter.GetCompletedTotal(),
-            counter.GetFailed(),
-            counter.GetAbortedTotal(),
-            counter.GetLost(),
-            counter.GetInterruptedTotal());
+            counter->GetRunning(),
+            counter->GetCompletedTotal(),
+            counter->GetFailed(),
+            counter->GetAbortedTotal(),
+            counter->GetLost(),
+            counter->GetInterruptedTotal());
 }
 
-void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
+void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .DoIf(counter.IsTotalEnabled(), [&] (TFluentMap fluent) {
+            .DoIf(counter->IsTotalEnabled(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("total").Value(counter.GetTotal())
-                    .Item("pending").Value(counter.GetPending());
+                    .Item("total").Value(counter->GetTotal())
+                    .Item("pending").Value(counter->GetPending());
             })
-            .Item("running").Value(counter.GetRunning())
+            .Item("running").Value(counter->GetRunning())
             .Item("completed").BeginMap()
                 .Item("interrupted").BeginMap()
                     .DoFor(TEnumTraits<EInterruptReason>::GetDomainValues(), [&] (TFluentMap fluent, EInterruptReason reason) {
                         if (reason != EInterruptReason::None) {
                             fluent
-                                .Item(FormatEnum(reason)).Value(counter.GetCompleted(reason));
+                                .Item(FormatEnum(reason)).Value(counter->GetCompleted(reason));
                         }
                     })
                 .EndMap()
-                .Item("non-interrupted").Value(counter.GetCompleted(EInterruptReason::None))
-                .Item("total").Value(counter.GetCompletedTotal())
+                .Item("non-interrupted").Value(counter->GetCompleted(EInterruptReason::None))
+                .Item("total").Value(counter->GetCompletedTotal())
             .EndMap()
-            .Item("failed").Value(counter.GetFailed())
+            .Item("failed").Value(counter->GetFailed())
             .Item("aborted").BeginMap()
                 // NB(ignat): temporaly output total aborted job count as scheduled aborted jobs count.
                 // Fix it when UI will start using scheduled aborted job count.
-                .Item("total").Value(counter.GetAbortedScheduled())
-                //.Item("total").Value(counter.GetAbortedTotal())
+                .Item("total").Value(counter->GetAbortedScheduled())
+                //.Item("total").Value(counter->GetAbortedTotal())
                 .Item("non_scheduled").BeginMap()
                     .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
                         if (IsSchedulingReason(reason)) {
-                            fluent.Item(FormatEnum(reason)).Value(counter.GetAborted(reason));
+                            fluent.Item(FormatEnum(reason)).Value(counter->GetAborted(reason));
                         }
                     })
                 .EndMap()
                 .Item("scheduled").BeginMap()
                     .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
                         if (IsNonSchedulingReason(reason)) {
-                            fluent.Item(FormatEnum(reason)).Value(counter.GetAborted(reason));
+                            fluent.Item(FormatEnum(reason)).Value(counter->GetAborted(reason));
                         }
                     })
                 .EndMap()
             .EndMap()
-            .Item("lost").Value(counter.GetLost())
+            .Item("lost").Value(counter->GetLost())
         .EndMap();
 }
 

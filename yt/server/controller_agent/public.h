@@ -46,6 +46,8 @@ DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 
+DECLARE_REFCOUNTED_CLASS(TProgressCounter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent

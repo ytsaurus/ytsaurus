@@ -679,13 +679,13 @@ public:
         return
             Finished &&
             GetPendingJobCount() == 0 &&
-            JobManager_->JobCounter().GetRunning() == 0 &&
+            JobManager_->JobCounter()->GetRunning() == 0 &&
             JobManager_->GetSuspendedJobCount() == 0;
     }
 
     virtual int GetTotalJobCount() const override
     {
-        return JobManager_->JobCounter().GetTotal();
+        return JobManager_->JobCounter()->GetTotal();
     }
 
     virtual int GetPendingJobCount() const override
@@ -751,27 +751,27 @@ public:
 
     virtual i64 GetTotalDataWeight() const override
     {
-        return JobManager_->DataWeightCounter().GetTotal();
+        return JobManager_->DataWeightCounter()->GetTotal();
     }
 
     virtual i64 GetRunningDataWeight() const override
     {
-        return JobManager_->DataWeightCounter().GetRunning();
+        return JobManager_->DataWeightCounter()->GetRunning();
     }
 
     virtual i64 GetCompletedDataWeight() const override
     {
-        return JobManager_->DataWeightCounter().GetCompletedTotal();
+        return JobManager_->DataWeightCounter()->GetCompletedTotal();
     }
 
     virtual i64 GetPendingDataWeight() const override
     {
-        return JobManager_->DataWeightCounter().GetPending();
+        return JobManager_->DataWeightCounter()->GetPending();
     }
 
     virtual i64 GetTotalRowCount() const override
     {
-        return JobManager_->RowCounter().GetTotal();
+        return JobManager_->RowCounter()->GetTotal();
     }
 
     virtual i64 GetDataSliceCount() const override
@@ -779,7 +779,7 @@ public:
         return TotalDataSliceCount_;
     }
 
-    const TProgressCounter& GetJobCounter() const
+    const TProgressCounterPtr& GetJobCounter() const
     {
         return JobManager_->JobCounter();
     }

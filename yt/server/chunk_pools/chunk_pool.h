@@ -77,7 +77,7 @@ struct IChunkPoolOutput
 
     virtual int GetTotalJobCount() const = 0;
     virtual int GetPendingJobCount() const = 0;
-    virtual const NControllerAgent::TProgressCounter& GetJobCounter() const = 0;
+    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const = 0;
 
     virtual i64 GetDataSliceCount() const = 0;
 
@@ -128,7 +128,7 @@ public:
 
     virtual i64 GetTotalRowCount() const override;
 
-    virtual const NControllerAgent::TProgressCounter& GetJobCounter() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
 
     // IPersistent implementation.
 
@@ -142,9 +142,9 @@ public:
     DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
 
 protected:
-    NControllerAgent::TProgressCounter DataWeightCounter;
-    NControllerAgent::TProgressCounter RowCounter;
-    NControllerAgent::TProgressCounter JobCounter;
+    NControllerAgent::TProgressCounterPtr DataWeightCounter;
+    NControllerAgent::TProgressCounterPtr RowCounter;
+    NControllerAgent::TProgressCounterPtr JobCounter;
 
     std::vector<NChunkClient::TInputChunkPtr> TeleportChunks_;
 };
