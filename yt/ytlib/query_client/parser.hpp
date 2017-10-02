@@ -320,6 +320,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       char dummy8[sizeof(TNullable<TLiteralValue>)];
 
       // join-predicate
+      // transform-default-expr
       char dummy9[sizeof(TNullableExpressionList)];
 
       // order-expr-list
@@ -969,8 +970,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 246,     ///< Last index in yytable_.
-      yynnts_ = 44,  ///< Number of nonterminal symbols.
+      yylast_ = 249,     ///< Last index in yytable_.
+      yynnts_ = 45,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 44, ///< Termination state number.
       yyterror_ = 1,

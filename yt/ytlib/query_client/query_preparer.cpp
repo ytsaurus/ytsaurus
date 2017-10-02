@@ -53,6 +53,7 @@ void ExtractFunctionNames(
         ExtractFunctionNames(inExpr->Expr, functions);
     } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
         ExtractFunctionNames(transformExpr->Expr, functions);
+        ExtractFunctionNames(transformExpr->DefaultExpr, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (expr->As<NAst::TAliasExpression>()) {
@@ -1480,7 +1481,32 @@ struct TTypedExpressionBuilder
                 }
             }
 
-            auto resultType = GetFrontWithCheck(resultTypes, source);
+            const auto& defaultExpr = transformExpr->DefaultExpr;
+
+            TConstExpressionPtr defaultTypedExpr;
+
+            EValueType resultType;
+            if (defaultExpr) {
+                if (defaultExpr->size() != 1) {
+                    THROW_ERROR_EXCEPTION("Default expression must scalar")
+                        << TErrorAttribute("source", source);
+                }
+
+                auto untypedArgument = DoBuildUntypedExpression(defaultExpr->front().Get(), schema, usedAliases);
+
+                if (!Unify(&resultTypes, untypedArgument.FeasibleTypes)) {
+                    THROW_ERROR_EXCEPTION("Type mismatch in default expression: expected %Qv, got %Qv",
+                        resultTypes,
+                        untypedArgument.FeasibleTypes)
+                        << TErrorAttribute("source", source);
+                }
+
+                resultType = GetFrontWithCheck(resultTypes, source);
+
+                defaultTypedExpr = untypedArgument.Generator(resultType);
+            } else {
+                resultType = GetFrontWithCheck(resultTypes, source);
+            }
 
             auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
             TUnversionedRowBuilder rowBuilder;
@@ -1529,7 +1555,8 @@ struct TTypedExpressionBuilder
             auto result = New<TTransformExpression>(
                 resultType,
                 std::move(typedArguments),
-                std::move(capturedRows));
+                std::move(capturedRows),
+                std::move(defaultTypedExpr));
 
             TExpressionGenerator generator = [result] (EValueType type) mutable {
                 return result;
