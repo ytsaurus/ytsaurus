@@ -38,7 +38,7 @@ def perform_precheck(task, clusters_configuration, logger):
         destination_exists = destination_client.exists(task.destination_table)
 
     if destination_client._type == "yt":
-        destination_dir = yt.ypath_dirname(task.destination_table)
+        destination_dir = os.path.dirname(task.destination_table)
         # NB: copy operations usually create directories if it do not exits.
         #if not destination_client.exists(destination_dir):
         #    raise yt.YtError("Destination directory {} should exist".format(destination_dir))
