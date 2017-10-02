@@ -1,4 +1,4 @@
-from yt.wrapper.common import round_up_to, bool_to_string, MB, GB, update, get_disk_size
+from yt.wrapper.common import round_up_to, MB, GB, update, get_disk_size
 from yt.wrapper.local_mode import enable_local_files_usage_in_job
 from yt.wrapper.ypath import ypath_join
 from yt.common import get_value, set_pdeathsig
@@ -358,7 +358,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
 
     src = yt.TablePath(src, client=source_client)
 
-    _force_parent_dir(yt.ypath_dirname(dst), client=destination_client)
+    _force_parent_dir(os.path.dirname(dst), client=destination_client)
 
     cluster_connection = None
     try:
@@ -411,7 +411,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
 
     attributes = {"title": "copy_yt_to_yt_through_proxy"}
 
-    _force_parent_dir(yt.ypath_dirname(dst), client=destination_client)
+    _force_parent_dir(os.path.dirname(dst), client=destination_client)
 
     destination_client.config["table_writer"] = {
         "max_row_weight": 128 * MB,
@@ -532,7 +532,7 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_r
 
     attributes = {"title": "copy_file_yt_to_yt"}
 
-    _force_parent_dir(yt.ypath_dirname(dst), client=destination_client)
+    _force_parent_dir(os.path.dirname(dst), client=destination_client)
 
     try:
         with source_client.Transaction(attributes=attributes), destination_client.Transaction(attributes=attributes):
@@ -811,7 +811,7 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
     read_config, files = hive_client.get_table_config_and_files(*source)
     read_command = hive_client.get_read_command(read_config)
 
-    _force_parent_dir(yt.ypath_dirname(destination_table), client=yt_client)
+    _force_parent_dir(os.path.dirname(destination_table), client=yt_client)
 
     json_format_attributes = get_value(json_format_attributes, {})
 
