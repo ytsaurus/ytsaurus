@@ -1,5 +1,5 @@
-yandex-yt>=0.8.12-0
-yandex-yt-yson-bindings>=0.3.7-0
+yandex-yt>=0.8.24-0
+yandex-yt-yson-bindings>=0.3.8-0
 flask==0.10.1
 python-prctl==1.6.1
 python-zlib-fork-safe==0.0.2-0
