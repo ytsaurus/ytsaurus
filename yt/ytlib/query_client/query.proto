@@ -96,6 +96,7 @@ message TTransformExpression
     }
     repeated TExpression arguments = 1;
     required bytes values = 2;
+    optional TExpression default_expression = 3;
 }
 
 message TNamedItem

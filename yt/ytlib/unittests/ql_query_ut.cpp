@@ -1186,6 +1186,38 @@ TEST_F(TQueryEvaluateTest, SimpleTransform2)
         ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, SimpleTransformWithDefault)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String}
+    });
+
+    std::vector<TString> source = {
+        "a=4;b=p",
+        "a=-10;b=q",
+        "a=-10;b=s",
+        "a=15"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=13",
+        "x=-9",
+        "x=17",
+        "x=16",
+    }, resultSplit);
+
+    Evaluate(
+        "transform((a, b), ((4.0, 'p'), (-10, 's')), (13, 17), a + 1) as x FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
 {
     auto split = MakeSplit({

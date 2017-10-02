@@ -2136,12 +2136,14 @@ TCodegenExpression MakeCodegenInExpr(
 
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
+    TNullable<size_t> defaultExprId,
     int arrayIndex,
     EValueType resultType,
     TComparerManagerPtr comparerManager)
 {
     return [
         MOVE(argIds),
+        MOVE(defaultExprId),
         MOVE(arrayIndex),
         resultType,
         MOVE(comparerManager)
@@ -2166,10 +2168,22 @@ TCodegenExpression MakeCodegenTransformExpr(
                 builder.GetOpaqueValue(arrayIndex)
             });
 
-        return TCGValue::CreateFromValue(
+        return CodegenIf<TCGExprContext, TCGValue>(
             builder,
-            builder->CreateLoad(result),
-            resultType);
+            builder->CreateIsNotNull(result),
+            [&] (TCGExprContext& builder) {
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder->CreateLoad(result),
+                    resultType);
+            },
+            [&] (TCGExprContext& builder) {
+                if (defaultExprId) {
+                    return CodegenFragment(builder, *defaultExprId);
+                } else {
+                    return TCGValue::CreateNull(builder, resultType);
+                }
+            });
     };
 }
 

@@ -130,10 +130,15 @@ struct TDebugInfo
 {
     TConstExpressionPtr Expr;
     std::vector<size_t> Args;
+    TNullable<size_t> ExtraArg;
 
-    TDebugInfo(const TConstExpressionPtr& expr, const std::vector<size_t>& args)
+    TDebugInfo(
+        const TConstExpressionPtr& expr,
+        const std::vector<size_t>& args,
+        const TNullable<size_t>& extraArg = Null)
         : Expr(expr)
         , Args(args)
+        , ExtraArg(extraArg)
     { }
 
 };
@@ -185,6 +190,15 @@ struct TExpressionFragmentPrinter
     {
         auto rhsId = DebugExpressions[id].Args[1];
         InferNameArg(rhsId);
+    }
+
+    void OnDefaultExpression(const TTransformExpression* transformExpr, size_t id)
+    {
+        const auto& defaultExpr = DebugExpressions[id].ExtraArg;
+        if (defaultExpr) {
+            Builder->AppendString(", ");
+            InferNameArg(*defaultExpr);
+        }
     }
 
     template <class T>
@@ -516,6 +530,12 @@ size_t TExpressionProfiler::Profile(
             id.AddString(ToString(value).c_str());
         }
 
+        TNullable<size_t> defaultExprId;
+        if (const auto& defaultExpression = transformExpr->DefaultExpression) {
+            defaultExprId = Profile(defaultExpression, schema, fragments, isIsolated);
+            id.AddInteger(*defaultExprId);
+        }
+
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
         if (emplaced.second || isIsolated) {
             Fold(id);
@@ -523,12 +543,25 @@ size_t TExpressionProfiler::Profile(
                 ++fragments->Items[argId].UseCount;
             }
 
+            bool nullable = true;
+
+            if (defaultExprId) {
+                ++fragments->Items[*defaultExprId].UseCount;
+
+                nullable = false;
+                nullable |= fragments->Items[*defaultExprId].Nullable;
+
+                for (TRow row : transformExpr->Values) {
+                    nullable |= row[argIds.size()].Type == EValueType::Null;
+                }
+            }
+
             int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformExpr->Values);
-            fragments->DebugInfos.emplace_back(expr, argIds);
+            fragments->DebugInfos.emplace_back(expr, argIds, defaultExprId);
             fragments->Items.emplace_back(
-                MakeCodegenTransformExpr(argIds, index, transformExpr->Type, ComparerManager_),
+                MakeCodegenTransformExpr(argIds, defaultExprId, index, transformExpr->Type, ComparerManager_),
                 expr->Type,
-                false);
+                nullable);
         }
         return emplaced.first->second;
     }

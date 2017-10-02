@@ -118,6 +118,7 @@ TCodegenExpression MakeCodegenInExpr(
 
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
+    TNullable<size_t> defaultExprId,
     int arrayIndex,
     EValueType resultType,
     TComparerManagerPtr comparerManager);

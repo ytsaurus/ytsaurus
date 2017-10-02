@@ -206,6 +206,7 @@ bool Compare(
         for (size_t index = 0; index < transformLhs->Values.Size(); ++index) {
             CHECK(transformLhs->Values[index] == transformRhs->Values[index])
         }
+        CHECK(Compare(transformRhs->DefaultExpression, lhsSchema, transformRhs->DefaultExpression, rhsSchema, maxIndex))
     } else {
         Y_UNREACHABLE();
     }
@@ -319,6 +320,9 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         NTabletClient::TWireProtocolWriter writer;
         writer.WriteUnversionedRowset(transformExpr->Values);
         ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
+        if (transformExpr->DefaultExpression) {
+            ToProto(proto->mutable_default_expression(), transformExpr->DefaultExpression);
+        }
     }
 }
 
@@ -410,6 +414,9 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
                 TSharedRef::FromString(ext.values()),
                 New<TRowBuffer>());
             result->Values = reader.ReadUnversionedRowset(true);
+            if (ext.has_default_expression()) {
+                FromProto(&result->DefaultExpression, ext.default_expression());
+            }
             *original = result;
             return;
         }

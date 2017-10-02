@@ -1153,8 +1153,6 @@ char IsRowInArray(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* row
     return std::binary_search(rows->Begin(), rows->End(), row, comparer);
 }
 
-// LLVM calling convention for aggregate types is incompatible with C++
-static const TValue NullValue = MakeUnversionedSentinelValue(EValueType::Null);
 const TValue* TransformTuple(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* rows)
 {
     auto found = std::lower_bound(rows->Begin(), rows->End(), row, comparer);
@@ -1163,7 +1161,7 @@ const TValue* TransformTuple(TComparerFunction* comparer, TRow row, TSharedRange
         return &(*found)[row.GetCount()];
     }
 
-    return &NullValue;
+    return nullptr;
 }
 
 size_t StringHash(
