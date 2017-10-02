@@ -10,12 +10,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output)
+TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output, EYsonFormat format)
     : Output_(std::move(output))
 {
     for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {
         Writers_.push_back(
-            new TYsonWriter(Output_->GetStream(i), YF_BINARY, YT_LIST_FRAGMENT));
+            new TYsonWriter(Output_->GetStream(i), format, YT_LIST_FRAGMENT));
     }
 }
 
