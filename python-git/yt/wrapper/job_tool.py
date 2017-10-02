@@ -222,6 +222,9 @@ def ensure_backend_is_supported():
         exit(1)
 
 def prepare_job_environment(operation_id, job_id, job_path, run=False, full=False):
+    # NB: we should explicitely reset this option to default value since CLI usually set True to it.
+    yt.config["default_value_of_raw_option"] = None
+
     ensure_backend_is_supported()
 
     if job_path is None:
