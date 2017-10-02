@@ -1,7 +1,7 @@
 from .driver import make_request
 from .table_helpers import _prepare_format, _to_chunk_stream
 from .common import set_param, bool_to_string, require, is_master_transaction, YtError, get_value
-from .config import get_config, get_option, get_command_param
+from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
@@ -43,6 +43,8 @@ def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index
 def _check_transaction_type(client):
     transaction_id = get_command_param("transaction_id", client=client)
     if transaction_id == null_transaction_id:
+        return
+    if get_backend_type(client) == "native":
         return
     require(not is_master_transaction(transaction_id),
             lambda: YtError("Dynamic table commands can not be performed under master transaction"))
