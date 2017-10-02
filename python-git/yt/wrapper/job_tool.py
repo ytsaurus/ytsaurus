@@ -56,22 +56,33 @@ def make_environment_string(environment):
     return ''.join("export {var}={value}\n".format(var=var, value=shellquote(environment[var]))
                    for var in environment)
 
-def make_run_sh(run_sh_path, operation_id, job_id, sandbox_path, command, environment,
-                input, output_path, output_table_count, use_yamr_descriptors):
+def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environment,
+                input_path, output_path, output_table_count, use_yamr_descriptors):
     output_descriptor_list = get_output_descriptor_list(output_table_count, use_yamr_descriptors)
+
+    run_sh_path = os.path.join(job_path, "run.sh")
 
     # We don't want to redirect stderr.
     output_descriptor_list.remove(2)
 
+    # Sandbox_suffix is suffix relative to job_path.
+    sandbox_suffix = os.path.relpath(sandbox_path, job_path)
+
+    # All other paths that we use are relative to sandbox directory
+    # so user can rename directory with job environment.
+    input_rel_path = os.path.relpath(input_path, sandbox_path)
+    output_rel_path = os.path.relpath(output_path, sandbox_path)
     output_descriptors_spec = " ".join(
-        "{d}> {output_path}/{d}".format(d=d, output_path=output_path)
+        "{d}> {output_rel_path}/{d}".format(d=d, output_rel_path=os.path.relpath(output_path, sandbox_path))
         for d in output_descriptor_list)
 
     script = """\
 #!/usr/bin/env bash
 
-cd {sandbox_path}
-mkdir -p {output_path}
+SANDBOX_DIR="$(dirname $0)/{sandbox_suffix}"
+cd "$SANDBOX_DIR"
+
+mkdir -p {output_rel_path}
 
 export YT_JOB_INDEX=0
 export YT_START_ROW_INDEX=0
@@ -80,17 +91,17 @@ export YT_JOB_ID={job_id}
 export YT_STARTED_BY_JOB_TOOL=1
 {environment}
 
-INPUT_DATA="{input}"
+INPUT_DATA="{input_rel_path}"
 
 ({command}) < $INPUT_DATA {output_descriptors_spec}
 """.format(
-    sandbox_path=sandbox_path,
+    sandbox_suffix=sandbox_suffix,
     operation_id=operation_id,
     job_id=job_id,
     command=command,
     environment=make_environment_string(environment),
-    input=input,
-    output_path=output_path,
+    input_rel_path=input_rel_path,
+    output_rel_path=output_rel_path,
     output_descriptors_spec=output_descriptors_spec)
 
     with open(run_sh_path, "w") as out:
@@ -295,13 +306,13 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         yson.dump(run_config, fout, yson_format="pretty")
     make_run_script(job_path)
     make_run_sh(
-        os.path.join(job_path, "run.sh"),
+        job_path,
         operation_id=run_config["operation_id"],
         job_id=run_config["job_id"],
         sandbox_path=sandbox_path,
         command=job_command,
         environment=job_environment,
-        input=job_input_path,
+        input_path=job_input_path,
         output_path=output_path,
         output_table_count=output_table_count,
         use_yamr_descriptors=use_yamr_descriptors)
