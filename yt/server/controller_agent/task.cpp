@@ -797,7 +797,7 @@ void TTask::RegisterStripe(
     if (edgeDescriptor.RequiresRecoveryInfo) {
         YCHECK(joblet);
 
-        IChunkPoolInput::TCookie inputCookie;
+        IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
         auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, edgeDescriptor.DestinationPool));
         if (lostIt == LostJobCookieMap.end()) {
             // NB: if job is not restarted, we should not add its output for the
