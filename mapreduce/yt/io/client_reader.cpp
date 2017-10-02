@@ -37,14 +37,17 @@ TClientReader::TClientReader(
     const TTableReaderOptions& options)
     : Path_(path)
     , Auth_(auth)
-    , TransactionId_(transactionId)
+    , ParentTransactionId_(transactionId)
     , Format_(format)
     , FormatConfig_(formatConfig)
     , Options_(options)
-    , ReadTransaction_(new TPingableTransaction(auth, transactionId))
+    , ReadTransaction_(nullptr)
     , RetriesLeft_(TConfig::Get()->RetryCount)
 {
-    NDetail::Lock(Auth_, ReadTransaction_->GetId(), path.Path_, LM_SNAPSHOT);
+    if (options.CreateTransaction_) {
+        ReadTransaction_ = MakeHolder<TPingableTransaction>(auth, transactionId);
+        NDetail::Lock(Auth_, ReadTransaction_->GetId(), path.Path_, LM_SNAPSHOT);
+    }
     TransformYPath();
     CreateRequest();
 }
@@ -103,7 +106,8 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
 
             THttpHeader header("GET", GetReadTableCommand());
             header.SetToken(Auth_.Token);
-            header.AddTransactionId(ReadTransaction_->GetId());
+            auto transactionId = (ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_);
+            header.AddTransactionId(transactionId);
             header.AddParam("control_attributes[enable_row_index]", true);
             header.AddParam("control_attributes[enable_range_index]", true);
             header.SetDataStreamFormat(Format_);
@@ -111,7 +115,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             header.SetResponseCompression(TConfig::Get()->AcceptEncoding);
 
             if (Format_ == DSF_YAMR_LENVAL) {
-                auto format = GetTableFormat(Auth_, TransactionId_, Path_);
+                auto format = GetTableFormat(Auth_, ParentTransactionId_, Path_);
                 if (format) {
                     header.SetOutputFormat(NodeToYsonString(format.GetRef()));
                 }

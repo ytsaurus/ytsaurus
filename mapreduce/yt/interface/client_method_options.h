@@ -124,9 +124,16 @@ struct TIOOptions
     using TSelf = TDerived;
 
     FLUENT_FIELD_OPTION(TNode, Config);
+
+    // When `CreateTransaction` is set to `false`
+    // reader/writer doesn't create internal transaction and doesn't lock table.
+    //
+    // WARNING: read/write might become non atomic when `CreateTransaction` is false.
+    // Change ONLY if you are sure what you are doing!
+    FLUENT_FIELD_DEFAULT(bool, CreateTransaction, true);
 };
 
-struct TFileReaderOptions
+    struct TFileReaderOptions
     : public TIOOptions<TFileReaderOptions>
 {
     FLUENT_FIELD_OPTION(i64, Offset);

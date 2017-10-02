@@ -37,7 +37,7 @@ protected:
 private:
     TRichYPath Path_;
     TAuth Auth_;
-    TTransactionId TransactionId_;
+    TTransactionId ParentTransactionId_;
     EDataStreamFormat Format_;
     TString FormatConfig_;
     TTableReaderOptions Options_;
