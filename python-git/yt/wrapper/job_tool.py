@@ -69,7 +69,7 @@ def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environme
     sandbox_suffix = os.path.relpath(sandbox_path, job_path)
 
     # All other paths that we use are relative to sandbox directory
-    # so user can rename directory with job environment.
+    # so user can rename job environment directory.
     input_rel_path = os.path.relpath(input_path, sandbox_path)
     output_rel_path = os.path.relpath(output_path, sandbox_path)
     output_descriptors_spec = " ".join(
