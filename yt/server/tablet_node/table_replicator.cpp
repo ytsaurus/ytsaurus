@@ -189,6 +189,7 @@ private:
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
+            replicaRuntimeData->Error.Store(TError());
 
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
@@ -294,7 +295,6 @@ private:
             replicaRuntimeData->LastReplicationTimestamp.store(
                 newReplicationTimestamp,
                 std::memory_order_relaxed);
-            replicaRuntimeData->Error.Store(TError());
         } catch (const std::exception& ex) {
             TError error(ex);
             if (replicaSnapshot) {
