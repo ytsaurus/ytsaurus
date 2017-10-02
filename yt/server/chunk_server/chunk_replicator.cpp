@@ -2069,27 +2069,19 @@ TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* c
         }
     }
 
-    auto updateRequisition = [&] (const TChunkOwnerBase* owningNode) {
-        auto* account = owningNode->GetAccount();
-        if (account) {
-            requisition.CombineWith(owningNode->Replication(), account, owningNode->IsTrunk());
-        }
-    };
-
     // The main BFS loop.
     while (frontIndex < queue.size()) {
         auto* chunkList = queue[frontIndex++];
 
         // Examine owners, if any.
         for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
-            updateRequisition(owningNode);
-            found = true;
-        }
-        for (const auto* owningNode : chunkList->BranchedOwningNodes()) {
-            updateRequisition(owningNode);
-            found = true;
-        }
+            auto* account = owningNode->GetAccount();
+            if (account) {
+                requisition.CombineWith(owningNode->Replication(), account, true);
+            }
 
+            found = true;
+        }
         // Proceed to parents.
         for (auto* parent : chunkList->Parents()) {
             auto* adjustedParent = FollowParentLinks(parent);
@@ -2159,7 +2151,7 @@ void TChunkReplicator::CacheRequisition(const TChunk* chunk, TChunkRequisitionIn
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
 {
-    while (chunkList->TrunkOwningNodes().Empty() && chunkList->BranchedOwningNodes().Empty()) {
+    while (chunkList->TrunkOwningNodes().Empty()) {
         const auto& parents = chunkList->Parents();
         auto parentCount = parents.Size();
         if (parentCount == 0) {
