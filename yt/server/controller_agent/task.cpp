@@ -800,7 +800,11 @@ void TTask::RegisterStripe(
         IChunkPoolInput::TCookie inputCookie;
         auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, edgeDescriptor.DestinationPool));
         if (lostIt == LostJobCookieMap.end()) {
-            inputCookie = destinationPool->Add(stripe, key);
+            // NB: if job is not restarted, we should not add its output for the
+            // second time to the destination pools that did not trigger the replay.
+            if (!joblet->Restarted) {
+                inputCookie = destinationPool->Add(stripe, key);
+            }
         } else {
             inputCookie = lostIt->second;
             YCHECK(inputCookie != IChunkPoolInput::NullCookie);
