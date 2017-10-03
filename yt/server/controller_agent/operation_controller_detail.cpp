@@ -654,7 +654,7 @@ void TOperationControllerBase::SafeMaterialize()
             JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
         }
 
-        State = EControllerState::Running;
+        State.compare_exchange_strong(EControllerState::Preparing, EControllerState::Running);
 
         LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
