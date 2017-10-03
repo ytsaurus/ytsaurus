@@ -331,7 +331,7 @@ if(YT_CAN_BUILD_PACKAGE)
 
   install(
     DIRECTORY ${CMAKE_BINARY_DIR}/src
-    DESTINATION share/yandex-yt
+    DESTINATION share/yandex-yt/${YT_VERSION}
     COMPONENT sources
   )
 
