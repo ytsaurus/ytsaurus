@@ -6,6 +6,7 @@
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/http/error.h>
+#include <mapreduce/yt/http/abortable_http_response.h>
 
 #include <library/unittest/registar.h>
 
@@ -508,6 +509,36 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
             UNIT_ASSERT(!client->Exists(path.Path_));
             transaction->Commit();
             UNIT_ASSERT(client->Exists(path.Path_));
+        }
+    }
+
+    SIMPLE_UNIT_TEST(ReaderTakesLockOnTableIdNotPath)
+    {
+        TConfig::Get()->UseAbortableResponse = true;
+
+        auto client = CreateTestClient();
+        auto firstPath = TRichYPath("//testing/table1");
+        auto secondPath = TRichYPath("//testing/table2");
+        int numRows = 4e6;
+        {
+            auto writer = client->CreateTableWriter<TNode>(firstPath);
+            for (int i = 0; i < numRows; ++i) {
+                writer->AddRow(TNode()("first_key", i));
+            }
+            writer->Finish();
+        }
+        {
+            auto writer = client->CreateTableWriter<TNode>(secondPath);
+            for (int i = 0; i < numRows; ++i) {
+                writer->AddRow(TNode()("second_key", i));
+            }
+            writer->Finish();
+        }
+        auto reader = client->CreateTableReader<TNode>(firstPath);
+        client->Move(secondPath.Path_, firstPath.Path_, TMoveOptions().Force(true));
+        UNIT_ASSERT(TAbortableHttpResponse::AbortAll("/read_table") > 0);
+        for (; reader->IsValid(); reader->Next()) {
+            UNIT_ASSERT(reader->GetRow().AsMap().has("first_key"));
         }
     }
 }
