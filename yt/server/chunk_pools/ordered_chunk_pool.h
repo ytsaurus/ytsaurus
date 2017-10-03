@@ -27,6 +27,7 @@ struct TOrderedChunkPoolOptions
     bool EnablePeriodicYielder = false;
     bool KeepOutputOrder = false;
     EStripeListExtractionOrder ExtractionOrder = EStripeListExtractionOrder::DataSizeDescending;
+    bool ShouldSliceByRowIndices = false;
 
     void Persist(const TPersistenceContext& context);
 };

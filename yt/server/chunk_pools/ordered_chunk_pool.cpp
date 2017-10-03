@@ -35,6 +35,7 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, OperationId);
     Persist(context, EnablePeriodicYielder);
     Persist(context, ExtractionOrder);
+    Persist(context, ShouldSliceByRowIndices);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +67,7 @@ public:
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
+        , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
         , OutputOrder_(options.KeepOutputOrder ? New<TOutputOrder>() : nullptr)
     {
@@ -280,6 +282,7 @@ public:
         Persist(context, OperationId_);
         Persist(context, ChunkPoolId_);
         Persist(context, MaxTotalSliceCount_);
+        Persist(context, ShouldSliceByRowIndices_);
         Persist(context, EnablePeriodicYielder_);
         Persist(context, OutputOrder_);
         Persist(context, JobIndex_);
@@ -327,6 +330,8 @@ private:
     TGuid ChunkPoolId_ = TGuid::Create();
 
     i64 MaxTotalSliceCount_ = 0;
+
+    bool ShouldSliceByRowIndices_ = false;
 
     bool EnablePeriodicYielder_;
 
@@ -395,7 +400,7 @@ private:
                 }
 
                 std::vector<TInputDataSlicePtr> slicedDataSlices;
-                if (dataSlice->Type == EDataSourceType::UnversionedTable) {
+                if (dataSlice->Type == EDataSourceType::UnversionedTable && ShouldSliceByRowIndices_) {
                     auto chunkSlices = CreateInputChunkSlice(dataSlice->GetSingleUnversionedChunkOrThrow())
                         ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
                     for (const auto& chunkSlice : chunkSlices) {
