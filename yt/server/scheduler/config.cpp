@@ -295,6 +295,8 @@ TTestingOptions::TTestingOptions()
         .Default(false);
     RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
         .Default(Null);
+    RegisterParameter("validate_total_job_counter_correctness", ValidateTotalJobCounterCorrectness)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

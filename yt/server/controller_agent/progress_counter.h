@@ -23,7 +23,6 @@ public:
     bool IsTotalEnabled() const;
 
     void Increment(i64 value);
-    void Finalize();
 
     i64 GetTotal() const;
     i64 GetRunning() const;
@@ -44,8 +43,9 @@ public:
     void Aborted(i64 count, EAbortReason reason = EAbortReason::Other);
     void Lost(i64 count);
 
-    // NB: this method does not check that loop is not created.
-    void SetParent(TProgressCounterPtr parent);
+    // NB: this method does not check that counter hierarchy does not contain loops.
+    void SetParent(const TProgressCounterPtr& parent);
+    const TProgressCounterPtr& Parent() const;
 
     void Persist(const TPersistenceContext& context);
 

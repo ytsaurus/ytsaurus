@@ -354,6 +354,9 @@ public:
     // Testing option that enables sleeping between intermediate and final states of operation.
     TNullable<TDuration> FinishOperationTransitionDelay;
 
+    //! Check that controller job counter agrees with the total job counter in data flow graph.
+    bool ValidateTotalJobCounterCorrectness;
+
     TTestingOptions();
 };
 

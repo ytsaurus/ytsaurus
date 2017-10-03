@@ -179,11 +179,11 @@ class TTestingOperationOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    TDuration SchedulingDelay;
+    TNullable<TDuration> SchedulingDelay;
     ESchedulingDelayType SchedulingDelayType;
 
-    TDuration DelayInsideOperationCommit;
-    EDelayInsideOperationCommitStage DelayInsideOperationCommitStage;
+    TNullable<TDuration> DelayInsideOperationCommit;
+    TNullable<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
     EControllerFailureType ControllerFailure;

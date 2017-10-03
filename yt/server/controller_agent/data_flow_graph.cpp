@@ -33,22 +33,32 @@ void TDataFlowGraph::BuildYson(NYson::IYsonConsumer* consumer) const
         .Item("vertices").BeginMap()
             .DoFor(GetTopologicalOrder(), [&] (TFluentMap fluent, EJobType jobType) {
                 fluent
-                    .Item(FormatEnum(jobType)).Value(ProgressCounters_.at(jobType));
+                    .Item(FormatEnum(jobType)).BeginMap()
+                        .Item("job_counter").Value(JobCounters_.at(jobType))
+                    .EndMap();
             })
+            .Item("total").BeginMap()
+                .Item("job_counter").Value(TotalJobCounter_)
+            .EndMap()
         .EndMap();
 }
 
-const TProgressCounterPtr& TDataFlowGraph::ProgressCounter(EJobType jobType)
+const TProgressCounterPtr& TDataFlowGraph::JobCounter(EJobType jobType)
 {
-    return ProgressCounters_[jobType];
+    auto& progressCounter = JobCounters_[jobType];
+    if (!progressCounter) {
+        progressCounter = New<TProgressCounter>(0);
+        progressCounter->SetParent(TotalJobCounter_);
+    }
+    return progressCounter;
 }
 
 std::vector<EJobType> TDataFlowGraph::GetTopologicalOrder() const
 {
     // TODO(max42): implement a correct topological order here.
     std::vector<EJobType> result;
-    result.reserve(ProgressCounters_.size());
-    for (const auto& item : ProgressCounters_) {
+    result.reserve(JobCounters_.size());
+    for (const auto& item : JobCounters_) {
         result.emplace_back(item.first);
     }
     return result;
@@ -57,8 +67,8 @@ std::vector<EJobType> TDataFlowGraph::GetTopologicalOrder() const
 void TDataFlowGraph::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-
-    Persist(context, ProgressCounters_);
+    Persist(context, JobCounters_);
+    Persist(context, TotalJobCounter_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
