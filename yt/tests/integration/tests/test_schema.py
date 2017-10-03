@@ -1,3 +1,5 @@
+# -*- coding: utf8 -*-
+
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 import pytest
@@ -12,6 +14,8 @@ GOOD_VALUE_LIST = [
     {"ui32": 0}, {"ui32": 2 ** 32 - 1}, {"ui32": None},
     {"ui16": 0}, {"ui16": 2 ** 16 - 1}, {"ui16": None},
     {"ui8": 0}, {"ui8": 2 ** 8 - 1}, {"ui8": None},
+
+    {"utf8": "ff"}, {"utf8": "ЫТЬ"}, {"utf8": None},
 ]
 
 BAD_VALUE_LIST = [
@@ -21,7 +25,9 @@ BAD_VALUE_LIST = [
 
     {"ui32": 2 ** 32},
     {"ui16": 2 ** 16},
-    {"ui8": 2 ** 8}
+    {"ui8": 2 ** 8},
+
+    {"utf8": "\xFF"},
 ]
 
 SCHEMA = [
@@ -53,6 +59,10 @@ SCHEMA = [
     {
         "type": "int8",
         "name": "i8",
+    },
+    {
+        "type": "utf8",
+        "name": "utf8",
     },
 ]
 

@@ -20,6 +20,7 @@
 
 #include <util/generic/ymath.h>
 
+#include <util/charset/utf8.h>
 #include <util/stream/str.h>
 
 #include <cmath>
@@ -931,6 +932,28 @@ static inline void ValidateIntegerRange(const TUnversionedValue& value, const TS
     }
 }
 
+static inline TString GetStringPrefix(const char* data, size_t size, size_t maxSize)
+{
+    YCHECK(maxSize > 3);
+    if (size > maxSize) {
+        return TString(data, maxSize - 3) + "...";
+    } else {
+        return TString(data, size);
+    }
+}
+
+static inline void ValidateUtf8(const TUnversionedValue& value, const TString& columnName)
+{
+    if (!IsUtf(value.Data.String, value.Length)) {
+        auto prefix = GetStringPrefix(value.Data.String, value.Length, 50);
+        TErrorAttribute attr("value", prefix);
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::SchemaViolation,
+            "Value of column %Qv is not valid utf8 string",
+            columnName) << attr;
+    }
+}
+
 void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& columnSchema, bool typeAnyAcceptsAllValues)
 {
     if (value.Type == EValueType::Null) {
@@ -979,6 +1002,8 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
         case ELogicalValueType::Uint32:
             ValidateIntegerRange<ui32>(value, columnSchema.Name());
             break;
+        case ELogicalValueType::Utf8:
+            ValidateUtf8(value, columnSchema.Name());
         default:
             break;
     }
