@@ -1058,6 +1058,13 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         LOG_DEBUG_UNLESS(IsRecovery(), "Skipping heartbeat mutation (Version: %v)",
             automatonVersion);
     } else {
+        auto syncTime = NProfiling::GetInstant() - context->GetTimestamp();
+        Profiler.Enqueue(
+            "/mutation_wait_time",
+            syncTime.MilliSeconds(),
+            NProfiling::EMetricType::Gauge,
+            CellManager_->GetCellIdTags());
+
         auto* descriptor = GetTypeDescriptor(mutationType);
 
         TMutationContextGuard contextGuard(context);
