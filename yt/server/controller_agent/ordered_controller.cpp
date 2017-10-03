@@ -451,6 +451,7 @@ protected:
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.OperationId = OperationId;
         chunkPoolOptions.KeepOutputOrder = OrderedOutputRequired_;
+        chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
         return chunkPoolOptions;
     }
 };
