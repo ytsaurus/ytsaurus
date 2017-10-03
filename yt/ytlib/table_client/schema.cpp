@@ -981,11 +981,11 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             }
             yhash_set<TString> references;
             auto expr = PrepareExpression(columnSchema.Expression().Get(), schema, BuiltinTypeInferrersMap, &references);
-            if (expr->Type != columnSchema.GetPhysicalType()) {
+            if (GetLogicalType(expr->Type) != columnSchema.LogicalType()) {
                 THROW_ERROR_EXCEPTION(
                     "Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
                     columnSchema.Name(),
-                    columnSchema.GetPhysicalType(),
+                    columnSchema.LogicalType(),
                     expr->Type);
             }
 

@@ -113,3 +113,16 @@ class TestLogicalType(YTEnvSetup):
                 expect_error_alter_table(
                     [{"name": "column_name", "type": source_type}],
                     [{"name": "column_name", "type": destination_type}])
+
+    def test_logical_type_column_constrains(self):
+        with pytest.raises(YtError):
+            create("table", "//test-table",
+                   attributes={"schema": [
+                       {"name": "key1", "type": "int32", "expression": "100"},
+                   ]})
+
+        with pytest.raises(YtError):
+            create("table", "//test-table",
+                   attributes={"schema": [
+                       {"name": "key1", "type": "int32", "aggregate": "sum"},
+                   ]})
