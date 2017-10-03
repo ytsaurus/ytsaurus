@@ -189,7 +189,6 @@ private:
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
-            replicaRuntimeData->Error.Store(TError());
 
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
@@ -197,6 +196,7 @@ private:
                 // Some log rows are prepared for replication, hence replication cannot proceed.
                 // Seeing this is unusual since we're waiting for the replication commit to complete (see below).
                 // However we may occasionally run into this check on epoch change.
+                replicaRuntimeData->Error.Store(TError());
                 return;
             }
 
@@ -219,6 +219,7 @@ private:
                 replicaRuntimeData->LastReplicationTimestamp.store(
                     Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
                     std::memory_order_relaxed);
+                replicaRuntimeData->Error.Store(TError());
                 return;
             }
 
@@ -295,6 +296,7 @@ private:
             replicaRuntimeData->LastReplicationTimestamp.store(
                 newReplicationTimestamp,
                 std::memory_order_relaxed);
+            replicaRuntimeData->Error.Store(TError());
         } catch (const std::exception& ex) {
             TError error(ex);
             if (replicaSnapshot) {
