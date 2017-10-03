@@ -457,8 +457,6 @@ protected:
 
     TDataFlowGraph DataFlowGraph_;
 
-
-
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::INativeClientPtr client,
@@ -844,6 +842,8 @@ protected:
 
     virtual void UnstageChunkTreesNonRecursively(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds) override;
 
+    virtual TDataFlowGraph& DataFlowGraph() override;
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1028,9 +1028,6 @@ private:
     void BuildFinishedJobAttributes(
         const TFinishedJobInfoPtr& job,
         bool outputStatistics,
-        NYson::IYsonConsumer* consumer) const;
-
-    void BuildDataFlowGraphYson(
         NYson::IYsonConsumer* consumer) const;
 
     void AnalyzeBriefStatistics(

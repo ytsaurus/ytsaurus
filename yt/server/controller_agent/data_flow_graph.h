@@ -35,18 +35,21 @@ struct TEdgeDescriptor
 class TDataFlowGraph
 {
 public:
+    DEFINE_BYREF_RO_PROPERTY(TProgressCounterPtr, TotalJobCounter, New<TProgressCounter>(0));
+
+public:
     TDataFlowGraph() = default;
 
     void BuildYson(NYson::IYsonConsumer* consumer) const;
 
-    const TProgressCounterPtr& ProgressCounter(EJobType jobType);
+    const TProgressCounterPtr& JobCounter(EJobType jobType);
 
     void Persist(const TPersistenceContext& context);
 
     std::vector<EJobType> GetTopologicalOrder() const;
 
 private:
-    yhash<EJobType, TProgressCounterPtr> ProgressCounters_;
+    yhash<EJobType, TProgressCounterPtr> JobCounters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

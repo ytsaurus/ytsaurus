@@ -561,6 +561,13 @@ protected:
                     LOG_DEBUG("Partition[%v] = %v",
                         partition->Index,
                         dataWeight);
+
+                    if (partition->SortTask) {
+                        partition->SortTask->FinishInput();
+                    }
+                    if (partition->UnorderedMergeTask) {
+                        partition->UnorderedMergeTask->FinishInput();
+                    }
                 }
             }
 
@@ -2268,7 +2275,7 @@ private:
         partition->SortTask->FinishInput();
 
         // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
-        SortDataWeightCounter->Set(SimpleSortPool->GetTotalDataWeight());
+        SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
 
         LOG_INFO("Sorting without partitioning (SortJobCount: %v, DataWeightPerJob: %v)",
             jobSizeConstraints->GetJobCount(),

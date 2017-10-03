@@ -1105,15 +1105,11 @@ void TOperationControllerBase::CommitCompletionTransaction()
 
 void TOperationControllerBase::SleepInStage(EDelayInsideOperationCommitStage desiredStage)
 {
-    auto delay = Spec_->TestingOperationOptions
-        ? Spec_->TestingOperationOptions->DelayInsideOperationCommit
-        : TDuration();
-    auto stage = Spec_->TestingOperationOptions
-        ? Spec_->TestingOperationOptions->DelayInsideOperationCommitStage
-        : EDelayInsideOperationCommitStage::Stage1;
+    auto delay = Spec_->TestingOperationOptions->DelayInsideOperationCommit;
+    auto stage = Spec_->TestingOperationOptions->DelayInsideOperationCommitStage;
 
-    if (delay && stage == desiredStage) {
-        WaitFor(TDelayedExecutor::MakeDelayed(delay));
+    if (delay && stage && *stage == desiredStage) {
+        WaitFor(TDelayedExecutor::MakeDelayed(*delay));
     }
 }
 
@@ -1409,8 +1405,6 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant st
     joblet->StartTime = startTime;
     joblet->LastActivityTime = startTime;
 
-    //DataFlowGraph_.OnJobStarted(joblet->JobType);
-
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
         .Item("operation_id").Value(OperationId)
@@ -1553,8 +1547,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     auto joblet = GetJoblet(jobId);
 
-    //DataFlowGraph_.OnJobCompleted(joblet->JobType);
-
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
     const auto& statistics = *jobSummary->Statistics;
@@ -1631,8 +1623,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     JobCounter->Failed(1);
 
     auto joblet = GetJoblet(jobId);
-
-    //DataFlowGraph_.OnJobFailed(joblet->JobType);
 
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
 
@@ -2036,7 +2026,6 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
         completedJob->InputCookie);
 
     JobCounter->Lost(1);
-    //DataFlowGraph_.OnJobLost(completedJob->JobType);
     completedJob->Lost = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
     completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
@@ -2520,11 +2509,11 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
-    if (Spec_->TestingOperationOptions) {
+    if (Spec_->TestingOperationOptions->SchedulingDelay) {
         if (Spec_->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
-            WaitFor(TDelayedExecutor::MakeDelayed(Spec_->TestingOperationOptions->SchedulingDelay));
+            WaitFor(TDelayedExecutor::MakeDelayed(*Spec_->TestingOperationOptions->SchedulingDelay));
         } else {
-            Sleep(Spec_->TestingOperationOptions->SchedulingDelay);
+            Sleep(*Spec_->TestingOperationOptions->SchedulingDelay);
         }
     }
 
@@ -3139,6 +3128,22 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     FlushOperationNode(/* checkFlushResult */ true);
 
     LogProgress(/* force */ true);
+
+    if (Config->TestingOptions->ValidateTotalJobCounterCorrectness) {
+        auto jobCounterRepresentation = ConvertToYsonString(JobCounter, EYsonFormat::Pretty);
+        auto totalJobCounterRepresentation = ConvertToYsonString(DataFlowGraph_.TotalJobCounter(), EYsonFormat::Pretty);
+        if (jobCounterRepresentation != totalJobCounterRepresentation) {
+            // For MR and Sort there the total job count behaves pretty strangely
+            // and sometimes simply doesn't work as it is supposed to.
+            auto logLevel = (OperationType == EOperationType::MapReduce || OperationType == EOperationType::Sort)
+                ? NLogging::ELogLevel::Warning
+                : NLogging::ELogLevel::Fatal;
+            LOG_EVENT(Logger, logLevel, "Data flow graph total job counter differs from the controller job counter "
+                "(DataFlowCounter: %qv, ControllerCounter: %qv)",
+                jobCounterRepresentation,
+                totalJobCounterRepresentation);
+        }
+    }
 
     Host->OnOperationCompleted(OperationId);
 }
@@ -6225,6 +6230,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeJobSpecTemplates_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, JobSplitter_);
+    Persist(context, DataFlowGraph_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already intialized.
@@ -6318,6 +6324,11 @@ TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate(
 void TOperationControllerBase::UnstageChunkTreesNonRecursively(std::vector<TChunkTreeId> chunkTreeIds)
 {
     MasterConnector->AddChunksToUnstageList(std::move(chunkTreeIds));
+}
+
+TDataFlowGraph& TOperationControllerBase::DataFlowGraph()
+{
+    return DataFlowGraph_;
 }
 
 bool TOperationControllerBase::IsCompleted() const

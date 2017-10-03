@@ -173,6 +173,10 @@ void TTask::FinishInput()
     LOG_DEBUG("Task input finished");
 
     GetChunkPoolInput()->Finish();
+    auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
+    if (!progressCounter->Parent()) {
+        progressCounter->SetParent(TaskHost_->DataFlowGraph().JobCounter(GetJobType()));
+    }
     AddPendingHint();
     CheckCompleted();
 }

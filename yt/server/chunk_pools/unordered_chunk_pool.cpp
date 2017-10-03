@@ -75,6 +75,8 @@ public:
 
         if (Mode == EUnorderedChunkPoolMode::Normal) {
             JobCounter->Set(JobSizeConstraints->GetJobCount());
+        } else {
+            JobCounter->Set(0);
         }
 
         if (jobSizeAdjusterConfig && JobSizeConstraints->CanAdjustDataWeightPerJob()) {
@@ -309,6 +311,9 @@ public:
             }
         }
 
+        if (Mode == EUnorderedChunkPoolMode::AutoMerge) {
+            JobCounter->Increment(1);
+        }
         JobCounter->Start(1);
         DataWeightCounter->Start(list->TotalDataWeight);
         RowCounter->Start(list->TotalRowCount);

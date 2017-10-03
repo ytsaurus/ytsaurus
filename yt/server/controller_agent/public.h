@@ -48,6 +48,8 @@ DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
+class TDataFlowGraph;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent

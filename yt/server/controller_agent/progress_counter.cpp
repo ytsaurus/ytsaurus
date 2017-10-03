@@ -190,19 +190,31 @@ void TProgressCounter::Lost(i64 count)
     }
 }
 
-void TProgressCounter::Finalize()
+void TProgressCounter::SetParent(const TProgressCounterPtr& parent)
 {
+    YCHECK(!Parent_);
+    Parent_ = parent;
     if (TotalEnabled_) {
-        Total_ = GetCompletedTotal();
-        Pending_ = 0;
-        Running_ = 0;
+        Parent_->Increment(Total_);
+    }
+    Parent_->Start(Running_);
+    for (const auto& interruptReason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+        if (Completed_[interruptReason]) {
+            Parent_->Completed(Completed_[interruptReason], interruptReason);
+        }
+    }
+    Parent_->Failed(Failed_);
+    Parent_->Lost(Lost_);
+    for (const auto& abortReason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+        if (Aborted_[abortReason]) {
+            Parent_->Aborted(Aborted_[abortReason], abortReason);
+        }
     }
 }
 
-void TProgressCounter::SetParent(TProgressCounterPtr parent)
+const TProgressCounterPtr& TProgressCounter::Parent() const
 {
-    YCHECK(!Parent_);
-    Parent_ = std::move(parent);
+    return Parent_;
 }
 
 void TProgressCounter::Persist(const TPersistenceContext& context)

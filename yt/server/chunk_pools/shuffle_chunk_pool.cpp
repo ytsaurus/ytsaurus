@@ -212,6 +212,7 @@ private:
             : Owner(owner)
             , PartitionIndex(partitionIndex)
         {
+            JobCounter->Set(0);
             AddNewRun();
         }
 
@@ -337,6 +338,7 @@ private:
             YCHECK(run.State == ERunState::Pending);
             run.State = ERunState::Running;
 
+            JobCounter->Increment(1);
             JobCounter->Start(1);
             DataWeightCounter->Start(run.TotalDataWeight);
             RowCounter->Start(run.TotalRowCount);
