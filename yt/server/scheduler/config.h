@@ -111,6 +111,9 @@ public:
     //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
     double ThresholdToEnableMaxPossibleUsageRegularization;
 
+    //! Delay before starting considering total resource limits after scheduler connection.
+    TDuration TotalResourceLimitsConsiderDelay;
+
     TFairShareStrategyConfig();
 };
 

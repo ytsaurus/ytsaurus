@@ -44,6 +44,11 @@ struct TSchedulerStrategyHostMock
         return GetMainNodesResourceLimits();
     }
 
+    virtual TInstant GetConnectionTime() const override
+    {
+        return TInstant();
+    }
+
     virtual void ActivateOperation(const TOperationId& operationId) override
     { }
 
