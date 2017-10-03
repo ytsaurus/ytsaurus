@@ -211,6 +211,7 @@ protected:
                 ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
             }
             i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + static_cast<i64>(unreadRows.Size()));
+            rowCount = std::min(rowCount, upperRowIndex - rowIndex);
             chunk.set_row_count_override(rowCount);
             i64 dataWeight = DivCeil(misc.uncompressed_data_size(), misc.row_count()) * rowCount;
             YCHECK(dataWeight > 0);
@@ -222,8 +223,10 @@ protected:
             auto& chunk = readDescriptors[0].ChunkSpecs[0];
             chunk.mutable_upper_limit()->set_row_index(rowIndex);
             i64 rowCount = RowCount_ - unreadRows.Size();
-            chunk.set_row_count_override(rowCount);
             YCHECK(rowCount >= 0);
+            chunk.set_row_count_override(rowCount);
+            YCHECK(rowIndex >= rowCount);
+            chunk.mutable_lower_limit()->set_row_index(rowIndex - rowCount);
             i64 dataWeight = DivCeil(misc.uncompressed_data_size(), misc.row_count()) * rowCount;
             chunk.set_data_weight_override(dataWeight);
         }
