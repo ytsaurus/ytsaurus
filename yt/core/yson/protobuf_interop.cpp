@@ -510,7 +510,7 @@ public:
         Y_ASSERT(!TypeStack_.empty());
         const auto* field = FieldStack_.back().Field;
         int index = FieldStack_.back().CurrentListIndex++;
-        FieldStack_.push_back({field, index, true});
+        FieldStack_.emplace_back(field, index, true);
         YPathStack_.Push(index);
     }
 
@@ -523,7 +523,7 @@ public:
     virtual void OnBeginMap() override
     {
         if (TypeStack_.empty()) {
-            TypeStack_.push_back({RootType_});
+            TypeStack_.emplace_back(RootType_);
             return;
         }
 
@@ -536,7 +536,7 @@ public:
         }
 
         ValidateNotRepeated();
-        TypeStack_.push_back({field->GetMessageType()});
+        TypeStack_.emplace_back(field->GetMessageType());
         WriteTag();
         int nestedIndex = BeginNestedMessage();
         NestedIndexStack_.push_back(nestedIndex);
@@ -563,7 +563,7 @@ public:
             TypeStack_.back().NonRequiredFieldNumbers.push_back(number);
         }
 
-        FieldStack_.push_back({field, 0, false});
+        FieldStack_.emplace_back(field, 0, false);
         YPathStack_.Push(field->GetYsonName());
     }
 
@@ -614,6 +614,10 @@ private:
 
     struct TTypeEntry
     {
+        explicit TTypeEntry(const TProtobufMessageType* type)
+            : Type(type)
+        { }
+
         const TProtobufMessageType* Type;
         TFieldNumberList RequiredFieldNumbers;
         TFieldNumberList NonRequiredFieldNumbers;
@@ -624,6 +628,15 @@ private:
 
     struct TFieldEntry
     {
+        TFieldEntry(
+            const TProtobufField* field,
+            int currentListIndex,
+            bool inList)
+            : Field(field)
+            , CurrentListIndex(currentListIndex)
+            , InList(inList)
+        { }
+
         const TProtobufField* Field;
         int CurrentListIndex;
         bool InList;
@@ -632,9 +645,14 @@ private:
 
     struct TNestedMessageEntry
     {
+        TNestedMessageEntry(int lo, int hi)
+            : Lo(lo)
+            , Hi(hi)
+        { }
+
         int Lo;
         int Hi;
-        int ByteSize;
+        int ByteSize = -1;
     };
     std::vector<TNestedMessageEntry> NestedMessages_;
 
@@ -642,7 +660,7 @@ private:
     int BeginNestedMessage()
     {
         auto index =  static_cast<int>(NestedMessages_.size());
-        NestedMessages_.push_back({BodyCodedStream_.ByteCount(), -1, -1});
+        NestedMessages_.emplace_back(BodyCodedStream_.ByteCount(), -1);
         return index;
     }
 
@@ -657,7 +675,7 @@ private:
         BodyCodedStream_.Trim();
 
         int bodyLength = static_cast<int>(BodyString_.length());
-        NestedMessages_.push_back({bodyLength, std::numeric_limits<int>::max(), -1});
+        NestedMessages_.emplace_back(bodyLength, std::numeric_limits<int>::max());
 
         {
             int nestedIndex = 0;
@@ -921,8 +939,8 @@ public:
 
     void Parse()
     {
-        TypeStack_.push_back({RootType_});
-        RepeatedFieldNumberStack_.push_back({-1, -1});
+        TypeStack_.emplace_back(RootType_);
+        RepeatedFieldNumberStack_.emplace_back();
 
         Consumer_->OnBeginMap();
 
@@ -975,7 +993,7 @@ public:
             } else {
                 if (RepeatedFieldNumberStack_.back().FieldNumber != -1) {
                     Consumer_->OnEndList();
-                    RepeatedFieldNumberStack_.back() = {-1, -1};
+                    RepeatedFieldNumberStack_.back() = TRepeatedFieldEntry();
                     YPathStack_.Pop();
                 }
 
@@ -983,7 +1001,7 @@ public:
                 YPathStack_.Push(field->GetYsonName());
 
                 if (field->IsRepeated()) {
-                    RepeatedFieldNumberStack_.back() = {fieldNumber, 0};
+                    RepeatedFieldNumberStack_.back() = TRepeatedFieldEntry(fieldNumber, 0);
                     Consumer_->OnBeginList();
                     Consumer_->OnListItem();
                     YPathStack_.Push(0);
@@ -1165,9 +1183,9 @@ public:
                         }
 
                         case FieldDescriptor::TYPE_MESSAGE: {
-                            RepeatedFieldNumberStack_.push_back({-1, -1});
+                            RepeatedFieldNumberStack_.emplace_back();
                             LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(length)));
-                            TypeStack_.push_back({field->GetMessageType()});
+                            TypeStack_.emplace_back(field->GetMessageType());
                             Consumer_->OnBeginMap();
                             break;
                         }
@@ -1198,6 +1216,10 @@ private:
 
     struct TTypeEntry
     {
+        explicit TTypeEntry(const TProtobufMessageType* type)
+            : Type(type)
+        { }
+
         const TProtobufMessageType* Type;
         TFieldNumberList RequiredFieldNumbers;
         TFieldNumberList OptionalFieldNumbers;
@@ -1208,8 +1230,13 @@ private:
 
     struct TRepeatedFieldEntry
     {
-        int FieldNumber;
-        int ListIndex;
+        explicit TRepeatedFieldEntry(int fieldNumber = -1, int listIndex = -1)
+            : FieldNumber(fieldNumber)
+            , ListIndex(listIndex)
+        { }
+
+        int FieldNumber = -1;
+        int ListIndex = -1;
     };
     std::vector<TRepeatedFieldEntry> RepeatedFieldNumberStack_;
 
