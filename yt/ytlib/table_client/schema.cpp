@@ -691,6 +691,19 @@ bool IsSubtypeOf(ELogicalValueType lhs, ELogicalValueType rhs)
 
         return lit <= rit;
     }
+
+    if (leftPhysicalType == EValueType::String) {
+        static const std::vector<ELogicalValueType> order = {
+            ELogicalValueType::Utf8,
+            ELogicalValueType::String,
+        };
+        auto lit = std::find(order.begin(), order.end(), lhs);
+        auto rit = std::find(order.begin(), order.end(), rhs);
+        Y_ASSERT(lit != order.end());
+        Y_ASSERT(rit != order.end());
+        return lit <= rit;
+    }
+
     return false;
 }
 
