@@ -395,9 +395,7 @@ private:
                 }
 
                 std::vector<TInputDataSlicePtr> slicedDataSlices;
-                if (dataSlice->Type == EDataSourceType::UnversionedTable &&
-                    dataSlice->GetRowCount() >= JobSizeConstraints_->GetInputSliceRowCount())
-                {
+                if (dataSlice->Type == EDataSourceType::UnversionedTable) {
                     auto chunkSlices = CreateInputChunkSlice(dataSlice->GetSingleUnversionedChunkOrThrow())
                         ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
                     for (const auto& chunkSlice : chunkSlices) {
