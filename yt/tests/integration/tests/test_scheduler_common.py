@@ -1395,15 +1395,22 @@ class TestJobRevival(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        for i in range(1000):
-            jobs = get("//sys/operations/{0}/@brief_progress/jobs".format(op.id), verbose=False)
+        for i in xrange(1000):
+            for j in xrange(10):
+                try:
+                    jobs = get("//sys/operations/{0}/@brief_progress/jobs".format(op.id), verbose=False)
+                    break
+                except:
+                    time.sleep(0.1)
+                    continue
+            else:
+                assert False
             if i == 300:
                 events.notify_event("complete_operation")
             running = jobs["running"]
             aborted = jobs["aborted"]["total"]
             assert running <= user_slots_limit
-            # TODO(ignat): uncomment this after dealing with strange preemptions.
-            # assert aborted == 0
+            assert aborted == 0
 
         op.track()
 

@@ -1315,9 +1315,11 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 
 TJobResources TPool::ComputeResourceLimits() const
 {
-    auto resourceLimits = GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * Config_->MaxShareRatio;
+    auto maxShareLimits = Host_->GetConnectionTime() + StrategyConfig_->TotalResourceLimitsConsiderDelay < TInstant::Now()
+        ? GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * GetMaxShareRatio()
+        : InfiniteJobResources();
     auto perTypeLimits = ToJobResources(Config_->ResourceLimits, InfiniteJobResources());
-    return Min(resourceLimits, perTypeLimits);
+    return Min(maxShareLimits, perTypeLimits);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1744,7 +1746,9 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
     auto usage = GetResourceUsage();
-    limit = Min(limit, MaxPossibleResourceUsage() - usage);
+    // Max possible resource usage can be less than usage just after scheduler connection
+    // when not all nodes come with heartbeat to the scheduler.
+    limit = Max(ZeroJobResources(), Min(limit, MaxPossibleResourceUsage() - usage));
     if (usage == ZeroJobResources()) {
         return limit;
     } else {
@@ -2230,7 +2234,9 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 
 TJobResources TOperationElement::ComputeResourceLimits() const
 {
-    auto maxShareLimits = GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * Spec_->MaxShareRatio;
+    auto maxShareLimits = Host_->GetConnectionTime() + StrategyConfig_->TotalResourceLimitsConsiderDelay < TInstant::Now()
+        ? GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * GetMaxShareRatio()
+        : InfiniteJobResources();
     auto perTypeLimits = ToJobResources(RuntimeParams_->ResourceLimits, InfiniteJobResources());
     return Min(maxShareLimits, perTypeLimits);
 }
