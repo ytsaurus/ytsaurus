@@ -6,8 +6,10 @@ from util.generic.string cimport TString
 from util.system.types cimport i64, ui64, ui32
 
 
-cdef extern from "mapreduce/yt/client/init.h" namespace "NYT":
-    void Initialize(int, const char**) except +
+cdef extern from "mapreduce/yt/interface/init.h" namespace "NYT":
+    cdef cppclass TInitializeOptions:
+        TInitializeOptions() except +
+    void Initialize(int, const char**, const TInitializeOptions&) except +
 
 
 def initialize(*args):
@@ -15,7 +17,7 @@ def initialize(*args):
     for i in xrange(len(args)):
         argv[i] = <char*>args[i]
     try:
-        Initialize(len(args), argv)
+        Initialize(len(args), argv, TInitializeOptions())
     finally:
         free(argv)
 

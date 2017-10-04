@@ -5,6 +5,7 @@
 #include "client_method_options.h"
 #include "batch_request.h"
 #include "cypress.h"
+#include "init.h"
 #include "io.h"
 #include "node.h"
 #include "operation.h"
