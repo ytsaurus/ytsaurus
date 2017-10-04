@@ -1,7 +1,7 @@
 import sys
 import os
 
-sys.path.insert(0, os.path.abspath('../../python'))
+sys.path.insert(0, os.path.abspath('../../../python'))
 sys.path.append(os.path.abspath('.'))
 
 pytest_plugins = "yt.tests_runner.plugin"
