@@ -1221,7 +1221,6 @@ void TOperationControllerBase::TeleportOutputChunks()
             const auto& id = pair.second;
             if (TypeFromId(id) == EObjectType::ChunkList)
                 continue;
-            table.ChunkRequisitionUpdateNeeded = true;
             teleporter->RegisterChunk(id, table.CellTag);
         }
     }
@@ -1384,7 +1383,6 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = table->DataStatistics;
-            req->set_chunk_requisition_update_needed(table->ChunkRequisitionUpdateNeeded);
             ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema);
             req->set_schema_mode(static_cast<int>(table->TableUploadOptions.SchemaMode));
             req->set_optimize_for(static_cast<int>(table->TableUploadOptions.OptimizeFor));

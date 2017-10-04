@@ -54,7 +54,10 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, TableUploadOptions);
     Persist(context, Options);
-    Persist(context, ChunkRequisitionUpdateNeeded);
+    // COMPAT(shakurov)
+    if (context.IsLoad() && context.GetVersion() < 200713) {
+        Load<bool>(context.LoadContext()); // drop ChunkPropertiesUpdateNeeded
+    }
     Persist(context, OutputType);
     Persist(context, Type);
     Persist(context, DataStatistics);

@@ -60,7 +60,6 @@ private:
             .SetPresent(transaction->GetTimeout().HasValue()));
         descriptors->push_back(TAttributeDescriptor("title")
             .SetPresent(transaction->GetTitle().HasValue()));
-        descriptors->push_back("accounting_enabled");
         descriptors->push_back(TAttributeDescriptor("parent_id")
             .SetReplicated(true));
         descriptors->push_back("start_time");
@@ -111,12 +110,6 @@ private:
         if (key == "title" && transaction->GetTitle()) {
             BuildYsonFluently(consumer)
                 .Value(*transaction->GetTitle());
-            return true;
-        }
-
-        if (key == "accounting_enabled") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetAccountingEnabled());
             return true;
         }
 

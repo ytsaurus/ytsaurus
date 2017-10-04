@@ -31,9 +31,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode, NChunkClient::EUpdateMode::None);
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, Replication);
     DEFINE_BYVAL_RW_PROPERTY(int, PrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
-    //! Only makes sense for branched nodes.
-    //! If |true| then requisition update will be performed for the newly added chunks upon top-level commit.
-    DEFINE_BYVAL_RW_PROPERTY(bool, ChunkRequisitionUpdateNeeded, false);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, SnapshotStatistics);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, DeltaStatistics);
 

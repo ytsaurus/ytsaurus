@@ -62,7 +62,6 @@ struct TOutputTable
 {
     NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
     NTableClient::TTableUploadOptions TableUploadOptions;
-    bool ChunkRequisitionUpdateNeeded = false;
     EOutputTableType OutputType = EOutputTableType::Output;
 
     // Server-side upload transaction.
