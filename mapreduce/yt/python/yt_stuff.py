@@ -85,6 +85,7 @@ class YtConfig(object):
 
         self.cell_tag = cell_tag
 
+
 class YtStuff(object):
     def __init__(self, config=None):
         self.config = config or YtConfig()
