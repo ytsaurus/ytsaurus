@@ -365,7 +365,7 @@ private:
         TString Account;
         TString Medium;
         TReplicationPolicy ReplicationPolicy;
-        bool Committed = false;
+        bool Committed;
     };
 
     std::vector<TEntry> Entries_;
