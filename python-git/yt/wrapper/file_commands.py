@@ -8,12 +8,20 @@ from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_s
 from .ypath import FilePath, ypath_join, ypath_dirname
 from .local_mode import is_local_mode
 
+from yt.common import to_native_str
+from yt.yson.parser import YsonParser
 from yt.yson import to_yson_type
 
 from yt.packages.six import text_type, binary_type, PY3
 
 import os
+import copy
 import hashlib
+
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
 
 def _is_freshly_opened_file(stream):
     try:
@@ -35,6 +43,46 @@ def md5sum(filename):
         for buf in chunk_iter_stream(fin, 1024):
             h.update(buf)
     return h.hexdigest()
+
+class LocalFile(object):
+    """Represents a local path of a file and its path in job's sandbox"""
+    def __init__(self, path, file_name=None):
+        if isinstance(path, LocalFile):
+            self._path = path.path
+            self._file_name = path.file_name
+            if file_name:
+                self._file_name = file_name
+            return
+
+        # Hacky way to split string into file path and file path attributes.
+        if PY3:
+            path_bytes = path.encode("utf-8")
+        else:
+            path_bytes = path
+
+        stream = BytesIO(path_bytes)
+        parser = YsonParser(
+            stream,
+            encoding="utf-8" if PY3 else None,
+            always_create_attributes=True)
+
+        attributes = {}
+        if parser._has_attributes():
+            attributes = parser._parse_attributes()
+            path = to_native_str(stream.read())
+
+        self._path = path
+        self._file_name = attributes.get("file_name", os.path.basename(path))
+        if file_name:
+            self._file_name = file_name
+
+    @property
+    def path(self):
+        return self._path
+
+    @property
+    def file_name(self):
+        return self._file_name
 
 def read_file(path, file_reader=None, offset=None, length=None, client=None):
     """Downloads file from path in Cypress to local machine.

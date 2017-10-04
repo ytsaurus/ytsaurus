@@ -6,6 +6,7 @@ from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
                      parse_bool, is_prefix, require, YtError, update)
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
+from .file_commands import LocalFile
 from .ypath import TablePath
 from .py_wrapper import OperationParameters
 from .table_commands import is_empty, is_sorted
@@ -245,6 +246,7 @@ class UserJobSpecBuilder(object):
         return _set_spec_value(self, "file_paths", paths)
 
     def local_files(self, files):
+        """Deprecated!"""
         return _set_spec_value(self, "local_files", files)
 
     def format(self, format):
@@ -337,7 +339,18 @@ class UserJobSpecBuilder(object):
     def _prepare_job_files(self, spec, group_by, operation_type, local_files_to_remove, input_format,
                            output_format, input_table_count, output_table_count, client):
         file_uploader = FileUploader(client=client)
-        files = file_uploader(spec.get("local_files"))
+        local_files = []
+        files = []
+        for file in flatten(spec.get("file_paths", [])):
+            if isinstance(file, LocalFile):
+                local_files.append(file)
+            else:
+                files.append(file)
+
+        for file in flatten(spec.get("local_files", [])):
+            local_files.append(LocalFile(file))
+
+        local_files = file_uploader(local_files)
 
         params = OperationParameters(
             input_format=input_format,
@@ -371,10 +384,9 @@ class UserJobSpecBuilder(object):
             spec["title"] = title
 
         file_paths = []
-        file_paths += flatten(files)
+        file_paths += flatten(local_files)
         file_paths += flatten(prepare_result.files)
-        if "file_paths" in spec:
-            file_paths += list(imap(lambda path: TablePath(path, client=client), flatten(spec["file_paths"])))
+        file_paths += list(imap(lambda path: TablePath(path, client=client), files))
         if file_paths:
             spec["file_paths"] = file_paths
 
