@@ -160,7 +160,7 @@ class TestSpecBuilders(object):
         spec_builder = MapSpecBuilder() \
             .begin_mapper() \
                 .command("PYTHONPATH=. ./capitalize_b.py") \
-                .local_files(get_test_file_path("capitalize_b.py")) \
+                .file_paths(yt.LocalFile(get_test_file_path("capitalize_b.py"))) \
                 .format(yt.DsvFormat()) \
             .end_mapper() \
             .input_table_paths(yt.TablePath(table, columns=["b"])) \
