@@ -22,7 +22,7 @@ SERVICES = [
         "yt_port": 10010,
         "bridge_port": 10020,
         "bridge_rules": [
-            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker)",
             "-.*",
         ],
     },
@@ -36,6 +36,16 @@ SERVICES = [
             "+.*",
         ],
     },
+    {
+        "solomon_id": "yt_bridge_master_rpc",
+        "solomon_name": "yt_master_rpc",
+        "yt_port": 10010,
+        "bridge_port": 10040,
+        "bridge_rules": [
+            "+/rpc",
+            "-.*",
+        ],
+    },
     # --- scheduler ---
     {
         "solomon_id": "yt_bridge_scheduler_internal",
@@ -43,7 +53,7 @@ SERVICES = [
         "yt_port": 10011,
         "bridge_port": 10021,
         "bridge_rules": [
-            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker)",
             "-.*",
         ],
     },
@@ -57,6 +67,16 @@ SERVICES = [
             "+.*",
         ],
     },
+    {
+        "solomon_id": "yt_bridge_scheduler_rpc",
+        "solomon_name": "yt_scheduler_rpc",
+        "yt_port": 10011,
+        "bridge_port": 10041,
+        "bridge_rules": [
+            "+/rpc",
+            "-.*",
+        ],
+    },
     # --- node ---
     {
         "solomon_id": "yt_bridge_node_internal",
@@ -64,7 +84,7 @@ SERVICES = [
         "yt_port": 10012,
         "bridge_port": 10022,
         "bridge_rules": [
-            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker)",
             "-.*",
         ],
     },
@@ -75,7 +95,28 @@ SERVICES = [
         "bridge_port": 10032,
         "bridge_rules": [
             "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "-/tablet_node/(write|commit|select|lookup|replica)/",
             "+.*",
+        ],
+    },
+    {
+        "solomon_id": "yt_bridge_node_rpc",
+        "solomon_name": "yt_node_rpc",
+        "yt_port": 10012,
+        "bridge_port": 10042,
+        "bridge_rules": [
+            "+/rpc",
+            "-.*",
+        ],
+    },
+    {
+        "solomon_id": "yt_bridge_node_tablet_profiling",
+        "solomon_name": "yt_node_tablet_profiling",
+        "yt_port": 10012,
+        "bridge_port": 10052,
+        "bridge_rules": [
+            "+/tablet_node/(write|commit|select|lookup|replica)/",
+            "-.*",
         ],
     },
     # --- rpc proxy ---
@@ -85,7 +126,7 @@ SERVICES = [
         "yt_port": 10014,
         "bridge_port": 10023,
         "bridge_rules": [
-            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker)",
             "-.*",
         ],
     },
@@ -97,6 +138,16 @@ SERVICES = [
         "bridge_rules": [
             "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
             "+.*",
+        ],
+    },
+    {
+        "solomon_id": "yt_bridge_rpc_proxy_rpc",
+        "solomon_name": "yt_rpc_proxy_rpc",
+        "yt_port": 10014,
+        "bridge_port": 10043,
+        "bridge_rules": [
+            "+/rpc",
+            "-.*",
         ],
     },
 ]
