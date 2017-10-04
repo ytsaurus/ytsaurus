@@ -419,10 +419,6 @@ public:
         Y_ASSERT(chunk.DiskSizeIsFinal());
 
         auto* stagingTransaction = chunk.GetStagingTransaction();
-        if (!stagingTransaction->GetAccountingEnabled()) {
-            return;
-        }
-
         auto* stagingAccount = chunk.GetStagingAccount();
 
         Y_ASSERT(requisition.GetEntryCount() == 1);

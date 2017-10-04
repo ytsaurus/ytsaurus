@@ -41,7 +41,6 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, UpdateMode_);
     Save(context, Replication_);
     Save(context, PrimaryMediumIndex_);
-    Save(context, ChunkRequisitionUpdateNeeded_);
     Save(context, SnapshotStatistics_);
     Save(context, DeltaStatistics_);
     Save(context, CompressionCodec_);
@@ -64,7 +63,10 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
         Load(context, Replication_);
         PrimaryMediumIndex_ = Load<int>(context);
     }
-    Load(context, ChunkRequisitionUpdateNeeded_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 623) {
+        Load<bool>(context); // drop ChunkPropertiesUpdateNeeded_
+    }
     Load(context, SnapshotStatistics_);
     Load(context, DeltaStatistics_);
     // COMPAT(babenko)

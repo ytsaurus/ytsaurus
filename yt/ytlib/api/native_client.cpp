@@ -2697,7 +2697,6 @@ private:
                     ToProto(req->mutable_table_schema(), outputSchemaInferer->GetOutputTableSchema());
                     req->set_schema_mode(static_cast<int>(outputSchemaInferer->GetOutputTableSchemaMode()));
                 }
-                req->set_chunk_requisition_update_needed(true);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
                 NRpc::GenerateMutationId(req);
 

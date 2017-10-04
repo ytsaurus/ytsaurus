@@ -252,10 +252,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
     }
 
-    if (!topmostCommit && branchedNode->GetChunkRequisitionUpdateNeeded()) {
-        originatingNode->SetChunkRequisitionUpdateNeeded(true);
-    }
-
     auto* newOriginatingChunkList = originatingNode->GetChunkList();
 
     if (topmostCommit && !isExternal) {

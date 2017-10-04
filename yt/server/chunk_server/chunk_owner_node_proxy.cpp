@@ -1070,11 +1070,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         : TTableSchema();
     auto schemaMode = ETableSchemaMode(request->schema_mode());
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
-    bool chunkRequisitionUpdateNeeded = request->chunk_requisition_update_needed();
-
-    context->SetRequestInfo("Schema: %v, ChunkRequisitionUpdateNeeded: %v",
-        schema,
-        chunkRequisitionUpdateNeeded);
+    context->SetRequestInfo("Schema: %v", schema);
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
@@ -1097,8 +1093,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     }
 
     node->EndUpload(statistics, schema, schemaMode, optimizeFor);
-
-    node->SetChunkRequisitionUpdateNeeded(chunkRequisitionUpdateNeeded);
 
     SetModified();
 

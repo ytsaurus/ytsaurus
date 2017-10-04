@@ -34,7 +34,6 @@ void TTransaction::TExportEntry::Persist(NCellMaster::TPersistenceContext& conte
 
 TTransaction::TTransaction(const TTransactionId& id)
     : TTransactionBase(id)
-    , AccountingEnabled_(true)
     , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
     , Acd_(this)
@@ -48,7 +47,6 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, GetPersistentState());
     Save(context, Timeout_);
-    Save(context, AccountingEnabled_);
     Save(context, Title_);
     Save(context, SecondaryCellTags_);
     Save(context, NestedTransactions_);
@@ -76,7 +74,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, State_);
     Load(context, Timeout_);
-    Load(context, AccountingEnabled_);
+    if (context.GetVersion() < 623) {
+        Load<bool>(context); // drop AccountingEnabled_
+    }
     Load(context, Title_);
     Load(context, SecondaryCellTags_);
     Load(context, NestedTransactions_);
@@ -95,8 +95,6 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
 
 void TTransaction::RecomputeResourceUsage()
 {
-    Y_ASSERT(AccountingEnabled_);
-
     AccountResourceUsage_.clear();
 
     for (auto* node : BranchedNodes_) {
