@@ -1,4 +1,4 @@
-#include "init.h"
+#include <mapreduce/yt/interface/init.h>
 
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/common/log.h>
@@ -41,7 +41,7 @@ const TNode& GetJobSecureVault()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Initialize(int argc, const char* argv[])
+void Initialize(int argc, const char* argv[], const TInitializeOptions& /*options*/)
 {
     auto logLevelStr = to_lower(TConfig::Get()->LogLevel);
     ILogger::ELevel logLevel;

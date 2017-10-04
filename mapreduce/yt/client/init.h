@@ -1,11 +1,5 @@
 #pragma once
 
-namespace NYT {
+// NOTE: this is backward compatibility file, new users should #include <mapreduce/yt/interface/init.h>
 
-////////////////////////////////////////////////////////////////////////////////
-
-void Initialize(int argc, const char* argv[]);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
+#include <mapreduce/yt/interface/init.h>

@@ -1,0 +1,16 @@
+#pragma once
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInitializeOptions
+{
+    using TSelf = TInitializeOptions;
+};
+
+void Initialize(int argc, const char **argv, const TInitializeOptions &options = TInitializeOptions());
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
