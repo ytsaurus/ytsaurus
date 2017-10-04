@@ -1682,12 +1682,12 @@ void TChunkReplicator::RemoveChunkFromQueuesOnDestroy(TChunk* chunk)
         auto* node = replica.GetPtr();
         TChunkPtrWithIndexes chunkWithIndexes(chunk, replica.GetReplicaIndex(), replica.GetMediumIndex());
         // NB: Keep existing removal requests to workaround the following scenario:
-        // 1) the last strong reference to a chunk is released while some weak references
+        // 1) the last strong reference to a chunk is released while some ephemeral references
         //    remain; the chunk becomes a zombie;
         // 2) a node sends a heartbeat reporting addition of the chunk;
         // 3) master receives the heartbeat and puts the chunk into the removal queue
         //    without (sic!) registering a replica;
-        // 4) the last weak reference is dropped, the chunk is being removed;
+        // 4) the last ephemeral reference is dropped, the chunk is being removed;
         //    at this point we must preserve its removal request in the queue.
         node->RemoveFromChunkReplicationQueues(chunkWithIndexes, AllMediaIndex);
         node->RemoveFromChunkSealQueue(chunkWithIndexes);
@@ -2100,7 +2100,7 @@ TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* c
     TChunkRequisitionIndex result;
     if (found) {
         Y_ASSERT(requisition.ToReplication().IsValid());
-        result = GetChunkRequisitionRegistry()->GetIndex(requisition);
+        result = GetChunkRequisitionRegistry()->GetIndex(requisition, Bootstrap_->GetObjectManager());
     } else {
         result = chunk->GetLocalRequisitionIndex();
     }

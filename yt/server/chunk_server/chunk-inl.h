@@ -119,9 +119,12 @@ inline TChunkRequisitionIndex TChunk::GetLocalRequisitionIndex() const
     return LocalRequisitionIndex_;
 }
 
-inline void TChunk::SetLocalRequisitionIndex(TChunkRequisitionIndex requisitionIndex, TChunkRequisitionRegistry* registry)
+inline void TChunk::SetLocalRequisitionIndex(
+    TChunkRequisitionIndex requisitionIndex,
+    TChunkRequisitionRegistry* registry,
+    const NObjectServer::TObjectManagerPtr& objectManager)
 {
-    registry->Unref(LocalRequisitionIndex_);
+    registry->Unref(LocalRequisitionIndex_, objectManager);
     LocalRequisitionIndex_ = requisitionIndex;
     registry->Ref(LocalRequisitionIndex_);
 }
@@ -133,10 +136,14 @@ inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(int cellIndex)
     return data.ChunkRequisitionIndex;
 }
 
-inline void TChunk::SetExternalRequisitionIndex(int cellIndex, TChunkRequisitionIndex requisitionIndex, TChunkRequisitionRegistry* registry)
+inline void TChunk::SetExternalRequisitionIndex(
+    int cellIndex,
+    TChunkRequisitionIndex requisitionIndex,
+    TChunkRequisitionRegistry* registry,
+    const NObjectServer::TObjectManagerPtr& objectManager)
 {
     auto& exportData = ExportDataList_[cellIndex];
-    registry->Unref(exportData.ChunkRequisitionIndex);
+    registry->Unref(exportData.ChunkRequisitionIndex, objectManager);
     exportData.ChunkRequisitionIndex = requisitionIndex;
     registry->Ref(exportData.ChunkRequisitionIndex);
 }

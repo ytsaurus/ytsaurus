@@ -110,7 +110,7 @@ void TRequestTracker::DoChargeUser(
         ToProto(entry->mutable_user_id(), user->GetId());
     
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->WeakRefObject(user);
+        objectManager->EphemeralRefObject(user);
     }
     
     auto now = NProfiling::GetInstant();
@@ -172,8 +172,8 @@ void TRequestTracker::Reset()
     const auto& objectManager = Bootstrap_->GetObjectManager();
     for (auto* user : UsersWithsEntry_) {
         user->SetRequestStatisticsUpdateIndex(-1);
-        objectManager->WeakUnrefObject(user);
-    }    
+        objectManager->EphemeralUnrefObject(user);
+    }
 
     Request_.Clear();
     UsersWithsEntry_.clear();

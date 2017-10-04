@@ -342,6 +342,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back("type");
     descriptors->push_back("builtin");
     descriptors->push_back("ref_counter");
+    descriptors->push_back("ephemeral_ref_counter");
     descriptors->push_back("weak_ref_counter");
     descriptors->push_back(TAttributeDescriptor("import_ref_counter")
         .SetPresent(isForeign));
@@ -397,6 +398,12 @@ bool TObjectProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* co
     if (key == "ref_counter") {
         BuildYsonFluently(consumer)
             .Value(objectManager->GetObjectRefCounter(Object_));
+        return true;
+    }
+
+    if (key == "ephemeral_ref_counter") {
+        BuildYsonFluently(consumer)
+            .Value(objectManager->GetObjectEphemeralRefCounter(Object_));
         return true;
     }
 

@@ -61,17 +61,33 @@ public:
     int UnrefObject(int count = 1);
 
 
+    //! Increments the object's ephemeral reference counter by one.
+    /*!
+     *  \returns the incremented counter.
+     *
+     *  Ephemeral reference counter is just like the weak reference counter
+     *  except that it automatically resets (to zero) on epoch change.
+     */
+    int EphemeralRefObject(TEpoch epoch);
+
+    //! Decrements the object's ephemeral reference counter by one.
+    /*!
+     *  \returns the decremented counter.
+     */
+    int EphemeralUnrefObject(TEpoch epoch);
+
+
     //! Increments the object's weak reference counter by one.
     /*!
      *  \returns the incremented counter.
      */
-    int WeakRefObject(TEpoch epoch);
+    int WeakRefObject();
 
     //! Decrements the object's weak reference counter by one.
     /*!
      *  \returns the decremented counter.
      */
-    int WeakUnrefObject(TEpoch epoch);
+    int WeakUnrefObject();
 
 
     //! Increments the object's import reference counter by one.
@@ -90,8 +106,11 @@ public:
     //! Returns the current reference counter.
     int GetObjectRefCounter() const;
 
+    //! Returns the current ephemeral reference counter.
+    int GetObjectEphemeralRefCounter(TEpoch epoch) const;
+
     //! Returns the current weak reference counter.
-    int GetObjectWeakRefCounter(TEpoch epoch) const;
+    int GetObjectWeakRefCounter() const;
 
     //! Returns the current import reference counter.
     int GetImportRefCounter() const;
@@ -101,9 +120,6 @@ public:
 
     //! Returns |true| iff the type handler has destroyed the object and called #SetDestroyed.
     bool IsDestroyed() const;
-
-    //! Returns |true| iff the weak ref counter is positive.
-    bool IsLocked() const;
 
     //! Returns |true| iff the object is either non-versioned or versioned but does not belong to a transaction.
     bool IsTrunk() const;
@@ -139,8 +155,9 @@ protected:
     const TObjectId Id_;
 
     int RefCounter_ = 0;
+    int EphemeralRefCounter_ = 0;
+    TEpoch EphemeralLockEpoch_ = 0;
     int WeakRefCounter_ = 0;
-    TEpoch WeakLockEpoch_ = 0;
     int ImportRefCounter_ = 0;
 
     struct {

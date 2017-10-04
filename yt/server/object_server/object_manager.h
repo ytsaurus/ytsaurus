@@ -94,7 +94,18 @@ public:
     //! Returns the current strong reference counter.
     int GetObjectRefCounter(TObjectBase* object);
 
-    //! Increments the object weak reference counter thus temporarily preventing it from being destructed.
+    //! Increments the object ephemeral reference counter thus temporarily preventing it from being destroyed.
+    //! Returns the ephemeral reference counter.
+    int EphemeralRefObject(TObjectBase* object);
+
+    //! Decrements the object ephemeral reference counter thus making it eligible for destruction.
+    //! Returns the ephemeral reference counter.
+    int EphemeralUnrefObject(TObjectBase* object);
+
+    //! Returns the current ephemeral reference counter.
+    int GetObjectEphemeralRefCounter(TObjectBase* object);
+
+    //! Increments the object weak reference counter thus temporarily preventing it from being destroyed.
     //! Returns the weak reference counter.
     int WeakRefObject(TObjectBase* object);
 

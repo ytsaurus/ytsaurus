@@ -70,6 +70,9 @@ bool operator!=(TReplicationPolicy lhs, TReplicationPolicy rhs);
 void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, const TStringBuf& /*spec*/);
 TString ToString(TReplicationPolicy policy);
 
+void Serialize(const TReplicationPolicy& policy, NYson::IYsonConsumer* consumer);
+void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Settings specifying how a chunk or a chunk owner should be replicated over each medium.
@@ -77,7 +80,7 @@ TString ToString(TReplicationPolicy policy);
  *  This includes the 'vital' flag, because even though it doesn't affect
  *  replication, it's nevertheless related.
  *
- *  In contrast to TChunkRequisition, this class doesn't concert itself with
+ *  In contrast to TChunkRequisition, this class doesn't concern itself with
  *  accounts: it's only interested in *how much* this chunk should be
  *  replicated, not who ordered such replication.
  */
@@ -170,12 +173,6 @@ public:
     void Deserialize(NYTree::INodePtr node);
 
 private:
-    struct TReplicationPolicy
-    {
-        int ReplicationFactor = 0;
-        bool DataPartsOnly = false;
-    };
-
     //! Media are sorted by name at serialization. This is by no means required,
     //! we're just being nice here.
     std::map<TString, TReplicationPolicy> MediumReplicationPolicies_;
@@ -199,6 +196,9 @@ void ValidateChunkReplication(
 
 struct TRequisitionEntry
 {
+    // NB: the requisition registry only weak-refs accounts. This means that
+    // #IsObjectAlive() checks are a must. Entries with dead accounts may be
+    // safely ignored as accounting resources for deleted accounts is pointless.
     NSecurityServer::TAccount* Account = nullptr;
     int MediumIndex = NChunkClient::InvalidMediumIndex;
     TReplicationPolicy ReplicationPolicy;
@@ -350,6 +350,35 @@ TString ToString(const TChunkRequisition& requisition);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSerializableChunkRequisition
+{
+public:
+    TSerializableChunkRequisition() = default;
+    TSerializableChunkRequisition(const TChunkRequisition& requisition, const TChunkManagerPtr& chunkManager);
+
+    void Serialize(NYson::IYsonConsumer* consumer) const;
+    void Deserialize(NYTree::INodePtr node);
+
+private:
+    struct TEntry
+    {
+        TString Account;
+        TString Medium;
+        TReplicationPolicy ReplicationPolicy;
+        bool Committed = false;
+    };
+
+    std::vector<TEntry> Entries_;
+
+    friend void Serialize(const TEntry& entry, NYson::IYsonConsumer* consumer);
+    friend void Deserialize(TEntry& entry, NYTree::INodePtr node);
+};
+
+void Serialize(const TSerializableChunkRequisition& serializer, NYson::IYsonConsumer* consumer);
+void Deserialize(TSerializableChunkRequisition& serializer, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkServer
 } // namespace NYT
 
@@ -391,7 +420,9 @@ public:
     // called subsequently.
     void Clear();
 
-    void EnsureBuiltinRequisitionsInitialized(NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount);
+    void EnsureBuiltinRequisitionsInitialized(
+        NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
+        const NObjectServer::TObjectManagerPtr& objectManager);
 
     // NB: ref counts are not persisted.
     void Save(NCellMaster::TSaveContext& context) const;
@@ -405,12 +436,16 @@ public:
      *  Newly allocated indexes are not automatically Ref()ed and should be
      *  Ref()ed manually.
      */
-    TChunkRequisitionIndex GetIndex(const TChunkRequisition& requisition);
+    TChunkRequisitionIndex GetIndex(
+        const TChunkRequisition& requisition,
+        const NObjectServer::TObjectManagerPtr& objectManager);
 
     // NB: even though items are refcounted, items with zero RC may be
     // intermittently present in the registry.
     void Ref(TChunkRequisitionIndex index);
-    void Unref(TChunkRequisitionIndex index);
+    void Unref(
+        TChunkRequisitionIndex index,
+        const NObjectServer::TObjectManagerPtr& objectManager);
 
 private:
     struct TIndexedItem
@@ -430,7 +465,13 @@ private:
 
     TChunkRequisitionIndex GenerateIndex();
 
-    TChunkRequisitionIndex Insert(const TChunkRequisition& requisition);
+    TChunkRequisitionIndex Insert(
+        const TChunkRequisition& requisition,
+        const NObjectServer::TObjectManagerPtr& objectManager);
+
+    void Erase(
+        TChunkRequisitionIndex index,
+        const NObjectServer::TObjectManagerPtr& objectManager);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

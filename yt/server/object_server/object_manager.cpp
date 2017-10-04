@@ -562,9 +562,10 @@ int TObjectManager::RefObject(TObjectBase* object)
     Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
+    LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
+        GetObjectEphemeralRefCounter(object),
         GetObjectWeakRefCounter(object));
 
     if (refCounter == 1) {
@@ -581,9 +582,10 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
     Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
-    LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
+    LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
+        GetObjectEphemeralRefCounter(object),
         GetObjectWeakRefCounter(object));
 
     if (refCounter == 0) {
@@ -612,6 +614,21 @@ int TObjectManager::GetObjectRefCounter(TObjectBase* object)
     return object->GetObjectRefCounter();
 }
 
+int TObjectManager::EphemeralRefObject(TObjectBase* object)
+{
+    return GarbageCollector_->EphemeralRefObject(object, CurrentEpoch_);
+}
+
+int TObjectManager::EphemeralUnrefObject(TObjectBase* object)
+{
+    return GarbageCollector_->EphemeralUnrefObject(object, CurrentEpoch_);
+}
+
+int TObjectManager::GetObjectEphemeralRefCounter(TObjectBase* object)
+{
+    return object->GetObjectEphemeralRefCounter(CurrentEpoch_);
+}
+
 int TObjectManager::WeakRefObject(TObjectBase* object)
 {
     return GarbageCollector_->WeakRefObject(object, CurrentEpoch_);
@@ -624,7 +641,7 @@ int TObjectManager::WeakUnrefObject(TObjectBase* object)
 
 int TObjectManager::GetObjectWeakRefCounter(TObjectBase* object)
 {
-    return object->GetObjectWeakRefCounter(CurrentEpoch_);
+    return object->GetObjectWeakRefCounter();
 }
 
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const

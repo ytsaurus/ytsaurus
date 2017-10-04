@@ -90,7 +90,7 @@ void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
         ToProto(update->mutable_node_id(), trunkNode->GetId());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->WeakRefObject(trunkNode);
+        objectManager->EphemeralRefObject(trunkNode);
     }
 
     auto now = NProfiling::GetInstant();
@@ -106,8 +106,8 @@ void TAccessTracker::Reset()
         if (node->IsAlive()) {
             node->SetAccessStatisticsUpdateIndex(-1);
         }
-        objectManager->WeakUnrefObject(node);
-    }    
+        objectManager->EphemeralUnrefObject(node);
+    }
 
     UpdateAccessStatisticsRequest_.Clear();
     NodesWithAccessStatisticsUpdate_.clear();

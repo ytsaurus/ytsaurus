@@ -56,22 +56,36 @@ inline int TObjectBase::UnrefObject(int count)
     return RefCounter_ -= count;
 }
 
-inline int TObjectBase::WeakRefObject(TEpoch epoch)
+inline int TObjectBase::EphemeralRefObject(TEpoch epoch)
+{
+    YCHECK(IsAlive());
+    Y_ASSERT(EphemeralRefCounter_ >= 0);
+
+    if (epoch != EphemeralLockEpoch_) {
+        EphemeralRefCounter_ = 0;
+        EphemeralLockEpoch_ = epoch;
+    }
+    return ++EphemeralRefCounter_;
+}
+
+inline int TObjectBase::EphemeralUnrefObject(TEpoch epoch)
+{
+    Y_ASSERT(EphemeralRefCounter_ > 0);
+    Y_ASSERT(EphemeralLockEpoch_ == epoch);
+    return --EphemeralRefCounter_;
+}
+
+inline int TObjectBase::WeakRefObject()
 {
     YCHECK(IsAlive());
     Y_ASSERT(WeakRefCounter_ >= 0);
 
-    if (epoch != WeakLockEpoch_) {
-        WeakRefCounter_ = 0;
-        WeakLockEpoch_ = epoch;
-    }
     return ++WeakRefCounter_;
 }
 
-inline int TObjectBase::WeakUnrefObject(TEpoch epoch)
+inline int TObjectBase::WeakUnrefObject()
 {
     Y_ASSERT(WeakRefCounter_ > 0);
-    Y_ASSERT(WeakLockEpoch_ == epoch);
     return --WeakRefCounter_;
 }
 
@@ -91,9 +105,14 @@ inline int TObjectBase::GetObjectRefCounter() const
     return RefCounter_;
 }
 
-inline int TObjectBase::GetObjectWeakRefCounter(TEpoch epoch) const
+inline int TObjectBase::GetObjectEphemeralRefCounter(TEpoch epoch) const
 {
-    return WeakLockEpoch_== epoch ? WeakRefCounter_ : 0;
+    return EphemeralLockEpoch_== epoch ? EphemeralRefCounter_ : 0;
+}
+
+inline int TObjectBase::GetObjectWeakRefCounter() const
+{
+    return WeakRefCounter_;
 }
 
 inline int TObjectBase::GetImportRefCounter() const
@@ -109,11 +128,6 @@ inline bool TObjectBase::IsAlive() const
 inline bool TObjectBase::IsDestroyed() const
 {
     return Flags_.Destroyed;
-}
-
-inline bool TObjectBase::IsLocked() const
-{
-    return WeakRefCounter_ > 0;
 }
 
 inline bool TObjectBase::IsTrunk() const

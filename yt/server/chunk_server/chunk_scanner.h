@@ -34,7 +34,7 @@ namespace NChunkServer {
  *  To avoid adding a chunk to the queue multiple times, schedule flags are used
  *  (cf. #TChunk::GetScheduleFlag).
  *
- *  The chunks present in the queue carry an additional weak ref.
+ *  The chunks present in the queue carry an additional ephemeral ref.
  */
 class TChunkScanner
 {
@@ -56,7 +56,7 @@ public:
      *  If the chunk is already queued (as indicated by its schedule flag),
      *  does nothing and returns |false|.
      *
-     *  Otherwise, sets the schedule flag, weak-refs the chunk, and enqueues it.
+     *  Otherwise, sets the schedule flag, ephemeral-refs the chunk, and enqueues it.
      */
     bool EnqueueChunk(TChunk* chunk);
 
@@ -64,7 +64,7 @@ public:
     /*!
      *  If the global scan is not finished yet, returns the next chunk in the global list.
      *
-     *  Otherwise checks the queue and dequeues the next chunk. Weak-unrefs it and clears the
+     *  Otherwise checks the queue and dequeues the next chunk. Ephemeral-unrefs it and clears the
      *  schedule flag.
      *
      *  If no chunk is available, returns |nullptr|.

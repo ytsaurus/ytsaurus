@@ -86,6 +86,12 @@ private:
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("vital")
             .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("requisition")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("local_requisition")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("external_requisitions")
+            .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("replication_status")
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("available")
@@ -289,7 +295,7 @@ private:
         }
 
         if (key == "vital" || key == "media" ) {
-            const auto& replication = chunk->ComputeReplication(chunkManager->GetChunkRequisitionRegistry());
+            auto replication = chunk->ComputeReplication(chunkManager->GetChunkRequisitionRegistry());
 
             if (key == "vital") {
                 BuildYsonFluently(consumer)
@@ -300,6 +306,38 @@ private:
                     .Value(TSerializableChunkReplication(replication, chunkManager));
                 return true;
             }
+        }
+
+        if (key == "requisition") {
+            auto requisition = chunk->ComputeRequisition(chunkManager->GetChunkRequisitionRegistry());
+            BuildYsonFluently(consumer)
+                .Value(TSerializableChunkRequisition(requisition, chunkManager));
+            return true;
+        }
+
+        if (key == "local_requisition") {
+            const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+            const auto& requisition = requisitionRegistry->GetRequisition(chunk->GetLocalRequisitionIndex());
+            BuildYsonFluently(consumer)
+                .Value(TSerializableChunkRequisition(requisition, chunkManager));
+            return true;
+        }
+
+        if (key == "external_requisitions") {
+            const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+            const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
+            BuildYsonFluently(consumer)
+                .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
+                    auto cellTag = cellTags[index];
+                    const auto& exportData = chunk->GetExportData(index);
+                    if (exportData.RefCounter > 0) {
+                        auto requisitionIndex = exportData.ChunkRequisitionIndex;
+                        const auto& requisition = requisitionRegistry->GetRequisition(requisitionIndex);
+                        fluent
+                            .Item(ToString(cellTag)).Value(TSerializableChunkRequisition(requisition, chunkManager));
+                    }
+                });
+            return true;
         }
 
         if (chunk->IsErasure() && key == "erasure_codec") {
@@ -322,13 +360,13 @@ private:
 
         if (key == "exports") {
             const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
+            const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
             BuildYsonFluently(consumer)
                 .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
                     auto cellTag = cellTags[index];
                     const auto& exportData = chunk->GetExportData(index);
                     if (exportData.RefCounter > 0) {
                         auto requisitionIndex = exportData.ChunkRequisitionIndex;
-                        const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
                         const auto& replication = requisitionRegistry->GetReplication(requisitionIndex);
                         fluent
                             .Item(ToString(cellTag)).BeginMap()

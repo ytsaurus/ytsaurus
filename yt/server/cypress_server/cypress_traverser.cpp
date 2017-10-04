@@ -57,7 +57,7 @@ public:
         VERIFY_THREAD_AFFINITY(Automaton);
 
         if (Transaction_) {
-            ObjectManager_->WeakRefObject(Transaction_);
+            ObjectManager_->EphemeralRefObject(Transaction_);
         }
         PushEntry(trunkRootNode);
     }
@@ -100,22 +100,22 @@ private:
 
     void ReleaseEntry(const TStackEntry& entry)
     {
-        ObjectManager_->WeakUnrefObject(entry.TrunkNode);
+        ObjectManager_->EphemeralUnrefObject(entry.TrunkNode);
         for (auto* child : entry.TrunkChildren) {
-            ObjectManager_->WeakUnrefObject(child);
+            ObjectManager_->EphemeralUnrefObject(child);
         }
     }
 
     void PushEntry(TCypressNodeBase* trunkNode)
     {
-        ObjectManager_->WeakRefObject(trunkNode);
+        ObjectManager_->EphemeralRefObject(trunkNode);
         Stack_.push_back(TStackEntry(trunkNode));
 
         auto addChildren = [&] (std::vector<TCypressNodeBase*> children) {
             auto& entry = Stack_.back();
             entry.TrunkChildren = std::move(children);
             for (auto* child : entry.TrunkChildren) {
-                ObjectManager_->WeakRefObject(child);
+                ObjectManager_->EphemeralRefObject(child);
             }
         };
 
@@ -186,7 +186,7 @@ private:
         VERIFY_THREAD_AFFINITY(Automaton);
 
         if (Transaction_) {
-            ObjectManager_->WeakUnrefObject(Transaction_);
+            ObjectManager_->EphemeralUnrefObject(Transaction_);
         }
 
         auto* user = SecurityManager_->FindUserByName(UserName_);

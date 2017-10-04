@@ -826,20 +826,20 @@ public:
     virtual void OnPop(TChunkTree* node) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->WeakUnrefObject(node);
+        objectManager->EphemeralUnrefObject(node);
     }
 
     virtual void OnPush(TChunkTree* node) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->WeakRefObject(node);
+        objectManager->EphemeralRefObject(node);
     }
 
     virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& node : nodes) {
-            objectManager->WeakUnrefObject(node);
+            objectManager->EphemeralUnrefObject(node);
         }
     }
 

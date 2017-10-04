@@ -141,10 +141,17 @@ public:
     void RefUsedRequisitions(TChunkRequisitionRegistry* registry) const;
 
     TChunkRequisitionIndex GetLocalRequisitionIndex() const;
-    void SetLocalRequisitionIndex(TChunkRequisitionIndex requisitionIndex, TChunkRequisitionRegistry* registry);
+    void SetLocalRequisitionIndex(
+        TChunkRequisitionIndex requisitionIndex,
+        TChunkRequisitionRegistry* registry,
+        const NObjectServer::TObjectManagerPtr& objectManager);
 
     TChunkRequisitionIndex GetExternalRequisitionIndex(int cellIndex) const;
-    void SetExternalRequisitionIndex(int cellIndex, TChunkRequisitionIndex requisitionIndex, TChunkRequisitionRegistry* registry);
+    void SetExternalRequisitionIndex(
+        int cellIndex,
+        TChunkRequisitionIndex requisitionIndex,
+        TChunkRequisitionRegistry* registry,
+        const NObjectServer::TObjectManagerPtr& objectManager);
 
     //! Computes chunk's requisition by combining local and external values.
     //! For semantics of combining, see #TChunkRequisition::operator|=().
