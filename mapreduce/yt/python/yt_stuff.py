@@ -29,7 +29,8 @@ class YtConfig(object):
                  scheduler_config=None, master_config=None, proxy_config=None, yt_path=None,
                  save_all_logs=None, enable_debug_log=None, yt_work_dir=None, keep_yt_work_dir=None,
                  ram_drive_path=None, local_cypress_dir=None, wait_tablet_cell_initialization=None,
-                 operations_memory_limit=None, forbid_chunk_storage_in_tmpfs=None, yt_version=None):
+                 operations_memory_limit=None, forbid_chunk_storage_in_tmpfs=None, yt_version=None,
+                 cell_tag=None):
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
 
@@ -82,6 +83,7 @@ class YtConfig(object):
                                    .format(yt_package_versions[-1], yt_version))
             self.yt_version = yt_version
 
+        self.cell_tag = cell_tag
 
 class YtStuff(object):
     def __init__(self, config=None):
@@ -281,6 +283,8 @@ class YtStuff(object):
                 args += ["--scheduler-config", self.config.scheduler_config]
             if self.config.proxy_config:
                 args += ["--proxy-config", self.config.proxy_config]
+            if self.config.cell_tag is not None:
+                args += ["--cell-tag", str(self.config.cell_tag)]
 
             local_cypress_dir = self.config.local_cypress_dir or yatest.common.get_param("yt_local_cypress_dir")
             if local_cypress_dir:
