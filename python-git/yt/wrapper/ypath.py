@@ -74,7 +74,7 @@ class YPath(object):
         if isinstance(path, YPath):
             self._path_object = deepcopy(path._path_object)
         else:
-            if simplify:
+            if simplify and path:
                 self._path_object = parse_ypath(path, client=client)
                 for key, value in iteritems(self._path_object.attributes):
                     if "-" in key:
