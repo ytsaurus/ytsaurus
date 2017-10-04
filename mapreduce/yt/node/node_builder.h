@@ -1,9 +1,10 @@
 #pragma once
 
 #include "node.h"
-#include <library/yson/consumer.h>
 
 #include <library/json/json_reader.h>
+
+#include <library/yson/consumer.h>
 
 #include <util/generic/stack.h>
 
@@ -37,35 +38,6 @@ private:
 
 private:
     inline void AddNode(TNode node, bool pop);
-};
-
-class TYson2JsonCallbacksAdapter
-    : public NJson::TJsonCallbacks
-{
-public:
-    TYson2JsonCallbacksAdapter(TYsonConsumerBase* impl, bool throwException = false);
-
-    bool OnNull() override;
-    bool OnBoolean(bool val) override;
-    bool OnInteger(long long val) override;
-    bool OnUInteger(unsigned long long val) override;
-    bool OnString(const TStringBuf &val) override;
-    bool OnDouble(double val) override;
-    bool OnOpenArray() override;
-    bool OnCloseArray() override;
-    bool OnOpenMap() override;
-    bool OnCloseMap() override;
-    bool OnMapKey(const TStringBuf &val) override;
-
-private:
-    void WrapIfListItem();
-
-private:
-    TYsonConsumerBase* Impl;
-    // Stores current context stack
-    // If true - we are in a list
-    // If false - we are in a map
-    ystack<bool> ContextStack;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,6 +7,7 @@
 
 #include <library/json/json_reader.h>
 #include <library/svnversion/svnversion.h>
+#include <library/yson/yson2json_adapter.h>
 
 #include <util/string/strip.h>
 #include <util/folder/dirut.h>
