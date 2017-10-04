@@ -126,7 +126,6 @@ int TGarbageCollector::EphemeralUnrefObject(TObjectBase* object, TEpoch epoch)
 int TGarbageCollector::WeakRefObject(TObjectBase* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(!IsRecovery());
     Y_ASSERT(object->IsAlive());
     Y_ASSERT(object->IsTrunk());
 
@@ -140,7 +139,6 @@ int TGarbageCollector::WeakRefObject(TObjectBase* object, TEpoch epoch)
 int TGarbageCollector::WeakUnrefObject(TObjectBase* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(!IsRecovery());
     Y_ASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakUnrefObject();
