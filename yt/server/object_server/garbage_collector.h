@@ -37,6 +37,9 @@ public:
 
     TFuture<void> Collect();
 
+    int EphemeralRefObject(TObjectBase* object, TEpoch epoch);
+    int EphemeralUnrefObject(TObjectBase* object, TEpoch epoch);
+
     int WeakRefObject(TObjectBase* object, TEpoch epoch);
     int WeakUnrefObject(TObjectBase* object, TEpoch epoch);
 
@@ -62,7 +65,7 @@ private:
     //! These are ready for IObjectTypeHandler::Destroy call.
     yhash_set<TObjectBase*> Zombies_;
 
-    //! Contains objects with zero ref counter and positive weak ref counter.
+    //! Contains objects with zero ref counter and either positive ephemeral or positive weak ref counter.
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
     yhash_set<TObjectBase*> Ghosts_;
 

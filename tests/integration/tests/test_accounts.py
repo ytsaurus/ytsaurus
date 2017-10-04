@@ -1,10 +1,10 @@
 import pytest
 from time import sleep
+from operator import itemgetter
+from copy import deepcopy
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-
-from copy import deepcopy
 
 ##################################################################
 
@@ -151,6 +151,7 @@ class TestAccounts(YTEnvSetup):
         set("//tmp/a", {})
         set("//tmp/a/@account", "max")
         set("//tmp/a/@account", "sys")
+        sleep(self.REPLICATOR_REACTION_TIME)
         remove_account("max")
 
     def test_remove3(self):
@@ -1076,6 +1077,63 @@ class TestAccounts(YTEnvSetup):
     def test_create_with_invalid_attrs_yt_7093(self):
         with pytest.raises(YtError):create_account("x", attributes={"resource_limits": 123})
         assert not exists("//sys/accounts/x")
+
+    def test_requisitions(self):
+        create_medium("hdd6")
+        create_account("a")
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a" : "b"})
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        self._replicator_sleep()
+
+        requisition = get("#" + chunk_id + "/@requisition")
+        assert len(requisition) == 1
+        assert requisition[0] == {
+            "account" : "tmp",
+            "medium" : "default",
+            "replication_policy" : {"replication_factor" : 3, "data_parts_only" : False},
+            "committed" : True
+        }
+
+        # Link the chunk to another table...
+        copy("//tmp/t", "//tmp/t2")
+        set("//tmp/t2/@account", "a")
+
+        # ...and modify the original table's properties in some way.
+        tbl_media = get("//tmp/t/@media")
+        tbl_media["hdd4"] = {"replication_factor": 7, "data_parts_only" : True}
+        tbl_media["default"] = {"replication_factor": 4, "data_parts_only" : False}
+        set("//tmp/t/@media", tbl_media)
+
+        self._replicator_sleep()
+
+        requisition = get("#" + chunk_id + "/@requisition")
+        requisition = sorted(requisition, key=itemgetter("account", "medium"))
+        assert requisition == [
+            {
+                "account" : "a",
+                "medium" : "default",
+                "replication_policy" : {"replication_factor" : 3, "data_parts_only" : False},
+                "committed" : True
+            },
+            {
+                "account" : "tmp",
+                "medium" : "default",
+                "replication_policy" : {"replication_factor" : 4, "data_parts_only" : False},
+                "committed" : True
+            },
+            {
+                "account" : "tmp",
+                "medium" : "hdd4",
+                "replication_policy" : {"replication_factor" : 7, "data_parts_only" : True},
+                "committed" : True
+            }
+        ]
 
 ##################################################################
 

@@ -557,7 +557,6 @@ public:
             OnChunkSealed(chunk);
         }
 
-        // Increase staged resource usage.
         if (!chunk->IsJournal()) {
             if (chunk->IsStaged()) {
                 UpdateTransactionResourceUsage(chunk, +1);
@@ -1438,6 +1437,7 @@ private:
             ChunkRequisitionRegistry_.Ref(newRequisitionIndex);
         });
 
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         forEachChunk([&] (const TChunkId& chunkId, TChunk* chunk, TChunkRequisitionIndex newRequisitionIndex) {
             auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(cellIndex);
             if (newRequisitionIndex == curRequisitionIndex) {
@@ -1449,9 +1449,9 @@ private:
                 : chunk->ComputeRequisition(GetChunkRequisitionRegistry());
 
             if (local) {
-                chunk->SetLocalRequisitionIndex(newRequisitionIndex, GetChunkRequisitionRegistry());
+                chunk->SetLocalRequisitionIndex(newRequisitionIndex, GetChunkRequisitionRegistry(), objectManager);
             } else {
-                chunk->SetExternalRequisitionIndex(cellIndex, newRequisitionIndex, GetChunkRequisitionRegistry());
+                chunk->SetExternalRequisitionIndex(cellIndex, newRequisitionIndex, GetChunkRequisitionRegistry(), objectManager);
             }
 
             if (chunk->IsForeign()) {
@@ -1481,7 +1481,7 @@ private:
         }
 
         forEachChunk([&] (const TChunkId&, TChunk*, TChunkRequisitionIndex newRequisitionIndex) {
-            ChunkRequisitionRegistry_.Unref(newRequisitionIndex);
+            ChunkRequisitionRegistry_.Unref(newRequisitionIndex, objectManager);
         });
     }
 
@@ -1495,7 +1495,7 @@ private:
             // Can't use the usual FromProto<T>() here: deserializing TChunkRequisition requires security manager.
             TChunkRequisition requisition;
             FromProto(&requisition, pair.requisition(), Bootstrap_->GetSecurityManager());
-            auto localIndex = ChunkRequisitionRegistry_.GetIndex(requisition);
+            auto localIndex = ChunkRequisitionRegistry_.GetIndex(requisition, Bootstrap_->GetObjectManager());
             YCHECK(remoteToLocalIndexMap.emplace(remoteIndex, localIndex).second);
         }
 
@@ -1703,9 +1703,9 @@ private:
             TReplicationPolicy(replicationFactor, false /* dataPartsOnly */),
             false /* committed */);
         requisition.SetVital(subrequest->vital());
-        auto requisitionIndex = ChunkRequisitionRegistry_.GetIndex(requisition);
-
-        chunk->SetLocalRequisitionIndex(requisitionIndex, GetChunkRequisitionRegistry());
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto requisitionIndex = ChunkRequisitionRegistry_.GetIndex(requisition, objectManager);
+        chunk->SetLocalRequisitionIndex(requisitionIndex, GetChunkRequisitionRegistry(), objectManager);
 
         auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
 
@@ -2023,10 +2023,12 @@ private:
     void InitBuiltins()
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         // Chunk requisition registry
         ChunkRequisitionRegistry_.EnsureBuiltinRequisitionsInitialized(
-            securityManager->GetChunkWiseAccountingMigrationAccount());
+            securityManager->GetChunkWiseAccountingMigrationAccount(),
+            objectManager);
 
         // Media
 

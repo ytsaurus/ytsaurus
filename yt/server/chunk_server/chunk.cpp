@@ -164,11 +164,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     } else if (context.GetVersion() < 623) {
         auto oldReplication = Load<TChunkReplication>(context);
         if (isStaged) {
-            auto* chunkRequisitionRegistry = context.GetBootstrap()->GetChunkManager()->GetChunkRequisitionRegistry();
+            auto* bootstrap = context.GetBootstrap();
+            auto* chunkRequisitionRegistry = bootstrap->GetChunkManager()->GetChunkRequisitionRegistry();
 
             TChunkRequisition requisition;
             requisition.CombineWith(oldReplication, account, false /* committed */);
-            LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition);
+            LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition, bootstrap->GetObjectManager());
         } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
     } else {
         LocalRequisitionIndex_ = Load<TChunkRequisitionIndex>(context);
@@ -182,7 +183,8 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() < 400) {
         auto oldVital = Load<bool>(context);
         if (isStaged) {
-            auto* chunkRequisitionRegistry = context.GetBootstrap()->GetChunkManager()->GetChunkRequisitionRegistry();
+            auto* bootstrap = context.GetBootstrap();
+            auto* chunkRequisitionRegistry = bootstrap->GetChunkManager()->GetChunkRequisitionRegistry();
 
             TChunkReplication oldReplication;
             oldReplication.SetVital(oldVital);
@@ -190,7 +192,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
             TChunkRequisition requisition;
             requisition.CombineWith(oldReplication, account, false /* committed */);
-            LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition);
+            LocalRequisitionIndex_ = chunkRequisitionRegistry->GetIndex(requisition, bootstrap->GetObjectManager());
         } // Else leave LocalRequisitionIndex_ defaulted to the migration index.
     }
 

@@ -46,7 +46,7 @@ bool TChunkScanner::EnqueueChunk(TChunk* chunk)
         return false;
     }
     chunk->SetScanFlag(Kind_, epoch);
-    ObjectManager_->WeakRefObject(chunk);
+    ObjectManager_->EphemeralRefObject(chunk);
     Queue_.push({chunk, NProfiling::GetCpuInstant()});
     return true;
 }
@@ -73,7 +73,7 @@ TChunk* TChunkScanner::DequeueChunk()
         Y_ASSERT(chunk->GetScanFlag(Kind_, epoch));
         chunk->ClearScanFlag(Kind_, epoch);
     }
-    ObjectManager_->WeakUnrefObject(chunk);
+    ObjectManager_->EphemeralUnrefObject(chunk);
     return alive ? chunk : nullptr;
 }
 

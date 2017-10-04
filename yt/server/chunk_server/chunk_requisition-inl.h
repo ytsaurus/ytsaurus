@@ -266,17 +266,6 @@ inline const TChunkReplication& TChunkRequisitionRegistry::GetReplication(TChunk
     return it->second.Replication;
 }
 
-inline TChunkRequisitionIndex TChunkRequisitionRegistry::GetIndex(const TChunkRequisition& requisition)
-{
-    auto it = RequisitionToIndex_.find(requisition);
-    if (it != RequisitionToIndex_.end()) {
-        Y_ASSERT(IndexToItem_.find(it->second) != IndexToItem_.end());
-        return it->second;
-    }
-
-    return Insert(requisition);
-}
-
 inline void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
 {
     auto it = IndexToItem_.find(index);
@@ -284,7 +273,9 @@ inline void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
     ++it->second.RefCount;
 }
 
-inline void TChunkRequisitionRegistry::Unref(TChunkRequisitionIndex index)
+inline void TChunkRequisitionRegistry::Unref(
+    TChunkRequisitionIndex index,
+    const NObjectServer::TObjectManagerPtr& objectManager)
 {
     auto it = IndexToItem_.find(index);
     YCHECK(it != IndexToItem_.end());
@@ -292,23 +283,8 @@ inline void TChunkRequisitionRegistry::Unref(TChunkRequisitionIndex index)
     --it->second.RefCount;
 
     if (it->second.RefCount == 0) {
-        RequisitionToIndex_.erase(it->second.Requisition);
-        IndexToItem_.erase(it);
+        Erase(index, objectManager);
     }
-}
-
-inline TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(const TChunkRequisition& requisition)
-{
-    auto index = GenerateIndex();
-
-    TIndexedItem item;
-    item.Requisition = requisition;
-    item.Replication = requisition.ToReplication();
-    item.RefCount = 0; // This is ok, Ref()/Unref() will be called soon.
-    YCHECK(IndexToItem_.emplace(index, item).second);
-    YCHECK(RequisitionToIndex_.emplace(requisition, index).second);
-
-    return index;
 }
 
 inline TChunkRequisitionIndex TChunkRequisitionRegistry::GenerateIndex()

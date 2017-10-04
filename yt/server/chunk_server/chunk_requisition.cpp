@@ -63,6 +63,22 @@ TString ToString(TReplicationPolicy policy)
     return ToStringViaBuilder(policy);
 }
 
+void Serialize(const TReplicationPolicy& policy, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("replication_factor").Value(policy.GetReplicationFactor())
+            .Item("data_parts_only").Value(policy.GetDataPartsOnly())
+        .EndMap();
+}
+
+void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
+{
+    auto map = node->AsMap();
+    policy.SetReplicationFactor(map->GetChild("replication_factor")->AsInt64()->GetValue());
+    policy.SetDataPartsOnly(map->GetChild("data_parts_only")->AsBoolean()->GetValue());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplication::TChunkReplication(bool clearForCombining)
@@ -155,13 +171,7 @@ TSerializableChunkReplication::TSerializableChunkReplication(
         const auto& policy = replication[mediumIndex];
         if (policy) {
             auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-
-            TReplicationPolicy resultPolicy;
-            resultPolicy.ReplicationFactor = policy.GetReplicationFactor();
-            resultPolicy.DataPartsOnly = policy.GetDataPartsOnly();
-            YCHECK(resultPolicy.ReplicationFactor != 0);
-
-            YCHECK(MediumReplicationPolicies_.emplace(medium->GetName(), resultPolicy).second);
+            YCHECK(MediumReplicationPolicies_.emplace(medium->GetName(), policy).second);
         }
     }
 }
@@ -178,8 +188,7 @@ void TSerializableChunkReplication::ToChunkReplication(
         auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
         auto mediumIndex = medium->GetIndex();
         auto& policy = (*replication)[mediumIndex];
-        policy.SetReplicationFactor(pair.second.ReplicationFactor);
-        policy.SetDataPartsOnly(pair.second.DataPartsOnly);
+        policy = pair.second;
     }
 }
 
@@ -204,22 +213,6 @@ void Serialize(const TSerializableChunkReplication& serializer, NYson::IYsonCons
 void Deserialize(TSerializableChunkReplication& serializer, INodePtr node)
 {
     serializer.Deserialize(node);
-}
-
-void Serialize(const TSerializableChunkReplication::TReplicationPolicy& policy, NYson::IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("replication_factor").Value(policy.ReplicationFactor)
-            .Item("data_parts_only").Value(policy.DataPartsOnly)
-        .EndMap();
-}
-
-void Deserialize(TSerializableChunkReplication::TReplicationPolicy& policy, INodePtr node)
-{
-    auto map = node->AsMap();
-    policy.ReplicationFactor = map->GetChild("replication_factor")->AsInt64()->GetValue();
-    policy.DataPartsOnly = map->GetChild("data_parts_only")->AsBoolean()->GetValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -505,6 +498,70 @@ TString ToString(const TChunkRequisition& requisition)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+TSerializableChunkRequisition::TSerializableChunkRequisition(
+    const TChunkRequisition& requisition,
+    const TChunkManagerPtr& chunkManager)
+{
+    Entries_.reserve(requisition.GetEntryCount());
+    for (const auto& entry : requisition) {
+        auto* account = entry.Account;
+        if (!IsObjectAlive(account)) {
+            continue;
+        }
+
+        auto* medium = chunkManager->GetMediumByIndex(entry.MediumIndex);
+
+        Entries_.push_back(TEntry{account->GetName(), medium->GetName(), entry.ReplicationPolicy, entry.Committed});
+    }
+}
+
+void TSerializableChunkRequisition::Serialize(NYson::IYsonConsumer* consumer) const
+{
+    BuildYsonFluently(consumer).
+        Value(Entries_);
+}
+
+void TSerializableChunkRequisition::Deserialize(NYTree::INodePtr node)
+{
+    YCHECK(node);
+
+    Entries_ = ConvertTo<std::vector<TEntry>>(node);
+}
+
+void Serialize(const TSerializableChunkRequisition::TEntry& entry, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("account").Value(entry.Account)
+            .Item("medium").Value(entry.Medium)
+            .Item("replication_policy").Value(entry.ReplicationPolicy)
+            .Item("committed").Value(entry.Committed)
+        .EndMap();
+
+}
+
+void Deserialize(TSerializableChunkRequisition::TEntry& entry, NYTree::INodePtr node)
+{
+    auto map = node->AsMap();
+    entry.Account = map->GetChild("account")->AsString()->GetValue();
+    entry.Medium = map->GetChild("medium")->AsString()->GetValue();
+    Deserialize(entry.ReplicationPolicy, map->GetChild("replication_policy"));
+    entry.Committed = map->GetChild("committed")->AsBoolean()->GetValue();
+}
+
+void Serialize(const TSerializableChunkRequisition& serializer, NYson::IYsonConsumer* consumer)
+{
+    serializer.Serialize(consumer);
+}
+
+void Deserialize(TSerializableChunkRequisition& serializer, NYTree::INodePtr node)
+{
+    serializer.Deserialize(node);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TChunkRequisitionRegistry::TIndexedItem::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
@@ -530,7 +587,8 @@ void TChunkRequisitionRegistry::Clear()
 }
 
 void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
-    NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount)
+    NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
+    const NObjectServer::TObjectManagerPtr& objectManager)
 {
     if (IndexToItem_.has(EmptyChunkRequisitionIndex)) {
         YCHECK(IndexToItem_.has(MigrationChunkRequisitionIndex));
@@ -539,7 +597,7 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
         return;
     }
 
-    YCHECK(Insert(TChunkRequisition()) == EmptyChunkRequisitionIndex);
+    YCHECK(Insert(TChunkRequisition(), objectManager) == EmptyChunkRequisitionIndex);
     Ref(EmptyChunkRequisitionIndex); // Fake reference - always keep the empty requisition.
 
     // When migrating to chunk-wise accounting, assume all chunks belong to a
@@ -549,7 +607,7 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
         DefaultStoreMediumIndex,
         TReplicationPolicy(NChunkClient::DefaultReplicationFactor, false /* dataPartsOnly */),
         true /* committed */);
-    YCHECK(Insert(defaultRequisition) == MigrationChunkRequisitionIndex);
+    YCHECK(Insert(defaultRequisition, objectManager) == MigrationChunkRequisitionIndex);
     Ref(MigrationChunkRequisitionIndex); // Fake reference - always keep the migration requisition.
 
     TChunkRequisition defaultErasureRequisition(
@@ -557,7 +615,7 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
         DefaultStoreMediumIndex,
         TReplicationPolicy(1 /*replicationFactor*/, false /* dataPartsOnly */),
         true /* committed */);
-    YCHECK(Insert(defaultErasureRequisition) == MigrationErasureChunkRequisitionIndex);
+    YCHECK(Insert(defaultErasureRequisition, objectManager) == MigrationErasureChunkRequisitionIndex);
     Ref(MigrationErasureChunkRequisitionIndex);
 }
 
@@ -588,7 +646,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     IndexToItem_.reserve(sortedIndex.size());
     RequisitionToIndex_.reserve(sortedIndex.size());
 
-    for (const auto& pair: sortedIndex) {
+    for (const auto& pair : sortedIndex) {
         IndexToItem_.emplace(pair.first, pair.second);
         RequisitionToIndex_.emplace(pair.second.Requisition, pair.first);
     }
@@ -600,6 +658,54 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     Load(context, NextIndex_);
 
     YCHECK(!IndexToItem_.has(NextIndex_));
+}
+
+TChunkRequisitionIndex TChunkRequisitionRegistry::GetIndex(
+    const TChunkRequisition& requisition,
+    const NObjectServer::TObjectManagerPtr& objectManager)
+{
+    auto it = RequisitionToIndex_.find(requisition);
+    if (it != RequisitionToIndex_.end()) {
+        Y_ASSERT(IndexToItem_.find(it->second) != IndexToItem_.end());
+        return it->second;
+    }
+
+    return Insert(requisition, objectManager);
+}
+
+TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
+    const TChunkRequisition& requisition,
+    const NObjectServer::TObjectManagerPtr& objectManager)
+{
+    auto index = GenerateIndex();
+
+    TIndexedItem item;
+    item.Requisition = requisition;
+    item.Replication = requisition.ToReplication();
+    item.RefCount = 0; // This is ok, Ref()/Unref() will be called soon.
+    YCHECK(IndexToItem_.emplace(index, item).second);
+    YCHECK(RequisitionToIndex_.emplace(requisition, index).second);
+
+    for (const auto& entry : requisition) {
+        objectManager->WeakRefObject(entry.Account);
+    }
+
+    return index;
+}
+
+void TChunkRequisitionRegistry::Erase(
+    TChunkRequisitionIndex index,
+    const NObjectServer::TObjectManagerPtr& objectManager)
+{
+    auto it = IndexToItem_.find(index);
+    const auto& requisition = it->second.Requisition;
+
+    for (const auto& entry : requisition) {
+        objectManager->WeakUnrefObject(entry.Account);
+    }
+
+    RequisitionToIndex_.erase(requisition);
+    IndexToItem_.erase(it);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
