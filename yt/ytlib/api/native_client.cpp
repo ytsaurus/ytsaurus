@@ -3663,9 +3663,13 @@ private:
                 itemsSortDirection,
                 1 + options.Limit);
 
+            TString poolColumnName = version < 15 ? "''" : "pool";
+
             TString queryForCounts = Format(
-                "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY pool AS pool, authenticated_user AS user, state AS state, operation_type AS type",
-                GetOperationsArchivePathOrderedByStartTime(), JoinSeq(" AND ", countsConditions));
+                "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY %v AS pool, authenticated_user AS user, state AS state, operation_type AS type",
+                poolColumnName,
+                GetOperationsArchivePathOrderedByStartTime(),
+                JoinSeq(" AND ", countsConditions));
 
             TSelectRowsOptions selectRowsOptions;
             if (deadline) {
