@@ -61,3 +61,7 @@ set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
 include_directories(${BASE})
 
 add_library(${NAME} STATIC ${SRCS})
+
+if (_is_gcc)
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -Wno-error)
+endif()

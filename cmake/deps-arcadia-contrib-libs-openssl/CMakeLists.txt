@@ -770,3 +770,7 @@ include_directories(
 )
 
 add_library(${NAME} STATIC ${SRCS} ${_o_})
+
+if (_is_gcc)
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -Wno-error)
+endif()

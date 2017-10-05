@@ -77,7 +77,7 @@ set(CUSTOM_CMAKE_CXX_FLAGS
 
 # Now configure compiler options for g++ and clang.
 if(_is_gcc)
-  set(DIAGNOSTIC_FLAGS "-Wall")
+  set(DIAGNOSTIC_FLAGS "-Wall -Werror")
 
   if(_is_clang)
     # Do not yell about unused arguments.
@@ -94,14 +94,19 @@ if(_is_gcc)
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-const-variable")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-function")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-local-typedef")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-potentially-evaluated-expression")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-private-field")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unknown-warning-option")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-reserved-user-defined-literal")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-missing-braces")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-constant-logical-operand")
 
     if(CMAKE_COLOR_MAKEFILE OR NOT DEFINED CMAKE_COLOR_MAKEFILE)
       set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -fcolor-diagnostics")
     endif()
   else()
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-function")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-maybe-uninitialized")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-sign-compare")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-parentheses")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-local-typedefs")

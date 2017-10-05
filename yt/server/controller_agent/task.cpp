@@ -802,7 +802,7 @@ void TTask::RegisterStripe(
             // NB: if job is not restarted, we should not add its output for the
             // second time to the destination pools that did not trigger the replay.
             if (!joblet->Restarted) {
-                inputCookie = destinationPool->Add(stripe, key);
+                inputCookie = destinationPool->AddWithKey(stripe, key);
             }
         } else {
             inputCookie = lostIt->second;
@@ -832,7 +832,7 @@ void TTask::RegisterStripe(
             completedJob,
             stripe);
     } else {
-        destinationPool->Add(stripe, key);
+        destinationPool->AddWithKey(stripe, key);
     }
 }
 
