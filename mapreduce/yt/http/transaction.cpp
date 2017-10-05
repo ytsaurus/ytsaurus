@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/finally_guard.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 
 #include <util/datetime/base.h>
 
@@ -80,7 +81,7 @@ void TPingableTransaction::Pinger()
         PingTransaction(Auth_, TransactionId_);
         TInstant t = Now();
         while (Running_ && Now() - t < TConfig::Get()->PingInterval) {
-            Sleep(TDuration::MilliSeconds(100));
+            NDetail::TWaitProxy::Sleep(TDuration::MilliSeconds(100));
         }
     }
 }

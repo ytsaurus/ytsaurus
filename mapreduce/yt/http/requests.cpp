@@ -4,12 +4,13 @@
 #include "retry_request.h"
 #include "transaction.h"
 
-#include <mapreduce/yt/interface/errors.h>
-#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/serialize.h>
+#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/node_builder.h>
+#include <mapreduce/yt/common/serialize.h>
+#include <mapreduce/yt/common/wait_proxy.h>
+#include <mapreduce/yt/interface/errors.h>
 
 #include <library/json/json_reader.h>
 
@@ -287,7 +288,7 @@ TString RetryRequest(
             return response;
         }
 
-        Sleep(retryInterval);
+        NDetail::TWaitProxy::Sleep(retryInterval);
     }
 
     ythrow yexception() << "unreachable";
@@ -334,7 +335,7 @@ void RetryHeavyWriteRequest(
             if (!NDetail::IsRetriable(e) || attempt + 1 == retryCount) {
                 throw;
             }
-            Sleep(NDetail::GetRetryInterval(e));
+            NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
             continue;
 
         } catch (yexception& e) {
@@ -346,7 +347,7 @@ void RetryHeavyWriteRequest(
             if (attempt + 1 == retryCount) {
                 throw;
             }
-            Sleep(TConfig::Get()->RetryInterval);
+            NDetail::TWaitProxy::Sleep(TConfig::Get()->RetryInterval);
             continue;
         }
 
