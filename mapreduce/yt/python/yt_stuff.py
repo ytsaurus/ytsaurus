@@ -29,8 +29,8 @@ class YtConfig(object):
                  scheduler_config=None, master_config=None, proxy_config=None, yt_path=None,
                  save_all_logs=None, enable_debug_log=None, yt_work_dir=None, keep_yt_work_dir=None,
                  ram_drive_path=None, local_cypress_dir=None, wait_tablet_cell_initialization=None,
-                 operations_memory_limit=None, forbid_chunk_storage_in_tmpfs=None, yt_version=None,
-                 cell_tag=None):
+                 jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
+                 forbid_chunk_storage_in_tmpfs=None, yt_version=None, cell_tag=None):
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
 
@@ -68,7 +68,9 @@ class YtConfig(object):
         self.local_cypress_dir = local_cypress_dir
 
         self.wait_tablet_cell_initialization = wait_tablet_cell_initialization
-        self.operations_memory_limit = get_value(operations_memory_limit, 25 * 1024 ** 3)
+        self.jobs_memory_limit = get_value(jobs_memory_limit, 25 * 1024 ** 3)
+        self.jobs_cpu_limit = jobs_cpu_limit
+        self.jobs_user_slot_count = jobs_user_slot_count
         self.forbid_chunk_storage_in_tmpfs = forbid_chunk_storage_in_tmpfs
 
         yt_package_versions = os.listdir(yatest.common.build_path("yt/packages"))
@@ -256,8 +258,13 @@ class YtStuff(object):
                 "--id", self.yt_id,
                 "--path", self.yt_work_dir,
                 "--fqdn", self.config.fqdn,
-                "--operations-memory-limit", str(self.config.operations_memory_limit),
+                "--jobs-memory-limit", str(self.config.jobs_memory_limit)
             ]
+
+            if self.config.jobs_cpu_limit:
+                args += ["--jobs-cpu-limit", str(self.jobs_cpu_limit)]
+            if self.config.jobs_user_slot_count:
+                args += ["--jobs-user-slot-count", str(self.jobs_user_slot_count)]
 
             if self.config.wait_tablet_cell_initialization:
                 args += ["--wait-tablet-cell-initialization"]
