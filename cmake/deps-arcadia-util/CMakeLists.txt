@@ -361,3 +361,7 @@ endif()
 if(APPLE)
   set_target_properties(deps-arcadia-util PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE")
 endif()
+
+if (_is_clang)
+  set_target_properties(deps-arcadia-util PROPERTIES COMPILE_FLAGS -Wno-unknown-attributes)
+endif()
