@@ -24,9 +24,12 @@ public:
         TAutoMergeTask* task,
         i64 chunkSizeThreshold);
 
-    virtual NChunkPools::IChunkPoolInput::TCookie Add(
+    virtual NChunkPools::IChunkPoolInput::TCookie AddWithKey(
         NChunkPools::TChunkStripePtr stripe,
         NChunkPools::TChunkStripeKey key) override;
+
+    virtual NChunkPools::IChunkPoolInput::TCookie Add(
+        NChunkPools::TChunkStripePtr stripe) override;
 
     virtual void Suspend(TCookie cookie);
 

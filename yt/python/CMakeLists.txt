@@ -12,6 +12,14 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/lazy_parser.cpp
 )
 
+if (_is_gcc)
+  set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/serialize.cpp PROPERTIES COMPILE_FLAGS -Wno-write-strings)
+  set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/yson_lazy_map.cpp PROPERTIES COMPILE_FLAGS -Wno-write-strings)
+  if (_is_clang)
+    set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/serialize.cpp PROPERTIES COMPILE_FLAGS "-Wno-parentheses-equality -Wno-writable-strings")
+  endif()
+endif()
+
 execute_process(COMMAND lsb_release --codename --short
                 OUTPUT_VARIABLE LSB_RELEASE)
 
