@@ -5,6 +5,7 @@
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/http.h>
@@ -104,7 +105,7 @@ size_t TFileReader::DoRead(void* buf, size_t len)
             if (!NDetail::IsRetriable(e) || attempt == retryCount) {
                 throw;
             }
-            Sleep(NDetail::GetRetryInterval(e));
+            NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", ~GetActiveRequestId(), e.what(), attempt, retryCount);
             if (Request_) {
@@ -113,7 +114,7 @@ size_t TFileReader::DoRead(void* buf, size_t len)
             if (attempt == retryCount) {
                 throw;
             }
-            Sleep(TConfig::Get()->RetryInterval);
+            NDetail::TWaitProxy::Sleep(TConfig::Get()->RetryInterval);
         }
         Input_ = nullptr;
     }

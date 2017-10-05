@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/log.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 
 #include <util/stream/str.h>
 
@@ -99,7 +100,7 @@ TResponseInfo RetryRequestWithPolicy(
 
             auto maybeRetryTimeout = retryPolicy.GetRetryInterval(e);
             if (maybeRetryTimeout) {
-                Sleep(*maybeRetryTimeout);
+                TWaitProxy::Sleep(*maybeRetryTimeout);
             } else {
                 throw;
             }
@@ -112,7 +113,7 @@ TResponseInfo RetryRequestWithPolicy(
 
             auto maybeRetryTimeout = retryPolicy.GetRetryInterval(e);
             if (maybeRetryTimeout) {
-                Sleep(*maybeRetryTimeout);
+                TWaitProxy::Sleep(*maybeRetryTimeout);
             } else {
                 throw;
             }

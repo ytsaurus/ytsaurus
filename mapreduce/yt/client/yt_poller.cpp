@@ -6,6 +6,7 @@
 #include <mapreduce/yt/http/retry_request.h>
 
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 
 namespace NYT {
 namespace NDetail {
@@ -38,14 +39,14 @@ void TYtPoller::WatchLoop()
         {
             auto g = Guard(Lock_);
             if (IsRunning_ && Pending_.empty() && InProgress_.empty()) {
-                HasData_.Wait(Lock_);
+                TWaitProxy::WaitCondVar(HasData_, Lock_);
             }
 
             if (!IsRunning_) {
                 return;
             }
 
-            SleepUntil(nextRequest);
+            TWaitProxy::SleepUntil(nextRequest);
             nextRequest = TInstant::Now() + TConfig::Get()->WaitLockPollInterval;
             if (!Pending_.empty()) {
                 InProgress_.splice(InProgress_.end(), Pending_);

@@ -12,6 +12,7 @@
 #include <mapreduce/yt/common/serialize.h>
 #include <mapreduce/yt/common/fluent.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 
 #include <library/yson/writer.h>
 #include <library/yson/json_writer.h>
@@ -301,7 +302,7 @@ private:
                 if (!e.IsResolveError() || attempt + 1 == retryCount) {
                     throw;
                 }
-                Sleep(TDuration::Seconds(1));
+                TWaitProxy::Sleep(TDuration::Seconds(1));
                 continue;
             }
             break;
@@ -630,7 +631,7 @@ void WaitForOperation(
                 ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
             break;
         }
-        Sleep(checkOperationStateInterval);
+        TWaitProxy::Sleep(checkOperationStateInterval);
     }
 }
 
@@ -1836,7 +1837,7 @@ TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, 
     auto operation = ::MakeIntrusive<TOperation>(operationId, client);
     if (options.Wait_) {
         auto finishedFuture = operation->Watch();
-        finishedFuture.Wait();
+        TWaitProxy::WaitFuture(finishedFuture);
         finishedFuture.GetValue();
     }
     return operation;

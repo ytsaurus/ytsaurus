@@ -4,6 +4,7 @@
 #include <mapreduce/yt/interface/errors.h>
 
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 
 namespace NYT {
 
@@ -85,7 +86,7 @@ void TBlockWriter::FlushBuffer(bool lastBlock)
         }
     }
 
-    CanWrite_.Wait();
+    NDetail::TWaitProxy::WaitEvent(CanWrite_);
     if (Exception_) {
         WriterState_ = Error;
         std::rethrow_exception(Exception_);
@@ -121,7 +122,7 @@ void TBlockWriter::SendThread()
     while (!Stopped_) {
         try {
             CanWrite_.Signal();
-            HasData_.Wait();
+            NDetail::TWaitProxy::WaitEvent(HasData_);
             Send(SecondaryBuffer_);
             SecondaryBuffer_.Clear();
         } catch (const yexception&) {

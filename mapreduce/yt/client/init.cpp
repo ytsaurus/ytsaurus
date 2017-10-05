@@ -1,11 +1,12 @@
 #include <mapreduce/yt/interface/init.h>
 
-#include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/io/job_reader.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 #include <mapreduce/yt/http/requests.h>
+#include <mapreduce/yt/interface/operation.h>
+#include <mapreduce/yt/io/job_reader.h>
 
 #include <util/string/cast.h>
 #include <util/folder/dirut.h>
@@ -41,7 +42,7 @@ const TNode& GetJobSecureVault()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Initialize(int argc, const char* argv[], const TInitializeOptions& /*options*/)
+void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
 {
     auto logLevelStr = to_lower(TConfig::Get()->LogLevel);
     ILogger::ELevel logLevel;
@@ -54,6 +55,10 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& /*option
     SetLogger(CreateStdErrLogger(logLevel));
 
     TProcessState::Get()->SetCommandLine(argc, argv);
+
+    if (options.WaitProxy_) {
+        NDetail::TWaitProxy::Get() = options.WaitProxy_;
+    }
 
     const bool isInsideJob = !GetEnv("YT_JOB_ID").empty();
     if (!isInsideJob) {

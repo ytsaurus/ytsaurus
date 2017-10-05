@@ -6,6 +6,7 @@
 
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/common/log.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 
 namespace NYT {
 
@@ -31,7 +32,7 @@ void TRowQueue::Enqueue(TRowElement&& row)
         return;
     }
 
-    DequeueEvent_.Wait();
+    NDetail::TWaitProxy::WaitEvent(DequeueEvent_);
 
     if (Stopped_) {
         throw TStopException();
@@ -52,7 +53,7 @@ TRowElement TRowQueue::Dequeue()
         }
         DequeueBuffer_.clear();
         DequeueEvent_.Signal();
-        EnqueueEvent_.Wait();
+        NDetail::TWaitProxy::WaitEvent(EnqueueEvent_);
     }
 }
 
@@ -418,7 +419,7 @@ void TNodeTableReader::FetchThread()
             } catch (const TStopException&) {
                 break;
             }
-            RetryPrepared_.Wait();
+            NDetail::TWaitProxy::WaitEvent(RetryPrepared_);
         }
     }
 }

@@ -3,10 +3,11 @@
 #include "helpers.h"
 #include "yamr_table_reader.h"
 
-#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/serialize.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/log.h>
+#include <mapreduce/yt/common/serialize.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/retry_request.h>
@@ -56,7 +57,7 @@ TClientReader::TClientReader(
                 if (!NDetail::IsRetriable(e) || attempt == lastAttempt) {
                     throw;
                 }
-                Sleep(NDetail::GetRetryInterval(e));
+                NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
                 continue;
             }
             break;
@@ -172,7 +173,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             if (!NDetail::IsRetriable(e) || attempt == lastAttempt) {
                 throw;
             }
-            Sleep(NDetail::GetRetryInterval(e));
+            NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
             continue;
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
@@ -184,7 +185,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             if (attempt == lastAttempt) {
                 throw;
             }
-            Sleep(TConfig::Get()->RetryInterval);
+            NDetail::TWaitProxy::Sleep(TConfig::Get()->RetryInterval);
             continue;
         }
 
