@@ -3,6 +3,7 @@
 import yt.wrapper as yt
 from time import sleep
 from random import randint
+from random import random
 from random import choice
 from subprocess import call
 from subprocess import check_output
@@ -33,13 +34,15 @@ def get_addresses(cluster, role):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Randomly restart nodes and possibly schedulers.")
-    parser.add_argument("--restart-scheduler", action="store_true", default=False, help="Restart scheduler too")
+    parser.add_argument("--restart-nodes", action="store_true", default=False, help="Restart nodes")
+    parser.add_argument("--restart-schedulers", action="store_true", default=False, help="Restart schedulers")
     parser.add_argument("--sleep-time", type=float, default=2, help="Sleep time in seconds (float)")
     parser.add_argument("cluster", type=str, help="Lowercase cluster name")
 
     args = parser.parse_args()
     cluster = args.cluster
-    should_restart_scheduler = args.restart_scheduler
+    restart_nodes = args.restart_nodes
+    restart_schedulers = args.restart_schedulers
     sleep_time = args.sleep_time
 
     up_nodes = set(get_addresses(cluster, "nodes") + get_addresses(cluster, "data_proxy"))
@@ -50,6 +53,8 @@ if __name__ == "__main__":
     while True:
         mode = randint(0, 60) // 20
         if mode == 0:
+            if not restart_node:
+                continue
             # Stop random node
             if len(down_nodes) >= MAX_DOWN_NODES:
                 continue
@@ -58,6 +63,8 @@ if __name__ == "__main__":
             down_nodes.add(node)
             up_nodes.remove(node)
         elif mode == 1:
+            if not restart_node:
+                continue
             # Start random node
             if len(down_nodes) == 0:
                 continue
@@ -66,16 +73,18 @@ if __name__ == "__main__":
             down_nodes.remove(node)
             up_nodes.add(node)
         elif mode == 2:
+            if not restart_node:
+                continue
             # Restart random node
             node = choice(list(up_nodes))
             restart_node(node)
         elif mode == 3:
-            if not should_restart_scheduler:
+            if not restart_scheduler:
                 continue
             scheduler = choice(list(schedulers))
             restart_scheduler(scheduler)
 
-        sleep(sleep_time)
+        sleep(sleep_time * (0.75 + 0.5 * random()))
         print datetime.datetime.now().isoformat()
 
 
