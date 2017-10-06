@@ -314,8 +314,6 @@ class TestCypressCommands(object):
         yt.create_table(table)
         assert list(yt.read_table(table, format=yt.format.DsvFormat())) == []
 
-        with pytest.raises(YPathError):
-            yt.copy([], table)
         with pytest.raises(yt.YtError):
             yt.copy(table, table)
         with pytest.raises(yt.YtError):
@@ -553,9 +551,6 @@ class TestCypressCommands(object):
         yt.concatenate([fileA, fileB], output_file)
 
         assert b"HelloWorld" == yt.read_file(output_file).read()
-
-        with pytest.raises(yt.YtError):
-            yt.concatenate([], None)
 
         with pytest.raises(yt.YtError):
             yt.concatenate([], tableA)
