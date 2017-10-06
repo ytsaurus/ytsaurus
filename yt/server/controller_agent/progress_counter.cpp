@@ -197,17 +197,32 @@ void TProgressCounter::SetParent(const TProgressCounterPtr& parent)
     if (TotalEnabled_) {
         Parent_->Increment(Total_);
     }
+
+    // Running jobs.
     Parent_->Start(Running_);
+
+    // Completed jobs.
     for (const auto& interruptReason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
-        if (Completed_[interruptReason]) {
-            Parent_->Completed(Completed_[interruptReason], interruptReason);
+        if (auto value = Completed_[interruptReason]) {
+            Parent_->Start(value);
+            Parent_->Completed(value, interruptReason);
         }
     }
+
+    // Failed jobs.
+    Parent_->Start(Failed_);
     Parent_->Failed(Failed_);
+
+    // Lost jobs (yes, job losing is a rather complicated process).
+    Parent_->Start(Lost_);
+    Parent_->Completed(Lost_, EInterruptReason::None);
     Parent_->Lost(Lost_);
+
+    // Aborted jobs.
     for (const auto& abortReason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-        if (Aborted_[abortReason]) {
-            Parent_->Aborted(Aborted_[abortReason], abortReason);
+        if (auto value = Aborted_[abortReason]) {
+            Parent_->Start(value);
+            Parent_->Aborted(value, abortReason);
         }
     }
 }
