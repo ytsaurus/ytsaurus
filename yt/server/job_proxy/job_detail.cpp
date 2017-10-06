@@ -172,6 +172,11 @@ double TSimpleJobBase::GetProgress() const
     }
 }
 
+ui64 TSimpleJobBase::GetStderrSize() const
+{
+    return 0;
+}
+
 std::vector<TChunkId> TSimpleJobBase::GetFailedChunkIds() const
 {
     return Reader_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();

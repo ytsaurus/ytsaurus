@@ -326,6 +326,18 @@ public:
         }
     }
 
+    virtual ui64 GetStderrSize() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        return StderrSize_;
+    }
+
+    virtual void SetStderrSize(ui64 value) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        StderrSize_ = value;
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -503,6 +515,7 @@ private:
     TFuture<void> ArtifactsFuture_ = VoidFuture;
 
     double Progress_ = 0.0;
+    ui64 StderrSize_ = 0;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();

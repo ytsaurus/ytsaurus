@@ -743,6 +743,30 @@ class TestSchedulerCommon(YTEnvSetup):
         op.resume_jobs()
         op.track()
 
+    def test_job_stderr_size(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
+
+        events = EventsOnFs()
+
+        op = map(
+            dont_track=True,
+            wait_for_jobs=True,
+            label="job_progress",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="echo FOOBAR >&2 ; {wait_cmd}; cat".format(wait_cmd= events.wait_event_cmd("checked_stderr")))
+        op.resume_jobs()
+
+        def get_stderr_size():
+            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, op.jobs[0]))
+        wait(lambda: get_stderr_size() == len("FOOBAR\n"))
+
+        events.notify_event("checked_stderr")
+
+        op.track()
+
     def test_estimated_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

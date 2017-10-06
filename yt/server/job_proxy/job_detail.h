@@ -59,6 +59,8 @@ public:
 
     virtual double GetProgress() const override;
 
+    virtual ui64 GetStderrSize() const override;
+
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const override;
 

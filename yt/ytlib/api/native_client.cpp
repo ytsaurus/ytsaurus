@@ -4213,6 +4213,7 @@ private:
                 auto jobType = ParseEnum<NJobTrackerClient::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
                 auto jobState = ParseEnum<NJobTrackerClient::EJobState>(values->GetChild("state")->AsString()->GetValue());
                 auto address = values->GetChild("address")->AsString()->GetValue();
+                auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
 
                 if (options.JobType && jobType != *options.JobType) {
                     continue;
@@ -4226,8 +4227,13 @@ private:
                     continue;
                 }
 
-                if (options.HasStderr && !(*options.HasStderr)) {
-                    continue;
+                if (options.HasStderr) {
+                    if (*options.HasStderr && stderrSize <= 0) {
+                        continue;
+                    }
+                    if (!(*options.HasStderr) && stderrSize > 0) {
+                        continue;
+                    }
                 }
 
                 TGuid jobId = TGuid::FromString(item.first);
@@ -4238,6 +4244,7 @@ private:
                 job.JobState = jobState;
                 job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
                 job.Address = address;
+                job.StderrSize = stderrSize;
 
                 if (auto error = values->FindChild("error")) {
                     job.Error = TYsonString(error->AsString()->GetValue());

@@ -78,6 +78,8 @@ struct IJob
 
     virtual double GetProgress() const = 0;
 
+    virtual ui64 GetStderrSize() const = 0;
+
     virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
 };
 

@@ -149,6 +149,7 @@ void TJobProxy::SendHeartbeat()
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(Job_->GetProgress());
     req->set_statistics(ConvertToYsonString(GetStatistics()).GetData());
+    req->set_stderr_size(Job_->GetStderrSize());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 

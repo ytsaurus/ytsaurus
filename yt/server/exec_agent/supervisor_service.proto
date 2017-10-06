@@ -47,6 +47,7 @@ message TReqOnJobProgress
     required NYT.NProto.TGuid job_id = 1;
     required double progress = 2;
     required string statistics = 3;
+    optional uint64 stderr_size = 4;
 }
 
 message TRspOnJobProgress

@@ -181,6 +181,16 @@ public:
         Progress_ = value;
     }
 
+    virtual ui64 GetStderrSize() const override
+    {
+        return JobStderrSize_;
+    }
+
+    virtual void SetStderrSize(ui64 value) override
+    {
+        JobStderrSize_ = value;
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         return TYsonString();
@@ -286,6 +296,7 @@ protected:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     double Progress_ = 0.0;
+    ui64 JobStderrSize_ = 0;
 
     TFuture<void> JobFuture_;
 
