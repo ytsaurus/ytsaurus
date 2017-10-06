@@ -13,11 +13,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_dispatcher_impl.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_server.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/codegen/init.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/codegen/module.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/codegen/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/codegen/routine_registry.cpp
-
   ${CMAKE_CURRENT_LIST_DIR}/compression/brotli.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/brotli_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/bzip2.cpp
@@ -96,7 +91,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/core_dumper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/cpuid.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/crash_handler.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/crypto.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/demangle.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/digest.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/dnf.cpp
@@ -183,13 +177,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc/static_channel_factory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/throttling_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/latency_taming_channel.cpp
-
-  ${CMAKE_CURRENT_LIST_DIR}/grpc/public.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/grpc/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/grpc/dispatcher.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/grpc/server.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/grpc/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/grpc/channel.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/tools/registry.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools/tools.cpp

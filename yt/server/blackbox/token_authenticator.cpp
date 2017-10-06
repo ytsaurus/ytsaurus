@@ -3,7 +3,7 @@
 #include "private.h"
 
 #include <yt/core/misc/expiring_cache.h>
-#include <yt/core/misc/crypto.h>
+#include <yt/core/crypto/crypto.h>
 
 #include <util/string/split.h>
 

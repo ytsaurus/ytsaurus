@@ -8,8 +8,6 @@
 #include "object_builder.h"
 #include "protobuf_descriptor_pool.h"
 
-#include <yt/ytlib/ypath/rich.h>
-
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/yson/protobuf_interop.h>
