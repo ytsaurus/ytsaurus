@@ -256,6 +256,7 @@ class Poller(object):
                                         task_id, attempts_made + 1, self._max_failed_tasks_restart_count)
                             failed_tasks_infos[local_task_id] = (attempts_made + 1, time.time(), True)
                     else:
+                        failed_tasks_infos.pop(local_task_id, None)
                         failed_task_count += 1
                 elif tasks_state_descriptions.get(task_id) != state_description:
                     logger.info("Task %s %s. %s", task_id, state, state_description)
