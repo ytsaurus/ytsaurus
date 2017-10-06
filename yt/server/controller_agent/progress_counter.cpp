@@ -201,6 +201,14 @@ void TProgressCounter::SetParent(const TProgressCounterPtr& parent)
     // Running jobs.
     Parent_->Start(Running_);
 
+    // NB: all modifications below require starting fictional jobs before accounting them in the proper category.
+    // This may lead to the situation when parent's Total_ is smaller than his Running_ (like if there were
+    // lots of aborted jobs, but total job count is relatively small). To overcome this issue we calculate total
+    // number of jobs we are going to start fictionally, increment parent's total job count by this value,
+    // performs all the modifications and finally decrement it back.
+    i64 totalDelta = GetCompletedTotal() + Failed_ + Lost_ + GetAbortedTotal();
+    Parent_->Increment(totalDelta);
+
     // Completed jobs.
     for (const auto& interruptReason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
         if (auto value = Completed_[interruptReason]) {
@@ -225,6 +233,8 @@ void TProgressCounter::SetParent(const TProgressCounterPtr& parent)
             Parent_->Aborted(value, abortReason);
         }
     }
+
+    Parent_->Increment(-totalDelta);
 }
 
 const TProgressCounterPtr& TProgressCounter::Parent() const
