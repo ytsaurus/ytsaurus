@@ -1323,7 +1323,7 @@ TOwningKey RowToKey(
 namespace {
 
 template <class TRow>
-TSharedRange<TUnversionedRow> CaptureRowsImpl(
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRowsImpl(
     const TRange<TRow>& rows,
     TRefCountedTypeCookie tagCookie)
 {
@@ -1373,19 +1373,19 @@ TSharedRange<TUnversionedRow> CaptureRowsImpl(
 
     YCHECK(alignedPtr == unalignedPtr);
 
-    return MakeSharedRange(MakeRange(capturedRows, rows.Size()), std::move(buffer));
+    return { MakeSharedRange(MakeRange(capturedRows, rows.Size()), std::move(buffer)), bufferSize };
 }
 
 } // namespace
 
-TSharedRange<TUnversionedRow> CaptureRows(
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
     const TRange<TUnversionedRow>& rows,
     TRefCountedTypeCookie tagCookie)
 {
     return CaptureRowsImpl(rows, tagCookie);
 }
 
-TSharedRange<TUnversionedRow> CaptureRows(
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
     const TRange<TUnversionedOwningRow>& rows,
     TRefCountedTypeCookie tagCookie)
 {

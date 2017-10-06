@@ -18,8 +18,6 @@
 
 #include <yt/server/job_agent/job_controller.h>
 
-#include <yt/server/misc/memory_usage_tracker.h>
-
 #include <yt/server/tablet_node/slot_manager.h>
 #include <yt/server/tablet_node/tablet.h>
 #include <yt/server/tablet_node/tablet_slot.h>
@@ -34,6 +32,8 @@
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
