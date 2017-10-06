@@ -5,10 +5,10 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/server/misc/memory_usage_tracker.h>
-
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/block.h>
+
+#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -62,7 +62,7 @@ private:
 
     virtual TFuture<void> DoStart() override;
     void DoOpenWriter();
-   
+
     virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,

@@ -5,6 +5,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_row.h>
 
@@ -23,6 +25,7 @@ public:
         const TStoreId& id,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
+        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
         NApi::INativeClientPtr client = nullptr,
@@ -66,6 +69,7 @@ private:
     TOwningKey MaxKey_;
 
     const NTableClient::TKeyComparer KeyComparer_;
+    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
 
     NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
