@@ -3,7 +3,7 @@
 #include "name_table.h"
 #include "row_buffer.h"
 
-#include <yt/core/misc/crypto.h>
+#include <yt/core/crypto/crypto.h>
 
 #include <array>
 

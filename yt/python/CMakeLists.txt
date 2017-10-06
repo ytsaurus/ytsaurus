@@ -1,8 +1,6 @@
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/descriptor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/response.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
   ${CMAKE_CURRENT_LIST_DIR}/stream.cpp
@@ -24,7 +22,6 @@ execute_process(COMMAND lsb_release --codename --short
                 OUTPUT_VARIABLE LSB_RELEASE)
 
 set(PYTHON_LINK_FLAGS "-static-libstdc++")
-
 
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   set(
@@ -68,20 +65,35 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
 
   add_library(${TARGET_NAME_PREFIX}pycxx STATIC ${PYCXX_SRCS})
   target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
-
-  target_compile_definitions(${TARGET_NAME_PREFIX}pycxx PUBLIC -DPYCXX_PYTHON_2TO3 -DPYCXX_6_2_COMPATIBILITY -DPy_LIMITED_API=0x03040000)
+  target_compile_definitions(${TARGET_NAME_PREFIX}pycxx
+    PUBLIC
+      -DPYCXX_PYTHON_2TO3
+      -DPYCXX_6_2_COMPATIBILITY
+      -DPy_LIMITED_API=0x03040000)
 
   add_library(${TARGET_NAME_PREFIX}common STATIC ${YT_SRCS})
-  target_link_libraries(${TARGET_NAME_PREFIX}common yt-library-client ${TARGET_NAME_PREFIX}pycxx)
+  target_link_libraries(${TARGET_NAME_PREFIX}common yt-core ${TARGET_NAME_PREFIX}pycxx)
+
+  add_library(${TARGET_NAME_PREFIX}yson
+    MODULE
+    ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
+  )
+
+  target_link_libraries(${TARGET_NAME_PREFIX}yson ${TARGET_NAME_PREFIX}common)
+
+  add_library(${TARGET_NAME_PREFIX}driver
+    MODULE
+    ${CMAKE_CURRENT_LIST_DIR}/driver.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/descriptor.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/response.cpp
+  )
+
+  target_link_libraries(${TARGET_NAME_PREFIX}driver yt-library-client ${TARGET_NAME_PREFIX}common)
 
   foreach(COMPONENT "yson" "driver")
     set(TARGET_NAME "${TARGET_NAME_PREFIX}${COMPONENT}")
 
-    add_library(${TARGET_NAME} MODULE ${CMAKE_CURRENT_LIST_DIR}/${COMPONENT}.cpp)
-
     target_compile_definitions(${TARGET_NAME} PUBLIC -DPy_LIMITED_API=0x03040000)
-
-    target_link_libraries(${TARGET_NAME} ${TARGET_NAME_PREFIX}common)
 
     set_target_properties(${TARGET_NAME}
       PROPERTIES

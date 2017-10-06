@@ -13,4 +13,6 @@ endif()
 target_link_libraries(unittester-core
   yt-core-test-framework
   yt-core
+  yt-core-grpc
+  yt-core-crypto
 )

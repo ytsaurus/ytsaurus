@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/crypto.h>
+#include <yt/core/crypto/crypto.h>
 
 #include <limits>
 
