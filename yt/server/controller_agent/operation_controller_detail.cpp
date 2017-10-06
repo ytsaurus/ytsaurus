@@ -1753,6 +1753,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     auto joblet = GetJoblet(jobSummary->Id);
 
     joblet->Progress = jobSummary->Progress;
+    joblet->StderrSize = jobSummary->StderrSize;
 
     if (jobSummary->StatisticsYson) {
         joblet->StatisticsYson = jobSummary->StatisticsYson;
@@ -1829,6 +1830,10 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("start_time").Value(job->StartTime)
         .Item("account").Value(job->Account)
         .Item("progress").Value(job->Progress)
+
+        // We use Int64 for `stderr_size' to be consistent with
+        // compressed_data_size / uncompressed_data_size attributes.
+        .Item("stderr_size").Value(i64(job->StderrSize))
         .Item("brief_statistics")
             .Value(job->BriefStatistics)
         .DoIf(outputStatistics, [&] (TFluentMap fluent) {

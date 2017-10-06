@@ -155,6 +155,7 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason ab
 TRunningJobSummary::TRunningJobSummary(const TJobPtr& job, TJobStatus* status)
     : TJobSummary(job, status)
     , Progress(status->progress())
+    , StderrSize(status->stderr_size())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

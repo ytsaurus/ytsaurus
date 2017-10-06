@@ -92,17 +92,20 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
     auto jobId = FromProto<TJobId>(request->job_id());
     double progress = request->progress();
     auto statistics = TYsonString(request->statistics());
+    auto stderrSize = request->stderr_size();
 
-    context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v",
+    context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v",
         jobId,
         progress,
-        NYTree::ConvertToYsonString(statistics, EYsonFormat::Text).GetData());
+        NYTree::ConvertToYsonString(statistics, EYsonFormat::Text).GetData(),
+        stderrSize);
 
     auto jobController = Bootstrap->GetJobController();
     auto job = jobController->GetJobOrThrow(jobId);
 
     job->SetProgress(progress);
     job->SetStatistics(statistics);
+    job->SetStderrSize(stderrSize);
 
     context->Reply();
 }

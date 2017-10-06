@@ -364,6 +364,18 @@ public:
         return UserJobReadController_->GetProgress();
     }
 
+    virtual ui64 GetStderrSize() const override
+    {
+        if (!Prepared_) {
+            return 0;
+        }
+        auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentSize(); })
+            .AsyncVia(ReadStderrInvoker_)
+            .Run());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr size");
+        return result.Value();
+    }
+
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return UserJobReadController_->GetFailedChunkIds();
