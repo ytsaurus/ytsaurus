@@ -1619,6 +1619,7 @@ class TestSchedulingTags(YTEnvSetup):
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
             spec={"scheduling_tag_filter": "tagA & !tagC"})
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
+
         with pytest.raises(YtError):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
                 spec={"scheduling_tag_filter": "tagA & !tagB"})
@@ -1632,9 +1633,21 @@ class TestSchedulingTags(YTEnvSetup):
     def test_pools(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/test_pool", attributes={"node_tag": "tagA"})
-        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
+        create("map_node", "//sys/pools/test_pool", attributes={"scheduling_tag_filter": "tagA"})
+        op = map(command="cat; echo 'AAA' >&2", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
+
+        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            job_addr = get("//sys/operations/{0}/jobs/{1}/@address".format(op.id, job_id))
+            assert "tagA" in get("//sys/nodes/{0}/@user_tags".format(job_addr))
+
+        # We do not support detection of the fact that no node satisfies pool scheduling tag filter.
+        #set("//sys/pools/test_pool/@scheduling_tag_filter", "tagC")
+        #with pytest.raises(YtError):
+        #    map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
+        #        spec={"pool": "test_pool"})
 
     def test_tag_correctness(self):
         def get_job_nodes(op):

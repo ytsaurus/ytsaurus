@@ -227,12 +227,16 @@ TEST(FairShareTree, TestAttributes)
     auto poolA = New<TPool>(
         host.Get(),
         "A",
+        New<TPoolConfig>(),
+        true,
         config,
         NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"));
 
     auto poolB = New<TPool>(
         host.Get(),
         "B",
+        New<TPoolConfig>(),
+        true,
         config,
         NProfiling::TProfileManager::Get()->RegisterTag("pool", "B"));
 

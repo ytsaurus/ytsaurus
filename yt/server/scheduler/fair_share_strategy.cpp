@@ -185,7 +185,7 @@ public:
         auto poolId = spec->Pool ? *spec->Pool : userName;
         auto pool = FindPool(poolId);
         if (!pool) {
-            pool = New<TPool>(Host, poolId, Config, GetPoolProfilingTag(poolId));
+            pool = New<TPool>(Host, poolId, New<TPoolConfig>(), /* defaultConfigured */ true, Config, GetPoolProfilingTag(poolId));
             pool->SetUserName(userName);
             UserToEphemeralPools[userName].insert(poolId);
             RegisterPool(pool);
@@ -414,21 +414,21 @@ public:
                         }
 
                         // Parse config.
-                        auto configNode = ConvertToNode(childNode->Attributes());
-                        TPoolConfigPtr config;
+                        auto poolConfigNode = ConvertToNode(childNode->Attributes());
+                        TPoolConfigPtr poolConfig;
                         try {
-                            config = ConvertTo<TPoolConfigPtr>(configNode);
+                            poolConfig = ConvertTo<TPoolConfigPtr>(poolConfigNode);
                         } catch (const std::exception& ex) {
                             errors.emplace_back(
                                 TError(
                                     "Error parsing configuration of pool %Qv; using defaults",
                                     childPath)
                                 << ex);
-                            config = New<TPoolConfig>();
+                            poolConfig = New<TPoolConfig>();
                         }
 
                         try {
-                            config->Validate();
+                            poolConfig->Validate();
                         } catch (const std::exception& ex) {
                             errors.emplace_back(
                                 TError(
@@ -440,12 +440,11 @@ public:
                         auto pool = FindPool(childId);
                         if (pool) {
                             // Reconfigure existing pool.
-                            pool->SetConfig(config);
+                            ReconfigurePool(pool, poolConfig);
                             YCHECK(orphanPoolIds.erase(childId) == 1);
                         } else {
                             // Create new pool.
-                            pool = New<TPool>(Host, childId, Config, GetPoolProfilingTag(childId));
-                            pool->SetConfig(config);
+                            pool = New<TPool>(Host, childId, poolConfig, /* defaultConfigured */ false, Config, GetPoolProfilingTag(childId));
                             RegisterPool(pool, parent);
                         }
                         SetPoolParent(pool, parent);
@@ -1275,14 +1274,20 @@ private:
             parent->GetId());
     }
 
+    void DoRegisterPool(const TPoolPtr& pool)
+    {
+        int index = RegisterSchedulingTagFilter(pool->GetSchedulingTagFilter());
+        pool->SetSchedulingTagFilterIndex(index);
+        YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
+        YCHECK(PoolToMinUnusedSlotIndex.insert(std::make_pair(pool->GetId(), 0)).second);
+    }
+
     void RegisterPool(const TPoolPtr& pool)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(pool->GetConfig()->SchedulingTagFilter));
-        pool->SetSchedulingTagFilterIndex(index);
-        YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        YCHECK(PoolToMinUnusedSlotIndex.insert(std::make_pair(pool->GetId(), 0)).second);
+        DoRegisterPool(pool);
+
         LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
     }
 
@@ -1290,14 +1295,26 @@ private:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        YCHECK(PoolToMinUnusedSlotIndex.insert(std::make_pair(pool->GetId(), 0)).second);
+        DoRegisterPool(pool);
+
         pool->SetParent(parent.Get());
         parent->AddChild(pool);
 
         LOG_INFO("Pool registered (Pool: %v, Parent: %v)",
             pool->GetId(),
             parent->GetId());
+    }
+
+    void ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr& config)
+    {
+        auto oldSchedulingTagFilter = pool->GetSchedulingTagFilter();
+        pool->SetConfig(config);
+        auto newSchedulingTagFilter = pool->GetSchedulingTagFilter();
+        if (oldSchedulingTagFilter != newSchedulingTagFilter) {
+            UnregisterSchedulingTagFilter(oldSchedulingTagFilter);
+            int index = RegisterSchedulingTagFilter(newSchedulingTagFilter);
+            pool->SetSchedulingTagFilterIndex(index);
+        }
     }
 
     void UnregisterPool(const TPoolPtr& pool)
