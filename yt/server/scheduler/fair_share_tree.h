@@ -401,6 +401,8 @@ public:
     TPool(
         ISchedulerStrategyHost* host,
         const TString& id,
+        TPoolConfigPtr config,
+        bool defaultConfigured,
         TFairShareStrategyConfigPtr strategyConfig,
         NProfiling::TTagId profilingTag);
     TPool(

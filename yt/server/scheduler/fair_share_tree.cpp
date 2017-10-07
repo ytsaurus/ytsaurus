@@ -1117,18 +1117,22 @@ TPoolFixedState::TPoolFixedState(const TString& id)
 TPool::TPool(
     ISchedulerStrategyHost* host,
     const TString& id,
+    TPoolConfigPtr config,
+    bool defaultConfigured,
     TFairShareStrategyConfigPtr strategyConfig,
     NProfiling::TTagId profilingTag)
     : TCompositeSchedulerElement(host, strategyConfig, profilingTag)
     , TPoolFixedState(id)
 {
-    SetDefaultConfig();
+    DoSetConfig(config);
+    DefaultConfigured_ = defaultConfigured;
 }
 
 TPool::TPool(const TPool& other, TCompositeSchedulerElement* clonedParent)
     : TCompositeSchedulerElement(other, clonedParent)
     , TPoolFixedState(other)
     , Config_(other.Config_)
+    , SchedulingTagFilter_(other.SchedulingTagFilter_)
 { }
 
 bool TPool::IsDefaultConfigured() const
@@ -1157,7 +1161,6 @@ void TPool::SetConfig(TPoolConfigPtr config)
 
     DoSetConfig(config);
     DefaultConfigured_ = false;
-    SchedulingTagFilter_ = TSchedulingTagFilter(config->SchedulingTagFilter);
 }
 
 void TPool::SetDefaultConfig()
@@ -1166,7 +1169,6 @@ void TPool::SetDefaultConfig()
 
     DoSetConfig(New<TPoolConfig>());
     DefaultConfigured_ = true;
-    SchedulingTagFilter_ = EmptySchedulingTagFilter;
 }
 
 bool TPool::IsAggressiveStarvationPreemptionAllowed() const
@@ -1311,6 +1313,7 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
     Config_ = newConfig;
     FifoSortParameters_ = Config_->FifoSortParameters;
     Mode_ = Config_->Mode;
+    SchedulingTagFilter_ = TSchedulingTagFilter(Config_->SchedulingTagFilter);
 }
 
 TJobResources TPool::ComputeResourceLimits() const
