@@ -1687,8 +1687,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     auto joblet = GetJoblet(jobId);
 
-    //DataFlowGraph_.OnJobAborted(joblet->JobType, abortReason);
-
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
     const auto& statistics = *jobSummary->Statistics;
 
@@ -3312,6 +3310,7 @@ void TOperationControllerBase::InitializeStandardEdgeDescriptors()
     for (int index = 0; index < Sinks_.size(); ++index) {
         StandardEdgeDescriptors_[index] = OutputTables_[index].GetEdgeDescriptorTemplate();
         StandardEdgeDescriptors_[index].DestinationPool = Sinks_[index].get();
+        StandardEdgeDescriptors_[index].IsFinalOutput = true;
     }
 }
 
@@ -5354,9 +5353,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
-        .Item("data_flow_graph").BeginMap()
-            .Do(BIND(&TDataFlowGraph::BuildYson, &DataFlowGraph_))
-        .EndMap()
+        .Item("data_flow_graph").DoMap(BIND(&TDataFlowGraph::BuildYson, &DataFlowGraph_))
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent
@@ -5380,20 +5377,24 @@ void TOperationControllerBase::BuildAndSaveProgress()
     auto progressString = BuildYsonStringFluently()
         .BeginMap()
             .Do(BIND([=] (IYsonConsumer* consumer) {
-                WaitFor(
+                auto asyncResult = WaitFor(
                     BIND(&IOperationController::BuildProgress, MakeStrong(this))
                         .AsyncVia(GetInvoker())
                         .Run(consumer));
+                asyncResult
+                    .ThrowOnError();
             }))
         .EndMap();
 
     auto briefProgressString = BuildYsonStringFluently()
         .BeginMap()
             .Do(BIND([=] (IYsonConsumer* consumer) {
-                WaitFor(
+                auto asyncResult = WaitFor(
                     BIND(&IOperationController::BuildBriefProgress, MakeStrong(this))
                         .AsyncVia(GetInvoker())
                         .Run(consumer));
+                asyncResult
+                    .ThrowOnError();
             }))
         .EndMap();
 
@@ -6418,6 +6419,11 @@ void TOperationControllerBase::UnstageChunkTreesNonRecursively(std::vector<TChun
 TDataFlowGraph& TOperationControllerBase::DataFlowGraph()
 {
     return DataFlowGraph_;
+}
+
+void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
+{
+    task->FinishInput(TDataFlowGraph::TVertexDescriptor::Source);
 }
 
 bool TOperationControllerBase::IsCompleted() const

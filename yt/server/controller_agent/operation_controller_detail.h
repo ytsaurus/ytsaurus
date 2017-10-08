@@ -852,6 +852,8 @@ protected:
 
     virtual TDataFlowGraph& DataFlowGraph() override;
 
+    void FinishTaskInput(const TTaskPtr& task);
+
 private:
     typedef TOperationControllerBase TThis;
 

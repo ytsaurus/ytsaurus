@@ -66,7 +66,9 @@ public:
 
     void AddInput(NChunkPools::TChunkStripePtr stripe);
     void AddInput(const std::vector<NChunkPools::TChunkStripePtr>& stripes);
-    void FinishInput();
+
+    // NB: This works well until there is no more than one input data flow vertex for any task.
+    void FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex);
 
     void CheckCompleted();
 
@@ -203,6 +205,8 @@ protected:
         TJobletPtr joblet,
         const NChunkPools::TChunkStripeKey& key = NChunkPools::TChunkStripeKey());
 
+    void FinishTaskInput(const TTaskPtr& task);
+
 protected:
     //! Outgoing edges in data flow graph.
     std::vector<TEdgeDescriptor> EdgeDescriptors_;
@@ -212,6 +216,7 @@ private:
 
     int CachedPendingJobCount_;
     int CachedTotalJobCount_;
+    TDataFlowGraph::TVertexDescriptor InputVertex_;
 
     TNullable<i64> MaximumUsedTmfpsSize_;
 

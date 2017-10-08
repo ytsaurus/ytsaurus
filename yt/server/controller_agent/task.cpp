@@ -168,9 +168,12 @@ void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
     }
 }
 
-void TTask::FinishInput()
+void TTask::FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex)
 {
-    LOG_DEBUG("Task input finished");
+    LOG_DEBUG("Task input finished (InputVertex: %v)",
+        inputVertex);
+
+    InputVertex_ = inputVertex;
 
     GetChunkPoolInput()->Finish();
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
@@ -400,6 +403,7 @@ void TTask::Persist(const TPersistenceContext& context)
     >(context, LostJobCookieMap);
 
     Persist(context, EdgeDescriptors_);
+    Persist(context, InputVertex_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -443,6 +447,21 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
                 outputStatistics.row_count(),
                 GetId());
             YCHECK(inputStatistics.row_count() == outputStatistics.row_count());
+        }
+
+        YCHECK(InputVertex_ > TDataFlowGraph::TVertexDescriptor::SchedulerFirst);
+        YCHECK(InputVertex_ < TDataFlowGraph::TVertexDescriptor::SchedulerLast);
+
+        auto vertex = GetJobType();
+        TaskHost_->DataFlowGraph().RegisterFlow(InputVertex_, vertex, inputStatistics);
+        // TODO(max42): rewrite this properly one day.
+        for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
+            if (EdgeDescriptors_[index].IsFinalOutput) {
+                TaskHost_->DataFlowGraph().RegisterFlow(
+                    vertex,
+                    TDataFlowGraph::TVertexDescriptor::Sink,
+                    outputStatisticsMap[index]);
+            }
         }
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
@@ -704,6 +723,11 @@ void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& sta
     if (!MaximumUsedTmfpsSize_ || *MaximumUsedTmfpsSize_ < *maxUsedTmpfsSize) {
         MaximumUsedTmfpsSize_ = *maxUsedTmpfsSize;
     }
+}
+
+void TTask::FinishTaskInput(const TTaskPtr& task)
+{
+    task->FinishInput(GetJobType() /* inputVertex */);
 }
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)

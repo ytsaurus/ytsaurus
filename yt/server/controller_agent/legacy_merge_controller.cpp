@@ -366,7 +366,7 @@ protected:
         }
 
         task->AddInput(taskStripes);
-        task->FinishInput();
+        FinishTaskInput(task);
 
         if (task->IsCompleted()) {
             // This task is useless, e.g. all input stripes are from foreign tables.

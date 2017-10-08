@@ -423,7 +423,7 @@ protected:
 
         ProcessInputs();
 
-        OrderedTask_->FinishInput();
+        FinishTaskInput(OrderedTask_);
 
         for (const auto& teleportChunk : OrderedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
             if (OrderedOutputRequired_) {
