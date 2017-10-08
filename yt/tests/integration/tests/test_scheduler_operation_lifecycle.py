@@ -301,7 +301,14 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         for tx in ls("//sys/transactions", attributes=["operation_id"]):
             if tx.attributes.get("operation_id", "") == op.id:
-                abort_transaction(tx)
+                for i in xrange(10):
+                    try:
+                        abort_transaction(tx)
+                    except YtResponseError as err:
+                        if err.contains_text("No such transaction"):
+                            break
+                        if i == 9:
+                            raise
 
         with pytest.raises(YtError):
             op.track()
@@ -599,7 +606,7 @@ class TestSchedulerRevive(YTEnvSetup):
             time.sleep(0.1)
         else:
             assert False, "Jobs do come to target state after 5 seconds"
-        
+
         # Wait for snapshot after job completion.
         time.sleep(2)
 
