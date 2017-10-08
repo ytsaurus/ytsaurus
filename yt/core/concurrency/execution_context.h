@@ -1,7 +1,10 @@
 #pragma once
 
-#include <util/system/defaults.h>
-#include <util/system/sanitizers.h>
+#include "public.h"
+
+#include <util/system/context.h>
+
+#include <array>
 
 #if defined(__GNUC__) || defined(__clang__)
 #   define CXXABIv1
@@ -12,77 +15,25 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExecutionStack;
-
-#if defined(_unix_)
-
 class TExecutionContext
 {
 public:
-    TExecutionContext();
-    TExecutionContext(void* stackBottom, size_t stackSize);
-    TExecutionContext(TExecutionContext&& other);
-    TExecutionContext(const TExecutionContext&) = delete;
+    TExecutionContext() = default;
+    TExecutionContext(TExecutionStack* stack, ITrampoLine* trampoline);
 
-#ifdef CXXABIv1
-    static const int EHSize = 16;
-#endif
+    TExecutionContext(const TExecutionContext& other) = delete;
+    TExecutionContext& operator=(const TExecutionContext& other) = delete;
 
-private:
-    void* SP_;
-
-#ifdef CXXABIv1
-    char EH_[EHSize];
-#endif
-
-#if defined(_asan_enabled_)
-    NSan::TFiberContext San_;
-#endif
-
-    friend TExecutionContext CreateExecutionContext(
-        TExecutionStack* stack,
-        void (*trampoline)(void*));
-    friend void* SwitchExecutionContext(
-        TExecutionContext* caller,
-        TExecutionContext* target,
-        void* opaque);
-
-};
-
-#elif defined(_win_)
-
-class TExecutionContext
-{
-public:
-    TExecutionContext();
-    TExecutionContext(TExecutionContext&& other);
-    TExecutionContext(const TExecutionContext&) = delete;
+    void SwitchTo(TExecutionContext* target);
 
 private:
-    void* Handle_;
-
-    friend TExecutionContext CreateExecutionContext(
-        TExecutionStack* stack,
-        void (*trampoline)(void*));
-    friend void* SwitchExecutionContext(
-        TExecutionContext* caller,
-        TExecutionContext* target,
-        void* opaque);
-
-};
-
-#else
-#   error Unsupported platform
+    TContClosure ContClosure_;
+    TContMachineContext ContContext_;
+#ifdef CXXABIv1
+    static constexpr size_t EHSize = 16;
+    std::array<char, EHSize> EH_ = {};
 #endif
-
-TExecutionContext CreateExecutionContext(
-    TExecutionStack* stack,
-    void (*trampoline)(void*));
-
-void* SwitchExecutionContext(
-    TExecutionContext* caller,
-    TExecutionContext* target,
-    void* opaque);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
