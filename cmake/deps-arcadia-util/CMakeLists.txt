@@ -337,7 +337,7 @@ foreach(f ${SRCS_ASM})
   endif()
 endforeach()
 
-add_library(deps-arcadia-util STATIC
+set(SRCS
   ${CHARSET_SRCS}
   ${STRING_SRCS}
   ${GENERIC_SRCS}
@@ -352,6 +352,11 @@ add_library(deps-arcadia-util STATIC
   ${RANDOM_SRCS}
   ${DRAFT_SRCS}
   ${ROOT_SRCS}
+)
+
+
+add_library(deps-arcadia-util STATIC
+  ${SRCS}
   ${SRCS_ASM}
 )
 
@@ -371,18 +376,18 @@ include_directories(${CMAKE_SOURCE_DIR})
 
 if(CMAKE_COMPILER_IS_GNUCXX)
   foreach(f ${SRCS})
-    set_source_file_properties(${f} PROPERTIES COMPILE_FLAGS -fPIC)
+    set_source_files_properties(${f} PROPERTIES COMPILE_FLAGS -fPIC)
   endforeach()
 endif()
 
 if(APPLE)
   foreach(f ${SRCS})
-    set_source_file_properties(${f} PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE")
+    set_source_files_properties(${f} PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE")
   endforeach()
 endif()
 
 if (_is_clang)
   foreach(f ${SRCS})
-    set_source_file_properties(${f} PROPERTIES COMPILE_FLAGS -Wno-unknown-attributes)
+    set_source_files_properties(${f} PROPERTIES COMPILE_FLAGS -Wno-unknown-attributes)
   endforeach()
 endif()
