@@ -1,6 +1,10 @@
 #include "data_flow_graph.h"
 
+#include "serialize.h"
+
 #include <yt/server/chunk_pools/chunk_pool.h>
+
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -8,6 +12,7 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NYTree;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,29 +28,50 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, Timestamp);
     Persist(context, CellTag);
     Persist(context, ImmediatelyUnstageChunkLists);
+    Persist(context, IsFinalOutput);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDataFlowGraph::BuildYson(NYson::IYsonConsumer* consumer) const
+void TDataFlowGraph::BuildYson(TFluentMap fluent) const
 {
-    BuildYsonMapFluently(consumer)
+    auto topologicalOrdering = GetTopologicalOrdering();
+    fluent
         .Item("vertices").BeginMap()
-            .DoFor(GetTopologicalOrder(), [&] (TFluentMap fluent, EJobType jobType) {
-                fluent
-                    .Item(FormatEnum(jobType)).BeginMap()
-                        .Item("job_counter").Value(JobCounters_.at(jobType))
-                    .EndMap();
+            .DoFor(topologicalOrdering, [&] (TFluentMap fluent, TVertexDescriptor vertexDescriptor) {
+                auto it = JobCounters_.find(vertexDescriptor);
+                if (it != JobCounters_.end()) {
+                    fluent
+                        .Item(FormatEnum(vertexDescriptor)).BeginMap()
+                            .Item("job_counter").Value(JobCounters_.at(vertexDescriptor))
+                        .EndMap();
+                }
             })
             .Item("total").BeginMap()
                 .Item("job_counter").Value(TotalJobCounter_)
             .EndMap()
-        .EndMap();
+        .EndMap()
+        .Item("edges")
+            .DoMapFor(topologicalOrdering, [&] (TFluentMap fluent, TVertexDescriptor from) {
+                auto it = Flow_.find(from);
+                if (it != Flow_.end()) {
+                    fluent.Item(FormatEnum(from))
+                        .DoMapFor(it->second, [&] (TFluentMap fluent, const TFlowMap::value_type::second_type::value_type& pair) {
+                            auto to = pair.first;
+                            const auto& flow = pair.second;
+                            fluent
+                                .Item(FormatEnum(to)).BeginMap()
+                                    .Item("statistics").Value(flow)
+                                .EndMap();
+                        });
+                }
+            })
+        .Item("topological_ordering").List(topologicalOrdering);
 }
 
-const TProgressCounterPtr& TDataFlowGraph::JobCounter(EJobType jobType)
+const TProgressCounterPtr& TDataFlowGraph::JobCounter(TVertexDescriptor vertexDescriptor)
 {
-    auto& progressCounter = JobCounters_[jobType];
+    auto& progressCounter = JobCounters_[vertexDescriptor];
     if (!progressCounter) {
         progressCounter = New<TProgressCounter>(0);
         progressCounter->SetParent(TotalJobCounter_);
@@ -53,14 +79,16 @@ const TProgressCounterPtr& TDataFlowGraph::JobCounter(EJobType jobType)
     return progressCounter;
 }
 
-std::vector<EJobType> TDataFlowGraph::GetTopologicalOrder() const
+std::vector<TDataFlowGraph::TVertexDescriptor> TDataFlowGraph::GetTopologicalOrdering() const
 {
-    // TODO(max42): implement a correct topological order here.
-    std::vector<EJobType> result;
-    result.reserve(JobCounters_.size());
-    for (const auto& item : JobCounters_) {
-        result.emplace_back(item.first);
+    const auto& topologicalOrdering = TopologicalOrdering_.GetOrdering();
+    std::vector<TVertexDescriptor> result;
+    result.reserve(topologicalOrdering.size());
+
+    for (auto& element : topologicalOrdering) {
+        result.emplace_back(static_cast<TVertexDescriptor>(element));
     }
+
     return result;
 }
 
@@ -69,6 +97,18 @@ void TDataFlowGraph::Persist(const TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, JobCounters_);
     Persist(context, TotalJobCounter_);
+    Persist(context, Flow_);
+    Persist(context, TopologicalOrdering_);
+}
+
+void TDataFlowGraph::RegisterFlow(
+    TDataFlowGraph::TVertexDescriptor from,
+    TDataFlowGraph::TVertexDescriptor to,
+    const TDataStatistics& statistics)
+{
+    TopologicalOrdering_.AddEdge(static_cast<int>(from), static_cast<int>(to));
+    auto& flow = Flow_[from][to];
+    flow += statistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

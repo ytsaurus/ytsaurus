@@ -198,7 +198,10 @@ public:
             }
             stripes.emplace_back(std::move(chunkStripe));
             AddInput(stripes);
-            FinishInput();
+
+            GetChunkPoolInput()->Finish();
+            AddPendingHint();
+            CheckCompleted();
         }
     };
 
@@ -362,6 +365,7 @@ protected:
                             edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
                             edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
                             edgeDescriptors[index].RequiresRecoveryInfo = true;
+                            edgeDescriptors[index].IsFinalOutput = false;
                             requiresAutoMerge = true;
                         }
                     }
@@ -372,7 +376,13 @@ protected:
                     UnorderedTask = New<TUnorderedTask>(this, std::move(edgeDescriptors));
                 }
                 UnorderedTask->AddInput(stripes);
-                UnorderedTask->FinishInput();
+                FinishTaskInput(UnorderedTask);
+                for (int index = 0; index < AutoMergeTasks.size(); ++index) {
+                    if (AutoMergeTasks[index]) {
+                        AutoMergeTasks[index]->FinishInput(UnorderedTask->GetJobType());
+                    }
+                }
+
                 RegisterTask(UnorderedTask);
 
                 LOG_INFO("Inputs processed (JobCount: %v, IsExplicitJobCount: %v)",

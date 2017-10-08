@@ -440,7 +440,7 @@ private:
         auto addTask = [this] (const std::vector<TChunkStripePtr>& stripes, int index) {
             auto task = New<TRemoteCopyTask>(this, index);
             task->AddInput(stripes);
-            task->FinishInput();
+            FinishTaskInput(task);
             RegisterTask(task);
         };
 

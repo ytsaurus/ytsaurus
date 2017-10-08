@@ -554,10 +554,10 @@ protected:
                         dataWeight);
 
                     if (partition->SortTask) {
-                        partition->SortTask->FinishInput();
+                        FinishTaskInput(partition->SortTask);
                     }
                     if (partition->UnorderedMergeTask) {
-                        partition->UnorderedMergeTask->FinishInput();
+                        FinishTaskInput(partition->UnorderedMergeTask);
                     }
                 }
             }
@@ -854,7 +854,7 @@ protected:
 
             // Kick-start the corresponding merge task.
             if (Controller->IsSortedMergeNeeded(Partition)) {
-                Partition->SortedMergeTask->FinishInput();
+                FinishTaskInput(Partition->SortedMergeTask);
             }
         }
 
@@ -2266,7 +2266,7 @@ private:
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
-        partition->SortTask->FinishInput();
+        FinishTaskInput(partition->SortTask);
 
         // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
         SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
@@ -2386,7 +2386,7 @@ private:
         PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
-        PartitionTask->FinishInput();
+        FinishTaskInput(PartitionTask);
         RegisterTask(PartitionTask);
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
@@ -2965,7 +2965,7 @@ private:
         PartitionTask = New<TPartitionTask>(this, partitionTaskEdgeDescriptor);
         PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
-        PartitionTask->FinishInput();
+        FinishTaskInput(PartitionTask);
         RegisterTask(PartitionTask);
 
         LOG_INFO("Map-reducing with partitioning (PartitionCount: %v, PartitionJobCount: %v, PartitionDataWeightPerJob: %v)",
