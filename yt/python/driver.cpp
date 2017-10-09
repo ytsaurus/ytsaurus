@@ -154,11 +154,12 @@ public:
         Py::Callable classType(TDriverResponse::type());
         Py::PythonClassObject<TDriverResponse> pythonResponse(classType.apply(Py::Tuple(), Py::Dict()));
         auto* response = pythonResponse.getCxxObject();
+        auto holder = response->GetHolder();
 
-        TDriverRequest request;
+        TDriverRequest request(holder);
         request.CommandName = ConvertStringObjectToString(GetAttr(pyRequest, "command_name"));
         request.Parameters = ConvertObjectToNode(GetAttr(pyRequest, "parameters"))->AsMap();
-        request.ResponseParametersConsumer = response->GetResponseParametersConsumer();
+        request.ResponseParametersConsumer = holder->GetResponseParametersConsumer();
 
         auto user = GetAttr(pyRequest, "user");
         if (!user.isNone()) {
@@ -176,7 +177,7 @@ public:
         if (!inputStreamObj.isNone()) {
             std::unique_ptr<TInputStreamWrap> inputStream(new TInputStreamWrap(inputStreamObj));
             request.InputStream = CreateAsyncAdapter(inputStream.get());
-            response->OwnInputStream(inputStream);
+            holder->OwnInputStream(inputStream);
         }
 
         auto outputStreamObj = GetAttr(pyRequest, "output_stream");
@@ -189,7 +190,7 @@ public:
             } else {
                 std::unique_ptr<TOutputStreamWrap> outputStream(new TOutputStreamWrap(outputStreamObj));
                 request.OutputStream = CreateAsyncAdapter(outputStream.get());
-                response->OwnOutputStream(outputStream);
+                holder->OwnOutputStream(outputStream);
             }
         }
 
