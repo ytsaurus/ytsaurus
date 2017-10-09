@@ -248,7 +248,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                 .file_paths(reduce_combiner_file_paths) \
                 .memory_limit(reduce_combiner_memory_limit) \
             .end_reduce_combiner()
-
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 def run_map(binary, source_table, destination_table,
