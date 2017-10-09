@@ -219,12 +219,10 @@ public:
             &TImpl::HandlePools,
             Unretained(this)));
 
-        MasterConnector_->AddGlobalWatcherRequester(BIND(
-            &TImpl::RequestNodesAttributes,
-            Unretained(this)));
-        MasterConnector_->AddGlobalWatcherHandler(BIND(
-            &TImpl::HandleNodesAttributes,
-            Unretained(this)));
+        MasterConnector_->AddGlobalWatcher(
+            BIND(&TImpl::RequestNodesAttributes, Unretained(this)),
+            BIND(&TImpl::HandleNodesAttributes, Unretained(this)),
+            Config_->NodesAttributesUpdatePeriod);
 
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TImpl::RequestConfig,

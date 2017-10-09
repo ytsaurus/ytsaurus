@@ -373,6 +373,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(3));
     RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
         .Default(TDuration::Seconds(3));
+    RegisterParameter("nodes_attributes_update_period", NodesAttributesUpdatePeriod)
+        .Default(TDuration::Seconds(15));
     RegisterParameter("profiling_update_period", ProfilingUpdatePeriod)
         .Default(TDuration::Seconds(1));
     RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
