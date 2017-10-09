@@ -105,13 +105,13 @@ public:
         TEndpoint leftEndpoint = {
             EEndpointType::ForeignLeft,
             dataSlice,
-            WidenKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Min),
+            GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
             dataSlice->LowerLimit().RowIndex.Get(0)
         };
         TEndpoint rightEndpoint = {
             EEndpointType::ForeignRight,
             dataSlice,
-            WidenKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_, EValueType::Min),
+            GetStrictKeySuccessor(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_),
             dataSlice->UpperLimit().RowIndex.Get(0)
         };
 
