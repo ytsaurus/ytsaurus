@@ -45,6 +45,11 @@ TDriverRequest::TDriverRequest()
     : ResponseParametersConsumer(GetNullYsonConsumer())
 { }
 
+TDriverRequest::TDriverRequest(THolderPtr holder)
+    : ResponseParametersConsumer(GetNullYsonConsumer())
+    , Holder_(std::move(holder))
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommandDescriptor IDriver::GetCommandDescriptor(const TString& commandName) const

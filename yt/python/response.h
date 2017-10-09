@@ -15,6 +15,26 @@ namespace NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDriverResponseHolder
+    : public TIntrinsicRefCounted
+{
+public:
+    TDriverResponseHolder();
+
+    NYson::IYsonConsumer* GetResponseParametersConsumer();
+    NYTree::TPythonObjectBuilder* GetPythonObjectBuilder();
+
+    void OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream);
+    void OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& outputStream);
+private:
+    std::unique_ptr<TInputStreamWrap> InputStream_;
+    std::unique_ptr<TOutputStreamWrap> OutputStream_;
+    std::unique_ptr<NYTree::TPythonObjectBuilder> ResponseParametersBuilder_;
+    std::unique_ptr<NYTree::TGilGuardedYsonConsumer> ResponseParametersConsumer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDriverResponse
     : public Py::PythonClass<TDriverResponse>
 {
@@ -22,12 +42,7 @@ public:
     TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs);
 
     void SetResponse(TFuture<void> response);
-
-    NYson::IYsonConsumer* GetResponseParametersConsumer();
-
-    void OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream);
-
-    void OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& outputStream);
+    TIntrusivePtr<TDriverResponseHolder> GetHolder() const;
 
     Py::Object ResponseParameters(Py::Tuple& args, Py::Dict& kwargs);
     PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, ResponseParameters);
@@ -50,11 +65,7 @@ public:
 
 private:
     TFuture<void> Response_;
-
-    std::unique_ptr<TInputStreamWrap> InputStream_;
-    std::unique_ptr<TOutputStreamWrap> OutputStream_;
-    std::unique_ptr<NYTree::TPythonObjectBuilder> ResponseParametersBuilder_;
-    std::unique_ptr<NYTree::TGilGuardedYsonConsumer> ResponseParametersConsumer_;
+    TIntrusivePtr<TDriverResponseHolder> Holder_;
 
     Py::Object ResponseParameters_;
     bool ResponseParametersFinished_ = false;
