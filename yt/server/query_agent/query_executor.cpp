@@ -524,15 +524,17 @@ private:
                     } else {
                         TQueryStatistics statistics = result.Value();
 
-                        for (const auto& asyncSubqueryResult : *asyncSubqueryResults) {
-                            auto subqueryStatistics = WaitFor(asyncSubqueryResult)
-                                .ValueOrThrow();
-
-                            LOG_DEBUG("Remote subquery statistics %v", subqueryStatistics);
-                            statistics += subqueryStatistics;
-                        }
-
-                        return MakeFuture(statistics);
+                        return Combine(*asyncSubqueryResults)
+                        .Apply(BIND([
+                            =,
+                            this_ = MakeStrong(this)
+                        ] (const std::vector<TQueryStatistics>& subqueryResults) mutable {
+                            for (const auto& subqueryResult : subqueryResults) {
+                                LOG_DEBUG("Remote subquery statistics %v", subqueryResult);
+                                statistics += subqueryResult;
+                            }
+                            return statistics;
+                        }));
                     }
                 }));
 
