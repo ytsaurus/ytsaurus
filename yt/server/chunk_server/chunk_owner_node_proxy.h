@@ -38,7 +38,7 @@ protected:
     void ValidateInUpdate();
     virtual void ValidateBeginUpload();
     virtual void ValidateFetch();
-    virtual void ValidateStorageParametersUpdate();
+    virtual void ValidateStorageParametersUpdate() override;
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);

@@ -374,6 +374,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const TString& key, c
         auto name = ConvertTo<TString>(value);
         auto* account = securityManager->GetAccountByNameOrThrow(name);
 
+        ValidateStorageParametersUpdate();
         ValidatePermission(account, EPermission::Use);
 
         auto* node = LockThisImpl();
@@ -644,6 +645,9 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
     return TObjectProxyBase::GetBuiltinAttribute(key, consumer);
 }
+
+void TNontemplateCypressNodeProxyBase::ValidateStorageParametersUpdate()
+{ }
 
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& context)
 {
