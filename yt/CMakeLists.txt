@@ -10,6 +10,7 @@ add_subdirectory(ytlib)
 add_subdirectory(ytlib/unittests)
 add_subdirectory(server)
 add_subdirectory(server/unittests)
+add_subdirectory(server/skynet_manager/unittests)
 add_subdirectory(run_codec)
 add_subdirectory(python)
 
