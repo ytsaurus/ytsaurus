@@ -49,6 +49,8 @@ public:
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
 
+    virtual void ValidateStorageParametersUpdate();
+
 protected:
     class TCustomAttributeDictionary
         : public NYTree::IAttributeDictionary
