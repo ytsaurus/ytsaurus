@@ -2224,8 +2224,6 @@ public:
             firstUnreadKey = GetKeyPrefix(firstSchemafulUnreadRow, Schema_.GetKeyColumnCount());
         } else if (LastKey_) {
             firstUnreadKey = GetKeySuccessor(LastKey_);
-        } else {
-            firstUnreadKey = MinKey();
         }
 
         if (!unreadRows.Empty() || HasMore_) {
@@ -2235,17 +2233,22 @@ public:
             readDescriptors.emplace_back(DataSliceDescriptor_);
         }
 
-        // TODO: Estimate row count and data size.
-        for (auto& descriptor : unreadDescriptors) {
-            for (auto& chunk : descriptor.ChunkSpecs) {
-                ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+        YCHECK(firstUnreadKey || readDescriptors.empty());
+
+        if (firstUnreadKey) {
+            // TODO: Estimate row count and data size.
+            for (auto& descriptor : unreadDescriptors) {
+                for (auto& chunk : descriptor.ChunkSpecs) {
+                    ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+                }
+            }
+            for (auto& descriptor : readDescriptors) {
+                for (auto& chunk : descriptor.ChunkSpecs) {
+                    ToProto(chunk.mutable_upper_limit()->mutable_key(), firstUnreadKey);
+                }
             }
         }
-        for (auto& descriptor : readDescriptors) {
-            for (auto& chunk : descriptor.ChunkSpecs) {
-                ToProto(chunk.mutable_upper_limit()->mutable_key(), firstUnreadKey);
-            }
-        }
+
         return {std::move(unreadDescriptors), std::move(readDescriptors)};
     }
 
