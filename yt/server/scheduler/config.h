@@ -442,6 +442,8 @@ public:
 
     TDuration WatchersUpdatePeriod;
 
+    TDuration NodesAttributesUpdatePeriod;
+
     TDuration ProfilingUpdatePeriod;
 
     TDuration AlertsUpdatePeriod;
