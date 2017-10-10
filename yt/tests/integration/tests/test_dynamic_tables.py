@@ -506,6 +506,29 @@ class TestDynamicTables(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
+    def test_cell_bundle_distribution(self):
+        create_tablet_cell_bundle("custom")
+        nodes = ls("//sys/nodes")
+        node_count = len(nodes)
+        bundles = ["default", "custom"]
+
+        cell_ids = {}
+        for _ in xrange(node_count):
+            for bundle in bundles:
+                cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": bundle})
+                cell_ids[cell_id] = bundle
+        self.wait_for_cells(cell_ids.keys())
+
+        for node in nodes:
+            slots = get("//sys/nodes/{0}/@tablet_slots".format(node))
+            count = {}
+            for slot in slots:
+                if slot["state"] == "none":
+                    continue
+                bundle = cell_ids[slot["cell_id"]]
+                count[bundle] = count.get(bundle, 0) + 1
+            assert count == {bundle: 1 for bundle in bundles}
+
     def test_cell_bundle_schema(self):
         set("//sys/schemas/tablet_cell_bundle/@options", {
             "changelog_read_quorum": 3,
