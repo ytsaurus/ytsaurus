@@ -178,9 +178,10 @@ void TSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 
 void TSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
 {
-    YCHECK(IsActive(dynamicAttributesList));
-    dynamicAttributesList[GetTreeIndex()].SatisfactionRatio = ComputeLocalSatisfactionRatio();
-    dynamicAttributesList[GetTreeIndex()].Active = IsAlive();
+    auto& attributes = dynamicAttributesList[GetTreeIndex()];
+    YCHECK(attributes.Active);
+    attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
+    attributes.Active = IsAlive();
 }
 
 void TSchedulerElement::PrescheduleJob(TFairShareContext& context, bool /*starvingOnly*/, bool /*aggressiveStarvationEnabled*/)
@@ -667,6 +668,23 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
     if (attributes.Active) {
         ++context.ActiveTreeSize;
     }
+}
+
+bool TCompositeSchedulerElement::HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const
+{
+    // TODO(ignat): eliminate copy/paste
+    aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
+    if (Starving_ && aggressiveStarvationEnabled) {
+        return true;
+    }
+
+    for (const auto& child : EnabledChildren_) {
+        if (child->HasAggressivelyStarvingNodes(context, aggressiveStarvationEnabled)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool TCompositeSchedulerElement::ScheduleJob(TFairShareContext& context)
@@ -1790,6 +1808,12 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
     ++context.ActiveOperationCount;
 
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
+}
+
+bool TOperationElement::HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const
+{
+    // TODO(ignat): Support aggressive starvation by starving operation.
+    return false;
 }
 
 bool TOperationElement::ScheduleJob(TFairShareContext& context)

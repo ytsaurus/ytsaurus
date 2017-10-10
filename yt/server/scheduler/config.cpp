@@ -117,6 +117,9 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .InRange(0.0, 1.0)
         .Default(0.5);
 
+    RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
+        .Default(TDuration::Seconds(5));
+
     RegisterValidator([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
