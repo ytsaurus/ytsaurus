@@ -2771,129 +2771,6 @@ size_t MakeCodegenProjectOp(
     return consumerSlot;
 }
 
-std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
-    TCodegenFragmentInfosPtr fragmentInfos,
-    std::vector<size_t> groupExprsIds,
-    std::vector<EValueType> nullTypes)
-{
-    return [
-        MOVE(fragmentInfos),
-        MOVE(groupExprsIds),
-        MOVE(nullTypes)
-    ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
-        auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, srcRow, builder.Buffer);
-
-        Value* dstValues = CodegenValuesPtrFromRow(builder, dstRow);
-
-        for (int index = 0; index < groupExprsIds.size(); index++) {
-            CodegenFragment(innerBuilder, groupExprsIds[index])
-                .StoreToValues(builder, dstValues, index, index);
-        }
-
-        size_t offset = groupExprsIds.size();
-        for (int index = 0; index < nullTypes.size(); ++index) {
-            TCGValue::CreateNull(builder, nullTypes[index])
-                .StoreToValues(builder, dstValues, offset + index, offset + index);
-        }
-    };
-}
-
-std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
-    size_t keySize,
-    TCodegenFragmentInfosPtr fragmentInfos,
-    std::vector<size_t> aggregateExprIds)
-{
-    return [
-        keySize,
-        MOVE(fragmentInfos),
-        MOVE(aggregateExprIds)
-    ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
-        Value* dstValues = CodegenValuesPtrFromRow(builder, dstRow);
-
-        auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, srcRow, builder.Buffer);
-
-        for (int index = 0; index < aggregateExprIds.size(); index++) {
-            CodegenFragment(innerBuilder, aggregateExprIds[index])
-                .StoreToValues(builder, dstValues, keySize + index);
-        }
-    };
-}
-
-std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregateInitialize(
-    std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize)
-{
-    return [
-        MOVE(codegenAggregates),
-        keySize
-    ] (TCGBaseContext& builder, Value* buffer, Value* row) {
-        Value* values = CodegenValuesPtrFromRow(builder, row);
-
-        for (int index = 0; index < codegenAggregates.size(); index++) {
-            codegenAggregates[index].Initialize(builder, buffer)
-                .StoreToValues(builder, values, keySize + index);
-        }
-    };
-}
-
-std::function<void(TCGBaseContext& builder, Value*, Value*, Value*)> MakeCodegenAggregateUpdate(
-    std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize,
-    bool isMerge)
-{
-    return [
-        MOVE(codegenAggregates),
-        keySize,
-        isMerge
-    ] (TCGBaseContext& builder, Value* buffer, Value* newRow, Value* groupRow) {
-        Value* newValues = CodegenValuesPtrFromRow(builder, newRow);
-        Value* groupValues = CodegenValuesPtrFromRow(builder, groupRow);
-
-        for (int index = 0; index < codegenAggregates.size(); index++) {
-            auto aggState = builder->CreateConstInBoundsGEP1_32(
-                nullptr,
-                groupValues,
-                keySize + index);
-            auto newValue = builder->CreateConstInBoundsGEP1_32(
-                nullptr,
-                newValues,
-                keySize + index);
-
-            TCodegenAggregateUpdate updateFunction;
-            if (isMerge) {
-                updateFunction = codegenAggregates[index].Merge;
-            } else {
-                updateFunction = codegenAggregates[index].Update;
-            }
-            updateFunction(builder, buffer, aggState, newValue);
-        }
-    };
-}
-
-std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregateFinalize(
-    std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize)
-{
-    return [
-        MOVE(codegenAggregates),
-        keySize
-    ] (TCGBaseContext& builder, Value* buffer, Value* row) {
-        Value* values = CodegenValuesPtrFromRow(builder, row);
-
-        for (int index = 0; index < codegenAggregates.size(); index++) {
-            auto id = keySize + index;
-            auto resultValue = codegenAggregates[index].Finalize(
-                builder,
-                buffer,
-                builder->CreateConstInBoundsGEP1_32(
-                    nullptr,
-                    values,
-                    keySize + index));
-            resultValue.StoreToValues(builder, values, keySize + index, id);
-        }
-    };
-}
-
 std::tuple<size_t, size_t> MakeCodegenSplitOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
@@ -2946,13 +2823,13 @@ size_t MakeCodegenGroupOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t producerSlot,
-    std::function<void(TCGBaseContext&, Value*, Value*)> codegenInitialize,
-    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateGroups,
-    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateAggregateArgs,
-    std::function<void(TCGBaseContext&, Value*, Value*, Value*)> codegenUpdate,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> groupExprsIds,
+    std::vector<size_t> aggregateExprIds,
+    std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> keyTypes,
+    std::vector<EValueType> stateTypes,
     bool isMerge,
-    int groupRowSize,
     bool checkNulls,
     TComparerManagerPtr comparerManager)
 {
@@ -2966,14 +2843,14 @@ size_t MakeCodegenGroupOp(
     *codegenSource = [
         consumerSlot,
         producerSlot,
-        MOVE(codegenInitialize),
-        MOVE(codegenEvaluateGroups),
-        MOVE(codegenEvaluateAggregateArgs),
-        MOVE(codegenUpdate),
+        MOVE(fragmentInfos),
+        MOVE(groupExprsIds),
+        MOVE(aggregateExprIds),
+        MOVE(codegenAggregates),
         codegenSource = std::move(*codegenSource),
         MOVE(keyTypes),
+        MOVE(stateTypes),
         isMerge,
-        groupRowSize,
         checkNulls,
         MOVE(comparerManager)
     ] (TCGOperatorContext& builder) {
@@ -2983,6 +2860,8 @@ size_t MakeCodegenGroupOp(
             Value* buffer
         ) {
             Value* newRowPtr = builder->CreateAlloca(TypeBuilder<TRow, false>::get(builder->getContext()));
+
+            size_t groupRowSize = keyTypes.size() + stateTypes.size();
 
             builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
@@ -2998,19 +2877,29 @@ size_t MakeCodegenGroupOp(
                 Value* newRowPtrRef = builder->ViaClosure(newRowPtr);
                 Value* newRowRef = builder->CreateLoad(newRowPtrRef);
 
-                codegenEvaluateGroups(builder, row, newRowRef);
+                auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, row, builder.Buffer);
+
+                Value* dstValues = CodegenValuesPtrFromRow(builder, newRowRef);
+
+                for (int index = 0; index < groupExprsIds.size(); index++) {
+                    CodegenFragment(innerBuilder, groupExprsIds[index])
+                        .StoreToValues(builder, dstValues, index, index);
+                }
+
+                for (int index = groupExprsIds.size(); index < keyTypes.size(); ++index) {
+                    TCGValue::CreateNull(builder, keyTypes[index])
+                        .StoreToValues(builder, dstValues, index, index);
+                }
 
                 Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
 
-                auto groupRowPtr = builder->CreateCall(
+                auto groupRow = builder->CreateCall(
                     builder.Module->GetRoutine("InsertGroupRow"),
                     {
                         builder.GetExecutionContext(),
                         groupByClosureRef,
                         newRowRef
                     });
-
-                auto groupRow = builder->CreateLoad(groupRowPtr);
 
                 auto inserted = builder->CreateICmpEQ(
                     builder->CreateExtractValue(
@@ -3020,13 +2909,16 @@ size_t MakeCodegenGroupOp(
                         newRowRef,
                         TypeBuilder<TRow, false>::Fields::Header));
 
-                TCGContext innerBuilder(builder, bufferRef);
+                Value* groupValues = CodegenValuesPtrFromRow(builder, groupRow);
 
                 CodegenIf<TCGContext>(
                     builder,
                     inserted,
                     [&] (TCGContext& builder) {
-                        codegenInitialize(builder, bufferRef, groupRow);
+                        for (int index = 0; index < codegenAggregates.size(); index++) {
+                            codegenAggregates[index].Initialize(builder, bufferRef)
+                                .StoreToValues(builder, groupValues, keyTypes.size() + index);
+                        }
 
                         builder->CreateCall(
                             builder.Module->GetRoutine("AllocatePermanentRow"),
@@ -3039,12 +2931,29 @@ size_t MakeCodegenGroupOp(
                     });
 
                 // Here *newRowPtrRef != groupRow.
-                if (!isMerge) {
-                    auto newRow = builder->CreateLoad(newRowPtrRef);
-                    codegenEvaluateAggregateArgs(builder, row, newRow);
-                    codegenUpdate(builder, bufferRef, newRow, groupRow);
-                } else {
-                    codegenUpdate(builder, bufferRef, row, groupRow);
+                for (int index = 0; index < codegenAggregates.size(); index++) {
+                    auto aggState = TCGValue::CreateFromRowValues(
+                        builder,
+                        groupValues,
+                        keyTypes.size() + index,
+                        stateTypes[index]);
+
+                    auto newValue = !isMerge
+                        ? CodegenFragment(innerBuilder, aggregateExprIds[index])
+                        : TCGValue::CreateFromRowValues(
+                            builder,
+                            innerBuilder.RowValues,
+                            keyTypes.size() + index,
+                            stateTypes[index]);
+
+                    TCodegenAggregateUpdate updateFunction;
+                    if (isMerge) {
+                        updateFunction = codegenAggregates[index].Merge;
+                    } else {
+                        updateFunction = codegenAggregates[index].Update;
+                    }
+                    updateFunction(builder, bufferRef, aggState, newValue)
+                        .StoreToValues(builder, groupValues, keyTypes.size() + index);
                 }
 
             };
@@ -3095,7 +3004,9 @@ size_t MakeCodegenFinalizeOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t producerSlot,
-    std::function<void(TCGBaseContext&, Value*, Value*)> codegenFinalize)
+    size_t keySize,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> stateTypes)
 {
     // codegenFinalize calls the aggregates' finalize functions if needed
 
@@ -3104,11 +3015,25 @@ size_t MakeCodegenFinalizeOp(
     *codegenSource = [
         consumerSlot,
         producerSlot,
-        MOVE(codegenFinalize),
+        keySize,
+        MOVE(codegenAggregates),
+        MOVE(stateTypes),
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
-            codegenFinalize(builder, builder.Buffer, row);
+            Value* values = CodegenValuesPtrFromRow(builder, row);
+
+            for (int index = 0; index < codegenAggregates.size(); index++) {
+                auto value = TCGValue::CreateFromRowValues(
+                    builder,
+                    values,
+                    keySize + index,
+                    stateTypes[index]);
+
+                codegenAggregates[index].Finalize(builder, builder.Buffer, value)
+                    .StoreToValues(builder, values, keySize + index);
+            }
+
             builder[consumerSlot](builder, row);
         };
 
@@ -3316,7 +3241,10 @@ TCGExpressionCallback CodegenStandaloneExpression(
     return module->GetCompiledFunction<TCGExpressionSignature>(entryFunctionName);
 }
 
-TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
+TCGAggregateCallbacks CodegenAggregate(
+    TCodegenAggregate codegenAggregate,
+    EValueType argumentType,
+    EValueType stateType)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
 
@@ -3328,7 +3256,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Value* resultPtr
         ) {
             codegenAggregate.Initialize(builder, buffer)
-                .StoreToValue(builder, resultPtr, 0, "writeResult");
+                .StoreToValue(builder, resultPtr, "writeResult");
             builder->CreateRetVoid();
         });
 
@@ -3343,7 +3271,10 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Value* statePtr,
             Value* newValuePtr
         ) {
-            codegenAggregate.Update(builder, buffer, statePtr, newValuePtr);
+            auto state = TCGValue::CreateFromLlvmValue(builder, statePtr, stateType);
+            auto newValue = TCGValue::CreateFromLlvmValue(builder, newValuePtr, argumentType);
+            codegenAggregate.Update(builder, buffer, state, newValue)
+                .StoreToValue(builder, statePtr, "writeResult");
             builder->CreateRetVoid();
         });
 
@@ -3358,7 +3289,11 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Value* dstStatePtr,
             Value* statePtr
         ) {
-            codegenAggregate.Merge(builder, buffer, dstStatePtr, statePtr);
+            auto state = TCGValue::CreateFromLlvmValue(builder, statePtr, stateType);
+            auto dstState = TCGValue::CreateFromLlvmValue(builder, dstStatePtr, stateType);
+
+            codegenAggregate.Merge(builder, buffer, dstState, state)
+                .StoreToValue(builder, dstStatePtr, "writeResult");
             builder->CreateRetVoid();
         });
 
@@ -3373,8 +3308,11 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Value* resultPtr,
             Value* statePtr
         ) {
-            auto result = codegenAggregate.Finalize(builder, buffer, statePtr);
-            result.StoreToValue(builder, resultPtr, 0, "writeResult");
+            auto result = codegenAggregate.Finalize(
+                builder,
+                buffer,
+                TCGValue::CreateFromLlvmValue(builder, statePtr, stateType));
+            result.StoreToValue(builder, resultPtr, "writeResult");
             builder->CreateRetVoid();
         });
 

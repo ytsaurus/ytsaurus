@@ -50,9 +50,9 @@ struct TCodegenFragmentInfos
 DEFINE_REFCOUNTED_TYPE(TCodegenFragmentInfos)
 
 typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer)> TCodegenAggregateInit;
-typedef std::function<void(TCGBaseContext& builder, Value* buffer, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
-typedef std::function<void(TCGBaseContext& builder, Value* buffer, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
-typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, Value* aggState)> TCodegenAggregateFinalize;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue newValue)> TCodegenAggregateUpdate;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState)> TCodegenAggregateMerge;
+typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState)> TCodegenAggregateFinalize;
 
 struct TCodegenAggregate {
     TCodegenAggregateInit Initialize;
@@ -183,40 +183,17 @@ size_t MakeCodegenMultiJoinOp(
     std::vector<std::pair<size_t, EValueType>> primaryColumns,
     TComparerManagerPtr comparerManager);
 
-std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
-    TCodegenFragmentInfosPtr fragmentInfos,
-    std::vector<size_t> groupExprsIds,
-    std::vector<EValueType> nullTypes = std::vector<EValueType>());
-
-std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
-    size_t keySize,
-    TCodegenFragmentInfosPtr fragmentInfos,
-    std::vector<size_t> aggregateExprIds);
-
-std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregateInitialize(
-    std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize);
-
-std::function<void(TCGBaseContext& builder, Value*, Value*, Value*)> MakeCodegenAggregateUpdate(
-    std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize,
-    bool isMerge);
-
-std::function<void(TCGBaseContext& builder, Value*, Value*)> MakeCodegenAggregateFinalize(
-    std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize);
-
 size_t MakeCodegenGroupOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
-    size_t slot,
-    std::function<void(TCGBaseContext&, Value*, Value*)> codegenInitialize,
-    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateGroups,
-    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateAggregateArgs,
-    std::function<void(TCGBaseContext&, Value*, Value*, Value*)> codegenUpdate,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> groupExprsIds,
+    std::vector<size_t> aggregateExprIds,
+    std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> keyTypes,
+    std::vector<EValueType> stateTypes,
     bool isMerge,
-    int groupRowSize,
     bool checkNulls,
     TComparerManagerPtr comparerManager);
 
@@ -224,7 +201,9 @@ size_t MakeCodegenFinalizeOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
-    std::function<void(TCGBaseContext&, Value*, Value*)> codegenFinalize);
+    size_t keySize,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> stateTypes);
 
 size_t MakeCodegenAddStreamOp(
     TCodegenSource* codegenSource,
@@ -264,7 +243,10 @@ TCGExpressionCallback CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId);
 
-TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate);
+TCGAggregateCallbacks CodegenAggregate(
+    TCodegenAggregate codegenAggregate,
+    EValueType argumentType,
+    EValueType stateType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
