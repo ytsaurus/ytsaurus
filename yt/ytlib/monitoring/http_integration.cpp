@@ -49,7 +49,7 @@ TString OnResponse(const TYPathProxy::TErrorOrRspGetPtr& rspOrError)
 
 void ParseQuery(IAttributeDictionary* attributes, const TString& query)
 {
-    auto params = splitStroku(query, "&");
+    auto params = SplitStroku(query, "&");
     for (const auto& param : params) {
         auto eqIndex = param.find_first_of('=');
         if (eqIndex == TString::npos) {

@@ -1,6 +1,7 @@
 package NYT.NYTree.NProto;
 
 option java_package = "ru.yandex.yt.ytree";
+option java_multiple_files = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -7,7 +7,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/protos/rpc.pb.h>
 
 #include <atomic>
 
@@ -24,7 +24,7 @@ public:
     virtual TSharedRefArray GetRequestMessage() const override;
 
     virtual TRequestId GetRequestId() const override;
-    
+
     virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
@@ -147,7 +147,7 @@ public:
     virtual TSharedRefArray GetRequestMessage() const override;
 
     virtual NRpc::TRequestId GetRequestId() const override;
-    
+
     virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
@@ -205,7 +205,7 @@ class TServerBase
 public:
     virtual void RegisterService(IServicePtr service) override;
     virtual bool UnregisterService(IServicePtr service) override;
-    
+
     virtual IServicePtr FindService(const TServiceId& serviceId) override;
 
     virtual void Configure(TServerConfigPtr config) override;

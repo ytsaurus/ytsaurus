@@ -1,7 +1,7 @@
 package NYT.NNodeTrackerClient.NProto;
 
-import "yt/core/misc/guid.proto";
-import "yt/core/misc/error.proto";
+import "yt/core/protos/guid.proto";
+import "yt/core/protos/error.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/tablet_client/heartbeat.proto";
 import "yt/ytlib/chunk_client/heartbeat.proto";

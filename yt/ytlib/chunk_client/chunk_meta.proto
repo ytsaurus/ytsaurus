@@ -1,6 +1,6 @@
 package NYT.NChunkClient.NProto;
 
-import "yt/core/misc/protobuf_helpers.proto";
+import "yt/core/protos/protobuf_helpers.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
