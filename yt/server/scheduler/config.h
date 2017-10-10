@@ -28,7 +28,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategyConfig
-    : virtual public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     // The following settings can be overridden in operation spec.
