@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/crypto.h>
+#include <yt/core/crypto/crypto.h>
 
 #include <yt/core/yson/consumer.h>
 
