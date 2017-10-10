@@ -138,7 +138,7 @@ b"""
         operations_update_period = 500;
         fair_share_update_period = 500;
         watchers_update_period = 100;
-        request_node_attributes_period = 100;
+        nodes_attributes_update_period = 100;
         update_exec_node_descriptors_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
