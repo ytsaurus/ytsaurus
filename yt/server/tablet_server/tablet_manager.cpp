@@ -1201,10 +1201,12 @@ public:
         }
     }
 
-    int GetAssignedTabletCellCount(const TString& address) const
+    const TTabletCellSet* FindAssignedTabletCells(const TString& address) const
     {
-        auto range = AddressToCell_.equal_range(address);
-        return std::distance(range.first, range.second);
+        auto it = AddressToCell_.find(address);
+        return it != AddressToCell_.end()
+            ? &it->second
+            : nullptr;
     }
 
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
@@ -2397,7 +2399,7 @@ private:
 
     yhash<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
-    yhash_mm<TString, TTabletCell*> AddressToCell_;
+    yhash<TString, TTabletCellSet> AddressToCell_;
     yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
@@ -2848,15 +2850,16 @@ private:
         // Request slot starts.
         {
             int availableSlots = node->Statistics().available_tablet_slots();
-            auto range = AddressToCell_.equal_range(address);
-            for (auto it = range.first; it != range.second; ++it) {
-                auto* cell = it->second;
-                if (!IsObjectAlive(cell)) {
-                    continue;
-                }
-                if (actualCells.find(cell) == actualCells.end()) {
-                    requestCreateSlot(cell);
-                    --availableSlots;
+            auto it = AddressToCell_.find(address);
+            if (it != AddressToCell_.end()) {
+                for (auto* cell : it->second) {
+                    if (!IsObjectAlive(cell)) {
+                        continue;
+                    }
+                    if (actualCells.find(cell) == actualCells.end()) {
+                        requestCreateSlot(cell);
+                        --availableSlots;
+                    }
                 }
             }
         }
@@ -2925,17 +2928,27 @@ private:
 
     void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        AddressToCell_.insert(std::make_pair(descriptor.GetDefaultAddress(), cell));
+        const auto& address = descriptor.GetDefaultAddress();
+        auto cellsIt = AddressToCell_.find(address);
+        if (cellsIt == AddressToCell_.end()) {
+            cellsIt = AddressToCell_.insert(std::make_pair(address, TTabletCellSet())).first;
+        }
+        auto& set = cellsIt->second;
+        YCHECK(std::find(set.begin(), set.end(), cell) == set.end());
+        set.push_back(cell);
     }
 
     void RemoveFromAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        auto range = AddressToCell_.equal_range(descriptor.GetDefaultAddress());
-        for (auto it = range.first; it != range.second; ++it) {
-            if (it->second == cell) {
-                AddressToCell_.erase(it);
-                break;
-            }
+        const auto& address = descriptor.GetDefaultAddress();
+        auto cellsIt = AddressToCell_.find(address);
+        YCHECK(cellsIt != AddressToCell_.end());
+        auto& set = cellsIt->second;
+        auto it = std::find(set.begin(), set.end(), cell);
+        YCHECK(it != set.end());
+        set.erase(it);
+        if (set.empty()) {
+            AddressToCell_.erase(cellsIt);
         }
     }
 
@@ -4366,9 +4379,9 @@ void TTabletManager::Initialize()
     return Impl_->Initialize();
 }
 
-int TTabletManager::GetAssignedTabletCellCount(const TString& address) const
+const TTabletCellSet* TTabletManager::FindAssignedTabletCells(const TString& address) const
 {
-    return Impl_->GetAssignedTabletCellCount(address);
+    return Impl_->FindAssignedTabletCells(address);
 }
 
 TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)
