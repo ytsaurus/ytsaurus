@@ -696,6 +696,10 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
             committed_resource_usage = get("//sys/accounts/test_account/@committed_resource_usage")
             assert resource_usage["tablet_static_memory"] == data_size
             assert resource_usage == committed_resource_usage
+            assert get("//tmp/t/@resource_usage/tablet_count") == 1
+            assert get("//tmp/t/@resource_usage/tablet_static_memory") == data_size
+            assert get("//tmp/@recursive_resource_usage/tablet_count") == 1
+            assert get("//tmp/@recursive_resource_usage/tablet_static_memory") == data_size
 
         set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 1000)
         self.sync_mount_table("//tmp/t")
@@ -740,27 +744,6 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
 
         _test("compressed")
         _test("uncompressed")
-
-    def test_in_memory_set_account(self):
-        create_account("test_account")
-        self.sync_create_cells(1)
-        self._create_sorted_table("//tmp/t")
-        set("//tmp/t/@in_memory_mode", "compressed")
-
-        self.sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 0, "value": "A" * 1024}])
-        self.sync_flush_table("//tmp/t")
-        set("//tmp/t/@account", "test_account")
-
-        data_size = get("//tmp/t/@compressed_data_size")
-
-        self._verify_resource_usage("tmp", "tablet_static_memory", 0)
-        self._verify_resource_usage("test_account", "tablet_static_memory", data_size)
-
-        assert get("//tmp/t/@resource_usage/tablet_count") == 1
-        assert get("//tmp/t/@resource_usage/tablet_static_memory") == data_size
-        assert get("//tmp/@recursive_resource_usage/tablet_count") == 1
-        assert get("//tmp/@recursive_resource_usage/tablet_static_memory") == data_size
 
     def test_insert_during_tablet_static_memory_limit_violation(self):
         create_account("test_account")
