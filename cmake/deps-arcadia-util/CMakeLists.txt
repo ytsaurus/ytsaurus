@@ -15,7 +15,6 @@ set(STRING_SRCS
   ${STRING_BASE}/cast.cc
   ${STRING_BASE}/cgiparam.cpp
   ${STRING_BASE}/cstriter.cpp
-  ${STRING_BASE}/delim_stroka_iter.cpp
   ${STRING_BASE}/escape.cpp
   ${STRING_BASE}/hex.cpp
   ${STRING_BASE}/iterator.cpp
