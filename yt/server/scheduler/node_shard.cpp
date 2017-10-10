@@ -1749,7 +1749,7 @@ void TNodeShard::TRevivalState::FinalizeReviving()
         Host_->Config_->JobRevivalAbortTimeout);
 
     // NB: DoUnregisterJob attempts to erase job from the revival state, so we need to
-    // eliminate set modification during its traversal my moving it to the local variable.
+    // eliminate set modification during its traversal by moving it to the local variable.
     auto notConfirmedJobs = std::move(NotConfirmedJobs_);
     for (const auto& job : notConfirmedJobs) {
         LOG_DEBUG("Aborting revived job that was not confirmed (JobId: %v)",
@@ -1758,8 +1758,6 @@ void TNodeShard::TRevivalState::FinalizeReviving()
             TError("Job not confirmed")
                 << TErrorAttribute("abort_reason", EAbortReason::RevivalConfirmationTimeout));
         Host_->OnJobAborted(job, &status);
-        auto execNode = Host_->GetNodeByJob(job->GetId());
-        execNode->JobIdsToRemove().emplace_back(job->GetId());
     }
 }
 
