@@ -113,6 +113,9 @@ public:
 
     //! Delay before starting considering total resource limits after scheduler connection.
     TDuration TotalResourceLimitsConsiderDelay;
+    
+    //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
+    TDuration PreemptiveSchedulingBackoff;
 
     TFairShareStrategyConfig();
 };

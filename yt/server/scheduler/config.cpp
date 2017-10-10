@@ -120,6 +120,9 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
+        .Default(TDuration::Seconds(5));
+
     RegisterValidator([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
