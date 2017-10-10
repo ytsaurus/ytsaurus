@@ -756,28 +756,21 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGBaseContext& builder, Value* buffer, Value* aggState, Value* newValue) {
+    ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue newValue) {
         auto codegenArgs = std::vector<TCodegenValue>();
         codegenArgs.push_back([=] (TCGBaseContext& builder) {
-            return TCGValue::CreateFromLlvmValue(
-                builder,
-                aggState,
-                stateType);
+            return aggState;
         });
         codegenArgs.push_back([=] (TCGBaseContext& builder) {
-            return TCGValue::CreateFromLlvmValue(
-                builder,
-                newValue,
-                argumentType);
+            return newValue;
         });
 
-        this_->CallingConvention_->MakeCodegenFunctionCall(
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
             builder,
             codegenArgs,
             makeCodegenBody(updateName, buffer),
             stateType,
-            name + "_update")
-            .StoreToValue(builder, aggState);
+            name + "_update");
     };
 
     codegenAggregate.Merge = [
@@ -787,28 +780,21 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGBaseContext& builder, Value* buffer, Value* dstAggState, Value* aggState) {
+    ] (TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState) {
         auto codegenArgs = std::vector<TCodegenValue>();
         codegenArgs.push_back([=] (TCGBaseContext& builder) {
-            return TCGValue::CreateFromLlvmValue(
-                builder,
-                dstAggState,
-                stateType);
+            return dstAggState;
             });
         codegenArgs.push_back([=] (TCGBaseContext& builder) {
-            return TCGValue::CreateFromLlvmValue(
-                builder,
-                aggState,
-                stateType);
+            return aggState;
         });
 
-        this_->CallingConvention_->MakeCodegenFunctionCall(
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
             builder,
             codegenArgs,
             makeCodegenBody(mergeName, buffer),
             stateType,
-            name + "_merge")
-            .StoreToValue(builder, dstAggState);
+            name + "_merge");
     };
 
     codegenAggregate.Finalize = [
@@ -818,13 +804,10 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         resultType,
         name,
         makeCodegenBody
-    ] (TCGBaseContext& builder, Value* buffer, Value* aggState) {
+    ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState) {
         auto codegenArgs = std::vector<TCodegenValue>();
         codegenArgs.push_back([=] (TCGBaseContext& builder) {
-            return TCGValue::CreateFromLlvmValue(
-                builder,
-                aggState,
-                stateType);
+            return aggState;
         });
 
         return this_->CallingConvention_->MakeCodegenFunctionCall(

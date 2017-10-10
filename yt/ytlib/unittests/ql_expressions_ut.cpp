@@ -1350,7 +1350,9 @@ TEST_P(TEvaluateAggregationTest, Basic)
 
     auto registry = BuiltinAggregateCG;
     auto aggregate = registry->GetAggregate(aggregateName);
-    auto callbacks = CodegenAggregate(aggregate->Profile(type, type, type, aggregateName));
+    auto callbacks = CodegenAggregate(
+        aggregate->Profile(type, type, type, aggregateName),
+        type, type);
 
     auto buffer = New<TRowBuffer>();
 

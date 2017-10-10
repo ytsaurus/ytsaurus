@@ -316,29 +316,19 @@ public:
             argumentType,
             stateType,
             name
-        ] (TCGBaseContext& builder, Value* buffer, Value* aggStatePtr, Value* newValuePtr)
+        ] (TCGBaseContext& builder, Value* buffer, TCGValue aggregateValue, TCGValue newValue)
         {
-            auto newValue = TCGValue::CreateFromLlvmValue(
-                builder,
-                newValuePtr,
-                argumentType);
-
-            CodegenIf<TCGBaseContext>(
+            return CodegenIf<TCGBaseContext, TCGValue>(
                 builder,
                 builder->CreateNot(newValue.IsNull(builder)),
                 [&] (TCGBaseContext& builder) {
-                    auto aggregateValue = TCGValue::CreateFromLlvmValue(
-                        builder,
-                        aggStatePtr,
-                        stateType);
-
                     Value* valueLength = nullptr;
                     if (argumentType == EValueType::String) {
                         valueLength = newValue.GetLength(builder);
                     }
                     Value* newData = newValue.GetData(builder);
 
-                    CodegenIf<TCGBaseContext, TCGValue>(
+                    return CodegenIf<TCGBaseContext, TCGValue>(
                         builder,
                         aggregateValue.IsNull(builder),
                         [&] (TCGBaseContext& builder) {
@@ -509,11 +499,11 @@ public:
                                 resultLength,
                                 resultData,
                                 stateType);
-                        })
-                        .StoreToValue(builder, aggStatePtr);
+                        });
+                },
+                [&] (TCGBaseContext& builder) {
+                    return aggregateValue;
                 });
-
-            return TCGValue::CreateNull(builder, stateType);
         };
 
         TCodegenAggregate codegenAggregate;
@@ -533,11 +523,8 @@ public:
             stateType,
             resultType,
             name
-        ] (TCGBaseContext& builder, Value* buffer, Value* aggState) {
-            return TCGValue::CreateFromLlvmValue(
-                builder,
-                aggState,
-                stateType);
+        ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState) {
+            return aggState;
         };
 
         return codegenAggregate;

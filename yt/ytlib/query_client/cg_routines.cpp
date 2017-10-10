@@ -999,7 +999,7 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
-const TRow* InsertGroupRow(
+TRow InsertGroupRow(
     TExecutionContext* context,
     TGroupByClosure* closure,
     TMutableRow row)
@@ -1027,7 +1027,7 @@ const TRow* InsertGroupRow(
         }
     }
 
-    return &*inserted.first;
+    return *inserted.first;
 }
 
 void GroupOpHelper(
