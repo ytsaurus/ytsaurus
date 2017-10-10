@@ -305,7 +305,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                     try:
                         abort_transaction(tx)
                     except YtResponseError as err:
-                        if err.contains_text("No such transaction"):
+                        if err.is_no_such_transaction():
                             break
                         if i == 9:
                             raise
