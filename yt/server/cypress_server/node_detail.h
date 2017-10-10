@@ -21,7 +21,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node_detail.h>
 #include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/protos/ypath.pb.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -379,7 +379,7 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override
     {
         TCypressNodeBase::Save(context);
-        
+
         using NYT::Save;
         Save(context, Value_);
     }

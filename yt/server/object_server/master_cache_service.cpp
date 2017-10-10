@@ -19,7 +19,7 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/throttling_channel.h>
 
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/protos/ypath.pb.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -194,7 +194,7 @@ private:
                     req->Attachments().end(),
                     requestMessage.Begin(),
                     requestMessage.End());
-                
+
                 req->Invoke().Subscribe(BIND(
                     &TCache::OnResponse,
                     MakeStrong(this),

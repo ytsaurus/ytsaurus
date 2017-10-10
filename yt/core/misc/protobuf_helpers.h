@@ -11,8 +11,8 @@
 
 #include <yt/core/compression/public.h>
 
-#include <yt/core/misc/guid.pb.h>
-#include <yt/core/misc/protobuf_helpers.pb.h>
+#include <yt/core/protos/guid.pb.h>
+#include <yt/core/protos/protobuf_helpers.pb.h>
 
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>
