@@ -1059,8 +1059,9 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         LOG_DEBUG_UNLESS(IsRecovery(), "Skipping heartbeat mutation (Version: %v)",
             automatonVersion);
     } else {
+        auto syncTime = GetInstant() - context->GetTimestamp();
+
         if (!IsRecovery()) {
-            auto syncTime = GetInstant() - context->GetTimestamp();
             Profiler.Enqueue(
                 "/mutation_wait_time",
                 DurationToValue(syncTime),
@@ -1073,10 +1074,11 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         TMutationContextGuard contextGuard(context);
         TWallTimer timer;
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v, WaitTime: %v)",
             automatonVersion,
             mutationType,
-            mutationId);
+            mutationId,
+            syncTime);
 
         if (handler) {
             handler.Run(context);
