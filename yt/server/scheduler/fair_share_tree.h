@@ -80,6 +80,16 @@ struct TFairShareContext
     int ActiveOperationCount = 0;
     int ActiveTreeSize = 0;
     TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
+
+    // Used to avoid unnecessary calculation of HasAggressivelyStarvingNodes.
+    bool PrescheduledCalled = false;
+
+    // Information saved for logging.
+    int PreemptiveScheduleJobCount = 0;
+    int NonPreemptiveScheduleJobCount = 0;
+    TJobResources ResourceUsageDiscount = ZeroJobResources();
+    int ScheduledDuringPreemption = 0;
+    int PreemptableJobCount = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,6 +191,8 @@ public:
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled);
     virtual bool ScheduleJob(TFairShareContext& context) = 0;
+
+    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const = 0;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
 
@@ -314,6 +326,8 @@ public:
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
+
+    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const override;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
@@ -670,6 +684,8 @@ public:
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
+
+    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const override;
 
     virtual TString GetId() const override;
 
