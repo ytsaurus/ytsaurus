@@ -1186,7 +1186,7 @@ class TestSchedulerPools(YTEnvSetup):
                       if row["event_type"] == "pools_info" and "custom_pool" in row["pools"]]
         assert len(pools_info) == 1
         custom_pool_info = pools_info[-1]["pools"]["custom_pool"]
-        assert custom_pool_info["min_share_resources"]["cpu"] == 1
+        assert custom_pool_info["min_share_resources"]["cpu"] == 1.0
         assert custom_pool_info["mode"] == "fair_share"
 
 ##################################################################
