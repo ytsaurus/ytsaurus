@@ -12,7 +12,7 @@
 
 #include <yt/core/ypath/tokenizer.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/protos/rpc.pb.h>
 #include <yt/core/rpc/server_detail.h>
 #include <yt/core/rpc/message.h>
 

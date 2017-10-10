@@ -7,7 +7,7 @@
 #include <yt/core/misc/error.h>
 
 #include <yt/core/rpc/public.h>
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/protos/rpc.pb.h>
 
 #include <yt/core/tracing/trace_context.h>
 

@@ -1,6 +1,6 @@
 package NYT.NCellMaster.NProto;
 
-import "yt/core/misc/error.proto";
+import "yt/core/protos/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
