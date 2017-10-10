@@ -17,7 +17,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/protos/rpc.pb.h>
 
 #include <yt/core/tracing/trace_context.h>
 
@@ -479,7 +479,7 @@ protected:
     /*!
      *  \note
      *  Thread affinity: any
-     */ 
+     */
     virtual bool IsUp(TCtxDiscoverPtr context);
 
     //! Used by peer discovery.
@@ -487,7 +487,7 @@ protected:
     /*!
      *  \note
      *  Thread affinity: any
-     */ 
+     */
     virtual std::vector<TString> SuggestAddresses();
 
 protected:

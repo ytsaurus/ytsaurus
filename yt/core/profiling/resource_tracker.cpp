@@ -97,7 +97,7 @@ void TResourceTracker::EnqueueCpuUsage()
         std::vector<TString> fields;
         try {
             TIFStream cpuStatFile(cpuStatPath);
-            fields = splitStroku(cpuStatFile.ReadLine(), " ");
+            fields = SplitStroku(cpuStatFile.ReadLine(), " ");
         } catch (const TIoException&) {
             // Ignore all IO exceptions.
             continue;

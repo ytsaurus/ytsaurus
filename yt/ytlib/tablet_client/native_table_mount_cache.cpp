@@ -25,7 +25,7 @@
 #include <yt/core/misc/expiring_cache.h>
 #include <yt/core/misc/string.h>
 
-#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/protos/ypath.pb.h>
 
 #include <util/datetime/base.h>
 
@@ -326,7 +326,7 @@ private:
 
                 auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
                 primarySchema = FromProto<TTableSchema>(rsp->schema());
-                
+
                 tableInfo->Schemas[ETableSchemaKind::Write] = primarySchema.ToWrite();
                 tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = primarySchema.ToVersionedWrite();
                 tableInfo->Schemas[ETableSchemaKind::Delete] = primarySchema.ToDelete();
