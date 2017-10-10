@@ -31,6 +31,7 @@ option(YT_USE_SSE                         "Enable using sse4 optimization flags"
 option(YT_USE_ASAN                        "Enable Address Sanitizer" FALSE)
 option(YT_USE_TSAN                        "Enable Thread Sanitizer" FALSE)
 option(YT_USE_MSAN                        "Enable Memory Sanitizer" FALSE)
+option(YT_ASAN_USE_DSO_RUNTIME            "Use shared Address Sanitizer runtime" FALSE)
 
 ################################################################################
 # Include various CMake modules.
