@@ -135,14 +135,14 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         if (const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress())) {
+            if (cells->size() >= spare) {
+                return;
+            }
             for (auto* cell : *cells) {
                 auto bundle = cell->GetCellBundle();
                 cellCount[bundle] += 1;
                 --spare;
             }
-        }
-        if (spare <= 0) {
-            return;
         }
 
         auto hostilityChecker = THostilityChecker(node);
