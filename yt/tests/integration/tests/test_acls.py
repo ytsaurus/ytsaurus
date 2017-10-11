@@ -662,6 +662,74 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YtError):
             start_transaction(authenticated_user="u")
 
+    def test_effective_acl(self):
+        create_user("u")
+        for ch in "abcd":
+            for idx in range(1,5):
+                create_user(ch + str(idx))
+
+        create("map_node", "//tmp/a")
+        create("map_node", "//tmp/a/b")
+        create("map_node", "//tmp/a/b/c")
+        create("map_node", "//tmp/a/b/c/d")
+
+        set("//tmp/a/@inherit_acl", False)
+
+        set("//tmp/a/@acl", [
+            make_ace("allow", "a1", "read", "immediate_descendants_only"),
+            make_ace("allow", "a2", "read", "object_only"),
+            make_ace("allow", "a3", "read", "object_and_descendants"),
+            make_ace("allow", "a4", "read", "descendants_only")])
+
+        set("//tmp/a/b/@acl", [
+            make_ace("allow", "b1", "read", "immediate_descendants_only"),
+            make_ace("allow", "b2", "read", "object_only"),
+            make_ace("allow", "b3", "read", "object_and_descendants"),
+            make_ace("allow", "b4", "read", "descendants_only")])
+
+        set("//tmp/a/b/c/@acl", [
+            make_ace("allow", "c1", "read", "immediate_descendants_only"),
+            make_ace("allow", "c2", "read", "object_only"),
+            make_ace("allow", "c3", "read", "object_and_descendants"),
+            make_ace("allow", "c4", "read", "descendants_only")])
+
+        set("//tmp/a/b/c/d/@acl", [
+            make_ace("allow", "d1", "read", "immediate_descendants_only"),
+            make_ace("allow", "d2", "read", "object_only"),
+            make_ace("allow", "d3", "read", "object_and_descendants"),
+            make_ace("allow", "d4", "read", "descendants_only")])
+
+        assert_items_equal(get("//tmp/a/@effective_acl"), [
+            make_ace("allow", "a2", "read", "object_only"),
+            make_ace("allow", "a3", "read", "object_and_descendants")])
+
+        assert_items_equal(get("//tmp/a/b/@effective_acl"), [
+            make_ace("allow", "a1", "read", "object_only"),
+            make_ace("allow", "a3", "read", "object_and_descendants"),
+            make_ace("allow", "a4", "read", "object_and_descendants"),
+            make_ace("allow", "b2", "read", "object_only"),
+            make_ace("allow", "b3", "read", "object_and_descendants")])
+
+        assert_items_equal(get("//tmp/a/b/c/@effective_acl"), [
+            make_ace("allow", "a3", "read", "object_and_descendants"),
+            make_ace("allow", "a4", "read", "object_and_descendants"),
+            make_ace("allow", "b1", "read", "object_only"),
+            make_ace("allow", "b3", "read", "object_and_descendants"),
+            make_ace("allow", "b4", "read", "object_and_descendants"),
+            make_ace("allow", "c2", "read", "object_only"),
+            make_ace("allow", "c3", "read", "object_and_descendants")])
+
+        assert_items_equal(get("//tmp/a/b/c/d/@effective_acl"), [
+            make_ace("allow", "a3", "read", "object_and_descendants"),
+            make_ace("allow", "a4", "read", "object_and_descendants"),
+            make_ace("allow", "b3", "read", "object_and_descendants"),
+            make_ace("allow", "b4", "read", "object_and_descendants"),
+            make_ace("allow", "c1", "read", "object_only"),
+            make_ace("allow", "c3", "read", "object_and_descendants"),
+            make_ace("allow", "c4", "read", "object_and_descendants"),
+            make_ace("allow", "d2", "read", "object_only"),
+            make_ace("allow", "d3", "read", "object_and_descendants")])
+
 ##################################################################
 
 class TestAclsMulticell(TestAcls):
