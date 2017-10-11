@@ -13,6 +13,11 @@ class TestJournals(YTEnvSetup):
 
     DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
 
+    REPLICATOR_REACTION_TIME = 3.5
+
+    def _replicator_sleep(self):
+        sleep(self.REPLICATOR_REACTION_TIME)
+
     def _write_and_wait_until_sealed(self, path, data):
         write_journal(path, data)
         self.wait_until_sealed(path)
@@ -84,14 +89,14 @@ class TestJournals(YTEnvSetup):
 
         get("//sys/accounts/tmp/@")
 
-        multicell_sleep()
+        self._replicator_sleep()
         assert get_account_committed_disk_space("tmp") == disk_space_delta
         assert get_account_disk_space("tmp") == disk_space_delta
 
         remove("//tmp/j")
 
         gc_collect() # wait for account stats to be updated
-        multicell_sleep()
+        self._replicator_sleep()
         assert get_account_committed_disk_space("tmp") == 0
         assert get_account_disk_space("tmp") == 0
 

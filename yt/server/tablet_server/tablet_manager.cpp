@@ -3545,8 +3545,6 @@ private:
             .SetTabletCount(0)
             .SetTabletStaticMemory(newMemorySize - oldMemorySize);
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
-        // TODO(shakurov): charge transaction with chunk count/disk space usage here?
-        // deltaStatistics.{ChunkCount,DiskSpace}.
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkIds: %v, "
