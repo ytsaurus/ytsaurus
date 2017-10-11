@@ -364,6 +364,8 @@ public:
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
+    virtual void IncreaseOperationCount(int delta);
+    virtual void IncreaseRunningOperationCount(int delta);
 protected:
     const NProfiling::TTagId ProfilingTag_;
 

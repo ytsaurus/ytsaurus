@@ -657,6 +657,28 @@ void TCompositeSchedulerElement::BuildOperationToElementMapping(TOperationElemen
     }
 }
 
+void TCompositeSchedulerElement::IncreaseOperationCount(int delta)
+{
+    OperationCount_ += delta;
+
+    auto parent = GetParent();
+    while (parent) {
+        parent->IncreaseOperationCount(delta);
+        parent = parent->GetParent();
+    }
+}
+
+void TCompositeSchedulerElement::IncreaseRunningOperationCount(int delta)
+{
+    RunningOperationCount_ += delta;
+
+    auto parent = GetParent();
+    while (parent) {
+        parent->IncreaseRunningOperationCount(delta);
+        parent = parent->GetParent();
+    }
+}
+
 void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled)
 {
     auto& attributes = context.DynamicAttributes(this);

@@ -198,7 +198,7 @@ public:
             SetPoolDefaultParent(pool);
         }
 
-        IncreaseOperationCount(pool.Get(), 1);
+        pool->IncreaseOperationCount(1);
 
         pool->AddChild(operationElement, false);
         pool->IncreaseResourceUsage(operationElement->GetResourceUsage());
@@ -301,7 +301,7 @@ public:
         operationElement->SetAlive(false);
         pool->RemoveChild(operationElement);
         pool->IncreaseResourceUsage(-finalResourceUsage);
-        IncreaseOperationCount(pool, -1);
+        pool->IncreaseOperationCount(-1);
 
         LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
             operation->GetId(),
@@ -317,7 +317,7 @@ public:
         }
 
         if (!isPending) {
-            IncreaseRunningOperationCount(pool, -1);
+            pool->IncreaseRunningOperationCount(-1);
 
             // Try to run operations from queue.
             auto it = OperationQueue.begin();
@@ -1298,22 +1298,6 @@ private:
         return nullptr;
     }
 
-    void IncreaseOperationCount(TCompositeSchedulerElement* element, int delta)
-    {
-        while (element) {
-            element->OperationCount() += delta;
-            element = element->GetParent();
-        }
-    }
-
-    void IncreaseRunningOperationCount(TCompositeSchedulerElement* element, int delta)
-    {
-        while (element) {
-            element->RunningOperationCount() += delta;
-            element = element->GetParent();
-        }
-    }
-
     void ActivateOperation(const TOperationId& operationId)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -1323,7 +1307,7 @@ private:
 
         auto* parent = operationElement->GetParent();
         parent->EnableChild(operationElement);
-        IncreaseRunningOperationCount(parent, 1);
+        parent->IncreaseRunningOperationCount(1);
 
         Host->ActivateOperation(operationId);
 
@@ -1456,8 +1440,8 @@ private:
         auto* oldParent = pool->GetParent();
         if (oldParent) {
             oldParent->IncreaseResourceUsage(-pool->GetResourceUsage());
-            IncreaseOperationCount(oldParent, -pool->OperationCount());
-            IncreaseRunningOperationCount(oldParent, -pool->RunningOperationCount());
+            oldParent->IncreaseOperationCount(-pool->OperationCount());
+            oldParent->IncreaseRunningOperationCount(-pool->RunningOperationCount());
             oldParent->RemoveChild(pool);
         }
 
@@ -1465,8 +1449,8 @@ private:
         if (parent) {
             parent->AddChild(pool);
             parent->IncreaseResourceUsage(pool->GetResourceUsage());
-            IncreaseOperationCount(parent.Get(), pool->OperationCount());
-            IncreaseRunningOperationCount(parent.Get(), pool->RunningOperationCount());
+            parent->IncreaseOperationCount(pool->OperationCount());
+            parent->IncreaseRunningOperationCount(pool->RunningOperationCount());
 
             LOG_INFO("Parent pool set (Pool: %v, Parent: %v)",
                 pool->GetId(),
