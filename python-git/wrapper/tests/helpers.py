@@ -8,6 +8,11 @@ import yt.subprocess_wrapper as subprocess
 
 import yt.wrapper as yt
 
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
+
 import pytest
 
 import collections
@@ -26,11 +31,34 @@ PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 ENABLE_JOB_CONTROL = bool(int(os.environ.get("TESTS_JOB_CONTROL", False)))
 
+def get_tests_location():
+    if yatest_common is not None:
+        return yatest_common.source_path("yt/python/yt/wrapper/tests")
+    else:
+        return TESTS_LOCATION
+
+def get_tests_sandbox():
+    path = os.environ.get("TESTS_SANDBOX")
+    if path is None:
+        if yatest_common is not None:
+            path = os.path.join(yatest_common.work_path(), "sandbox")
+        else:
+            path = TESTS_SANDBOX
+    if not os.path.exists(path):
+        os.mkdir(path)
+    return path
+
 def get_test_dir_path():
-    return os.path.join(TESTS_LOCATION, "files")
+    return os.path.join(get_tests_location(), "files")
 
 def get_test_file_path(name):
     return os.path.join(get_test_dir_path(), name)
+
+def get_python():
+    if yatest_common is None:
+        return sys.executable
+    else:
+        return yatest_common.binary_path("yt/python/yt_python/yt-python")
 
 @contextmanager
 def set_config_option(name, value, final_action=None):
@@ -91,9 +119,14 @@ def _filter_simple_types(obj):
     return None
 
 def get_environment_for_binary_test():
+    if yatest_common is None:
+        python_binary = sys.executable
+    else:
+        python_binary = get_python()
+
     env = {
         "PYTHONPATH": os.environ["PYTHONPATH"],
-        "PYTHON_BINARY": sys.executable,
+        "PYTHON_BINARY": python_binary,
         "YT_USE_TOKEN": "0",
         "YT_VERSION": yt.config["api_version"],
         "YT_PRINT_BACKTRACE": "1",
