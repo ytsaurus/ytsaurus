@@ -1,6 +1,6 @@
 from __future__ import with_statement
 
-from .helpers import TEST_DIR, check, set_config_option, TESTS_SANDBOX
+from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.driver import get_command_list
@@ -644,7 +644,7 @@ class TestTableCommands(object):
             pytest.skip()
 
         test_name = "TestYtWrapper" + mode.capitalize()
-        dir = os.path.join(TESTS_SANDBOX, test_name)
+        dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]
         try:
             instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
@@ -819,7 +819,7 @@ class TestTableCommands(object):
             mode = yt.config["api_version"]
 
         test_name = "TestYtWrapper" + mode.capitalize()
-        dir = os.path.join(TESTS_SANDBOX, test_name)
+        dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]
         try:
             instance = start(path=dir, id=id, node_count=10, start_proxy=(mode != "native"), enable_debug_logging=True)

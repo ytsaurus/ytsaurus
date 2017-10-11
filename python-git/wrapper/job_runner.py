@@ -18,6 +18,7 @@ import stat
 import argparse
 import subprocess
 import shutil
+import inspect
 from functools import partial
 
 SCRIPT_DIR = os.path.dirname(__file__)
@@ -93,7 +94,13 @@ def make_run_script(destination_dir):
         path = path[:-1]
 
     destination_path = os.path.join(destination_dir, "run")
-    shutil.copy2(path, destination_path)
+    if os.path.exists(path):
+        shutil.copy2(path, destination_path)
+    else:
+        import library.python.resource
+        with open(destination_path, "w") as f:
+            f.write(library.python.resource.find("/job_runner_py_source"))
+
     os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
 
 if __name__ == "__main__":
