@@ -1,5 +1,9 @@
 #pragma once
 
+#include "public.h"
+
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/core/profiling/public.h>
 
 namespace NYT {
@@ -49,6 +53,13 @@ using TSimpleProfilerTrait = TProfilerTrait<TSimpleProfilerTraitBase, TCounters>
 
 template <typename TCounters>
 using TTabletProfilerTrait = TProfilerTrait<TTabletProfilerTraitBase, TCounters>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileDiskPressure(
+    TTabletSnapshotPtr tabletSnapshot,
+    const NChunkClient::NProto::TDataStatistics&,
+    NProfiling::TSimpleCounter& counter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

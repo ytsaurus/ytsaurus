@@ -1,6 +1,12 @@
+#include "private.h"
+#include "tablet.h"
 #include "tablet_profiling.h"
 
+#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <yt/core/misc/tls_cache.h>
 
@@ -8,6 +14,8 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NProfiling;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +61,31 @@ TSimpleProfilerTraitBase::TKey TSimpleProfilerTraitBase::ToKey(const TTagIdList&
 {
     // list.back() is user tag.
     return list.back();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDiskPressureCounters
+{
+    TDiskPressureCounters(const TTagIdList& list)
+        : DiskPressure("disk_pressure", list)
+    { }
+
+    TSimpleCounter DiskPressure;
+};
+
+using TDiskPressureProfilerTrait = TTabletProfilerTrait<TDiskPressureCounters>;
+
+void ProfileDiskPressure(
+    TTabletSnapshotPtr tabletSnapshot,
+    const TDataStatistics& dataStatistics,
+    NProfiling::TSimpleCounter& counter)
+{
+    auto diskSpace = CalculateDiskSpaceUsage(
+        tabletSnapshot->WriterOptions->ReplicationFactor,
+        dataStatistics.regular_disk_space(),
+        dataStatistics.erasure_disk_space());
+    TabletNodeProfiler.Increment(counter, diskSpace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

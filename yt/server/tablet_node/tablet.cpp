@@ -1144,12 +1144,25 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
         ProfilerTags_.assign({
             // tablet_id must be the first. See tablet_profiling.cpp for details.
             TProfileManager::Get()->RegisterTag("tablet_id", Id_),
-            TProfileManager::Get()->RegisterTag("cell_id", cellId),
-            TProfileManager::Get()->RegisterTag("table_path", TablePath_)});
-    } else {
-        ProfilerTags_.assign({
-            TProfileManager::Get()->RegisterTag("table_path", TablePath_)});
+            TProfileManager::Get()->RegisterTag("cell_id", cellId)});
     }
+    ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag("table_path", TablePath_));
+
+    const auto& writerOptions = WriterOptions_;
+    auto tags = ProfilerTags_;
+    tags.append({
+        TProfileManager::Get()->RegisterTag("account", writerOptions->Account),
+        TProfileManager::Get()->RegisterTag("medium", writerOptions->MediumName)});
+    auto storeFlushTags = tags;
+    auto compactionTags = tags;
+    auto partitioningTags = tags;
+    storeFlushTags.push_back(TProfileManager::Get()->RegisterTag("method", "store_flush"));
+    compactionTags.push_back(TProfileManager::Get()->RegisterTag("method", "compaction"));
+    partitioningTags.push_back(TProfileManager::Get()->RegisterTag("method", "partitioning"));
+
+    RuntimeData_->StoreFlushDiskPressureCounter = TSimpleCounter("/disk_bytes_written", storeFlushTags);
+    RuntimeData_->CompactionDiskPressureCounter = TSimpleCounter("/disk_bytes_written", compactionTags);
+    RuntimeData_->PartitioningDiskPressureCounter = TSimpleCounter("/disk_bytes_written", partitioningTags);
 }
 
 void TTablet::UpdateReplicaCounters()
