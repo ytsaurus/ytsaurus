@@ -1,5 +1,4 @@
 import os
-import sys
 import subprocess
 
 import yatest.common
@@ -73,16 +72,17 @@ def prepare_path():
     yt_build_node_modules_dir = os.path.join(yt_build_dir, "node_modules")
     save_yt_nodejs_package(yt_build_node_modules_dir, version)
 
-    path = ":".join([
+    path = os.pathsep.join([
         yt_build_dir,
         yt_build_bin_dir,
         yt_build_node_dir
     ])
 
     if "PATH" in os.environ:
-        os.environ["PATH"] += ":" + path
+        os.environ["PATH"] = os.pathsep.join([path, os.environ["PATH"]])
     else:
         os.environ["PATH"] = path
+
     os.environ["NODE_PATH"] = ":".join([
         yt_build_node_dir,
         yt_build_node_modules_dir
