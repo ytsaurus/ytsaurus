@@ -141,6 +141,9 @@ private:
                 --spare;
             }
         }
+        if (spare <= 0) {
+            return;
+        }
 
         auto hostilityChecker = THostilityChecker(node);
         for (const auto& pair : tabletManager->TabletCellBundles()) {
