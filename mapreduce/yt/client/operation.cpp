@@ -1,6 +1,7 @@
 #include "operation.h"
 
 #include "client.h"
+#include "file_reader.h"
 #include "operation_tracker.h"
 #include "yt_poller.h"
 
@@ -30,7 +31,6 @@
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
 #include <mapreduce/yt/io/proto_helpers.h>
-#include <mapreduce/yt/io/file_reader.h>
 
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>

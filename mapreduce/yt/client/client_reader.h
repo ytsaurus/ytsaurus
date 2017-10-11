@@ -1,6 +1,6 @@
 #pragma once
 
-#include "proxy_input.h"
+#include <mapreduce/yt/io/proxy_input.h>
 
 #include <mapreduce/yt/interface/io.h>
 

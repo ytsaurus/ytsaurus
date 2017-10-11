@@ -1,6 +1,6 @@
 #include "file_reader.h"
 
-#include "helpers.h"
+#include <mapreduce/yt/io/helpers.h>
 
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/helpers.h>

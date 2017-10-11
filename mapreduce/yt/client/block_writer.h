@@ -1,6 +1,6 @@
 #pragma once
 
-#include "helpers.h"
+#include <mapreduce/yt/io/helpers.h>
 
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/io.h>
