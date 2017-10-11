@@ -1,6 +1,6 @@
 #pragma once
 
-#include "proxy_output.h"
+#include <mapreduce/yt/io/proxy_output.h>
 
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/interface/io.h>

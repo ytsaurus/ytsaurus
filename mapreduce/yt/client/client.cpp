@@ -1,6 +1,11 @@
 #include "client.h"
 
 #include "batch_request_impl.h"
+#include "block_writer.h"
+#include "client_reader.h"
+#include "client_writer.h"
+#include "file_reader.h"
+#include "file_writer.h"
 #include "lock.h"
 #include "mock_client.h"
 #include "operation.h"
@@ -20,8 +25,6 @@
 
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
-#include <mapreduce/yt/io/client_reader.h>
-#include <mapreduce/yt/io/client_writer.h>
 #include <mapreduce/yt/io/yamr_table_reader.h>
 #include <mapreduce/yt/io/yamr_table_writer.h>
 #include <mapreduce/yt/io/node_table_reader.h>
@@ -29,9 +32,6 @@
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
 #include <mapreduce/yt/io/proto_helpers.h>
-#include <mapreduce/yt/io/file_reader.h>
-#include <mapreduce/yt/io/file_writer.h>
-#include <mapreduce/yt/io/block_writer.h>
 
 #include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
 

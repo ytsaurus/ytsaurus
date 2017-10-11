@@ -1,6 +1,6 @@
 #include "file_writer.h"
 
-#include "helpers.h"
+#include <mapreduce/yt/io/helpers.h>
 
 #include <mapreduce/yt/common/helpers.h>
 

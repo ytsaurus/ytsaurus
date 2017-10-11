@@ -1,9 +1,10 @@
 #pragma once
 
+#include "client_reader.h"
+#include "client_writer.h"
+
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/http/requests.h>
-#include <mapreduce/yt/io/client_reader.h>
-#include <mapreduce/yt/io/client_writer.h>
 
 namespace NYT {
 namespace NDetail {
