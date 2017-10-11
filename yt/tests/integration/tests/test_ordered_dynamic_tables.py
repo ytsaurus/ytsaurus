@@ -62,6 +62,16 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
         self.sync_unmount_table("//tmp/t")
 
+    def test_access_to_frozen(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        rows = [{"a": 1}]
+        insert_rows("//tmp/t", rows)
+        self.sync_freeze_table("//tmp/t")
+        assert select_rows("a from [//tmp/t]") == rows
+        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
+
     def test_ordered_tablet_node_profiling(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", enable_profiling=True)

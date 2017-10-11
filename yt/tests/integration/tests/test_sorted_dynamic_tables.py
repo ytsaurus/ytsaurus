@@ -1597,6 +1597,17 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self.sync_mount_table("//tmp/t", freeze=True)
         assert select_rows("* from [//tmp/t]") == rows
 
+    def test_access_to_frozen(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        rows = [{"key": 1, "value": "2"}]
+        insert_rows("//tmp/t", rows)
+        self.sync_freeze_table("//tmp/t")
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
+        assert select_rows("* from [//tmp/t]") == rows
+        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
+
     def _prepare_copy(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t1")
