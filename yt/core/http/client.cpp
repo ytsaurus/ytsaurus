@@ -16,8 +16,6 @@ namespace NHttp {
 using namespace NConcurrency;
 using namespace NNet;
 
-static const auto& Logger = HttpLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClient
