@@ -27,6 +27,7 @@ target_link_libraries(yt-core
   deps-arcadia-util
   deps-yt-contrib-quicklz
   deps-yt-contrib-zstd-legacy
+  deps-yt-contrib-http-parser
   yt-build
   yt-contrib-jerasure
   yt-contrib-libev
