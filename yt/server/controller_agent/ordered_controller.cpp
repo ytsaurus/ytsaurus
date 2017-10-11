@@ -1032,14 +1032,15 @@ public:
         RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
     }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    void Persist(const TPersistenceContext& context)
     {
-        TOperationControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
-            .Item("cluster_name").Value(Spec_->ClusterName)
-            .Item("network_name").Value(Spec_->NetworkName);
-    }
+        TOrderedControllerBase::Persist(context);
+        using NYT::Persist;
 
+        Persist(context, Spec_);
+        Persist(context, Options_);
+        Persist<TAttributeDictionaryRefSerializer>(context, InputTableAttributes_);
+    }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController, 0xaa8829a9);
@@ -1062,6 +1063,14 @@ private:
     virtual bool ShouldVerifySortedOutput() const override
     {
         return false;
+    }
+
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    {
+        TOperationControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("cluster_name").Value(Spec_->ClusterName)
+            .Item("network_name").Value(Spec_->NetworkName);
     }
 
     // Custom bits of preparation pipeline.
