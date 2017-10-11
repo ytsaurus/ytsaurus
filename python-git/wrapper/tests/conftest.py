@@ -1,4 +1,4 @@
-from .helpers import get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL, sync_create_cell, get_test_file_path
+from .helpers import get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL, sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path
 
 from yt.environment import YTInstance
 from yt.wrapper.config import set_option
@@ -70,7 +70,8 @@ class YtTestEnvironment(object):
         logger.LOGGER.setLevel(logging.WARNING)
 
         run_id = uuid.uuid4().hex[:8]
-        dir = os.path.join(get_tests_sandbox(), self.test_name, "run_" + run_id)
+        uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
+        dir = os.path.join(get_tests_sandbox(), uniq_dir_name)
 
         common_delta_proxy_config = {
             "proxy": {
@@ -141,15 +142,22 @@ class YtTestEnvironment(object):
         if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
 
+        tmpfs_path = get_tmpfs_path()
+        if tmpfs_path is not None:
+            tmpfs_path = os.path.join(tmpfs_path, uniq_dir_name)
+            if not os.path.exists(tmpfs_path):
+                os.mkdir(tmpfs_path)
+
         self.env = YTInstance(dir,
                               master_count=1,
                               node_count=5,
                               scheduler_count=1,
                               has_proxy=has_proxy,
-                              port_locks_path=os.path.join(get_tests_sandbox(), "ports"),
+                              port_locks_path=get_port_locks_path(),
                               fqdn="localhost",
                               modify_configs_func=modify_configs,
                               kill_child_processes=True,
+                              tmpfs_path=tmpfs_path,
                               **env_options)
         self.env.start(start_secondary_master_cells=True)
 

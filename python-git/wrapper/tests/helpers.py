@@ -54,6 +54,20 @@ def get_test_dir_path():
 def get_test_file_path(name):
     return os.path.join(get_test_dir_path(), name)
 
+def get_tmpfs_path():
+    if yatest_common is not None and yatest_common.get_param("ram_drive_path") is not None:
+        path = yatest_common.get_param("ram_drive_path")
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return path
+    return None
+
+def get_port_locks_path():
+    path = get_tmpfs_path()
+    if path is None:
+         path = get_tests_sandbox()
+    return os.path.join(path, "ports")
+
 def get_python():
     if yatest_common is None:
         return sys.executable
