@@ -396,20 +396,20 @@ class YTEnvSetup(object):
                                },
                                driver=driver)
             self._reset_nodes(driver=driver)
-            if self.NUM_SCHEDULERS > 0:
+            if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 self._wait_jobs_to_abort(driver=driver)
                 self._remove_operations(driver=driver)
                 self._remove_pools(driver=driver)
             self._remove_accounts(driver=driver)
             self._remove_users(driver=driver)
             self._remove_groups(driver=driver)
-            if self.USE_DYNAMIC_TABLES:
+            if self.get_param("USE_DYNAMIC_TABLES", cluster_index):
                 yt_commands.gc_collect(driver=driver)
                 self._remove_tablet_cells(driver=driver)
                 self._remove_tablet_cell_bundles(driver=driver)
             self._remove_racks(driver=driver)
             self._remove_data_centers(driver=driver)
-            if self.ENABLE_MULTICELL_TEARDOWN:
+            if self.get_param("ENABLE_MULTICELL_TEARDOWN", cluster_index):
                 self._remove_tablet_actions(driver=driver)
             self._reset_dynamic_cluster_config(driver=driver)
 
