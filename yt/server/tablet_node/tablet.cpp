@@ -1149,7 +1149,7 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
     ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag("table_path", TablePath_));
 
     const auto& writerOptions = WriterOptions_;
-    auto tags = ProfilerTags_;
+    TTagIdList tags;
     tags.append({
         TProfileManager::Get()->RegisterTag("account", writerOptions->Account),
         TProfileManager::Get()->RegisterTag("medium", writerOptions->MediumName)});
