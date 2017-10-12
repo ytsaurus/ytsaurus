@@ -49,6 +49,18 @@ enum ERowModificationType
     DELETE = 1;
 }
 
+enum EAtomicity
+{
+    FULL = 0;
+    NONE = 1;
+}
+
+enum EDurability
+{
+    SYNC = 0;
+    ASYNC = 1;
+}
+
 message TAttribute
 {
     required string key = 1;
@@ -124,7 +136,10 @@ message TReqStartTransaction
     optional bool ping = 7 [default = true];
     optional bool ping_ancestors = 8 [default = true];
 
-    // TODO(sandello): Attributes, atomicity, durability.
+    optional EAtomicity atomicity = 9 [default = FULL];
+    optional EDurability durability = 10 [default = SYNC];
+
+    // TODO(sandello): Attributes.
 }
 
 message TRspStartTransaction
