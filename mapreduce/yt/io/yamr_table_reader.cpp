@@ -5,6 +5,18 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
+////////////////////////////////////////////////////////////////////
+
+static void CheckedSkip(IInputStream* input, size_t byteCount)
+{
+    size_t skipped = input->Skip(byteCount);
+    if (skipped != byteCount) {
+        ythrow yexception() << "Premature end of stream";
+    }
+}
+
+////////////////////////////////////////////////////////////////////
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,9 +95,7 @@ TMaybe<TNode> GetTableFormats(
 
 TYaMRTableReader::TYaMRTableReader(::TIntrusivePtr<TProxyInput> input)
     : TLenvalTableReader(std::move(input))
-{
-    TLenvalTableReader::Next();
-}
+{ }
 
 TYaMRTableReader::~TYaMRTableReader()
 { }
@@ -127,40 +137,57 @@ ui64 TYaMRTableReader::GetRowIndex() const
 void TYaMRTableReader::ReadField(TString* result, i32 length)
 {
     result->resize(length);
-    size_t count = Load(result->begin(), length);
+    size_t count = Input_->Load(result->begin(), length);
     if (count != static_cast<size_t>(length)) {
-        ythrow yexception() <<
-            "Premature end of YaMR stream";
+        ythrow yexception() << "Premature end of YaMR stream";
     }
 }
 
 void TYaMRTableReader::ReadRow()
 {
-    i32 value = static_cast<i32>(Length_);
-    ReadField(&Key_, value);
-    Row_.Key = Key_;
+    while (true) {
+        try {
+            i32 value = static_cast<i32>(Length_);
+            ReadField(&Key_, value);
+            Row_.Key = Key_;
 
-    ReadInteger(&value);
-    ReadField(&SubKey_, value);
-    Row_.SubKey = SubKey_;
+            ReadInteger(&value);
+            ReadField(&SubKey_, value);
+            Row_.SubKey = SubKey_;
 
-    ReadInteger(&value);
-    ReadField(&Value_, value);
-    Row_.Value = Value_;
+            ReadInteger(&value);
+            ReadField(&Value_, value);
+            Row_.Value = Value_;
 
-    RowTaken_ = true;
+            RowTaken_ = true;
+            break;
+        } catch (const yexception& ) {
+            if (!TLenvalTableReader::Retry()) {
+                throw;
+            }
+        }
+    }
 }
 
 void TYaMRTableReader::SkipRow()
 {
-    i32 value = static_cast<i32>(Length_);
-    Input_->Skip(value);
+    while (true) {
+        try {
+            i32 value = static_cast<i32>(Length_);
+            CheckedSkip(Input_.Get(), value);
 
-    ReadInteger(&value);
-    Input_->Skip(value);
+            ReadInteger(&value);
+            CheckedSkip(Input_.Get(), value);
 
-    ReadInteger(&value);
-    Input_->Skip(value);
+            ReadInteger(&value);
+            CheckedSkip(Input_.Get(), value);
+            break;
+        } catch (const yexception& ) {
+            if (!TLenvalTableReader::Retry()) {
+                throw;
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

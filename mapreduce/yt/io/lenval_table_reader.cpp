@@ -11,10 +11,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRetryException
-    : public yexception
-{ };
-
 const i32 CONTROL_ATTR_TABLE_INDEX = -1;
 const i32 CONTROL_ATTR_KEY_SWITCH  = -2;
 const i32 CONTROL_ATTR_RANGE_INDEX = -3;
@@ -24,7 +20,9 @@ const i32 CONTROL_ATTR_ROW_INDEX   = -4;
 
 TLenvalTableReader::TLenvalTableReader(::TIntrusivePtr<TProxyInput> input)
     : Input_(std::move(input))
-{ }
+{
+    TLenvalTableReader::Next();
+}
 
 TLenvalTableReader::~TLenvalTableReader()
 { }
@@ -34,34 +32,6 @@ void TLenvalTableReader::CheckValidity() const
     if (!IsValid()) {
         ythrow yexception() << "Iterator is not valid";
     }
-}
-
-size_t TLenvalTableReader::Load(void *buf, size_t len)
-{
-    size_t count = 0;
-    bool hasError = false;
-    yexception ex;
-
-    try {
-        count = Input_->Load(buf, len);
-    } catch (yexception& e) {
-        LOG_ERROR("Read error: %s", e.what());
-        hasError = true;
-        ex = e;
-    }
-
-    if (hasError) {
-        if (Input_->Retry(RangeIndex_, RowIndex_))
-        {
-            RowIndex_.Clear();
-            RangeIndex_.Clear();
-            throw TRetryException();
-        } else {
-            ythrow ex;
-        }
-    }
-
-    return count;
 }
 
 bool TLenvalTableReader::IsValid() const
@@ -143,12 +113,24 @@ void TLenvalTableReader::Next()
             Length_ = static_cast<ui32>(value);
             RowTaken_ = false;
             AtStart_ = false;
-
-        } catch (TRetryException& e) {
+        } catch (const yexception& e) {
+            if (!PrepareRetry()) {
+                throw;
+            }
             continue;
         }
         break;
     }
+}
+
+bool TLenvalTableReader::Retry()
+{
+    if (PrepareRetry()) {
+        RowTaken_ = true;
+        Next();
+        return true;
+    }
+    return false;
 }
 
 void TLenvalTableReader::NextKey()
@@ -180,6 +162,16 @@ ui64 TLenvalTableReader::GetRowIndex() const
 {
     CheckValidity();
     return RowIndex_.GetOrElse(0UL);
+}
+
+bool TLenvalTableReader::PrepareRetry()
+{
+    if (Input_->Retry(RangeIndex_, RowIndex_)) {
+        RowIndex_.Clear();
+        RangeIndex_.Clear();
+        return true;
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

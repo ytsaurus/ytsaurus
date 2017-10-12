@@ -1,10 +1,10 @@
 #pragma once
 
+#include "proxy_input.h"
+
 #include <mapreduce/yt/interface/io.h>
 
 namespace NYT {
-
-class TProxyInput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,12 +23,12 @@ protected:
 
     void CheckValidity() const;
 
-    size_t Load(void* buf, size_t len);
+    bool Retry();
 
     template <class T>
     bool ReadInteger(T* result, bool acceptEndOfStream = false)
     {
-        size_t count = Load(result, sizeof(T));
+        size_t count = Input_->Load(result, sizeof(T));
         if (acceptEndOfStream && count == 0) {
             Finished_ = true;
             Valid_ = false;
@@ -53,6 +53,9 @@ protected:
     bool AtStart_ = true;
     bool RowTaken_ = true;
     ui32 Length_ = 0;
+
+private:
+    bool PrepareRetry();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
