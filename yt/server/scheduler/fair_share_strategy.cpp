@@ -779,7 +779,7 @@ private:
 
     std::list<TOperationPtr> OperationQueue;
 
-    yhash<TNodeId, TCpuInstant> NodeIdToLastPreemeptiveSchedulingTime;
+    yhash<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
 
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilter;
     std::vector<int> FreeSchedulingTagFilterIndexes;
@@ -1170,9 +1170,9 @@ private:
         DoScheduleJobsWithoutPreemption(rootElementSnapshot, context, profileTimings, logAndCleanSchedulingStatistics);
 
         auto nodeId = schedulingContext->GetNodeDescriptor().Id;
-        if (NodeIdToLastPreemeptiveSchedulingTime[nodeId] + DurationToCpuDuration(Config->PreemptiveSchedulingBackoff) <= now) {
+        if (NodeIdToLastPreemptiveSchedulingTime[nodeId] + DurationToCpuDuration(Config->PreemptiveSchedulingBackoff) <= now) {
             DoScheduleJobsWithPreemption(rootElementSnapshot, context, profileTimings, logAndCleanSchedulingStatistics);
-            NodeIdToLastPreemeptiveSchedulingTime[nodeId] = now;
+            NodeIdToLastPreemptiveSchedulingTime[nodeId] = now;
         } else {
             LOG_DEBUG("Skip preemptive scheduling");
         }
