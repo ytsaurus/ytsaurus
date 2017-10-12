@@ -67,6 +67,8 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     req->set_sticky(sticky);
     req->set_ping(options.Ping);
     req->set_ping_ancestors(options.PingAncestors);
+    req->set_atomicity(static_cast<NProto::EAtomicity>(options.Atomicity));
+    req->set_durability(static_cast<NProto::EDurability>(options.Durability));
 
     return req->Invoke().Apply(BIND(
         [connection = std::move(connection), channel = std::move(channel), sticky = sticky]
