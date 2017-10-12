@@ -21,6 +21,10 @@ public:
 
     i64 MaxKeyWeight;
 
+    //! This limits ensures that chunk index is dense enough
+    //! e.g. to produce good slices for reduce.
+    i64 MaxDataWeightBetweenBlocks;
+
     i64 MaxKeyFilterSize;
 
     double SampleRate;
@@ -47,6 +51,10 @@ public:
             .GreaterThanOrEqual((i64) 1)
             .LessThanOrEqual(MaxKeyWeightLimit)
             .Default((i64) 16 * 1024);
+
+        RegisterParameter("max_data_weight_between_blocks", MaxDataWeightBetweenBlocks)
+            .GreaterThanOrEqual((i64) 1)
+            .Default((i64) 2 * 1024 * 1024 * 1024);
 
         RegisterParameter("max_key_filter_size", MaxKeyFilterSize)
             .GreaterThan((i64) 0)
