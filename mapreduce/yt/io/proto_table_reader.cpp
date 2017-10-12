@@ -162,9 +162,7 @@ TLenvalProtoTableReader::TLenvalProtoTableReader(
     yvector<const Descriptor*>&& descriptors)
     : TLenvalTableReader(std::move(input))
     , Descriptors_(std::move(descriptors))
-{
-    TLenvalTableReader::Next();
-}
+{ }
 
 TLenvalProtoTableReader::~TLenvalProtoTableReader()
 { }
@@ -173,8 +171,17 @@ void TLenvalProtoTableReader::ReadRow(Message* row)
 {
     ValidateProtoDescriptor(*row, GetTableIndex(), Descriptors_, true);
 
-    ParseFromStream(Input_.Get(), *row, Length_);
-    RowTaken_ = true;
+    while (true) {
+        try {
+            ParseFromStream(Input_.Get(), *row, Length_);
+            RowTaken_ = true;
+            break;
+        } catch (const yexception& ) {
+            if (!TLenvalTableReader::Retry()) {
+                throw;
+            }
+        }
+    }
 }
 
 bool TLenvalProtoTableReader::IsValid() const
@@ -204,7 +211,19 @@ void TLenvalProtoTableReader::NextKey()
 
 void TLenvalProtoTableReader::SkipRow()
 {
-    Input_->Skip(Length_);
+    while (true) {
+        try {
+            size_t skipped = Input_->Skip(Length_);
+            if (skipped != Length_) {
+                ythrow yexception() << "Premature end of stream";
+            }
+            break;
+        } catch (const yexception& ) {
+            if (!TLenvalTableReader::Retry()) {
+                throw;
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
