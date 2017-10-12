@@ -349,7 +349,7 @@ private:
             context,
             transaction->Commit(),
             [response] (const TTransactionCommitResult& result) {
-                // TODO(sandello): Fill me.
+                ToProto(response->mutable_commit_timestamps(), result.CommitTimestamps);
             });
     }
 
