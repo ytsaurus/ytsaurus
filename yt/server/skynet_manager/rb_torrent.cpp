@@ -7,6 +7,8 @@
 #include <util/stream/str.h>
 #include <util/string/iterator.h>
 
+#include <string>
+
 namespace NYT {
 namespace NSkynetManager {
 
@@ -291,7 +293,7 @@ TString ComputeRbTorrentId(const TString& headBinary)
         auto pieceHash = TSHA1Hasher()
             .Append(TStringBuf(headBinary).SubStr(offset, SkynetPieceSize))
             .Digest();
-    
+
         piecesOut.Write(pieceHash.data(), pieceHash.size());
     }
 
