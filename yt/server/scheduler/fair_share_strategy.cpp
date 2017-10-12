@@ -930,8 +930,8 @@ private:
     void DoScheduleJobsWithPreemption(
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext& context,
-        const std::function<void(TProfilingCounters&, int, TDuration)> profileTimings,
-        const std::function<void(const TStringBuf&)> logAndCleanSchedulingStatistics)
+        const std::function<void(TProfilingCounters&, int, TDuration)>& profileTimings,
+        const std::function<void(const TStringBuf&)>& logAndCleanSchedulingStatistics)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
         auto& config = rootElementSnapshot->Config;
