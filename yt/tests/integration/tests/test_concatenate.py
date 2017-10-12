@@ -71,6 +71,31 @@ class TestConcatenate(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
         assert get("//tmp/union/@schema") == get("//tmp/t1/@schema")
 
+    def test_infer_schema_many_columns(self):
+        row = {"a": "1", "b": "2", "c": "3", "d": "4"}
+        for table_path in ["//tmp/t1", "//tmp/t2"]:
+            create("table", table_path,
+               attributes = {
+                   "schema": [
+                       {"name": "b", "type": "string"},
+                       {"name": "a", "type": "string"},
+                       {"name": "d", "type": "string"},
+                       {"name": "c", "type": "string"},
+                   ]
+               })
+            write_table(table_path, [row])
+
+        create("table", "//tmp/union")
+        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
+
+        assert read_table("//tmp/union") == [row] * 2
+        assert get("//tmp/union/@schema") == make_schema([
+            {"name": "a", "type": "string"},
+            {"name": "b", "type": "string"},
+            {"name": "c", "type": "string"},
+            {"name": "d", "type": "string"},
+        ], strict=True, unique_keys=False)
+
     def test_conflict_missing_output_schema_append(self):
         create("table", "//tmp/t1",
            attributes = {
