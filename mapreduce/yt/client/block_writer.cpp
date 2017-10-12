@@ -1,10 +1,13 @@
 #include "block_writer.h"
 
-#include <mapreduce/yt/http/requests.h>
-#include <mapreduce/yt/interface/errors.h>
+#include "retry_heavy_write_request.h"
 
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/wait_proxy.h>
+
+#include <mapreduce/yt/http/requests.h>
+
+#include <mapreduce/yt/interface/errors.h>
 
 namespace NYT {
 

@@ -1,11 +1,12 @@
 #pragma once
 
+#include "transaction.h"
+
 #include <mapreduce/yt/io/helpers.h>
 
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/http/http.h>
-#include <mapreduce/yt/http/transaction.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <util/stream/output.h>
