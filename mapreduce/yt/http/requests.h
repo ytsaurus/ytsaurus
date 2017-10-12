@@ -61,12 +61,6 @@ TString RetryRequest(
     bool isHeavy = false,
     bool isOperation = false);
 
-void RetryHeavyWriteRequest(
-    const TAuth& auth,
-    const TTransactionId& parentId,
-    THttpHeader& header,
-    std::function<THolder<IInputStream>()> streamMaker);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

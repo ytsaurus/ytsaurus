@@ -3,6 +3,7 @@
 #include "client.h"
 #include "file_reader.h"
 #include "operation_tracker.h"
+#include "retry_heavy_write_request.h"
 #include "yt_poller.h"
 
 #include <mapreduce/yt/interface/errors.h>

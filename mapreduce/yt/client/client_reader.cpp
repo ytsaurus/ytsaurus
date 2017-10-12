@@ -1,5 +1,7 @@
 #include "client_reader.h"
 
+#include "transaction.h"
+
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/log.h>
@@ -12,7 +14,6 @@
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/retry_request.h>
-#include <mapreduce/yt/http/transaction.h>
 
 #include <mapreduce/yt/raw_client/raw_requests.h>
 

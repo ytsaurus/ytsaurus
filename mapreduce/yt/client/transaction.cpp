@@ -1,10 +1,10 @@
 #include "transaction.h"
 
-#include "requests.h"
-
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/wait_proxy.h>
+
+#include <mapreduce/yt/http/requests.h>
 
 #include <util/datetime/base.h>
 
