@@ -227,6 +227,10 @@ public class UnversionedValue implements YTreeConvertible {
         }
     }
 
+    public String stringValue() {
+        return new String(bytesValue(), StandardCharsets.UTF_8);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
