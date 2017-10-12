@@ -232,6 +232,7 @@ protected:
 
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
+    i64 DataWeightSinceLastBlockFlush_ = 0;
 
     const TEncodingChunkWriterPtr EncodingChunkWriter_;
     TOwningKey LastKey_;
@@ -344,6 +345,7 @@ protected:
         }
         ValidateRowWeight(weight, Config_, Options_);
         DataWeight_ += weight;
+        DataWeightSinceLastBlockFlush_ += weight;
         return weight;
     }
 
@@ -451,7 +453,10 @@ public:
             ++RowCount_;
             BlockWriter_->WriteRow(row);
 
-            if (BlockWriter_->GetBlockSize() >= Config_->BlockSize) {
+            if (BlockWriter_->GetBlockSize() >= Config_->BlockSize ||
+                DataWeightSinceLastBlockFlush_ > Config_->MaxDataWeightBetweenBlocks)
+            {
+                DataWeightSinceLastBlockFlush_ = 0;
                 auto block = BlockWriter_->FlushBlock();
                 block.Meta.set_chunk_row_count(RowCount_);
                 RegisterBlock(block, row);
@@ -628,7 +633,10 @@ private:
 
             YCHECK(maxWriterIndex >= 0);
 
-            if (totalSize > Config_->MaxBufferSize || maxWriterSize > Config_->BlockSize) {
+            if (totalSize > Config_->MaxBufferSize ||
+                maxWriterSize > Config_->BlockSize ||
+                DataWeightSinceLastBlockFlush_ > Config_->MaxDataWeightBetweenBlocks)
+            {
                 FinishBlock(maxWriterIndex, lastRow);
             } else {
                 DataToBlockFlush_ = std::min(Config_->MaxBufferSize - totalSize, Config_->BlockSize - maxWriterSize);
@@ -641,6 +649,7 @@ private:
 
     void FinishBlock(int blockWriterIndex, TUnversionedRow lastRow)
     {
+        DataWeightSinceLastBlockFlush_ = 0;
         auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.blocks_size(), RowCount_);
         block.Meta.set_chunk_row_count(RowCount_);
         RegisterBlock(block, lastRow);
