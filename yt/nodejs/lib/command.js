@@ -366,7 +366,9 @@ YtCommand.prototype._parseRequest = function() {
     // headers that include colons. Remarkable.
     this.omit_trailers = is_ie;
 
-    if (this.req.headers["x-yt-omit-trailers"]) {
+    var has_omit_trailers_option = typeof(this.req.headers["x-yt-omit-trailers"]) !== "undefined";
+
+    if (has_omit_trailers_option) {
         this.omit_trailers = true;
     }
 };
