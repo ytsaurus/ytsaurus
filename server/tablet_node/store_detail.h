@@ -232,8 +232,8 @@ public:
 
     virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
 
-    virtual EInMemoryMode GetInMemoryMode() const override;
-    virtual void SetInMemoryMode(EInMemoryMode mode, ui64 configRevision) override;
+    virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
+    virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode, ui64 configRevision) override;
 
     virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
 
@@ -244,7 +244,7 @@ protected:
     const NApi::INativeClientPtr Client_;
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
-    EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
+    NTabletClient::EInMemoryMode InMemoryMode_ = NTabletClient::EInMemoryMode::None;
     ui64 InMemoryConfigRevision_ = 0;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;

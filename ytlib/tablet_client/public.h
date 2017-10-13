@@ -59,6 +59,12 @@ DEFINE_ENUM(EErrorCode,
 constexpr int TypicalPeerCount = 5;
 constexpr int MaxPeerCount = 10;
 
+DEFINE_ENUM(EInMemoryMode,
+    (None)
+    (Compressed)
+    (Uncompressed)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_BIT_ENUM(EReplicationLogDataFlags,

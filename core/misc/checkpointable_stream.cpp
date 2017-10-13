@@ -1,25 +1,8 @@
 #include "checkpointable_stream.h"
 #include "serialize.h"
+#include "checkpointable_stream_block_header.h"
 
 #include <yt/core/misc/error.h>
-
-namespace NYT {
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TBlockHeader
-{
-    static const ui64 CheckpointSentinel = 0;
-    static const ui64 CheckpointsDisabled = 0xffffffffU;
-
-    ui64 Length;
-};
-
-} // namespace
-} // namespace NYT
-
-Y_DECLARE_PODTYPE(NYT::TBlockHeader);
 
 namespace NYT {
 

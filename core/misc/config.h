@@ -109,7 +109,7 @@ DEFINE_REFCOUNTED_TYPE(TExpiringCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogDigestConfig
-    : virtual public NYTree::TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     // We will round each sample x to the range from [(1 - RelativePrecision)*x, (1 + RelativePrecision)*x].

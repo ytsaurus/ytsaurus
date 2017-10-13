@@ -27,8 +27,31 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFairShareStrategyOperationControllerConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Limit on the number of concurrent calls to ScheduleJob of single controller.
+    int MaxConcurrentControllerScheduleJobCalls;
+
+    //! Maximum allowed time for single job scheduling.
+    TDuration ScheduleJobTimeLimit;
+
+    //! Backoff time after controller schedule job failure.
+    TDuration ScheduleJobFailBackoffTime;
+
+    //! Backoff between schedule job statistics logging.
+    TDuration ScheduleJobStatisticsLogBackoff;
+
+    TFairShareStrategyOperationControllerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareStrategyConfig
-    : virtual public NYTree::TYsonSerializable
+    : public TFairShareStrategyOperationControllerConfig
 {
 public:
     // The following settings can be overridden in operation spec.
@@ -68,26 +91,10 @@ public:
     // discounted proportionally to this coefficient.
     double JobCountPreemptionTimeoutCoefficient;
 
-    //! Limit on the number of concurrent calls to ScheduleJob of single controller.
-    int MaxConcurrentControllerScheduleJobCalls;
-
-    //! Maximum allowed time for single job scheduling.
-    TDuration ControllerScheduleJobTimeLimit;
-
-    //! Backoff time after controller schedule job failure.
-    TDuration ControllerScheduleJobFailBackoffTime;
-
-    //! Backoff between schedule job statistics logging.
-    TDuration ScheduleJobStatisticsLogBackoff;
-
     //! Thresholds to partition jobs of operation
     //! to preemptable, aggressively preemptable and non-preemptable lists.
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
-
-    //! Allow failing a controller by passing testing option `controller_failure`
-    //! in operation spec. Used only for testing purposes.
-    bool EnableControllerFailureSpecOption;
 
     //! To investigate CPU load of node shard threads.
     bool EnableSchedulingTags;
@@ -110,6 +117,12 @@ public:
 
     //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
     double ThresholdToEnableMaxPossibleUsageRegularization;
+
+    //! Delay before starting considering total resource limits after scheduler connection.
+    TDuration TotalResourceLimitsConsiderDelay;
+    
+    //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
+    TDuration PreemptiveSchedulingBackoff;
 
     TFairShareStrategyConfig();
 };
@@ -354,6 +367,9 @@ public:
     // Testing option that enables sleeping between intermediate and final states of operation.
     TNullable<TDuration> FinishOperationTransitionDelay;
 
+    //! Check that controller job counter agrees with the total job counter in data flow graph.
+    bool ValidateTotalJobCounterCorrectness;
+
     TTestingOptions();
 };
 
@@ -432,6 +448,8 @@ public:
     TDuration OperationsUpdatePeriod;
 
     TDuration WatchersUpdatePeriod;
+
+    TDuration NodesAttributesUpdatePeriod;
 
     TDuration ProfilingUpdatePeriod;
 
@@ -596,6 +614,10 @@ public:
 
     //! If |true|, snapshots are loaded during revival.
     bool EnableSnapshotLoading;
+
+    //! Allow failing a controller by passing testing option `controller_failure`
+    //! in operation spec. Used only for testing purposes.
+    bool EnableControllerFailureSpecOption;
 
     TString SnapshotTempPath;
     NApi::TFileReaderConfigPtr SnapshotReader;

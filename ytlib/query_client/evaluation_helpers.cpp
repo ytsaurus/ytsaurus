@@ -160,6 +160,22 @@ TJoinClosure::TJoinClosure(
     Lookup.set_empty_key(TRow());
 }
 
+TMultiJoinClosure::TItem::TItem(
+    size_t keySize,
+    TComparerFunction* prefixEqComparer,
+    THasherFunction* lookupHasher,
+    TComparerFunction* lookupEqComparer)
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    , KeySize(keySize)
+    , PrefixEqComparer(prefixEqComparer)
+    , Lookup(
+        InitialGroupOpHashtableCapacity,
+        lookupHasher,
+        lookupEqComparer)
+{
+    Lookup.set_empty_key(TRow());
+}
+
 TGroupByClosure::TGroupByClosure(
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
@@ -193,6 +209,8 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
     auto foreignKeyPrefix = joinClause->ForeignKeyPrefix;
     const auto& foreignEquations = joinClause->ForeignEquations;
 
+    auto newQuery = New<TQuery>(*subquery);
+
     TDataRanges dataSource;
     dataSource.Id = joinClause->ForeignDataId;
 
@@ -214,12 +232,9 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
             dataSource.Schema.push_back(foreignEquations[index]->Type);
         }
 
-        subquery->InferRanges = false;
-
-        if (joinClause->CommonKeyPrefix > 0) {
-            // COMPAT(lukyan): Use ordered read without modification of protocol
-            subquery->Limit = std::numeric_limits<i64>::max() - 1;
-        }
+        newQuery->InferRanges = false;
+        // COMPAT(lukyan): Use ordered read without modification of protocol
+        newQuery->Limit = std::numeric_limits<i64>::max() - 1;
     } else {
         TRowRanges ranges;
 
@@ -232,12 +247,12 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
 
         dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 
-        subquery->WhereClause = subquery->WhereClause
-            ? MakeAndExpression(inClause, subquery->WhereClause)
+        newQuery->WhereClause = newQuery->WhereClause
+            ? MakeAndExpression(inClause, newQuery->WhereClause)
             : inClause;
     }
 
-    return std::make_pair(subquery, dataSource);
+    return std::make_pair(newQuery, dataSource);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

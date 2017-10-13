@@ -95,8 +95,8 @@ TFuture<TTransactionCommitResult> TRpcProxyTransaction::Commit(const TTransactio
 
             return req->Invoke().Apply(
                 BIND([] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) -> TTransactionCommitResult {
-                    rspOrError.ValueOrThrow();
-                    return TTransactionCommitResult{};
+                    const auto& result = rspOrError.ValueOrThrow();
+                    return TTransactionCommitResult{FromProto<NHiveClient::TTimestampMap>(result->commit_timestamps())};
                 }));
         }));
 }

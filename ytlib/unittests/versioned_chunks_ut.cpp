@@ -484,7 +484,7 @@ protected:
             auto writeColumnSchema = writeSchema.Columns()[i];
             for (int j = 0; j < readSchema.Columns().size(); ++j) {
                 auto readColumnSchema = readSchema.Columns()[j];
-                if (writeColumnSchema.Name == readColumnSchema.Name) {
+                if (writeColumnSchema.Name() == readColumnSchema.Name()) {
                     idMapping[i] = j;
                 }
             }
@@ -494,7 +494,7 @@ protected:
             std::vector<TUnversionedValue> key;
             YCHECK(row.GetKeyCount() <= readSchema.GetKeyColumnCount());
             for (int i = 0; i < row.GetKeyCount() && i < readSchema.GetKeyColumnCount(); ++i) {
-                YCHECK(row.BeginKeys()[i].Type == readSchema.Columns()[i].Type);
+                YCHECK(row.BeginKeys()[i].Type == readSchema.Columns()[i].GetPhysicalType());
                 key.push_back(row.BeginKeys()[i]);
             }
 
@@ -574,7 +574,7 @@ protected:
 
                 std::set<int> usedIds;
                 for (const auto& value : values) {
-                    if (usedIds.insert(value.Id).second || readSchema.Columns()[value.Id].Aggregate) {
+                    if (usedIds.insert(value.Id).second || readSchema.Columns()[value.Id].Aggregate()) {
                         builder.AddValue(value);
                     }
                 }
@@ -668,8 +668,12 @@ TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnLookupSyncLastC
 TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
 {
     auto writeColumnSchemas = ColumnSchemas_;
-    writeColumnSchemas[5].Group = writeColumnSchemas[9].Group = "G1";
-    writeColumnSchemas[6].Group = writeColumnSchemas[7].Group = writeColumnSchemas[8].Group = "G2";
+    writeColumnSchemas[5].SetGroup(TString("G1"));
+    writeColumnSchemas[9].SetGroup(TString("G1"));
+
+    writeColumnSchemas[6].SetGroup(TString("G2"));
+    writeColumnSchemas[7].SetGroup(TString("G2"));
+    writeColumnSchemas[8].SetGroup(TString("G2"));
     auto writeSchema = TTableSchema(writeColumnSchemas);
 
     auto readColumnSchemas = ColumnSchemas_;

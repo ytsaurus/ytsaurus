@@ -60,12 +60,12 @@ public:
     TFuture<void> CheckResourceLimits(
         const TString& account,
         const TString& mediumName,
-        EInMemoryMode inMemoryMode);
+        NTabletClient::EInMemoryMode inMemoryMode);
 
     void ValidateResourceLimits(
         const TString& account,
         const TString& mediumName,
-        EInMemoryMode inMemoryMode);
+        NTabletClient::EInMemoryMode inMemoryMode);
 
 private:
     class TImpl;

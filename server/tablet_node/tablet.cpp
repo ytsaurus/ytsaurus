@@ -1109,12 +1109,12 @@ void TTablet::Initialize()
         int lockIndex = TSortedDynamicRow::PrimaryLockIndex;
         // No locking supported for non-atomic tablets, however we still need the primary
         // lock descriptor to maintain last commit timestamps.
-        if (columnSchema.Lock && Atomicity_ == EAtomicity::Full) {
-            auto it = groupToIndex.find(*columnSchema.Lock);
+        if (columnSchema.Lock() && Atomicity_ == EAtomicity::Full) {
+            auto it = groupToIndex.find(*columnSchema.Lock());
             if (it == groupToIndex.end()) {
                 lockIndex = groupToIndex.size() + 1;
-                YCHECK(groupToIndex.insert(std::make_pair(*columnSchema.Lock, lockIndex)).second);
-                LockIndexToName_.push_back(*columnSchema.Lock);
+                YCHECK(groupToIndex.insert(std::make_pair(*columnSchema.Lock(), lockIndex)).second);
+                LockIndexToName_.push_back(*columnSchema.Lock());
             } else {
                 lockIndex = it->second;
             }
@@ -1134,20 +1134,35 @@ void TTablet::Initialize()
 void TTablet::FillProfilerTags(const TCellId& cellId)
 {
     ProfilerTags_.clear();
-    if (!Config_->EnableProfiling) {
-        return;
-    }
     if (TablePath_.empty()) {
         LOG_WARNING("Table path is empty, profiling will be disabled (TabletId: %v, CellId: %v)",
             Id_,
             cellId);
         return;
     }
-    ProfilerTags_.assign({
-        // tablet_id must be the first. See tablet_profiling.cpp for details.
-        TProfileManager::Get()->RegisterTag("tablet_id", Id_),
-        TProfileManager::Get()->RegisterTag("cell_id", cellId),
-        TProfileManager::Get()->RegisterTag("table_path", TablePath_)});
+    if (Config_->EnableProfiling) {
+        ProfilerTags_.assign({
+            // tablet_id must be the first. See tablet_profiling.cpp for details.
+            TProfileManager::Get()->RegisterTag("tablet_id", Id_),
+            TProfileManager::Get()->RegisterTag("cell_id", cellId)});
+    }
+    ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag("table_path", TablePath_));
+
+    const auto& writerOptions = WriterOptions_;
+    TTagIdList tags;
+    tags.append({
+        TProfileManager::Get()->RegisterTag("account", writerOptions->Account),
+        TProfileManager::Get()->RegisterTag("medium", writerOptions->MediumName)});
+    auto storeFlushTags = tags;
+    auto compactionTags = tags;
+    auto partitioningTags = tags;
+    storeFlushTags.push_back(TProfileManager::Get()->RegisterTag("method", "store_flush"));
+    compactionTags.push_back(TProfileManager::Get()->RegisterTag("method", "compaction"));
+    partitioningTags.push_back(TProfileManager::Get()->RegisterTag("method", "partitioning"));
+
+    RuntimeData_->StoreFlushDiskPressureCounter = TSimpleCounter("/disk_bytes_written", storeFlushTags);
+    RuntimeData_->CompactionDiskPressureCounter = TSimpleCounter("/disk_bytes_written", compactionTags);
+    RuntimeData_->PartitioningDiskPressureCounter = TSimpleCounter("/disk_bytes_written", partitioningTags);
 }
 
 void TTablet::UpdateReplicaCounters()
@@ -1157,11 +1172,16 @@ void TTablet::UpdateReplicaCounters()
             return nullptr;
         }
         auto replicaTags = ProfilerTags_;
-        replicaTags.append({
-            // replica_id must be the last tag. See tablet_profiling.cpp for details.
-            TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
-            TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
-            TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
+        if (Config_->EnableProfiling) {
+            replicaTags.append({
+                // replica_id must be the last tag. See tablet_profiling.cpp for details.
+                TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
+                TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
+                TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
+        } else {
+            replicaTags.push_back(
+                TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()));
+        }
         return &GetGloballyCachedValue<TReplicaProfilerTrait>(replicaTags);
     };
     for (auto& replica : Replicas_) {

@@ -394,9 +394,13 @@ IOperationControllerPtr CreateControllerForOperation(
         case EOperationType::MapReduce:
             controller = CreateMapReduceController(config, host, operation);
             break;
-        case EOperationType::RemoteCopy:
-            controller = CreateRemoteCopyController(config, host, operation);
+        case EOperationType::RemoteCopy: {
+            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
+            controller = legacySpec->UseLegacyController
+                ? CreateLegacyRemoteCopyController(config, host, operation)
+                : CreateRemoteCopyController(config, host, operation);
             break;
+        }
         default:
             Y_UNREACHABLE();
     }

@@ -37,7 +37,6 @@
 
 #include <yt/server/misc/address_helpers.h>
 #include <yt/server/misc/build_attributes.h>
-#include <yt/server/misc/memory_usage_tracker.h>
 
 #include <yt/server/object_server/master_cache_service.h>
 
@@ -67,6 +66,7 @@
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/misc/workload.h>
+#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/http_server.h>
@@ -234,7 +234,7 @@ void TBootstrap::DoRun()
 
     RpcServer = CreateBusServer(BusServer);
 
-    HttpServer.reset(new NHttp::TServer(
+    HttpServer.reset(new NXHttp::TServer(
         Config->MonitoringPort,
         Config->BusServer->BindRetryCount,
         Config->BusServer->BindRetryBackoff));

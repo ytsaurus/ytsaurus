@@ -74,10 +74,20 @@ struct IAsyncOutputStream
 
 DEFINE_REFCOUNTED_TYPE(IAsyncOutputStream)
 
-//! Creates a synchronous adapter from a given asynchronous stream.
-std::unique_ptr<IOutputStream> CreateSyncAdapter(
+//! Creates a synchronous buffering adapter from a given asynchronous stream.
+/*!
+ *  Not thread safe.
+ */
+std::unique_ptr<IOutputStream> CreateBufferedSyncAdapter(
     IAsyncOutputStreamPtr underlyingStream,
-    ESyncStreamAdapterStrategy strategy = ESyncStreamAdapterStrategy::WaitFor);
+    ESyncStreamAdapterStrategy strategy = ESyncStreamAdapterStrategy::WaitFor,
+    size_t bufferSize = 8_KB);
+
+//! Creates a synchronous checkpointable buffering adapter from a given asynchronous stream.
+std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableSyncAdapter(
+    IAsyncOutputStreamPtr underlyingStream,
+    ESyncStreamAdapterStrategy strategy,
+    size_t bufferSize = 8_KB);
 
 //! Creates an asynchronous adapter from a given synchronous stream.
 /*!

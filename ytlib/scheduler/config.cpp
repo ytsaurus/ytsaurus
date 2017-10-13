@@ -36,13 +36,13 @@ TJobIOConfig::TJobIOConfig()
 TTestingOperationOptions::TTestingOperationOptions()
 {
     RegisterParameter("scheduling_delay", SchedulingDelay)
-        .Default(TDuration::Seconds(0));
+        .Default(Null);
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
-        .Default(TDuration::Seconds(0));
+        .Default(Null);
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
-        .Default(EDelayInsideOperationCommitStage::Stage1);
+        .Default(Null);
     RegisterParameter("controller_failure", ControllerFailure)
         .Default(EControllerFailureType::None);
 }
@@ -154,7 +154,7 @@ TOperationSpecBase::TOperationSpecBase()
         .Default();
 
     RegisterParameter("testing", TestingOperationOptions)
-        .Default();
+        .DefaultNew();
 
     RegisterParameter("owners", Owners)
         .Default();

@@ -173,7 +173,8 @@ Handle<Value> WipeOutCurrentProcess(const Arguments& args)
 
 void JemallocWriteCb(void*, const char* string)
 {
-    ::write(2, string, strlen(string));
+    ssize_t ignored __attribute__((unused));
+    ignored = ::write(2, string, strlen(string));
 }
 
 Handle<Value> JemallocStats(const Arguments& args)

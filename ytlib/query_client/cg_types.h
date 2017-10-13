@@ -27,6 +27,12 @@ using NYT::NQueryClient::TJoinClosure;
 using NYT::NQueryClient::TGroupByClosure;
 using NYT::NQueryClient::TWriteOpClosure;
 using NYT::NQueryClient::TExpressionClosure;
+using NYT::NQueryClient::TJoinComparers;
+using NYT::NQueryClient::TComparerFunction;
+using NYT::NQueryClient::THasherFunction;
+using NYT::NQueryClient::TTernaryComparerFunction;
+using NYT::NQueryClient::TMultiJoinParameters;
+using NYT::NQueryClient::TMultiJoinClosure;
 using NYT::NTableClient::TRowBuffer;
 using NYT::TSharedRange;
 
@@ -121,6 +127,16 @@ class TypeBuilder<TJoinParameters*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
+template <bool Cross>
+class TypeBuilder<TMultiJoinParameters*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
+class TypeBuilder<TMultiJoinClosure*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
 // Aggregate types
 
 template <bool Cross>
@@ -201,6 +217,35 @@ public:
             TypeBuilder<TRowBuffer*, Cross>::get(context),
             llvm::ArrayType::get(TypeBuilder<char, false>::get(context), size),
             llvm::ArrayType::get(TypeBuilder<TValue, false>::get(context), size),
+            nullptr);
+    }
+};
+
+template <bool Cross>
+class TypeBuilder<TJoinComparers, Cross>
+{
+public:
+    enum Fields
+    {
+        PrefixEqComparer,
+        SuffixHasher,
+        SuffixEqComparer,
+        SuffixLessComparer,
+        ForeignPrefixEqComparer,
+        ForeignSuffixLessComparer,
+        FullTernaryComparer
+    };
+
+    static StructType* get(LLVMContext& context)
+    {
+        return StructType::get(
+            TypeBuilder<TComparerFunction*, Cross>::get(context),
+            TypeBuilder<THasherFunction*, Cross>::get(context),
+            TypeBuilder<TComparerFunction*, Cross>::get(context),
+            TypeBuilder<TComparerFunction*, Cross>::get(context),
+            TypeBuilder<TComparerFunction*, Cross>::get(context),
+            TypeBuilder<TComparerFunction*, Cross>::get(context),
+            TypeBuilder<TTernaryComparerFunction*, Cross>::get(context),
             nullptr);
     }
 };

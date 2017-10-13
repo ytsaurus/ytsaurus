@@ -9,11 +9,15 @@
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
 
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+
+#include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -25,6 +29,7 @@
 namespace NYT {
 namespace NControllerAgent {
 
+using namespace NApi;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
@@ -231,19 +236,29 @@ protected:
 
     virtual EJobType GetJobType() const = 0;
 
-    virtual TCpuResource GetCpuLimit() const = 0;
-
     virtual void InitJobSpecTemplate() = 0;
 
     virtual bool IsTeleportationSupported() const = 0;
 
     virtual i64 GetMinTeleportChunkSize() = 0;
 
-    virtual i64 GetUserJobMemoryReserve() const = 0;
+    virtual void ValidateInputSlice(const TInputDataSlicePtr& dataSlice)
+    { }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const = 0;
+    virtual TCpuResource GetCpuLimit() const
+    {
+        return 1;
+    }
 
-    // Custom bits of preparation pipeline.
+    virtual i64 GetUserJobMemoryReserve() const
+    {
+        return 0;
+    }
+
+    virtual TUserJobSpecPtr GetUserJobSpec() const
+    {
+        return nullptr;
+    }
 
     TInputStreamDirectory GetInputStreamDirectory() const
     {
@@ -276,6 +291,7 @@ protected:
             switch (OperationType) {
                 case EOperationType::Merge:
                 case EOperationType::Erase:
+                case EOperationType::RemoteCopy:
                     return CreateMergeJobSizeConstraints(
                         Spec_,
                         Options_,
@@ -283,13 +299,16 @@ protected:
                         DataWeightRatio,
                         InputCompressionRatio);
 
-                default:
+                case EOperationType::Map:
                     return CreateUserJobSizeConstraints(
                         Spec_,
                         Options_,
                         OutputTables_.size(),
                         DataWeightRatio,
                         PrimaryInputDataWeight);
+
+                default:
+                    Y_UNREACHABLE();
             }
         };
 
@@ -323,6 +342,7 @@ protected:
 
             int sliceCount = 0;
             for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
+                ValidateInputSlice(slice);
                 RegisterInputStripe(CreateChunkStripe(std::move(slice)), OrderedTask_);
                 ++sliceCount;
                 yielder.TryYield();
@@ -344,14 +364,14 @@ protected:
     {
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-                "UnavailableInputChunks: %v",
-            JobCounter.GetTotal(),
-            JobCounter.GetRunning(),
-            JobCounter.GetCompletedTotal(),
+            "UnavailableInputChunks: %v",
+            JobCounter->GetTotal(),
+            JobCounter->GetRunning(),
+            JobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter.GetFailed(),
-            JobCounter.GetAbortedTotal(),
-            JobCounter.GetInterruptedTotal(),
+            JobCounter->GetFailed(),
+            JobCounter->GetAbortedTotal(),
+            JobCounter->GetInterruptedTotal(),
             GetUnavailableInputChunkCount());
     }
 
@@ -390,7 +410,10 @@ protected:
         InitTeleportableInputTables();
 
         for (const auto& table : InputTables) {
-            if (!table.Schema.IsSorted()) {
+            // If we verify sorted output, there is no need to keep output order inside
+            // ordered chunk pool since the output chunk lists will be reordered according to the
+            // boundary keys anyway.
+            if (!table.Schema.IsSorted() || !ShouldVerifySortedOutput()) {
                 OrderedOutputRequired_ = true;
             }
         }
@@ -419,7 +442,7 @@ protected:
         FinishPreparation();
     }
 
-    virtual TOrderedChunkPoolOptions GetOrderedChunkPoolOptions()
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions()
     {
         TOrderedChunkPoolOptions chunkPoolOptions;
         chunkPoolOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
@@ -428,6 +451,7 @@ protected:
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.OperationId = OperationId;
         chunkPoolOptions.KeepOutputOrder = OrderedOutputRequired_;
+        chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
         return chunkPoolOptions;
     }
 };
@@ -470,11 +494,6 @@ private:
         return !Spec_->InputQuery;
     }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const override
-    {
-        return nullptr;
-    }
-
     virtual i64 GetMinTeleportChunkSize() override
     {
         if (Spec_->ForceTransform || Spec_->InputQuery) {
@@ -491,16 +510,6 @@ private:
     virtual EJobType GetJobType() const override
     {
         return EJobType::OrderedMerge;
-    }
-
-    virtual TCpuResource GetCpuLimit() const override
-    {
-        return 1;
-    }
-
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return 0;
     }
 
     virtual void PrepareInputQuery() override
@@ -771,7 +780,7 @@ private:
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         return !IsExplicitJobCount_ &&
-               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
+               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
                TOperationControllerBase::IsJobInterruptible();
     }
 
@@ -877,11 +886,6 @@ private:
         return false;
     }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const override
-    {
-        return nullptr;
-    }
-
     virtual i64 GetMinTeleportChunkSize() override
     {
         if (!Spec_->CombineChunks) {
@@ -900,16 +904,6 @@ private:
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return {Spec_->TablePath};
-    }
-
-    virtual TCpuResource GetCpuLimit() const override
-    {
-        return 1;
-    }
-
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return 0;
     }
 
     virtual void DoInitialize() override
@@ -1018,6 +1012,288 @@ IOperationControllerPtr CreateEraseController(
 {
     auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
     return New<TEraseController>(config, spec, host, operation);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteCopyController
+    : public TOrderedControllerBase
+{
+public:
+    TRemoteCopyController(
+        TSchedulerConfigPtr config,
+        TRemoteCopyOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TOrderedControllerBase(config, spec, config->RemoteCopyOperationOptions, host, operation)
+        , Spec_(spec)
+        , Options_(config->RemoteCopyOperationOptions)
+    {
+        RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
+    }
+
+    void Persist(const TPersistenceContext& context)
+    {
+        TOrderedControllerBase::Persist(context);
+        using NYT::Persist;
+
+        Persist(context, Spec_);
+        Persist(context, Options_);
+        Persist<TAttributeDictionaryRefSerializer>(context, InputTableAttributes_);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController, 0xaa8829a9);
+
+    TRemoteCopyOperationSpecPtr Spec_;
+    TRemoteCopyOperationOptionsPtr Options_;
+
+    std::unique_ptr<IAttributeDictionary> InputTableAttributes_;
+
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {};
+    }
+
+    virtual bool ShouldVerifySortedOutput() const override
+    {
+        return false;
+    }
+
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    {
+        TOperationControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("cluster_name").Value(Spec_->ClusterName)
+            .Item("network_name").Value(Spec_->NetworkName);
+    }
+
+    // Custom bits of preparation pipeline.
+    virtual void InitializeTransactions() override
+    {
+        std::vector<TFuture<void>> startFutures {
+            StartAsyncSchedulerTransaction(),
+            StartInputTransaction(NullTransactionId),
+            StartOutputTransaction(UserTransactionId),
+            StartDebugOutputTransaction(),
+        };
+        WaitFor(Combine(startFutures))
+            .ThrowOnError();
+        AreTransactionsActive = true;
+    }
+
+    virtual void InitializeConnections() override
+    {
+        auto connection = GetRemoteConnection();
+
+        TClientOptions options;
+        options.User = AuthenticatedUser;
+        AuthenticatedInputMasterClient = connection->CreateNativeClient(options);
+    }
+
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    {
+        return Spec_->InputTablePaths;
+    }
+
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    {
+        return {Spec_->OutputTablePath};
+    }
+
+    virtual void PrepareOutputTables() override
+    {
+        auto& table = OutputTables_[0];
+
+        switch (Spec_->SchemaInferenceMode) {
+            case ESchemaInferenceMode::Auto:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    InferSchemaFromInputOrdered();
+                    break;
+                }
+                // We intentionally fall into next clause.
+
+            case ESchemaInferenceMode::FromOutput:
+                ValidateOutputSchemaOrdered();
+
+                // Since remote copy doesn't unpack blocks and validate schema, we must ensure
+                // that schemas are identical.
+                for (const auto& inputTable : InputTables) {
+                    if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Strong &&
+                        inputTable.Schema.ToCanonical() != table.TableUploadOptions.TableSchema.ToCanonical())
+                    {
+                        THROW_ERROR_EXCEPTION("Cannot make remote copy into table with \"strong\" schema since "
+                            "input table schema differs from output table schema")
+                            << TErrorAttribute("input_table_schema", inputTable.Schema)
+                            << TErrorAttribute("output_table_schema", table.TableUploadOptions.TableSchema);
+                    }
+                }
+                break;
+
+            case ESchemaInferenceMode::FromInput:
+                InferSchemaFromInputOrdered();
+                break;
+        }
+    }
+
+    virtual void ValidateInputDataSlice(const TInputDataSlicePtr& dataSlice)
+    {
+        if (!dataSlice->IsTrivial()) {
+            THROW_ERROR_EXCEPTION("Remote copy operation supports only unversioned tables");
+        }
+        const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+        if ((chunk->LowerLimit() && !IsTrivial(*chunk->LowerLimit())) ||
+            (chunk->UpperLimit() && !IsTrivial(*chunk->UpperLimit())))
+        {
+            THROW_ERROR_EXCEPTION("Remote copy operation does not support non-trivial table limits");
+        }
+    }
+
+    virtual void CustomPrepare() override
+    {
+        if (Spec_->CopyAttributes) {
+            if (InputTables.size() > 1) {
+                THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
+            }
+
+            const auto& path = Spec_->InputTablePaths[0].GetPath();
+
+            auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+
+            auto req = TObjectYPathProxy::Get(path + "/@");
+            SetTransactionId(req, InputTransaction->GetId());
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
+                path);
+
+            const auto& rsp = rspOrError.Value();
+            InputTableAttributes_ = ConvertToAttributes(TYsonString(rsp->value()));
+        }
+
+        TOrderedControllerBase::CustomPrepare();
+    }
+
+    virtual void CustomCommit() override
+    {
+        TOperationControllerBase::CustomCommit();
+
+        if (Spec_->CopyAttributes) {
+            const auto& path = Spec_->OutputTablePath.GetPath();
+
+            auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+
+            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
+            auto attributeKeys = Spec_->AttributeKeys.Get(userAttributeKeys);
+
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& key : attributeKeys) {
+                auto req = TYPathProxy::Set(path + "/@" + key);
+                req->set_value(InputTableAttributes_->GetYson(key).GetData());
+                SetTransactionId(req, CompletionTransaction->GetId());
+                batchReq->AddRequest(req);
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error setting attributes for output table %v",
+                path);
+        }
+    }
+
+    void InitJobSpecTemplate()
+    {
+        JobSpecTemplate_.set_type(static_cast<int>(EJobType::RemoteCopy));
+        auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
+            TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
+        schedulerJobSpecExt->set_table_reader_options("");
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+
+        auto connectionConfig = CloneYsonSerializable(GetRemoteConnectionConfig());
+        if (Spec_->NetworkName) {
+            connectionConfig->Networks = {*Spec_->NetworkName};
+        }
+
+        auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
+        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).GetData());
+        remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
+        remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
+    }
+
+    INativeConnectionPtr GetRemoteConnection() const
+    {
+        if (Spec_->ClusterConnection) {
+            return CreateNativeConnection(*Spec_->ClusterConnection);
+        } else if (Spec_->ClusterName) {
+            auto connection = Host
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetClusterDirectory()
+                ->GetConnectionOrThrow(*Spec_->ClusterName);
+
+            auto* nativeConnection = dynamic_cast<INativeConnection*>(connection.Get());
+            if (!nativeConnection) {
+                THROW_ERROR_EXCEPTION("No native connection could be established with cluster %Qv",
+                    *Spec_->ClusterName);
+            }
+
+            return nativeConnection;
+        } else {
+            THROW_ERROR_EXCEPTION("No remote cluster is specified");
+        }
+    }
+
+    TNativeConnectionConfigPtr GetRemoteConnectionConfig() const
+    {
+        if (Spec_->ClusterConnection) {
+            return *Spec_->ClusterConnection;
+        } else if (Spec_->ClusterName) {
+            return GetRemoteConnection()->GetConfig();
+        } else {
+            THROW_ERROR_EXCEPTION("No remote cluster is specified");
+        }
+    }
+
+    virtual bool CheckParityReplicas() const override
+    {
+        return true;
+    }
+
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::RemoteCopy;
+    }
+
+    virtual bool IsTeleportationSupported() const override
+    {
+        return false;
+    }
+
+    virtual i64 GetMinTeleportChunkSize() override
+    {
+        return std::numeric_limits<i64>::max();
+    }
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
+
+IOperationControllerPtr CreateRemoteCopyController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
+    return New<TRemoteCopyController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

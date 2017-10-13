@@ -12,7 +12,7 @@
 #include <yt/server/data_node/config.h>
 #include <yt/server/data_node/master_connector.h>
 
-#include <yt/server/misc/memory_usage_tracker.h>
+#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -81,7 +81,7 @@ public:
             tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationsMemoryRatio;
     }
 
-    
+
     int GetAvailableTabletSlotCount() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

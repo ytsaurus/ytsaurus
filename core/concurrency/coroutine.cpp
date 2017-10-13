@@ -7,48 +7,32 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCoroutineBase::TCoroutineBase()
-    : Completed_(false)
-    , CoroutineStack_(CreateExecutionStack(EExecutionStackKind::Small))
-    , CoroutineContext_(CreateExecutionContext(CoroutineStack_.get(), &TCoroutineBase::Trampoline))
+    : CoroutineStack_(CreateExecutionStack(EExecutionStackKind::Small))
+    , CoroutineContext_(CoroutineStack_.get(), this)
 { }
 
-TCoroutineBase::TCoroutineBase(TCoroutineBase&& other)
-    : Completed_(other.Completed_)
-    , CallerContext_(std::move(other.CallerContext_))
-    , CoroutineStack_(std::move(other.CoroutineStack_))
-    , CoroutineContext_(std::move(other.CoroutineContext_))
+void TCoroutineBase::DoRun()
 {
-    other.Completed_ = true;
-}
-
-TCoroutineBase::~TCoroutineBase()
-{ }
-
-void TCoroutineBase::Trampoline(void* opaque)
-{
-    auto* coroutine = reinterpret_cast<TCoroutineBase*>(opaque);
-    Y_ASSERT(coroutine);
-
     try {
-        coroutine->Invoke();
+        Invoke();
     } catch (...) {
-        coroutine->CoroutineException_ = std::current_exception();
+        CoroutineException_ = std::current_exception();
     }
 
-    coroutine->Completed_ = true;
-    coroutine->JumpToCaller();
+    Completed_ = true;
+    JumpToCaller();
 
     Y_UNREACHABLE();
 }
 
 void TCoroutineBase::JumpToCaller()
 {
-    SwitchExecutionContext(&CoroutineContext_, &CallerContext_, nullptr);
+    CoroutineContext_.SwitchTo(&CallerContext_);
 }
 
 void TCoroutineBase::JumpToCoroutine()
 {
-    SwitchExecutionContext(&CallerContext_, &CoroutineContext_, this);
+    CallerContext_.SwitchTo(&CoroutineContext_);
 
     if (CoroutineException_) {
         std::exception_ptr exception;
