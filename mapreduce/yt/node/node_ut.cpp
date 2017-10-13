@@ -259,5 +259,17 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_VALUES_EQUAL(TNode(0).ConvertTo<bool>(), false);
         UNIT_ASSERT_EXCEPTION(TNode("random").ConvertTo<bool>(), TFromStringException);
         UNIT_ASSERT_EXCEPTION(TNode("").ConvertTo<bool>(), TFromStringException);
-   }
+    }
+
+    SIMPLE_UNIT_TEST(TestETypeToString) {
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::UNDEFINED), "undefined");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::STRING), "string_node");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::INT64), "int64_node");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::UINT64), "uint64_node");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::DOUBLE), "double_node");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::BOOL), "boolean_node");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::LIST), "list_node");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::MAP), "map_node");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TNode::ENTITY), "null");
+    }
 }
