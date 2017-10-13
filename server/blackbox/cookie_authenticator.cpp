@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <yt/core/misc/expiring_cache.h>
+#include <yt/core/crypto/crypto.h>
 
 #include <util/string/split.h>
 
@@ -31,8 +32,8 @@ public:
     virtual TFuture<TAuthenticationResult> Authenticate(
         const TCookieCredentials& credentials) override
     {
-        auto sessionIdMD5 = ComputeMD5(credentials.SessionId);
-        auto sslSessionIdMD5 = ComputeMD5(credentials.SslSessionId);
+        auto sessionIdMD5 = TMD5Hasher().Append(credentials.SessionId).HexDigestUpper();
+        auto sslSessionIdMD5 = TMD5Hasher().Append(credentials.SslSessionId).HexDigestUpper();
         LOG_DEBUG(
             "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v)",
             sessionIdMD5,

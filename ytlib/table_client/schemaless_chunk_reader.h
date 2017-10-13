@@ -28,8 +28,8 @@ struct ISchemalessChunkReader
     //! Only makes sense if the read range is nonempty.
     virtual i64 GetTableRowIndex() const = 0;
 
-    //! Return unreadRows to reader and build data slice descriptors for unread data.
-    virtual std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+    //! Return unreadRows to reader and build data slice descriptors for read and unread data.
+    virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
         const NYT::TRange<NTableClient::TUnversionedRow>& unreadRows) const = 0;
 };
 

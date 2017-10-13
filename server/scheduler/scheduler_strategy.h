@@ -27,6 +27,8 @@ struct ISchedulerStrategyHost
     virtual TJobResources GetMainNodesResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
 
+    virtual TInstant GetConnectionTime() const = 0;
+
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 
     virtual int GetExecNodeCount() const = 0;

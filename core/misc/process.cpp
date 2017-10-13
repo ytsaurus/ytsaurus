@@ -264,7 +264,7 @@ TSimpleProcess::TSimpleProcess(const TString& path, bool copyEnv, TDuration poll
     , PollPeriod_(pollPeriod)
     , PipeFactory_(3)
 {
-    AddArgument(NFS::GetFileName(path));
+    AddArgument(path);
 
     if (copyEnv) {
         for (char** envIt = environ; *envIt; ++envIt) {

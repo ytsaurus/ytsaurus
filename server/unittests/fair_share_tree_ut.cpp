@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/scheduler/fair_share_tree.h>
+#include <yt/server/scheduler/fair_share_tree_element.h>
 
 #include <yt/server/controller_agent/operation_controller.h>
 
@@ -42,6 +42,11 @@ struct TSchedulerStrategyHostMock
             return ZeroJobResources();
         }
         return GetMainNodesResourceLimits();
+    }
+
+    virtual TInstant GetConnectionTime() const override
+    {
+        return TInstant();
     }
 
     virtual void ActivateOperation(const TOperationId& operationId) override
@@ -222,12 +227,16 @@ TEST(FairShareTree, TestAttributes)
     auto poolA = New<TPool>(
         host.Get(),
         "A",
+        New<TPoolConfig>(),
+        true,
         config,
         NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"));
 
     auto poolB = New<TPool>(
         host.Get(),
         "B",
+        New<TPoolConfig>(),
+        true,
         config,
         NProfiling::TProfileManager::Get()->RegisterTag("pool", "B"));
 
@@ -238,10 +247,12 @@ TEST(FairShareTree, TestAttributes)
     poolB->SetParent(rootElement.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResources>(10, jobResources));
+    auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
         config,
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
+        operationControllerX,
         host.Get(),
         operationX.Get());
 
@@ -284,10 +295,12 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
         NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
 
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResources>(10, jobResources));
+    auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
         config,
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
+        operationControllerX,
         host.Get(),
         operationX.Get());
 
@@ -346,10 +359,12 @@ TEST(FairShareTree, TestBestAllocationRatio)
         NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
 
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResources>(3, jobResources));
+    auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
         config,
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
+        operationControllerX,
         host.Get(),
         operationX.Get());
 

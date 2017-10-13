@@ -5,6 +5,24 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControllerConfig()
+{
+    RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
+        .Default(10)
+        .GreaterThan(0);
+
+    RegisterParameter("schedule_job_time_limit", ScheduleJobTimeLimit)
+        .Default(TDuration::Seconds(60));
+
+    RegisterParameter("schedule_job_fail_backoff_time", ScheduleJobFailBackoffTime)
+        .Default(TDuration::MilliSeconds(100));
+
+    RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
+        .Default(TDuration::Seconds(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareStrategyConfig::TFairShareStrategyConfig()
 {
     RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -70,19 +88,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .Default(1.0)
         .GreaterThanOrEqual(1.0);
 
-    RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
-        .Default(10)
-        .GreaterThan(0);
-
-    RegisterParameter("schedule_job_time_limit", ControllerScheduleJobTimeLimit)
-        .Default(TDuration::Seconds(60));
-
-    RegisterParameter("schedule_job_fail_backoff_time", ControllerScheduleJobFailBackoffTime)
-        .Default(TDuration::MilliSeconds(100));
-
-    RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
-        .Default(TDuration::Seconds(1));
-
     RegisterParameter("preemption_satisfaction_threshold", PreemptionSatisfactionThreshold)
         .Default(1.0)
         .GreaterThan(0);
@@ -90,9 +95,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
         .Default(0.5)
         .GreaterThan(0);
-
-    RegisterParameter("enable_controller_failure_spec_option", EnableControllerFailureSpecOption)
-        .Default(false);
 
     RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
         .Default(true);
@@ -116,6 +118,12 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("threshold_to_enable_max_possible_usage_regularization", ThresholdToEnableMaxPossibleUsageRegularization)
         .InRange(0.0, 1.0)
         .Default(0.5);
+
+    RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
+        .Default(TDuration::Seconds(10));
+
+    RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
+        .Default(TDuration::Seconds(5));
 
     RegisterValidator([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -295,6 +303,8 @@ TTestingOptions::TTestingOptions()
         .Default(false);
     RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
         .Default(Null);
+    RegisterParameter("validate_total_job_counter_correctness", ValidateTotalJobCounterCorrectness)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -365,6 +375,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(3));
     RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
         .Default(TDuration::Seconds(3));
+    RegisterParameter("nodes_attributes_update_period", NodesAttributesUpdatePeriod)
+        .Default(TDuration::Seconds(15));
     RegisterParameter("profiling_update_period", ProfilingUpdatePeriod)
         .Default(TDuration::Seconds(1));
     RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
@@ -541,6 +553,8 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("enable_snapshot_building", EnableSnapshotBuilding)
         .Default(true);
     RegisterParameter("enable_snapshot_loading", EnableSnapshotLoading)
+        .Default(false);
+    RegisterParameter("enable_controller_failure_spec_option", EnableControllerFailureSpecOption)
         .Default(false);
     RegisterParameter("snapshot_temp_path", SnapshotTempPath)
         .NonEmpty()

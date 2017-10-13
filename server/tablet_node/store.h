@@ -119,8 +119,8 @@ struct IChunkStore
 
     virtual NChunkClient::IChunkReaderPtr GetChunkReader() = 0;
 
-    virtual EInMemoryMode GetInMemoryMode() const = 0;
-    virtual void SetInMemoryMode(EInMemoryMode mode, ui64 configRevision) = 0;
+    virtual NTabletClient::EInMemoryMode GetInMemoryMode() const = 0;
+    virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode, ui64 configRevision) = 0;
 
     virtual void Preload(TInMemoryChunkDataPtr chunkData) = 0;
 

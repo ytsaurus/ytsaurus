@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "serialize.h"
 
 #include <yt/core/yson/public.h>
 
@@ -10,7 +11,9 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract numeric progress counter for jobs, chunks, weights etc.
+//! Can be a part of counter hierarchy: change in a counter affects its parent, grandparent and so on.
 class TProgressCounter
+    : public TRefCounted
 {
 public:
     TProgressCounter();
@@ -20,7 +23,6 @@ public:
     bool IsTotalEnabled() const;
 
     void Increment(i64 value);
-    void Finalize();
 
     i64 GetTotal() const;
     i64 GetRunning() const;
@@ -41,7 +43,11 @@ public:
     void Aborted(i64 count, EAbortReason reason = EAbortReason::Other);
     void Lost(i64 count);
 
-    void Persist(const TStreamPersistenceContext& context);
+    // NB: this method does not check that counter hierarchy does not contain loops.
+    void SetParent(const TProgressCounterPtr& parent);
+    const TProgressCounterPtr& Parent() const;
+
+    void Persist(const TPersistenceContext& context);
 
 private:
     bool TotalEnabled_;
@@ -52,15 +58,18 @@ private:
     i64 Failed_;
     i64 Lost_;
     TEnumIndexedVector<i64, EAbortReason> Aborted_;
+    TProgressCounterPtr Parent_;
 };
 
-TString ToString(const TProgressCounter& counter);
+DEFINE_REFCOUNTED_TYPE(TProgressCounter)
 
-void Serialize(const TProgressCounter& counter, NYson::IYsonConsumer* consumer);
+TString ToString(const TProgressCounterPtr& counter);
+
+void Serialize(const TProgressCounterPtr& counter, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TProgressCounter NullProgressCounter;
+extern const TProgressCounterPtr NullProgressCounter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

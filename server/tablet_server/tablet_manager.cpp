@@ -18,7 +18,6 @@
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/serialize.h>
 
-#include <yt/server/chunk_server/helpers.h>
 #include <yt/server/chunk_server/chunk_list.h>
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_tree_traverser.h>
@@ -49,6 +48,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/election/config.h>
 
@@ -75,38 +75,37 @@
 namespace NYT {
 namespace NTabletServer {
 
+using namespace NCellMaster;
+using namespace NChunkClient::NProto;
+using namespace NChunkClient;
+using namespace NChunkServer;
 using namespace NConcurrency;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
-using namespace NObjectClient;
-using namespace NObjectClient::NProto;
-using namespace NObjectServer;
-using namespace NYTree;
-using namespace NYPath;
-using namespace NSecurityServer;
-using namespace NTableServer;
-using namespace NTabletClient;
-using namespace NTabletClient::NProto;
-using namespace NHydra;
+using namespace NCypressClient;
+using namespace NCypressServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
-using namespace NTransactionServer;
-using namespace NTabletServer::NProto;
-using namespace NNodeTrackerServer;
-using namespace NNodeTrackerServer::NProto;
-using namespace NNodeTrackerClient;
+using namespace NHydra;
 using namespace NNodeTrackerClient::NProto;
+using namespace NNodeTrackerClient;
+using namespace NNodeTrackerServer::NProto;
+using namespace NNodeTrackerServer;
+using namespace NObjectClient::NProto;
+using namespace NObjectClient;
+using namespace NObjectServer;
+using namespace NSecurityServer;
+using namespace NTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableServer;
+using namespace NTabletClient::NProto;
+using namespace NTabletClient;
 using namespace NTabletNode::NProto;
-using namespace NChunkServer;
-using namespace NChunkClient;
-using namespace NChunkClient::NProto;
-using namespace NCypressServer;
-using namespace NCypressClient;
-using namespace NCellMaster;
+using namespace NTabletServer::NProto;
+using namespace NTransactionServer;
+using namespace NYPath;
+using namespace NYTree;
 using namespace NYson;
 
 using NTabletNode::TTableMountConfigPtr;
-using NTabletNode::EInMemoryMode;
 using NTabletNode::EStoreType;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -1202,10 +1201,12 @@ public:
         }
     }
 
-    int GetAssignedTabletCellCount(const TString& address) const
+    const TTabletCellSet* FindAssignedTabletCells(const TString& address) const
     {
-        auto range = AddressToCell_.equal_range(address);
-        return std::distance(range.first, range.second);
+        auto it = AddressToCell_.find(address);
+        return it != AddressToCell_.end()
+            ? &it->second
+            : nullptr;
     }
 
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
@@ -1750,12 +1751,6 @@ public:
 
     void DestroyTable(TTableNode* table)
     {
-        if (table->GetTabletCellBundle()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(table->GetTabletCellBundle());
-            table->SetTabletCellBundle(nullptr);
-        }
-
         if (!table->Tablets().empty()) {
             int firstTabletIndex = 0;
             int lastTabletIndex = static_cast<int>(table->Tablets().size()) - 1;
@@ -1772,6 +1767,12 @@ public:
             }
 
             table->MutableTablets().clear();
+        }
+
+        if (table->GetTabletCellBundle()) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(table->GetTabletCellBundle());
+            table->SetTabletCellBundle(nullptr);
         }
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
@@ -2355,6 +2356,14 @@ public:
             return;
         }
 
+        auto tabletState = table->GetTabletState();
+        if (table->GetTabletCellBundle() != nullptr &&
+            tabletState != ETabletState::Unmounted &&
+            tabletState != ETabletState::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot change tablet cell bundle: table has mounted tablets");
+        }
+
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, EPermission::Use);
 
@@ -2390,7 +2399,7 @@ private:
 
     yhash<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
-    yhash_mm<TString, TTabletCell*> AddressToCell_;
+    yhash<TString, TTabletCellSet> AddressToCell_;
     yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
@@ -2841,15 +2850,16 @@ private:
         // Request slot starts.
         {
             int availableSlots = node->Statistics().available_tablet_slots();
-            auto range = AddressToCell_.equal_range(address);
-            for (auto it = range.first; it != range.second; ++it) {
-                auto* cell = it->second;
-                if (!IsObjectAlive(cell)) {
-                    continue;
-                }
-                if (actualCells.find(cell) == actualCells.end()) {
-                    requestCreateSlot(cell);
-                    --availableSlots;
+            auto it = AddressToCell_.find(address);
+            if (it != AddressToCell_.end()) {
+                for (auto* cell : it->second) {
+                    if (!IsObjectAlive(cell)) {
+                        continue;
+                    }
+                    if (actualCells.find(cell) == actualCells.end()) {
+                        requestCreateSlot(cell);
+                        --availableSlots;
+                    }
                 }
             }
         }
@@ -2918,17 +2928,27 @@ private:
 
     void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        AddressToCell_.insert(std::make_pair(descriptor.GetDefaultAddress(), cell));
+        const auto& address = descriptor.GetDefaultAddress();
+        auto cellsIt = AddressToCell_.find(address);
+        if (cellsIt == AddressToCell_.end()) {
+            cellsIt = AddressToCell_.insert(std::make_pair(address, TTabletCellSet())).first;
+        }
+        auto& set = cellsIt->second;
+        YCHECK(std::find(set.begin(), set.end(), cell) == set.end());
+        set.push_back(cell);
     }
 
     void RemoveFromAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        auto range = AddressToCell_.equal_range(descriptor.GetDefaultAddress());
-        for (auto it = range.first; it != range.second; ++it) {
-            if (it->second == cell) {
-                AddressToCell_.erase(it);
-                break;
-            }
+        const auto& address = descriptor.GetDefaultAddress();
+        auto cellsIt = AddressToCell_.find(address);
+        YCHECK(cellsIt != AddressToCell_.end());
+        auto& set = cellsIt->second;
+        auto it = std::find(set.begin(), set.end(), cell);
+        YCHECK(it != set.end());
+        set.erase(it);
+        if (set.empty()) {
+            AddressToCell_.erase(cellsIt);
         }
     }
 
@@ -3753,7 +3773,11 @@ private:
                 cellKeys.push_back(TCellKey{getCellSize(cell), cell});
             }
         }
-        YCHECK(!cellKeys.empty());
+        if (cellKeys.empty()) {
+            // NB: Changed ycheck to throw when it was triggered inside tablet action.
+            THROW_ERROR_EXCEPTION("No tablet cells in bundle %Qv",
+                table->GetTabletCellBundle()->GetName());
+        }
         std::sort(cellKeys.begin(), cellKeys.end());
 
         auto getTabletSize = [&] (const TTablet* tablet) -> i64 {
@@ -4355,9 +4379,9 @@ void TTabletManager::Initialize()
     return Impl_->Initialize();
 }
 
-int TTabletManager::GetAssignedTabletCellCount(const TString& address) const
+const TTabletCellSet* TTabletManager::FindAssignedTabletCells(const TString& address) const
 {
-    return Impl_->GetAssignedTabletCellCount(address);
+    return Impl_->FindAssignedTabletCells(address);
 }
 
 TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)

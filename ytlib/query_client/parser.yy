@@ -147,6 +147,7 @@
 %type <TExpressionList> unary-expr
 %type <TExpressionList> atomic-expr
 %type <TExpressionList> comma-expr
+%type <TNullableExpressionList> transform-default-expr
 %type <TNullableExpressionList> join-predicate
 
 %type <TNullable<TLiteralValue>> literal-value
@@ -424,7 +425,7 @@ relational-op-expr
         }
     | unary-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
-            $$ = MakeExpression<TInOpExpression>(@$, $expr, $args);
+            $$ = MakeExpression<TInExpression>(@$, $expr, $args);
         }
     | bitor-op-expr
         { $$ = $1; }
@@ -558,9 +559,9 @@ atomic-expr
         {
             $$ = MakeExpression<TFunctionExpression>(@$, $name, $args);
         }
-    | KwTransform LeftParenthesis expression[expr] Comma LeftParenthesis const-tuple-list[from] RightParenthesis Comma LeftParenthesis const-tuple-list[to] RightParenthesis RightParenthesis
+    | KwTransform LeftParenthesis expression[expr] Comma LeftParenthesis const-tuple-list[from] RightParenthesis Comma LeftParenthesis const-tuple-list[to] RightParenthesis transform-default-expr[default] RightParenthesis
         {
-            $$ = MakeExpression<TTransformOpExpression>(@$, $expr, $from, $to);
+            $$ = MakeExpression<TTransformExpression>(@$, $expr, $from, $to, $default);
         }
     | LeftParenthesis comma-expr[expr] RightParenthesis
         {
@@ -570,6 +571,14 @@ atomic-expr
         {
             $$ = MakeExpression<TLiteralExpression>(@$, *$value);
         }
+;
+
+transform-default-expr
+    : Comma expression[expr]
+        {
+            $$ = $expr;
+        }
+    | { }
 ;
 
 literal-value

@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <yt/core/misc/expiring_cache.h>
+#include <yt/core/crypto/crypto.h>
 
 #include <util/string/split.h>
 
@@ -32,7 +33,7 @@ public:
     {
         const auto& token = credentials.Token;
         const auto& userIP = credentials.UserIP;
-        auto tokenMD5 = ComputeMD5(token);
+        auto tokenMD5 = TMD5Hasher().Append(token).HexDigestUpper();
         LOG_DEBUG(
             "Authenticating user via token (TokenMD5: %v, UserIP: %v)",
             tokenMD5,

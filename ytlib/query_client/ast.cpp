@@ -137,7 +137,8 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
         return
             typedLhs->Expr == typedRhs->Expr &&
             typedLhs->From == typedRhs->From &&
-            typedLhs->To == typedRhs->To;
+            typedLhs->To == typedRhs->To &&
+            typedLhs->DefaultExpr == typedRhs->DefaultExpr;
     } else {
         Y_UNREACHABLE();
     }
@@ -370,7 +371,14 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
         printValues(builder, typedExpr->From);
         builder->AppendString("), (");
         printValues(builder, typedExpr->To);
-        builder->AppendString("))");
+        builder->AppendChar(')');
+
+        if (typedExpr->DefaultExpr) {
+            builder->AppendString(", ");
+            FormatExpression(builder, *typedExpr->DefaultExpr, expandAliases);
+        }
+
+        builder->AppendChar(')');
     } else {
         Y_UNREACHABLE();
     }

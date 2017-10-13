@@ -45,6 +45,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NNodeTrackerClient;
 
 using NChunkClient::TDataSliceDescriptor;
 using NYT::TRange;
@@ -269,7 +270,7 @@ protected:
             // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
             // no "phantom" value is listed.
             auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-            if (schemaColumns[index].Aggregate) {
+            if (schemaColumns[index].Aggregate()) {
                 ExtractByTimestamp(
                     list,
                     latestDeleteTimestamp,
@@ -409,7 +410,7 @@ protected:
         if (null) {
             dstValue->Type = EValueType::Null;
         } else {
-            dstValue->Type = Store_->Schema_.Columns()[index].Type;
+            dstValue->Type = Store_->Schema_.Columns()[index].GetPhysicalType();
             if (IsStringLikeType(dstValue->Type)) {
                 dstValue->Length = srcData.String->Length;
                 dstValue->Data.String = srcData.String->Data;
@@ -777,10 +778,12 @@ private:
 TSortedDynamicStore::TSortedDynamicStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
-    TTablet* tablet)
+    TTablet* tablet,
+    TNodeMemoryTracker* memoryTracker)
     : TStoreBase(config, id, tablet)
     , TDynamicStoreBase(config, id, tablet)
     , TSortedStoreBase(config, id, tablet)
+    , MemoryTracker_(memoryTracker)
     , RowKeyComparer_(Tablet_->GetRowKeyComparer())
     , Rows_(new TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
@@ -1511,8 +1514,8 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedVa
         if (srcValue.Type == EValueType::Null) {
             nullKeyMask |= nullKeyBit;
         } else {
-            Y_ASSERT(srcValue.Type == columnIt->Type);
-            if (IsStringLikeType(columnIt->Type)) {
+            Y_ASSERT(srcValue.Type == columnIt->GetPhysicalType());
+            if (IsStringLikeType(columnIt->GetPhysicalType())) {
                 *dstValue = CaptureStringValue(srcValue);
             } else {
                 ::memcpy(dstValue, &srcValue.Data, sizeof(TDynamicValueData));
@@ -1535,9 +1538,9 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
          ++index, nullKeyBit <<= 1, ++srcKeys, ++dstKeys, ++columnIt)
     {
         bool isNull = nullKeyMask & nullKeyBit;
-        dstRow.GetDataWeight() += GetDataWeight(columnIt->Type, isNull, *srcKeys);
+        dstRow.GetDataWeight() += GetDataWeight(columnIt->GetPhysicalType(), isNull, *srcKeys);
         if (!isNull) {
-            if(IsStringLikeType(columnIt->Type)) {
+            if(IsStringLikeType(columnIt->GetPhysicalType())) {
                 *dstKeys = CaptureStringValue(*srcKeys);
             } else {
                 *dstKeys = *srcKeys;
@@ -1548,7 +1551,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
 
 void TSortedDynamicStore::CommitValue(TSortedDynamicRow row, TValueList list, int index)
 {
-    row.GetDataWeight() += GetDataWeight(Schema_.Columns()[index].Type, list.GetUncommitted());
+    row.GetDataWeight() += GetDataWeight(Schema_.Columns()[index].GetPhysicalType(), list.GetUncommitted());
     list.Commit();
 
     if (row.GetDataWeight() > MaxDataWeight_) {
@@ -1656,7 +1659,7 @@ ui32 TSortedDynamicStore::CaptureVersionedValue(
     const TVersionedValue& src,
     TTimestampToRevisionMap* timestampToRevision)
 {
-    Y_ASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
+    Y_ASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].GetPhysicalType());
     ui32 revision = CaptureTimestamp(src.Timestamp, timestampToRevision);
     dst->Revision = revision;
     CaptureUnversionedValue(dst, src);
@@ -1669,7 +1672,7 @@ void TSortedDynamicStore::CaptureUncommittedValue(TDynamicValue* dst, const TDyn
     Y_ASSERT(src.Revision == UncommittedRevision);
 
     *dst = src;
-    if (!src.Null && IsStringLikeType(Schema_.Columns()[index].Type)) {
+    if (!src.Null && IsStringLikeType(Schema_.Columns()[index].GetPhysicalType())) {
         dst->Data = CaptureStringValue(src.Data);
     }
 }
@@ -1678,7 +1681,7 @@ void TSortedDynamicStore::CaptureUnversionedValue(
     TDynamicValue* dst,
     const TUnversionedValue& src)
 {
-    Y_ASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
+    Y_ASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].GetPhysicalType());
 
     dst->Aggregate = src.Aggregate;
 
@@ -1898,10 +1901,10 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
     if (Load<bool>(context)) {
         auto chunkMeta = Load<TChunkMeta>(context);
         auto blocks = Load<std::vector<TSharedRef>>(context);
-        
+
         auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
 
-        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, TWorkloadDescriptor(), Schema_);
+        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, TWorkloadDescriptor(), Schema_, MemoryTracker_);
         auto cachedMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
         TChunkSpec chunkSpec;

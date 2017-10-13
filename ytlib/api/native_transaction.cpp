@@ -668,13 +668,14 @@ private:
                             if (evaluator) {
                                 evaluator->EvaluateKeys(capturedRow, rowBuffer);
                             }
-                            tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
+                            tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
                         } else {
                             tabletInfo = GetOrderedTabletForRow(
                                 tableInfo,
                                 randomTabletInfo,
                                 TabletIndexColumnId_,
-                                TUnversionedRow(modification.Row));
+                                TUnversionedRow(modification.Row),
+                                true);
                         }
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modification.Type);
@@ -687,7 +688,7 @@ private:
                             TVersionedRow(modification.Row),
                             primarySchema,
                             primaryIdMapping);
-                        auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
+                        auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modification.Type);
                         session->SubmitRow(command, capturedRow);

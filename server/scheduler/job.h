@@ -150,6 +150,7 @@ struct TCompletedJobSummary
     bool Abandoned = false;
 
     std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
+    std::vector<NChunkClient::TInputDataSlicePtr> ReadInputDataSlices;
     EInterruptReason InterruptReason = EInterruptReason::None;
     int SplitJobCount = 1;
 };

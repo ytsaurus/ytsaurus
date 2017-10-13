@@ -17,12 +17,13 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NYTree;
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
-using namespace NApi;
 using namespace NSecurityClient;
+using namespace NTabletClient;
 using namespace NYPath;
+using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////

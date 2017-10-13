@@ -117,7 +117,7 @@ public:
         return ChunkSpec_.table_row_index() + RowIndex_;
     }
 
-    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+    virtual TInterruptDescriptor GetInterruptDescriptor(
         const TRange<TUnversionedRow>& unreadRows) const override
     {
         Y_UNREACHABLE();
@@ -167,7 +167,7 @@ protected:
         }
     }
 
-    std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptorsImpl(
+    TInterruptDescriptor GetInterruptDescriptorImpl(
         const TRange<TUnversionedRow>& unreadRows,
         const TMiscExt& misc,
         const NProto::TBlockMetaExt& blockMeta,
@@ -177,43 +177,16 @@ protected:
         const TKeyColumns& keyColumns,
         i64 rowIndex) const
     {
-        i64 rowCount = 0;
         std::vector<TDataSliceDescriptor> unreadDescriptors;
+        std::vector<TDataSliceDescriptor> readDescriptors;
 
-        // Verify row index is in the chunk range
-        YCHECK(unreadRows.Size() <= rowIndex);
         rowIndex -= unreadRows.Size();
         i64 lowerRowIndex = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
         i64 upperRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : misc.row_count();
-        if (!upperLimit.HasRowIndex() && upperLimit.HasKey()) {
-            auto it = std::upper_bound(
-                blockMeta.blocks().begin(),
-                blockMeta.blocks().end(),
-                upperLimit.GetKey(),
-                [] (const TOwningKey& key, const TBlockMeta& block) -> bool {
-                    auto lastKey = FromProto<TOwningKey>(block.last_key());
-                    return key < lastKey;
-                });
-            if (it != blockMeta.blocks().end()) {
-                upperRowIndex = it->chunk_row_count();
-            }
-        }
-        YCHECK(upperRowIndex <= misc.row_count());
-        YCHECK(rowIndex >= lowerRowIndex);
-        if (rowIndex >= upperRowIndex) {
-            return unreadDescriptors;
-        }
+        // Verify row index is in the chunk range
+        YCHECK(lowerRowIndex <= rowIndex);
+        YCHECK(rowIndex <= upperRowIndex);
 
-        unreadDescriptors.emplace_back(TDataSliceDescriptor(chunkSpec));
-        // Check if whole chunk is unread.
-        // Make this check before messing with keys; YCHECK below is only valid
-        // if we read some data, since lowerKey may be longer than firstUnreadKey.
-
-        if (rowIndex == lowerRowIndex) {
-            return unreadDescriptors;
-        }
-
-        // Verify the first unread key is in the chunk range
         auto lowerKey = lowerLimit.HasKey() ? lowerLimit.GetKey() : TOwningKey();
         auto lastChunkKey = FromProto<TOwningKey>(blockMeta.blocks().rbegin()->last_key());
         auto upperKey = upperLimit.HasKey() ? upperLimit.GetKey() : lastChunkKey;
@@ -221,25 +194,44 @@ protected:
         if (!unreadRows.Empty()) {
             firstUnreadKey = GetKeyPrefix(unreadRows[0], keyColumns.size());
         }
+        // NB: checks after the first one are invalid unless
+        // we read some data. Before we read anything, lowerKey may be
+        // longer than firstUnreadKey.
         YCHECK(
+            RowCount_ == unreadRows.Size() ||
             !firstUnreadKey || (
                 (!lowerKey || CompareRows(firstUnreadKey, lowerKey) >= 0) &&
                 (!upperKey || CompareRows(firstUnreadKey, upperKey) <= 0)));
 
-        auto& chunk = unreadDescriptors[0].ChunkSpecs[0];
-        chunk.mutable_lower_limit()->set_row_index(std::max(rowIndex, lowerRowIndex));
-        if (firstUnreadKey) {
-            ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+        if (rowIndex < upperRowIndex) {
+            unreadDescriptors.emplace_back(chunkSpec);
+            auto& chunk = unreadDescriptors[0].ChunkSpecs[0];
+            chunk.mutable_lower_limit()->set_row_index(rowIndex);
+            if (firstUnreadKey) {
+                ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+            }
+            i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + static_cast<i64>(unreadRows.Size()));
+            rowCount = std::min(rowCount, upperRowIndex - rowIndex);
+            chunk.set_row_count_override(rowCount);
+            i64 dataWeight = DivCeil(misc.uncompressed_data_size(), misc.row_count()) * rowCount;
+            YCHECK(dataWeight > 0);
+            chunk.set_data_weight_override(dataWeight);
         }
-        rowCount = upperRowIndex - rowIndex;
 
-        chunk.set_row_count_override(rowCount);
-        i64 dataWeight = DivCeil(misc.uncompressed_data_size(), misc.row_count()) * rowCount;
-        YCHECK(dataWeight > 0);
-        chunk.set_data_weight_override(dataWeight);
-        return unreadDescriptors;
+        if (RowCount_ > unreadRows.Size()) {
+            readDescriptors.emplace_back(chunkSpec);
+            auto& chunk = readDescriptors[0].ChunkSpecs[0];
+            chunk.mutable_upper_limit()->set_row_index(rowIndex);
+            i64 rowCount = RowCount_ - unreadRows.Size();
+            YCHECK(rowCount >= 0);
+            chunk.set_row_count_override(rowCount);
+            YCHECK(rowIndex >= rowCount);
+            chunk.mutable_lower_limit()->set_row_index(rowIndex - rowCount);
+            i64 dataWeight = DivCeil(misc.uncompressed_data_size(), misc.row_count()) * rowCount;
+            chunk.set_data_weight_override(dataWeight);
+        }
+        return {std::move(unreadDescriptors), std::move(readDescriptors)};
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -446,7 +438,7 @@ public:
         TNullable<int> partitionTag);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
-    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(const TRange<TUnversionedRow>& unreadRows) const override;
+    virtual TInterruptDescriptor GetInterruptDescriptor(const TRange<TUnversionedRow>& unreadRows) const override;
 
 private:
     TReadRange ReadRange_;
@@ -681,13 +673,13 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
     return true;
 }
 
-std::vector<TDataSliceDescriptor> THorizontalSchemalessRangeChunkReader::GetUnreadDataSliceDescriptors(
+TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescriptor(
     const TRange<TUnversionedRow>& unreadRows) const
 {
     if (BlockIndexes_.size() == 0) {
-        return std::vector<TDataSliceDescriptor>();
+        return {};
     }
-    return GetUnreadDataSliceDescriptorsImpl(
+    return GetInterruptDescriptorImpl(
         unreadRows,
         GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()),
         BlockMetaExt_,
@@ -1058,13 +1050,10 @@ public:
         return true;
     }
 
-    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+    virtual TInterruptDescriptor GetInterruptDescriptor(
         const TRange<TUnversionedRow>& unreadRows) const override
     {
-        if (Completed_ && unreadRows.Size() == 0) {
-            return std::vector<TDataSliceDescriptor>();
-        }
-        return GetUnreadDataSliceDescriptorsImpl(
+        return GetInterruptDescriptorImpl(
             unreadRows,
             ChunkMeta_->Misc(),
             *ChunkMeta_->BlockMeta(),
@@ -1200,7 +1189,7 @@ private:
                 ChunkMeta_->ChunkSchema().Columns()[columnIndex],
                 ChunkMeta_->ColumnMeta()->columns(columnIndex),
                 valueIndex,
-                NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
+                NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name()));
 
             RowColumnReaders_.emplace_back(columnReader.get());
             Columns_.emplace_back(std::move(columnReader), columnIndex);
@@ -1609,7 +1598,7 @@ private:
                     ChunkMeta_->ChunkSchema().Columns()[columnIndex],
                     ChunkMeta_->ColumnMeta()->columns(columnIndex),
                     valueIndex,
-                    NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
+                    NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name()));
 
                 RowColumnReaders_.emplace_back(columnReader.get());
                 Columns_.emplace_back(std::move(columnReader), columnIndex);
@@ -1887,7 +1876,7 @@ public:
 
     virtual void Interrupt() override;
 
-    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+    virtual TInterruptDescriptor GetInterruptDescriptor(
         const TRange<TUnversionedRow>& unreadRows) const override;
 
 private:
@@ -2022,26 +2011,26 @@ void TSchemalessMultiChunkReader<TBase>::Interrupt()
 }
 
 template <class TBase>
-std::vector<TDataSliceDescriptor> TSchemalessMultiChunkReader<TBase>::GetUnreadDataSliceDescriptors(
+TInterruptDescriptor TSchemalessMultiChunkReader<TBase>::GetInterruptDescriptor(
     const TRange<TUnversionedRow>& unreadRows) const
 {
     static TRange<TUnversionedRow> emptyRange;
     auto state = TBase::GetUnreadState();
 
-    std::vector<TDataSliceDescriptor> result;
+    TInterruptDescriptor result;
     if (state.CurrentReader) {
         auto chunkReader = dynamic_cast<ISchemalessChunkReader*>(state.CurrentReader.Get());
         YCHECK(chunkReader);
-        result = chunkReader->GetUnreadDataSliceDescriptors(unreadRows);
+        result = chunkReader->GetInterruptDescriptor(unreadRows);
     }
     for (const auto& activeReader : state.ActiveReaders) {
         auto chunkReader = dynamic_cast<ISchemalessChunkReader*>(activeReader.Get());
         YCHECK(chunkReader);
-        auto unreadChunks = chunkReader->GetUnreadDataSliceDescriptors(emptyRange);
-        std::move(unreadChunks.begin(), unreadChunks.end(), std::back_inserter(result));
+        auto interruptDescriptor = chunkReader->GetInterruptDescriptor(emptyRange);
+        MergeInterruptDescriptors(&result, std::move(interruptDescriptor));
     }
     for (const auto& factory : state.ReaderFactories) {
-        result.emplace_back(factory->GetDataSliceDescriptor());
+        result.UnreadDataSliceDescriptors.emplace_back(factory->GetDataSliceDescriptor());
     }
     return result;
 }
@@ -2223,36 +2212,44 @@ public:
         return true;
     }
 
-    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+    virtual TInterruptDescriptor GetInterruptDescriptor(
         const TRange<TUnversionedRow>& unreadRows) const override
     {
         std::vector<TDataSliceDescriptor> unreadDescriptors;
-        TOwningKey firstUnreadKey;
+        std::vector<TDataSliceDescriptor> readDescriptors;
 
-        if (unreadRows.Empty()) {
-            if (!HasMore_) {
-                // Return the empty vector.
-                return unreadDescriptors;
-            }
-            unreadDescriptors.emplace_back(DataSliceDescriptor_);
-            if (!LastKey_) {
-                // Return the whole data slice descriptor.
-                return unreadDescriptors;
-            }
-            firstUnreadKey = GetKeySuccessor(LastKey_);
-        } else {
-            unreadDescriptors.emplace_back(DataSliceDescriptor_);
+        TOwningKey firstUnreadKey;
+        if (!unreadRows.Empty()) {
             auto firstSchemafulUnreadRow = SchemafulRows_[SchemafulRows_.size() - unreadRows.Size()];
             firstUnreadKey = GetKeyPrefix(firstSchemafulUnreadRow, Schema_.GetKeyColumnCount());
+        } else if (LastKey_) {
+            firstUnreadKey = GetKeySuccessor(LastKey_);
         }
 
-        for (auto& descriptor : unreadDescriptors) {
-            for (auto& chunk : descriptor.ChunkSpecs) {
-                ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
-                // TODO: Estimate row count and data size.
+        if (!unreadRows.Empty() || HasMore_) {
+            unreadDescriptors.emplace_back(DataSliceDescriptor_);
+        }
+        if (LastKey_) {
+            readDescriptors.emplace_back(DataSliceDescriptor_);
+        }
+
+        YCHECK(firstUnreadKey || readDescriptors.empty());
+
+        if (firstUnreadKey) {
+            // TODO: Estimate row count and data size.
+            for (auto& descriptor : unreadDescriptors) {
+                for (auto& chunk : descriptor.ChunkSpecs) {
+                    ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+                }
+            }
+            for (auto& descriptor : readDescriptors) {
+                for (auto& chunk : descriptor.ChunkSpecs) {
+                    ToProto(chunk.mutable_upper_limit()->mutable_key(), firstUnreadKey);
+                }
             }
         }
-        return unreadDescriptors;
+
+        return {std::move(unreadDescriptors), std::move(readDescriptors)};
     }
 
     virtual void Interrupt() override
@@ -2372,7 +2369,7 @@ private:
                 break;
             }
 
-            KeyColumns_.push_back(Schema_.Columns()[index].Name);
+            KeyColumns_.push_back(Schema_.Columns()[index].Name());
         }
     }
 
@@ -2446,7 +2443,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         for (int columnIndex = 0; columnIndex < versionedReadSchema.Columns().size(); ++columnIndex) {
             const auto& column = versionedReadSchema.Columns()[columnIndex];
             if (versionedColumnFilter.Contains(columnIndex)) {
-                idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name);
+                idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name());
             } else {
                 // We should skip this column in schemaless reading.
                 idMapping[columnIndex] = -1;
@@ -2498,7 +2495,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         chunkSpecs,
         versionedReadSchema,
         performanceCounters,
-        timestamp
+        timestamp,
+        throttler
     ] (int index) -> IVersionedReaderPtr {
         const auto& chunkSpec = chunkSpecs[index];
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -2528,18 +2526,18 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             lowerLimit,
             upperLimit);
 
-        auto chunkReader = CreateReplicationReader(
+        auto remoteReader = CreateRemoteReader(
+            chunkSpec,
             config,
             options,
             client,
             nodeDirectory,
             localDescriptor,
-            chunkId,
-            replicas,
-            blockCache);
+            blockCache,
+            throttler);
 
         auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
-            chunkReader,
+            remoteReader,
             config->WorkloadDescriptor,
             versionedReadSchema);
         auto chunkMeta = WaitFor(asyncChunkMeta)
@@ -2554,7 +2552,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
         return CreateVersionedChunkReader(
             config,
-            std::move(chunkReader),
+            std::move(remoteReader),
             std::move(chunkState),
             lowerLimit.GetKey(),
             upperLimit.GetKey(),

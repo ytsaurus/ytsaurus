@@ -206,11 +206,11 @@ void TUserJobReadController::InterruptReader()
     }
 }
 
-std::vector<NChunkClient::TDataSliceDescriptor> TUserJobReadController::GetUnreadDataSliceDescriptors() const
+TInterruptDescriptor TUserJobReadController::GetInterruptDescriptor() const
 {
     if (Interrupted_) {
         YCHECK(Reader_);
-        return Reader_->GetUnreadDataSliceDescriptors(NYT::TRange<TUnversionedRow>());
+        return Reader_->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
     } else {
         return {};
     }

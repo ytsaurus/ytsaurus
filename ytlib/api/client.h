@@ -348,6 +348,8 @@ struct TSelectRowsOptions
     bool EnableCodeCache = true;
     //! Used to prioritize requests.
     TUserWorkloadDescriptor WorkloadDescriptor;
+    //! Combine independent joins in one.
+    bool UseMultijoin = true;
 };
 
 struct TGetNodeOptions
@@ -577,7 +579,7 @@ DEFINE_ENUM(EOperationSortDirection,
     ((Future) (2))
 );
 
-struct TListOperationsOptions 
+struct TListOperationsOptions
     : public TTimeoutOptions
 {
     TNullable<TInstant> FromTime;
@@ -616,7 +618,7 @@ struct TListJobsOptions
     TNullable<NJobTrackerClient::EJobState> JobState;
     TNullable<TString> Address;
     TNullable<bool> HasStderr;
-    
+
     EJobSortField SortField = EJobSortField::StartTime;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
 
@@ -650,7 +652,7 @@ struct TAbortJobOptions
     TNullable<TDuration> InterruptTimeout;
 };
 
-struct TGetOperationOptions 
+struct TGetOperationOptions
     : public TTimeoutOptions
 { };
 
@@ -967,7 +969,7 @@ struct IClient
     virtual TFuture<void> CompleteOperation(
         const NScheduler::TOperationId& operationId,
         const TCompleteOperationOptions& options = TCompleteOperationOptions()) = 0;
-    
+
     virtual TFuture<NYson::TYsonString> GetOperation(
         const NScheduler::TOperationId& operationId,
         const TGetOperationOptions& options = TGetOperationOptions()) = 0;

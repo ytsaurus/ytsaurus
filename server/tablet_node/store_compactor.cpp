@@ -1,16 +1,17 @@
-#include "store_compactor.h"
-#include "private.h"
-#include "sorted_chunk_store.h"
+#include "chunk_writer_pool.h"
 #include "config.h"
 #include "in_memory_manager.h"
 #include "partition.h"
+#include "private.h"
 #include "slot_manager.h"
+#include "sorted_chunk_store.h"
+#include "store_compactor.h"
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
+#include "tablet_profiling.h"
 #include "tablet_reader.h"
 #include "tablet_slot.h"
-#include "chunk_writer_pool.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 
@@ -52,15 +53,16 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NConcurrency;
-using namespace NYTree;
-using namespace NHydra;
-using namespace NTableClient;
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHydra;
 using namespace NObjectClient;
+using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -789,6 +791,11 @@ private:
                     descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
+
+                ProfileDiskPressure(
+                    tabletSnapshot,
+                    writer->GetDataStatistics(),
+                    tabletSnapshot->RuntimeData->PartitioningDiskPressureCounter);
             }
 
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
@@ -1137,7 +1144,13 @@ private:
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
+
             }
+
+            ProfileDiskPressure(
+                tabletSnapshot,
+                writer->GetDataStatistics(),
+                tabletSnapshot->RuntimeData->CompactionDiskPressureCounter);
 
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
                 rowCount,

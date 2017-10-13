@@ -38,17 +38,18 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NConcurrency;
-using namespace NYson;
-using namespace NYTree;
-using namespace NTableClient;
-using namespace NChunkClient;
+using namespace NApi;
 using namespace NChunkClient::NProto;
-using namespace NTransactionClient;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NDataNode;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NApi;
-using namespace NDataNode;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTransactionClient;
+using namespace NYTree;
+using namespace NYson;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
 

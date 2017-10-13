@@ -5,6 +5,7 @@
 #include "ordered_store_manager.h"
 #include "store.h"
 #include "tablet.h"
+#include "tablet_profiling.h"
 #include "transaction.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
@@ -258,6 +259,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         WaitFor(tableWriter->Close())
             .ThrowOnError();
+
+        ProfileDiskPressure(
+            tabletSnapshot,
+            tableWriter->GetDataStatistics(),
+            tabletSnapshot->RuntimeData->StoreFlushDiskPressureCounter);
 
         TAddStoreDescriptor descriptor;
         descriptor.set_store_type(static_cast<int>(EStoreType::OrderedChunk));

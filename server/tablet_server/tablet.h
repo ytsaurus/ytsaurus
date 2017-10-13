@@ -43,7 +43,7 @@ struct TTabletCellStatistics
     int PreloadPendingStoreCount = 0;
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
-    TEnumIndexedVector<int, NTabletNode::EInMemoryMode> TabletCountPerMemoryMode;
+    TEnumIndexedVector<int, NTabletClient::EInMemoryMode> TabletCountPerMemoryMode;
 
     void Persist(NCellMaster::TPersistenceContext& context);
 };
@@ -179,7 +179,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, NodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(TTabletPerformanceCounters, PerformanceCounters);
     //! Only makes sense for mounted tablets.
-    DEFINE_BYVAL_RW_PROPERTY(NTabletNode::EInMemoryMode, InMemoryMode);
+    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::EInMemoryMode, InMemoryMode);
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
 
@@ -207,7 +207,7 @@ public:
     NChunkServer::TChunkList* GetChunkList();
     const NChunkServer::TChunkList* GetChunkList() const;
 
-    i64 GetTabletStaticMemorySize(NTabletNode::EInMemoryMode mode) const;
+    i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
 
     ETabletState GetState() const;

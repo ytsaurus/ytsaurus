@@ -395,14 +395,12 @@ private:
         virtual void ProduceOutputValue(const TYsonString& yson) override
         {
             YCHECK(Request_.OutputStream);
-            auto syncOutputStream = CreateSyncAdapter(Request_.OutputStream);
-
-            TBufferedOutput bufferedOutputStream(syncOutputStream.get());
+            auto syncOutputStream = CreateBufferedSyncAdapter(Request_.OutputStream);
 
             auto consumer = CreateConsumerForFormat(
                 GetOutputFormat(),
                 Descriptor_.OutputType,
-                &bufferedOutputStream);
+                syncOutputStream.get());
 
             Serialize(yson, consumer.get());
 
