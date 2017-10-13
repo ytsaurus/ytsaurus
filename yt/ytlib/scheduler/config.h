@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "helpers.h"
-#include "job_resources.h"
 
 #include <yt/ytlib/api/config.h>
 
@@ -58,7 +57,7 @@ class TResourceLimitsConfig
 {
 public:
     TNullable<int> UserSlots;
-    TNullable<double> Cpu;
+    TNullable<int> Cpu;
     TNullable<int> Network;
     TNullable<i64> Memory;
 
@@ -180,11 +179,11 @@ class TTestingOperationOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<TDuration> SchedulingDelay;
+    TDuration SchedulingDelay;
     ESchedulingDelayType SchedulingDelayType;
 
-    TNullable<TDuration> DelayInsideOperationCommit;
-    TNullable<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
+    TDuration DelayInsideOperationCommit;
+    EDelayInsideOperationCommitStage DelayInsideOperationCommitStage;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
     EControllerFailureType ControllerFailure;
@@ -761,7 +760,6 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec);
 
 class TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
-    , public TOperationWithLegacyControllerSpec
 {
 public:
     TNullable<TString> ClusterName;

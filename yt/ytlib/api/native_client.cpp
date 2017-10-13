@@ -1795,7 +1795,6 @@ private:
         queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
         queryOptions.InputRowLimit = inputRowLimit;
         queryOptions.OutputRowLimit = outputRowLimit;
-        queryOptions.UseMultijoin = options.UseMultijoin;
 
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -3428,7 +3427,7 @@ private:
         }
 
         textFactor = to_lower(textFactor);
-
+ 
         return textFactor;
     }
 
@@ -3483,7 +3482,7 @@ private:
             "state",
             "suspended",
             "title",
-            "weight"
+            "weight"  
         };
         if (deadline) {
             listNodeOptions.Timeout = *deadline - Now();
@@ -3579,7 +3578,7 @@ private:
             }
 
             auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
-            bool hasFailedJobs =
+            bool hasFailedJobs = 
                 briefProgressMapNode->FindChild("jobs") &&
                 briefProgressMapNode->GetChild("jobs")->AsMap()->
                 GetChild("failed")->AsInt64()->GetValue() > 0;
@@ -3657,19 +3656,15 @@ private:
             }
 
             TString queryForItemsIds = Format(
-                "id_hi, id_lo FROM [%v] WHERE %v ORDER BY start_time %v LIMIT %v",
+                "id_hi, id_lo FROM [%v] WHERE %v ORDER BY start_time %v LIMIT %v", 
                 GetOperationsArchivePathOrderedByStartTime(),
                 JoinSeq(" AND ", itemsConditions),
                 itemsSortDirection,
                 1 + options.Limit);
 
-            TString poolColumnName = version < 15 ? "''" : "pool";
-
             TString queryForCounts = Format(
-                "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY %v AS pool, authenticated_user AS user, state AS state, operation_type AS type",
-                GetOperationsArchivePathOrderedByStartTime(),
-                JoinSeq(" AND ", countsConditions),
-                poolColumnName);
+                "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY pool AS pool, authenticated_user AS user, state AS state, operation_type AS type",
+                GetOperationsArchivePathOrderedByStartTime(), JoinSeq(" AND ", countsConditions));
 
             TSelectRowsOptions selectRowsOptions;
             if (deadline) {
@@ -3726,7 +3721,7 @@ private:
                 ids.FinishTime,
             });
             lookupOptions.KeepMissingRows = true;
-
+            
             if (deadline) {
                 lookupOptions.Timeout = *deadline - Now();
             }
@@ -3746,14 +3741,14 @@ private:
                 }
             };
 
-            auto checkWithFailedJobsFilter =
+            auto checkWithFailedJobsFilter = 
                 [&options] (bool hasFailedJobs) {
                     if (options.WithFailedJobs) {
                         if (*options.WithFailedJobs) {
                             return hasFailedJobs;
                         } else {
                             return !hasFailedJobs;
-                        }
+                        }   
                     }
 
                     return true;
@@ -3805,9 +3800,9 @@ private:
 
         std::sort(
             cypressData.begin(),
-            cypressData.end(),
+            cypressData.end(), 
             [] (const TOperation& lhs, const TOperation& rhs) {
-                return lhs.OperationId < rhs.OperationId;
+                return lhs.OperationId < rhs.OperationId;    
             });
 
         auto mergeOperations = [&] (const std::vector<TOperation>& source1, const std::vector<TOperation>& source2) {

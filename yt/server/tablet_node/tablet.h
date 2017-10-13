@@ -79,10 +79,6 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> LastCommitTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
-
-    NProfiling::TSimpleCounter StoreFlushDiskPressureCounter;
-    NProfiling::TSimpleCounter CompactionDiskPressureCounter;
-    NProfiling::TSimpleCounter PartitioningDiskPressureCounter;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)

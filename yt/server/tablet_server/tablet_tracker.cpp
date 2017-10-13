@@ -45,153 +45,80 @@ public:
         TTabletCell* cell,
         const SmallSet<TString, TypicalPeerCount>& forbiddenAddresses)
     {
-        LazyInitialization();
-
-        auto* bundle = cell->GetCellBundle();
-        for (const auto& pair : Queues_[bundle]) {
-            int index = pair.second;
-            auto& node = Nodes_[index];
-            if (forbiddenAddresses.count(node.Node->GetDefaultAddress()) == 0) {
-                ChargeNode(index, cell);
-                return node.Node;
+        const auto& data = GetData(cell->GetCellBundle());
+        for (const auto& pair : data.Nodes) {
+            auto* node = pair.second;
+            if (forbiddenAddresses.count(node->GetDefaultAddress()) == 0) {
+                ChargeNode(node);
+                return node;
             }
         }
         return nullptr;
     }
 
 private:
-    // Key is pair (nubmer of slots assigned to this bunde, minus number of spare slots),
-    // value is node index in Nodes_ array.
-    using TQueue = std::multimap<std::pair<int,int>, int>;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
-    struct TNodeData
+    struct TPerTagData
     {
-        TNode* Node;
-        yhash<TTabletCellBundle*, TQueue::iterator> Iterators;
+        //! Key is minus the number of spare slots.
+        std::multimap<int, TNode*> Nodes;
+        yhash<TNode*, std::multimap<int, TNode*>::iterator> NodeToIterator;
     };
 
-    class THostilityChecker
-    {
-    public:
-        explicit THostilityChecker(TNode* node)
-            : Node_(node)
-        { }
-
-        bool IsPossibleHost(const TTabletCellBundle* bundle)
-        {
-            const auto& tagFilter = bundle->NodeTagFilter();
-            auto formula = tagFilter.GetFormula();
-            if (auto it = Cache_.find(formula)) {
-                return it->second;
-            }
-
-            auto result = tagFilter.IsSatisfiedBy(Node_->Tags());
-            YCHECK(Cache_.insert(std::make_pair(formula, result)).second);
-            return result;
-        }
-
-    private:
-        const TNode* Node_;
-        yhash<TString, bool> Cache_;
-    };
+    yhash<TString, TPerTagData> TagToData_;
 
 
-    const NCellMaster::TBootstrap* const Bootstrap_;
-
-    bool Initialized_ = false;
-    std::vector<TNodeData> Nodes_;
-    yhash<TTabletCellBundle*, TQueue> Queues_;
-
-
-    void LazyInitialization()
-    {
-        if (Initialized_) {
-            return;
-        }
-
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        for (const auto& pair : tabletManager->TabletCellBundles()) {
-            Queues_.emplace(pair.second, TQueue());
-        }
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& pair : nodeTracker->Nodes()) {
-            AddNode(pair.second);
-        }
-
-        Initialized_ = true;
-    }
-
-    void AddNode(TNode* node)
+    void InsertNode(TPerTagData* data, TNode* node)
     {
         if (!IsGood(node)) {
             return;
         }
-
-        TNodeData data{node};
-        int index = Nodes_.size();
-        int spare = node->GetTotalTabletSlots();
-        yhash<TTabletCellBundle*, int> cellCount;
-
+        int total = node->GetTotalTabletSlots();
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        if (const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress())) {
-            if (cells->size() >= spare) {
-                return;
-            }
-            for (auto* cell : *cells) {
-                auto bundle = cell->GetCellBundle();
-                cellCount[bundle] += 1;
-                --spare;
-            }
+        int used = tabletManager->GetAssignedTabletCellCount(node->GetDefaultAddress());
+        int spare = total - used;
+        if (used >= total) {
+            return;
         }
-
-        auto hostilityChecker = THostilityChecker(node);
-        for (const auto& pair : tabletManager->TabletCellBundles()) {
-            auto* bundle = pair.second;
-            if (!hostilityChecker.IsPossibleHost(bundle)) {
-                continue;
-            }
-
-            int count = 0;
-            auto it = cellCount.find(bundle);
-            if (it != cellCount.end()) {
-                count = it->second;
-            }
-
-            data.Iterators[bundle] = Queues_[bundle].insert(
-                std::make_pair(std::make_pair(count, -spare), index));
-        }
-
-        Nodes_.push_back(std::move(data));
+        auto it = data->Nodes.insert(std::make_pair(-spare, node));
+        YCHECK(data->NodeToIterator.insert(std::make_pair(node, it)).second);
     }
 
-    void ChargeNode(int index, TTabletCell* cell)
+    const TPerTagData& GetData(TTabletCellBundle* cellBundle)
     {
-        auto& node = Nodes_[index];
-        SmallVector<TTabletCellBundle*, TypicalTabletSlotCount> remove;
-
-        for (auto& pair : node.Iterators) {
-            auto* bundle = pair.first;
-            auto& it = pair.second;
-            YCHECK(it->second == index);
-
-            int count = it->first.first;
-            int spare = -it->first.second - 1;
-            if (bundle == cell->GetCellBundle()) {
-                count += 1;
-            }
-
-            Queues_[bundle].erase(it);
-
-            if (spare > 0) {
-                it = Queues_[bundle].insert(std::make_pair(std::make_pair(count, -spare), index));
-            } else {
-                remove.push_back(bundle);
+        const auto& tagFilter = cellBundle->NodeTagFilter();
+        auto it = TagToData_.find(tagFilter.GetFormula());
+        if (it == TagToData_.end()) {
+            it = TagToData_.insert(std::make_pair(tagFilter.GetFormula(), TPerTagData())).first;
+            auto& data = it->second;
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            for (const auto& pair : nodeTracker->Nodes()) {
+                auto* node = pair.second;
+                if (tagFilter.IsSatisfiedBy(node->Tags())) {
+                    InsertNode(&data, node);
+                }
             }
         }
+        return it->second;
+    }
 
-        for (auto* bundle : remove) {
-            YCHECK(node.Iterators.erase(bundle));
+    void ChargeNode(TNode* node)
+    {
+        for (auto& pair : TagToData_) {
+            auto& data = pair.second;
+            auto it1 = data.NodeToIterator.find(node);
+            if (it1 != data.NodeToIterator.end()) {
+                auto it2 = it1->second;
+                int spare = -it2->first;
+                data.Nodes.erase(it2);
+                --spare;
+                if (spare > 0) {
+                    it1->second = data.Nodes.insert(std::make_pair(-spare, node));
+                } else {
+                    data.NodeToIterator.erase(it1);
+                }
+            }
         }
     }
 };

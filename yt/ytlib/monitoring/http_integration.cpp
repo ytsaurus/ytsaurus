@@ -19,7 +19,7 @@ namespace NMonitoring {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NXHttp;
+using namespace NHttp;
 
 ////////////////////////////////////////////////////////////////////////////////
 

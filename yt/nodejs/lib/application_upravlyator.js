@@ -11,7 +11,7 @@ var utils = require("./utils");
 
 var __DBG = require("./debug").that("U", "Upravlyator");
 
-var MAX_SIZE_FOR_LIST = 20000;
+var MAX_SIZE_FOR_LIST = 10000;
 
 function checkBool(value)
 {

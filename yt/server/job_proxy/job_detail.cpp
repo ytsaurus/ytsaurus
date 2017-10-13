@@ -204,9 +204,9 @@ TTableWriterConfigPtr TSimpleJobBase::GetWriterConfig(const TTableOutputSpec& ou
     return config;
 }
 
-TInterruptDescriptor TSimpleJobBase::GetInterruptDescriptor() const
+std::vector<TDataSliceDescriptor> TSimpleJobBase::GetUnreadDataSliceDescriptors() const
 {
-    return {};
+    return std::vector<TDataSliceDescriptor>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

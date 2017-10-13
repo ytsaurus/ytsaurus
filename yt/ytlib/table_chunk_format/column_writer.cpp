@@ -17,7 +17,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     int columnIndex,
     TDataBlockWriter* blockWriter)
 {
-    switch (columnSchema.GetPhysicalType()) {
+    switch (columnSchema.Type) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnWriter(columnIndex, blockWriter);
 
@@ -48,41 +48,41 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
     int id,
     TDataBlockWriter* blockWriter)
 {
-    switch (columnSchema.GetPhysicalType()) {
+    switch (columnSchema.Type) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnWriter(
                 id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                static_cast<bool>(columnSchema.Aggregate),
                 blockWriter);
 
         case EValueType::Uint64:
             return CreateVersionedUint64ColumnWriter(
                 id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                static_cast<bool>(columnSchema.Aggregate),
                 blockWriter);
 
         case EValueType::Double:
             return CreateVersionedDoubleColumnWriter(
                 id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                static_cast<bool>(columnSchema.Aggregate),
                 blockWriter);
 
         case EValueType::Boolean:
             return CreateVersionedBooleanColumnWriter(
                 id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                static_cast<bool>(columnSchema.Aggregate),
                 blockWriter);
 
         case EValueType::Any:
             return CreateVersionedAnyColumnWriter(
                 id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                static_cast<bool>(columnSchema.Aggregate),
                 blockWriter);
 
         case EValueType::String:
             return CreateVersionedStringColumnWriter(
                 id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                static_cast<bool>(columnSchema.Aggregate),
                 blockWriter);
 
         default:

@@ -89,12 +89,12 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     TColumnFilter columnFilter;
     columnFilter.All = false;
     for (const auto& column : desiredSchema.Columns()) {
-        const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name());
-        if (tabletColumn.GetPhysicalType() != column.GetPhysicalType()) {
+        const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
+        if (tabletColumn.Type != column.Type) {
             THROW_ERROR_EXCEPTION("Mismatched type of column %Qv in schema: expected %Qlv, found %Qlv",
-                column.Name(),
-                tabletColumn.GetPhysicalType(),
-                column.GetPhysicalType());
+                column.Name,
+                tabletColumn.Type,
+                column.Type);
         }
         columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
     }
@@ -136,7 +136,7 @@ using TSelectProfilerTrait = TSimpleProfilerTrait<TSelectCounters>;
 
 auto& GetProfilerCounters(const TString& user)
 {
-    return GetLocallyGloballyCachedValue<TSelectProfilerTrait>(AddUserTag(user));
+    return GetLocallyGloballyCachedValue<TSelectProfilerTrait>(GetUserProfilerTags(user));
 }
 
 } // namespace
@@ -524,17 +524,15 @@ private:
                     } else {
                         TQueryStatistics statistics = result.Value();
 
-                        return Combine(*asyncSubqueryResults)
-                        .Apply(BIND([
-                            =,
-                            this_ = MakeStrong(this)
-                        ] (const std::vector<TQueryStatistics>& subqueryResults) mutable {
-                            for (const auto& subqueryResult : subqueryResults) {
-                                LOG_DEBUG("Remote subquery statistics %v", subqueryResult);
-                                statistics += subqueryResult;
-                            }
-                            return statistics;
-                        }));
+                        for (const auto& asyncSubqueryResult : *asyncSubqueryResults) {
+                            auto subqueryStatistics = WaitFor(asyncSubqueryResult)
+                                .ValueOrThrow();
+
+                            LOG_DEBUG("Remote subquery statistics %v", subqueryStatistics);
+                            statistics += subqueryStatistics;
+                        }
+
+                        return MakeFuture(statistics);
                     }
                 }));
 
@@ -590,7 +588,7 @@ private:
 
         std::vector<EValueType> keySchema;
         for (size_t index = 0; index < keySize; ++index) {
-            keySchema.push_back(Query_->OriginalSchema.Columns()[index].GetPhysicalType());
+            keySchema.push_back(Query_->OriginalSchema.Columns()[index].Type);
         }
 
         size_t rangesCount = 0;

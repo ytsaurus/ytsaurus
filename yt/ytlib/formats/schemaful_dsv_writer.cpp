@@ -26,6 +26,8 @@ using namespace NTableClient;
 class TSchemafulDsvWriterBase
 {
 protected:
+    TBlobOutput* BlobOutput_;
+
     TSchemafulDsvFormatConfigPtr Config_;
 
     // This array indicates on which position should each
@@ -50,6 +52,27 @@ protected:
         YCHECK(Config_->Columns);
     }
 
+    void WriteColumnNamesHeader()
+    {
+        if (Config_->EnableColumnNamesHeader && *Config_->EnableColumnNamesHeader) {
+            auto columns = Config_->Columns.Get();
+            for (size_t index = 0; index < columns.size(); ++index) {
+                WriteRaw(columns[index]);
+                WriteRaw((index + 1 == columns.size()) ? Config_->RecordSeparator : Config_->FieldSeparator);
+            }
+        }
+    }
+
+    void WriteRaw(const TStringBuf& str)
+    {
+        BlobOutput_->Write(str.begin(), str.length());
+    }
+
+    void WriteRaw(char ch)
+    {
+        BlobOutput_->Write(ch);
+    }
+
     int FindMissingValueIndex() const
     {
         for (int valueIndex = 0; valueIndex < static_cast<int>(CurrentRowValues_.size()); ++valueIndex) {
@@ -59,19 +82,6 @@ protected:
             }
         }
         return -1;
-    }
-
-    template <class TFunction>
-    void WriteColumnNamesHeader(TFunction writeCallback)
-    {
-        if (Config_->EnableColumnNamesHeader && *Config_->EnableColumnNamesHeader) {
-            auto columns = Config_->Columns.Get();
-            for (size_t index = 0; index < columns.size(); ++index) {
-                writeCallback(
-                    columns[index],
-                    (index + 1 == columns.size()) ? Config_->RecordSeparator : Config_->FieldSeparator);
-            }
-        }
     }
 };
 
@@ -103,14 +113,10 @@ public:
             : -1)
     {
         BlobOutput_ = GetOutputStream();
-        WriteColumnNamesHeader([this](const TStringBuf& buf, char c) {
-            WriteRaw(buf);
-            WriteRaw(c);
-        });
+        WriteColumnNamesHeader();
     }
 
 private:
-    TBlobOutput* BlobOutput_;
     const int TableIndexColumnId_;
 
     // ISchemalessFormatWriter overrides.
@@ -158,17 +164,6 @@ private:
         }
         TryFlushBuffer(true);
     }
-
-    void WriteRaw(const TStringBuf& str)
-    {
-        BlobOutput_->Write(str.begin(), str.length());
-    }
-
-    void WriteRaw(char ch)
-    {
-        BlobOutput_->Write(ch);
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,12 +180,10 @@ public:
         : TSchemafulDsvWriterBase(
             config,
             IdToIndexInRow)
-        , Output_(CreateBufferedSyncAdapter(stream))
+        , Output_(CreateSyncAdapter(stream))
     {
-        WriteColumnNamesHeader([this](const TStringBuf& buf, char c) {
-            Output_->Write(buf);
-            Output_->Write(c);
-        });
+        BlobOutput_ = &UnderlyingBlobOutput_;
+        WriteColumnNamesHeader();
     }
 
     virtual TFuture<void> Close() override
@@ -226,20 +219,21 @@ public:
             bool firstValue = true;
             for (const auto* item : CurrentRowValues_) {
                 if (!firstValue) {
-                    Output_->Write(Config_->FieldSeparator);
+                    WriteRaw(Config_->FieldSeparator);
                 } else {
                     firstValue = false;
                 }
                 if (!item || item->Type == EValueType::Null) {
                     // If we got here, MissingValueMode is PrintSentinel.
-                    Output_->Write(Config_->MissingValueSentinel);
+                    WriteRaw(Config_->MissingValueSentinel);
                 } else {
-                    WriteUnversionedValue(*item, Output_.get(), EscapeTable_);
+                    WriteUnversionedValue(*item, BlobOutput_, EscapeTable_);
                 }
             }
-            Output_->Write(Config_->RecordSeparator);
+            WriteRaw(Config_->RecordSeparator);
+            TryFlushBuffer(false);
         }
-        DoFlushBuffer();
+        TryFlushBuffer(true);
 
         return true;
     }
@@ -252,12 +246,29 @@ public:
 private:
     std::unique_ptr<IOutputStream> Output_;
 
+    // TODO(max42): Eliminate copy-paste from schemaless_writer_adapter.cpp.
+    void TryFlushBuffer(bool force)
+    {
+        if (force || UnderlyingBlobOutput_.Size() >= UnderlyingBlobOutput_.Blob().Capacity() / 2) {
+            DoFlushBuffer();
+        }
+    }
+
     void DoFlushBuffer()
     {
-        Output_->Flush();
+        if (UnderlyingBlobOutput_.Size() == 0) {
+            return;
+        }
+
+        const auto& buffer = UnderlyingBlobOutput_.Blob();
+        Output_->Write(buffer.Begin(), buffer.Size());
+
+        UnderlyingBlobOutput_.Clear();
     }
 
     TFuture<void> Result_;
+
+    TBlobOutput UnderlyingBlobOutput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

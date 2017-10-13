@@ -366,12 +366,10 @@ function getArchiveCallbacks(
             .format(OPERATIONS_ARCHIVE_INDEX_PATH);
     }
 
-    var pool_column_name = version < 15 ? "''" : "pool";
-
     var query_for_counts =
         "pool, user, state, type, sum(1) AS count FROM {}".format(query_source) +
         " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
-        " GROUP BY {} AS pool, authenticated_user AS user, state AS state, operation_type AS type".format(pool_column_name);
+        " GROUP BY pool AS pool, authenticated_user AS user, state AS state, operation_type AS type";
 
     var query_for_items =
         "{} FROM {}".format(version < 2 ? "*" : "id_hi, id_lo", query_source) +

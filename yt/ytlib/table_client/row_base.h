@@ -29,72 +29,7 @@ static_assert(
     EValueType::Uint64 < EValueType::Double,
     "Incorrect type order.");
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(ELogicalValueType, ui32,
-    ((Null)        (0x02))
-
-    ((Int64)       (0x03))
-    ((Uint64)      (0x04))
-    ((Double)      (0x05))
-    ((Boolean)     (0x06))
-
-    ((String)      (0x10))
-    ((Any)         (0x11))
-
-    ((Int8)        (0x1000))
-    ((Uint8)       (0x1001))
-
-    ((Int16)       (0x1003))
-    ((Uint16)      (0x1004))
-
-    ((Int32)       (0x1005))
-    ((Uint32)      (0x1006))
-);
-
 ////////////////////////////////////////////////////////////////////////////////
-
-inline EValueType GetPhysicalType(ELogicalValueType type)
-{
-    switch (type) {
-        case ELogicalValueType::Null:
-        case ELogicalValueType::Int64:
-        case ELogicalValueType::Uint64:
-        case ELogicalValueType::Double:
-        case ELogicalValueType::Boolean:
-        case ELogicalValueType::String:
-        case ELogicalValueType::Any:
-            return static_cast<EValueType>(type);
-
-        case ELogicalValueType::Int8:
-        case ELogicalValueType::Int16:
-        case ELogicalValueType::Int32:
-            return EValueType::Int64;
-
-        case ELogicalValueType::Uint8:
-        case ELogicalValueType::Uint16:
-        case ELogicalValueType::Uint32:
-            return EValueType::Uint64;
-
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
-inline ELogicalValueType GetLogicalType(EValueType type)
-{
-    switch (type) {
-        case EValueType::Null:
-        case EValueType::Int64:
-        case EValueType::Uint64:
-        case EValueType::Double:
-        case EValueType::Boolean:
-        case EValueType::String:
-        case EValueType::Any:
-            return static_cast<ELogicalValueType>(type);
-
-        default:
-            Y_UNREACHABLE();
-    }
-}
 
 inline bool IsIntegralType(EValueType type)
 {

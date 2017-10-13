@@ -94,7 +94,7 @@ bool TVersionedWriter::Write(const TRange<TVersionedRow>& rows)
         for (auto keyBeginIt = row.BeginKeys(), keyEndIt = row.EndKeys(); keyBeginIt != keyEndIt; ++keyBeginIt) {
             const auto& value = *keyBeginIt;
             const auto& column = Schema_.Columns()[value.Id];
-            Consumer_->OnKeyedItem(column.Name());
+            Consumer_->OnKeyedItem(column.Name);
             consumeUnversionedData(value);
         }
         for (auto valuesBeginIt = row.BeginValues(), valuesEndIt = row.EndValues(); valuesBeginIt != valuesEndIt; /**/) {
@@ -105,7 +105,7 @@ bool TVersionedWriter::Write(const TRange<TVersionedRow>& rows)
             }
 
             const auto& column = Schema_.Columns()[columnBeginIt->Id];
-            Consumer_->OnKeyedItem(column.Name());
+            Consumer_->OnKeyedItem(column.Name);
             Consumer_->OnBeginList();
             while (columnBeginIt != columnEndIt) {
                 Consumer_->OnListItem();

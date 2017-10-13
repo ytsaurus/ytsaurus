@@ -36,14 +36,14 @@ public:
 };
 
 class TCGIRBuilder
-#if LLVM_TEST(4, 0) || LLVM_TEST(5, 0)
+#if LLVM_TEST(4, 0)
     : public llvm::IRBuilder<llvm::ConstantFolder, TContextTrackingInserter>
 #else
     : public llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter>
 #endif
 {
 private:
-#if LLVM_TEST(4, 0) || LLVM_TEST(5, 0)
+#if LLVM_TEST(4, 0)
     typedef llvm::IRBuilder<llvm::ConstantFolder, TContextTrackingInserter> TBase;
 #else
     typedef llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter> TBase;

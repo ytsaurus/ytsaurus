@@ -6,7 +6,6 @@ option java_multiple_files = true;
 
 import "yt/core/protos/rpc.proto";
 import "yt/core/protos/guid.proto";
-import "yt/ytlib/hive/timestamp_map.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Authentication.
@@ -48,18 +47,6 @@ enum ERowModificationType
 {
     WRITE = 0;
     DELETE = 1;
-}
-
-enum EAtomicity
-{
-    FULL = 0;
-    NONE = 1;
-}
-
-enum EDurability
-{
-    SYNC = 0;
-    ASYNC = 1;
 }
 
 message TAttribute
@@ -108,7 +95,6 @@ message TRowsetDescriptor
     {
         optional string name = 1;
         optional int32 type = 2;
-        optional int32 logical_type = 3;
     }
 
     // Specifies column names and types.
@@ -137,10 +123,7 @@ message TReqStartTransaction
     optional bool ping = 7 [default = true];
     optional bool ping_ancestors = 8 [default = true];
 
-    optional EAtomicity atomicity = 9 [default = FULL];
-    optional EDurability durability = 10 [default = SYNC];
-
-    // TODO(sandello): Attributes.
+    // TODO(sandello): Attributes, atomicity, durability.
 }
 
 message TRspStartTransaction
@@ -167,7 +150,6 @@ message TReqCommitTransaction
 
 message TRspCommitTransaction
 {
-    optional NHiveClient.NProto.TTimestampMap commit_timestamps = 1;
 }
 
 message TReqAbortTransaction

@@ -42,19 +42,18 @@
 namespace NYT {
 namespace NTableServer {
 
-using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NChunkClient;
 using namespace NCypressServer;
-using namespace NNodeTrackerServer;
 using namespace NObjectServer;
 using namespace NRpc;
-using namespace NSecurityServer;
-using namespace NTableClient;
-using namespace NTabletClient;
-using namespace NTabletServer;
-using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
+using namespace NTableClient;
+using namespace NTransactionServer;
+using namespace NTabletServer;
+using namespace NNodeTrackerServer;
+using namespace NSecurityServer;
 
 using NChunkClient::TReadLimit;
 
@@ -124,8 +123,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("commit_ordering")
         .SetWritable(true)
         .SetPresent(!isSorted));
-    descriptors->push_back(TAttributeDescriptor("in_memory_mode")
-        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor("optimize_for")
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
@@ -156,10 +153,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetDesiredTabletSize())));
-    descriptors->push_back(TAttributeDescriptor("desired_tablet_count")
-        .SetWritable(true)
-        .SetRemovable(true)
-        .SetPresent(static_cast<bool>(table->GetDesiredTabletCount())));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
@@ -341,12 +334,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
         return true;
     }
 
-    if (key == "in_memory_mode") {
-        BuildYsonFluently(consumer)
-            .Value(table->GetInMemoryMode());
-        return true;
-    }
-
     if (key == "upstream_replica_id" && isSorted && isDynamic) {
         BuildYsonFluently(consumer)
             .Value(trunkTable->GetUpstreamReplicaId());
@@ -386,12 +373,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
     if (key == "desired_tablet_size" && static_cast<bool>(trunkTable->GetDesiredTabletSize())) {
         BuildYsonFluently(consumer)
             .Value(*trunkTable->GetDesiredTabletSize());
-        return true;
-    }
-
-    if (key == "desired_tablet_count" && static_cast<bool>(trunkTable->GetDesiredTabletCount())) {
-        BuildYsonFluently(consumer)
-            .Value(*trunkTable->GetDesiredTabletCount());
         return true;
     }
 
@@ -448,12 +429,6 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(const TString& key)
         return true;
     }
 
-    if (key == "desired_tablet_count") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetDesiredTabletCount(Null);
-        return true;
-    }
-
     return TBase::RemoveBuiltinAttribute(key);
 }
 
@@ -478,8 +453,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString&
         ValidateNoTransaction();
 
         auto* lockedTable = LockThisImpl();
-        auto tabletState = table->GetTabletState();
-        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
+        if (table->GetTabletState() != ETabletState::Unmounted) {
             THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
                 ETabletState::Unmounted);
         }
@@ -515,22 +489,6 @@ bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString&
         return true;
     }
 
-    if (key == "in_memory_mode") {
-        ValidateNoTransaction();
-
-        auto* lockedTable = LockThisImpl();
-        auto tabletState = table->GetTabletState();
-        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
-            THROW_ERROR_EXCEPTION("Cannot change table memory mode since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
-        }
-
-        auto inMemoryMode = ConvertTo<EInMemoryMode>(value);
-        lockedTable->SetInMemoryMode(inMemoryMode);
-
-        return true;
-    }
-
     if (key == "enable_tablet_balancer") {
         auto* lockedTable = LockThisImpl();
         lockedTable->SetEnableTabletBalancer(ConvertTo<bool>(value));
@@ -558,12 +516,6 @@ bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString&
     if (key == "desired_tablet_size") {
         auto* lockedTable = LockThisImpl();
         lockedTable->SetDesiredTabletSize(ConvertTo<i64>(value));
-        return true;
-    }
-
-    if (key == "desired_tablet_count") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetDesiredTabletCount(ConvertTo<int>(value));
         return true;
     }
 

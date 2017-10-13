@@ -47,26 +47,25 @@ TCGExprContext TCGExprContext::Make(
     const TCodegenFragmentInfos& fragmentInfos,
     Value* expressionClosurePtr)
 {
-    Value* opaqueValues = builder->CreateLoad(builder->CreateStructGEP(
-        nullptr,
-        expressionClosurePtr,
+    Value* expressionClosure = builder->CreateLoad(expressionClosurePtr);
+
+    Value* opaqueValues = builder->CreateExtractValue(
+        expressionClosure,
         TClosureTypeBuilder::Fields::OpaqueValues,
-        "opaqueValues"));
+        "opaqueValues");
 
     return TCGExprContext(
         TCGOpaqueValuesContext(builder, opaqueValues),
         TCGExprData(
             fragmentInfos,
-            builder->CreateLoad(builder->CreateStructGEP(
-                nullptr,
-                expressionClosurePtr,
+            builder->CreateExtractValue(
+                expressionClosure,
                 TClosureTypeBuilder::Fields::Buffer,
-                "buffer")),
-            builder->CreateLoad(builder->CreateStructGEP(
-                nullptr,
-                expressionClosurePtr,
+                "buffer"),
+            builder->CreateExtractValue(
+                expressionClosure,
                 TClosureTypeBuilder::Fields::RowValues,
-                "rowValues")),
+                "rowValues"),
             expressionClosurePtr
         ));
 }

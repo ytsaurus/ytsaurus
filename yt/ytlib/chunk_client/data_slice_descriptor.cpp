@@ -68,22 +68,6 @@ const TDataSliceDescriptor& GetIncompatibleDataSliceDescriptor()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MergeInterruptDescriptors(TInterruptDescriptor* target, TInterruptDescriptor&& source)
-{
-    std::move(
-        source.ReadDataSliceDescriptors.begin(),
-        source.ReadDataSliceDescriptors.end(),
-        std::back_inserter(target->ReadDataSliceDescriptors));
-    source.ReadDataSliceDescriptors.clear();
-    std::move(
-        source.UnreadDataSliceDescriptors.begin(),
-        source.UnreadDataSliceDescriptors.end(),
-        std::back_inserter(target->UnreadDataSliceDescriptors));
-    source.UnreadDataSliceDescriptors.clear();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TDataSliceDescriptor& dataSliceDescriptor)
 {
     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {

@@ -40,10 +40,9 @@ namespace NHydra {
 
 using namespace NConcurrency;
 using namespace NElection;
+using namespace NRpc;
 using namespace NHydra::NProto;
 using namespace NPipes;
-using namespace NProfiling;
-using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -590,7 +589,7 @@ private:
 
 struct TDecoratedAutomaton::TMutationTypeDescriptor
 {
-    TSimpleCounter CumulativeTimeCounter;
+    NProfiling::TSimpleCounter CumulativeTimeCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -782,7 +781,7 @@ const TMutationRequest& TDecoratedAutomaton::LogLeaderMutation(
     PendingMutations_.emplace(
         LoggedVersion_,
         std::move(request),
-        GetInstant(),
+        NProfiling::GetInstant(),
         RandomNumber<ui64>());
     const auto& pendingMutation = PendingMutations_.back();
 
@@ -966,7 +965,7 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 {
     TForbidContextSwitchGuard contextSwitchGuard;
 
-    TWallTimer timer;
+    NProfiling::TWallTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
             auto& pendingMutation = PendingMutations_.front();
@@ -1028,10 +1027,10 @@ TDecoratedAutomaton::TMutationTypeDescriptor* TDecoratedAutomaton::GetTypeDescri
     it = pair.first;
     auto* descriptor = &it->second;
 
-    TTagIdList tagIds{
-        TProfileManager::Get()->RegisterTag("type", type)
+    NProfiling::TTagIdList tagIds{
+        NProfiling::TProfileManager::Get()->RegisterTag("type", type)
     };
-    descriptor->CumulativeTimeCounter = TSimpleCounter(
+    descriptor->CumulativeTimeCounter = NProfiling::TSimpleCounter(
         "/cumulative_mutation_time",
         tagIds);
 
@@ -1059,26 +1058,15 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         LOG_DEBUG_UNLESS(IsRecovery(), "Skipping heartbeat mutation (Version: %v)",
             automatonVersion);
     } else {
-        auto syncTime = GetInstant() - context->GetTimestamp();
-
-        if (!IsRecovery()) {
-            Profiler.Enqueue(
-                "/mutation_wait_time",
-                DurationToValue(syncTime),
-                EMetricType::Gauge,
-                CellManager_->GetCellIdTags());
-        }
-
         auto* descriptor = GetTypeDescriptor(mutationType);
 
         TMutationContextGuard contextGuard(context);
-        TWallTimer timer;
+        NProfiling::TWallTimer timer;
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v, WaitTime: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
             automatonVersion,
             mutationType,
-            mutationId,
-            syncTime);
+            mutationId);
 
         if (handler) {
             handler.Run(context);
@@ -1088,7 +1076,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 
         Profiler.Increment(
             descriptor->CumulativeTimeCounter,
-            DurationToValue(timer.GetElapsedTime()));
+            NProfiling::DurationToValue(timer.GetElapsedTime()));
 
         if (Options_.ResponseKeeper && mutationId) {
             if (State_ == EPeerState::Leading) {

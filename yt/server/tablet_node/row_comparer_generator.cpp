@@ -182,7 +182,7 @@ public:
             NullKeyMask_);
         const auto& type = TypeBuilder<TUnversionedValue, false>::TType::get(Builder_.getContext());
         auto* nullType = ConstantInt::get(type, static_cast<int>(EValueType::Null));
-        auto* schemaType = ConstantInt::get(type, static_cast<int>(Builder_.Schema_.Columns()[index].GetPhysicalType()));
+        auto* schemaType = ConstantInt::get(type, static_cast<int>(Builder_.Schema_.Columns()[index].Type));
         return Builder_.CreateSelect(
             Builder_.CreateICmpNE(nullKeyBit, Builder_.getInt32(0)),
             nullType,
@@ -503,7 +503,7 @@ void TComparerBuilder::BuildMainLoop(
         BuildCmp(lhsType, rhsType, EValueType::Uint64);
         BuildSentinelTypeCheck(lhsType);
 
-        auto type = columnIt->GetPhysicalType();
+        auto type = columnIt->Type;
         if (type == EValueType::String) {
             auto* lhsLength = lhsBuilder.GetStringLength(index);
             auto* rhsLength = rhsBuilder.GetStringLength(index);

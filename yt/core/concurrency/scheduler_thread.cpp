@@ -191,7 +191,10 @@ void TSchedulerThread::ThreadMainStep()
     YCHECK(CurrentFiber_->GetState() == EFiberState::Suspended);
     CurrentFiber_->SetRunning();
 
-    SchedulerContext_.SwitchTo(CurrentFiber_->GetContext());
+    SwitchExecutionContext(
+        &SchedulerContext_,
+        CurrentFiber_->GetContext(),
+        /* as per TFiber::Trampoline */ CurrentFiber_.Get());
 
     SetCurrentFiberId(InvalidFiberId);
 
@@ -377,7 +380,11 @@ void TSchedulerThread::Return()
     YCHECK(CurrentFiber_);
     YCHECK(CurrentFiber_->IsTerminated());
 
-    CurrentFiber_->GetContext()->SwitchTo(&SchedulerContext_);
+    SwitchExecutionContext(
+        CurrentFiber_->GetContext(),
+        &SchedulerContext_,
+        nullptr);
+
     Y_UNREACHABLE();
 }
 
@@ -416,7 +423,10 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     caller->SetSuspended();
     target->SetRunning();
 
-    caller->GetContext()->SwitchTo(target->GetContext());
+    SwitchExecutionContext(
+        caller->GetContext(),
+        target->GetContext(),
+        /* as per FiberTrampoline */ target);
 
     // Cannot access |this| from this point as the fiber might be resumed
     // in other scheduler.
@@ -493,7 +503,7 @@ void TSchedulerThread::OnThreadShutdown()
 void TSchedulerThread::SwitchContextFrom(TFiber* currentFiber)
 {
     currentFiber->InvokeContextOutHandlers();
-    currentFiber->GetContext()->SwitchTo(&SchedulerContext_);
+    SwitchExecutionContext(currentFiber->GetContext(), &SchedulerContext_, nullptr);
     currentFiber->InvokeContextInHandlers();
 
     CheckForCanceledFiber(currentFiber);

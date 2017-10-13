@@ -258,19 +258,16 @@ struct TTransformExpression
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
         const TLiteralValueTupleList& from,
-        const TLiteralValueTupleList& to,
-        TNullableExpressionList defaultExpr)
+        const TLiteralValueTupleList& to)
         : TExpression(sourceLocation)
         , Expr(std::move(expression))
         , From(from)
         , To(to)
-        , DefaultExpr(std::move(defaultExpr))
     { }
 
     TExpressionList Expr;
     TLiteralValueTupleList From;
     TLiteralValueTupleList To;
-    TNullableExpressionList DefaultExpr;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransformExpression)
