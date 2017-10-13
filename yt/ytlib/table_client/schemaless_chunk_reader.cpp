@@ -482,6 +482,11 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
 {
     LOG_DEBUG("Reading range %v", ReadRange_);
 
+    // Initialize to lowest reasonable value.
+    RowIndex_ = ReadRange_.LowerLimit().HasRowIndex()
+        ? ReadRange_.LowerLimit().GetRowIndex()
+        : 0;
+
     // Ready event must be set only when all initialization is finished and
     // RowIndex_ is set into proper value.
     // Must be called after the object is constructed and vtable initialized.
@@ -929,6 +934,8 @@ public:
 
         LowerLimit_ = readRange.LowerLimit();
         UpperLimit_ = readRange.UpperLimit();
+
+        RowIndex_ = LowerLimit_.HasRowIndex() ? LowerLimit_.GetRowIndex() : 0;
 
         ReadyEvent_ = BIND(&TColumnarSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
