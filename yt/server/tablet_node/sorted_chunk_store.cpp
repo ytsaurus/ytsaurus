@@ -146,7 +146,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader);
+    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor);
 
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
@@ -222,7 +222,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader);
+    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor);
 
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
@@ -284,7 +284,7 @@ TError TSortedChunkStore::CheckRowLocks(
         << TErrorAttribute("key", RowToKey(row));
 }
 
-TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkReader)
+TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkReader, const TWorkloadDescriptor& workloadDescriptor)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -298,7 +298,7 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkR
     // TODO(babenko): do we need to make this workload descriptor configurable?
     auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
         chunkReader,
-        TWorkloadDescriptor(EWorkloadCategory::UserBatch),
+        workloadDescriptor,
         Schema_,
         MemoryTracker_);
     auto cachedMeta = WaitFor(asyncCachedMeta)
