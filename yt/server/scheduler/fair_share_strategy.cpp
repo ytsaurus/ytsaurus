@@ -779,6 +779,7 @@ private:
 
     std::list<TOperationPtr> OperationQueue;
 
+    TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
     yhash<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
 
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilter;
@@ -1170,9 +1171,29 @@ private:
         DoScheduleJobsWithoutPreemption(rootElementSnapshot, context, profileTimings, logAndCleanSchedulingStatistics);
 
         auto nodeId = schedulingContext->GetNodeDescriptor().Id;
-        if (NodeIdToLastPreemptiveSchedulingTime[nodeId] + DurationToCpuDuration(Config->PreemptiveSchedulingBackoff) <= now) {
+
+        bool scheduleJobsWithPreemption = false;
+        {
+            bool nodeIsMissing = false;
+            {
+                TReaderGuard guard(NodeIdToLastPreemptiveSchedulingTimeLock);
+                auto it = NodeIdToLastPreemptiveSchedulingTime.find(nodeId);
+                if (it == NodeIdToLastPreemptiveSchedulingTime.end()) {
+                    nodeIsMissing = true;
+                    scheduleJobsWithPreemption = true;
+                } else if (it->second + DurationToCpuDuration(Config->PreemptiveSchedulingBackoff) <= now) {
+                    scheduleJobsWithPreemption = true;
+                    it->second = now;
+                }
+            }
+            if (nodeIsMissing) {
+                TWriterGuard guard(NodeIdToLastPreemptiveSchedulingTimeLock);
+                NodeIdToLastPreemptiveSchedulingTime[nodeId] = now;
+            }
+        }
+
+        if (scheduleJobsWithPreemption) {
             DoScheduleJobsWithPreemption(rootElementSnapshot, context, profileTimings, logAndCleanSchedulingStatistics);
-            NodeIdToLastPreemptiveSchedulingTime[nodeId] = now;
         } else {
             LOG_DEBUG("Skip preemptive scheduling");
         }
