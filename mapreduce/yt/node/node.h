@@ -24,15 +24,28 @@ public:
     { };
 
     enum EType {
-        UNDEFINED,
-        STRING,
-        INT64,
-        UINT64,
-        DOUBLE,
-        BOOL,
-        LIST,
-        MAP,
-        ENTITY
+        Undefined = 0   /*"undefined"*/,
+
+        StringNode = 1  /*"string_node"*/,
+        Int64Node = 2   /*"int64_node"*/,
+        Uint64Node = 3  /*"uint64_node"*/,
+        DoubleNode = 4  /*"double_node"*/,
+        BooleanNode = 5 /*"boolean_node"*/,
+        ListNode = 6    /*"list_node"*/,
+        MapNode = 7     /*"map_node"*/,
+        Null = 8        /*"null"*/,
+
+        // Backward compatibility part
+        // TODO: exterminate
+        UNDEFINED = Undefined,
+        STRING = StringNode,
+        INT64 = Int64Node,
+        UINT64 = Uint64Node,
+        DOUBLE = DoubleNode,
+        BOOL = BooleanNode,
+        LIST = ListNode,
+        MAP = MapNode,
+        ENTITY = Null,
     };
 
     using TList = yvector<TNode>;
