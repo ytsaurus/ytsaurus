@@ -86,7 +86,9 @@ private:
         const TColumnFilter& columnFilter,
         const TTableSchema& schema);
 
-    NTableClient::TChunkStatePtr PrepareCachedChunkState(NChunkClient::IChunkReaderPtr chunkReader);
+    NTableClient::TChunkStatePtr PrepareCachedChunkState(
+        NChunkClient::IChunkReaderPtr chunkReader,
+        const TWorkloadDescriptor& workloadDescriptor);
 
     virtual void PrecacheProperties() override;
 
