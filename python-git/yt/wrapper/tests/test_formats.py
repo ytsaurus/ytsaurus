@@ -307,7 +307,7 @@ def test_yson_dump_rows_speed():
 
     two_streams_dump_time = time.time() - start_time
 
-    if two_streams_dump_time / one_stream_dump_time > 1.5:
+    if two_streams_dump_time / one_stream_dump_time > 2:
         assert False, "Dump rows to one stream took {0} seconds, " \
                       "to two streams took {1} seconds".format(one_stream_dump_time, two_streams_dump_time)
 
