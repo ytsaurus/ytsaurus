@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import yt.wrapper as yt
 from time import sleep
 from random import randint
 from random import random
