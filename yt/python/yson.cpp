@@ -162,7 +162,12 @@ public:
     PyObject* iternext()
     {
         try {
-            auto item = Lexer_.NextItem();
+            TSharedRef item;
+
+            Py_BEGIN_ALLOW_THREADS
+            item = Lexer_.NextItem();
+            Py_END_ALLOW_THREADS
+
             if (!item) {
                 PyErr_SetNone(PyExc_StopIteration);
                 return 0;
