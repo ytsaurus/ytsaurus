@@ -3,6 +3,8 @@ package ru.yandex.yt.ytclient.proxy;
 import java.time.Duration;
 import java.util.Objects;
 
+import ru.yandex.yt.rpcproxy.EAtomicity;
+import ru.yandex.yt.rpcproxy.EDurability;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.misc.YtGuid;
 
@@ -18,6 +20,8 @@ public class ApiServiceTransactionOptions {
     private Boolean ping;
     private Boolean pingAncestors;
     private Boolean sticky;
+    private EAtomicity atomicity;
+    private EDurability durability;
 
     public ApiServiceTransactionOptions(ETransactionType type) {
         this.type = Objects.requireNonNull(type);
@@ -55,6 +59,14 @@ public class ApiServiceTransactionOptions {
         return sticky;
     }
 
+    public EAtomicity getAtomicity() {
+        return atomicity;
+    }
+
+    public EDurability getDurability() {
+        return durability;
+    }
+
     public ApiServiceTransactionOptions setTimeout(Duration timeout) {
         this.timeout = timeout;
         return this;
@@ -89,4 +101,15 @@ public class ApiServiceTransactionOptions {
         this.sticky = sticky;
         return this;
     }
+
+    public ApiServiceTransactionOptions setAtomicity(EAtomicity atomicity) {
+        this.atomicity = atomicity;
+        return this;
+    }
+
+    public ApiServiceTransactionOptions setAtomicity(EDurability durability) {
+        this.durability = durability;
+        return this;
+    }
+
 }
