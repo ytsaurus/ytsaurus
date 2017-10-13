@@ -227,12 +227,6 @@ using TPlacementId = TGuid;
 
 struct TDataSliceDescriptor;
 
-struct TInterruptDescriptor
-{
-    std::vector<TDataSliceDescriptor> UnreadDataSliceDescriptors;
-    std::vector<TDataSliceDescriptor> ReadDataSliceDescriptors;
-};
-
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
 ////////////////////////////////////////////////////////////////////////////////

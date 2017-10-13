@@ -24,11 +24,12 @@ public:
         : TMasterAutomatonPart(bootstrap)
     {
         RegisterLoader(
-            "ConfigManager",
+            "ConfigManager.Load",
             BIND(&TImpl::Load, Unretained(this)));
+
         RegisterSaver(
-            ESyncSerializationPriority::Values,
-            "ConfigManager",
+            ESyncSerializationPriority::Keys,
+            "ConfigManager.Save",
             BIND(&TImpl::Save, Unretained(this)));
     }
 

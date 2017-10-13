@@ -115,7 +115,7 @@ private:
     NRpc::IChannelPtr LocalRpcChannel_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
-    std::unique_ptr<NXHttp::TServer> HttpServer_;
+    std::unique_ptr<NHttp::TServer> HttpServer_;
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;

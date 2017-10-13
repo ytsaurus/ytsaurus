@@ -41,10 +41,7 @@ DEFINE_ENUM(EExecutionStackKind,
     (Large) //   8 Mb
 );
 
-class TExecutionStack;
-class TExecutionContext;
-
-DECLARE_REFCOUNTED_CLASS(TFiber);
+class TFiber;
 
 template <class TSignature>
 class TCoroutine;

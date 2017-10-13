@@ -18,8 +18,7 @@ static int PipeDescriptors[2];
 
 static void SignalHandler(int signum)
 {
-    ssize_t ignored __attribute__((unused));
-    ignored = write(PipeDescriptors[1], "got signal\n", 11);
+    write(PipeDescriptors[1], "got signal\n", 11);
 }
 
 #ifdef _unix_

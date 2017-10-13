@@ -112,8 +112,6 @@ struct ITaskHost
         int tableIndex) = 0;
 
     virtual void UnstageChunkTreesNonRecursively(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds) = 0;
-
-    virtual TDataFlowGraph& DataFlowGraph() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost);

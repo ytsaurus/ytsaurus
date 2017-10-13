@@ -97,7 +97,7 @@ private:
         auto populateClusterDirectory = request->populate_cluster_directory();
         auto populateMediumDirectory = request->populate_medium_directory();
         context->SetRequestInfo(
-            "PopulateNodeDirectory: %v, "
+            "PopulateNodeNodeDirectory: %v, "
             "PopulateClusterDirectory: %v, "
             "PopulateMediumDirectory: %v",
             populateNodeDirectory,

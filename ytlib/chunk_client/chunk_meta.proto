@@ -66,9 +66,6 @@ message TMiscExt
 
     // Chunk creation time.
     optional uint64 creation_time = 17 [default = 0];
-
-    // When set, datanode allow downloading this chunk by http.
-    optional bool shared_to_skynet = 18 [default = false];
 }
 
 message TPartInfo

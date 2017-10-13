@@ -169,6 +169,12 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Write)
 );
 
+DEFINE_ENUM(EInMemoryMode,
+    (None)
+    (Compressed)
+    (Uncompressed)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsInUnmountWorkflow(ETabletState state);

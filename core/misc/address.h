@@ -55,7 +55,7 @@ public:
     TAddressResolverConfig()
     {
         RegisterParameter("enable_ipv4", EnableIPv4)
-            .Default(false);
+            .Default(true);
         RegisterParameter("enable_ipv6", EnableIPv6)
             .Default(true);
         RegisterParameter("localhost_fqdn", LocalHostFqdn)
@@ -94,7 +94,6 @@ public:
     const sockaddr* GetSockAddr() const;
     socklen_t GetLength() const;
     socklen_t* GetLengthPtr();
-    ui16 GetPort() const;
 
     static TErrorOr<TNetworkAddress> TryParse(const TStringBuf& address);
     static TNetworkAddress Parse(const TStringBuf& address);

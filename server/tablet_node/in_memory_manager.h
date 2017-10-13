@@ -4,9 +4,9 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
@@ -18,7 +18,7 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkClient::EBlockType MapInMemoryModeToBlockType(NTabletClient::EInMemoryMode mode);
+NChunkClient::EBlockType MapInMemoryModeToBlockType(EInMemoryMode mode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,7 @@ NChunkClient::EBlockType MapInMemoryModeToBlockType(NTabletClient::EInMemoryMode
 struct TInMemoryChunkData
     : public TIntrinsicRefCounted
 {
-    NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
+    EInMemoryMode InMemoryMode = EInMemoryMode::None;
     ui64 InMemoryConfigRevision = 0;
 
     std::vector<NChunkClient::TBlock> Blocks;
@@ -55,7 +55,7 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TInMemoryManager();
 
-    NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(NTabletClient::EInMemoryMode mode, ui64 configRevision);
+    NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode, ui64 configRevision);
     TInMemoryChunkDataPtr EvictInterceptedChunkData(const NChunkClient::TChunkId& chunkId);
     void FinalizeChunk(
         const NChunkClient::TChunkId& chunkId,

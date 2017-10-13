@@ -948,7 +948,7 @@ auto TWireProtocolReader::GetSchemaData(
 {
     TSchemaData schemaData;
     auto addColumn = [&] (int id) {
-        auto value = MakeUnversionedValueHeader(schema.Columns()[id].GetPhysicalType(), id);
+        auto value = MakeUnversionedValueHeader(schema.Columns()[id].Type, id);
         schemaData.push_back(*reinterpret_cast<ui32*>(&value));
     };
     if (!filter.All) {
@@ -967,7 +967,7 @@ auto TWireProtocolReader::GetSchemaData(const TTableSchema& schema) -> TSchemaDa
 {
     TSchemaData schemaData;
     for (int id = 0; id < schema.GetColumnCount(); ++id) {
-        auto value = MakeUnversionedValueHeader(schema.Columns()[id].GetPhysicalType(), id);
+        auto value = MakeUnversionedValueHeader(schema.Columns()[id].Type, id);
         schemaData.push_back(*reinterpret_cast<ui32*>(&value));
     }
     return schemaData;

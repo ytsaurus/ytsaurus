@@ -434,7 +434,7 @@ void TBootstrap::DoInitialize()
         YCHECK(CellDirectory_->ReconfigureCell(cellConfig));
     }
 
-    HttpServer_ = std::make_unique<NXHttp::TServer>(
+    HttpServer_ = std::make_unique<NHttp::TServer>(
         Config_->MonitoringPort,
         Config_->BusServer->BindRetryCount,
         Config_->BusServer->BindRetryBackoff);

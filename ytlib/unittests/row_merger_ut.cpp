@@ -785,22 +785,6 @@ TEST_F(TVersionedRowMergerTest, Expire3)
         merger->BuildMergedRow());
 }
 
-TEST_F(TVersionedRowMergerTest, Expire4)
-{
-    auto config = GetRetentionConfig();
-    config->MinDataVersions = 1;
-    config->MinDataTtl = TimestampToDuration(0);
-
-    auto merger = GetTypicalMerger(config, 11ULL, 0);
-
-    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10> 1"));
-    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=11> 2"));
-
-    EXPECT_EQ(
-        BuildVersionedRow("<id=0> 0", "<id=1;ts=11> 2"),
-        merger->BuildMergedRow());
-}
-
 TEST_F(TVersionedRowMergerTest, DeleteOnly)
 {
     auto config = GetRetentionConfig();

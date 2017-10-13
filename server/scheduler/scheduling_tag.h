@@ -30,7 +30,6 @@ private:
 };
 
 bool operator==(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
-bool operator!=(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
 
 extern const TSchedulingTagFilter EmptySchedulingTagFilter;
 

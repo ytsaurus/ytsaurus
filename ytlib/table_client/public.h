@@ -166,7 +166,7 @@ class TUnversionedOwningRowBuilder;
 
 using TKeyComparer = std::function<int(TKey, TKey)>;
 
-class TColumnSchema;
+struct TColumnSchema;
 class TTableSchema;
 
 struct IBlockWriter;
@@ -256,8 +256,6 @@ struct TBlobTableSchema;
 class TBlobTableWriter;
 
 struct TChunkTimestamps;
-
-DECLARE_REFCOUNTED_CLASS(TSkynetColumnEvaluator)
 
 ////////////////////////////////////////////////////////////////////////////////
 

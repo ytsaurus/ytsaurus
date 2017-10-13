@@ -121,7 +121,7 @@ private:
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     NRpc::IServicePtr MasterCacheService;
-    std::unique_ptr<NXHttp::TServer> HttpServer;
+    std::unique_ptr<NHttp::TServer> HttpServer;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobControllerPtr JobController;
     NJobAgent::TStatisticsReporterPtr StatisticsReporter;

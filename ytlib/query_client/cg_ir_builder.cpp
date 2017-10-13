@@ -162,12 +162,7 @@ llvm::AllocaInst* TCGIRBuilder::CreateAlignedAlloca(
     Value* arraySize,
     const llvm::Twine& name)
 {
-#if LLVM_TEST(5, 0)
-    const llvm::DataLayout &DL = BB->getParent()->getParent()->getDataLayout();
-    return Insert(new llvm::AllocaInst(type, DL.getAllocaAddrSpace(), arraySize, align), name);
-#else
     return Insert(new llvm::AllocaInst(type, arraySize, align), name);
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

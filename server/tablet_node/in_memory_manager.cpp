@@ -10,13 +10,13 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
+#include <yt/server/misc/memory_usage_tracker.h>
+
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-
-#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -34,13 +34,12 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NChunkClient::NProto;
-using namespace NChunkClient;
-using namespace NConcurrency;
 using namespace NHydra;
+using namespace NConcurrency;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
-using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,10 +53,9 @@ void FinalizeChunkData(
     const TInMemoryChunkDataPtr& data,
     const TChunkId& id,
     const TChunkMeta& meta,
-    const TTabletSnapshotPtr& tabletSnapshot,
-    TNodeMemoryTracker* memoryTracker)
+    const TTabletSnapshotPtr& tabletSnapshot)
 {
-    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, meta, tabletSnapshot->PhysicalSchema, memoryTracker);
+    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, meta, tabletSnapshot->PhysicalSchema);
     if (tabletSnapshot->HashTableSize > 0) {
         data->LookupHashTable = CreateChunkLookupHashTable(
             data->Blocks,
@@ -157,7 +155,7 @@ public:
             return;
         }
 
-        FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot, Bootstrap_->GetMemoryUsageTracker());
+        FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot);
     }
 
 private:
@@ -593,7 +591,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);
     }
 
-    FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot, memoryUsageTracker);
+    FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
 
     LOG_INFO(
         "Store preload completed (MemoryUsage: %v, LookupHashTable: %v)",

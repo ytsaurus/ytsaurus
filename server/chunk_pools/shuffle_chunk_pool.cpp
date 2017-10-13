@@ -212,7 +212,6 @@ private:
             : Owner(owner)
             , PartitionIndex(partitionIndex)
         {
-            JobCounter->Set(0);
             AddNewRun();
         }
 
@@ -234,8 +233,8 @@ private:
             run->TotalDataWeight += dataWeight;
             run->TotalRowCount += rowCount;
 
-            DataWeightCounter->Increment(dataWeight);
-            RowCounter->Increment(rowCount);
+            DataWeightCounter.Increment(dataWeight);
+            RowCounter.Increment(rowCount);
         }
 
         void SuspendStripe(int elementaryIndex)
@@ -301,7 +300,7 @@ private:
         {
             return
                 Owner->Finished &&
-                JobCounter->GetCompletedTotal() == Runs.size();
+                JobCounter.GetCompletedTotal() == Runs.size();
         }
 
         virtual int GetTotalJobCount() const override
@@ -338,10 +337,9 @@ private:
             YCHECK(run.State == ERunState::Pending);
             run.State = ERunState::Running;
 
-            JobCounter->Increment(1);
-            JobCounter->Start(1);
-            DataWeightCounter->Start(run.TotalDataWeight);
-            RowCounter->Start(run.TotalRowCount);
+            JobCounter.Start(1);
+            DataWeightCounter.Start(run.TotalDataWeight);
+            RowCounter.Start(run.TotalRowCount);
 
             return cookie;
         }
@@ -380,9 +378,9 @@ private:
             YCHECK(run.State == ERunState::Running);
             run.State = ERunState::Completed;
 
-            JobCounter->Completed(1);
-            DataWeightCounter->Completed(run.TotalDataWeight);
-            RowCounter->Completed(run.TotalRowCount);
+            JobCounter.Completed(1);
+            DataWeightCounter.Completed(run.TotalDataWeight);
+            RowCounter.Completed(run.TotalRowCount);
         }
 
         virtual void Failed(TCookie cookie) override
@@ -393,9 +391,9 @@ private:
 
             UpdatePendingRunSet(run);
 
-            JobCounter->Failed(1);
-            DataWeightCounter->Failed(run.TotalDataWeight);
-            RowCounter->Failed(run.TotalRowCount);
+            JobCounter.Failed(1);
+            DataWeightCounter.Failed(run.TotalDataWeight);
+            RowCounter.Failed(run.TotalRowCount);
         }
 
         virtual void Aborted(TCookie cookie, EAbortReason reason) override
@@ -406,9 +404,9 @@ private:
 
             UpdatePendingRunSet(run);
 
-            JobCounter->Aborted(1, reason);
-            DataWeightCounter->Aborted(run.TotalDataWeight, reason);
-            RowCounter->Aborted(run.TotalRowCount, reason);
+            JobCounter.Aborted(1, reason);
+            DataWeightCounter.Aborted(run.TotalDataWeight, reason);
+            RowCounter.Aborted(run.TotalRowCount, reason);
         }
 
         virtual void Lost(TCookie cookie) override
@@ -419,9 +417,9 @@ private:
 
             UpdatePendingRunSet(run);
 
-            JobCounter->Lost(1);
-            DataWeightCounter->Lost(run.TotalDataWeight);
-            RowCounter->Lost(run.TotalRowCount);
+            JobCounter.Lost(1);
+            DataWeightCounter.Lost(run.TotalDataWeight);
+            RowCounter.Lost(run.TotalRowCount);
         }
 
         // IPersistent implementation.

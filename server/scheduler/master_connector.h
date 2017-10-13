@@ -64,7 +64,6 @@ public:
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);
-    void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period);
 
     void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester);
     void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler);

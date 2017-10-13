@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/driver/driver.h>
+
 #include <yt/core/concurrency/async_stream.h>
 
 #include <util/system/mutex.h>

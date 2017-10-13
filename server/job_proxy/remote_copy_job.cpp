@@ -189,9 +189,9 @@ public:
             : std::vector<TChunkId>();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor() const override
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override
     {
-        return { };
+        return std::vector<TDataSliceDescriptor>();
     }
 
     virtual TStatistics GetStatistics() const override

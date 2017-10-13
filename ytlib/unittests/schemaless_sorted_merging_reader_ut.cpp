@@ -73,7 +73,7 @@ public:
         TableSchema_ = ConvertTo<TTableSchema>(TYsonString(tableData.Schema));
         NameTable_ = New<TNameTable>();
         for (int i = 0; i < TableSchema_.GetColumnCount(); ++i) {
-            NameTable_->RegisterName(TableSchema_.Columns()[i].Name());
+            NameTable_->RegisterName(TableSchema_.Columns()[i].Name);
         }
         NameTable_->RegisterName(TableIndexColumnName);
     }
@@ -129,11 +129,11 @@ public:
         return RowIndex_;
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
         const NYT::TRange<TUnversionedRow>& unreadRows) const
     {
         ResultStorage_->OnUnreadRows(unreadRows);
-        return {};
+        return std::vector<TDataSliceDescriptor>();
     }
 
     virtual i64 GetSessionRowIndex() const
@@ -202,7 +202,7 @@ protected:
             }
             WaitFor(reader->GetReadyEvent());
         }
-        reader->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
+        reader->GetUnreadDataSliceDescriptors(NYT::TRange<TUnversionedRow>());
         EXPECT_EQ(readRowCount, expectedReadRowCount);
         EXPECT_EQ(lastReadRow, expectedLastReadRow);
         for (int primaryTableId = 0; primaryTableId < static_cast<int>(resultStorage->size()); ++primaryTableId) {

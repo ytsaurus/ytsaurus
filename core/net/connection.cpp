@@ -153,83 +153,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWriteVOperation
-    : public IIOOperation
-{
-public:
-    explicit TWriteVOperation(const TSharedRefArray& buffers)
-        : Buffers_(buffers)
-    { }
-
-    virtual TErrorOr<TIOResult> PerformIO(int fd) override
-    {
-        size_t bytesWritten = 0;
-        while (true) {
-            constexpr int MaxEntries = 128;
-            iovec ioVectors[MaxEntries];
-
-            ioVectors[0].iov_base = reinterpret_cast<void*>(const_cast<char*>(Buffers_[Index_].Begin() + Position_));
-            ioVectors[0].iov_len = Buffers_[Index_].Size() - Position_;
-
-            size_t ioVectorsCount = 1;
-            for (; ioVectorsCount < MaxEntries && ioVectorsCount + Index_ < Buffers_.Size(); ++ioVectorsCount) {
-                const auto& ref = Buffers_[Index_ + ioVectorsCount];
-            
-                ioVectors[ioVectorsCount].iov_base = reinterpret_cast<void*>(const_cast<char*>(ref.Begin()));
-                ioVectors[ioVectorsCount].iov_len = ref.Size();
-            }
-        
-            ssize_t size = HandleEintr(::writev, fd, ioVectors, ioVectorsCount);
-
-            if (size == -1) {
-                if (errno == EAGAIN) {
-                    return TIOResult(true, bytesWritten);
-                }
-
-                return TError("Write failed")
-                    << TError::FromSystem();
-            }
-
-            YCHECK(size > 0);
-            bytesWritten += size;
-            Position_ += size;
-
-            while (Index_ != Buffers_.Size() && Position_ >= Buffers_[Index_].Size()) {
-                Position_ -= Buffers_[Index_].Size();
-                Index_++;
-            }
-
-            if (Index_ == Buffers_.Size()) {
-                return TIOResult(false, bytesWritten);
-            }
-        }
-    }
-
-    virtual void Abort(const TError& error) override
-    {
-        ResultPromise_.Set(error);
-    }
-
-    virtual void SetResult() override
-    {
-        ResultPromise_.Set();
-    }
-
-    TFuture<void> ToFuture() const
-    {
-        return ResultPromise_.ToFuture();
-    }
-
-private:
-    TSharedRefArray Buffers_;
-    size_t Index_ = 0;
-    size_t Position_ = 0;
-
-    TPromise<void> ResultPromise_ = NewPromise<void>();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TShutdownOperation
     : public IIOOperation
 {
@@ -352,14 +275,6 @@ public:
         auto write = std::make_unique<TWriteOperation>(data);
         auto future = write->ToFuture();
         StartIO(&WriteDirection_, std::move(write));
-        return future;
-    }
-
-    TFuture<void> WriteV(const TSharedRefArray& data)
-    {
-        auto writeV = std::make_unique<TWriteVOperation>(data);
-        auto future = writeV->ToFuture();
-        StartIO(&WriteDirection_, std::move(writeV));
         return future;
     }
 
@@ -598,11 +513,6 @@ public:
     virtual TFuture<void> Write(const TSharedRef& data) override
     {
         return Impl_->Write(data);
-    }
-
-    virtual TFuture<void> WriteV(const TSharedRefArray& data) override
-    {
-        return Impl_->WriteV(data);
     }
 
     virtual TFuture<void> Close() override

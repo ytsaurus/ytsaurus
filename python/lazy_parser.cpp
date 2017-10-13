@@ -34,7 +34,7 @@ public:
             encodingParam = Py::None();
         }
         Py::TupleN params(encodingParam, Py::Boolean(alwaysCreateAttributes));
-        ResultObject_ = Py::Object(LazyYsonMapNew(TLazyYsonMapType, Py_None, Py_None));
+        ResultObject_ = Py::Object(LazyYsonMapNew(&TLazyYsonMapType, Py_None, Py_None));
         LazyYsonMapInit(reinterpret_cast<TLazyYsonMap*>(ResultObject_.ptr()), params.ptr(), Py::Dict().ptr());
 
         TLazyYsonMap* object = reinterpret_cast<TLazyYsonMap*>(ResultObject_.ptr());

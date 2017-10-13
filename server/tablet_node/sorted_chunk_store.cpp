@@ -19,8 +19,6 @@
 
 #include <yt/ytlib/misc/workload.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -65,7 +63,6 @@ TSortedChunkStore::TSortedChunkStore(
     const TStoreId& id,
     TTablet* tablet,
     IBlockCachePtr blockCache,
-    TNodeMemoryTracker* memoryTracker,
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
     INativeClientPtr client,
@@ -82,7 +79,6 @@ TSortedChunkStore::TSortedChunkStore(
         localDescriptor)
     , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
-    , MemoryTracker_(memoryTracker)
 {
     LOG_DEBUG("Sorted chunk store created");
 }
@@ -299,8 +295,7 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkR
     auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
         chunkReader,
         TWorkloadDescriptor(EWorkloadCategory::UserBatch),
-        Schema_,
-        MemoryTracker_);
+        Schema_);
     auto cachedMeta = WaitFor(asyncCachedMeta)
         .ValueOrThrow();
     TChunkSpec chunkSpec;
