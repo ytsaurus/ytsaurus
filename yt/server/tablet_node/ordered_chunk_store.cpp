@@ -194,7 +194,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
 
     TIdMapping idMapping;
     for (const auto& readColumn : readSchema.Columns()) {
-        idMapping.push_back(querySchema.GetColumnIndex(readColumn.Name()));
+        idMapping.push_back(querySchema.GetColumnIndex(readColumn.Name));
     }
 
     auto underlyingReader = CreateSchemafulChunkReader(

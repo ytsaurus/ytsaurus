@@ -375,13 +375,13 @@ protected:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
                 "UnavailableInputChunks: %v",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
+            JobCounter.GetTotal(),
+            JobCounter.GetRunning(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetInterruptedTotal(),
+            JobCounter.GetFailed(),
+            JobCounter.GetAbortedTotal(),
+            JobCounter.GetInterruptedTotal(),
             GetUnavailableInputChunkCount());
     }
 
@@ -890,8 +890,8 @@ public:
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         return
-            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
+            2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options_->MaxJobCount > JobCounter.GetTotal() &&
             TOperationControllerBase::IsJobInterruptible();
     }
 

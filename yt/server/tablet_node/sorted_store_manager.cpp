@@ -5,7 +5,6 @@
 #include "sorted_dynamic_store.h"
 #include "sorted_store_manager.h"
 #include "tablet.h"
-#include "tablet_profiling.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
 
@@ -445,11 +444,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         WaitFor(tableWriter->Close())
             .ThrowOnError();
-
-        ProfileDiskPressure(
-            tabletSnapshot,
-            tableWriter->GetDataStatistics(),
-            tabletSnapshot->RuntimeData->StoreFlushDiskPressureCounter);
 
         TAddStoreDescriptor descriptor;
         descriptor.set_store_type(static_cast<int>(EStoreType::SortedChunk));

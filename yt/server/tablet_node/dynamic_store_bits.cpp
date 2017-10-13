@@ -38,7 +38,7 @@ TOwningKey RowToKey(
     {
         auto dstKey = MakeUnversionedSentinelValue(EValueType::Null, index);
         if (!(nullKeyMask & nullKeyBit)) {
-            dstKey.Type = columnIt->GetPhysicalType();
+            dstKey.Type = columnIt->Type;
             if (IsStringLikeType(EValueType(dstKey.Type))) {
                 dstKey.Length = srcKey->String->Length;
                 dstKey.Data.String = srcKey->String->Data;

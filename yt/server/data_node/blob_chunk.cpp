@@ -9,12 +9,12 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
+#include <yt/server/misc/memory_usage_tracker.h>
+
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
-
-#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

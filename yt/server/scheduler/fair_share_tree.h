@@ -6,7 +6,6 @@
 #include "job_metrics.h"
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
-#include "fair_share_strategy_operation_controller.h"
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -81,16 +80,6 @@ struct TFairShareContext
     int ActiveOperationCount = 0;
     int ActiveTreeSize = 0;
     TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
-
-    // Used to avoid unnecessary calculation of HasAggressivelyStarvingNodes.
-    bool PrescheduledCalled = false;
-
-    // Information saved for logging.
-    int PreemptiveScheduleJobCount = 0;
-    int NonPreemptiveScheduleJobCount = 0;
-    TJobResources ResourceUsageDiscount = ZeroJobResources();
-    int ScheduledDuringPreemption = 0;
-    int PreemptableJobCount = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -195,8 +184,6 @@ public:
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled);
     virtual bool ScheduleJob(TFairShareContext& context) = 0;
-
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const = 0;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
 
@@ -334,8 +321,6 @@ public:
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const override;
-
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
     virtual void IncreaseResourceUsagePrecommit(const TJobResources& delta) override;
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
@@ -364,8 +349,6 @@ public:
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
-    virtual void IncreaseOperationCount(int delta);
-    virtual void IncreaseRunningOperationCount(int delta);
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
@@ -418,8 +401,6 @@ public:
     TPool(
         ISchedulerStrategyHost* host,
         const TString& id,
-        TPoolConfigPtr config,
-        bool defaultConfigured,
         TFairShareStrategyConfigPtr strategyConfig,
         NProfiling::TTagId profilingTag);
     TPool(
@@ -486,18 +467,16 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 
 class TOperationElementFixedState
 {
+public:
+    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerStrategyHostPtr, Controller);
+
 protected:
-    explicit TOperationElementFixedState(
-        IOperationStrategyHost* operation,
-        TFairShareStrategyOperationControllerConfigPtr controllerConfig);
+    explicit TOperationElementFixedState(IOperationStrategyHost* operation);
 
     const TOperationId OperationId_;
     bool Schedulable_;
     IOperationStrategyHost* const Operation_;
-    TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TOperationElementSharedState
     : public TIntrinsicRefCounted
@@ -525,7 +504,21 @@ public:
     TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage);
     TJobResources RemoveJob(const TJobId& jobId);
 
+    bool IsBlocked(
+        NProfiling::TCpuInstant now,
+        int maxConcurrentScheduleJobCalls,
+        NProfiling::TCpuDuration scheduleJobFailBackoffTime) const;
+
+    void IncreaseConcurrentScheduleJobCalls();
+    void DecreaseConcurrentScheduleJobCalls();
+
+    void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
+
     TJobResources Finalize();
+
+    void SetMinNeededJobResources(std::vector<TJobResources> jobResourcesList);
+    std::vector<TJobResources> GetMinNeededJobResourcesList() const;
+    TJobResources GetMinNeededJobResources() const;
 
 private:
     template <typename T>
@@ -638,7 +631,14 @@ private:
     yhash<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
+    std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
+    std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = {0};
+
     bool Finalized_ = false;
+
+    NConcurrency::TReaderWriterSpinLock CachedMinNeededJobResourcesLock_;
+    std::vector<TJobResources> CachedMinNeededJobResourcesList_;
+    TJobResources CachedMinNeededJobResources_;
 
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
 
@@ -657,7 +657,6 @@ public:
         TFairShareStrategyConfigPtr strategyConfig,
         TStrategyOperationSpecPtr spec,
         TOperationRuntimeParamsPtr runtimeParams,
-        TFairShareStrategyOperationControllerPtr controller,
         ISchedulerStrategyHost* host,
         IOperationStrategyHost* operation);
     TOperationElement(
@@ -670,10 +669,7 @@ public:
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
-
-    virtual void InvokeMinNeededJobResourcesUpdate();
-
-    void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
+    virtual void UpdateMinNeededJobResources();
 
     virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
 
@@ -681,8 +677,6 @@ public:
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
-
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext& context, bool aggressiveStarvationEnabled) const override;
 
     virtual TString GetId() const override;
 
@@ -736,7 +730,6 @@ public:
 
 private:
     TOperationElementSharedStatePtr SharedState_;
-    TFairShareStrategyOperationControllerPtr Controller_;
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
@@ -746,6 +739,8 @@ private:
 
     bool TryStartScheduleJob(
         NProfiling::TCpuInstant now,
+        int maxConcurrentScheduleJobCalls,
+        NProfiling::TCpuDuration scheduleJobFailBackoffTime,
         const TJobResources& jobLimits,
         const TJobResources& minNeededResources);
 
@@ -820,6 +815,6 @@ DEFINE_REFCOUNTED_TYPE(TRootElement)
 } // namespace NScheduler
 } // namespace NYT
 
-#define FAIR_SHARE_TREE_ELEMENT_INL_H_
-#include "fair_share_tree_element-inl.h"
-#undef FAIR_SHARE_TREE_ELEMENT_INL_H_
+#define FAIR_SHARE_TREE_INL_H_
+#include "fair_share_tree-inl.h"
+#undef FAIR_SHARE_TREE_INL_H_

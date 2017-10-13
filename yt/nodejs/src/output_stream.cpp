@@ -132,48 +132,40 @@ Handle<Value> TOutputStreamWrap::Pull(const Arguments& args)
 Handle<Value> TOutputStreamWrap::DoPull()
 {
     THREAD_AFFINITY_IS_V8();
- 
+
+    Local<Array> parts = Array::New(MaxPartsPerPull);
+    size_t count = 0;
+
     // Short-path for destroyed streams.
-    try {
-        constexpr auto MaxPartLength = (1ULL << 30) - 1;
-        Local<Array> parts = Array::New(MaxPartsPerPull);
-        
-        ProtectedUpdateAndNotifyWriter([&] () {
-            for (int i = 0; i < MaxPartsPerPull; ++i) {
-                if (Queue_.empty()) {
-                    break;
-                }
 
-                auto part = std::move(Queue_.front());
-                if (part.Length > MaxPartLength) {
-                    THROW_ERROR_EXCEPTION("Part is too long: length %v, limit %v",
-                        part.Length,
-                        MaxPartLength);
-                }
-                
-                Queue_.pop_front();
-
-                YCHECK(static_cast<bool>(part));
-
-                auto* buffer = node::Buffer::New(
-                    part.Buffer.release(),
-                    part.Length,
-                    DeleteCallback,
-                    (void*)part.Length);
-
-                parts->Set(i, buffer->handle_);
-
-                v8::V8::AdjustAmountOfExternalAllocatedMemory(part.Length);
-
-                BytesDequeued_ += part.Length;
-                BytesInFlight_ -= part.Length;
+    ProtectedUpdateAndNotifyWriter([&] () {
+        for (int i = 0; i < MaxPartsPerPull; ++i) {
+            if (Queue_.empty()) {
+                break;
             }
-        });
 
-        return parts;
-    } catch (const std::exception& ex) {
-        return ThrowException(Exception::Error(String::New(ex.what())));
-    }
+            auto part = std::move(Queue_.front());
+            Queue_.pop_front();
+
+            YCHECK(static_cast<bool>(part));
+
+            auto* buffer = node::Buffer::New(
+                part.Buffer.release(),
+                part.Length,
+                DeleteCallback,
+                (void*)part.Length);
+
+            parts->Set(i, buffer->handle_);
+            ++count;
+
+            v8::V8::AdjustAmountOfExternalAllocatedMemory(part.Length);
+
+            BytesDequeued_ += part.Length;
+            BytesInFlight_ -= part.Length;
+        }
+    });
+
+    return parts;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

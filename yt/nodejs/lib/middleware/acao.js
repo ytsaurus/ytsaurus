@@ -34,7 +34,6 @@ exports.that = function Middleware__YtAcao()
                 "x-yt-output-format-0",
                 "x-yt-header-format",
                 "x-yt-suppress-redirect",
-                "x-yt-omit-trailers",
             ];
             rsp.setHeader("Access-Control-Allow-Headers", cors_headers.join(","));
             rsp.setHeader("Access-Control-Max-Age", "3600");

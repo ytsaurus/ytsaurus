@@ -365,12 +365,6 @@ YtCommand.prototype._parseRequest = function() {
     // XXX(sandello): IE is bugged; it fails to parse request with trailing
     // headers that include colons. Remarkable.
     this.omit_trailers = is_ie;
-
-    var has_omit_trailers_option = typeof(this.req.headers["x-yt-omit-trailers"]) !== "undefined";
-
-    if (has_omit_trailers_option) {
-        this.omit_trailers = true;
-    }
 };
 
 YtCommand.prototype._getName = function() {

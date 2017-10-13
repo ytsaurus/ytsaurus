@@ -111,7 +111,7 @@ PyObject* LazyYsonMapBaseSetDefault(TLazyYsonMapBase* self, PyObject* args, PyOb
 
 PyObject* LazyYsonMapBaseCopy(TLazyYsonMapBase* self)
 {
-    auto result = LazyYsonMapBaseNew(TLazyYsonMapBaseType, Py_None, Py_None);
+    auto result = LazyYsonMapBaseNew(&TLazyYsonMapBaseType, Py_None, Py_None);
     auto params = self->Dict->GetConsumerParams();
 
     auto resultObject = reinterpret_cast<TLazyYsonMapBase*>(result);
@@ -123,7 +123,7 @@ PyObject* LazyYsonMapBaseCopy(TLazyYsonMapBase* self)
 
 PyObject* LazyYsonMapBaseDeepCopy(TLazyYsonMapBase* self, PyObject* args, PyObject* kwargs)
 {
-    auto result = LazyYsonMapBaseNew(TLazyYsonMapBaseType, Py_None, Py_None);
+    auto result = LazyYsonMapBaseNew(&TLazyYsonMapBaseType, Py_None, Py_None);
     auto params = self->Dict->GetConsumerParams();
 
     auto resultObject = reinterpret_cast<TLazyYsonMapBase*>(result);
@@ -136,7 +136,7 @@ PyObject* LazyYsonMapBaseDeepCopy(TLazyYsonMapBase* self, PyObject* args, PyObje
 PyObject* LazyYsonMapBaseNew(PyTypeObject* type, PyObject* /* args */, PyObject* /* kwargs */)
 {
     TLazyYsonMapBase* self;
-    self = reinterpret_cast<TLazyYsonMapBase*>(PyType_GenericAlloc(type, 0));
+    self = reinterpret_cast<TLazyYsonMapBase*>(type->tp_alloc(type, 0));
     return reinterpret_cast<PyObject*>(self);
 }
 
@@ -193,7 +193,7 @@ Py_ssize_t LazyYsonMapBaseLength(PyObject* object)
 void LazyYsonMapBaseDealloc(TLazyYsonMapBase* self)
 {
     delete self->Dict;
-    PyObject_Free(self);
+    Py_TYPE(self)->tp_free(reinterpret_cast<PyObject*>(self));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,8 +208,8 @@ int LazyYsonMapInit(TLazyYsonMap* self, PyObject* args, PyObject* kwargs)
 PyObject* LazyYsonMapNew(PyTypeObject* type, PyObject* /* args */, PyObject* /* kwargs */)
 {
     TLazyYsonMap* self;
-    self = reinterpret_cast<TLazyYsonMap*>(PyType_GenericAlloc(type, 0));
-    self->Attributes = LazyYsonMapBaseNew(TLazyYsonMapBaseType, Py_None, Py_None);
+    self = reinterpret_cast<TLazyYsonMap*>(type->tp_alloc(type, 0));
+    self->Attributes = LazyYsonMapBaseNew(&TLazyYsonMapBaseType, Py_None, Py_None);
     return (PyObject*)self;
 }
 
@@ -221,7 +221,7 @@ void LazyYsonMapDealloc(TLazyYsonMap* self)
 
 PyObject* LazyYsonMapCopy(TLazyYsonMap* self)
 {
-    auto result = reinterpret_cast<TLazyYsonMap*>(LazyYsonMapNew(TLazyYsonMapType, Py_None, Py_None));
+    auto result = reinterpret_cast<TLazyYsonMap*>(LazyYsonMapNew(&TLazyYsonMapType, Py_None, Py_None));
     auto params = self->super.Dict->GetConsumerParams();
     LazyYsonMapInit(result, params.ptr(), Py::Dict().ptr());
 
@@ -233,7 +233,7 @@ PyObject* LazyYsonMapCopy(TLazyYsonMap* self)
 
 PyObject* LazyYsonMapDeepCopy(TLazyYsonMap* self, PyObject* args, PyObject* kwargs)
 {
-    auto result = reinterpret_cast<TLazyYsonMap*>(LazyYsonMapNew(TLazyYsonMapType, Py_None, Py_None));
+    auto result = reinterpret_cast<TLazyYsonMap*>(LazyYsonMapNew(&TLazyYsonMapType, Py_None, Py_None));
     auto params = self->super.Dict->GetConsumerParams();
     LazyYsonMapInit(result, params.ptr(), Py::Dict().ptr());
 
@@ -245,6 +245,25 @@ PyObject* LazyYsonMapDeepCopy(TLazyYsonMap* self, PyObject* args, PyObject* kwar
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+PyMappingMethods TLazyYsonMapBaseMappingMethods = {
+    LazyYsonMapBaseLength,          // mp_length
+    LazyYsonMapBaseSubscript,       // mp_subscript
+    LazyYsonMapBaseAssSubscript     // mp_ass_subscript
+};
+
+PySequenceMethods TLazyYsonMapBaseSequenceMethods = {
+    0,                              // sq_length
+    0,                              // sq_concat
+    0,                              // sq_repeat
+    0,                              // sq_item
+    0,                              // sq_slice,
+    0,                              // sq_ass_item
+    0,                              // sq_ass_slice
+    LazyYsonMapBaseContains,        // sq_contains
+    0,                              // sq_inplace_concat
+    0                               // sq_inplace_repeat
+};
 
 PyMethodDef LazyYsonMapBaseMethods[] = {
     {"has_key", (PyCFunction)LazyYsonMapBaseHasKey, METH_O, ""},
@@ -269,81 +288,7 @@ PyMemberDef LazyYsonMapMembers[] = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if PY_MAJOR_VERSION >= 3
-
-char TLazyYsonMapBaseDoc[] = "YsonLazyMapBase";
-
-PyType_Slot TLazyYsonMapBaseSlots[] = {
-    {Py_tp_doc, &TLazyYsonMapBaseDoc},
-    {Py_tp_new, reinterpret_cast<void*>(LazyYsonMapBaseNew)},
-    {Py_tp_init, reinterpret_cast<void*>(LazyYsonMapBaseInit)},
-    {Py_tp_dealloc, reinterpret_cast<void*>(LazyYsonMapBaseDealloc)},
-    {Py_tp_hash, reinterpret_cast<void*>(PyObject_HashNotImplemented)},
-    {Py_tp_methods, reinterpret_cast<void*>(LazyYsonMapBaseMethods)},
-    {Py_sq_contains, reinterpret_cast<void*>(LazyYsonMapBaseContains)},
-    {Py_mp_length, reinterpret_cast<void*>(LazyYsonMapBaseLength)},
-    {Py_mp_subscript, reinterpret_cast<void*>(LazyYsonMapBaseSubscript)},
-    {Py_mp_ass_subscript, reinterpret_cast<void*>(LazyYsonMapBaseAssSubscript)},
-    {0, nullptr},
-};
-
-PyType_Spec TLazyYsonMapBaseSpec = {
-    "YsonLazyMapBase",
-    sizeof(TLazyYsonMapBase),
-    0,
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    TLazyYsonMapBaseSlots
-};
-
-PyTypeObject* TLazyYsonMapBaseType = reinterpret_cast<PyTypeObject*>(PyType_FromSpec(&TLazyYsonMapBaseSpec));
-
-////////////////////////////////////////////////////////////////////////////////
-
-char TLazyYsonMapDoc[] = "YsonLazyMap";
-
-PyType_Slot TLazyYsonMapSlots[] = {
-    {Py_tp_base, reinterpret_cast<void*>(TLazyYsonMapBaseType)},
-    {Py_tp_doc, &TLazyYsonMapDoc},
-    {Py_tp_new, reinterpret_cast<void*>(LazyYsonMapNew)},
-    {Py_tp_init, reinterpret_cast<void*>(LazyYsonMapInit)},
-    {Py_tp_dealloc, reinterpret_cast<void*>(LazyYsonMapDealloc)},
-    {Py_tp_methods, reinterpret_cast<void*>(LazyYsonMapMethods)},
-    {Py_tp_members, reinterpret_cast<void*>(LazyYsonMapMembers)},
-    {0, nullptr},
-};
-
-PyType_Spec TLazyYsonMapSpec = {
-    "YsonLazyMap",
-    sizeof(TLazyYsonMap),
-    0,
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    TLazyYsonMapSlots
-};
-
-PyTypeObject* TLazyYsonMapType = reinterpret_cast<PyTypeObject*>(PyType_FromSpec(&TLazyYsonMapSpec));
-
-#else
-
-PyMappingMethods TLazyYsonMapBaseMappingMethods = {
-    LazyYsonMapBaseLength,          // mp_length
-    LazyYsonMapBaseSubscript,       // mp_subscript
-    LazyYsonMapBaseAssSubscript     // mp_ass_subscript
-};
-
-PySequenceMethods TLazyYsonMapBaseSequenceMethods = {
-    0,                              // sq_length
-    0,                              // sq_concat
-    0,                              // sq_repeat
-    0,                              // sq_item
-    0,                              // sq_slice,
-    0,                              // sq_ass_item
-    0,                              // sq_ass_slice
-    LazyYsonMapBaseContains,        // sq_contains
-    0,                              // sq_inplace_concat
-    0                               // sq_inplace_repeat
-};
-
-PyTypeObject TLazyYsonMapOwnedType = {
+PyTypeObject TLazyYsonMapType = {
     PyVarObject_HEAD_INIT(nullptr, 0)
     "YsonLazyMap",                  // tp_name
     sizeof(TLazyYsonMap),           // tp_basicsize
@@ -375,7 +320,7 @@ PyTypeObject TLazyYsonMapOwnedType = {
     LazyYsonMapMethods,             // tp_methods
     LazyYsonMapMembers,             // tp_members
     0,                              // tp_getset
-    TLazyYsonMapBaseType,          // tp_base
+    &TLazyYsonMapBaseType,          // tp_base
     0,                              // tp_dict
     0,                              // tp_descr_get
     0,                              // tp_descr_set
@@ -385,7 +330,7 @@ PyTypeObject TLazyYsonMapOwnedType = {
     LazyYsonMapNew,                 // tp_new
 };
 
-PyTypeObject TLazyYsonMapBaseOwnedType = {
+PyTypeObject TLazyYsonMapBaseType = {
     PyVarObject_HEAD_INIT(nullptr, 0)
     "YsonLazyMapBase",                  // tp_name
     sizeof(TLazyYsonMapBase),           // tp_basicsize
@@ -427,16 +372,11 @@ PyTypeObject TLazyYsonMapBaseOwnedType = {
     LazyYsonMapBaseNew,                 // tp_new
 };
 
-PyTypeObject* TLazyYsonMapType = &TLazyYsonMapOwnedType;
-PyTypeObject* TLazyYsonMapBaseType = &TLazyYsonMapBaseOwnedType;
-
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsYsonLazyMap(PyObject* object)
 {
-    return Py_TYPE(object) == TLazyYsonMapType || Py_TYPE(object) == TLazyYsonMapBaseType;
+    return Py_TYPE(object) == &TLazyYsonMapType || Py_TYPE(object) == &TLazyYsonMapBaseType;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

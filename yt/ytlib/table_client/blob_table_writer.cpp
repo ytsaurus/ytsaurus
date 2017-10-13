@@ -64,7 +64,7 @@ TBlobTableWriter::TBlobTableWriter(
     auto nameTable = TNameTable::FromSchema(tableSchema);
 
     for (const auto& column : blobTableSchema.BlobIdColumns) {
-        BlobIdColumnIds_.emplace_back(nameTable->GetIdOrThrow(column.Name()));
+        BlobIdColumnIds_.emplace_back(nameTable->GetIdOrThrow(column.Name));
     }
 
     TStatelessLexer lexer;

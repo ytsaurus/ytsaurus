@@ -12,7 +12,7 @@ TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
 {
     auto nameTable = New<TNameTable>();
     for (const auto& column : schema.Columns()) {
-        nameTable->RegisterName(column.Name());
+        nameTable->RegisterName(column.Name);
     }
     return nameTable;
 }

@@ -4,7 +4,6 @@
 #include "functions_cg.h"
 #include "query_helpers.h"
 #include "llvm_folding_set.h"
-#include "helpers.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -49,7 +48,7 @@ std::vector<EValueType> GetTypesFromSchema(const TTableSchema& tableSchema)
     std::vector<EValueType> result;
 
     for (const auto& column : tableSchema.Columns()) {
-        result.push_back(column.GetPhysicalType());
+        result.push_back(column.Type);
     }
 
     return result;
@@ -111,15 +110,15 @@ void TSchemaProfiler::Profile(const TTableSchema& tableSchema)
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
     for (int index = 0; index < columns.size(); ++index) {
         const auto& column = columns[index];
-        Fold(static_cast<ui16>(column.GetPhysicalType()));
-        Fold(column.Name().c_str());
-        int aux = (column.Expression() ? 1 : 0) | ((column.Aggregate() ? 1 : 0) << 1);
+        Fold(static_cast<ui16>(column.Type));
+        Fold(column.Name.c_str());
+        int aux = (column.Expression ? 1 : 0) | ((column.Aggregate ? 1 : 0) << 1);
         Fold(aux);
-        if (column.Expression()) {
-            Fold(column.Expression().Get().c_str());
+        if (column.Expression) {
+            Fold(column.Expression.Get().c_str());
         }
-        if (column.Aggregate()) {
-            Fold(column.Aggregate().Get().c_str());
+        if (column.Aggregate) {
+            Fold(column.Aggregate.Get().c_str());
         }
     }
 }
@@ -130,15 +129,10 @@ struct TDebugInfo
 {
     TConstExpressionPtr Expr;
     std::vector<size_t> Args;
-    TNullable<size_t> ExtraArg;
 
-    TDebugInfo(
-        const TConstExpressionPtr& expr,
-        const std::vector<size_t>& args,
-        const TNullable<size_t>& extraArg = Null)
+    TDebugInfo(const TConstExpressionPtr& expr, const std::vector<size_t>& args)
         : Expr(expr)
         , Args(args)
-        , ExtraArg(extraArg)
     { }
 
 };
@@ -169,36 +163,27 @@ struct TExpressionFragmentPrinter
     {
         if (Expressions[id].IsOutOfLine()) {
             Builder->AppendString(Format("$%v", id));
-        } else {
-            Visit(id, id);
         }
+
+        Visit(id, id);
     }
 
     void OnOperand(const TUnaryOpExpression* unaryExpr, size_t id)
     {
         auto operandId = DebugExpressions[id].Args[0];
-        InferNameArg(operandId);
+        Visit(operandId, operandId);
     }
 
     void OnLhs(const TBinaryOpExpression* binaryExpr, size_t id)
     {
         auto lhsId = DebugExpressions[id].Args[0];
-        InferNameArg(lhsId);
+        Visit(lhsId, lhsId);
     }
 
     void OnRhs(const TBinaryOpExpression* binaryExpr, size_t id)
     {
         auto rhsId = DebugExpressions[id].Args[1];
-        InferNameArg(rhsId);
-    }
-
-    void OnDefaultExpression(const TTransformExpression* transformExpr, size_t id)
-    {
-        const auto& defaultExpr = DebugExpressions[id].ExtraArg;
-        if (defaultExpr) {
-            Builder->AppendString(", ");
-            InferNameArg(*defaultExpr);
-        }
+        Visit(rhsId, rhsId);
     }
 
     template <class T>
@@ -228,9 +213,9 @@ struct TExpressionFragmentPrinter
 
             Builder->AppendString(
                 Format("[%x%v]", FarmFingerprint(columnName.data(), columnName.size()), columnName));
-        } else {
-            Builder->AppendString(Format("[%v]", columnName));
         }
+
+        Builder->AppendString(Format("[%v]", columnName));
     }
 
 };
@@ -339,11 +324,7 @@ public:
         YCHECK(variables);
     }
 
-    size_t Profile(
-        TConstExpressionPtr expr,
-        const TTableSchema& schema,
-        TExpressionFragments* fragments,
-        bool isIsolated = false);
+    size_t Profile(TConstExpressionPtr expr, const TTableSchema& schema, TExpressionFragments* fragments);
 
 protected:
     TCGVariables* Variables_;
@@ -354,8 +335,7 @@ protected:
 size_t TExpressionProfiler::Profile(
     TConstExpressionPtr expr,
     const TTableSchema& schema,
-    TExpressionFragments* fragments,
-    bool isIsolated)
+    TExpressionFragments* fragments)
 {
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<ui16>(expr->Type));
@@ -366,7 +346,7 @@ size_t TExpressionProfiler::Profile(
         id.AddString(ToString(TValue(literalExpr->Value)).c_str());
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
+        if (emplaced.second) {
             Fold(savedId);
 
             int index = Variables_->AddOpaque<TOwningValue>(literalExpr->Value);
@@ -387,7 +367,7 @@ size_t TExpressionProfiler::Profile(
         id.AddInteger(indexInSchema);
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
+        if (emplaced.second) {
             Fold(id);
             fragments->DebugInfos.emplace_back(expr, std::vector<size_t>());
             fragments->Items.emplace_back(
@@ -409,14 +389,14 @@ size_t TExpressionProfiler::Profile(
         auto literalArgs = std::make_unique<bool[]>(functionExpr->Arguments.size());
         size_t index = 0;
         for (const auto& argument : functionExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+            argIds.push_back(Profile(argument, schema, fragments));
             id.AddInteger(argIds.back());
             argumentTypes.push_back(argument->Type);
             literalArgs[index++] = argument->As<TLiteralExpression>() != nullptr;
         }
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
+        if (emplaced.second) {
             Fold(id);
             const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
 
@@ -444,11 +424,11 @@ size_t TExpressionProfiler::Profile(
         id.AddInteger(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
         id.AddInteger(static_cast<int>(unaryOp->Opcode));
 
-        size_t operand = Profile(unaryOp->Operand, schema, fragments, isIsolated);
+        size_t operand = Profile(unaryOp->Operand, schema, fragments);
         id.AddInteger(operand);
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
+        if (emplaced.second) {
             Fold(id);
             ++fragments->Items[operand].UseCount;
             fragments->DebugInfos.emplace_back(expr, std::vector<size_t>{operand});
@@ -465,13 +445,13 @@ size_t TExpressionProfiler::Profile(
         id.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
         id.AddInteger(static_cast<int>(binaryOp->Opcode));
 
-        size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments, isIsolated);
+        size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments);
         id.AddInteger(lhsOperand);
-        size_t rhsOperand = Profile(binaryOp->Rhs, schema, fragments, isIsolated);
+        size_t rhsOperand = Profile(binaryOp->Rhs, schema, fragments);
         id.AddInteger(rhsOperand);
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
+        if (emplaced.second) {
             Fold(id);
             ++fragments->Items[lhsOperand].UseCount;
             ++fragments->Items[rhsOperand].UseCount;
@@ -494,7 +474,7 @@ size_t TExpressionProfiler::Profile(
 
         std::vector<size_t> argIds;
         for (const auto& argument : inExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+            argIds.push_back(Profile(argument, schema, fragments));
             id.AddInteger(argIds.back());
         }
 
@@ -503,7 +483,7 @@ size_t TExpressionProfiler::Profile(
         }
 
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
+        if (emplaced.second) {
             Fold(id);
             for (size_t argId : argIds) {
                 ++fragments->Items[argId].UseCount;
@@ -522,7 +502,7 @@ size_t TExpressionProfiler::Profile(
 
         std::vector<size_t> argIds;
         for (const auto& argument : transformExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+            argIds.push_back(Profile(argument, schema, fragments));
             id.AddInteger(argIds.back());
         }
 
@@ -530,38 +510,19 @@ size_t TExpressionProfiler::Profile(
             id.AddString(ToString(value).c_str());
         }
 
-        TNullable<size_t> defaultExprId;
-        if (const auto& defaultExpression = transformExpr->DefaultExpression) {
-            defaultExprId = Profile(defaultExpression, schema, fragments, isIsolated);
-            id.AddInteger(*defaultExprId);
-        }
-
         auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
+        if (emplaced.second) {
             Fold(id);
             for (size_t argId : argIds) {
                 ++fragments->Items[argId].UseCount;
             }
 
-            bool nullable = true;
-
-            if (defaultExprId) {
-                ++fragments->Items[*defaultExprId].UseCount;
-
-                nullable = false;
-                nullable |= fragments->Items[*defaultExprId].Nullable;
-
-                for (TRow row : transformExpr->Values) {
-                    nullable |= row[argIds.size()].Type == EValueType::Null;
-                }
-            }
-
             int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformExpr->Values);
-            fragments->DebugInfos.emplace_back(expr, argIds, defaultExprId);
+            fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
-                MakeCodegenTransformExpr(argIds, defaultExprId, index, transformExpr->Type, ComparerManager_),
+                MakeCodegenTransformExpr(argIds, index, transformExpr->Type, ComparerManager_),
                 expr->Type,
-                nullable);
+                false);
         }
         return emplaced.first->second;
     }
@@ -598,8 +559,7 @@ public:
         TCodegenSource* codegenSource,
         TConstQueryPtr query,
         size_t* slotCount,
-        TJoinSubqueryProfiler joinProfiler,
-        bool useMultijoin);
+        TJoinSubqueryProfiler joinProfiler);
 
     void Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr query, size_t* slotCount);
 
@@ -911,72 +871,11 @@ void TQueryProfiler::Profile(
     MakeCodegenWriteOp(codegenSource, resultSlot);
 }
 
-struct TExtraColumnsChecker
-    : TVisitor<TExtraColumnsChecker>
-{
-    using TBase = TVisitor<TExtraColumnsChecker>;
-
-    const yhash_set<TString>& Names;
-    bool HasExtraColumns = false;
-
-    explicit TExtraColumnsChecker(const yhash_set<TString>& names)
-        : Names(names)
-    { }
-
-
-    void OnReference(const TReferenceExpression* referenceExpr)
-    {
-        HasExtraColumns |= Names.count(referenceExpr->ColumnName) == 0;
-    }
-};
-
-std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinClauses, TTableSchema schema)
-{
-    yhash_set<TString> names;
-    for (const auto& column : schema.Columns()) {
-        names.insert(column.Name());
-    }
-
-    std::vector<size_t> joinGroups;
-
-    size_t counter = 0;
-    for (const auto& joinClause : joinClauses) {
-        TExtraColumnsChecker extraColumnsChecker(names);
-
-        for (const auto& equation : joinClause->SelfEquations) {
-            if (!equation.second) {
-                extraColumnsChecker.Visit(equation.first);
-            }
-        }
-
-        if (extraColumnsChecker.HasExtraColumns) {
-            YCHECK(counter > 0);
-            joinGroups.push_back(counter);
-            counter = 0;
-            names.clear();
-            for (const auto& column : schema.Columns()) {
-                names.insert(column.Name());
-            }
-        }
-
-        ++counter;
-        schema = joinClause->GetTableSchema(schema);
-    }
-
-    if (counter > 0) {
-        joinGroups.push_back(counter);
-        counter = 0;
-    }
-
-    return joinGroups;
-}
-
 void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     TConstQueryPtr query,
     size_t* slotCount,
-    TJoinSubqueryProfiler joinProfiler,
-    bool useMultijoin)
+    TJoinSubqueryProfiler joinProfiler)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
@@ -987,325 +886,145 @@ void TQueryProfiler::Profile(
 
     auto whereClause = query->WhereClause;
 
-    auto Logger = MakeQueryLogger(query);
+    for (const auto& joinClause : query->JoinClauses) {
+        Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
-    if (useMultijoin) {
-        std::vector<size_t> joinGroups = GetJoinGroups(query->JoinClauses, schema);
-        if (!joinGroups.empty()) {
-            LOG_DEBUG("Join groups: [%v]", JoinToString(joinGroups));
+        std::vector<std::pair<size_t, bool>> selfKeys;
+
+        TExpressionFragments selfEquationFragments;
+        for (const auto& column : joinClause->SelfEquations) {
+            TConstExpressionPtr expression;
+            bool isEvaluated;
+            std::tie(expression, isEvaluated) = column;
+
+            const auto& expressionSchema = isEvaluated ? joinClause->OriginalSchema : schema;
+            selfKeys.emplace_back(
+                TExpressionProfiler::Profile(expression, expressionSchema, &selfEquationFragments),
+                isEvaluated);
         }
 
-        size_t joinIndex = 0;
-        for (size_t joinGroupSize : joinGroups) {
-            TConstExpressionPtr selfFilter;
-            std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, schema);
+        TConstExpressionPtr selfFilter;
+        std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, schema);
 
-            if (selfFilter && !IsTrue(selfFilter)) {
-                Fold(static_cast<int>(EFoldingObjectType::FilterOp));
-                TExpressionFragments filterExprFragments;
-                size_t predicateId = TExpressionProfiler::Profile(selfFilter, schema, &filterExprFragments);
-                auto fragmentInfos = filterExprFragments.ToFragmentInfos("selfFilter");
-                filterExprFragments.DumpArgs(std::vector<size_t>{predicateId});
+        if (selfFilter && !IsTrue(selfFilter)) {
+            Fold(static_cast<int>(EFoldingObjectType::FilterOp));
+            TExpressionFragments filterExprFragments;
+            size_t predicateId = TExpressionProfiler::Profile(selfFilter, schema, &filterExprFragments);
+            auto fragmentInfos = filterExprFragments.ToFragmentInfos("selfFilter");
+            filterExprFragments.DumpArgs(std::vector<size_t>{predicateId});
 
-                currentSlot = MakeCodegenFilterOp(
-                    codegenSource,
-                    slotCount,
-                    currentSlot,
-                    fragmentInfos,
-                    predicateId);
-                MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
+            currentSlot = MakeCodegenFilterOp(
+                codegenSource,
+                slotCount,
+                currentSlot,
+                fragmentInfos,
+                predicateId);
+            MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
+        }
+
+        size_t joinBatchSize = std::numeric_limits<size_t>::max();
+
+        if (query->IsOrdered()) {
+            joinBatchSize = query->Limit;
+        }
+
+        TJoinParameters joinParameters;
+        {
+            const auto& foreignEquations = joinClause->ForeignEquations;
+            auto commonKeyPrefix = joinClause->CommonKeyPrefix;
+
+            // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
+            auto subquery = New<TQuery>();
+
+            subquery->OriginalSchema = joinClause->OriginalSchema;
+            subquery->SchemaMapping = joinClause->SchemaMapping;
+
+            // (join key... , other columns...)
+            auto projectClause = New<TProjectClause>();
+            std::vector<TConstExpressionPtr> joinKeyExprs;
+
+            for (const auto& column : foreignEquations) {
+                projectClause->AddProjection(column, InferName(column));
             }
 
-            Fold(static_cast<int>(EFoldingObjectType::JoinOp));
-            TExpressionFragments equationFragments;
+            subquery->ProjectClause = projectClause;
+            subquery->WhereClause = joinClause->Predicate;
 
-            std::vector<TSingleJoinCGParameters> parameters;
-
-            size_t joinBatchSize = std::numeric_limits<size_t>::max();
-
-            if (query->IsOrdered()) {
-                joinBatchSize = query->Limit;
-            }
-
-            TMultiJoinParameters joinParameters;
-
-            std::vector<TString> selfColumnNames;
-
-            auto lastSchema = schema;
-            for (; joinGroupSize > 0; ++joinIndex, --joinGroupSize) {
-                const auto& joinClause = query->JoinClauses[joinIndex];
-
-                std::vector<std::pair<size_t, bool>> selfKeys;
-                std::vector<EValueType> lookupKeyTypes;
-                for (const auto& column : joinClause->SelfEquations) {
-                    TConstExpressionPtr expression;
-                    bool isEvaluated;
-                    std::tie(expression, isEvaluated) = column;
-
-                    const auto& expressionSchema = isEvaluated ? joinClause->OriginalSchema : schema;
-
-                    selfKeys.emplace_back(
-                        TExpressionProfiler::Profile(
-                            expression,
-                            expressionSchema,
-                            &equationFragments,
-                            isEvaluated),
-                        isEvaluated);
-                    lookupKeyTypes.push_back(expression->Type);
-                }
-
-                TSingleJoinCGParameters codegenParameters{
-                    selfKeys,
-                    joinClause->CommonKeyPrefix,
-                    joinClause->ForeignKeyPrefix,
-                    lookupKeyTypes};
-
-                parameters.push_back(codegenParameters);
-
-                TSingleJoinParameters singeJoinParameters;
-
-                {
-                    const auto& foreignEquations = joinClause->ForeignEquations;
-
-                    // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
-                    auto subquery = New<TQuery>();
-
-                    subquery->OriginalSchema = joinClause->OriginalSchema;
-                    subquery->SchemaMapping = joinClause->SchemaMapping;
-
-                    // (join key... , other columns...)
-                    auto projectClause = New<TProjectClause>();
-                    std::vector<TConstExpressionPtr> joinKeyExprs;
-
-                    for (const auto& column : foreignEquations) {
-                        projectClause->AddProjection(column, InferName(column));
-                    }
-
-                    subquery->ProjectClause = projectClause;
-                    subquery->WhereClause = joinClause->Predicate;
-
-                    selfColumnNames = joinClause->SelfJoinedColumns;
-
-                    auto foreignColumnNames = joinClause->ForeignJoinedColumns;
-                    std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
-
-                    auto joinRenamedTableColumns = joinClause->GetRenamedSchema().Columns();
-
-                    std::vector<size_t> foreignColumns;
-                    for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
-                        if (std::binary_search(
-                            foreignColumnNames.begin(),
-                            foreignColumnNames.end(),
-                            joinRenamedTableColumns[index].Name()))
-                        {
-                            foreignColumns.push_back(projectClause->Projections.size());
-
-                            projectClause->AddProjection(
-                                New<TReferenceExpression>(
-                                    joinRenamedTableColumns[index].GetPhysicalType(),
-                                    joinRenamedTableColumns[index].Name()),
-                                joinRenamedTableColumns[index].Name());
-                        }
-                    };
-
-                    singeJoinParameters.KeySize = joinClause->ForeignEquations.size();
-                    singeJoinParameters.IsLeft = joinClause->IsLeft;
-                    singeJoinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
-                    singeJoinParameters.ForeignColumns = foreignColumns;
-                    singeJoinParameters.ExecuteForeign = joinProfiler(subquery, joinClause);
-                }
-                joinParameters.Items.push_back(std::move(singeJoinParameters));
-
-                lastSchema = joinClause->GetTableSchema(lastSchema);
-            }
-
+            auto selfColumnNames = joinClause->SelfJoinedColumns;
             std::sort(selfColumnNames.begin(), selfColumnNames.end());
 
             const auto& selfTableColumns = schema.Columns();
 
-            std::vector<std::pair<size_t, EValueType>> primaryColumns;
+            std::vector<size_t> selfColumns;
             for (size_t index = 0; index < selfTableColumns.size(); ++index) {
                 if (std::binary_search(
                     selfColumnNames.begin(),
                     selfColumnNames.end(),
-                    selfTableColumns[index].Name()))
+                    selfTableColumns[index].Name))
                 {
-                    primaryColumns.emplace_back(index, selfTableColumns[index].GetPhysicalType());
+                    selfColumns.push_back(index);
                 }
             }
 
-            joinParameters.PrimaryRowSize = primaryColumns.size();
+            auto foreignColumnNames = joinClause->ForeignJoinedColumns;
+            std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
+
+            auto joinRenamedTableColumns = joinClause->GetRenamedSchema().Columns();
+
+            std::vector<size_t> foreignColumns;
+            for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
+                if (std::binary_search(
+                    foreignColumnNames.begin(),
+                    foreignColumnNames.end(),
+                    joinRenamedTableColumns[index].Name))
+                {
+                    foreignColumns.push_back(projectClause->Projections.size());
+
+                    projectClause->AddProjection(
+                        New<TReferenceExpression>(
+                            joinRenamedTableColumns[index].Type,
+                            joinRenamedTableColumns[index].Name),
+                        joinRenamedTableColumns[index].Name);
+                }
+            };
+
+            joinParameters.IsOrdered = query->IsOrdered();
+            joinParameters.IsLeft = joinClause->IsLeft;
+            joinParameters.SelfColumns = selfColumns;
+            joinParameters.ForeignColumns = foreignColumns;
+            joinParameters.IsSortMergeJoin = commonKeyPrefix > 0;
+            joinParameters.CommonKeyPrefixDebug = commonKeyPrefix;
+            joinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
             joinParameters.BatchSize = joinBatchSize;
-
-            int index = Variables_->AddOpaque<TMultiJoinParameters>(joinParameters);
-
-            auto fragmentInfos = equationFragments.ToFragmentInfos("selfEquation");
-            for (const auto& codegenParameters: parameters) {
-                equationFragments.DumpArgs(codegenParameters.Equations);
-            }
-
-            currentSlot = MakeCodegenMultiJoinOp(
-                codegenSource,
-                slotCount,
-                currentSlot,
-                index,
-                fragmentInfos,
-                std::move(parameters),
-                std::move(primaryColumns),
-                ComparerManager_);
-
-            MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
-
-            schema = lastSchema;
-            TSchemaProfiler::Profile(schema);
+            joinParameters.ExecuteForeign = joinProfiler(subquery, joinClause);
         }
-    } else {
 
-        for (const auto& joinClause : query->JoinClauses) {
-            Fold(static_cast<int>(EFoldingObjectType::JoinOp));
+        int index = Variables_->AddOpaque<TJoinParameters>(joinParameters);
 
-            TExpressionFragments selfEquationFragments;
+        Fold(index);
 
-            std::vector<std::pair<size_t, bool>> selfKeys;
-            for (const auto& column : joinClause->SelfEquations) {
-                TConstExpressionPtr expression;
-                bool isEvaluated;
-                std::tie(expression, isEvaluated) = column;
+        YCHECK(joinClause->CommonKeyPrefix < 1000);
 
-                const auto& expressionSchema = isEvaluated ? joinClause->OriginalSchema : schema;
+        Fold(joinClause->CommonKeyPrefix);
 
-                selfKeys.emplace_back(
-                    TExpressionProfiler::Profile(
-                        expression,
-                        expressionSchema,
-                        &selfEquationFragments,
-                        isEvaluated),
-                    isEvaluated);
-            }
+        auto fragmentInfos = selfEquationFragments.ToFragmentInfos("selfEquation");
+        selfEquationFragments.DumpArgs(selfKeys);
 
-            TConstExpressionPtr selfFilter;
-            std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, schema);
+        currentSlot = MakeCodegenJoinOp(
+            codegenSource,
+            slotCount,
+            currentSlot,
+            index,
+            fragmentInfos,
+            selfKeys,
+            joinClause->CommonKeyPrefix,
+            joinClause->ForeignKeyPrefix,
+            ComparerManager_);
 
-            if (selfFilter && !IsTrue(selfFilter)) {
-                Fold(static_cast<int>(EFoldingObjectType::FilterOp));
-                TExpressionFragments filterExprFragments;
-                size_t predicateId = TExpressionProfiler::Profile(selfFilter, schema, &filterExprFragments);
-                auto fragmentInfos = filterExprFragments.ToFragmentInfos("selfFilter");
-                filterExprFragments.DumpArgs(std::vector<size_t>{predicateId});
+        MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
 
-                currentSlot = MakeCodegenFilterOp(
-                    codegenSource,
-                    slotCount,
-                    currentSlot,
-                    fragmentInfos,
-                    predicateId);
-                MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
-            }
-
-            size_t joinBatchSize = std::numeric_limits<size_t>::max();
-
-            if (query->IsOrdered()) {
-                joinBatchSize = query->Limit;
-            }
-
-            TJoinParameters joinParameters;
-            {
-                const auto& foreignEquations = joinClause->ForeignEquations;
-                auto commonKeyPrefix = joinClause->CommonKeyPrefix;
-
-                // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
-                auto subquery = New<TQuery>();
-
-                subquery->OriginalSchema = joinClause->OriginalSchema;
-                subquery->SchemaMapping = joinClause->SchemaMapping;
-
-                // (join key... , other columns...)
-                auto projectClause = New<TProjectClause>();
-                std::vector<TConstExpressionPtr> joinKeyExprs;
-
-                for (const auto& column : foreignEquations) {
-                    projectClause->AddProjection(column, InferName(column));
-                }
-
-                subquery->ProjectClause = projectClause;
-                subquery->WhereClause = joinClause->Predicate;
-
-                auto selfColumnNames = joinClause->SelfJoinedColumns;
-                std::sort(selfColumnNames.begin(), selfColumnNames.end());
-
-                const auto& selfTableColumns = schema.Columns();
-
-                std::vector<size_t> selfColumns;
-                for (size_t index = 0; index < selfTableColumns.size(); ++index) {
-                    if (std::binary_search(
-                        selfColumnNames.begin(),
-                        selfColumnNames.end(),
-                        selfTableColumns[index].Name()))
-                    {
-                        selfColumns.push_back(index);
-                    }
-                }
-
-                auto foreignColumnNames = joinClause->ForeignJoinedColumns;
-                std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
-
-                auto joinRenamedTableColumns = joinClause->GetRenamedSchema().Columns();
-
-                std::vector<size_t> foreignColumns;
-                for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
-                    if (std::binary_search(
-                        foreignColumnNames.begin(),
-                        foreignColumnNames.end(),
-                        joinRenamedTableColumns[index].Name()))
-                    {
-                        foreignColumns.push_back(projectClause->Projections.size());
-
-                        projectClause->AddProjection(
-                            New<TReferenceExpression>(
-                                joinRenamedTableColumns[index].GetPhysicalType(),
-                                joinRenamedTableColumns[index].Name()),
-                            joinRenamedTableColumns[index].Name());
-                    }
-                };
-
-                joinParameters.IsOrdered = query->IsOrdered();
-                joinParameters.IsLeft = joinClause->IsLeft;
-                joinParameters.SelfColumns = selfColumns;
-                joinParameters.ForeignColumns = foreignColumns;
-                joinParameters.IsSortMergeJoin = commonKeyPrefix > 0;
-                joinParameters.CommonKeyPrefixDebug = commonKeyPrefix;
-                joinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
-                joinParameters.BatchSize = joinBatchSize;
-                joinParameters.ExecuteForeign = joinProfiler(subquery, joinClause);
-            }
-
-            int index = Variables_->AddOpaque<TJoinParameters>(joinParameters);
-
-            Fold(index);
-
-            YCHECK(joinClause->CommonKeyPrefix < 1000);
-
-            Fold(joinClause->CommonKeyPrefix);
-
-            auto fragmentInfos = selfEquationFragments.ToFragmentInfos("selfEquation");
-            selfEquationFragments.DumpArgs(selfKeys);
-
-            currentSlot = MakeCodegenJoinOp(
-                codegenSource,
-                slotCount,
-                currentSlot,
-                index,
-                fragmentInfos,
-                selfKeys,
-                joinClause->CommonKeyPrefix,
-                joinClause->ForeignKeyPrefix,
-                ComparerManager_);
-
-            MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
-
-            schema = joinClause->GetTableSchema(schema);
-            TSchemaProfiler::Profile(schema);
-        }
+        schema = joinClause->GetTableSchema(schema);
+        TSchemaProfiler::Profile(schema);
     }
 
     if (whereClause && !IsTrue(whereClause)) {
@@ -1402,7 +1121,6 @@ TCGQueryCallbackGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     TJoinSubqueryProfiler joinProfiler,
-    bool useMultijoin,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers)
 {
@@ -1412,7 +1130,7 @@ TCGQueryCallbackGenerator Profile(
     TCodegenSource codegenSource = &CodegenEmptyOp;
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
-        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfiler, useMultijoin);
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfiler);
     } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
         profiler.Profile(&codegenSource, derivedQuery, &slotCount);
     } else {

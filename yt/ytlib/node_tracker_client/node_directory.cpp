@@ -246,8 +246,7 @@ void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrack
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
 {
     return
-        lhs.GetDefaultAddress() == rhs.GetDefaultAddress() && // shortcut
-        lhs.Addresses() == rhs.Addresses() &&
+        lhs.GetDefaultAddress() == rhs.GetDefaultAddress() &&
         lhs.GetRack() == rhs.GetRack() &&
         lhs.GetDataCenter() == rhs.GetDataCenter();
 }
@@ -259,20 +258,8 @@ bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
 
 bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs)
 {
-    if (lhs.Addresses().size() != rhs.addresses().entries_size()) {
+    if (lhs.GetDefaultAddress() != GetDefaultAddress(rhs.addresses())) {
         return false;
-    }
-
-    for (const auto& protoEntry : rhs.addresses().entries()) {
-        const auto& network = protoEntry.network();
-        const auto& address = protoEntry.address();
-        auto it = lhs.Addresses().find(network);
-        if (it == lhs.Addresses().end()) {
-            return false;
-        }
-        if (it->second != address) {
-            return false;
-        }
     }
 
     const auto& lhsMaybeRack = lhs.GetRack();
@@ -281,7 +268,7 @@ bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs
         return false;
     }
 
-    const auto& lhsMaybeDataCenter = lhs.GetDataCenter();
+    const auto& lhsMaybeDataCenter= lhs.GetDataCenter();
     auto lhsDataCenter = lhsMaybeDataCenter ? TStringBuf(*lhsMaybeDataCenter) : TStringBuf();
     if (lhsDataCenter != rhs.data_center()) {
         return false;

@@ -1,9 +1,5 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/ytlib/chunk_client/public.h>
-
 #include <yt/core/profiling/public.h>
 
 namespace NYT {
@@ -11,8 +7,8 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Adds user tag to specified tags and returns the resultant tag list.
-NProfiling::TTagIdList AddUserTag(const TString& user, NProfiling::TTagIdList tags = {});
+// Adds user tags to specified tags and returns them.
+NProfiling::TTagIdList GetUserProfilerTags(const TString& user, NProfiling::TTagIdList tags = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,13 +49,6 @@ using TSimpleProfilerTrait = TProfilerTrait<TSimpleProfilerTraitBase, TCounters>
 
 template <typename TCounters>
 using TTabletProfilerTrait = TProfilerTrait<TTabletProfilerTraitBase, TCounters>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ProfileDiskPressure(
-    TTabletSnapshotPtr tabletSnapshot,
-    const NChunkClient::NProto::TDataStatistics&,
-    NProfiling::TSimpleCounter& counter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

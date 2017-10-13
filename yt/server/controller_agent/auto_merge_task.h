@@ -24,12 +24,9 @@ public:
         TAutoMergeTask* task,
         i64 chunkSizeThreshold);
 
-    virtual NChunkPools::IChunkPoolInput::TCookie AddWithKey(
+    virtual NChunkPools::IChunkPoolInput::TCookie Add(
         NChunkPools::TChunkStripePtr stripe,
         NChunkPools::TChunkStripeKey key) override;
-
-    virtual NChunkPools::IChunkPoolInput::TCookie Add(
-        NChunkPools::TChunkStripePtr stripe) override;
 
     virtual void Suspend(TCookie cookie);
 
@@ -39,7 +36,7 @@ public:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0xfb888bac);
 
-    void ProcessStripe(const NChunkPools::TChunkStripePtr& stripe, bool teleportLargeChunks) const;
+    void ProcessStripe(const NChunkPools::TChunkStripePtr& stripe) const;
 
     TAutoMergeTask* Task_;
     i64 ChunkSizeThreshold_;
@@ -126,3 +123,4 @@ DEFINE_REFCOUNTED_TYPE(TAutoMergeTask);
 #define AUTO_MERGE_TASK_INL_H
 #include "auto_merge_task-inl.h"
 #undef AUTO_MERGE_TASK_INL_H
+

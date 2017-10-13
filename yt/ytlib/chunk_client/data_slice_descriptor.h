@@ -35,10 +35,6 @@ const TDataSliceDescriptor& GetIncompatibleDataSliceDescriptor();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MergeInterruptDescriptors(TInterruptDescriptor* source, TInterruptDescriptor&& target);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Deprecated.
 void ToProto(
     NProto::TDataSliceDescriptor* protoDataSliceDescriptor,

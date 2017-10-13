@@ -344,23 +344,17 @@ void TRefCountedProto<TProto>::RegisterExtraSpace()
     Y_ASSERT(spaceUsed >= sizeof(TProto));
     Y_ASSERT(ExtraSpace_ == 0);
     ExtraSpace_ = TProto::SpaceUsed() - sizeof (TProto);
-    auto cookie = GetRefCountedTypeCookie<TRefCountedProto<TProto>>();
+    auto cookie = GetRefCountedTypeCookie<TRefCountedProtoTag<TProto>>();
     TRefCountedTrackerFacade::AllocateSpace(cookie, ExtraSpace_);
 }
 
 template <class TProto>
 void TRefCountedProto<TProto>::UnregisterExtraSpace()
 {
-    if (ExtraSpace_ != 0) {
-        auto cookie = GetRefCountedTypeCookie<TRefCountedProto<TProto>>();
+	if (ExtraSpace_ != 0) {
+        auto cookie = GetRefCountedTypeCookie<TRefCountedProtoTag<TProto>>();
         TRefCountedTrackerFacade::FreeSpace(cookie, ExtraSpace_);
     }
-}
-
-template <class TProto>
-i64 TRefCountedProto<TProto>::GetSize() const
-{
-    return sizeof(this) + ExtraSpace_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

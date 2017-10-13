@@ -510,18 +510,5 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 CalculateDiskSpaceUsage(
-    int replicationFactor,
-    i64 regularDiskSpace,
-    i64 erasureDiskSpace)
-{
-    // NB: replicationFactor == 0 for unused media.
-    return replicationFactor > 0
-        ? regularDiskSpace * replicationFactor + erasureDiskSpace
-        : 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NChunkClient
 } // namespace NYT
