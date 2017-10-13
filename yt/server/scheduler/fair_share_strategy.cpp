@@ -782,7 +782,7 @@ private:
     TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
     yhash<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
 
-    std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilter;
+    std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
     std::vector<int> FreeSchedulingTagFilterIndexes;
     struct TSchedulingTagFilterEntry
     {
@@ -906,6 +906,7 @@ private:
             while (context.SchedulingContext->CanStartMoreJobs()) {
                 if (!prescheduleExecuted) {
                     TScopedTimer prescheduleTimer;
+                    context.InitializeStructures(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
                     rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
                     prescheduleDuration = prescheduleTimer.GetElapsed();
                     Profiler.Update(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter, DurationToCpuDuration(prescheduleDuration));
@@ -936,6 +937,11 @@ private:
     {
         auto& rootElement = rootElementSnapshot->RootElement;
         auto& config = rootElementSnapshot->Config;
+
+
+        if (!context.Initialized) {
+            context.InitializeStructures(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
+        }
 
         if (!context.PrescheduledCalled) {
             context.HasAggressivelyStarvingNodes = rootElement->HasAggressivelyStarvingNodes(context, false);
@@ -1113,10 +1119,7 @@ private:
         const TRootElementSnapshotPtr& rootElementSnapshot,
         const TIntrusivePtr<TAsyncLockReaderGuard>& /*guard*/)
     {
-        auto context = TFairShareContext(
-            schedulingContext,
-            rootElementSnapshot->RootElement->GetTreeSize(),
-            RegisteredSchedulingTagFilter);
+        auto context = TFairShareContext(schedulingContext);
 
         auto profileTimings = [&] (
             TProfilingCounters& counters,
@@ -1390,11 +1393,11 @@ private:
         if (it == SchedulingTagFilterToIndexAndCount.end()) {
             int index;
             if (FreeSchedulingTagFilterIndexes.empty()) {
-                index = RegisteredSchedulingTagFilter.size();
-                RegisteredSchedulingTagFilter.push_back(filter);
+                index = RegisteredSchedulingTagFilters.size();
+                RegisteredSchedulingTagFilters.push_back(filter);
             } else {
                 index = FreeSchedulingTagFilterIndexes.back();
-                RegisteredSchedulingTagFilter[index] = filter;
+                RegisteredSchedulingTagFilters[index] = filter;
                 FreeSchedulingTagFilterIndexes.pop_back();
             }
             SchedulingTagFilterToIndexAndCount.emplace(filter, TSchedulingTagFilterEntry({index, 1}));
@@ -1410,7 +1413,7 @@ private:
         if (index == EmptySchedulingTagFilterIndex) {
             return;
         }
-        UnregisterSchedulingTagFilter(RegisteredSchedulingTagFilter[index]);
+        UnregisterSchedulingTagFilter(RegisteredSchedulingTagFilters[index]);
     }
 
     void UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter)
@@ -1422,7 +1425,7 @@ private:
         YCHECK(it != SchedulingTagFilterToIndexAndCount.end());
         --it->second.Count;
         if (it->second.Count == 0) {
-            RegisteredSchedulingTagFilter[it->second.Index] = EmptySchedulingTagFilter;
+            RegisteredSchedulingTagFilters[it->second.Index] = EmptySchedulingTagFilter;
             FreeSchedulingTagFilterIndexes.push_back(it->second.Index);
             SchedulingTagFilterToIndexAndCount.erase(it);
         }
