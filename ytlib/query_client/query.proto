@@ -96,7 +96,6 @@ message TTransformExpression
     }
     repeated TExpression arguments = 1;
     required bytes values = 2;
-    optional TExpression default_expression = 3;
 }
 
 message TNamedItem
@@ -194,7 +193,6 @@ message TQueryOptions
     required int64 max_subqueries = 3;
     required bool enable_code_cache = 4;
     optional NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
-    optional bool use_multijoin = 6 [default = false];
 }
 
 message TDataRanges

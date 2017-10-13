@@ -71,9 +71,6 @@ void TCellManager::BuildTags()
     
     PeerQuorumTags_.clear();
     PeerQuorumTags_.push_back(profilingManager->RegisterTag("address", "quorum"));
-
-    CellIdTags_.clear();
-    CellIdTags_.push_back(profilingManager->RegisterTag("cell_id", Config_->CellId));
 }
 
 const TCellId& TCellManager::GetCellId() const
@@ -129,11 +126,6 @@ const NProfiling::TTagIdList& TCellManager::GetAllPeersTags() const
 const NProfiling::TTagIdList& TCellManager::GetPeerQuorumTags() const
 {
     return PeerQuorumTags_;
-}
-
-const NProfiling::TTagIdList& TCellManager::GetCellIdTags() const
-{
-    return CellIdTags_;
 }
 
 void TCellManager::Reconfigure(TCellConfigPtr newConfig)

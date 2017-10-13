@@ -42,12 +42,6 @@ struct TWorkloadDescriptor;
 
 DECLARE_REFCOUNTED_CLASS(TWorkloadConfig)
 
-template <class ECategory>
-class TMemoryUsageTracker;
-
-template <class ECategory>
-class TMemoryUsageTrackerGuard;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

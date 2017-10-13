@@ -64,6 +64,7 @@ struct ICypressNodeProxy
         NSecurityServer::TAccount* account,
         const TNodeFactoryOptions& options) const = 0;
 
+
     static ICypressNodeProxy* FromNode(NYTree::INode* ptr);
     static TIntrusivePtr<ICypressNodeProxy> FromNode(const TIntrusivePtr<NYTree::INode>& ptr);
     static const ICypressNodeProxy* FromNode(const NYTree::INode* ptr);

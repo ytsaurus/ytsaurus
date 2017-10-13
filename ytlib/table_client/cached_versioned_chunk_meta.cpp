@@ -20,7 +20,6 @@ using namespace NConcurrency;
 using namespace NTableClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NNodeTrackerClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -33,12 +32,11 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta() = default;
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
     const TChunkId& chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TTableSchema& schema,
-    TNodeMemoryTracker* memoryTracker)
+    const TTableSchema& schema)
 {
     auto cachedMeta = New<TCachedVersionedChunkMeta>();
     try {
-        cachedMeta->Init(chunkId, chunkMeta, schema, memoryTracker);
+        cachedMeta->Init(chunkId, chunkMeta, schema);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
             chunkId)
@@ -50,27 +48,25 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
     const TWorkloadDescriptor& workloadDescriptor,
-    const TTableSchema& schema,
-    TNodeMemoryTracker* memoryTracker)
+    const TTableSchema& schema)
 {
     auto cachedMeta = New<TCachedVersionedChunkMeta>();
     return BIND(&TCachedVersionedChunkMeta::DoLoad, cachedMeta)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run(chunkReader, workloadDescriptor, schema, memoryTracker);
+        .Run(chunkReader, workloadDescriptor, schema);
 }
 
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     IChunkReaderPtr chunkReader,
     const TWorkloadDescriptor& workloadDescriptor,
-    const TTableSchema& schema,
-    TNodeMemoryTracker* memoryTracker)
+    const TTableSchema& schema)
 {
     try {
         auto asyncChunkMeta = chunkReader->GetMeta(workloadDescriptor);
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
 
-        Init(chunkReader->GetChunkId(), chunkMeta, schema, memoryTracker);
+        Init(chunkReader->GetChunkId(), chunkMeta, schema);
         return this;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
@@ -82,8 +78,7 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
 void TCachedVersionedChunkMeta::Init(
     const TChunkId& chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TTableSchema& schema,
-    TNodeMemoryTracker* memoryTracker)
+    const TTableSchema& schema)
 {
     ChunkId_ = chunkId;
 
@@ -102,13 +97,6 @@ void TCachedVersionedChunkMeta::Init(
     if (boundaryKeysExt) {
         MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt->min()), GetKeyColumnCount());
         MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt->max()), GetKeyColumnCount());
-    }
-
-    if (memoryTracker) {
-        MemoryTrackerGuard_ = TNodeMemoryTrackerGuard::Acquire(
-            memoryTracker,
-            EMemoryCategory::CachedVersionedChunkMeta,
-            GetMemoryUsage());
     }
 }
 
@@ -146,24 +134,24 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
     for (int readerIndex = 0; readerIndex < readerSchema.GetKeyColumnCount(); ++readerIndex) {
         auto& column = readerSchema.Columns()[readerIndex];
-        YCHECK (column.SortOrder());
+        YCHECK (column.SortOrder);
 
         if (readerIndex < ChunkSchema_.GetKeyColumnCount()) {
             const auto& chunkColumn = ChunkSchema_.Columns()[readerIndex];
-            YCHECK(chunkColumn.SortOrder());
+            YCHECK(chunkColumn.SortOrder);
 
-            if (chunkColumn.Name() != column.Name() ||
-                chunkColumn.GetPhysicalType() != column.GetPhysicalType() ||
-                chunkColumn.SortOrder() != column.SortOrder())
+            if (chunkColumn.Name != column.Name ||
+                chunkColumn.Type != column.Type ||
+                chunkColumn.SortOrder != column.SortOrder)
             {
                 throwIncompatibleKeyColumns();
             }
         } else {
-            auto* chunkColumn = ChunkSchema_.FindColumn(column.Name());
+            auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
             if (chunkColumn) {
                 THROW_ERROR_EXCEPTION(
                     "Incompatible reader key columns: %Qv is a non-key column in chunk schema %v",
-                    column.Name(),
+                    column.Name,
                     ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).GetData());
             }
         }
@@ -171,17 +159,17 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
     for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < readerSchema.Columns().size(); ++readerIndex) {
         auto& column = readerSchema.Columns()[readerIndex];
-        auto* chunkColumn = ChunkSchema_.FindColumn(column.Name());
+        auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
         if (!chunkColumn) {
             // This is a valid case, simply skip the column.
             continue;
         }
 
-        if (chunkColumn->GetPhysicalType() != column.GetPhysicalType()) {
+        if (chunkColumn->Type != column.Type) {
             THROW_ERROR_EXCEPTION(
                 "Incompatible type %Qlv for column %Qv in chunk schema %v",
-                column.GetPhysicalType(),
-                column.Name(),
+                column.Type,
+                column.Name,
                 ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).GetData());
         }
 

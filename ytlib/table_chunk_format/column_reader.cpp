@@ -19,7 +19,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     int columnIndex,
     int columnId)
 {
-    switch (schema.GetPhysicalType()) {
+    switch (schema.Type) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnReader(meta, columnIndex, columnId);
 
@@ -50,42 +50,42 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
     const TColumnMeta& meta,
     int columnId)
 {
-    switch (schema.GetPhysicalType()) {
+    switch (schema.Type) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                static_cast<bool>(schema.Aggregate));
 
         case EValueType::Uint64:
             return CreateVersionedUint64ColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                static_cast<bool>(schema.Aggregate));
 
         case EValueType::Double:
             return CreateVersionedDoubleColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                static_cast<bool>(schema.Aggregate));
 
         case EValueType::Boolean:
             return CreateVersionedBooleanColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                static_cast<bool>(schema.Aggregate));
 
         case EValueType::String:
             return CreateVersionedStringColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                static_cast<bool>(schema.Aggregate));
 
         case EValueType::Any:
             return CreateVersionedAnyColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                static_cast<bool>(schema.Aggregate));
 
         default:
             Y_UNREACHABLE();

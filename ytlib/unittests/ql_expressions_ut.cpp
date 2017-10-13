@@ -1010,8 +1010,8 @@ TEST_P(TExpressionTest, Evaluate)
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema().Columns();
-    columns[0].SetLogicalType(GetLogicalType(type));
-    columns[1].SetLogicalType(GetLogicalType(type));
+    columns[0].Type = type;
+    columns[1].Type = type;
     auto schema = TTableSchema(columns);
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + "l", schema);
@@ -1041,8 +1041,8 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema().Columns();
-    columns[0].SetLogicalType(GetLogicalType(type));
-    columns[1].SetLogicalType(GetLogicalType(type));
+    columns[0].Type = type;
+    columns[1].Type = type;
     auto schema = TTableSchema(columns);
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + rhs, schema);
@@ -1072,8 +1072,8 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema().Columns();
-    columns[0].SetLogicalType(GetLogicalType(type));
-    columns[1].SetLogicalType(GetLogicalType(type));
+    columns[0].Type = type;
+    columns[1].Type = type;
     auto schema = TTableSchema(columns);
 
     auto expr = PrepareExpression(TString(lhs) + " " + op + " " + "l", schema);

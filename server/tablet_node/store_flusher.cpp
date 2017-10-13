@@ -16,14 +16,14 @@
 
 #include <yt/server/hive/hive_manager.h>
 
+#include <yt/server/misc/memory_usage_tracker.h>
+
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_transaction.h>
 #include <yt/ytlib/api/transaction.h>
-
-#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/transaction_client/action.h>
 
@@ -128,7 +128,7 @@ private:
             [] (const TForcedRotationCandidate& lhs, const TForcedRotationCandidate& rhs) {
                 return lhs.MemoryUsage < rhs.MemoryUsage;
             });
-
+        
         // Pick the heaviest candidates until no more rotations are needed.
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         while (slotManager->IsRotationForced(PassiveMemoryUsage_) && !candidates.empty()) {

@@ -492,7 +492,7 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return Tasks.size() == JobCounter->GetCompletedTotal();
+        return Tasks.size() == JobCounter.GetCompletedTotal();
     }
 
     virtual void DoInitialize() override
@@ -597,13 +597,13 @@ protected:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
             "UnavailableInputChunks: %v",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
+            JobCounter.GetTotal(),
+            JobCounter.GetRunning(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetInterruptedTotal(),
+            JobCounter.GetFailed(),
+            JobCounter.GetAbortedTotal(),
+            JobCounter.GetInterruptedTotal(),
             GetUnavailableInputChunkCount());
     }
 
@@ -869,7 +869,7 @@ private:
 
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         // return !IsExplicitJobCount &&
-        //    2 * Options->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size();;
+        //    2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();;
     }
 
     virtual TCpuResource GetCpuLimit() const override
@@ -2213,7 +2213,7 @@ protected:
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         return
             !IsExplicitJobCount &&
-            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
             TOperationControllerBase::IsJobInterruptible();
     }
 

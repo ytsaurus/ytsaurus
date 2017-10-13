@@ -32,14 +32,10 @@ public:
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void InitBlockLastKeys(const TKeyColumns& keyColumns);
 
-    i64 GetMemoryUsage() const;
-
 protected:
     TColumnarChunkMeta() = default;
     void InitExtensions(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
-private:
-    i64 BlockLastKeysSize_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnarChunkMeta)

@@ -48,7 +48,7 @@ private:
 IUnversionedRowsetPtr CreateRowset(
     const TTableSchema& schema,
     TSharedRange<TUnversionedRow> rows)
-{
+{   
     return New<TRowset<TUnversionedRow>>(schema, std::move(rows));
 }
 

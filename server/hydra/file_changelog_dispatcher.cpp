@@ -270,7 +270,7 @@ public:
                 0,
                 IOPRIO_PRIO_VALUE(Config_->IOClass,  Config_->IOPriority));
             if (result == -1) {
-                LOG_WARNING(TError::FromSystem(), "Failed to set IO priority for changelog flush thread");
+                LOG_ERROR(TError::FromSystem(), "Failed to set IO priority for changelog flush thread");
              }
         }));
 #endif

@@ -703,7 +703,7 @@ public:
         for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
             const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
             const auto& columnSchema = ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
-            if (columnSchema.Aggregate()) {
+            if (columnSchema.Aggregate) {
                 // Possibly multiple values per column for aggregate columns.
                 ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(columnValueCount));
             } else {
@@ -1191,7 +1191,7 @@ private:
             const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
             const auto& columnSchema = VersionedChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
             ui32 columnValueCount = 1;
-            if (columnSchema.Aggregate()) {
+            if (columnSchema.Aggregate) {
                 // Possibly multiple values per column for aggregate columns.
                 ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
             }

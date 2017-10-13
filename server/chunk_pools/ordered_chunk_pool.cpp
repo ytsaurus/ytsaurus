@@ -35,7 +35,6 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, OperationId);
     Persist(context, EnablePeriodicYielder);
     Persist(context, ExtractionOrder);
-    Persist(context, ShouldSliceByRowIndices);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +66,6 @@ public:
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
-        , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
         , OutputOrder_(options.KeepOutputOrder ? New<TOutputOrder>() : nullptr)
     {
@@ -151,13 +149,13 @@ public:
         return
             Finished &&
             GetPendingJobCount() == 0 &&
-            JobManager_->JobCounter()->GetRunning() == 0 &&
+            JobManager_->JobCounter().GetRunning() == 0 &&
             JobManager_->GetSuspendedJobCount() == 0;
     }
 
     virtual int GetTotalJobCount() const override
     {
-        return JobManager_->JobCounter()->GetTotal();
+        return JobManager_->JobCounter().GetTotal();
     }
 
     virtual int GetPendingJobCount() const override
@@ -222,30 +220,30 @@ public:
 
     virtual i64 GetTotalDataWeight() const override
     {
-        return JobManager_->DataWeightCounter()->GetTotal();
+        return JobManager_->DataWeightCounter().GetTotal();
     }
 
     virtual i64 GetRunningDataWeight() const override
     {
-        return JobManager_->DataWeightCounter()->GetRunning();
+        return JobManager_->DataWeightCounter().GetRunning();
     }
 
     virtual i64 GetCompletedDataWeight() const override
     {
-        return JobManager_->DataWeightCounter()->GetCompletedTotal();
+        return JobManager_->DataWeightCounter().GetCompletedTotal();
     }
 
     virtual i64 GetPendingDataWeight() const override
     {
-        return JobManager_->DataWeightCounter()->GetPending();
+        return JobManager_->DataWeightCounter().GetPending();
     }
 
     virtual i64 GetTotalRowCount() const override
     {
-        return JobManager_->RowCounter()->GetTotal();
+        return JobManager_->RowCounter().GetTotal();
     }
 
-    const TProgressCounterPtr& GetJobCounter() const
+    const TProgressCounter& GetJobCounter() const
     {
         return JobManager_->JobCounter();
     }
@@ -282,7 +280,6 @@ public:
         Persist(context, OperationId_);
         Persist(context, ChunkPoolId_);
         Persist(context, MaxTotalSliceCount_);
-        Persist(context, ShouldSliceByRowIndices_);
         Persist(context, EnablePeriodicYielder_);
         Persist(context, OutputOrder_);
         Persist(context, JobIndex_);
@@ -330,8 +327,6 @@ private:
     TGuid ChunkPoolId_ = TGuid::Create();
 
     i64 MaxTotalSliceCount_ = 0;
-
-    bool ShouldSliceByRowIndices_ = false;
 
     bool EnablePeriodicYielder_;
 
@@ -400,7 +395,7 @@ private:
                 }
 
                 std::vector<TInputDataSlicePtr> slicedDataSlices;
-                if (dataSlice->Type == EDataSourceType::UnversionedTable && ShouldSliceByRowIndices_) {
+                if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsUnversioned()) {
                     auto chunkSlices = CreateInputChunkSlice(dataSlice->GetSingleUnversionedChunkOrThrow())
                         ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
                     for (const auto& chunkSlice : chunkSlices) {

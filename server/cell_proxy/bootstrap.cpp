@@ -112,7 +112,7 @@ void TBootstrap::DoRun()
 
     RpcServer_ = CreateBusServer(BusServer_);
 
-    HttpServer_.reset(new NXHttp::TServer(
+    HttpServer_.reset(new NHttp::TServer(
         Config_->MonitoringPort,
         Config_->BusServer->BindRetryCount,
         Config_->BusServer->BindRetryBackoff));

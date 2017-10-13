@@ -219,10 +219,12 @@ public:
             &TImpl::HandlePools,
             Unretained(this)));
 
-        MasterConnector_->AddGlobalWatcher(
-            BIND(&TImpl::RequestNodesAttributes, Unretained(this)),
-            BIND(&TImpl::HandleNodesAttributes, Unretained(this)),
-            Config_->NodesAttributesUpdatePeriod);
+        MasterConnector_->AddGlobalWatcherRequester(BIND(
+            &TImpl::RequestNodesAttributes,
+            Unretained(this)));
+        MasterConnector_->AddGlobalWatcherHandler(BIND(
+            &TImpl::HandleNodesAttributes,
+            Unretained(this)));
 
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TImpl::RequestConfig,
@@ -339,7 +341,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!IsConnected()) {
+        if (!AcceptsHeartbeats_ || !IsConnected()) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
                 "Scheduler is not able to accept heartbeats");
@@ -1066,6 +1068,10 @@ private:
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> IsConnected_ = {false};
+    // We have to postpone heartbeat process until all controllers are revived
+    // (otherwise we won't know what to do with information about jobs running on the nodes).
+    // On the other hand we want to receive user requests earlier than all controllers are revived.
+    std::atomic<bool> AcceptsHeartbeats_ = {false};
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1323,6 +1329,8 @@ private:
         WaitFor(processFuture)
             .ThrowOnError();
 
+        AcceptsHeartbeats_.store(true);
+
         Strategy_->StartPeriodicActivity();
     }
 
@@ -1334,6 +1342,7 @@ private:
 
         LOG_INFO("Starting scheduler state cleanup");
 
+        AcceptsHeartbeats_.store(false);
         IsConnected_.store(false);
 
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
@@ -2377,7 +2386,7 @@ private:
         // Prepare reviving process on node shards.
         std::vector<TFuture<void>> prepareFutures;
         for (auto& shard : NodeShards_) {
-            auto prepareFuture = BIND(&TNodeShard::PrepareReviving, shard)
+            auto prepareFuture = BIND(&TNodeShard::ClearRevivalState, shard)
                 .AsyncVia(shard->GetInvoker())
                 .Run();
             prepareFutures.emplace_back(std::move(prepareFuture));
