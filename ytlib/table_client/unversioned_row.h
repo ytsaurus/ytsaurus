@@ -337,10 +337,16 @@ static_assert(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Checks that #value type is compatible with the schema column type.
+/*
+ * \note Function throws an error if column has `Any' type and value has `non-Any' type.
+ */
 void ValidateValueType(
     const TUnversionedValue& value,
     const TTableSchema& schema,
     int schemaId);
+void ValidateValueType(
+    const TUnversionedValue& value,
+    const TColumnSchema& columnSchema);
 
 //! Checks that #value is allowed to appear in static tables' data. Throws on failure.
 void ValidateStaticValue(const TUnversionedValue& value);

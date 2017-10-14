@@ -43,7 +43,7 @@ bool TSchemafulWriter::Write(const TRange<TUnversionedRow>& rows)
             const auto& value = row[index];
 
             const auto& column = Schema_.Columns()[index];
-            Consumer_->OnKeyedItem(column.Name);
+            Consumer_->OnKeyedItem(column.Name());
 
             switch (value.Type) {
                 case EValueType::Int64:

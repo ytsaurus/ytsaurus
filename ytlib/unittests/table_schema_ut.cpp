@@ -1,6 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -35,7 +36,6 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidation)
         TColumnSchema("Name", EValueType::String)
             .SetLock(TString(MaxColumnLockLength + 1, 'z')),
         // Column type should be valid according to the ValidateSchemaValueType function.
-        TColumnSchema("Name", EValueType::TheBottom),
         // Non-key columns can't be computed.
         TColumnSchema("Name", EValueType::String)
             .SetExpression(TString("SomeExpression")),
@@ -546,6 +546,27 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("Name"))
         }), false /* isDynamicTable */, true /* isEmptyTable */);
+}
+
+TEST_F(TTableSchemaTest, ColumnSchemaProtobufBackwardCompatibility)
+{
+    NProto::TColumnSchema columnSchemaProto;
+    columnSchemaProto.set_name("foo");
+    columnSchemaProto.set_type(static_cast<int>(EValueType::Uint64));
+
+    TColumnSchema columnSchema;
+    FromProto(&columnSchema, columnSchemaProto);
+
+    EXPECT_EQ(columnSchema.LogicalType(), ELogicalValueType::Uint64);
+    EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
+    EXPECT_EQ(columnSchema.Name(), "foo");
+
+    columnSchemaProto.set_logical_type(static_cast<int>(ELogicalValueType::Uint32));
+    FromProto(&columnSchema, columnSchemaProto);
+
+    EXPECT_EQ(columnSchema.LogicalType(), ELogicalValueType::Uint32);
+    EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
+    EXPECT_EQ(columnSchema.Name(), "foo");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
