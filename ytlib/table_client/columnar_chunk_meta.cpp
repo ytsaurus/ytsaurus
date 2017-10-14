@@ -45,7 +45,7 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
 {
     int prefixLength = 0;
     while (prefixLength < keyColumns.size() && prefixLength < ChunkSchema_.GetKeyColumnCount()) {
-        if (keyColumns[prefixLength] != ChunkSchema_.Columns()[prefixLength].Name) {
+        if (keyColumns[prefixLength] != ChunkSchema_.Columns()[prefixLength].Name()) {
             break;
         }
         ++prefixLength;

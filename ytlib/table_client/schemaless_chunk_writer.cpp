@@ -508,16 +508,16 @@ public:
         // Only scan-optimized version for now.
         yhash<TString, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {
-            if (column.Group && groupBlockWriters.find(*column.Group) == groupBlockWriters.end()) {
+            if (column.Group() && groupBlockWriters.find(*column.Group()) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
-                groupBlockWriters[*column.Group] = blockWriter.get();
+                groupBlockWriters[*column.Group()] = blockWriter.get();
                 BlockWriters_.emplace_back(std::move(blockWriter));
             }
         }
 
         auto getBlockWriter = [&] (const NTableClient::TColumnSchema& columnSchema) -> TDataBlockWriter* {
-            if (columnSchema.Group) {
-                return groupBlockWriters[*columnSchema.Group];
+            if (columnSchema.Group()) {
+                return groupBlockWriters[*columnSchema.Group()];
             } else {
                 BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>());
                 return BlockWriters_.back().get();
@@ -917,17 +917,9 @@ protected:
                 if (id < Schema_.Columns().size()) {
                     // Validate schema column types.
                     const auto& column = Schema_.Columns()[id];
-                    if (valueIt->Type != column.Type &&
-                        valueIt->Type != EValueType::Null &&
-                        column.Type != EValueType::Any)
-                    {
-                        THROW_ERROR_EXCEPTION(
-                            EErrorCode::SchemaViolation,
-                            "Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                            column.Name,
-                            column.Type,
-                            EValueType::Null,
-                            valueIt->Type);
+                    const auto& value = *valueIt;
+                    if (column.GetPhysicalType() != EValueType::Any) {
+                        ValidateValueType(value, column);
                     }
 
                     mutableRow[id] = *valueIt;

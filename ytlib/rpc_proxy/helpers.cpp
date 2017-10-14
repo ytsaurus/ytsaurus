@@ -176,8 +176,10 @@ std::vector<TSharedRef> SerializeRowset(
     descriptor->set_rowset_kind(TRowsetTraits<TRow>::Kind);
     for (const auto& column : schema.Columns()) {
         auto* columnDescriptor = descriptor->add_columns();
-        columnDescriptor->set_name(column.Name);
-        columnDescriptor->set_type(static_cast<int>(column.Type));
+        columnDescriptor->set_name(column.Name());
+        // we save physical type for backward compatibility
+        columnDescriptor->set_type(static_cast<int>(column.GetPhysicalType()));
+        columnDescriptor->set_logical_type(static_cast<int>(column.LogicalType()));
     }
     TWireProtocolWriter writer;
     writer.WriteRowset(rows);
@@ -201,10 +203,12 @@ TTableSchema DeserializeRowsetSchema(
     columns.resize(descriptor.columns_size());
     for (int i = 0; i < descriptor.columns_size(); ++i) {
         if (descriptor.columns(i).has_name()) {
-            columns[i].Name = descriptor.columns(i).name();
+            columns[i].SetName(descriptor.columns(i).name());
         }
-        if (descriptor.columns(i).has_type()) {
-            columns[i].Type = EValueType(descriptor.columns(i).type());
+        if (descriptor.columns(i).has_logical_type()) {
+            columns[i].SetLogicalType(static_cast<NTableClient::ELogicalValueType>(descriptor.columns(i).logical_type()));
+        } else if (descriptor.columns(i).has_type()) {
+            columns[i].SetLogicalType(static_cast<NTableClient::ELogicalValueType>(descriptor.columns(i).type()));
         }
     }
     return TTableSchema(std::move(columns));

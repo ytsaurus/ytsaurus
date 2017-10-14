@@ -164,7 +164,7 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
 {
     for (const auto& name : schema.GetKeyColumns()) {
         // We shouldn't consider computed columns below because client doesn't send them.
-        if (!nameTable->FindId(name) && !schema.GetColumnOrThrow(name).Expression) {
+        if (!nameTable->FindId(name) && !schema.GetColumnOrThrow(name).Expression()) {
             THROW_ERROR_EXCEPTION("Missing key column %Qv",
                 name);
         }
