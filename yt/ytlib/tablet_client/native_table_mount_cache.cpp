@@ -25,6 +25,8 @@
 #include <yt/core/misc/expiring_cache.h>
 #include <yt/core/misc/string.h>
 
+#include <yt/core/protos/rpc.pb.h>
+
 #include <yt/core/protos/ypath.pb.h>
 
 #include <util/datetime/base.h>
@@ -34,7 +36,6 @@ namespace NTabletClient {
 
 using namespace NConcurrency;
 using namespace NYTree;
-using namespace NYTree::NProto;
 using namespace NYPath;
 using namespace NRpc;
 using namespace NElection;
@@ -304,9 +305,14 @@ private:
             path);
 
         auto req = TTableYPathProxy::GetMountInfo(path);
-        auto* cachingHeaderExt = req->Header().MutableExtension(TCachingHeaderExt::caching_header_ext);
+
+        auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
         cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
         cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+
+        auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+        balancingHeaderExt->set_enable_stickness(true);
+        balancingHeaderExt->set_sticky_group_size(1);
 
         return ObjectProxy_.Execute(req).Apply(
             BIND([= , this_ = MakeStrong(this)] (const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError) {
