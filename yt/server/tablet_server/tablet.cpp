@@ -47,6 +47,10 @@ void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
     if (context.GetVersion() >= 600) {
         Persist(context, TabletCountPerMemoryMode);
     }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 623) {
+        Persist(context, DynamicMemoryPoolSize);
+    }
 }
 
 void TTabletStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
@@ -80,6 +84,7 @@ TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCell
     lhs.PreloadPendingStoreCount += rhs.PreloadPendingStoreCount;
     lhs.PreloadCompletedStoreCount += rhs.PreloadCompletedStoreCount;
     lhs.PreloadFailedStoreCount += rhs.PreloadFailedStoreCount;
+    lhs.DynamicMemoryPoolSize += rhs.DynamicMemoryPoolSize;
     std::transform(
         std::begin(lhs.TabletCountPerMemoryMode),
         std::end(lhs.TabletCountPerMemoryMode),
@@ -129,6 +134,7 @@ TTabletCellStatistics& operator -=(TTabletCellStatistics& lhs, const TTabletCell
     lhs.PreloadPendingStoreCount -= rhs.PreloadPendingStoreCount;
     lhs.PreloadCompletedStoreCount -= rhs.PreloadCompletedStoreCount;
     lhs.PreloadFailedStoreCount -= rhs.PreloadFailedStoreCount;
+    lhs.DynamicMemoryPoolSize -= rhs.DynamicMemoryPoolSize;
     std::transform(
         std::begin(lhs.TabletCountPerMemoryMode),
         std::end(lhs.TabletCountPerMemoryMode),
@@ -191,6 +197,7 @@ void TSerializableTabletCellStatistics::InitParameters()
     RegisterParameter("preload_pending_store_count", PreloadPendingStoreCount);
     RegisterParameter("preload_completed_store_count", PreloadCompletedStoreCount);
     RegisterParameter("preload_failed_store_count", PreloadFailedStoreCount);
+    RegisterParameter("dynamic_memory_pool_size", DynamicMemoryPoolSize);
     RegisterParameter("tablet_count", TabletCount_);
     RegisterParameter("tablet_count_per_memory_mode", TabletCountPerMemoryMode);
 }
@@ -229,7 +236,7 @@ TSerializableTabletStatistics::TSerializableTabletStatistics(
 void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer* consumer)
 {
     #define XX(name, Name) \
-        .Item(#name "_count").Value(counters.Name.Count) \
+        .Item(#name).Value(counters.Name.Count) \
         .Item(#name "_rate").Value(counters.Name.Rate)
     BuildYsonFluently(consumer)
         .BeginMap()

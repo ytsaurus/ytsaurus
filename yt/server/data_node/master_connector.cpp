@@ -743,6 +743,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->RuntimeData->LastCommitTimestamp);
             protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->RuntimeData->LastWriteTimestamp);
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
+            protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 const auto& replicaId = pair.first;
@@ -758,6 +759,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoPerformanceCounters->set_dynamic_row_read_count(performanceCounters->DynamicRowReadCount);
             protoPerformanceCounters->set_dynamic_row_lookup_count(performanceCounters->DynamicRowLookupCount);
             protoPerformanceCounters->set_dynamic_row_write_count(performanceCounters->DynamicRowWriteCount);
+            protoPerformanceCounters->set_dynamic_row_write_data_weight(performanceCounters->DynamicRowWriteDataWeight);
             protoPerformanceCounters->set_dynamic_row_delete_count(performanceCounters->DynamicRowDeleteCount);
             protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);

@@ -394,11 +394,6 @@ void TTablet::SetStoreManager(IStoreManagerPtr storeManager)
     StoreManager_ = std::move(storeManager);
 }
 
-const TTabletPerformanceCountersPtr& TTablet::GetPerformanceCounters() const
-{
-    return PerformanceCounters_;
-}
-
 void TTablet::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -1081,8 +1076,6 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
 
 void TTablet::Initialize()
 {
-    PerformanceCounters_ = New<TTabletPerformanceCounters>();
-
     PhysicalSchema_ = IsReplicated() ? TableSchema_.ToReplicationLog() : TableSchema_;
 
     PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_);

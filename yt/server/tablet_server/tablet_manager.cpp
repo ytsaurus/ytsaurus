@@ -1223,6 +1223,7 @@ public:
         tabletStatistics.PreloadCompletedStoreCount = nodeStatistics.preload_completed_store_count();
         tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
         tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
+        tabletStatistics.DynamicMemoryPoolSize = nodeStatistics.dynamic_memory_pool_size();
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
@@ -2898,7 +2899,7 @@ private:
 
             #define XX(name, Name) updatePerformanceCounter( \
                 &tablet->PerformanceCounters().Name, \
-                tabletInfo.performance_counters().name ## _count());
+                tabletInfo.performance_counters().name());
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
