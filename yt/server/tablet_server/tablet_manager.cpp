@@ -2899,7 +2899,7 @@ private:
 
             #define XX(name, Name) updatePerformanceCounter( \
                 &tablet->PerformanceCounters().Name, \
-                tabletInfo.performance_counters().name());
+                tabletInfo.performance_counters().name ## _count());
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;

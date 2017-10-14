@@ -759,7 +759,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoPerformanceCounters->set_dynamic_row_read_count(performanceCounters->DynamicRowReadCount);
             protoPerformanceCounters->set_dynamic_row_lookup_count(performanceCounters->DynamicRowLookupCount);
             protoPerformanceCounters->set_dynamic_row_write_count(performanceCounters->DynamicRowWriteCount);
-            protoPerformanceCounters->set_dynamic_row_write_data_weight(performanceCounters->DynamicRowWriteDataWeight);
+            protoPerformanceCounters->set_dynamic_row_write_data_weight_count(performanceCounters->DynamicRowWriteDataWeightCount);
             protoPerformanceCounters->set_dynamic_row_delete_count(performanceCounters->DynamicRowDeleteCount);
             protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
