@@ -118,7 +118,7 @@ void CheckCallee(
     {
         if (actual->getType() != *expected) {
             THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v in LLVM bitcode for function %Qv: expected %Qv, got %Qv",
+                "Wrong type for argument %v in LLVM bitcode for function %Qv: expected %Qlv, got %Qlv",
                 i,
                 functionName,
                 ToString(*expected),
