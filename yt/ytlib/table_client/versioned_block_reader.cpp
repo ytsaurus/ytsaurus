@@ -77,7 +77,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     ptr += ValueNullFlags_.GetByteSize();
 
     for (const auto& column : ChunkSchema_.Columns()) {
-        if (column.Aggregate) {
+        if (column.Aggregate()) {
             ValueAggregateFlags_ = TBitmap(reinterpret_cast<const ui64*>(ptr), VersionedMeta_.value_count());
             ptr += ValueAggregateFlags_->GetByteSize();
             break;
@@ -331,7 +331,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* me
             });
         int valueEndIndex = valueBeginIndex;
 
-        if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate) {
+        if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate()) {
             valueEndIndex = LowerBound(lowerValueIndex, upperValueIndex, isValueAlive);
         } else if (valueBeginIndex < upperValueIndex && isValueAlive(valueBeginIndex)) {
             valueEndIndex = valueBeginIndex + 1;
@@ -365,7 +365,7 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
         return;
     }
 
-    auto type = ChunkSchema_.Columns()[id].Type;
+    auto type = ChunkSchema_.Columns()[id].GetPhysicalType();
     value->Type = type;
 
     switch (type) {
@@ -402,7 +402,7 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
         return;
     }
 
-    auto type = ChunkSchema_.Columns()[chunkSchemaId].Type;
+    auto type = ChunkSchema_.Columns()[chunkSchemaId].GetPhysicalType();
     value->Type = type;
 
     switch (type) {

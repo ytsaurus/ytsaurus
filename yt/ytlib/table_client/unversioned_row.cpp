@@ -744,8 +744,8 @@ void ValidateKeyPart(
         ValidateValueType(value, schema, mappedId);
         if (mappedId != index) {
             THROW_ERROR_EXCEPTION("Invalid column: actual %Qv, expected %Qv",
-                schema.Columns()[mappedId].Name,
-                schema.Columns()[index].Name);
+                schema.Columns()[mappedId].Name(),
+                schema.Columns()[index].Name());
         }
     }
 }
@@ -815,32 +815,32 @@ void ValidateClientRow(
         const auto& column = schema.Columns()[mappedId];
         ValidateValueType(value, schema, mappedId);
 
-        if (value.Aggregate && !column.Aggregate) {
+        if (value.Aggregate && !column.Aggregate()) {
             THROW_ERROR_EXCEPTION(
                 "\"aggregate\" flag is set for value in column %Qv which is not aggregating",
-                column.Name);
+                column.Name());
         }
 
         if (mappedId < schema.GetKeyColumnCount()) {
             if (keyColumnSeen[mappedId]) {
                 THROW_ERROR_EXCEPTION("Duplicate key column %Qv",
-                    column.Name);
+                    column.Name());
             }
 
             keyColumnSeen[mappedId] = true;
             ValidateKeyValue(value);
         } else if (isKey) {
             THROW_ERROR_EXCEPTION("Non-key column %Qv in a key",
-                column.Name);
+                column.Name());
         } else {
             ValidateDataValue(value);
         }
     }
 
     for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
-        if (!keyColumnSeen[index] && !schema.Columns()[index].Expression) {
+        if (!keyColumnSeen[index] && !schema.Columns()[index].Expression()) {
             THROW_ERROR_EXCEPTION("Missing key column %Qv",
-                schema.Columns()[index].Name);
+                schema.Columns()[index].Name());
         }
     }
 
@@ -960,12 +960,77 @@ void ValidateValueType(
     const TTableSchema& schema,
     int schemaId)
 {
-    if (value.Type != EValueType::Null && value.Type != schema.Columns()[schemaId].Type) {
-        THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-            schema.Columns()[schemaId].Name,
-            schema.Columns()[schemaId].Type,
-            EValueType::Null,
-            value.Type);
+    ValidateValueType(value, schema.Columns()[schemaId]);
+}
+
+template <typename T>
+static inline void ValidateIntegerRange(const TUnversionedValue& value, const TString& columnName)
+{
+    static_assert(std::is_integral<T>::value, "type must be integral");
+
+    if (std::is_signed<T>::value) {
+        Y_ASSERT(value.Type == EValueType::Int64);
+        const auto intValue = value.Data.Int64;
+        if (intValue < Min<T>() || intValue > Max<T>()) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Value %v of column %Qv is out of allowed range [%v, %v]",
+                intValue,
+                columnName,
+                Min<T>(),
+                Max<T>());
+        }
+    } else {
+        Y_ASSERT(value.Type == EValueType::Uint64);
+        if (value.Data.Uint64 > Max<T>()) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Value %v of column %Qv is out of allowed range [%v, %v]",
+                value.Data.Uint64,
+                columnName,
+                Min<T>(),
+                Max<T>());
+        }
+    }
+}
+
+void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& columnSchema)
+{
+    if (value.Type == EValueType::Null) {
+        return;
+    }
+
+    if (columnSchema.GetPhysicalType() != value.Type) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
+                columnSchema.Name(),
+                columnSchema.GetPhysicalType(),
+                EValueType::Null,
+                value.Type);
+    }
+
+    switch (columnSchema.LogicalType()) {
+        case ELogicalValueType::Int8:
+            ValidateIntegerRange<i8>(value, columnSchema.Name());
+            break;
+        case ELogicalValueType::Int16:
+            ValidateIntegerRange<i16>(value, columnSchema.Name());
+            break;
+        case ELogicalValueType::Int32:
+            ValidateIntegerRange<i32>(value, columnSchema.Name());
+            break;
+        case ELogicalValueType::Uint8:
+            ValidateIntegerRange<ui8>(value, columnSchema.Name());
+            break;
+        case ELogicalValueType::Uint16:
+            ValidateIntegerRange<ui16>(value, columnSchema.Name());
+            break;
+        case ELogicalValueType::Uint32:
+            ValidateIntegerRange<ui32>(value, columnSchema.Name());
+            break;
+        default:
+            break;
     }
 }
 

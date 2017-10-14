@@ -1710,7 +1710,7 @@ public:
                     size_t(SourceTableSchema_.GetColumnIndex(*column))});
             }
 
-            return TBaseColumn(formattedName, column->Type);
+            return TBaseColumn(formattedName, column->GetPhysicalType());
         } else {
             return Null;
         }
@@ -1719,7 +1719,7 @@ public:
     virtual void Finish() override
     {
         for (const auto& column : SourceTableSchema_.Columns()) {
-            GetColumnPtr(NAst::TReference(column.Name, TableName_));
+            GetColumnPtr(NAst::TReference(column.Name(), TableName_));
         }
     }
 
@@ -2292,7 +2292,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 continue;
             }
 
-            const auto& foreignColumnExpression = foreignTableSchema.Columns()[keyPrefix].Expression;
+            const auto& foreignColumnExpression = foreignTableSchema.Columns()[keyPrefix].Expression();
 
             if (!foreignColumnExpression) {
                 break;
@@ -2321,7 +2321,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             keySelfEquations[keyPrefix] = std::make_pair(evaluatedColumnExpression, true);
 
             auto reference = NAst::TReference(
-                foreignTableSchema.Columns()[keyPrefix].Name,
+                foreignTableSchema.Columns()[keyPrefix].Name(),
                 join.Table.Alias);
 
             auto foreignColumn = foreignSourceProxy->GetColumnPtr(reference);
@@ -2337,7 +2337,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             if (keySelfEquations[index].second) {
                 const auto& evaluatedColumnExpression = keySelfEquations[index].first;
 
-                if (const auto& selfColumnExpression = tableSchema.Columns()[index].Expression) {
+                if (const auto& selfColumnExpression = tableSchema.Columns()[index].Expression()) {
                     auto evaluatedSelfColumnExpression = PrepareExpression(
                         selfColumnExpression.Get(),
                         tableSchema,
@@ -2423,7 +2423,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 continue;
             }
 
-            const auto& expression = query->OriginalSchema.Columns()[keyPrefix].Expression;
+            const auto& expression = query->OriginalSchema.Columns()[keyPrefix].Expression();
 
             if (!expression) {
                 break;

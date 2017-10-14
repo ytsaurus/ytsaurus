@@ -295,7 +295,7 @@ struct TJoinClause
     {
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].Type);
+            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].LogicalType());
         }
 
         return TTableSchema(result);
@@ -308,7 +308,7 @@ struct TJoinClause
         auto selfColumnNames = SelfJoinedColumns;
         std::sort(selfColumnNames.begin(), selfColumnNames.end());
         for (const auto& column : source.Columns()) {
-            if (std::binary_search(selfColumnNames.begin(), selfColumnNames.end(), column.Name)) {
+            if (std::binary_search(selfColumnNames.begin(), selfColumnNames.end(), column.Name())) {
                 result.push_back(column);
             }
         }
@@ -317,7 +317,7 @@ struct TJoinClause
         std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
         auto renamedSchema = GetRenamedSchema();
         for (const auto& column : renamedSchema.Columns()) {
-            if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name)) {
+            if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name())) {
                 result.push_back(column);
             }
         }
@@ -503,8 +503,8 @@ struct TQuery
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
             result.emplace_back(
-                OriginalSchema.Columns()[item.Index].Name,
-                OriginalSchema.Columns()[item.Index].Type);
+                OriginalSchema.Columns()[item.Index].Name(),
+                OriginalSchema.Columns()[item.Index].LogicalType());
         }
 
         return TTableSchema(result);
@@ -514,7 +514,7 @@ struct TQuery
     {
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].Type);
+            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].LogicalType());
         }
 
         return TTableSchema(result);
