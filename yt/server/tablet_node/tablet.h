@@ -178,7 +178,7 @@ struct TTabletPerformanceCounters
     std::atomic<i64> DynamicRowReadCount = {0};
     std::atomic<i64> DynamicRowLookupCount = {0};
     std::atomic<i64> DynamicRowWriteCount = {0};
-    std::atomic<i64> DynamicRowWriteDataWeight = {0};
+    std::atomic<i64> DynamicRowWriteDataWeightCount = {0};
     std::atomic<i64> DynamicRowDeleteCount = {0};
     std::atomic<i64> UnmergedRowReadCount = {0};
     std::atomic<i64> MergedRowReadCount = {0};

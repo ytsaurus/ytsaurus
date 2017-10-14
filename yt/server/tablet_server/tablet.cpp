@@ -236,7 +236,7 @@ TSerializableTabletStatistics::TSerializableTabletStatistics(
 void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer* consumer)
 {
     #define XX(name, Name) \
-        .Item(#name).Value(counters.Name.Count) \
+        .Item(#name "_count").Value(counters.Name.Count) \
         .Item(#name "_rate").Value(counters.Name.Rate)
     BuildYsonFluently(consumer)
         .BeginMap()

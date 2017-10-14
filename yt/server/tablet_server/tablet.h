@@ -127,17 +127,17 @@ struct TTabletPerformanceCounter
 };
 
 #define ITERATE_TABLET_PERFORMANCE_COUNTERS(XX) \
-    XX(dynamic_row_read_count,                        DynamicRowRead) \
-    XX(dynamic_row_lookup_count,                      DynamicRowLookup) \
-    XX(dynamic_row_write_count,                       DynamicRowWrite) \
-    XX(dynamic_row_write_data_weight,                 DynamicRowWriteDataWeight) \
-    XX(dynamic_row_delete_count,                      DynamicRowDelete) \
-    XX(static_chunk_row_read_count,                   StaticChunkRowRead) \
-    XX(static_chunk_row_lookup_count,                 StaticChunkRowLookup) \
-    XX(static_chunk_row_lookup_true_negative_count,   StaticChunkRowLookupTrueNegative) \
-    XX(static_chunk_row_lookup_false_positive_count,  StaticChunkRowLookupFalsePositive) \
-    XX(unmerged_row_read_count,                       UnmergedRowRead) \
-    XX(merged_row_read_count,                         MergedRowRead)
+    XX(dynamic_row_read,                        DynamicRowRead) \
+    XX(dynamic_row_lookup,                      DynamicRowLookup) \
+    XX(dynamic_row_write,                       DynamicRowWrite) \
+    XX(dynamic_row_write_data_weight,           DynamicRowWriteDataWeightCount) \
+    XX(dynamic_row_delete,                      DynamicRowDelete) \
+    XX(static_chunk_row_read,                   StaticChunkRowRead) \
+    XX(static_chunk_row_lookup,                 StaticChunkRowLookup) \
+    XX(static_chunk_row_lookup_true_negative,   StaticChunkRowLookupTrueNegative) \
+    XX(static_chunk_row_lookup_false_positive,  StaticChunkRowLookupFalsePositive) \
+    XX(unmerged_row_read,                       UnmergedRowRead) \
+    XX(merged_row_read,                         MergedRowRead)
 
 struct TTabletPerformanceCounters
 {
