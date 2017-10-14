@@ -227,9 +227,11 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
     UpdateTimestampRange(context->CommitTimestamp);
     OnMemoryUsageUpdated();
 
+    auto dataWeight = GetDataWeight(row);
     ++PerformanceCounters_->DynamicRowWriteCount;
+    PerformanceCounters_->DynamicRowWriteDataWeight += dataWeight;
     ++context->RowCount;
-    context->DataWeight += GetDataWeight(row);
+    context->DataWeight += dataWeight;
 
     return dynamicRow;
 }

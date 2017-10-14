@@ -74,6 +74,7 @@ protected:
     TTablet* const Tablet_;
 
     const TTabletPerformanceCountersPtr PerformanceCounters_;
+    const TRuntimeTabletDataPtr RuntimeData_;
     const TTabletId TabletId_;
     const NYPath::TYPath TablePath_;
     const NTableClient::TTableSchema Schema_;
