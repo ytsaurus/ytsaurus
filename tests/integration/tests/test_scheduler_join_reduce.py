@@ -827,17 +827,15 @@ echo {v = 2} >&7
             op.track();
 
     def test_join_reduce_on_dynamic_table(self):
-        def _create_dynamic_table(path):
-            create("table", path,
-                attributes = {
-                    "schema": [
-                        {"name": "key", "type": "string", "sort_order": "ascending"},
-                        {"name": "value", "type": "string"}],
-                    "dynamic": True
-                })
-
         self.sync_create_cells(1)
-        _create_dynamic_table("//tmp/t1")
+        create("table", "//tmp/t1",
+           attributes = {
+               "schema": [
+                   {"name": "key", "type": "string", "sort_order": "ascending"},
+                   {"name": "value", "type": "string"}],
+               "dynamic": True
+           })
+
         create("table", "//tmp/t2")
         create("table", "//tmp/t_out")
 
@@ -877,6 +875,48 @@ echo {v = 2} >&7
                 }})
 
         assert read_table("//tmp/t_out") == rows + joined_rows
+
+    def test_join_reduce_with_dynamic_foreign(self):
+        create("table", "//tmp/t1",
+            attributes = {
+                "schema": [
+                    {"name": "key1", "type": "string", "sort_order": "ascending"},
+                    {"name": "primary_value", "type": "int64"}
+                ]
+            })
+
+        self.sync_create_cells(1)
+        create("table", "//tmp/t2",
+            attributes = {
+                "schema": [
+                    {"name": "key1", "type": "string", "sort_order": "ascending"},
+                    {"name": "key2", "type": "string", "sort_order": "ascending"},
+                    {"name": "foreign_value", "type": "int64"}],
+                "dynamic": True
+            })
+
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t1", [{"key1": "7", "primary_value": 42}])
+
+        rows = [{"key1": str(i), "key2": str(i * i), "foreign_value": i} for i in range(10)]
+        self.sync_mount_table("//tmp/t2")
+        insert_rows("//tmp/t2", rows)
+        self.sync_unmount_table("//tmp/t2")
+
+        join_reduce(
+            in_=["//tmp/t1", "<foreign=%true>//tmp/t2"],
+            out="//tmp/t_out",
+            join_by="key1",
+            command="cat",
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                }
+            }
+        )
+
+        assert len(read_table("//tmp/t_out")) == 2
 
     def test_join_reduce_interrupt_job(self):
         create("table", "//tmp/input1")

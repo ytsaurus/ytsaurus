@@ -785,7 +785,10 @@ private:
 
     std::list<TOperationPtr> OperationQueue;
 
-    std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilter;
+    TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
+    yhash<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
+
+    std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
     std::vector<int> FreeSchedulingTagFilterIndexes;
     struct TSchedulingTagFilterEntry
     {
@@ -891,14 +894,238 @@ private:
         OnFairShareLoggingAt(TInstant::Now());
     }
 
+    void DoScheduleJobsWithoutPreemption(
+        const TRootElementSnapshotPtr& rootElementSnapshot,
+        TFairShareContext& context,
+        const std::function<void(TProfilingCounters&, int, TDuration)> profileTimings,
+        const std::function<void(const TStringBuf&)> logAndCleanSchedulingStatistics)
+    {
+        auto& rootElement = rootElementSnapshot->RootElement;
+
+        {
+            LOG_TRACE("Scheduling new jobs");
+
+            bool prescheduleExecuted = false;
+            TDuration prescheduleDuration;
+
+            TWallTimer scheduleTimer;
+            while (context.SchedulingContext->CanStartMoreJobs()) {
+                if (!prescheduleExecuted) {
+                    TWallTimer prescheduleTimer;
+                    context.InitializeStructures(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
+                    rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
+                    prescheduleDuration = prescheduleTimer.GetElapsedTime();
+                    Profiler.Update(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter, DurationToCpuDuration(prescheduleDuration));
+                    prescheduleExecuted = true;
+                    context.PrescheduledCalled = true;
+                }
+                ++context.NonPreemptiveScheduleJobCount;
+                if (!rootElement->ScheduleJob(context)) {
+                    break;
+                }
+            }
+            profileTimings(
+                NonPreemptiveProfilingCounters,
+                context.NonPreemptiveScheduleJobCount,
+                scheduleTimer.GetElapsedTime() - prescheduleDuration - context.TotalScheduleJobDuration);
+
+            if (context.NonPreemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
+            }
+        }
+    }
+
+    void DoScheduleJobsWithPreemption(
+        const TRootElementSnapshotPtr& rootElementSnapshot,
+        TFairShareContext& context,
+        const std::function<void(TProfilingCounters&, int, TDuration)>& profileTimings,
+        const std::function<void(const TStringBuf&)>& logAndCleanSchedulingStatistics)
+    {
+        auto& rootElement = rootElementSnapshot->RootElement;
+        auto& config = rootElementSnapshot->Config;
+
+
+        if (!context.Initialized) {
+            context.InitializeStructures(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
+        }
+
+        if (!context.PrescheduledCalled) {
+            context.HasAggressivelyStarvingNodes = rootElement->HasAggressivelyStarvingNodes(context, false);
+        }
+
+        // Compute discount to node usage.
+        LOG_TRACE("Looking for preemptable jobs");
+        yhash_set<TCompositeSchedulerElementPtr> discountedPools;
+        std::vector<TJobPtr> preemptableJobs;
+        PROFILE_AGGREGATED_TIMING (AnalyzePreemptableJobsTimeCounter) {
+            for (const auto& job : context.SchedulingContext->RunningJobs()) {
+                auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+                if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+                    LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
+                        job->GetId(),
+                        job->GetOperationId());
+                    continue;
+                }
+
+                if (!operationElement->IsPreemptionAllowed(context)) {
+                    continue;
+                }
+
+                if (IsJobPreemptable(job, operationElement, context.HasAggressivelyStarvingNodes, config)) {
+                    auto* parent = operationElement->GetParent();
+                    while (parent) {
+                        discountedPools.insert(parent);
+                        context.DynamicAttributes(parent).ResourceUsageDiscount += job->ResourceUsage();
+                        parent = parent->GetParent();
+                    }
+                    context.SchedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
+                    preemptableJobs.push_back(job);
+                }
+            }
+        }
+
+        context.ResourceUsageDiscount = context.SchedulingContext->ResourceUsageDiscount();
+
+        int startedBeforePreemption = context.SchedulingContext->StartedJobs().size();
+
+        // NB: Schedule at most one job with preemption.
+        TJobPtr jobStartedUsingPreemption;
+        {
+            LOG_TRACE("Scheduling new jobs with preemption");
+
+            // Clean data from previous profiling.
+            context.TotalScheduleJobDuration = TDuration::Zero();
+            context.ExecScheduleJobDuration = TDuration::Zero();
+            std::fill(context.FailedScheduleJob.begin(), context.FailedScheduleJob.end(), 0);
+
+            bool prescheduleExecuted = false;
+            TDuration prescheduleDuration;
+
+            TWallTimer timer;
+            while (context.SchedulingContext->CanStartMoreJobs()) {
+                if (!prescheduleExecuted) {
+                    TWallTimer prescheduleTimer;
+                    rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
+                    prescheduleDuration = prescheduleTimer.GetElapsedTime();
+                    Profiler.Update(PreemptiveProfilingCounters.PrescheduleJobTimeCounter, DurationToCpuDuration(prescheduleDuration));
+                    prescheduleExecuted = true;
+                }
+
+                ++context.PreemptiveScheduleJobCount;
+                if (!rootElement->ScheduleJob(context)) {
+                    break;
+                }
+                if (context.SchedulingContext->StartedJobs().size() > startedBeforePreemption) {
+                    jobStartedUsingPreemption = context.SchedulingContext->StartedJobs().back();
+                    break;
+                }
+            }
+            profileTimings(
+                PreemptiveProfilingCounters,
+                context.PreemptiveScheduleJobCount,
+                timer.GetElapsedTime() - prescheduleDuration - context.TotalScheduleJobDuration);
+            if (context.PreemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
+            }
+        }
+
+        int startedAfterPreemption = context.SchedulingContext->StartedJobs().size();
+
+        context.ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
+
+        // Reset discounts.
+        context.SchedulingContext->ResourceUsageDiscount() = ZeroJobResources();
+        for (const auto& pool : discountedPools) {
+            context.DynamicAttributes(pool.Get()).ResourceUsageDiscount = ZeroJobResources();
+        }
+
+        // Preempt jobs if needed.
+        std::sort(
+            preemptableJobs.begin(),
+            preemptableJobs.end(),
+            [] (const TJobPtr& lhs, const TJobPtr& rhs) {
+                return lhs->GetStartTime() > rhs->GetStartTime();
+            });
+
+        auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> TCompositeSchedulerElement* {
+            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+            if (!operationElement) {
+                return nullptr;
+            }
+
+            auto* parent = operationElement->GetParent();
+            while (parent) {
+                if (!Dominates(parent->ResourceLimits(), parent->GetResourceUsage())) {
+                    return parent;
+                }
+                parent = parent->GetParent();
+            }
+            return nullptr;
+        };
+
+        auto findPoolWithViolatedLimits = [&] () -> TCompositeSchedulerElement* {
+            for (const auto& job : context.SchedulingContext->StartedJobs()) {
+                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
+                if (violatedPool) {
+                    return violatedPool;
+                }
+            }
+            return nullptr;
+        };
+
+        bool nodeLimitsViolated = true;
+        bool poolsLimitsViolated = true;
+
+        context.PreemptableJobCount = preemptableJobs.size();
+
+        for (const auto& job : preemptableJobs) {
+            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+            if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+                LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetOperationId());
+                continue;
+            }
+
+            // Update flags only if violation is not resolved yet to avoid costly computations.
+            if (nodeLimitsViolated) {
+                nodeLimitsViolated = !Dominates(context.SchedulingContext->ResourceLimits(), context.SchedulingContext->ResourceUsage());
+            }
+            if (!nodeLimitsViolated && poolsLimitsViolated) {
+                poolsLimitsViolated = findPoolWithViolatedLimits() == nullptr;
+            }
+
+            if (!nodeLimitsViolated && !poolsLimitsViolated) {
+                break;
+            }
+
+            if (nodeLimitsViolated) {
+                if (jobStartedUsingPreemption) {
+                    job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
+                        jobStartedUsingPreemption->GetId(),
+                        jobStartedUsingPreemption->GetOperationId()));
+                } else {
+                    job->SetPreemptionReason(Format("Node resource limits violated"));
+                }
+                PreemptJob(job, operationElement, context);
+            }
+            if (poolsLimitsViolated) {
+                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
+                if (violatedPool) {
+                    job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
+                        violatedPool->GetId()));
+                    PreemptJob(job, operationElement, context);
+                }
+            }
+        }
+    }
+
     void DoScheduleJobs(
         const ISchedulingContextPtr& schedulingContext,
         const TRootElementSnapshotPtr& rootElementSnapshot,
         const TIntrusivePtr<TAsyncLockReaderGuard>& /*guard*/)
     {
-        auto& rootElement = rootElementSnapshot->RootElement;
-        auto& config = rootElementSnapshot->Config;
-        auto context = TFairShareContext(schedulingContext, rootElement->GetTreeSize(), RegisteredSchedulingTagFilter);
+        auto context = TFairShareContext(schedulingContext);
 
         auto profileTimings = [&] (
             TProfilingCounters& counters,
@@ -950,185 +1177,34 @@ private:
             }
         };
 
-        // First-chance scheduling.
-        int nonPreemptiveScheduleJobCount = 0;
+        DoScheduleJobsWithoutPreemption(rootElementSnapshot, context, profileTimings, logAndCleanSchedulingStatistics);
+
+        auto nodeId = schedulingContext->GetNodeDescriptor().Id;
+
+        bool scheduleJobsWithPreemption = false;
         {
-            LOG_TRACE("Scheduling new jobs");
-            PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
-            }
-
-            TWallTimer timer;
-            while (schedulingContext->CanStartMoreJobs()) {
-                ++nonPreemptiveScheduleJobCount;
-                if (!rootElement->ScheduleJob(context)) {
-                    break;
+            bool nodeIsMissing = false;
+            {
+                TReaderGuard guard(NodeIdToLastPreemptiveSchedulingTimeLock);
+                auto it = NodeIdToLastPreemptiveSchedulingTime.find(nodeId);
+                if (it == NodeIdToLastPreemptiveSchedulingTime.end()) {
+                    nodeIsMissing = true;
+                    scheduleJobsWithPreemption = true;
+                } else if (it->second + DurationToCpuDuration(Config->PreemptiveSchedulingBackoff) <= now) {
+                    scheduleJobsWithPreemption = true;
+                    it->second = now;
                 }
             }
-            profileTimings(
-                NonPreemptiveProfilingCounters,
-                nonPreemptiveScheduleJobCount,
-                timer.GetElapsedTime() - context.TotalScheduleJobDuration);
-
-            if (nonPreemptiveScheduleJobCount > 0) {
-                logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
+            if (nodeIsMissing) {
+                TWriterGuard guard(NodeIdToLastPreemptiveSchedulingTimeLock);
+                NodeIdToLastPreemptiveSchedulingTime[nodeId] = now;
             }
         }
 
-        // Compute discount to node usage.
-        LOG_TRACE("Looking for preemptable jobs");
-        yhash_set<TCompositeSchedulerElementPtr> discountedPools;
-        std::vector<TJobPtr> preemptableJobs;
-        PROFILE_AGGREGATED_TIMING (AnalyzePreemptableJobsTimeCounter) {
-            for (const auto& job : schedulingContext->RunningJobs()) {
-                auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
-                if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
-                    LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
-                        job->GetId(),
-                        job->GetOperationId());
-                    continue;
-                }
-
-                if (!operationElement->IsPreemptionAllowed(context)) {
-                    continue;
-                }
-
-                if (IsJobPreemptable(job, operationElement, context.HasAggressivelyStarvingNodes, config)) {
-                    auto* parent = operationElement->GetParent();
-                    while (parent) {
-                        discountedPools.insert(parent);
-                        context.DynamicAttributes(parent).ResourceUsageDiscount += job->ResourceUsage();
-                        parent = parent->GetParent();
-                    }
-                    schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
-                    preemptableJobs.push_back(job);
-                }
-            }
-        }
-
-        auto resourceDiscount = schedulingContext->ResourceUsageDiscount();
-        int startedBeforePreemption = schedulingContext->StartedJobs().size();
-
-        // Second-chance scheduling.
-        // NB: Schedule at most one job.
-        TJobPtr jobStartedUsingPreemption;
-        int preemptiveScheduleJobCount = 0;
-        {
-            LOG_TRACE("Scheduling new jobs with preemption");
-            PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
-            }
-
-            // Clean data from previous profiling.
-            context.TotalScheduleJobDuration = TDuration::Zero();
-            context.ExecScheduleJobDuration = TDuration::Zero();
-            std::fill(context.FailedScheduleJob.begin(), context.FailedScheduleJob.end(), 0);
-
-            TWallTimer timer;
-            while (schedulingContext->CanStartMoreJobs()) {
-                ++preemptiveScheduleJobCount;
-                if (!rootElement->ScheduleJob(context)) {
-                    break;
-                }
-                if (schedulingContext->StartedJobs().size() > startedBeforePreemption) {
-                    jobStartedUsingPreemption = schedulingContext->StartedJobs().back();
-                    break;
-                }
-            }
-            profileTimings(
-                PreemptiveProfilingCounters,
-                preemptiveScheduleJobCount,
-                timer.GetElapsedTime() - context.TotalScheduleJobDuration);
-            if (preemptiveScheduleJobCount > 0) {
-                logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
-            }
-        }
-
-        int startedAfterPreemption = schedulingContext->StartedJobs().size();
-        int scheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
-
-        // Reset discounts.
-        schedulingContext->ResourceUsageDiscount() = ZeroJobResources();
-        for (const auto& pool : discountedPools) {
-            context.DynamicAttributes(pool.Get()).ResourceUsageDiscount = ZeroJobResources();
-        }
-
-        // Preempt jobs if needed.
-        std::sort(
-            preemptableJobs.begin(),
-            preemptableJobs.end(),
-            [] (const TJobPtr& lhs, const TJobPtr& rhs) {
-                return lhs->GetStartTime() > rhs->GetStartTime();
-            });
-
-        auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> TCompositeSchedulerElement* {
-            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
-            if (!operationElement) {
-                return nullptr;
-            }
-
-            auto* parent = operationElement->GetParent();
-            while (parent) {
-                if (!Dominates(parent->ResourceLimits(), parent->GetResourceUsage())) {
-                    return parent;
-                }
-                parent = parent->GetParent();
-            }
-            return nullptr;
-        };
-
-        auto findPoolWithViolatedLimits = [&] () -> TCompositeSchedulerElement* {
-            for (const auto& job : schedulingContext->StartedJobs()) {
-                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
-                if (violatedPool) {
-                    return violatedPool;
-                }
-            }
-            return nullptr;
-        };
-
-        bool nodeLimitsViolated = true;
-        bool poolsLimitsViolated = true;
-
-        for (const auto& job : preemptableJobs) {
-            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
-            if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
-                LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
-                    job->GetId(),
-                    job->GetOperationId());
-                continue;
-            }
-
-            // Update flags only if violation is not resolved yet to avoid costly computations.
-            if (nodeLimitsViolated) {
-                nodeLimitsViolated = !Dominates(schedulingContext->ResourceLimits(), schedulingContext->ResourceUsage());
-            }
-            if (!nodeLimitsViolated && poolsLimitsViolated) {
-                poolsLimitsViolated = findPoolWithViolatedLimits() == nullptr;
-            }
-
-            if (!nodeLimitsViolated && !poolsLimitsViolated) {
-                break;
-            }
-
-            if (nodeLimitsViolated) {
-                if (jobStartedUsingPreemption) {
-                    job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
-                        jobStartedUsingPreemption->GetId(),
-                        jobStartedUsingPreemption->GetOperationId()));
-                } else {
-                    job->SetPreemptionReason(Format("Node resource limits violated"));
-                }
-                PreemptJob(job, operationElement, context);
-            }
-            if (poolsLimitsViolated) {
-                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
-                if (violatedPool) {
-                    job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
-                        violatedPool->GetId()));
-                    PreemptJob(job, operationElement, context);
-                }
-            }
+        if (scheduleJobsWithPreemption) {
+            DoScheduleJobsWithPreemption(rootElementSnapshot, context, profileTimings, logAndCleanSchedulingStatistics);
+        } else {
+            LOG_DEBUG("Skip preemptive scheduling");
         }
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
@@ -1136,11 +1212,11 @@ private:
             "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v, HasAggressivelyStarvingNodes: %v, Address: %v)",
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
-            scheduledDuringPreemption,
-            preemptableJobs.size(),
-            FormatResources(resourceDiscount),
-            nonPreemptiveScheduleJobCount,
-            preemptiveScheduleJobCount,
+            context.ScheduledDuringPreemption,
+            context.PreemptableJobCount,
+            FormatResources(context.ResourceUsageDiscount),
+            context.NonPreemptiveScheduleJobCount,
+            context.PreemptiveScheduleJobCount,
             context.HasAggressivelyStarvingNodes,
             schedulingContext->GetNodeDescriptor().Address);
     }
@@ -1323,11 +1399,11 @@ private:
         if (it == SchedulingTagFilterToIndexAndCount.end()) {
             int index;
             if (FreeSchedulingTagFilterIndexes.empty()) {
-                index = RegisteredSchedulingTagFilter.size();
-                RegisteredSchedulingTagFilter.push_back(filter);
+                index = RegisteredSchedulingTagFilters.size();
+                RegisteredSchedulingTagFilters.push_back(filter);
             } else {
                 index = FreeSchedulingTagFilterIndexes.back();
-                RegisteredSchedulingTagFilter[index] = filter;
+                RegisteredSchedulingTagFilters[index] = filter;
                 FreeSchedulingTagFilterIndexes.pop_back();
             }
             SchedulingTagFilterToIndexAndCount.emplace(filter, TSchedulingTagFilterEntry({index, 1}));
@@ -1343,7 +1419,7 @@ private:
         if (index == EmptySchedulingTagFilterIndex) {
             return;
         }
-        UnregisterSchedulingTagFilter(RegisteredSchedulingTagFilter[index]);
+        UnregisterSchedulingTagFilter(RegisteredSchedulingTagFilters[index]);
     }
 
     void UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter)
@@ -1355,7 +1431,7 @@ private:
         YCHECK(it != SchedulingTagFilterToIndexAndCount.end());
         --it->second.Count;
         if (it->second.Count == 0) {
-            RegisteredSchedulingTagFilter[it->second.Index] = EmptySchedulingTagFilter;
+            RegisteredSchedulingTagFilters[it->second.Index] = EmptySchedulingTagFilter;
             FreeSchedulingTagFilterIndexes.push_back(it->second.Index);
             SchedulingTagFilterToIndexAndCount.erase(it);
         }

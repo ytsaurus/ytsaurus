@@ -653,7 +653,8 @@ void TOperationControllerBase::SafeMaterialize()
             JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
         }
 
-        State = EControllerState::Running;
+        auto expectedState = EControllerState::Preparing;
+        State.compare_exchange_strong(expectedState, EControllerState::Running);
 
         LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
