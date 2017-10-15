@@ -62,17 +62,19 @@ typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 
 struct TFairShareContext
 {
-    TFairShareContext(
-        const ISchedulingContextPtr& schedulingContext,
-        int treeSize,
-        const std::vector<TSchedulingTagFilter>& filter);
+    TFairShareContext(const ISchedulingContextPtr& schedulingContext);
+
+    void InitializeStructures(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
     TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element) const;
 
+    bool Initialized = false;
+
     std::vector<bool> CanSchedule;
-    const ISchedulingContextPtr SchedulingContext;
     TDynamicAttributesList DynamicAttributesList;
+
+    const ISchedulingContextPtr SchedulingContext;
     TDuration TotalScheduleJobDuration;
     TDuration ExecScheduleJobDuration;
     TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
