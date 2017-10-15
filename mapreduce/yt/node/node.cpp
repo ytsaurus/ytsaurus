@@ -185,23 +185,23 @@ TNode::EType TNode::GetType() const
 {
     switch (Value_.Tag()) {
         case TValue::TagOf<TUndefined>():
-            return UNDEFINED;
+            return Undefined;
         case TValue::TagOf<TString>():
-            return STRING;
+            return String;
         case TValue::TagOf<i64>():
-            return INT64;
+            return Int64;
         case TValue::TagOf<ui64>():
-            return UINT64;
+            return Uint64;
         case TValue::TagOf<double>():
-            return DOUBLE;
+            return Double;
         case TValue::TagOf<bool>():
-            return BOOL;
+            return Boolean;
         case TValue::TagOf<TList>():
-            return LIST;
+            return List;
         case TValue::TagOf<TMap>():
-            return MAP;
+            return Map;
         case TValue::TagOf<TEntity>():
-            return ENTITY;
+            return Null;
     }
     Y_UNREACHABLE();
 }
