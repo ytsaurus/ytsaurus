@@ -26,25 +26,27 @@ public:
     enum EType {
         Undefined = 0   /*"undefined"*/,
 
-        StringNode = 1  /*"string_node"*/,
-        Int64Node = 2   /*"int64_node"*/,
-        Uint64Node = 3  /*"uint64_node"*/,
-        DoubleNode = 4  /*"double_node"*/,
-        BooleanNode = 5 /*"boolean_node"*/,
-        ListNode = 6    /*"list_node"*/,
-        MapNode = 7     /*"map_node"*/,
-        Null = 8        /*"null"*/,
+        // NOTE: string representation of all node types
+        // are compatible with server node type (except `Undefined' which is missing on server).
+        String = 1  /*"string_node"*/,
+        Int64 = 2   /*"int64_node"*/,
+        Uint64 = 3  /*"uint64_node"*/,
+        Double = 4  /*"double_node"*/,
+        Boolean = 5 /*"boolean_node"*/,
+        List = 6    /*"list_node"*/,
+        Map = 7     /*"map_node"*/,
+        Null = 8    /*"null"*/,
 
         // Backward compatibility part
         // TODO: exterminate
         UNDEFINED = Undefined,
-        STRING = StringNode,
-        INT64 = Int64Node,
-        UINT64 = Uint64Node,
-        DOUBLE = DoubleNode,
-        BOOL = BooleanNode,
-        LIST = ListNode,
-        MAP = MapNode,
+        STRING = String,
+        INT64 = Int64,
+        UINT64 = Uint64,
+        DOUBLE = Double,
+        BOOL = Boolean,
+        LIST = List,
+        MAP = Map,
         ENTITY = Null,
     };
 
