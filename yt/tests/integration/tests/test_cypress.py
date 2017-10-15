@@ -1256,6 +1256,10 @@ class TestCypress(YTEnvSetup):
 
     def test_ignore_ampersand3(self):
         assert get("//sys/chunks&/@type") == "chunk_map"
+    
+    def test_ignore_ampersand4(self):
+        assert not exists("//tmp/missing")
+        assert not exists("//tmp/missing&")
 
 
     def test_batch_empty(self):
