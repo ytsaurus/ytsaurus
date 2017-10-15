@@ -56,13 +56,17 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareContext::TFairShareContext(
-    const ISchedulingContextPtr& schedulingContext,
-    int treeSize,
-    const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters)
+TFairShareContext::TFairShareContext(const ISchedulingContextPtr& schedulingContext)
     : SchedulingContext(schedulingContext)
-    , DynamicAttributesList(treeSize)
+{ }
+
+void TFairShareContext::InitializeStructures(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters)
 {
+    YCHECK(!Initialized);
+
+    Initialized = true;
+
+    DynamicAttributesList.resize(treeSize);
     CanSchedule.reserve(registeredSchedulingTagFilters.size());
     for (const auto& filter : registeredSchedulingTagFilters) {
         CanSchedule.push_back(SchedulingContext->CanSchedule(filter));
