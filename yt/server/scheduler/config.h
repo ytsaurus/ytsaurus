@@ -111,6 +111,9 @@ public:
     //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
     double ThresholdToEnableMaxPossibleUsageRegularization;
 
+    //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
+    TDuration PreemptiveSchedulingBackoff;
+
     TFairShareStrategyConfig();
 };
 
