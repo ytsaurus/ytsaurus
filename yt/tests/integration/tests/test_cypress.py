@@ -1240,7 +1240,23 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
         time.sleep(0.1)
         assert not exists("//tmp/t2")
-
+    
+    def test_copy_preserve_creation_time(self):
+        create("table", "//tmp/t1")
+        creation_time = get("//tmp/t1/@creation_time")
+        
+        copy("//tmp/t1", "//tmp/t2", preserve_creation_time=True)
+        assert creation_time == get("//tmp/t2/@creation_time")
+        
+        move("//tmp/t2", "//tmp/t1", force=True)
+        assert creation_time == get("//tmp/t1/@creation_time")
+        
+        copy("//tmp/t1", "//tmp/t2")
+        new_creation_time = get("//tmp/t2/@creation_time")
+        assert creation_time != new_creation_time
+        
+        move("//tmp/t2", "//tmp/t1", force=True)
+        assert new_creation_time == get("//tmp/t1/@creation_time")
 
     def test_ignore_ampersand1(self):
         set("//tmp/map", {})

@@ -797,6 +797,9 @@ private:
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
         }
+        if (request->has_preserve_creation_time()) {
+            options.PreserveCreationTime = request->preserve_creation_time();
+        }
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
