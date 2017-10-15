@@ -211,9 +211,7 @@ TTableSchema DeserializeRowsetSchema(
             columns[i].SetLogicalType(static_cast<NTableClient::ELogicalValueType>(descriptor.columns(i).type()));
         }
     }
-    auto schema = TTableSchema(std::move(columns));
-    ValidateTableSchema(schema);
-    return schema;
+    return TTableSchema(std::move(columns));
 }
 
 template <class TRow>
