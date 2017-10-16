@@ -52,7 +52,7 @@ if __name__ == "__main__":
     while True:
         mode = randint(0, 60) // 20
         if mode == 0:
-            if not restart_node:
+            if not restart_nodes:
                 continue
             # Stop random node
             if len(down_nodes) >= MAX_DOWN_NODES:
@@ -62,7 +62,7 @@ if __name__ == "__main__":
             down_nodes.add(node)
             up_nodes.remove(node)
         elif mode == 1:
-            if not restart_node:
+            if not restart_nodes:
                 continue
             # Start random node
             if len(down_nodes) == 0:
@@ -72,7 +72,7 @@ if __name__ == "__main__":
             down_nodes.remove(node)
             up_nodes.add(node)
         elif mode == 2:
-            if not restart_node:
+            if not restart_nodes:
                 continue
             # Restart random node
             node = choice(list(up_nodes))
