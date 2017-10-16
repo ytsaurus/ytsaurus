@@ -446,6 +446,21 @@ class TestRetries(object):
         finally:
             yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
 
+    def test_concatenate(self):
+        yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
+        try:
+            tableA = TEST_DIR + "/tableA"
+            tableB = TEST_DIR + "/tableB"
+            output_table = TEST_DIR + "/outputTable"
+
+            yt.write_table(tableA, [{"x": 1, "y": 2}])
+            yt.write_table(tableB, [{"x": 10, "y": 20}])
+            yt.concatenate([tableA, tableB], output_table)
+
+            assert [{"x": 1, "y": 2}, {"x": 10, "y": 20}] == list(yt.read_table(output_table))
+        finally:
+            yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
+
 def test_wrapped_streams():
     import yt.wrapper.py_runner_helpers as runner_helpers
     with pytest.raises(yt.YtError):
