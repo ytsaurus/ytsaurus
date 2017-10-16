@@ -79,7 +79,7 @@ class TestMasterCellsSync(YTEnvSetup):
         self._check_true_for_secondary(lambda driver: "sudoers" not in ls("//sys/groups", driver=driver))
 
     def test_accounts_sync(self):
-        create_account("tst")
+        create_account("tst", atomic_creation=False)
 
         for i in xrange(10):
             set("//sys/accounts/tst/@attr{0}".format(i), "value")
@@ -112,7 +112,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
     def test_acl_sync(self):
         create_group("jupiter")
-        create_account("jupiter")
+        create_account("jupiter", atomic_creation=False)
         set("//sys/accounts/jupiter/@acl", [make_ace("allow", "jupiter", "use")])
 
         def check(driver):

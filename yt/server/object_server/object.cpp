@@ -108,17 +108,17 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
         Load(context, WeakRefCounter_);
     }
     Load(context, ImportRefCounter_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= 623) {
+        Load(context, LifeStageVoteCount_);
+        Load(context, LifeStage_);
+    }
     if (Load<bool>(context)) {
         Attributes_ = std::make_unique<TAttributeSet>();
         Load(context, *Attributes_);
     }
     if (Load<bool>(context)) {
         SetForeign();
-    }
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= 623) {
-        Load(context, LifeStageVoteCount_);
-        Load(context, LifeStage_);
     }
 }
 
