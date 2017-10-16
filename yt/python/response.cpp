@@ -13,7 +13,7 @@ TDriverResponseHolder::TDriverResponseHolder()
 #if PY_MAJOR_VERSION < 3
     : ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, Null))
 #else
-    , ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, MakeNullable<TString>("utf-8")))
+    : ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, MakeNullable<TString>("utf-8")))
 #endif
     , ResponseParametersConsumer_(new NYTree::TGilGuardedYsonConsumer(ResponseParametersBuilder_.get()))
 { }
