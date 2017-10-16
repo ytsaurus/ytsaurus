@@ -135,7 +135,7 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress());
-        if (!cells || cells->size() >= spare) {
+        if (cells && cells->size() >= spare) {
             return;
         }
         for (auto* cell : *cells) {
