@@ -664,7 +664,10 @@ public:
             return operation->GetFinished();
         }
 
-        DoAbortOperation(operation->GetId(), error);
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND([=, this_ = MakeStrong(this)] {
+                DoAbortOperation(operation->GetId(), error);
+            }));
 
         return operation->GetFinished();
     }
