@@ -9,6 +9,7 @@
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/job_statistics.h>
 
+#include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/serialize.h>
@@ -1621,10 +1622,19 @@ const TOperationId& TOperation::TOperationImpl::GetId() const
 NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TYtPoller& ytPoller)
 {
     auto guard = Guard(Lock_);
+
     if (!CompletePromise_) {
         CompletePromise_ = NThreading::NewPromise<void>();
         ytPoller.Watch(::MakeIntrusive<TOperationPollerItem>(this));
     }
+
+    auto operationId = GetId();
+    TAbortableRegistry::Instance().Add(operationId, ::MakeIntrusive<TOperationAbortable>(Auth_, operationId));
+    auto removeOperation = [operationId](const NThreading::TFuture<void>&) {
+        TAbortableRegistry::Instance().Remove(operationId);
+    };
+    CompletePromise_->GetFuture().Subscribe(removeOperation);
+
     return *CompletePromise_;
 }
 

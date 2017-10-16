@@ -1,5 +1,6 @@
 #include <mapreduce/yt/interface/init.h>
 
+#include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
@@ -8,8 +9,12 @@
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/io/job_reader.h>
 
-#include <util/string/cast.h>
+#include <library/threading/future/async.h>
+#include <library/sighandler/async_signals_handler.h>
+
 #include <util/folder/dirut.h>
+#include <util/generic/singleton.h>
+#include <util/string/cast.h>
 #include <util/system/env.h>
 
 namespace NYT {
@@ -42,6 +47,68 @@ const TNode& GetJobSecureVault()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAbnormalTerminator
+ {
+ public:
+     TAbnormalTerminator() = default;
+
+     static void SetErrorTerminationHandler()
+     {
+         Instance().DefaultHandler_ = std::get_terminate();
+         Instance().HandlerThread_.Reset(CreateMtpQueue(1));
+
+         std::set_terminate(&TerminateHandler);
+         SetAsyncSignalFunction(SIGINT, SignalHandler);
+         SetAsyncSignalFunction(SIGTERM, SignalHandler);
+     }
+
+ private:
+     static TAbnormalTerminator& Instance()
+     {
+         return *Singleton<TAbnormalTerminator>();
+     }
+
+     static void TerminateWithTimeout(const TDuration& timeout, const std::function<void(void)>& exitFunction)
+     {
+         auto result = NThreading::Async([&] {
+                 NDetail::TAbortableRegistry::Instance().AbortAllAndBlockForever();
+             },
+             *Instance().HandlerThread_);
+         Sleep(timeout);
+         exitFunction();
+     }
+
+     static void SignalHandler(int signalNumber)
+     {
+         LOG_INFO("Signal %d received, aborting transactions. Waiting 5 seconds...", signalNumber);
+         TerminateWithTimeout(
+             TDuration::Seconds(5),
+             [&] {
+                 _exit(-signalNumber);
+             });
+     }
+
+     static void TerminateHandler()
+     {
+         LOG_INFO("Terminate called, aborting transactions. Waiting 5 seconds...");
+         TerminateWithTimeout(
+             TDuration::Seconds(5),
+             [&] {
+                 if (Instance().DefaultHandler_) {
+                     Instance().DefaultHandler_();
+                 } else {
+                     abort();
+                 }
+             });
+     }
+
+ private:
+     THolder<IMtpQueue> HandlerThread_;
+     std::terminate_handler DefaultHandler_ = nullptr;
+ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
 {
     auto logLevelStr = to_lower(TConfig::Get()->LogLevel);
@@ -56,12 +123,14 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
 
     TProcessState::Get()->SetCommandLine(argc, argv);
 
-    if (options.WaitProxy_) {
-        NDetail::TWaitProxy::Get() = options.WaitProxy_;
-    }
-
     const bool isInsideJob = !GetEnv("YT_JOB_ID").empty();
     if (!isInsideJob) {
+        if (FromString<bool>(GetEnv("YT_CLEANUP_ON_TERMINATION", "0")) || options.CleanupOnTermination_) {
+            TAbnormalTerminator::SetErrorTerminationHandler();
+        }
+        if (options.WaitProxy_) {
+            NDetail::TWaitProxy::Get() = options.WaitProxy_;
+        }
         WriteVersionToLog();
         return;
     }

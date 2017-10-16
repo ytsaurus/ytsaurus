@@ -17,7 +17,7 @@ void ExecuteBatch(
     IRetryPolicy& retryPolicy)
 {
     if (batchRequest.IsExecuted()) {
-        ythrow yexception() << "Cannot execute batch request since it is alredy executed";
+        ythrow yexception() << "Cannot execute batch request since it is already executed";
     }
     NDetail::TFinallyGuard g([&] {
         batchRequest.MarkExecuted();

@@ -5,6 +5,7 @@
 
 #include <mapreduce/yt/client/transaction.h>
 
+#include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/log.h>
@@ -23,6 +24,19 @@
 #include <util/generic/ymath.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator==(const TAuth& lhs, const TAuth& rhs)
+{
+    return lhs.ServerName == rhs.ServerName &&
+           lhs.Token == rhs.Token;
+}
+
+bool operator!=(const TAuth& lhs, const TAuth& rhs)
+{
+    return !(rhs == lhs);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

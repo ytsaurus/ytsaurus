@@ -1,9 +1,10 @@
 #include "transaction.h"
 
+
+#include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/wait_proxy.h>
-
 #include <mapreduce/yt/http/requests.h>
 
 #include <util/datetime/base.h>
@@ -29,6 +30,10 @@ TPingableTransaction::TPingableTransaction(
         pingAncestors,
         title,
         attributes);
+
+    NDetail::TAbortableRegistry::Instance().Add(
+        TransactionId_,
+        ::MakeIntrusive<NDetail::TTransactionAbortable>(auth, TransactionId_));
 
     Running_ = true;
     Thread_.Start();
@@ -73,6 +78,8 @@ void TPingableTransaction::Stop(bool commit)
     } else {
         AbortTransaction(Auth_, TransactionId_);
     }
+
+    NDetail::TAbortableRegistry::Instance().Remove(TransactionId_);
 }
 
 void TPingableTransaction::Pinger()
