@@ -1311,7 +1311,13 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
 {
     YCHECK(Bootstrap_->IsPrimaryMaster());
 
-    auto* object = GetObject(FromProto<TObjectId>(request->object_id()));
+    const auto objectId = FromProto<TObjectId>(request->object_id());
+    auto* object = FindObject(objectId);
+    if (!object) {
+        LOG_DEBUG_UNLESS(IsRecovery(), "A non-existing object creation confirmed by a secondary cell (ObjectId: %v)",
+            objectId);
+        return;
+    }
     const auto voteCount = object->IncrementLifeStageVoteCount();
 
     if (voteCount != Bootstrap_->GetSecondaryCellTags().size()) {

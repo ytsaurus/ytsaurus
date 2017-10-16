@@ -884,16 +884,18 @@ def clear_metadata_caches(driver=None):
     _get_driver(driver=driver).clear_metadata_caches()
 
 def create_account(name, **kwargs):
+    atomic = kwargs.pop('atomic_creation', True)
     kwargs["type"] = "account"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
-    for _ in xrange(100):
-        if get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed':
-            return
-        time.sleep(0.3)
-    raise TimeoutError("Account \"{0}\" creation timed out".format(name))
+    if atomic:
+        for _ in xrange(100):
+            if get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed':
+                return
+            time.sleep(0.3)
+        raise TimeoutError("Account \"{0}\" creation timed out".format(name))
 
 def remove_account(name, **kwargs):
     gc_collect(kwargs.get("driver"))
