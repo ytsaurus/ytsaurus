@@ -97,7 +97,7 @@ public:
     // Switch dynamic table from `mounted' into `frozen' state.
     // When table is in frozen state all its data is flushed to disk and writes are disabled.
     //
-    // NOTE: this function launches the process of switching, but doesn't wait until switching is acomplished.
+    // NOTE: this function launches the process of switching, but doesn't wait until switching is accomplished.
     // Waiting has to be performed by user.
     virtual void FreezeTable(
         const TYPath& path,
@@ -105,7 +105,7 @@ public:
 
     // Switch dynamic table from `frozen' into `mounted' state.
     //
-    // NOTE: this function launches the process of switching, but doesn't wait until switching is acomplished.
+    // NOTE: this function launches the process of switching, but doesn't wait until switching is accomplished.
     // Waiting has to be performed by user.
     virtual void UnfreezeTable(
         const TYPath& path,

@@ -475,13 +475,13 @@ struct IOperation
     //
     // Start watching operation. Return future that is set when operation is complete.
     //
-    // NOTE: user should check value of returned future to ensure that operation completed successfuly e.g.
+    // NOTE: user should check value of returned future to ensure that operation completed successfully e.g.
     //     auto operationComplete = operation->Watch();
     //     operationComplete.Wait();
     //     operationComplete.GetValue(); // will throw if operation completed with errors
     //
-    // If operation is completed successfuly future contains void value.
-    // If operation is completed with error future contains TOperationFailedException exeption.
+    // If operation is completed successfully future contains void value.
+    // If operation is completed with error future contains TOperationFailedException exception.
     // In rare cases when error occurred while waiting (e.g. YT become unavailable) future might contain other exception.
     virtual NThreading::TFuture<void> Watch() = 0;
 
@@ -489,7 +489,7 @@ struct IOperation
     // Retrieves information about failed jobs.
     // Can be called for operation in any stage.
     // Though user should keep in mind that this method always fetches info from cypress
-    // and doesn't work when operation is archived. Succesfully completed operations can be archived
+    // and doesn't work when operation is archived. Successfully completed operations can be archived
     // quite quickly (in about ~30 seconds).
     virtual yvector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) = 0;
 
@@ -498,7 +498,7 @@ struct IOperation
     virtual EOperationStatus GetStatus() = 0;
 
     //
-    // Will return Nothing if operation is in OS_COMPLETED or OS_IN_PROGREES state.
+    // Will return Nothing if operation is in OS_COMPLETED or OS_IN_PROGRESS state.
     // For failed / aborted operation will return nonempty error explaining operation fail / abort.
     virtual TMaybe<TYtError> GetError() = 0;
 
