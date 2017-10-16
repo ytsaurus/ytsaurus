@@ -5,7 +5,6 @@ from __future__ import print_function
 from .helpers import TEST_DIR
 
 from yt.wrapper.common import parse_bool
-from yt.ypath import YPathError
 import yt.json as json
 import yt.yson as yson
 
@@ -504,6 +503,30 @@ class TestCypressCommands(object):
         finally:
             yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
             yt.abort_transaction(tx)
+
+    def test_shared_key_attribute_locks(self):
+        dir = TEST_DIR + "/dir"
+        yt.create("map_node", dir)
+
+        tx_id = yt.start_transaction()
+        with yt.Transaction(transaction_id=tx_id):
+            yt.lock(dir, mode="shared", attribute_key="my_attr")
+            yt.set(TEST_DIR + "/@my_attr", 10)
+
+            yt.lock(dir, mode="shared", child_key="child")
+            yt.create("table", TEST_DIR + "/child")
+
+        yt.set(TEST_DIR + "/@other_attr", 20)
+        with pytest.raises(yt.YtError):
+            yt.set(TEST_DIR + "/@my_attr", 30)
+
+        yt.create("table", TEST_DIR + "/other_child")
+        with pytest.raises(yt.YtError):
+            yt.set(TEST_DIR + "/child", {})
+
+        yt.commit_transaction(tx_id)
+        yt.set(TEST_DIR + "/@my_attr", 30)
+        yt.remove(TEST_DIR + "/child")
 
     def test_copy_move_sorted_table(self):
         def is_sorted_by_y(table_path):
