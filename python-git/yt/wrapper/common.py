@@ -183,6 +183,12 @@ def get_platform():
     else:
         return None
 
+def get_started_by_short():
+    return {
+        "pid": os.getpid(),
+        "user": getpass.getuser(),
+    }
+
 def get_started_by():
     python_version = "{0}.{1}.{2}".format(*get_python_version())
 
