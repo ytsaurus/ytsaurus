@@ -1121,6 +1121,9 @@ void CodegenFragmentBodies(
                 module->GetModule());
 
             function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+            function->addFnAttr(llvm::Attribute::AttrKind::NoInline);
+            function->addFnAttr(llvm::Attribute::OptimizeForSize);
+
             auto args = function->arg_begin();
             Value* expressionClosure = ConvertToPointer(args++);
             Value* literals = ConvertToPointer(args++);
@@ -1151,7 +1154,7 @@ void CodegenFragmentBodies(
                 innerBuilder->CreateRetVoid();
             }
 
-            function->addFnAttr(llvm::Attribute::AttrKind::NoInline);
+
 
             fragmentInfos.Functions[fragmentInfos.Items[id].Index] = function;
         }

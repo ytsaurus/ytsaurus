@@ -747,6 +747,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
             module->GetModule());
 
         function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+        function->addFnAttr(llvm::Attribute::OptimizeForSize);
 
         auto args = function->arg_begin();
         Value* closurePtr = ConvertToPointer(args++); closurePtr->setName("closure");
@@ -806,6 +807,7 @@ struct TFunctionDefiner<TResult(TArgs...)>
             module->GetModule());
 
         function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+        function->addFnAttr(llvm::Attribute::OptimizeForSize);
 
         auto args = function->arg_begin();
         Value* argsArray[sizeof...(TArgs)];
