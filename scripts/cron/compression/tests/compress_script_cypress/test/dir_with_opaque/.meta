@@ -1,9 +1,0 @@
-{
-    "type" = "map_node";
-    "attributes" = {
-        "opaque" = %true;
-        "nightly_compression_settings" = {
-            "enable" = %true
-        }
-    }
-}

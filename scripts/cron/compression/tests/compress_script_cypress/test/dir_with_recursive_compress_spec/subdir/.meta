@@ -1,8 +1,0 @@
-{
-    "type" = "map_node";
-    "attributes" = {
-        "force_nightly_compress" = {
-            "enabled" = %false
-        }
-    }
-}

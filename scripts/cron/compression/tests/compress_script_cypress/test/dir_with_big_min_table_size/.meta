@@ -1,9 +1,0 @@
-{
-    "type" = "map_node";
-    "attributes" = {
-        "nightly_compression_settings" = {
-            "enabled" = %true;
-            "min_table_size" = 12884901888
-        }
-    }
-}
