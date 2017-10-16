@@ -134,14 +134,15 @@ private:
         yhash<TTabletCellBundle*, int> cellCount;
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress());
-        if (!cells || cells->size() >= spare) {
-            return;
-        }
-        for (auto* cell : *cells) {
-            auto bundle = cell->GetCellBundle();
-            cellCount[bundle] += 1;
-            --spare;
+        if (const auto* cells = tabletManager->FindAssignedTabletCells(node->GetDefaultAddress())) {
+            if (cells->size() >= spare) {
+                return;
+            }
+            for (auto* cell : *cells) {
+                auto bundle = cell->GetCellBundle();
+                cellCount[bundle] += 1;
+                --spare;
+            }
         }
 
         auto hostilityChecker = THostilityChecker(node);
