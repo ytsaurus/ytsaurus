@@ -221,6 +221,8 @@ public:
         TObjectBase* object,
         TCellTag cellTag);
 
+    void ConfirmObjectLifeStageToPrimaryMaster(TObjectBase* object);
+
     const NProfiling::TProfiler& GetProfiler();
     NProfiling::TAggregateCounter* GetMethodExecTimeCounter(EObjectType type, const TString& method);
 
@@ -300,6 +302,7 @@ private:
     void HydraCreateForeignObject(NProto::TReqCreateForeignObject* request) noexcept;
     void HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* request) noexcept;
     void HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects* request) noexcept;
+    void HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* request) noexcept;
 
     void OnProfiling();
 

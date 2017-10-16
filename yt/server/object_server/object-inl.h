@@ -120,6 +120,17 @@ inline int TObjectBase::GetImportRefCounter() const
     return ImportRefCounter_;
 }
 
+inline EObjectLifeStage TObjectBase::GetLifeStage() const
+{
+    return LifeStage_;
+}
+
+inline void TObjectBase::SetLifeStage(EObjectLifeStage lifeStage)
+{
+    LifeStage_ = lifeStage;
+    LifeStageVoteCount_ = 0;
+}
+
 inline bool TObjectBase::IsAlive() const
 {
     return RefCounter_ > 0;
