@@ -447,6 +447,17 @@ default_config = {
         }),
     "start_operation_request_timeout": 60000,
 
+    # Retries for concatenate requests.
+    "concatenate_retries": retries_config(count=6, enable=True, backoff={
+        "policy": "exponential",
+        "exponential_policy": {
+            "start_timeout": 20,
+            "base": 2,
+            "max_timeout": 120000,
+            "decay_factor_bound": 0.3,
+        }
+    }),
+
     "auto_merge_output": {
         # Action can be:
         # "none" - do nothing

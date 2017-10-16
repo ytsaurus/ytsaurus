@@ -1,12 +1,15 @@
 from . import yson
 from .config import get_config, get_option, get_command_param
-from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param
+from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param, update, remove_nones_from_dict
 from .errors import YtResponseError
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
+from .transaction import Transaction
 from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
 from .format import create_format
 from .batch_response import apply_function_to_result
+from .retries import Retrier
+from .http_helpers import get_retriable_errors
 
 import yt.logger as logger
 
@@ -131,6 +134,36 @@ def move(source_path, destination_path,
     set_param(params, "preserve_expiration_time", preserve_expiration_time, bool_to_string)
     return _make_formatted_transactional_request("move", params, format=None, client=client)
 
+class _ConcatenateRetrier(Retrier):
+    def __init__(self, type, source_paths, destination_path, client):
+        self.type = type
+        self.source_paths = source_paths
+        self.destination_path = destination_path
+        self.client = client
+
+        retry_config = {
+            "backoff": get_config(client)["retry_backoff"],
+            "count": get_config(client)["proxy"]["request_retry_count"],
+        }
+        retry_config = update(deepcopy(get_config(client)["concatenate_retries"]), remove_nones_from_dict(retry_config))
+        chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
+        super(_ConcatenateRetrier, self).__init__(retry_config=retry_config,
+                                                  exceptions=get_retriable_errors(),
+                                                  chaos_monkey_enable=chaos_monkey_enable)
+
+    def action(self):
+        title = "Python wrapper: concatenate"
+        with Transaction(attributes={"title": title},
+                         client=self.client):
+            create(self.type, self.destination_path, ignore_existing=True, client=self.client)
+            params = {"source_paths": self.source_paths,
+                      "destination_path": self.destination_path}
+            _make_transactional_request("concatenate", params, client=self.client)
+
+    def except_action(self, error, attempt):
+        logger.warning("%s: %s", type(error), str(error))
+
+
 def concatenate(source_paths, destination_path, client=None):
     """Concatenates cypress nodes. This command applicable only to files and tables.
 
@@ -146,10 +179,10 @@ def concatenate(source_paths, destination_path, client=None):
     type = get(source_paths[0] + "/@type", client=client)
     if type not in ["file", "table"]:
         raise YtError("Type of '{0}' is not table or file".format(source_paths[0]))
-    create(type, destination_path, ignore_existing=True, client=client)
-    params = {"source_paths": source_paths,
-              "destination_path": destination_path}
-    _make_transactional_request("concatenate", params, client=client)
+
+    retrier = _ConcatenateRetrier(type, source_paths, destination_path, client=client)
+    retrier.run()
+
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, force=False, attributes=None, client=None):
     """Makes link to Cypress node.
