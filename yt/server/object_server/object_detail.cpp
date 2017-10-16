@@ -363,6 +363,9 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor("effective_acl")
         .SetOpaque(true));
     descriptors->push_back("user_attribute_keys");
+    descriptors->push_back(TAttributeDescriptor("life_stage")
+        .SetWritable(true)
+        .SetReplicated(true));
 }
 
 const yhash_set<const char*>& TObjectProxyBase::GetBuiltinAttributeKeys()
@@ -470,6 +473,12 @@ bool TObjectProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* co
         return true;
     }
 
+    if (key == "life_stage") {
+        BuildYsonFluently(consumer)
+            .Value(ToSnakeCaseString(Object_->GetLifeStage()));
+        return true;
+    }
+
     return false;
 }
 
@@ -480,6 +489,7 @@ TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(const TString& /
 
 bool TObjectProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString& value)
 {
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* acd = FindThisAcd();
     if (acd) {
@@ -523,6 +533,14 @@ bool TObjectProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString
             return true;
         }
     }
+
+    if (key == "life_stage") {
+        auto lifeStage = ConvertTo<EObjectLifeStage>(value);
+        Object_->SetLifeStage(lifeStage);
+        objectManager->ConfirmObjectLifeStageToPrimaryMaster(Object_);
+        return true;
+    }
+
     return false;
 }
 

@@ -15,6 +15,35 @@ using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EObjectLifeStage NextStage(EObjectLifeStage lifeStage)
+{
+    switch (lifeStage) {
+        case EObjectLifeStage::CreationStarted:
+            return EObjectLifeStage::CreationPreCommitted;
+        case EObjectLifeStage::CreationPreCommitted:
+            return EObjectLifeStage::CreationCommitted;
+        case EObjectLifeStage::CreationCommitted:
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+const char* ToSnakeCaseString(EObjectLifeStage lifeStage)
+{
+    switch (lifeStage) {
+        case EObjectLifeStage::CreationStarted:
+            return "creation_started";
+        case EObjectLifeStage::CreationPreCommitted:
+            return "creation_precommitted";
+        case EObjectLifeStage::CreationCommitted:
+            return "creation_committed";
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 EObjectType TObjectBase::GetType() const
 {
     return TypeFromId(Id_);
@@ -23,6 +52,11 @@ EObjectType TObjectBase::GetType() const
 bool TObjectBase::IsBuiltin() const
 {
     return IsWellKnownId(Id_);
+}
+
+int TObjectBase::IncrementLifeStageVoteCount()
+{
+    return ++LifeStageVoteCount_;
 }
 
 const TAttributeSet* TObjectBase::GetAttributes() const
@@ -52,7 +86,10 @@ void TObjectBase::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, RefCounter_);
+    Save(context, WeakRefCounter_);
     Save(context, ImportRefCounter_);
+    Save(context, LifeStageVoteCount_);
+    Save(context, LifeStage_);
     if (Attributes_) {
         Save(context, true);
         Save(context, *Attributes_);
@@ -66,6 +103,10 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, RefCounter_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= 623) {
+        Load(context, WeakRefCounter_);
+    }
     Load(context, ImportRefCounter_);
     if (Load<bool>(context)) {
         Attributes_ = std::make_unique<TAttributeSet>();
@@ -73,6 +114,11 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
     }
     if (Load<bool>(context)) {
         SetForeign();
+    }
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= 623) {
+        Load(context, LifeStageVoteCount_);
+        Load(context, LifeStage_);
     }
 }
 

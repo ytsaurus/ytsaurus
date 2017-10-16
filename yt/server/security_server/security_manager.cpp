@@ -1066,6 +1066,13 @@ public:
             return;
         }
 
+        if (account->GetLifeStage() == EObjectLifeStage::CreationStarted) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::ObjectNotReplicated,
+                "Account %Qv is not replicated to all cells yet",
+                account->GetName());
+        }
+
         const auto& usage = account->ClusterStatistics().ResourceUsage;
         const auto& limits = account->ClusterResourceLimits();
 
@@ -2303,8 +2310,11 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
+    auto lifeStage = attributes->GetAndRemove<EObjectLifeStage>("life_stage", EObjectLifeStage::CreationStarted);
 
-    return Owner_->CreateAccount(name, hintId);
+    auto* account = Owner_->CreateAccount(name, hintId);
+    account->SetLifeStage(lifeStage);
+    return account;
 }
 
 IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(

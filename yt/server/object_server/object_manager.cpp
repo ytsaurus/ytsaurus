@@ -411,6 +411,7 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::HydraCreateForeignObject, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraRemoveForeignObject, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraUnrefExportedObjects, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraConfirmObjectLifeStage, Unretained(this)));
 
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetPrimaryCellTag());
 }
@@ -951,6 +952,10 @@ TObjectBase* TObjectManager::CreateObject(
 
     auto* object = handler->CreateObject(hintId, attributes.get());
 
+    if (!Bootstrap_->IsMulticell()) {
+        object->SetLifeStage(EObjectLifeStage::CreationCommitted);
+    }
+
     YCHECK(object->GetObjectRefCounter() == 1);
 
     if (CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag()) {
@@ -980,7 +985,24 @@ TObjectBase* TObjectManager::CreateObject(
         multicellManager->PostToMasters(replicationRequest, replicationCellTags);
     }
 
+    ConfirmObjectLifeStageToPrimaryMaster(object);
+
     return object;
+}
+
+void TObjectManager::ConfirmObjectLifeStageToPrimaryMaster(TObjectBase* object)
+{
+    if (!Bootstrap_->IsSecondaryMaster()) {
+        return;
+    }
+    if (object->GetLifeStage() == EObjectLifeStage::CreationCommitted) {
+        return;
+    }
+
+    NProto::TReqConfirmObjectLifeStage request;
+    ToProto(request.mutable_object_id(), object->GetId());
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToMaster(request, PrimaryMasterCellTag);
 }
 
 IObjectResolver* TObjectManager::GetObjectResolver()
@@ -1283,6 +1305,29 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
     LOG_DEBUG_UNLESS(IsRecovery(), "Exported objects unreferenced (CellTag: %v, Count: %v)",
         cellTag,
         request->entries_size());
+}
+
+void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* request) noexcept
+{
+    YCHECK(Bootstrap_->IsPrimaryMaster());
+
+    auto* object = GetObject(FromProto<TObjectId>(request->object_id()));
+    const auto voteCount = object->IncrementLifeStageVoteCount();
+
+    if (voteCount != Bootstrap_->GetSecondaryCellTags().size()) {
+        return;
+    }
+
+    auto lifeStage = object->GetLifeStage();
+    auto nextLifeStage = NextStage(lifeStage);
+
+    object->SetLifeStage(nextLifeStage);
+
+    auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@life_stage");
+    req->set_value(ConvertToYsonString(nextLifeStage).GetData());
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToSecondaryMasters(req);
 }
 
 const TProfiler& TObjectManager::GetProfiler()

@@ -889,6 +889,11 @@ def create_account(name, **kwargs):
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
+    for _ in xrange(100):
+        if get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed':
+            return
+        time.sleep(0.3)
+    raise TimeoutError("Account \"{0}\" creation timed out".format(name))
 
 def remove_account(name, **kwargs):
     gc_collect(kwargs.get("driver"))

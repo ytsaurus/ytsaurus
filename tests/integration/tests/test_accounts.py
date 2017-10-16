@@ -1106,7 +1106,7 @@ class TestAccounts(YTEnvSetup):
 
         # ...and modify the original table's properties in some way.
         tbl_media = get("//tmp/t/@media")
-        tbl_media["hdd4"] = {"replication_factor": 7, "data_parts_only" : True}
+        tbl_media["hdd6"] = {"replication_factor": 7, "data_parts_only" : True}
         tbl_media["default"] = {"replication_factor": 4, "data_parts_only" : False}
         set("//tmp/t/@media", tbl_media)
 
@@ -1129,7 +1129,7 @@ class TestAccounts(YTEnvSetup):
             },
             {
                 "account" : "tmp",
-                "medium" : "hdd4",
+                "medium" : "hdd6",
                 "replication_policy" : {"replication_factor" : 7, "data_parts_only" : True},
                 "committed" : True
             }

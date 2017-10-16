@@ -18,6 +18,26 @@ struct TObjectDynamicData
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Some objects must be created atomically.
+//
+// Let's consider accounts. In the absence of an atomic commit, it's possible
+// that some cell knows about an account, and some other cell doesn't. Then, the
+// former cell sending a chunk requisition update to the latter will cause
+// trouble.
+//
+// To be extended for deletion (for symmetry's sake).
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
+     (CreationStarted)
+     (CreationPreCommitted)
+     (CreationCommitted)
+);
+
+EObjectLifeStage NextStage(EObjectLifeStage lifeStage);
+
+const char* ToSnakeCaseString(EObjectLifeStage lifeStage);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides a base for all objects in YT master server.
 class TObjectBase
     : public NHydra::TEntityBase
@@ -115,6 +135,25 @@ public:
     //! Returns the current import reference counter.
     int GetImportRefCounter() const;
 
+    //! Returns the current life stage of the object.
+    /*!
+     *  For most objects, this is always #Created.
+     *
+     *  Some objects, however, need to be created atomically (across all
+     *  cells). Returning an object in the #PreCreated stage from type handler
+     *  initiates atomic creation procedure.
+     */
+    EObjectLifeStage GetLifeStage() const;
+
+    //! Sets object's life stage and resets vote count to zero.
+    void SetLifeStage(EObjectLifeStage lifeStage);
+
+    //! Increases life stage vote count and returns the vote count.
+    int IncrementLifeStageVoteCount();
+
+    //! Sets life stage vote count to zero.
+    void ResetLifeStageVoteCount();
+
     //! Returns |true| iff the reference counter is positive.
     bool IsAlive() const;
 
@@ -159,6 +198,8 @@ protected:
     TEpoch EphemeralLockEpoch_ = 0;
     int WeakRefCounter_ = 0;
     int ImportRefCounter_ = 0;
+    int LifeStageVoteCount_ = 0; // home many secondary cells have confirmed the life stage
+    EObjectLifeStage LifeStage_ = EObjectLifeStage::CreationCommitted;
 
     struct {
         bool Foreign : 1;
