@@ -265,3 +265,50 @@ def test_insert(yt_stuff):
     assert len(rows) == 1
     assert rows[0]['count'] == 2
 
+
+def test_lookup(yt_stuff):
+    client = yt_client.Client('localhost:{}'.format(yt_stuff.yt_proxy_port))
+    yt = yt_stuff.get_yt_client()
+    yt.create('map_node', '//test_lookup', ignore_existing=True)
+
+    client.create_table(
+        '//test_lookup/table',
+        attributes={
+            'dynamic': 'true',
+            'schema': [
+                {'name': 'hash', 'type': 'uint64', 'sort_order': 'ascending', 'expression': 'farm_hash(key) % 128'},
+                {'name': 'key', 'type': 'string', 'sort_order': 'ascending'},
+                {'name': 'value', 'type': 'string'},
+            ],
+            'pivot_keys': [
+                [],
+                [yt_client.node_ui64(32)],
+                [yt_client.node_ui64(64)],
+                [yt_client.node_ui64(96)],
+                [yt_client.node_ui64(128)]
+            ],
+            'disable_tablet_balancer': 'true',
+        }
+    )
+
+    retry(lambda: client.mount_table('//test_lookup/table'), 10)
+    wait_true(lambda: all(t['state'] == 'mounted' for t in client.get('//test_lookup/table/@tablets')), 15)
+
+    client.insert_rows('//test_lookup/table', [{'key': 'a', 'value': 'x'}, {'key': 'b', 'value': 'y'}])
+    rows = client.lookup_rows('//test_lookup/table', [{'key': 'a'}])
+    assert len(rows) == 1
+    assert len(rows[0]) == 3
+    assert rows[0]['key'] == 'a'
+    assert rows[0]['value'] == 'x'
+
+    rows = client.lookup_rows('//test_lookup/table', [{'key': 'a'}], columns=['key', 'value'])
+    assert rows == [{'key': 'a', 'value': 'x'}]
+
+    rows = client.lookup_rows('//test_lookup/table', [{'key': 'a'}, {'key': 'b'}], columns=['key'])
+    assert rows == [{'key': 'a'}, {'key': 'b'}]
+
+    rows = client.lookup_rows('//test_lookup/table', [{'key': 'c'}])
+    assert len(rows) == 0
+
+    rows = client.lookup_rows('//test_lookup/table', [{'key': 'c'}, {'key': 'a'}], columns=['value'], keep_missing_rows=True)
+    assert rows == [None, {'value': 'x'}]

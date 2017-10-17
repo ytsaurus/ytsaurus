@@ -196,6 +196,11 @@ cdef extern from "mapreduce/yt/interface/client_method_options.h" namespace "NYT
         TSelectRowsOptions VerboseLogging(bint)
         TSelectRowsOptions EnableCodeCache(bint)
 
+    cdef cppclass TLookupRowsOptions:
+        TLookupRowsOptions() except +
+        TLookupRowsOptions Timeout(TDuration)
+        TLookupRowsOptions Columns(yvector[TString])
+        TLookupRowsOptions KeepMissingRows(bint)
 
     cdef cppclass TCreateClientOptions:
         TCreateClientOptions() except +
@@ -282,6 +287,7 @@ cdef extern from "mapreduce/yt/interface/fwd.h" namespace "NYT" nogil:
         void UnmountTable(TString, TUnmountTableOptions) except +
         void InsertRows(TString, yvector[TNode], TInsertRowsOptions) except +
         yvector[TNode] SelectRows(TString, TSelectRowsOptions) except +
+        yvector[TNode] LookupRows(TString, yvector[TNode], TLookupRowsOptions) except +
 
     cdef cppclass IClientPtr:
         IClient operator*()
@@ -406,4 +412,17 @@ cdef class Client:
         cdef yvector[TNode] rows
         with nogil:
             rows = cython.operator.dereference(self._client).SelectRows(cquery, opts)
+        return [_TNode_to_pyobj(row) for row in rows]
+
+    def lookup_rows(self, path, keys, timeout=None, columns=None, keep_missing_rows=False):
+        cdef TLookupRowsOptions opts
+        if timeout is not None:
+            opts.Timeout(TDuration.MilliSeconds(<int>timeout))
+        if columns is not None:
+            opts.Columns(columns)
+        opts.KeepMissingRows(<bint>keep_missing_rows)
+        cdef TString cpath = _to_TString(path)
+        cdef yvector[TNode] ckeys =  _pyobj_to_TNode(keys).AsList()
+        with nogil:
+            rows = cython.operator.dereference(self._client).LookupRows(cpath, ckeys, opts)
         return [_TNode_to_pyobj(row) for row in rows]
