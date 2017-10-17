@@ -1,5 +1,21 @@
 #pragma once
 
-// NOTE: this is backward compatibility file, new users should #include <mapreduce/yt/interface/init.h>
-
 #include <mapreduce/yt/interface/init.h>
+
+namespace NYT {
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EInitStatus : int
+{
+    IS_NOT_INITIALIZED,
+    IS_INITIALIZED
+};
+
+EInitStatus& GetInitStatus();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+} // namespace NYT
