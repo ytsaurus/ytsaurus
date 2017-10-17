@@ -83,7 +83,8 @@ SIMPLE_UNIT_TEST_SUITE(Lock)
         auto lockAcquired = lock->GetAcquiredFuture();
         UNIT_ASSERT(!lockAcquired.Wait(TDuration::MilliSeconds(500)));
         tx2->Abort();
-        UNIT_ASSERT(lockAcquired.Wait(TDuration::MilliSeconds(500)));
+        // Don't want test to be flaky so use increased wait interval.
+        UNIT_ASSERT(lockAcquired.Wait(TDuration::Seconds(5)));
         UNIT_ASSERT_EXCEPTION(lockAcquired.GetValue(), TErrorResponse);
     }
 
