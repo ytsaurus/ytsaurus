@@ -667,7 +667,7 @@ void TCompositeSchedulerElement::IncreaseOperationCount(int delta)
 
     auto parent = GetParent();
     while (parent) {
-        parent->IncreaseOperationCount(delta);
+        parent->OperationCount() += delta;
         parent = parent->GetParent();
     }
 }
@@ -678,7 +678,7 @@ void TCompositeSchedulerElement::IncreaseRunningOperationCount(int delta)
 
     auto parent = GetParent();
     while (parent) {
-        parent->IncreaseRunningOperationCount(delta);
+        parent->RunningOperationCount() += delta;
         parent = parent->GetParent();
     }
 }
