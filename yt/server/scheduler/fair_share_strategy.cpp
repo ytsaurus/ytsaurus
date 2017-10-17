@@ -1329,6 +1329,8 @@ private:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        TForbidContextSwitchGuard contextSwitchGuard;
+
         const auto& operationElement = GetOperationElement(operationId);
         operationElement->InvokeMinNeededJobResourcesUpdate();
 
