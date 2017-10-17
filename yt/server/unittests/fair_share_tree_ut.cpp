@@ -18,7 +18,7 @@ struct TSchedulerStrategyHostMock
     , public ISchedulerStrategyHost
     , public TEventLogHostBase
 {
-    explicit TSchedulerStrategyHostMock(const std::vector<TJobResources>& nodeResourceLimitsList)
+    explicit TSchedulerStrategyHostMock(const std::vector<TJobResources>& nodeResourceLimitsList = {})
         : NodeResourceLimitsList(nodeResourceLimitsList)
     { }
 
@@ -377,6 +377,60 @@ TEST(FairShareTree, TestBestAllocationRatio)
     EXPECT_EQ(operationElementX->Attributes().DemandRatio, 1.125);
     EXPECT_EQ(operationElementX->Attributes().BestAllocationRatio, 0.375);
     EXPECT_EQ(operationElementX->Attributes().FairShareRatio, 0.375);
+}
+
+TEST(FairShareTree, TestOperationCountLimits)
+{
+    auto config = New<TFairShareStrategyConfig>();
+    auto host = New<TSchedulerStrategyHostMock>();
+    auto poolConfig = New<TPoolConfig>();
+
+    auto rootElement = New<TRootElement>(
+        host.Get(),
+        config,
+        // TODO(ignat): eliminate profiling from test.
+        NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName));
+
+    TPoolPtr pools[3];
+    for (int i = 0; i < 3; ++i) {
+        pools[i] = New<TPool>(
+            host.Get(),
+            "pool" + ToString(i),
+            poolConfig,
+            true, /* defaultConfigured */
+            config,
+            NProfiling::TProfileManager::Get()->RegisterTag("pool", "pool" + ToString(i)));
+    }
+
+    rootElement->AddChild(pools[0], /* enabled */ true);
+    rootElement->AddChild(pools[1], /* enabled */ true);
+    pools[0]->SetParent(rootElement.Get());
+    pools[1]->SetParent(rootElement.Get());
+
+    pools[1]->AddChild(pools[2], /* enabled */ true);
+    pools[2]->SetParent(pools[1].Get());
+
+    pools[2]->IncreaseOperationCount(1);
+    pools[2]->IncreaseRunningOperationCount(1);
+
+    EXPECT_EQ(rootElement->OperationCount(), 1);
+    EXPECT_EQ(rootElement->RunningOperationCount(), 1);
+
+    EXPECT_EQ(pools[1]->OperationCount(), 1);
+    EXPECT_EQ(pools[1]->RunningOperationCount(), 1);
+
+    pools[1]->IncreaseOperationCount(5);
+    EXPECT_EQ(rootElement->OperationCount(), 6);
+    for (int i = 0; i < 5; ++i) {
+        pools[1]->IncreaseOperationCount(-1);
+    }
+    EXPECT_EQ(rootElement->OperationCount(), 1);
+
+    pools[2]->IncreaseOperationCount(-1);
+    pools[2]->IncreaseRunningOperationCount(-1);
+
+    EXPECT_EQ(rootElement->OperationCount(), 0);
+    EXPECT_EQ(rootElement->RunningOperationCount(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
