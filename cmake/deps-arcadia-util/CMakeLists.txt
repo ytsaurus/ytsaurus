@@ -6,6 +6,7 @@ set(CHARSET_SRCS
   ${CHARSET_BASE}/unidata.cpp
   ${CHARSET_BASE}/utf8.cpp
   ${CHARSET_BASE}/sse41/wide.cpp
+  ${CHARSET_BASE}/wide.cpp
 )
 
 set(STRING_BASE ${CMAKE_SOURCE_DIR}/util/string)
