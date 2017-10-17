@@ -215,10 +215,6 @@ def make_request(command_name,
     if "_ARGCOMPLETE" in os.environ:
         user_agent += " [argcomplete mode]"
 
-    headers = {"User-Agent": user_agent,
-               "Accept-Encoding": get_config(client)["proxy"]["accept_encoding"],
-               "X-Started-By": get_started_by_short()}
-
     header_format = get_header_format(client)
     if header_format not in ["json", "yson"]:
         raise YtError("Incorrect headers format: " + str(header_format))
@@ -226,6 +222,10 @@ def make_request(command_name,
     header_format_header = header_format
     if header_format == "yson":
         header_format_header = "<format=text>yson"
+
+    headers = {"User-Agent": user_agent,
+               "Accept-Encoding": get_config(client)["proxy"]["accept_encoding"],
+               "X-Started-By": dump_params(get_started_by_short(), header_format)}
 
     write_params_to_header = True
     headers["X-YT-Header-Format"] = header_format_header
