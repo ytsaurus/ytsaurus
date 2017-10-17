@@ -1481,10 +1481,8 @@ void TNodeShard::SubmitUpdatedAndCompletedJobsToStrategy()
 {
     if (!UpdatedJobs_.empty() || !CompletedJobs_.empty()) {
         Host_->GetStrategy()->ProcessUpdatedAndCompletedJobs(
-            UpdatedJobs_,
-            CompletedJobs_);
-        UpdatedJobs_.clear();
-        CompletedJobs_.clear();
+            &UpdatedJobs_,
+            &CompletedJobs_);
     }
 }
 
