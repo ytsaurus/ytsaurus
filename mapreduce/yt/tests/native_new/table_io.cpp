@@ -5,6 +5,8 @@
 #include <mapreduce/yt/common/config.h>
 
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/interface/io.h>
+
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/abortable_http_response.h>
 
@@ -540,5 +542,26 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         for (; reader->IsValid(); reader->Next()) {
             UNIT_ASSERT(reader->GetRow().AsMap().has("first_key"));
         }
+    }
+
+    SIMPLE_UNIT_TEST(TableReaderFromInputStream)
+    {
+        TString input = "{ key1 = [1; 2; 3; value0]; };  {key2 = { key21 = value1; key22 = value2 };}";
+        TStringInput stream(input);
+        yvector<TNode> expected = {
+            TNode()("key1",
+                TNode()
+                .Add(1).Add(2).Add(3).Add("value0")),
+            TNode()("key2",
+                TNode()("key21", "value1")("key22", "value2"))
+        };
+
+        auto reader = CreateTableReader<TNode>(&stream);
+        yvector<TNode> got;
+        for (; reader->IsValid(); reader->Next()) {
+            got.push_back(reader->GetRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(expected, got);
     }
 }

@@ -201,6 +201,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+TTableReaderPtr<T> CreateTableReader(
+    IInputStream* stream,
+    const TTableReaderOptions& options = TTableReaderOptions());
+
+template <>
+TTableReaderPtr<TNode> CreateTableReader<TNode>(
+    IInputStream* stream, const TTableReaderOptions& options);
+
+template <>
+TTableReaderPtr<TYaMRRow> CreateTableReader<TYaMRRow>(
+    IInputStream* stream, const TTableReaderOptions& options);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define IO_INL_H_
