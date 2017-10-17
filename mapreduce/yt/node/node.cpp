@@ -8,7 +8,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TNode::TEntity::operator==(const TEntity&) const {
+bool TNode::TNull::operator==(const TNull&) const {
     return true;
 }
 
@@ -145,7 +145,12 @@ bool TNode::IsMap() const
 
 bool TNode::IsEntity() const
 {
-    return Value_.Is<TEntity>();
+    return IsNull();
+}
+
+bool TNode::IsNull() const
+{
+    return Value_.Is<TNull>();
 }
 
 bool TNode::IsUndefined() const
@@ -200,7 +205,7 @@ TNode::EType TNode::GetType() const
             return List;
         case TValue::TagOf<TMap>():
             return Map;
-        case TValue::TagOf<TEntity>():
+        case TValue::TagOf<TNull>():
             return Null;
     }
     Y_UNREACHABLE();
@@ -322,7 +327,7 @@ TNode TNode::CreateMap()
 TNode TNode::CreateEntity()
 {
     TNode node;
-    node.Value_ = TValue(TVariantTypeTag<TEntity>());
+    node.Value_ = TValue(TVariantTypeTag<TNull>());
     return node;
 }
 
