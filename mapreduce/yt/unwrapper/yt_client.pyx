@@ -422,7 +422,7 @@ cdef class Client:
             opts.Columns(columns)
         opts.KeepMissingRows(<bint>keep_missing_rows)
         cdef TString cpath = _to_TString(path)
-        cdef yvector[TNode] ckeys =  _pyobj_to_TNode(keys).AsList()
+        cdef yvector[TNode] ckeys = _pyobj_to_TNode(keys).AsList()
         with nogil:
             rows = cython.operator.dereference(self._client).LookupRows(cpath, ckeys, opts)
         return [_TNode_to_pyobj(row) for row in rows]
