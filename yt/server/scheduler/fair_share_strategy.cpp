@@ -188,6 +188,10 @@ public:
         int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(spec->SchedulingTagFilter));
         operationElement->SetSchedulingTagFilterIndex(index);
 
+        {
+            TWriterGuard guard(RegisteredOperationsSetLock);
+            YCHECK(RegisteredOperationsSet.insert(operationId).second);
+        }
         YCHECK(OperationIdToElement.insert(std::make_pair(operationId, operationElement)).second);
 
         const auto& userName = state->GetHost()->GetAuthenticatedUser();
@@ -224,7 +228,7 @@ public:
                 operationId,
                 violatedPool->GetId(),
                 violatedPool->GetMaxRunningOperationCount());
-            OperationQueue.push_back(operationId);
+            WaitingOperationQueue.push_back(operationId);
         } else {
             AddOperationToPool(operationId);
             result.OperationsToActivate.push_back(operationId);
@@ -246,6 +250,10 @@ public:
         UnassignOperationPoolIndex(state, pool->GetId());
 
         auto finalResourceUsage = operationElement->Finalize();
+        {
+            TWriterGuard guard(RegisteredOperationsSetLock);
+            YCHECK(RegisteredOperationsSet.erase(operationId));
+        }
         YCHECK(OperationIdToElement.erase(operationId) == 1);
         operationElement->SetAlive(false);
         pool->RemoveChild(operationElement);
@@ -257,10 +265,10 @@ public:
             pool->GetId());
 
         bool isPending = false;
-        for (auto it = OperationQueue.begin(); it != OperationQueue.end(); ++it) {
+        for (auto it = WaitingOperationQueue.begin(); it != WaitingOperationQueue.end(); ++it) {
             if (*it == operationId) {
                 isPending = true;
-                OperationQueue.erase(it);
+                WaitingOperationQueue.erase(it);
                 break;
             }
         }
@@ -280,26 +288,34 @@ public:
     }
 
     void ProcessUpdatedAndCompletedJobs(
-        const std::vector<TUpdatedJob>& updatedJobs,
-        const std::vector<TCompletedJob>& completedJobs)
+        std::vector<TUpdatedJob>* updatedJobs,
+        std::vector<TCompletedJob>* completedJobs)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto rootElementSnapshot = GetRootSnapshot();
 
-        for (const auto& job : updatedJobs) {
+        for (const auto& job : *updatedJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job.OperationId);
             if (operationElement) {
                 operationElement->IncreaseJobResourceUsage(job.JobId, job.Delta);
             }
         }
+        updatedJobs->clear();
 
-        for (const auto& job : completedJobs) {
+        std::vector<TCompletedJob> remainingCompletedJobs;
+        for (const auto& job : *completedJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job.OperationId);
             if (operationElement) {
                 operationElement->OnJobFinished(job.JobId);
+            } else {
+                TReaderGuard guard(RegisteredOperationsSetLock);
+                if (RegisteredOperationsSet.find(job.OperationId) != RegisteredOperationsSet.end()) {
+                    remainingCompletedJobs.push_back(job);
+                }
             }
         }
+        *completedJobs = remainingCompletedJobs;
     }
 
     void ApplyJobMetricsDelta(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta)
@@ -799,7 +815,10 @@ private:
     using TOperationElementPtrByIdMap = yhash<TOperationId, TOperationElementPtr>;
     TOperationElementPtrByIdMap OperationIdToElement;
 
-    std::list<TOperationId> OperationQueue;
+    std::list<TOperationId> WaitingOperationQueue;
+    
+    TReaderWriterSpinLock RegisteredOperationsSetLock;
+    yhash_set<TOperationId> RegisteredOperationsSet;
 
     TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock;
     yhash<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
@@ -1429,15 +1448,15 @@ private:
     void TryActivateOperationsFromQueue(std::vector<TOperationId>* operationsToActivate)
     {
         // Try to run operations from queue.
-        auto it = OperationQueue.begin();
-        while (it != OperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
+        auto it = WaitingOperationQueue.begin();
+        while (it != WaitingOperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
             const auto& operationId = *it;
             auto* operationPool = GetOperationElement(operationId)->GetParent();
             if (FindPoolViolatingMaxRunningOperationCount(operationPool) == nullptr) {
                 operationsToActivate->push_back(operationId);
                 AddOperationToPool(operationId);
                 auto toRemove = it++;
-                OperationQueue.erase(toRemove);
+                WaitingOperationQueue.erase(toRemove);
             } else {
                 ++it;
             }
@@ -2099,8 +2118,8 @@ public:
     }
 
     virtual void ProcessUpdatedAndCompletedJobs(
-        const std::vector<TUpdatedJob>& updatedJobs,
-        const std::vector<TCompletedJob>& completedJobs) override
+        std::vector<TUpdatedJob>* updatedJobs,
+        std::vector<TCompletedJob>* completedJobs) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
