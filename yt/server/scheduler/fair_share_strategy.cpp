@@ -286,6 +286,23 @@ public:
         }
     }
 
+    void TryActivateOperationFromQueue()
+    {
+        // Try to run operations from queue.
+        auto it = OperationQueue.begin();
+        while (it != OperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
+            const auto& operation = *it;
+            auto* operationPool = GetOperationElement(operation->GetId())->GetParent();
+            if (FindPoolViolatingMaxRunningOperationCount(operationPool) == nullptr) {
+                ActivateOperation(operation->GetId());
+                auto toRemove = it++;
+                OperationQueue.erase(toRemove);
+            } else {
+                ++it;
+            }
+        }
+    }
+
     void UnregisterOperation(const TOperationPtr& operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -318,20 +335,7 @@ public:
 
         if (!isPending) {
             pool->IncreaseRunningOperationCount(-1);
-
-            // Try to run operations from queue.
-            auto it = OperationQueue.begin();
-            while (it != OperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
-                const auto& operation = *it;
-                auto* operationPool = GetOperationElement(operation->GetId())->GetParent();
-                if (FindPoolViolatingMaxRunningOperationCount(operationPool) == nullptr) {
-                    ActivateOperation(operation->GetId());
-                    auto toRemove = it++;
-                    OperationQueue.erase(toRemove);
-                } else {
-                    ++it;
-                }
-            }
+            TryActivateOperationFromQueue();
         }
 
         if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
