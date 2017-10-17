@@ -896,9 +896,15 @@ public:
     {
         auto controller = operation->GetController();
         if (controller->IsRevivedFromSnapshot()) {
-            operation->SetState(EOperationState::Running);
-            BIND(&TImpl::RegisterJobsFromRevivedOperation, MakeStrong(this), operation)
-                .Via(operation->GetCancelableControlInvoker());
+            // TODO(ignat): add additional state?
+            operation->SetState(EOperationState::Materializing);
+            RegisterJobsFromRevivedOperation(operation)
+                .Subscribe(BIND([operation] (const TError& error) {
+                    YCHECK(error.IsOK() && "Error while registering jobs from the revived operation");
+                    if (operation->GetState() == EOperationState::Materializing) {
+                        operation->SetState(EOperationState::Running);
+                    }
+                }));
         } else {
             operation->SetState(EOperationState::Materializing);
             BIND(&IOperationController::Materialize, controller)
@@ -1911,7 +1917,7 @@ private:
             operation->GetId());
     }
 
-    void RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
+    TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
     {
         const auto& controller = operation->GetController();
         auto jobs = controller->BuildJobsFromJoblets();
@@ -1938,8 +1944,7 @@ private:
                 .Run(std::move(jobsByShardId[shardId]));
             registrationFutures.emplace_back(std::move(registerFuture));
         }
-        auto error = WaitFor(Combine(registrationFutures));
-        YCHECK(error.IsOK() && "Error while registering jobs from the revived operation");
+        return Combine(registrationFutures);
     }
 
     void RegisterOperation(TOperationPtr operation)
