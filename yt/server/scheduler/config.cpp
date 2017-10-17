@@ -564,6 +564,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("snapshot_writer", SnapshotWriter)
         .DefaultNew();
 
+    RegisterParameter("enable_job_revival", EnableJobRevival)
+        .Default(true);
+
     RegisterParameter("fetcher", Fetcher)
         .DefaultNew();
     RegisterParameter("event_log", EventLog)
