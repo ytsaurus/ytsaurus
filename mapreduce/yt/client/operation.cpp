@@ -2,6 +2,7 @@
 
 #include "client.h"
 #include "file_reader.h"
+#include "init.h"
 #include "operation_tracker.h"
 #include "retry_heavy_write_request.h"
 #include "yt_poller.h"
@@ -37,16 +38,16 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
-#include <util/string/printf.h>
+#include <util/folder/path.h>
+#include <util/stream/buffer.h>
+#include <util/stream/file.h>
 #include <util/string/builder.h>
 #include <util/string/cast.h>
+#include <util/string/printf.h>
 #include <util/system/execpath.h>
-#include <util/system/rwlock.h>
 #include <util/system/mutex.h>
+#include <util/system/rwlock.h>
 #include <util/system/thread.h>
-#include <util/folder/path.h>
-#include <util/stream/file.h>
-#include <util/stream/buffer.h>
 
 #include <library/digest/md5/md5.h>
 
@@ -114,12 +115,6 @@ public:
         , OutputDesc_(outputDesc)
         , Options_(options)
     {
-        CreateStorage();
-        UploadFilesFromSpec();
-        UploadJobState(job);
-        UploadProtoConfig("proto_input", inputDesc);
-        UploadProtoConfig("proto_output", outputDesc);
-
         BinaryPath_ = GetExecPath();
         if (TConfig::Get()->JobBinary) {
             BinaryPath_ = TConfig::Get()->JobBinary;
@@ -127,6 +122,15 @@ public:
         if (Spec_.JobBinary_) {
             BinaryPath_ = *Spec_.JobBinary_;
         }
+        if (BinaryPath_ == GetExecPath() && GetInitStatus() == IS_NOT_INITIALIZED) {
+            ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
+        }
+
+        CreateStorage();
+        UploadFilesFromSpec();
+        UploadJobState(job);
+        UploadProtoConfig("proto_input", inputDesc);
+        UploadProtoConfig("proto_output", outputDesc);
 
         TString jobBinaryPath;
         if (!IsLocalMode(auth)) {

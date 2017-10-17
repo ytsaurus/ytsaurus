@@ -1,3 +1,5 @@
+#include "init.h"
+
 #include <mapreduce/yt/interface/init.h>
 
 #include <mapreduce/yt/common/abortable_registry.h>
@@ -109,6 +111,18 @@ class TAbnormalTerminator
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+EInitStatus& GetInitStatus()
+{
+    static EInitStatus initStatus = IS_NOT_INITIALIZED;
+    return initStatus;
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
 {
     auto logLevelStr = to_lower(TConfig::Get()->LogLevel);
@@ -122,6 +136,8 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
     SetLogger(CreateStdErrLogger(logLevel));
 
     TProcessState::Get()->SetCommandLine(argc, argv);
+
+    NDetail::GetInitStatus() = NDetail::IS_INITIALIZED;
 
     const bool isInsideJob = !GetEnv("YT_JOB_ID").empty();
     if (!isInsideJob) {
