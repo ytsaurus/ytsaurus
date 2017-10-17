@@ -615,6 +615,9 @@ public:
     //! If |true|, snapshots are loaded during revival.
     bool EnableSnapshotLoading;
 
+    //! If |true|, jobs are revived from snapshot.
+    bool EnableJobRevival;
+
     //! Allow failing a controller by passing testing option `controller_failure`
     //! in operation spec. Used only for testing purposes.
     bool EnableControllerFailureSpecOption;
