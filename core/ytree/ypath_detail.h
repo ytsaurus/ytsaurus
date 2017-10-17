@@ -18,7 +18,7 @@
 #include <yt/core/yson/forwarding_consumer.h>
 
 #include <yt/core/ytree/node.h>
-#include <yt/core/protos/ypath.pb.h>
+#include <yt/core/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {

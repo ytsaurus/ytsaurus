@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/ref.h>
 
-#include <yt/core/protos/rpc.pb.h>
+#include <yt/core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
