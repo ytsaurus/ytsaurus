@@ -329,10 +329,13 @@ public:
     DEFINE_SIGNAL(void(TNode* node), NodeDisposed);
     DEFINE_SIGNAL(void(TNode* node), NodeBanChanged);
     DEFINE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
-    DEFINE_SIGNAL(void(TNode* node), NodeLocationChanged);
+    DEFINE_SIGNAL(void(TNode* node, TRack*), NodeRackChanged);
+    DEFINE_SIGNAL(void(TNode* node, TDataCenter*), NodeDataCenterChanged);
     DEFINE_SIGNAL(void(TNode* node, TReqFullHeartbeat* request), FullHeartbeat);
     DEFINE_SIGNAL(void(TNode* node, TReqIncrementalHeartbeat* request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
-
+    DEFINE_SIGNAL(void(TDataCenter*), DataCenterCreated);
+    DEFINE_SIGNAL(void(TDataCenter*), DataCenterRenamed);
+    DEFINE_SIGNAL(void(TDataCenter*), DataCenterDestroyed);
 
     void DestroyNode(TNode* node)
     {
@@ -490,12 +493,13 @@ public:
     void SetNodeRack(TNode* node, TRack* rack)
     {
         if (node->GetRack() != rack) {
+            auto* oldRack = node->GetRack();
             node->SetRack(rack);
             LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
                 rack ? MakeNullable(rack->GetName()) : Null);
-            NodeLocationChanged_.Fire(node);
+            NodeRackChanged_.Fire(node, oldRack);
         }
     }
 
@@ -593,10 +597,11 @@ public:
         return rack;
     }
 
-    void SetRackDataCenter(TRack* rack, TDataCenter* dc)
+    void SetRackDataCenter(TRack* rack, TDataCenter* dataCenter)
     {
-        if (rack->GetDataCenter() != dc) {
-            rack->SetDataCenter(dc);
+        if (rack->GetDataCenter() != dataCenter) {
+            auto* oldDataCenter = rack->GetDataCenter();
+            rack->SetDataCenter(dataCenter);
 
             // Node's tags take into account not only its rack, but also its
             // rack's DC.
@@ -607,10 +612,10 @@ public:
 
             LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
                 MakeNullable(rack->GetName()),
-                dc ? MakeNullable(dc->GetName()) : Null);
+                dataCenter ? MakeNullable(dataCenter->GetName()) : Null);
 
             for (auto* node : nodes) {
-                NodeLocationChanged_.Fire(node);
+                NodeDataCenterChanged_.Fire(node, oldDataCenter);
             }
         }
     }
@@ -646,6 +651,8 @@ public:
         // Make the fake reference.
         YCHECK(dc->RefObject() == 1);
 
+        DataCenterCreated_.Fire(dc);
+
         return dc;
     }
 
@@ -658,6 +665,8 @@ public:
 
         // Remove DC from maps.
         YCHECK(NameToDataCenterMap_.erase(dc->GetName()) == 1);
+
+        DataCenterDestroyed_.Fire(dc);
     }
 
     void RenameDataCenter(TDataCenter* dc, const TString& newName)
@@ -685,6 +694,8 @@ public:
                 node->RebuildTags();
             }
         }
+
+        DataCenterRenamed_.Fire(dc);
     }
 
     TDataCenter* FindDataCenterByName(const TString& name)
@@ -1804,9 +1815,13 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisposed, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeBanChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDecommissionChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeLocationChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TRack*), NodeRackChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TDataCenter*), NodeDataCenterChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqFullHeartbeat*), FullHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqIncrementalHeartbeat*, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterCreated, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterRenamed, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterDestroyed, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
