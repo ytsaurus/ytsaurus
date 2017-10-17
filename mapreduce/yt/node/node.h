@@ -54,8 +54,8 @@ public:
     using TMap = yhash<TString, TNode>;
 
 private:
-    struct TEntity {
-        bool operator==(const TEntity&) const;
+    struct TNull {
+        bool operator==(const TNull&) const;
     };
 
     struct TUndefined {
@@ -70,7 +70,7 @@ private:
         TString,
         TList,
         TMap,
-        TEntity,
+        TNull,
         TUndefined
         >;
 
@@ -116,7 +116,10 @@ public:
     bool IsBool() const;
     bool IsList() const;
     bool IsMap() const;
+
+    // `IsEntity' is deprecated use `IsNull' instead.
     bool IsEntity() const;
+    bool IsNull() const;
     bool IsUndefined() const;
 
     template<typename T>
