@@ -242,7 +242,7 @@ protected:
 
     virtual i64 GetMinTeleportChunkSize() = 0;
 
-    virtual void ValidateInputSlice(const TInputDataSlicePtr& dataSlice)
+    virtual void ValidateInputDataSlice(const TInputDataSlicePtr& dataSlice)
     { }
 
     virtual TCpuResource GetCpuLimit() const
@@ -342,7 +342,7 @@ protected:
 
             int sliceCount = 0;
             for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
-                ValidateInputSlice(slice);
+                ValidateInputDataSlice(slice);
                 RegisterInputStripe(CreateChunkStripe(std::move(slice)), OrderedTask_);
                 ++sliceCount;
                 yielder.TryYield();
@@ -1141,7 +1141,7 @@ private:
         }
     }
 
-    virtual void ValidateInputDataSlice(const TInputDataSlicePtr& dataSlice)
+    virtual void ValidateInputDataSlice(const TInputDataSlicePtr& dataSlice) override
     {
         if (!dataSlice->IsTrivial()) {
             THROW_ERROR_EXCEPTION("Remote copy operation supports only unversioned tables");
