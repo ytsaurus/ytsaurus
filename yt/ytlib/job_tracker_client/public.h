@@ -54,11 +54,15 @@ DEFINE_ENUM(EJobType,
     ((SchedulerLast)     ( 99)) // Sentinel.
 
     // Master jobs
+    ((ReplicatorFirst)   (100)) // Sentinel.
     ((ReplicateChunk)    (100))
     ((RemoveChunk)       (101))
     ((RepairChunk)       (102))
     ((SealChunk)         (103))
-)
+    ((ReplicatorLast)    (103)) // Sentinel.
+);
+
+>>>>>>> Add sentinels to EJobType for replicator jobs. Plus cosmetics.
 // NB: Please keep the range of values small as this type
 // is used as a key of TEnumIndexedVector.
 DEFINE_ENUM(EJobState,
