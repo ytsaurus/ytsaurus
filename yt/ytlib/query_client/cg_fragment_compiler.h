@@ -43,7 +43,6 @@ struct TCodegenFragmentInfos
     : public TIntrinsicRefCounted
 {
     std::vector<TCodegenFragmentInfo> Items;
-    size_t FunctionCount = 0;
     std::vector<Function*> Functions;
     TString NamePrefix;
 };
