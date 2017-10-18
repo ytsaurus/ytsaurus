@@ -1894,6 +1894,8 @@ private:
     std::atomic<i64> RowIndex_ = {0};
     std::atomic<i64> RowCount_ = {-1};
 
+    TInterruptDescriptor FinishedInterruptDescriptor_;
+
     std::atomic<bool> Finished_ = {false};
 
     using TBase::ReadyEvent_;
@@ -1965,6 +1967,12 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
         return true;
     }
 
+    if (readerFinished) {
+        // This must fill read descriptors with values from finished readers.
+        auto interruptDescriptor = CurrentReader_->GetInterruptDescriptor({});
+        FinishedInterruptDescriptor_.MergeFrom(std::move(interruptDescriptor));
+    }
+
     if (!TBase::OnEmptyRead(readerFinished)) {
         Finished_ = true;
     }
@@ -2024,17 +2032,17 @@ TInterruptDescriptor TSchemalessMultiChunkReader<TBase>::GetInterruptDescriptor(
     static TRange<TUnversionedRow> emptyRange;
     auto state = TBase::GetUnreadState();
 
-    TInterruptDescriptor result;
+    auto result = FinishedInterruptDescriptor_;
     if (state.CurrentReader) {
         auto chunkReader = dynamic_cast<ISchemalessChunkReader*>(state.CurrentReader.Get());
         YCHECK(chunkReader);
-        result = chunkReader->GetInterruptDescriptor(unreadRows);
+        result.MergeFrom(chunkReader->GetInterruptDescriptor(unreadRows));
     }
     for (const auto& activeReader : state.ActiveReaders) {
         auto chunkReader = dynamic_cast<ISchemalessChunkReader*>(activeReader.Get());
         YCHECK(chunkReader);
         auto interruptDescriptor = chunkReader->GetInterruptDescriptor(emptyRange);
-        MergeInterruptDescriptors(&result, std::move(interruptDescriptor));
+        result.MergeFrom(std::move(interruptDescriptor));
     }
     for (const auto& factory : state.ReaderFactories) {
         result.UnreadDataSliceDescriptors.emplace_back(factory->GetDataSliceDescriptor());

@@ -375,7 +375,7 @@ TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
         auto interruptDescriptor = session.Reader->GetInterruptDescriptor(
             NYT::TRange<TUnversionedRow>(&*it, &*session.Rows.end()));
 
-        MergeInterruptDescriptors(&result, std::move(interruptDescriptor));
+        result.MergeFrom(std::move(interruptDescriptor));
     }
 
     return result;
