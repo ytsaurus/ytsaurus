@@ -122,6 +122,11 @@ int TJobStub::GetPreliminarySliceCount() const
     return PrimarySliceCount_ + PreliminaryForeignSliceCount_;
 }
 
+void TJobStub::SetUnsplittable()
+{
+    StripeList_->IsSplittable = false;
+}
+
 const TChunkStripePtr& TJobStub::GetStripe(int streamIndex, bool isStripePrimary)
 {
     if (streamIndex >= StripeList_->Stripes.size()) {
