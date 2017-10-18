@@ -436,7 +436,6 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     def test_operation_count(self):
         create("table", "//tmp/in")
-        create("table", "//tmp/out1")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         attrs = {"max_running_operation_count": 3}
@@ -446,9 +445,10 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         ops = []
         for i in xrange(3):
+            create("table", "//tmp/out_" + str(i))
             op = map(command="sleep 1000; cat >/dev/null",
                 in_=["//tmp/in"],
-                out="//tmp/out1",
+                out="//tmp/out_" + str(i),
                 spec={"pool": "other_subpool"},
                 dont_track=True)
             ops.append(op)
