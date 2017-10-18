@@ -1324,13 +1324,13 @@ private:
 
         ConnectionTime_ = TInstant::Now();
 
+        Strategy_->StartPeriodicActivity();
+
         auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
         WaitFor(processFuture)
             .ThrowOnError();
-
-        Strategy_->StartPeriodicActivity();
     }
 
     void OnMasterDisconnected()
