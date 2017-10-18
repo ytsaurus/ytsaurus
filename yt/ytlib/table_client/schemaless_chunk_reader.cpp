@@ -183,9 +183,14 @@ protected:
         rowIndex -= unreadRows.Size();
         i64 lowerRowIndex = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
         i64 upperRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : misc.row_count();
+
         // Verify row index is in the chunk range
-        YCHECK(lowerRowIndex <= rowIndex);
-        YCHECK(rowIndex <= upperRowIndex);
+        if (RowCount_ > 0) {
+            // If this is not a trivial case, e.g. lowerLimit > upperLimit,
+            // let's do a sanity check.
+            YCHECK(lowerRowIndex <= rowIndex);
+            YCHECK(rowIndex <= upperRowIndex);
+        }
 
         auto lowerKey = lowerLimit.HasKey() ? lowerLimit.GetKey() : TOwningKey();
         auto lastChunkKey = FromProto<TOwningKey>(blockMeta.blocks().rbegin()->last_key());
