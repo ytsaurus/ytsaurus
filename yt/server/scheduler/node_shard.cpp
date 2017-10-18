@@ -12,6 +12,8 @@
 
 #include <yt/server/shell/config.h>
 
+#include <yt/ytlib/job_proxy/public.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/misc/finally.h>
@@ -1127,7 +1129,10 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         case EJobState::Aborted: {
             auto error = FromProto<TError>(jobStatus->result().error());
             LOG_DEBUG(error, "Job aborted, removal scheduled");
-            if (job->GetPreempted() && error.GetCode() == NExecAgent::EErrorCode::AbortByScheduler) {
+            if (job->GetPreempted() &&
+                (error.FindMatching(NExecAgent::EErrorCode::AbortByScheduler) ||
+                error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)))
+            {
                 auto error = TError("Job preempted")
                     << TErrorAttribute("abort_reason", EAbortReason::Preemption)
                     << TErrorAttribute("preemption_reason", job->GetPreemptionReason());
