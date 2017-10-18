@@ -46,6 +46,7 @@ DEFINE_ENUM(EOperationState,
     (Preparing)
     (Materializing)
     (Reviving)
+    (RevivingJobs)
     (Pending)
     (Running)
     (Completing)

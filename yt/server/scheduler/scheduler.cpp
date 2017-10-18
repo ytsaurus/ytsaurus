@@ -896,12 +896,11 @@ public:
     {
         auto controller = operation->GetController();
         if (controller->IsRevivedFromSnapshot()) {
-            // TODO(ignat): add additional state?
-            operation->SetState(EOperationState::Materializing);
+            operation->SetState(EOperationState::RevivingJobs);
             RegisterJobsFromRevivedOperation(operation)
                 .Subscribe(BIND([operation] (const TError& error) {
                     YCHECK(error.IsOK() && "Error while registering jobs from the revived operation");
-                    if (operation->GetState() == EOperationState::Materializing) {
+                    if (operation->GetState() == EOperationState::RevivingJobs) {
                         operation->SetState(EOperationState::Running);
                     }
                 }));
