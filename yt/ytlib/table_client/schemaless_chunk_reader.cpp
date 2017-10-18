@@ -2446,9 +2446,14 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const auto& tableSchema = *dataSource.Schema();
     auto timestamp = dataSource.GetTimestamp();
 
-    // Convert name table column filter to schema column filter.
-    for (auto& index : columnFilter.Indexes) {
-        index = tableSchema.GetColumnIndex(nameTable->GetName(index));
+    try {
+        // Convert name table column filter to schema column filter.
+        for (auto& index : columnFilter.Indexes) {
+            index = tableSchema.GetColumnIndexOrThrow(nameTable->GetName(index));
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to apply column filter since column is missing in schema")
+            << ex;
     }
 
     TTableSchema versionedReadSchema;
