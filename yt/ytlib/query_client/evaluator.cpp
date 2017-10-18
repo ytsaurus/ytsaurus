@@ -13,6 +13,8 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/misc/finally.h>
+
 #include <llvm/ADT/FoldingSet.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
@@ -119,7 +121,10 @@ public:
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
 
-                fragmentParams.Clear();
+                auto finalizer = Finally([&] () {
+                    fragmentParams.Clear();
+                });
+
             } catch (const std::exception& ex) {
                 LOG_DEBUG("Query evaluation failed");
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
