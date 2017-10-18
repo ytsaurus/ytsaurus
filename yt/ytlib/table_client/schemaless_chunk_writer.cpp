@@ -164,7 +164,7 @@ public:
         return BlockMetaExtSize_ + SamplesExtSize_ + ChunkNameTable_->GetByteSize();
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
         return EncodingChunkWriter_->GetDataStatistics().compressed_data_size();
     }
@@ -217,6 +217,11 @@ public:
     virtual const TTableSchema& GetSchema() const override
     {
         return Schema_;
+    }
+
+    virtual i64 GetDataWeight() const override
+    {
+        return DataWeight_;
     }
 
 protected:
@@ -336,12 +341,12 @@ protected:
         int keyColumnCount = IsSorted() ? Schema_.GetKeyColumnCount() : 0;
 
         for (int index = 0; index < keyColumnCount; ++index) {
-            weight += GetDataWeight(row[index]);
+            weight += NTableClient::GetDataWeight(row[index]);
         }
         ValidateKeyWeight(weight, Config_, Options_);
 
         for (int index = keyColumnCount; index < row.GetCount(); ++index) {
-            weight += GetDataWeight(row[index]);
+            weight += NTableClient::GetDataWeight(row[index]);
         }
         ValidateRowWeight(weight, Config_, Options_);
         DataWeight_ += weight;
@@ -399,7 +404,7 @@ private:
         for (auto it = row.Begin(); it != row.End(); ++it) {
             sampleValues.push_back(*it);
             auto& value = sampleValues.back();
-            weight += GetDataWeight(value);
+            weight += NTableClient::GetDataWeight(value);
 
             if (value.Type == EValueType::Any) {
                 // Composite types are non-comparable, so we don't store it inside samples.
@@ -440,9 +445,9 @@ public:
         BlockWriter_.reset(new THorizontalSchemalessBlockWriter);
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
-        return TUnversionedChunkWriterBase::GetDataSize() +
+        return TUnversionedChunkWriterBase::GetCompressedDataSize() +
            (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
     }
 
@@ -580,9 +585,9 @@ public:
         return EncodingChunkWriter_->IsReady();
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
-        i64 result = TUnversionedChunkWriterBase::GetDataSize();
+        i64 result = TUnversionedChunkWriterBase::GetCompressedDataSize();
         for (const auto& blockWriter : BlockWriters_) {
             result += blockWriter->GetCurrentSize();
         }
@@ -772,7 +777,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
         // Retrun uncompressed data size to make smaller chunks and better balance partition data
         // between HDDs. Also returning uncompressed data makes chunk switch deterministic,
@@ -1238,7 +1243,7 @@ private:
 
     void WriteRow(TUnversionedRow row)
     {
-        i64 weight = GetDataWeight(row);
+        i64 weight = NTableClient::GetDataWeight(row);
         ValidateRowWeight(weight, Config_, Options_);
 
         auto partitionIndex = Partitioner_->GetPartitionIndex(row);
