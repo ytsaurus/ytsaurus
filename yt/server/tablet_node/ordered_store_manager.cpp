@@ -18,6 +18,7 @@
 #include <yt/ytlib/table_client/name_table.h>
 
 #include <yt/ytlib/chunk_client/confirming_writer.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -264,6 +265,15 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot,
             tableWriter->GetDataStatistics(),
             tabletSnapshot->RuntimeData->StoreFlushDiskPressureCounter);
+
+        auto dataStatistics = tableWriter->GetDataStatistics();
+        auto diskSpace = CalculateDiskSpaceUsage(
+            tabletSnapshot->WriterOptions->ReplicationFactor,
+            dataStatistics.regular_disk_space(),
+            dataStatistics.erasure_disk_space());
+        LOG_DEBUG("Flushed ordered store (StoreId: %v, DiskSpace: %v)",
+            store->GetId(),
+            diskSpace);
 
         TAddStoreDescriptor descriptor;
         descriptor.set_store_type(static_cast<int>(EStoreType::OrderedChunk));
