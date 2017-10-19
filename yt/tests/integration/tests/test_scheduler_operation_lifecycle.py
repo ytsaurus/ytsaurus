@@ -629,7 +629,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         events_prefix = ["initializing", "preparing", "materializing", "running", "completing"]
         if stage <= "stage5":
-            correct_events = events_prefix + ["reviving", "running", "completing", "completed"]
+            correct_events = events_prefix + ["reviving", "reviving_jobs", "running", "completing", "completed"]
         else:
             correct_events = events_prefix + ["reviving", "completed"]
 

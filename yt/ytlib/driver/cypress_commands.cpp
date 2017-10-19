@@ -236,6 +236,8 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();
+    RegisterParameter("preserve_creation_time", Options.PreserveCreationTime)
+        .Optional();
 }
 
 void TCopyCommand::DoExecute(ICommandContextPtr context)

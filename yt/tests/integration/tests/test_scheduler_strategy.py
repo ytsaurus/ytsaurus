@@ -434,6 +434,31 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("map_node", "//sys/pools/research/test_pool_2")
         self._run_operations()
 
+    def test_operation_count(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        attrs = {"max_running_operation_count": 3}
+        create("map_node", "//sys/pools/research", attributes=attrs)
+        create("map_node", "//sys/pools/research/subpool", attributes=attrs)
+        create("map_node", "//sys/pools/research/subpool/other_subpool", attributes=attrs)
+
+        ops = []
+        for i in xrange(3):
+            create("table", "//tmp/out_" + str(i))
+            op = map(command="sleep 1000; cat >/dev/null",
+                in_=["//tmp/in"],
+                out="//tmp/out_" + str(i),
+                spec={"pool": "other_subpool"},
+                dont_track=True)
+            ops.append(op)
+
+        # time for orchid to be updated.
+        time.sleep(0.2)
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 3
+
     def test_pending_operations_after_revive(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out1")

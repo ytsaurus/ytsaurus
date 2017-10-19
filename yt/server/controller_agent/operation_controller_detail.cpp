@@ -1,4 +1,5 @@
 #include "operation_controller_detail.h"
+
 #include "auto_merge_task.h"
 #include "intermediate_chunk_scraper.h"
 #include "job_info.h"
@@ -705,6 +706,10 @@ void TOperationControllerBase::Revive()
 
     ReinstallLivePreview();
 
+    if (!Config->EnableJobRevival) {
+        AbortAllJoblets();
+    }
+
     // To prevent operation failure on startup if available nodes are missing.
     AvaialableNodesLastSeenTime_ = GetCpuInstant();
 
@@ -716,6 +721,16 @@ void TOperationControllerBase::Revive()
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
 
     State = EControllerState::Running;
+}
+
+void TOperationControllerBase::AbortAllJoblets()
+{
+    for (const auto& pair : JobletMap) {
+        auto joblet = pair.second;
+        JobCounter->Aborted(1, EAbortReason::Scheduler);
+        joblet->Task->OnJobAborted(joblet, TAbortedJobSummary(pair.first, EAbortReason::Scheduler));
+    }
+    JobletMap.clear();
 }
 
 void TOperationControllerBase::InitializeTransactions()

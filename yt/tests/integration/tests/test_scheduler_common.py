@@ -1416,6 +1416,82 @@ class TestJobRevival(YTEnvSetup):
 
 ##################################################################
 
+class TestDisabledJobRevival(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_time_limit_check_period": 100,
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "snapshot_period": 500,
+            "lock_transaction_timeout": 3000,
+            "operations_update_period": 100,
+            "job_revival_abort_timeout": 2000,
+            "enable_job_revival": False,
+        },
+        "cluster_connection" : {
+            "transaction_manager": {
+                "default_transaction_timeout": 3000,
+                "default_ping_period": 200,
+            }
+        }
+    }
+
+    def test_disabled_job_revival(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"a": 0}])
+
+        events = EventsOnFs()
+
+        map_cmd = " ; ".join([
+            "sleep 2",
+            events.notify_event_cmd("snapshot_written"),
+            events.wait_event_cmd("scheduler_reconnected"),
+            "echo {a=1}"])
+        op = map(
+            dont_track=True,
+            command=map_cmd,
+            in_="//tmp/t_in",
+            out="//tmp/t_out")
+        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
+        cypress_path = "//sys/operations/{0}".format(op.id)
+
+        _wait_for(lambda: ls("{0}/running_jobs".format(orchid_path)),
+                  "Job did not start")
+        jobs = ls("{0}/running_jobs".format(orchid_path))
+        assert len(jobs) == 1
+        job_id = jobs[0]
+
+        events.wait_event("snapshot_written")
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        _wait_for(lambda: exists(orchid_path),
+                  "Operation did not re-appear within 30 seconds")
+
+        _wait_for(lambda: get("{0}/running_jobs".format(orchid_path)),
+                  "Job did not re-appear within 30 seconds")
+        jobs = get("{0}/running_jobs".format(orchid_path)).keys()
+        assert len(jobs) == 1
+
+        # Here is the difference from the test_job_revival_simple.
+        assert jobs[0] != job_id
+
+        events.notify_event("scheduler_reconnected")
+        op.track()
+
+        # And here.
+        assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) == 1
+        assert read_table("//tmp/t_out") == [{"a": 1}]
+
+
+##################################################################
+
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 3
     NUM_NODES = 3

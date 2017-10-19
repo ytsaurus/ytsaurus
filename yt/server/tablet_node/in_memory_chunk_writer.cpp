@@ -67,9 +67,14 @@ public:
         return UnderlyingWriter_->GetMetaSize();
     }
 
-    virtual i64 GetDataSize() const override
+    virtual i64 GetCompressedDataSize() const override
     {
-        return UnderlyingWriter_->GetDataSize();
+        return UnderlyingWriter_->GetCompressedDataSize();
+    }
+
+    virtual i64 GetDataWeight() const override
+    {
+        return UnderlyingWriter_->GetDataWeight();
     }
 
     virtual bool IsCloseDemanded() const override

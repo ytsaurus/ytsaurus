@@ -22,6 +22,7 @@ import pytest
 clusters_drivers = {}
 is_multicell = None
 path_to_run_tests = None
+_zombie_responses = []
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
@@ -98,6 +99,8 @@ def prepare_parameters(parameters):
 
 def execute_command(command_name, parameters, input_stream=None, output_stream=None,
                     verbose=None, verbose_error=None, ignore_result=False, return_response=False):
+    global _zombie_responses
+
     if "verbose" in parameters:
         verbose = parameters["verbose"]
         del parameters["verbose"]
@@ -163,6 +166,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
                 user=authenticated_user))
 
     if ignore_result:
+        _zombie_responses.append(response)
         return
 
     if return_response:

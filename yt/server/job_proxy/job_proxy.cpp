@@ -297,6 +297,19 @@ void TJobProxy::Run()
                     schedulerResultExt->ShortDebugString());
             } else {
                 if (result.error().code() == 0) {
+                    auto getReadRowCount = [&] () -> i64 {
+                        auto statistics = GetStatistics();
+                        auto it = statistics.Data().find("/data/input/row_count");
+                        if (it == statistics.Data().end()) {
+                            return 0;
+                        } else {
+                            return it->second.GetSum();
+                        }
+                    };
+                    // Validate that job really didn't read anything.
+                    YCHECK(getReadRowCount() == 0);
+
+
                     ToProto(
                         result.mutable_error(),
                         TError(EErrorCode::JobNotPrepared, "Job did not read anything"));

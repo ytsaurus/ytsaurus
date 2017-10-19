@@ -1039,6 +1039,8 @@ private:
 
     NScheduler::TJobPtr BuildJobFromJoblet(const TJobletPtr& joblet) const;
 
+    void AbortAllJoblets();
+
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
         : public NChunkPools::IChunkPoolInput

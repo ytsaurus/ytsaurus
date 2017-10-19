@@ -38,6 +38,7 @@ struct TNodeFactoryOptions
 {
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
+    bool PreserveCreationTime = false;
 };
 
 class TCypressManager

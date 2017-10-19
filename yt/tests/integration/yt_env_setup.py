@@ -378,6 +378,8 @@ class YTEnvSetup(object):
             self.wait_for_chunk_replicator(driver=driver)
 
     def teardown_method(self, method):
+        yt_commands._zombie_responses[:] = []
+
         for env in [self.Env] + self.remote_envs:
             env.check_liveness(callback_func=_pytest_finalize_func)
 
