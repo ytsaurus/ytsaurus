@@ -482,7 +482,7 @@ void LoadLlvmBitcode(
     std::string what;
     bool linkerFailed;
     llvm::raw_string_ostream os(what);
-#if LLVM_TEST(4, 0)
+#if LLVM_VERSION_GE(3, 9)
     {
         auto handler = [] (const DiagnosticInfo& info, void *context) {
             auto os = reinterpret_cast<llvm::raw_string_ostream*>(context);

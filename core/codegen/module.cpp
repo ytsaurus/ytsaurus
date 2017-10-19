@@ -6,7 +6,7 @@
 
 #include <llvm/ADT/Triple.h>
 
-#if !(LLVM_TEST(3, 7) || LLVM_TEST(3, 9) || LLVM_TEST(4, 0))
+#if !LLVM_VERSION_GE(3, 7)
 #error "LLVM 3.7 or 3.9 or 4.0 is required."
 #endif
 
@@ -148,7 +148,7 @@ public:
                 << TError(TString(what));
         }
 
-#if LLVM_TEST(3, 7)
+#if !LLVM_VERSION_GE(3, 9)
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
 #else
         Module_->setDataLayout(Engine_->getDataLayout().getStringRepresentation());
@@ -255,7 +255,7 @@ private:
         LOG_DEBUG("Pruning dead code (ExportedSymbols: %v)", ExportedSymbols_);
 
         modulePassManager = std::make_unique<PassManager>();
-#if LLVM_TEST(3, 7)
+#if !LLVM_VERSION_GE(3, 9)
         std::vector<const char*> exportedNames;
         for (const auto& exportedSymbol : ExportedSymbols_) {
             exportedNames.emplace_back(exportedSymbol.c_str());
@@ -329,7 +329,7 @@ private:
     static const char* DiagnosticKindToString(llvm::DiagnosticKind kind)
     {
         switch (kind) {
-#if !(LLVM_TEST(4, 0))
+#if !LLVM_VERSION_GE(3, 9)
             case llvm::DK_Bitcode:
                 return "DK_Bitcode";
 #endif
