@@ -453,6 +453,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 dont_track=True)
             ops.append(op)
 
+        # time for orchid to be updated.
+        time.sleep(0.2)
+
         assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3
         assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 3
 
