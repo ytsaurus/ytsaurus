@@ -762,7 +762,7 @@ public:
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
-        if (newTabletCount <= 1) {
+        if (newTabletCount <= 0) {
             THROW_ERROR_EXCEPTION("Tablet count must be positive");
         }
 
@@ -1792,7 +1792,7 @@ public:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<TOwningKey>& pivotKeys,
-        bool strictNewTabletCount = false)
+        bool strictNewTabletCount = true)
     {
         if (!pivotKeys.empty() || !table->IsSorted()) {
             DoReshardTable(
@@ -1808,8 +1808,6 @@ public:
         if (strictNewTabletCount && newPivotKeys.size() != newTabletCount) {
             THROW_ERROR_EXCEPTION("Unable to calculate pivot keys");
         }
-
-        LOG_DEBUG("SAVRUS calculated pivot keys: %v", newPivotKeys);
 
         newTabletCount = newPivotKeys.size();
         DoReshardTable(
