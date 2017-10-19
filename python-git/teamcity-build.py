@@ -317,7 +317,7 @@ def build_packages(options):
         return
 
     packages = ["yandex-yt-python", "yandex-yt-python-tools",
-                "yandex-yt-transfer-manager", "yandex-yt-transfer-manager-client",
+                "yandex-yt-transfer-manager-client",
                 "yandex-yt-fennel", "yandex-yt-local"]
 
     for package in packages:
