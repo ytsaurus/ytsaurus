@@ -65,17 +65,6 @@ TSimpleProfilerTraitBase::TKey TSimpleProfilerTraitBase::ToKey(const TTagIdList&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDiskPressureCounters
-{
-    TDiskPressureCounters(const TTagIdList& list)
-        : DiskPressure("disk_pressure", list)
-    { }
-
-    TSimpleCounter DiskPressure;
-};
-
-using TDiskPressureProfilerTrait = TTabletProfilerTrait<TDiskPressureCounters>;
-
 void ProfileDiskPressure(
     TTabletSnapshotPtr tabletSnapshot,
     const TDataStatistics& dataStatistics,
