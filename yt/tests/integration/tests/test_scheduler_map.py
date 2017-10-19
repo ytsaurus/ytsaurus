@@ -941,14 +941,14 @@ print row + table_index
             "//tmp/in_1",
             [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)])
 
-        input_ = ["//tmp/in_1"] * 5
+        input_ = "//tmp/in_1"
         output = "//tmp/output"
         create("table", output)
 
         command = """
 while read ROW; do
     if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 1
+        sleep 10
     else
         sleep 0.1
     fi
@@ -978,7 +978,7 @@ done
 
         completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
         interrupted = completed["interrupted"]
-        assert completed["total"] >= 6
+        assert completed["total"] >= 2
         assert interrupted["job_split"] >= 1
         expected = read_table("//tmp/in_1", verbose=False)
         for row in expected:
@@ -986,7 +986,7 @@ done
         got = read_table(output, verbose=False)
         for row in got:
             del row["data"]
-        assert sorted(got) == sorted(expected * 5)
+        assert sorted(got) == sorted(expected)
 
 ##################################################################
 
