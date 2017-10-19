@@ -78,5 +78,61 @@ TEST(TNetworkAddressTest, UnixSocketName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TIP6AddressTest, ToString)
+{
+    {
+        TIP6Address address;
+        ASSERT_EQ("0:0:0:0:0:0:0:0", ToString(address));
+    }
+
+    {
+        TIP6Address address;
+        address.GetRawWords()[0] = 3;
+        ASSERT_EQ("0:0:0:0:0:0:0:3", ToString(address));
+    }
+
+    {
+        TIP6Address address;
+        address.GetRawWords()[7] = 0xfff1;
+        ASSERT_EQ("fff1:0:0:0:0:0:0:0", ToString(address));
+    }
+}
+
+TEST(TIP6AddressTest, FromString)
+{
+    {
+        auto address = TIP6Address::FromString("0:0:0:0:0:0:0:0");
+        ui16 parts[16] = {0, 0, 0, 0, 0, 0, 0, 0};
+        EXPECT_EQ(0, ::memcmp(address.GetRawWords(), parts, 8));
+    }
+
+    {
+        auto address = TIP6Address::FromString("0:0:0:0:0:0:0:3");
+        ui16 parts[16] = {3, 0, 0, 0, 0, 0, 0, 0};
+        EXPECT_EQ(0, ::memcmp(address.GetRawWords(), parts, 8));
+    }
+
+    {
+        auto address = TIP6Address::FromString("fff1:1:3:4:5:6:7:8");
+        ui16 parts[16] = {8, 7, 6, 5, 4, 3, 1, 0xfff1};
+        EXPECT_EQ(0, ::memcmp(address.GetRawWords(), parts, 8));
+    }
+}
+
+TEST(TIP6AddressTest, ToStringFromStringRandom)
+{
+    for (int i = 0; i < 100; ++i) {
+        ui8 bytes[TIP6Address::ByteSize];
+        for (int j = 0; j < TIP6Address::ByteSize; ++j) {
+            bytes[j] = RandomNumber<ui8>();
+        }
+
+        auto address = TIP6Address::FromRawBytes(bytes);
+        ASSERT_EQ(address, TIP6Address::FromString(ToString(address)));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT

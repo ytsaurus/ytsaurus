@@ -15,6 +15,8 @@
     #include <sys/socket.h>
 #endif
 
+#include <array>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +116,46 @@ TString ToString(const TNetworkAddress& address, bool withPort = true);
 
 bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs);
 bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIP6Address
+{
+public:
+    static constexpr size_t ByteSize = 16;
+
+    TIP6Address() = default;
+
+    static TIP6Address FromString(const TStringBuf& str);
+    static bool FromString(const TStringBuf& str, TIP6Address* address);
+
+    static TIP6Address FromRawBytes(const ui8* raw);
+    static TIP6Address FromRawWords(const ui16* raw);
+    static TIP6Address FromRawDWords(const ui32* raw);
+
+    const ui8* GetRawBytes() const;
+    ui8* GetRawBytes();
+
+    const ui16* GetRawWords() const;
+    ui16* GetRawWords();
+
+    const ui32* GetRawDWords() const;
+    ui32* GetRawDWords();
+
+private:
+    std::array<ui8, ByteSize> Raw_ = {};
+};
+
+void FormatValue(TStringBuilder* builder, const TIP6Address& address, const TStringBuf& spec);
+TString ToString(const TIP6Address& address);
+
+bool operator == (const TIP6Address& lhs, const TIP6Address& rhs);
+bool operator != (const TIP6Address& lhs, const TIP6Address& rhs);
+
+TIP6Address operator & (const TIP6Address& lhs, const TIP6Address& rhs);
+TIP6Address operator | (const TIP6Address& lhs, const TIP6Address& rhs);
+TIP6Address& operator &= (TIP6Address& lhs, const TIP6Address& rhs);
+TIP6Address& operator |= (TIP6Address& lhs, const TIP6Address& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

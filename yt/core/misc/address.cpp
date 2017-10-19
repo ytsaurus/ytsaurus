@@ -277,7 +277,6 @@ TNetworkAddress TNetworkAddress::CreateUnixDomainAddress(const TString& name)
 #endif
 }
 
-
 TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
 {
     return TryParse(address).ValueOrThrow();
@@ -382,6 +381,162 @@ bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
 bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
 {
     return !(lhs == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const ui8* TIP6Address::GetRawBytes() const
+{
+    return Raw_.data();
+}
+
+ui8* TIP6Address::GetRawBytes()
+{
+    return Raw_.data();
+}
+
+const ui16* TIP6Address::GetRawWords() const
+{
+    return reinterpret_cast<const ui16*>(GetRawBytes());
+}
+
+ui16* TIP6Address::GetRawWords()
+{
+    return reinterpret_cast<ui16*>(GetRawBytes());
+}
+
+const ui32* TIP6Address::GetRawDWords() const
+{
+    return reinterpret_cast<const ui32*>(GetRawBytes());
+}
+
+ui32* TIP6Address::GetRawDWords()
+{
+    return reinterpret_cast<ui32*>(GetRawBytes());
+}
+
+TIP6Address TIP6Address::FromRawBytes(const ui8* raw)
+{
+    TIP6Address result;
+    ::memcpy(result.Raw_.data(), raw, ByteSize);
+    return result;
+}
+
+TIP6Address TIP6Address::FromRawWords(const ui16* raw)
+{
+    return FromRawBytes(reinterpret_cast<const ui8*>(raw));
+}
+
+TIP6Address TIP6Address::FromRawDWords(const ui32* raw)
+{
+    return FromRawBytes(reinterpret_cast<const ui8*>(raw));
+}
+
+TIP6Address TIP6Address::FromString(const TStringBuf& str)
+{
+    TIP6Address result;
+    if (!FromString(str, &result)) {
+        THROW_ERROR_EXCEPTION("Error parsing IP6 address %Qv", str);
+    }
+    return result;
+}
+
+bool TIP6Address::FromString(const TStringBuf& str, TIP6Address* address)
+{
+    auto hexToDigit = [] (char ch) -> int {
+        if (ch >= '0' && ch <= '9') {
+            return ch - '0';
+        }
+        if (ch >= 'a' && ch <= 'f') {
+            return ch - 'a' + 10;
+        }
+        if (ch >= 'A' && ch <= 'F') {
+            return ch - 'A' + 10;
+        }
+        return -1;
+    };
+
+    auto* parts = reinterpret_cast<ui16*>(address->GetRawBytes());
+    const char* current = str.data();
+    for (int partIndex = 7; partIndex >= 0; --partIndex) {
+        int partLen = 0;
+        ui16 partValue = 0;
+        while (current != str.end() && *current != ':') {
+            if (++partLen > 4) {
+                return false;
+            }
+            char ch = *current++;
+            int digit = hexToDigit(ch);
+            if (digit < 0) {
+                return false;
+            }
+            partValue <<= 4;
+            partValue += digit;
+        }
+        if (partLen == 0) {
+            return false;
+        }
+        if (current == str.end() && partIndex > 0) {
+            return false;
+        }
+        ++current;
+        parts[partIndex] = partValue;
+    }
+    return current == str.end() + 1;
+}
+
+void FormatValue(TStringBuilder* builder, const TIP6Address& address, const TStringBuf& spec)
+{
+    const auto* parts = reinterpret_cast<const ui16*>(address.GetRawBytes());
+    for (int index = 7; index >= 0; --index) {
+        if (index != 7) {
+            builder->AppendChar(':');
+        }
+        builder->AppendFormat("%x", parts[index]);
+    }
+}
+
+TString ToString(const TIP6Address& address)
+{
+    return ToStringViaBuilder(address);
+}
+
+bool operator == (const TIP6Address& lhs, const TIP6Address& rhs)
+{
+    return ::memcmp(lhs.GetRawBytes(), rhs.GetRawBytes(), TIP6Address::ByteSize) == 0;
+}
+
+bool operator != (const TIP6Address& lhs, const TIP6Address& rhs)
+{
+    return !(lhs == rhs);
+}
+
+TIP6Address operator|(const TIP6Address& lhs, const TIP6Address& rhs)
+{
+    auto result = lhs;
+    result |= rhs;
+    return result;
+}
+
+TIP6Address operator&(const TIP6Address& lhs, const TIP6Address& rhs)
+{
+    auto result = lhs;
+    result &= rhs;
+    return result;
+}
+
+TIP6Address& operator|=(TIP6Address& lhs, const TIP6Address& rhs)
+{
+    *reinterpret_cast<ui64*>(lhs.GetRawBytes()) |= *reinterpret_cast<const ui64*>(rhs.GetRawBytes());
+    *reinterpret_cast<ui64*>(lhs.GetRawBytes() + 8) |= *reinterpret_cast<const ui64*>(rhs.GetRawBytes() + 8);
+    return lhs;
+}
+
+TIP6Address& operator&=(TIP6Address& lhs, const TIP6Address& rhs)
+{
+    *reinterpret_cast<ui64*>(lhs.GetRawBytes()) &= *reinterpret_cast<const ui64*>(rhs.GetRawBytes());
+    *reinterpret_cast<ui64*>(lhs.GetRawBytes() + 8) &= *reinterpret_cast<const ui64*>(rhs.GetRawBytes() + 8);
+    return lhs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
