@@ -20,7 +20,7 @@
 namespace NYT {
 namespace NDataNode {
 
-using namespace NHttp;
+using namespace NXHttp;
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkClient;
@@ -112,13 +112,13 @@ TString DoReadSkynetChunk(TBootstrap* bootstrap, const TString& request)
     TString response;
     TStringOutput buffer(response);
     PipeInputToOutput(CreateCopyingAdapter(stream), &buffer, 1024);
-    
+
     return FormatOKResponse(response);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHttp::TServer::TAsyncHandler MakeSkynetHttpHandler(NCellNode::TBootstrap* bootstrap)
+NXHttp::TServer::TAsyncHandler MakeSkynetHttpHandler(NCellNode::TBootstrap* bootstrap)
 {
     return BIND([bootstrap] (const TString& request) -> TFuture<TString> {
         return BIND([bootstrap, request] {
