@@ -70,7 +70,7 @@ private:
 
             WriteControlAttributes(row);
 
-            std::vector<ui32> enumValues;
+            std::vector<i64> enumValues;
             size_t enumIndex = 0;
 
             int size = 0;
@@ -244,7 +244,7 @@ private:
                         } else if (value.Type == EValueType::Uint64) {
                             WriteVarUint64(stream, value.Data.Uint64);
                         } else if (value.Type == EValueType::String) {
-                            WriteVarUint32(stream, enumValues[enumIndex]);
+                            WriteVarUint64(stream, enumValues[enumIndex]);
                             ++enumIndex;
                         } else {
                             Y_UNREACHABLE();
