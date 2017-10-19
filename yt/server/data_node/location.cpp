@@ -61,7 +61,7 @@ TLocation::TLocation(
     , MetaReadQueue_(New<TActionQueue>(Format("MetaRead:%v", Id_)))
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
-    , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
+    , WritePoolInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
@@ -143,7 +143,7 @@ IPrioritizedInvokerPtr TLocation::GetMetaReadInvoker()
     return MetaReadInvoker_;
 }
 
-IInvokerPtr TLocation::GetWritePoolInvoker()
+IPrioritizedInvokerPtr TLocation::GetWritePoolInvoker()
 {
     return WritePoolInvoker_;
 }
