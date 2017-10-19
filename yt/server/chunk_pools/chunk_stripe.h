@@ -92,6 +92,8 @@ struct TChunkStripeList
 
     int TotalChunkCount = 0;
     int LocalChunkCount = 0;
+
+    bool IsSplittable = true;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStripeList)

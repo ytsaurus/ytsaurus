@@ -56,6 +56,8 @@ public:
     i64 GetPreliminaryRowCount() const;
     int GetPreliminarySliceCount() const;
 
+    void SetUnsplittable();
+
 private:
     TChunkStripeListPtr StripeList_ = New<TChunkStripeList>();
 

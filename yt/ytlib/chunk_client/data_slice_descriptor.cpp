@@ -68,17 +68,17 @@ const TDataSliceDescriptor& GetIncompatibleDataSliceDescriptor()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MergeInterruptDescriptors(TInterruptDescriptor* target, TInterruptDescriptor&& source)
+void TInterruptDescriptor::MergeFrom(TInterruptDescriptor&& source)
 {
     std::move(
         source.ReadDataSliceDescriptors.begin(),
         source.ReadDataSliceDescriptors.end(),
-        std::back_inserter(target->ReadDataSliceDescriptors));
+        std::back_inserter(ReadDataSliceDescriptors));
     source.ReadDataSliceDescriptors.clear();
     std::move(
         source.UnreadDataSliceDescriptors.begin(),
         source.UnreadDataSliceDescriptors.end(),
-        std::back_inserter(target->UnreadDataSliceDescriptors));
+        std::back_inserter(UnreadDataSliceDescriptors));
     source.UnreadDataSliceDescriptors.clear();
 }
 

@@ -421,6 +421,8 @@ private:
             LOG_WARNING("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
                 JobSizeConstraints_->GetJobCount(),
                 Jobs_.size());
+
+            Jobs_.front()->SetUnsplittable();
             for (int index = 0; index < Endpoints_.size(); ++index) {
                 const auto& endpoint = Endpoints_[index];
                 LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %p)",

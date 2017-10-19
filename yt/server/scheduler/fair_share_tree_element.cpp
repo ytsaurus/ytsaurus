@@ -91,12 +91,12 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerE
 
 TSchedulerElementFixedState::TSchedulerElementFixedState(
     ISchedulerStrategyHost* host,
-    const TFairShareStrategyConfigPtr& strategyConfig)
+    const TFairShareStrategyTreeConfigPtr& treeConfig)
     : ResourceDemand_(ZeroJobResources())
     , ResourceLimits_(InfiniteJobResources())
     , MaxPossibleResourceUsage_(ZeroJobResources())
     , Host_(host)
-    , StrategyConfig_(strategyConfig)
+    , TreeConfig_(treeConfig)
     , TotalResourceLimits_(host->GetMainNodesResourceLimits())
 { }
 
@@ -167,9 +167,11 @@ int TSchedulerElement::EnumerateNodes(int startIndex)
     return startIndex;
 }
 
-void TSchedulerElement::UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config)
+void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
 {
-    StrategyConfig_ = config;
+    YCHECK(!Cloned_);
+
+    TreeConfig_ = config;
 }
 
 void TSchedulerElement::Update(TDynamicAttributesList& dynamicAttributesList)
@@ -231,7 +233,7 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
     double possibleUsageRatio = Attributes_.DemandRatio;
-    if (GetResourceUsageRatio() < StrategyConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio) {
+    if (GetResourceUsageRatio() < TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio) {
         auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
         possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
     }
@@ -334,8 +336,8 @@ void TSchedulerElement::ApplyJobMetricsDeltaLocal(const TJobMetrics& delta)
 
 TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
-    const TFairShareStrategyConfigPtr& strategyConfig)
-    : TSchedulerElementFixedState(host, strategyConfig)
+    const TFairShareStrategyTreeConfigPtr& treeConfig)
+    : TSchedulerElementFixedState(host, treeConfig)
     , SharedState_(New<TSchedulerElementSharedState>())
 { }
 
@@ -447,9 +449,9 @@ void TSchedulerElement::SetOperationAlert(
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     ISchedulerStrategyHost* host,
-    TFairShareStrategyConfigPtr strategyConfig,
+    TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag)
-    : TSchedulerElement(host, strategyConfig)
+    : TSchedulerElement(host, treeConfig)
     , ProfilingTag_(profilingTag)
 { }
 
@@ -486,13 +488,15 @@ int TCompositeSchedulerElement::EnumerateNodes(int startIndex)
     return startIndex;
 }
 
-void TCompositeSchedulerElement::UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config)
+void TCompositeSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
 {
-    TSchedulerElement::UpdateStrategyConfig(config);
+    YCHECK(!Cloned_);
+
+    TSchedulerElement::UpdateTreeConfig(config);
 
     auto updateChildrenConfig = [&config] (TChildList& list) {
         for (const auto& child : list) {
-            child->UpdateStrategyConfig(config);
+            child->UpdateTreeConfig(config);
         }
     };
 
@@ -667,7 +671,7 @@ void TCompositeSchedulerElement::IncreaseOperationCount(int delta)
 
     auto parent = GetParent();
     while (parent) {
-        parent->IncreaseOperationCount(delta);
+        parent->OperationCount() += delta;
         parent = parent->GetParent();
     }
 }
@@ -678,7 +682,7 @@ void TCompositeSchedulerElement::IncreaseRunningOperationCount(int delta)
 
     auto parent = GetParent();
     while (parent) {
-        parent->IncreaseRunningOperationCount(delta);
+        parent->RunningOperationCount() += delta;
         parent = parent->GetParent();
     }
 }
@@ -695,7 +699,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         return;
     }
 
-    if (StrategyConfig_->EnableSchedulingTags &&
+    if (TreeConfig_->EnableSchedulingTags &&
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context.CanSchedule[SchedulingTagFilterIndex_])
     {
@@ -1163,9 +1167,9 @@ TPool::TPool(
     const TString& id,
     TPoolConfigPtr config,
     bool defaultConfigured,
-    TFairShareStrategyConfigPtr strategyConfig,
+    TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag)
-    : TCompositeSchedulerElement(host, strategyConfig, profilingTag)
+    : TCompositeSchedulerElement(host, treeConfig, profilingTag)
     , TPoolFixedState(id)
 {
     DoSetConfig(config);
@@ -1278,17 +1282,17 @@ TDuration TPool::GetFairSharePreemptionTimeout() const
 
 double TPool::GetFairShareStarvationToleranceLimit() const
 {
-    return Config_->FairShareStarvationToleranceLimit.Get(StrategyConfig_->FairShareStarvationToleranceLimit);
+    return Config_->FairShareStarvationToleranceLimit.Get(TreeConfig_->FairShareStarvationToleranceLimit);
 }
 
 TDuration TPool::GetMinSharePreemptionTimeoutLimit() const
 {
-    return Config_->MinSharePreemptionTimeoutLimit.Get(StrategyConfig_->MinSharePreemptionTimeoutLimit);
+    return Config_->MinSharePreemptionTimeoutLimit.Get(TreeConfig_->MinSharePreemptionTimeoutLimit);
 }
 
 TDuration TPool::GetFairSharePreemptionTimeoutLimit() const
 {
-    return Config_->FairSharePreemptionTimeoutLimit.Get(StrategyConfig_->FairSharePreemptionTimeoutLimit);
+    return Config_->FairSharePreemptionTimeoutLimit.Get(TreeConfig_->FairSharePreemptionTimeoutLimit);
 }
 
 void TPool::SetStarving(bool starving)
@@ -1332,12 +1336,12 @@ void TPool::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
 
 int TPool::GetMaxRunningOperationCount() const
 {
-    return Config_->MaxRunningOperationCount.Get(StrategyConfig_->MaxRunningOperationCountPerPool);
+    return Config_->MaxRunningOperationCount.Get(TreeConfig_->MaxRunningOperationCountPerPool);
 }
 
 int TPool::GetMaxOperationCount() const
 {
-    return Config_->MaxOperationCount.Get(StrategyConfig_->MaxOperationCountPerPool);
+    return Config_->MaxOperationCount.Get(TreeConfig_->MaxOperationCountPerPool);
 }
 
 bool TPool::AreImmediateOperationsFobidden() const
@@ -1362,7 +1366,7 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 
 TJobResources TPool::ComputeResourceLimits() const
 {
-    auto maxShareLimits = Host_->GetConnectionTime() + StrategyConfig_->TotalResourceLimitsConsiderDelay < TInstant::Now()
+    auto maxShareLimits = Host_->GetConnectionTime() + TreeConfig_->TotalResourceLimitsConsiderDelay < TInstant::Now()
         ? GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * GetMaxShareRatio()
         : InfiniteJobResources();
     auto perTypeLimits = ToJobResources(Config_->ResourceLimits, InfiniteJobResources());
@@ -1672,14 +1676,15 @@ const TOperationElementSharedState::TJobProperties* TOperationElementSharedState
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationElement::TOperationElement(
-    TFairShareStrategyConfigPtr strategyConfig,
+    TFairShareStrategyTreeConfigPtr treeConfig,
     TStrategyOperationSpecPtr spec,
     TOperationRuntimeParamsPtr runtimeParams,
     TFairShareStrategyOperationControllerPtr controller,
+    TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* host,
     IOperationStrategyHost* operation)
-    : TSchedulerElement(host, strategyConfig)
-    , TOperationElementFixedState(operation, strategyConfig)
+    : TSchedulerElement(host, treeConfig)
+    , TOperationElementFixedState(operation, controllerConfig)
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
@@ -1782,15 +1787,6 @@ void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicA
     TSchedulerElement::UpdateDynamicAttributes(dynamicAttributesList);
 }
 
-void TOperationElement::InvokeMinNeededJobResourcesUpdate()
-{
-    YCHECK(!Cloned_);
-
-    if (IsSchedulable()) {
-        Controller_->InvokeMinNeededJobResourcesUpdate();
-    }
-}
-
 void TOperationElement::UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
 {
     YCHECK(!Cloned_);
@@ -1809,7 +1805,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
         return;
     }
 
-    if (StrategyConfig_->EnableSchedulingTags &&
+    if (TreeConfig_->EnableSchedulingTags &&
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context.CanSchedule[SchedulingTagFilterIndex_])
     {
@@ -1999,7 +1995,7 @@ void TOperationElement::CheckForStarvation(TInstant now)
     auto minSharePreemptionTimeout = Attributes_.AdjustedMinSharePreemptionTimeout;
     auto fairSharePreemptionTimeout = Attributes_.AdjustedFairSharePreemptionTimeout;
 
-    double jobCountRatio = GetPendingJobCount() / StrategyConfig_->JobCountPreemptionTimeoutCoefficient;
+    double jobCountRatio = GetPendingJobCount() / TreeConfig_->JobCountPreemptionTimeoutCoefficient;
 
     if (jobCountRatio < 1.0) {
         minSharePreemptionTimeout *= jobCountRatio;
@@ -2212,7 +2208,7 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 
 TJobResources TOperationElement::ComputeResourceLimits() const
 {
-    auto maxShareLimits = Host_->GetConnectionTime() + StrategyConfig_->TotalResourceLimitsConsiderDelay < TInstant::Now()
+    auto maxShareLimits = Host_->GetConnectionTime() + TreeConfig_->TotalResourceLimitsConsiderDelay < TInstant::Now()
         ? GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * GetMaxShareRatio()
         : InfiniteJobResources();
     auto perTypeLimits = ToJobResources(RuntimeParams_->ResourceLimits, InfiniteJobResources());
@@ -2237,8 +2233,8 @@ void TOperationElement::UpdatePreemptableJobsList()
     SharedState_->UpdatePreemptableJobsList(
         GetFairShareRatio(),
         TotalResourceLimits_,
-        StrategyConfig_->PreemptionSatisfactionThreshold,
-        StrategyConfig_->AggressivePreemptionSatisfactionThreshold,
+        TreeConfig_->PreemptionSatisfactionThreshold,
+        TreeConfig_->AggressivePreemptionSatisfactionThreshold,
         &moveCount);
 
     auto elapsed = timer.GetElapsedTime();
@@ -2246,7 +2242,7 @@ void TOperationElement::UpdatePreemptableJobsList()
     Profiler.Update(PreemptableListUpdateTimeCounter, DurationToValue(elapsed));
     Profiler.Update(PreemptableListUpdateMoveCountCounter, moveCount);
 
-    if (elapsed > StrategyConfig_->UpdatePreemptableListDurationLoggingThreshold) {
+    if (elapsed > TreeConfig_->UpdatePreemptableListDurationLoggingThreshold) {
         LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v)",
             elapsed.MilliSeconds(),
             moveCount,
@@ -2258,11 +2254,11 @@ void TOperationElement::UpdatePreemptableJobsList()
 
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
-    TFairShareStrategyConfigPtr strategyConfig,
+    TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag)
     : TCompositeSchedulerElement(
         host,
-        strategyConfig,
+        treeConfig,
         profilingTag)
 {
     SetFairShareRatio(1.0);
@@ -2329,17 +2325,17 @@ double TRootElement::GetMaxShareRatio() const
 
 double TRootElement::GetFairShareStarvationTolerance() const
 {
-    return StrategyConfig_->FairShareStarvationTolerance;
+    return TreeConfig_->FairShareStarvationTolerance;
 }
 
 TDuration TRootElement::GetMinSharePreemptionTimeout() const
 {
-    return StrategyConfig_->MinSharePreemptionTimeout;
+    return TreeConfig_->MinSharePreemptionTimeout;
 }
 
 TDuration TRootElement::GetFairSharePreemptionTimeout() const
 {
-    return StrategyConfig_->FairSharePreemptionTimeout;
+    return TreeConfig_->FairSharePreemptionTimeout;
 }
 
 void TRootElement::CheckForStarvation(TInstant now)
@@ -2349,17 +2345,17 @@ void TRootElement::CheckForStarvation(TInstant now)
 
 int TRootElement::GetMaxRunningOperationCount() const
 {
-    return StrategyConfig_->MaxRunningOperationCount;
+    return TreeConfig_->MaxRunningOperationCount;
 }
 
 int TRootElement::GetMaxOperationCount() const
 {
-    return StrategyConfig_->MaxOperationCount;
+    return TreeConfig_->MaxOperationCount;
 }
 
 bool TRootElement::AreImmediateOperationsFobidden() const
 {
-    return StrategyConfig_->ForbidImmediateOperationsInRoot;
+    return TreeConfig_->ForbidImmediateOperationsInRoot;
 }
 
 TSchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)

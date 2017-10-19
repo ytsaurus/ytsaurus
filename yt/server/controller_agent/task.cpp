@@ -301,7 +301,7 @@ void TTask::ScheduleJob(
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
-        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
+        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Splittable: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
@@ -315,6 +315,7 @@ void TTask::ScheduleJob(
         joblet->InputStripeList->TotalDataWeight,
         joblet->InputStripeList->LocalDataWeight,
         joblet->InputStripeList->TotalRowCount,
+        joblet->InputStripeList->IsSplittable,
         restarted,
         FormatResources(estimatedResourceUsage),
         joblet->JobProxyMemoryReserveFactor,

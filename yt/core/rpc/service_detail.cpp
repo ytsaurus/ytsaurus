@@ -477,7 +477,8 @@ void TServiceBase::HandleRequest(
         auto error = TError(std::forward<decltype(args)>(args)...)
             << TErrorAttribute("request_id", requestId)
             << TErrorAttribute("service", ServiceId_.ServiceName)
-            << TErrorAttribute("method", method);
+            << TErrorAttribute("method", method)
+            << TErrorAttribute("endpoint", replyBus->GetEndpointDescription());
 
         auto logLevel = error.GetCode() == EErrorCode::Unavailable
             ? NLogging::ELogLevel::Debug

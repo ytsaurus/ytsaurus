@@ -183,9 +183,14 @@ protected:
         rowIndex -= unreadRows.Size();
         i64 lowerRowIndex = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
         i64 upperRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : misc.row_count();
+
         // Verify row index is in the chunk range
-        YCHECK(lowerRowIndex <= rowIndex);
-        YCHECK(rowIndex <= upperRowIndex);
+        if (RowCount_ > 0) {
+            // If this is not a trivial case, e.g. lowerLimit > upperLimit,
+            // let's do a sanity check.
+            YCHECK(lowerRowIndex <= rowIndex);
+            YCHECK(rowIndex <= upperRowIndex);
+        }
 
         auto lowerKey = lowerLimit.HasKey() ? lowerLimit.GetKey() : TOwningKey();
         auto lastChunkKey = FromProto<TOwningKey>(blockMeta.blocks().rbegin()->last_key());
@@ -1894,6 +1899,8 @@ private:
     std::atomic<i64> RowIndex_ = {0};
     std::atomic<i64> RowCount_ = {-1};
 
+    TInterruptDescriptor FinishedInterruptDescriptor_;
+
     std::atomic<bool> Finished_ = {false};
 
     using TBase::ReadyEvent_;
@@ -1965,6 +1972,12 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
         return true;
     }
 
+    if (readerFinished) {
+        // This must fill read descriptors with values from finished readers.
+        auto interruptDescriptor = CurrentReader_->GetInterruptDescriptor({});
+        FinishedInterruptDescriptor_.MergeFrom(std::move(interruptDescriptor));
+    }
+
     if (!TBase::OnEmptyRead(readerFinished)) {
         Finished_ = true;
     }
@@ -2024,17 +2037,17 @@ TInterruptDescriptor TSchemalessMultiChunkReader<TBase>::GetInterruptDescriptor(
     static TRange<TUnversionedRow> emptyRange;
     auto state = TBase::GetUnreadState();
 
-    TInterruptDescriptor result;
+    auto result = FinishedInterruptDescriptor_;
     if (state.CurrentReader) {
         auto chunkReader = dynamic_cast<ISchemalessChunkReader*>(state.CurrentReader.Get());
         YCHECK(chunkReader);
-        result = chunkReader->GetInterruptDescriptor(unreadRows);
+        result.MergeFrom(chunkReader->GetInterruptDescriptor(unreadRows));
     }
     for (const auto& activeReader : state.ActiveReaders) {
         auto chunkReader = dynamic_cast<ISchemalessChunkReader*>(activeReader.Get());
         YCHECK(chunkReader);
         auto interruptDescriptor = chunkReader->GetInterruptDescriptor(emptyRange);
-        MergeInterruptDescriptors(&result, std::move(interruptDescriptor));
+        result.MergeFrom(std::move(interruptDescriptor));
     }
     for (const auto& factory : state.ReaderFactories) {
         result.UnreadDataSliceDescriptors.emplace_back(factory->GetDataSliceDescriptor());
@@ -2433,9 +2446,14 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const auto& tableSchema = *dataSource.Schema();
     auto timestamp = dataSource.GetTimestamp();
 
-    // Convert name table column filter to schema column filter.
-    for (auto& index : columnFilter.Indexes) {
-        index = tableSchema.GetColumnIndex(nameTable->GetName(index));
+    try {
+        // Convert name table column filter to schema column filter.
+        for (auto& index : columnFilter.Indexes) {
+            index = tableSchema.GetColumnIndexOrThrow(nameTable->GetName(index));
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to apply column filter since column is missing in schema")
+            << ex;
     }
 
     TTableSchema versionedReadSchema;

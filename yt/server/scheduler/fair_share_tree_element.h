@@ -112,11 +112,11 @@ public:
 protected:
     explicit TSchedulerElementFixedState(
         ISchedulerStrategyHost* host,
-        const TFairShareStrategyConfigPtr& strategyConfig);
+        const TFairShareStrategyTreeConfigPtr& treeConfig);
 
     ISchedulerStrategyHost* const Host_;
 
-    TFairShareStrategyConfigPtr StrategyConfig_;
+    TFairShareStrategyTreeConfigPtr TreeConfig_;
 
     TCompositeSchedulerElement* Parent_ = nullptr;
 
@@ -179,7 +179,7 @@ public:
 
     int GetTreeIndex() const;
 
-    virtual void UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config);
+    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList);
 
@@ -257,7 +257,7 @@ private:
 protected:
     TSchedulerElement(
         ISchedulerStrategyHost* host,
-        const TFairShareStrategyConfigPtr& strategyConfig);
+        const TFairShareStrategyTreeConfigPtr& treeConfig);
     TSchedulerElement(
         const TSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -309,7 +309,7 @@ class TCompositeSchedulerElement
 public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
-        TFairShareStrategyConfigPtr strategyConfig,
+        TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
@@ -317,7 +317,7 @@ public:
 
     virtual int EnumerateNodes(int startIndex) override;
 
-    virtual void UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config) override;
+    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
@@ -422,7 +422,7 @@ public:
         const TString& id,
         TPoolConfigPtr config,
         bool defaultConfigured,
-        TFairShareStrategyConfigPtr strategyConfig,
+        TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag);
     TPool(
         const TPool& other,
@@ -656,10 +656,11 @@ class TOperationElement
 {
 public:
     TOperationElement(
-        TFairShareStrategyConfigPtr strategyConfig,
+        TFairShareStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
         TOperationRuntimeParamsPtr runtimeParams,
         TFairShareStrategyOperationControllerPtr controller,
+        TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* host,
         IOperationStrategyHost* operation);
     TOperationElement(
@@ -672,8 +673,6 @@ public:
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
-
-    virtual void InvokeMinNeededJobResourcesUpdate();
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
@@ -783,7 +782,7 @@ class TRootElement
 public:
     TRootElement(
         ISchedulerStrategyHost* host,
-        TFairShareStrategyConfigPtr strategyConfig,
+        TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag);
     TRootElement(const TRootElement& other);
 

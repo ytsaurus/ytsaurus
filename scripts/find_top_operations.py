@@ -170,11 +170,7 @@ class Operation(object):
         return self._snapshot_size
 
     def get_output_chunks(self, in_account=None):
-        chunks = 0
-        for account, usage in self._output_resource_usage.items():
-            if in_account is None or in_account == account:
-                chunks += usage["chunk_count"]
-        return chunks
+        return self._output_chunks
 
     def get_output_disk_space(self):
         return self._output_disk_space

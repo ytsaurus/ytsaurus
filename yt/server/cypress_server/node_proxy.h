@@ -28,6 +28,7 @@ struct ICypressNodeFactory
 {
     virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
     virtual bool ShouldPreserveExpirationTime() const  = 0;
+    virtual bool ShouldPreserveCreationTime() const  = 0;
     virtual NSecurityServer::TAccount* GetNewNodeAccount() const = 0;
     virtual NSecurityServer::TAccount* GetClonedNodeAccount(TCypressNodeBase* sourceNode) const = 0;
 

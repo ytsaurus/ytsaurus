@@ -437,6 +437,7 @@ struct TCopyNodeOptions
     bool Force = false;
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
+    bool PreserveCreationTime = false;
 };
 
 struct TMoveNodeOptions

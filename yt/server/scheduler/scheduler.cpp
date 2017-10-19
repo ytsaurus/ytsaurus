@@ -664,7 +664,10 @@ public:
             return operation->GetFinished();
         }
 
-        DoAbortOperation(operation->GetId(), error);
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND([=, this_ = MakeStrong(this)] {
+                DoAbortOperation(operation->GetId(), error);
+            }));
 
         return operation->GetFinished();
     }
@@ -893,10 +896,14 @@ public:
     {
         auto controller = operation->GetController();
         if (controller->IsRevivedFromSnapshot()) {
-            operation->SetState(EOperationState::Running);
-            auto asyncResult = RegisterJobsFromRevivedOperation(operation);
-            auto error = WaitFor(asyncResult);
-            YCHECK(error.IsOK() && "Error while registering jobs from the revived operation");
+            operation->SetState(EOperationState::RevivingJobs);
+            RegisterJobsFromRevivedOperation(operation)
+                .Subscribe(BIND([operation] (const TError& error) {
+                    YCHECK(error.IsOK() && "Error while registering jobs from the revived operation");
+                    if (operation->GetState() == EOperationState::RevivingJobs) {
+                        operation->SetState(EOperationState::Running);
+                    }
+                }));
         } else {
             operation->SetState(EOperationState::Materializing);
             BIND(&IOperationController::Materialize, controller)
@@ -1317,13 +1324,13 @@ private:
 
         ConnectionTime_ = TInstant::Now();
 
+        Strategy_->StartPeriodicActivity();
+
         auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
         WaitFor(processFuture)
             .ThrowOnError();
-
-        Strategy_->StartPeriodicActivity();
     }
 
     void OnMasterDisconnected()
