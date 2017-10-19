@@ -136,7 +136,7 @@ TString DoReadSkynetChunk(TBootstrap* bootstrap, const TString& request)
     TString response;
     TStringOutput buffer(response);
     PipeInputToOutput(CreateCopyingAdapter(stream), &buffer, 1024);
-    
+
     return FormatOKResponse(response);
 }
 
