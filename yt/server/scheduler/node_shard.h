@@ -54,6 +54,8 @@ struct INodeShardHost
         const TJobId& jobId) = 0;
 
     virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TString& address) = 0;
+
+    virtual int GetOperationArchiveVersion() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,6 +38,7 @@ message TRspHeartbeat
     optional bool scheduling_skipped = 8;
     optional bool enable_job_reporter = 9;
     optional bool enable_job_spec_reporter = 10;
+    optional int32 operation_archive_version = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

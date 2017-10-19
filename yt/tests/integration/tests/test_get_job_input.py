@@ -321,7 +321,7 @@ class TestGetJobInput(YTEnvSetup):
                 new_r[key] = r[key]
             new_r["spec"] = "junk"
             updated.append(new_r)
-        insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True)
+        insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True, atomicity="none")
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
