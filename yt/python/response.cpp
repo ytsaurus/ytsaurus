@@ -18,6 +18,15 @@ TDriverResponseHolder::TDriverResponseHolder()
     , ResponseParametersConsumer_(new NYTree::TGilGuardedYsonConsumer(ResponseParametersBuilder_.get()))
 { }
 
+TDriverResponseHolder::~TDriverResponseHolder()
+{
+    TGilGuard guard;
+    // Releasing Python objects under GIL.
+    InputStream_.reset(nullptr);
+    OutputStream_.reset(nullptr);
+    ResponseParametersBuilder_.reset(nullptr);
+}
+
 NYson::IYsonConsumer* TDriverResponseHolder::GetResponseParametersConsumer()
 {
     return ResponseParametersConsumer_.get();
