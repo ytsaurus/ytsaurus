@@ -21,6 +21,34 @@ static const auto& Logger = HttpLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCallbackHandler
+    : public IHttpHandler
+{
+public:
+    TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
+        : Handler_(handler)
+    { }
+
+    virtual void HandleHttp(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    {
+        Handler_(req, rsp);
+    }
+
+private:
+    TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> Handler_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void IServer::AddHandler(
+    const TString& pattern,
+    TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
+{
+    AddHandler(pattern, New<TCallbackHandler>(handler));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TServer
     : public IServer
 {

@@ -456,6 +456,11 @@ TNullable<std::vector<TString>> TRichYPath::GetColumns() const
     return FindAttribute<std::vector<TString>>(*this, "columns");
 }
 
+void TRichYPath::SetColumns(const std::vector<TString>& columns)
+{
+    Attributes().Set("columns", columns);
+}
+
 std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
 {
     // COMPAT(ignat): top-level "lower_limit" and "upper_limit" are processed for compatibility.

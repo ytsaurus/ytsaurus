@@ -15,14 +15,17 @@ static auto& Logger = SkynetManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto SkynetToolPath = "/skynet/tools/skybone-mds-ctl";
-
 class TSkynetApi
     : public ISkynetApi
 {
 public:
-    TSkynetApi(const IInvokerPtr invoker)
+    TSkynetApi(
+        const IInvokerPtr& invoker,
+        const TString& pythonInterpreterPath,
+        const TString& mdsToolPath)
         : Invoker_(invoker)
+        , PythonInterpreterPath_(pythonInterpreterPath)
+        , MdsToolPath_(mdsToolPath)
     { }
 
     virtual TFuture<void> AddResource(
@@ -51,6 +54,8 @@ public:
 
 private:
     IInvokerPtr Invoker_;
+    TString PythonInterpreterPath_;
+    TString MdsToolPath_;
 
     void DoAddResource(
         const TString& rbTorrentId,
@@ -70,7 +75,7 @@ private:
             discoveryUrl);
 
         LOG_INFO("Running msgpack conversion (rbTorrentId: %v)", rbTorrentId);
-        TSubprocess conversionProcess("/skynet/python/bin/python", false);
+        TSubprocess conversionProcess(PythonInterpreterPath_, false);
         conversionProcess.AddArguments({"-c", conversionScript});
 
         auto conversionResult = conversionProcess.Execute(TSharedRef::FromString(rbTorrent));
@@ -81,8 +86,8 @@ private:
                 << conversionResult.Status;
         }
 
-        LOG_INFO("Adding resource (rbTorrentId: %v)", rbTorrentId);
-        TSubprocess toolProcess(SkynetToolPath, false);
+        LOG_INFO("Adding resource (RbTorrentId: %v)", rbTorrentId);
+        TSubprocess toolProcess(MdsToolPath_, false);
         toolProcess.AddArguments({"-f", "msgpack", "resource_add"});
 
 //            TFileOutput dumpResource("resource.msgpack");
@@ -96,14 +101,14 @@ private:
                 << toolResult.Status;
         }
 
-        LOG_INFO("Resource added (rbTorrentId: %v)", rbTorrentId);
+        LOG_INFO("Resource added (RbTorrentId: %v)", rbTorrentId);
     }
 
     void DoRemoveResource(const TString& rbTorrentId)
     {
         LOG_INFO("Removing resource (rbTorrentId: %v)", rbTorrentId);
 
-        TSubprocess toolProcess(SkynetToolPath, false);
+        TSubprocess toolProcess(MdsToolPath_, false);
         toolProcess.AddArguments({"resource_remove", rbTorrentId});
 
         auto toolResult = toolProcess.Execute();
@@ -113,14 +118,14 @@ private:
                 << toolResult.Status;
         }
 
-        LOG_INFO("Resource removed (rbTorrentId: %v)", rbTorrentId);
+        LOG_INFO("Resource removed (RbTorrentId: %v)", rbTorrentId);
     }
 
     std::vector<TString> DoListResources()
     {
         LOG_INFO("Listing resources");
 
-        TSubprocess toolProcess(SkynetToolPath, false);
+        TSubprocess toolProcess(MdsToolPath_, false);
         toolProcess.AddArgument("resource_list");
 
         auto toolResult = toolProcess.Execute();
@@ -146,9 +151,12 @@ private:
 DEFINE_REFCOUNTED_TYPE(TSkynetApi)
 DECLARE_REFCOUNTED_TYPE(TSkynetApi)
 
-ISkynetApiPtr CreateShellSkynetApi(const IInvokerPtr& invoker)
+ISkynetApiPtr CreateShellSkynetApi(
+    const IInvokerPtr& invoker,
+    const TString& pythonInterpreterPath,
+    const TString& mdsToolPath)
 {
-    return New<TSkynetApi>(invoker);
+    return New<TSkynetApi>(invoker, pythonInterpreterPath, mdsToolPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

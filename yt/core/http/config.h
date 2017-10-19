@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {

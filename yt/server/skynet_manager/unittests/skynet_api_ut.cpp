@@ -2,6 +2,7 @@
 
 #include <yt/server/skynet_manager/skynet_api.h>
 #include <yt/server/skynet_manager/rb_torrent.h>
+#include <yt/server/skynet_manager/config.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
@@ -15,10 +16,18 @@ class TTestSkynetApi
 {
 public:
     TActionQueuePtr ActionQueue;
+    ISkynetApiPtr Api;
 
     virtual void SetUp() override
     {
         ActionQueue = New<TActionQueue>();
+
+        auto config = New<TSkynetManagerConfig>();
+        config->SetDefaults();
+
+        Api = CreateShellSkynetApi(ActionQueue->GetInvoker(),
+            config->SkynetPythonInterpreterPath,
+            config->SkynetMdsToolPath);
     }
 
     virtual void TearDown() override
@@ -43,24 +52,20 @@ TSkynetRbTorrent CreateSampleTorrent(const TString& smallContent)
 
 TEST_F(TTestSkynetApi, DISABLED_SimpleAddRemove)
 {
-    auto api = CreateShellSkynetApi(ActionQueue->GetInvoker());
-
     auto sampleTorrent = CreateSampleTorrent("some data");
 
-    auto asyncResult = api->AddResource(
+    auto asyncResult = Api->AddResource(
         sampleTorrent.RbTorrentId,
         "http://localhost:5000/",
         sampleTorrent.BencodedTorrentMeta);
 
     WaitFor(asyncResult).ThrowOnError();
 
-    WaitFor(api->RemoveResource(sampleTorrent.RbTorrentId)).ThrowOnError();
+    WaitFor(Api->RemoveResource(sampleTorrent.RbTorrentId)).ThrowOnError();
 }
 
 TEST_F(TTestSkynetApi, DISABLED_ManyAddsAndList)
 {
-    auto api = CreateShellSkynetApi(ActionQueue->GetInvoker());
-
     std::vector<TSkynetRbTorrent> torrents = {
         CreateSampleTorrent("aaa"),
         CreateSampleTorrent("bbb"),
@@ -68,14 +73,14 @@ TEST_F(TTestSkynetApi, DISABLED_ManyAddsAndList)
     };
 
     for (auto torrent : torrents) {
-        WaitFor(api->AddResource(
+        WaitFor(Api->AddResource(
             torrent.RbTorrentId,
             "http://localhost:5000/",
             torrent.BencodedTorrentMeta))
             .ThrowOnError();
     }
 
-    auto listed = WaitFor(api->ListResources()).ValueOrThrow();
+    auto listed = WaitFor(Api->ListResources()).ValueOrThrow();
 
     for (auto torrent : torrents) {
         ASSERT_NE(std::find(listed.begin(), listed.end(), torrent.RbTorrentId),
@@ -83,7 +88,7 @@ TEST_F(TTestSkynetApi, DISABLED_ManyAddsAndList)
     }
 
     for (auto torrent : torrents) {
-        WaitFor(api->RemoveResource(torrent.RbTorrentId))
+        WaitFor(Api->RemoveResource(torrent.RbTorrentId))
             .ThrowOnError();
     }
 }
