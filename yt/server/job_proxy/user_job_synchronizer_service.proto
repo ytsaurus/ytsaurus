@@ -1,6 +1,6 @@
 package NYT.NJobProxy.NProto;
 
-import "yt/core/protos/error.proto";
+import "yt/core/misc/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
