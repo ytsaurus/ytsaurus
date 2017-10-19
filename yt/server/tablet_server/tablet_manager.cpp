@@ -759,6 +759,13 @@ public:
         int lastTabletIndex,
         int newTabletCount)
     {
+
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
+
+        if (newTabletCount <= 1) {
+            THROW_ERROR_EXCEPTION("Tablet count must be positive");
+        }
+
         struct TEntry
         {
             TOwningKey MinKey;
@@ -1062,33 +1069,24 @@ public:
                         int firstTabletIndex = action->Tablets().front()->GetIndex();
                         int lastTabletIndex = action->Tablets().back()->GetIndex();
 
-                        std::vector<TOwningKey> pivotKeys;
-                        int newTabletCount;
-
-                        if (table->IsPhysicallySorted()) {
-                            if (auto tabletCount = action->GetTabletCount()) {
-                                pivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, *tabletCount);
-                            } else {
-                                pivotKeys = action->PivotKeys();
-                            }
-                            newTabletCount = pivotKeys.size();
-                        } else {
-                            newTabletCount = *action->GetTabletCount();
-                        }
-
                         std::vector<TTablet*> oldTablets;
                         oldTablets.swap(action->Tablets());
                         for (auto* tablet : oldTablets) {
                             tablet->SetAction(nullptr);
                         }
 
+                        int newTabletCount = action->GetTabletCount()
+                            ? *action->GetTabletCount()
+                            : action->PivotKeys().size();
+
                         try {
-                            ReshardTable(
+                            newTabletCount = ReshardTable(
                                 table,
                                 firstTabletIndex,
                                 lastTabletIndex,
                                 newTabletCount,
-                                pivotKeys);
+                                action->PivotKeys(),
+                                false);
                         } catch (const std::exception& ex) {
                             for (auto* tablet : oldTablets) {
                                 YCHECK(IsObjectAlive(tablet));
@@ -1100,7 +1098,7 @@ public:
 
                         action->Tablets() = std::vector<TTablet*>(
                             table->Tablets().begin() + firstTabletIndex,
-                            table->Tablets().begin() + firstTabletIndex + pivotKeys.size());
+                            table->Tablets().begin() + firstTabletIndex + newTabletCount);
                         for (auto* tablet : action->Tablets()) {
                             tablet->SetAction(action);
                         }
@@ -1788,7 +1786,42 @@ public:
         }
     }
 
-    void ReshardTable(
+    int ReshardTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        int newTabletCount,
+        const std::vector<TOwningKey>& pivotKeys,
+        bool strictNewTabletCount = false)
+    {
+        if (!pivotKeys.empty() || !table->IsSorted()) {
+            DoReshardTable(
+                table,
+                firstTabletIndex,
+                lastTabletIndex,
+                newTabletCount,
+                pivotKeys);
+            return newTabletCount;
+        }
+
+        auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
+        if (strictNewTabletCount && newPivotKeys.size() != newTabletCount) {
+            THROW_ERROR_EXCEPTION("Unable to calculate pivot keys");
+        }
+
+        LOG_DEBUG("SAVRUS calculated pivot keys: %v", newPivotKeys);
+
+        newTabletCount = newPivotKeys.size();
+        DoReshardTable(
+            table,
+            firstTabletIndex,
+            lastTabletIndex,
+            newTabletCount,
+            newPivotKeys);
+        return newTabletCount;
+    }
+
+    void DoReshardTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -1871,7 +1904,7 @@ public:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Reshard table (TableId: %v, FirstTabletInded: %v, LastTabletIndex: %v, TabletCount %v, PivotKeys: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Reshard table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount %v, PivotKeys: %v)",
             table->GetId(),
             firstTabletIndex,
             lastTabletIndex,

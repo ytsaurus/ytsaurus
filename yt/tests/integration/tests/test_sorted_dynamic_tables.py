@@ -340,6 +340,22 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         reshard_table("//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [250], [300]]
 
+    def test_reshard_tablet_count(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [1]])
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "A"*256} for i in xrange(2)])
+        self.sync_flush_table("//tmp/t")
+        self.sync_compact_table("//tmp/t")
+        self.sync_unmount_table("//tmp/t")
+        chunks = get("//tmp/t/@chunk_ids")
+        assert len(chunks) == 2
+        reshard_table("//tmp/t", [[]])
+        assert self._get_pivot_keys("//tmp/t") == [[]]
+        reshard_table("//tmp/t", 2)
+        assert self._get_pivot_keys("//tmp/t") == [[], [1]]
+
     def test_force_unmount_on_remove(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
