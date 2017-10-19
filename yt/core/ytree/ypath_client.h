@@ -8,7 +8,7 @@
 
 #include <yt/core/rpc/client.h>
 
-#include <yt/core/protos/ypath.pb.h>
+#include <yt/core/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {

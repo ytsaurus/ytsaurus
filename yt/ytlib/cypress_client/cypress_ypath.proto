@@ -1,8 +1,8 @@
 package NYT.NCypressClient.NProto;
 
-import "yt/core/protos/guid.proto";
-import "yt/core/protos/attributes.proto";
-import "yt/core/protos/ypath.proto";
+import "yt/core/misc/guid.proto";
+import "yt/core/ytree/attributes.proto";
+import "yt/core/ytree/ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
