@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <yt/core/protos/guid.pb.h>
+#include <yt/core/misc/guid.pb.h>
 
 #include <util/generic/typetraits.h>
 
