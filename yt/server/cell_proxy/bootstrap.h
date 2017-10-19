@@ -51,7 +51,7 @@ private:
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
-    std::unique_ptr<NHttp::TServer> HttpServer_;
+    std::unique_ptr<NXHttp::TServer> HttpServer_;
     TCoreDumperPtr CoreDumper_;
 
     NApi::INativeConnectionPtr NativeConnection_;
