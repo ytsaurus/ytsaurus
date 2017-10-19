@@ -275,6 +275,14 @@ public:
                     }
                     auto tabletInfo = FindTablet(*tabletId);
                     if (tabletInfo) {
+                        LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, Owners:%v)",
+                            tabletInfo->TabletId,
+                            MakeFormattableRange(tabletInfo->Owners, [] (TStringBuilder* builder, const TWeakPtr<TTableMountInfo>& weakOwner) {
+                                if (auto owner = weakOwner.Lock()) {
+                                    FormatValue(builder, owner->Path, TStringBuf());
+                                }
+                            }));
+
                         LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
                         InvalidateTablet(tabletInfo);
                     }
