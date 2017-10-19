@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "http.h"
 
 #include <yt/core/net/public.h>
 
@@ -26,6 +27,10 @@ struct IServer
     virtual void AddHandler(
         const TString& pattern,
         const IHttpHandlerPtr& handler) = 0;
+
+    virtual void AddHandler(
+        const TString& pattern,
+        TCallback<void(const IRequestPtr& req, const IResponseWriterPtr& rsp)> handler);
 
     virtual TFuture<void> Start() = 0;
 };
