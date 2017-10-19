@@ -19,7 +19,7 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/throttling_channel.h>
 
-#include <yt/core/protos/ypath.pb.h>
+#include <yt/core/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NObjectServer {

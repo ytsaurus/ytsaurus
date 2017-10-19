@@ -1,7 +1,7 @@
 package NYT.NTabletClient.NProto;
 
-import "yt/core/protos/guid.proto";
-import "yt/core/protos/error.proto";
+import "yt/core/misc/guid.proto";
+import "yt/core/misc/error.proto";
 import "yt/ytlib/hive/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

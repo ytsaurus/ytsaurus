@@ -23,7 +23,7 @@
 
 #include <yt/core/misc/address.h>
 
-#include <yt/core/protos/rpc.pb.h>
+#include <yt/core/rpc/rpc.pb.h>
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/service_detail.h>
 

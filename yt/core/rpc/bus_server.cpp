@@ -8,7 +8,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/rpc/message.h>
-#include <yt/core/protos/rpc.pb.h>
+#include <yt/core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
