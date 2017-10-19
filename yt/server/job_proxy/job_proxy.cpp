@@ -297,18 +297,19 @@ void TJobProxy::Run()
                     schedulerResultExt->ShortDebugString());
             } else {
                 if (result.error().code() == 0) {
-                    auto getReadRowCount = [&] () -> i64 {
-                        auto statistics = GetStatistics();
-                        auto it = statistics.Data().find("/data/input/row_count");
-                        if (it == statistics.Data().end()) {
-                            return 0;
-                        } else {
-                            return it->second.GetSum();
-                        }
-                    };
-                    // Validate that job really didn't read anything.
-                    YCHECK(getReadRowCount() == 0);
+                    // It is tempting to check /data/input/row_count statistics to be equal to zero.
+                    // Surprisingly we could still have read some foreign rows, but since we didn't read primary rows
+                    // we made no progress. So let's chunk data slice count at least.
 
+                    auto getPrimaryDataSliceCount = [&] () {
+                        int result = 0;
+                        for (const auto& inputTableSpec : JobSpecHelper_->GetSchedulerJobSpecExt().input_table_specs()) {
+                            result += inputTableSpec.chunk_spec_count_per_data_slice_size();
+                        }
+                        return result;
+                    };
+
+                    YCHECK(getPrimaryDataSliceCount() == interruptDescriptor.UnreadDataSliceDescriptors.size());
 
                     ToProto(
                         result.mutable_error(),
