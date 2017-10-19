@@ -230,6 +230,13 @@ public:
             &TImpl::HandleConfig,
             Unretained(this)));
 
+        MasterConnector_->AddGlobalWatcherRequester(BIND(
+            &TImpl::RequestOperationArchiveVersion,
+            Unretained(this)));
+        MasterConnector_->AddGlobalWatcherHandler(BIND(
+            &TImpl::HandleOperationArchiveVersion,
+            Unretained(this)));
+
         MasterConnector_->SubscribeMasterConnected(BIND(
             &TImpl::OnMasterConnected,
             Unretained(this)));
@@ -1022,6 +1029,11 @@ public:
         return proxy;
     }
 
+    virtual int GetOperationArchiveVersion() const override
+    {
+        return OperationArchiveVersion_.load(std::memory_order_relaxed);
+    }
+
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
@@ -1078,6 +1090,8 @@ private:
 
     TEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
+
+    std::atomic<int> OperationArchiveVersion_ = {-1};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1552,6 +1566,33 @@ private:
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
 
             EventLogWriter_->UpdateConfig(Config_->EventLog);
+        }
+    }
+
+    void RequestOperationArchiveVersion(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        LOG_INFO("Updating operation archive version");
+        auto req = TYPathProxy::Get(GetOperationsArchiveVersionPath());
+        batchReq->AddRequest(req, "get_operation_archive_version");
+    }
+
+    void HandleOperationArchiveVersion(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation_archive_version");
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error getting operation archive version");
+            return;
+        }
+
+        try {
+            OperationArchiveVersion_.store(
+                ConvertTo<int>(TYsonString(rspOrError.Value()->value())),
+                std::memory_order_relaxed);
+            SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, TError());
+        } catch (const std::exception& ex) {
+            auto error = TError("Error parsing operation archive version")
+                << ex;
+            SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, error);
         }
     }
 

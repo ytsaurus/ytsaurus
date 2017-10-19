@@ -4007,6 +4007,13 @@ private:
                 "statistics",
                 "stderr_size"});
 
+            int version = DoGetOperationsArchiveVersion();
+            if (version >= 16) {
+                selectFields = JoinSeq(",", {
+                    selectFields,
+                    "transient_state"});
+            }
+
             TString orderBy;
             if (options.SortField != EJobSortField::None) {
                 switch (options.SortField) {
@@ -4068,8 +4075,11 @@ private:
                 job.JobId = jobId;
                 checkIsNotNull(row[4], "type");
                 job.JobType = ParseEnum<EJobType>(TString(row[4].Data.String, row[4].Length));
-                checkIsNotNull(row[5], "state");
-                job.JobState = ParseEnum<EJobState>(TString(row[5].Data.String, row[5].Length));
+                int jobStateIndex = (version >= 16 && row[5].Type == EValueType::Null)
+                    ? 12
+                    : 5;
+                checkIsNotNull(row[jobStateIndex], "state");
+                job.JobState = ParseEnum<EJobState>(TString(row[jobStateIndex].Data.String, row[jobStateIndex].Length));
                 checkIsNotNull(row[6], "start_time");
                 job.StartTime = TInstant(row[6].Data.Int64);
 

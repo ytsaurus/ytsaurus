@@ -61,6 +61,8 @@ public:
 
     TJobStatistics ExtractSpec();
 
+    bool IsEmpty() const;
+
     void SetOperationId(NJobTrackerClient::TOperationId operationId);
     void SetJobId(NJobTrackerClient::TJobId jobId);
     void SetType(NJobTrackerClient::EJobType type);

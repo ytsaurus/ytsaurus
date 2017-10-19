@@ -208,6 +208,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
 
     response->set_enable_job_reporter(Config_->EnableJobReporter);
     response->set_enable_job_spec_reporter(Config_->EnableJobSpecReporter);
+    response->set_operation_archive_version(Host_->GetOperationArchiveVersion());
 
     auto scheduleJobsAsyncResult = VoidFuture;
 

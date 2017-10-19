@@ -596,6 +596,11 @@ const INativeClientPtr& TBootstrap::GetMasterClient() const
     return MasterClient;
 }
 
+const INativeConnectionPtr& TBootstrap::GetMasterConnection() const
+{
+    return MasterConnection;
+}
+
 const IServerPtr& TBootstrap::GetRpcServer() const
 {
     return RpcServer;
