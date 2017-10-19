@@ -24,7 +24,7 @@ using namespace NHttp;
 TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
     : Config(std::move(config))
 {
-    Poller = CreateThreadPoolPoller(config->IOPoolSize, "Poller");
+    Poller = CreateThreadPoolPoller(Config->IOPoolSize, "Poller");
 
     SkynetApiActionQueue = New<TActionQueue>("SkynetApi");
     SkynetApi = CreateShellSkynetApi(
