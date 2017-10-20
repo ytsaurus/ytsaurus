@@ -140,16 +140,6 @@ public:
         Persist(context, MergeTaskGroup);
 
         Persist(context, PartitionTask);
-
-        // COMPAT(psushin).
-        auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-        if (context.IsLoad() &&
-            GetSortedMergeJobType() == EJobType::SortedMerge &&
-            !partitionJobSpecExt->has_wire_partition_keys())
-        {
-            // To properly load from old snapshots.
-            InitTemplatePartitionKeys(partitionJobSpecExt);
-        }
     }
 
 private:
