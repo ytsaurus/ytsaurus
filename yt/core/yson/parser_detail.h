@@ -382,32 +382,51 @@ private:
 } // namespace NDetail
 
 template <class TConsumer, class TBlockStream>
-void ParseYsonStreamImpl(
-    const TBlockStream& blockStream,
-    IYsonConsumer* consumer,
-    EYsonType parsingMode,
-    bool enableLinePositionInfo,
-    i64 memoryLimit,
-    bool enableContext)
+class TParserYsonStreamImpl
 {
-    if (enableLinePositionInfo && enableContext) {
-        typedef NDetail::TParser<TConsumer, TBlockStream, 64, true> TImpl;
-        TImpl impl(blockStream, consumer, memoryLimit);
-        impl.DoParse(parsingMode);
-    } else if (enableLinePositionInfo && !enableContext) {
-        typedef NDetail::TParser<TConsumer, TBlockStream, 0, true> TImpl;
-        TImpl impl(blockStream, consumer, memoryLimit);
-        impl.DoParse(parsingMode);
-    } else if (!enableLinePositionInfo && enableContext) {
-        typedef NDetail::TParser<TConsumer, TBlockStream, 64, false> TImpl;
-        TImpl impl(blockStream, consumer, memoryLimit);
-        impl.DoParse(parsingMode);
-    } else {
-        typedef NDetail::TParser<TConsumer, TBlockStream, 0, false> TImpl;
-        TImpl impl(blockStream, consumer, memoryLimit);
-        impl.DoParse(parsingMode);
+public:
+    TParserYsonStreamImpl()
+    { }
+
+    void DoParse(
+        const TBlockStream& blockStream,
+        IYsonConsumer* consumer,
+        EYsonType parsingMode,
+        bool enableLinePositionInfo,
+        i64 memoryLimit,
+        bool enableContext)
+    {
+        if (enableLinePositionInfo && enableContext) {
+            typedef NDetail::TParser<TConsumer, TBlockStream, 64, true> TImpl;
+            TImpl impl(blockStream, consumer, memoryLimit);
+            BlockStream_ = static_cast<TBlockStream*>(&impl);
+            impl.DoParse(parsingMode);
+        } else if (enableLinePositionInfo && !enableContext) {
+            typedef NDetail::TParser<TConsumer, TBlockStream, 0, true> TImpl;
+            TImpl impl(blockStream, consumer, memoryLimit);
+            BlockStream_ = static_cast<TBlockStream*>(&impl);
+            impl.DoParse(parsingMode);
+        } else if (!enableLinePositionInfo && enableContext) {
+            typedef NDetail::TParser<TConsumer, TBlockStream, 64, false> TImpl;
+            TImpl impl(blockStream, consumer, memoryLimit);
+            BlockStream_ = static_cast<TBlockStream*>(&impl);
+            impl.DoParse(parsingMode);
+        } else {
+            typedef NDetail::TParser<TConsumer, TBlockStream, 0, false> TImpl;
+            TImpl impl(blockStream, consumer, memoryLimit);
+            BlockStream_ = static_cast<TBlockStream*>(&impl);
+            impl.DoParse(parsingMode);
+        }
     }
-}
+
+    const char* GetCurrentPositionInBlock()
+    {
+        return BlockStream_->Current();
+    }
+
+private:
+    TBlockStream* BlockStream_;
+};
 
 class TStatelessYsonParserImplBase
 {

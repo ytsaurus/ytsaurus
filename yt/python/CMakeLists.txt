@@ -8,6 +8,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/object_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_lazy_map.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lazy_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/list_fragment_parser.cpp
 )
 
 if (_is_gcc)

@@ -7,6 +7,7 @@
 #include "yson_lazy_map.h"
 #include "object_builder.h"
 #include "protobuf_descriptor_pool.h"
+#include "list_fragment_parser.h"
 
 #include <yt/core/ytree/convert.h>
 
@@ -151,7 +152,7 @@ public:
     void Init(IInputStream* inputStream, std::unique_ptr<IInputStream> inputStreamOwner)
     {
         InputStreamOwner_ = std::move(inputStreamOwner);
-        Lexer_ = TListFragmentLexer(inputStream);
+        Parser_ = TListFragmentParser(inputStream);
     }
 
     Py::Object iter()
@@ -166,7 +167,7 @@ public:
 
             {
                 TReleaseAcquireGilGuard guard;
-                item = Lexer_.NextItem();
+                item = Parser_.NextItem();
             }
 
             if (!item) {
@@ -195,7 +196,7 @@ public:
 
 private:
     std::unique_ptr<IInputStream> InputStreamOwner_;
-    TListFragmentLexer Lexer_;
+    TListFragmentParser Parser_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,7 +217,7 @@ public:
         bool alwaysCreateAttributes)
     {
         InputStreamOwner_ = std::move(inputStreamOwner);
-        Lexer_ = TListFragmentLexer(inputStream);
+        Parser_ = TListFragmentParser(inputStream);
         LoadsParams_ = loadsParams;
         Encoding_ = encoding;
         AlwaysCreateAttributes_ = alwaysCreateAttributes;
@@ -231,7 +232,7 @@ public:
     PyObject* iternext()
     {
         try {
-            auto item = Lexer_.NextItem();
+            auto item = Parser_.NextItem();
             if (!item) {
                 PyErr_SetNone(PyExc_StopIteration);
                 return nullptr;
@@ -258,7 +259,7 @@ public:
 
 private:
     std::unique_ptr<IInputStream> InputStreamOwner_;
-    TListFragmentLexer Lexer_;
+    TListFragmentParser Parser_;
     Py::Tuple LoadsParams_;
     TPythonStringCache KeyCache_;
     TNullable<TString> Encoding_;
