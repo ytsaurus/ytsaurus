@@ -66,6 +66,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
+                TReadSessionId(),
                 TColumnFilter(),
                 keyColumns);
 

@@ -255,6 +255,7 @@ public:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& sessionId,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -270,6 +271,7 @@ public:
                 timestamp,
                 user,
                 workloadDescriptor,
+                sessionId,
                 retentionConfig,
                 reader,
                 writer);
@@ -2439,6 +2441,7 @@ private:
         TTimestamp timestamp,
         const TString& user,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& sessionId,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -2451,6 +2454,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    sessionId,
                     reader,
                     writer);
                 break;
@@ -2461,6 +2465,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    sessionId,
                     std::move(retentionConfig),
                     reader,
                     writer);
@@ -3266,6 +3271,7 @@ void TTabletManager::Read(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& sessionId,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -3275,6 +3281,7 @@ void TTabletManager::Read(
         timestamp,
         user,
         workloadDescriptor,
+        sessionId,
         std::move(retentionConfig),
         reader,
         writer);
