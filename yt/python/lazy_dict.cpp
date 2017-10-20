@@ -28,9 +28,7 @@ PyObject* TLazyDict::GetItem(const Py::Object& key)
         NYson::TYsonParser parser(Consumer_.get());
 
         auto data = it->second.Data;
-        for (const auto& item: data) {
-            parser.Read(TStringBuf(item.Begin(), item.Size()));
-        }
+        parser.Read(TStringBuf(data.Begin(), data.Size()));
         parser.Finish();
 
         it->second.Value = Consumer_->ExtractObject();
@@ -38,7 +36,7 @@ PyObject* TLazyDict::GetItem(const Py::Object& key)
     return it->second.Value->ptr();
 }
 
-void TLazyDict::SetItem(const Py::Object& key, const TSharedRefArray& value)
+void TLazyDict::SetItem(const Py::Object& key, const TSharedRef& value)
 {
     if (HasItem(key)) {
         Data_.erase(key);
@@ -51,7 +49,7 @@ void TLazyDict::SetItem(const Py::Object& key, const Py::Object& value)
     if (HasItem(key)) {
         Data_.erase(key);
     }
-    Data_.emplace(key, TLazyDictValue({TSharedRefArray(), value}));
+    Data_.emplace(key, TLazyDictValue({TSharedRef(), value}));
 }
 
 size_t TLazyDict::Length() const

@@ -12,11 +12,6 @@ void IYsonConsumer::OnRaw(const TYsonString& yson)
     OnRaw(yson.GetData(), yson.GetType());
 }
 
-void IYsonConsumer::OnRaw(const TSharedRefArray& refArray, EYsonType type)
-{
-    ParseYsonSharedRefArray(refArray, type, this);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TYsonConsumerBase::OnRaw(const TStringBuf& str, EYsonType type)

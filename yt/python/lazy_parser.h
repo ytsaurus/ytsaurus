@@ -1,31 +1,23 @@
 #pragma once
 
-#include "helpers.h"
-#include "public.h"
-#include "stream.h"
-#include "object_builder.h"
-#include "lazy_dict.h"
+#include <yt/core/misc/nullable.h>
+#include <yt/core/yson/public.h>
 
-#include <yt/core/yson/lexer_detail.h>
-
-#include <yt/core/ytree/convert.h>
-
-#include <contrib/libs/pycxx/Extensions.hxx>
 #include <contrib/libs/pycxx/Objects.hxx>
 
-#include <Python.h>
+#include <util/stream/input.h>
+#include <util/generic/string.h>
 
 namespace NYT {
 namespace NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PyObject* ParseLazyDict(
-    IInputStream* stream,
-    NYson::EYsonType parsingMode,
+Py::Object ParseLazyYson(
+    IInputStream* inputStream,
     const TNullable<TString>& encoding,
     bool alwaysCreateAttributes,
-    NPython::TPythonStringCache* keyCacher);
+    NYson::EYsonType ysonType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
