@@ -467,7 +467,7 @@ public:
             return;
         }
 
-        operation->Alerts()[alertType] = alert;
+        operation->MutableAlerts()[alertType] = alert;
     }
 
     virtual TFuture<void> SetOperationAlert(
@@ -2020,7 +2020,7 @@ private:
         }
         operation->SetState(state);
         operation->SetFinishTime(TInstant::Now());
-        ToProto(operation->Result().mutable_error(), error);
+        ToProto(operation->MutableResult().mutable_error(), error);
     }
 
     void FinishOperation(TOperationPtr operation)
