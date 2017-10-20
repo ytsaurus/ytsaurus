@@ -181,7 +181,6 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
         auto* dstValue = capturedRow.BeginKeys();
         for (const auto* srcValue = row.BeginKeys(); srcValue != row.EndKeys(); ++srcValue, ++index) {
             YCHECK(idMapping[index] == index);
-            YCHECK(srcValue->Id == index);
             *dstValue++ = *srcValue;
         }
     }
