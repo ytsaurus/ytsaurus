@@ -65,14 +65,6 @@ void ParseYsonStringBuffer(
     i64 memoryLimit = std::numeric_limits<i64>::max(),
     bool enableContext = true);
 
-void ParseYsonSharedRefArray(
-    const TSharedRefArray& refArray,
-    EYsonType type,
-    IYsonConsumer* consumer,
-    bool enableLinePositionInfo = false,
-    i64 memoryLimit = std::numeric_limits<i64>::max(),
-    bool enableContext = true);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYson

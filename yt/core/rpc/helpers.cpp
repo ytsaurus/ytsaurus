@@ -426,7 +426,7 @@ public:
         {
             google::protobuf::io::StringOutputStream output(&protoBuffer);
             auto converter = CreateProtobufWriter(&output, messageType);
-            ParseYsonSharedRefArray(TSharedRefArray{ysonBuffer}, EYsonType::Node, converter.get());
+            ParseYsonStringBuffer(TStringBuf(ysonBuffer.Begin(), ysonBuffer.End()), EYsonType::Node, converter.get());
         }
         return PushEnvelope(TSharedRef::FromString(protoBuffer));
     }
