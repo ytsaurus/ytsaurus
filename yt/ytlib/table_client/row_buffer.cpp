@@ -181,7 +181,8 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
         auto* dstValue = capturedRow.BeginKeys();
         for (const auto* srcValue = row.BeginKeys(); srcValue != row.EndKeys(); ++srcValue, ++index) {
             YCHECK(idMapping[index] == index);
-            *dstValue++ = Capture(*srcValue);
+            YCHECK(srcValue->Id == index);
+            *dstValue++ = *srcValue;
         }
     }
 
@@ -193,7 +194,9 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
             if (mappedId < 0) {
                 continue;
             }
-            *dstValue++ = Capture(*srcValue);
+            *dstValue = *srcValue;
+            dstValue->Id = mappedId;
+            ++dstValue;
         }
     }
 
