@@ -51,17 +51,22 @@ public:
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
+        const TReadSessionId& sessionId,
         i64 startOffset,
         i64 endOffset)
         : Config_(std::move(config))
         , ChunkReader_(std::move(chunkReader))
         , BlockCache_(std::move(blockCache))
         , CodecId_(codecId)
+        , ReadSessionId_(sessionId)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
         , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
     {
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
+        if (ReadSessionId_) {
+            Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
+        }
 
         LOG_INFO("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
                 startOffset,
@@ -137,6 +142,7 @@ private:
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
     const NCompression::ECodec CodecId_;
+    const TReadSessionId ReadSessionId_;
 
     i64 StartOffset_;
     i64 EndOffset_;
@@ -232,7 +238,8 @@ private:
             AsyncSemaphore_,
             ChunkReader_,
             BlockCache_,
-            CodecId_);
+            CodecId_,
+            ReadSessionId_);
 
         LOG_INFO("File reader opened");
     }
@@ -267,6 +274,7 @@ IFileReaderPtr CreateFileChunkReader(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
+    const TReadSessionId& sessionId,
     i64 startOffset,
     i64 endOffset)
 {
@@ -275,6 +283,7 @@ IFileReaderPtr CreateFileChunkReader(
         chunkReader,
         blockCache,
         codecId,
+        sessionId,
         startOffset,
         endOffset);
 }
@@ -330,6 +339,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
+    const TReadSessionId& sessionId,
     const std::vector<TChunkSpec>& chunkSpecs,
     IThroughputThrottlerPtr throttler)
 {
@@ -364,6 +374,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 std::move(remoteReader),
                 blockCache,
                 NCompression::ECodec(miscExt.compression_codec()),
+                sessionId,
                 startOffset,
                 endOffset);
         };

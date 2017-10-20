@@ -80,6 +80,7 @@ TString DoReadSkynetChunk(TBootstrap* bootstrap, const TString& request)
 
     auto chunkPtr = bootstrap->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
     auto chunkGuard = TChunkReadGuard::AcquireOrThrow(chunkPtr);
+    auto sessionId = TReadSessionId::Create();
 
     TWorkloadDescriptor skynetWorkload(EWorkloadCategory::UserBatch);
     skynetWorkload.Annotations = {"skynet"};
@@ -123,6 +124,7 @@ TString DoReadSkynetChunk(TBootstrap* bootstrap, const TString& request)
         New<TChunkReaderOptions>(),
         chunkReader,
         New<TNameTable>(),
+        sessionId,
         TKeyColumns(),
         TColumnFilter(),
         readRange);

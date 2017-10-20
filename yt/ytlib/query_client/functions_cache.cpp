@@ -37,11 +37,12 @@
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NConcurrency;
-using namespace NYTree;
-using namespace NYPath;
-using namespace NFileClient;
 using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NFileClient;
+using namespace NYPath;
+using namespace NYTree;
 
 using NObjectClient::TObjectServiceProxy;
 using NYT::FromProto;
@@ -500,11 +501,18 @@ public:
         , Client_(client)
     { }
 
-    TSharedRef DoFetch(const TFunctionImplKey& key, TNodeDirectoryPtr nodeDirectory)
+    TSharedRef DoFetch(
+        const TFunctionImplKey& key,
+        TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId)
     {
         auto client = Client_.Lock();
         YCHECK(client);
         auto chunks = key.ChunkSpecs;
+
+        LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v, ReadSessionId: %v)",
+            key,
+            sessionId);
 
         auto reader = NFileClient::CreateFileMultiChunkReader(
             New<NApi::TFileReaderConfig>(),
@@ -513,9 +521,8 @@ public:
             NNodeTrackerClient::TNodeDescriptor(),
             client->GetNativeConnection()->GetBlockCache(),
             std::move(nodeDirectory),
+            sessionId,
             std::move(chunks));
-
-        LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v)", key);
 
         std::vector<TSharedRef> blocks;
         while (true) {
@@ -546,12 +553,13 @@ public:
 
     TFuture<TFunctionImplCacheEntryPtr> FetchImplementation(
         const TFunctionImplKey& key,
-        TNodeDirectoryPtr nodeDirectory)
+        TNodeDirectoryPtr nodeDirectory,
+        const TReadSessionId& sessionId)
     {
         auto cookie = BeginInsert(key);
         if (cookie.IsActive()) {
             try {
-                auto file = DoFetch(key, std::move(nodeDirectory));
+                auto file = DoFetch(key, std::move(nodeDirectory), sessionId);
                 cookie.EndInsert(New<TFunctionImplCacheEntry>(key, file));
             } catch (const std::exception& ex) {
                 cookie.Cancel(TError(ex).Wrap("Failed to download function implementation"));
@@ -627,21 +635,24 @@ void FetchImplementations(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    TFunctionImplCachePtr cache)
+    TFunctionImplCachePtr cache,
+    const TReadSessionId& sessionId)
 {
     std::vector<TFuture<TFunctionImplCacheEntryPtr>> asyncResults;
 
     for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
-        LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
+        LOG_DEBUG("Fetching UDF implementation (Name: %v, ReadSessionId: %v)",
+            name,
+            sessionId);
 
         TFunctionImplKey key;
         key.ChunkSpecs = function.ChunkSpecs;
 
         auto cacheEntry = BIND(&TFunctionImplCache::FetchImplementation, cache)
             .AsyncVia(GetCurrentInvoker())
-            .Run(key, externalCGInfo->NodeDirectory);
+            .Run(key, externalCGInfo->NodeDirectory, sessionId);
 
         asyncResults.push_back(cacheEntry);
     }
@@ -667,8 +678,8 @@ void FetchJobImplementations(
         LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
         auto path = implementationPath + "/" + function.Name;
-            TFileInput file(path);
-        auto impl =  TSharedRef::FromString(file.ReadAll());
+        auto file = TFileInput(path);
+        auto impl = TSharedRef::FromString(file.ReadAll());
 
         AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, impl);
     }

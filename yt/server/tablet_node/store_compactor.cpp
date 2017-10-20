@@ -703,17 +703,19 @@ private:
                 ->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
+            auto sessionId = TReadSessionId();
 
             eden->SetCompactionTime(TInstant::Now());
 
-            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
+            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx, ReadSessionId: %v)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
                 pivotKeys.size(),
                 dataSize,
                 stores.size(),
-                currentTimestamp);
+                currentTimestamp,
+                sessionId);
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -722,7 +724,8 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning));
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
+                sessionId);
 
             INativeTransactionPtr transaction;
             {
@@ -1056,11 +1059,12 @@ private:
             auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
+            auto sessionId = TReadSessionId();
 
             partition->SetCompactionTime(TInstant::Now());
 
             LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, "
-                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
+                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, ReadSessionId: %v)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
@@ -1068,7 +1072,8 @@ private:
                 stores.size(),
                 currentTimestamp,
                 majorTimestamp,
-                retainedTimestamp);
+                retainedTimestamp,
+                sessionId);
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -1077,7 +1082,8 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 majorTimestamp,
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction));
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
+                sessionId);
 
             INativeTransactionPtr transaction;
             {

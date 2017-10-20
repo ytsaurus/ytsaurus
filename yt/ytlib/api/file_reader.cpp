@@ -54,16 +54,17 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileReaderConfig>())
+        , ReadSessionId_(TReadSessionId::Create())
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
         }
 
-
-        Logger.AddTag("Path: %v, TransactionId: %v",
+        Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
             Path_,
-            Options_.TransactionId);
+            Options_.TransactionId,
+            ReadSessionId_);
     }
 
     TFuture<void> Open()
@@ -95,6 +96,7 @@ private:
     const TYPath Path_;
     const TFileReaderOptions Options_;
     const TFileReaderConfigPtr Config_;
+    const TReadSessionId ReadSessionId_;
 
     ITransactionPtr Transaction_;
 
@@ -183,6 +185,7 @@ private:
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
+            ReadSessionId_,
             std::move(chunkSpecs));
 
         if (Transaction_) {

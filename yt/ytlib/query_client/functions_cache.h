@@ -84,7 +84,8 @@ void FetchImplementations(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    TFunctionImplCachePtr cache);
+    TFunctionImplCachePtr cache,
+    const NChunkClient::TReadSessionId& sessionId = NChunkClient::TReadSessionId());
 
 void FetchJobImplementations(
     const TFunctionProfilerMapPtr& functionProfilers,

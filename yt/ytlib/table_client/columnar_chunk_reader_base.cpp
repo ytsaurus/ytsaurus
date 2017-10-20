@@ -26,10 +26,12 @@ using NChunkClient::TReadLimit;
 TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
-    IBlockCachePtr blockCache)
+    IBlockCachePtr blockCache,
+    const TReadSessionId& sessionId)
     : Config_(config)
     , UnderlyingReader_(underlyingReader)
     , BlockCache_(blockCache)
+    , ReadSessionId_(sessionId)
     , Semaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
 { }
 
@@ -252,7 +254,8 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
             Semaphore_,
             UnderlyingReader_,
             BlockCache_,
-            NCompression::ECodec(ChunkMeta_->Misc().compression_codec()));
+            NCompression::ECodec(ChunkMeta_->Misc().compression_codec()),
+            ReadSessionId_);
     }
 }
 
@@ -360,7 +363,8 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
         Semaphore_,
         UnderlyingReader_,
         BlockCache_,
-        NCompression::ECodec(ChunkMeta_->Misc().compression_codec()));
+        NCompression::ECodec(ChunkMeta_->Misc().compression_codec()),
+        ReadSessionId_);
 }
 
 bool TColumnarLookupChunkReaderBase::TryFetchNextRow()

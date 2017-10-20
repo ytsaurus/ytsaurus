@@ -57,7 +57,8 @@ public:
         i64 lowerRowIndex,
         i64 upperRowIndex,
         const NTableClient::TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor) override;
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& sessionId);
 
 private:
     class TReader;

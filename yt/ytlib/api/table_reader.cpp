@@ -103,6 +103,7 @@ private:
 
     const TTransactionId TransactionId_;
     const bool Unordered_;
+    const TReadSessionId ReadSessionId_;
 
     TFuture<void> ReadyEvent_;
 
@@ -130,15 +131,17 @@ TSchemalessTableReader::TSchemalessTableReader(
     , RichPath_(richPath)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
     , Unordered_(unordered)
+    , ReadSessionId_(TReadSessionId::Create())
 {
     YCHECK(Config_);
     YCHECK(Client_);
 
     Config_->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
 
-    Logger.AddTag("Path: %v, TransactionId: %v",
+    Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
         RichPath_.GetPath(),
-        TransactionId_);
+        TransactionId_,
+        ReadSessionId_);
 
     ReadyEvent_ = BIND(&TSchemalessTableReader::DoOpen, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
@@ -268,6 +271,7 @@ void TSchemalessTableReader::DoOpen()
             dataSourceDirectory,
             dataSliceDescriptor,
             New<TNameTable>(),
+            ReadSessionId_,
             TColumnFilter());
     } else {
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
@@ -294,6 +298,7 @@ void TSchemalessTableReader::DoOpen()
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             New<TNameTable>(),
+            ReadSessionId_,
             TColumnFilter(),
             schema.GetKeyColumns(),
             Null,

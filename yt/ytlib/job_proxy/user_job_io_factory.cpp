@@ -96,6 +96,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             std::move(nameTable),
+            TReadSessionId(),
             columnFilter);
     } else {
         return CreateSchemalessSequentialMultiReader(
@@ -108,6 +109,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             std::move(nameTable),
+            TReadSessionId(),
             columnFilter);
     }
 }
@@ -241,6 +243,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
+                TReadSessionId(),
                 columnFilter,
                 keyColumns);
 
@@ -264,6 +267,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
+                TReadSessionId(),
                 columnFilter,
                 keyColumns);
 
