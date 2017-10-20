@@ -813,10 +813,8 @@ public:
         Persist(context, ChunkPoolId_);
         Persist(context, SortedJobOptions_);
         Persist(context, ForeignStripeCookiesByStreamIndex_);
+        Persist(context, TotalDataSliceCount_);
 
-        if (context.GetVersion() >= 200512) {
-            Persist(context, TotalDataSliceCount_);
-        }
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);

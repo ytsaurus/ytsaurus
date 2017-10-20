@@ -381,12 +381,6 @@ i64 TTask::GetInputDataSliceCount() const
 void TTask::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-
-    // COMPAT(babenko)
-    if (context.IsLoad() && context.GetVersion() < 200009) {
-        Load<TNullable<TInstant>>(context.LoadContext());
-    }
-
     Persist(context, TaskHost_);
 
     Persist(context, CachedPendingJobCount_);
