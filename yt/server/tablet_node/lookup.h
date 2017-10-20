@@ -18,6 +18,7 @@ void LookupRows(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    const NChunkClient::TReadSessionId& sessionId,
     NTabletClient::TWireProtocolReader* reader,
     NTabletClient::TWireProtocolWriter* writer);
 
@@ -26,6 +27,7 @@ void VersionedLookupRows(
     TTimestamp timestamp,
     const TString& user,
     const TWorkloadDescriptor& workloadDescriptor,
+    const NChunkClient::TReadSessionId& sessionId,
     NTableClient::TRetentionConfigPtr retentionConfig,
     NTabletClient::TWireProtocolReader* reader,
     NTabletClient::TWireProtocolWriter* writer);

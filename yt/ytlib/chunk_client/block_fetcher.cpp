@@ -25,7 +25,8 @@ TBlockFetcher::TBlockFetcher(
     TAsyncSemaphorePtr asyncSemaphore,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
-    NCompression::ECodec codecId)
+    NCompression::ECodec codecId,
+    const TReadSessionId& sessionId)
     : Config_(std::move(config))
     , BlockInfos_(std::move(blockInfos))
     , ChunkReader_(std::move(chunkReader))
@@ -42,6 +43,9 @@ TBlockFetcher::TBlockFetcher(
     YCHECK(!BlockInfos_.empty());
 
     Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
+    if (sessionId) {
+        Logger.AddTag("ReadSessionId: %v", sessionId);
+    }
 
     std::sort(
         BlockInfos_.begin(),
@@ -330,14 +334,16 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     NConcurrency::TAsyncSemaphorePtr asyncSemaphore,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
-    NCompression::ECodec codecId)
+    NCompression::ECodec codecId,
+    const TReadSessionId& sessionId)
     : TBlockFetcher(
         config,
         blockInfos,
         asyncSemaphore,
         chunkReader,
         blockCache,
-        codecId)
+        codecId,
+        sessionId)
     , OriginalOrderBlockInfos_(blockInfos)
 { }
 

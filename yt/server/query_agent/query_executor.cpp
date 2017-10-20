@@ -319,7 +319,8 @@ private:
             functionGenerators,
             aggregateGenerators,
             externalCGInfo,
-            FunctionImplCache_);
+            FunctionImplCache_,
+            Options_.ReadSessionId);
 
         return CoordinateAndExecute(
             Query_,
@@ -1090,7 +1091,8 @@ private:
                     lowerBound,
                     upperBound,
                     Options_.Timestamp,
-                    Options_.WorkloadDescriptor);
+                    Options_.WorkloadDescriptor,
+                    Options_.ReadSessionId);
             };
 
             return CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
@@ -1100,7 +1102,8 @@ private:
                 columnFilter,
                 bounds,
                 Options_.Timestamp,
-                Options_.WorkloadDescriptor);
+                Options_.WorkloadDescriptor,
+                Options_.ReadSessionId);
         }
     }
 
@@ -1116,7 +1119,8 @@ private:
             columnFilter,
             keys,
             Options_.Timestamp,
-            Options_.WorkloadDescriptor);
+            Options_.WorkloadDescriptor,
+            Options_.ReadSessionId);
     }
 
 };
