@@ -364,6 +364,11 @@ TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
     auto firstUnreadKey = !unreadRows.Empty()
         ? GetKeyPrefix(unreadRows[0], ReduceKeyColumnCount_)
         : MaxKey();
+
+    LOG_DEBUG("Creating interrupt descriptor for sorted merging reader (UnreadRowCount: %v, FirstUnreadKey: %v)",
+        unreadRows.Size(),
+        firstUnreadKey);
+
     for (const auto& session : SessionHolder_) {
         auto it = std::lower_bound(
             session.Rows.begin(),
