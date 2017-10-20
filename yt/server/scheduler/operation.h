@@ -77,7 +77,7 @@ protected: \
     type name##_ { __VA_ARGS__ }; \
     \
 public: \
-    Y_FORCE_INLINE type& name() \
+    Y_FORCE_INLINE type& Mutable##name() \
     { \
         ShouldFlush_ = true; \
         return name##_; \
