@@ -1116,7 +1116,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     switch (state) {
         case EJobState::Completed: {
             LOG_DEBUG("Job completed, storage scheduled");
-            RecentlyCompletedJobIds_.insert(jobId);
+            YCHECK(RecentlyCompletedJobIds_.insert(jobId).second);
             OnJobCompleted(job, jobStatus);
             ToProto(response->add_jobs_to_store(), jobId);
             break;
