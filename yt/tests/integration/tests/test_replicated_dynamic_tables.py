@@ -41,6 +41,12 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         {"name": "value2", "type": "int64"}
     ]
 
+    PERTURBED_SCHEMA = [
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value2", "type": "int64"},
+        {"name": "value1", "type": "string"}
+    ]
+
     AGGREGATE_SCHEMA = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value1", "type": "string"},
@@ -778,6 +784,23 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         assert_items_equal(select_rows("key, value1 from [//tmp/t]", driver=self.primary_driver), rows)
         assert_items_equal(select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver), rows)
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_inverted_schema(self, mode):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
+        self._create_replica_table("//tmp/r", replica_id, schema=self.PERTURBED_SCHEMA)
+        self.sync_enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 10}], require_sync_replica=False)
+        sleep(1.0)
+        get("//tmp/t/@replicas")
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 10}]
+
+        delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == []
 
 ##################################################################
 
