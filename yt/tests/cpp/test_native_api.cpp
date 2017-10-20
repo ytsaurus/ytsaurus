@@ -205,7 +205,7 @@ public:
     {
         TDynamicTablesTestBase::SetUpTestCase();
 
-        Table_ = TYPath("//tmp/t");
+        Table_ = TYPath("//tmp/lookup_test");
         auto attributes = ConvertToNode(TYsonString(
             "{dynamic=%true;schema=["
             "{name=k0;type=int64;sort_order=ascending};"
@@ -645,7 +645,7 @@ public:
         clientOptions.User = "replicator";
         Client_ = Connection_->CreateNativeClient(clientOptions);
 
-        Table_ = TYPath("//tmp/t");
+        Table_ = TYPath("//tmp/write_test");
         auto attributes = ConvertToNode(TYsonString(
             "{dynamic=%true;schema=["
             "{name=k0;type=int64;sort_order=ascending};"
