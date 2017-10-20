@@ -34,16 +34,17 @@
 namespace NYT {
 namespace NQueryAgent {
 
-using namespace NYTree;
-using namespace NConcurrency;
-using namespace NRpc;
+using namespace NCellNode;
+using namespace NChunkClient;
 using namespace NCompression;
+using namespace NConcurrency;
+using namespace NHydra;
 using namespace NQueryClient;
+using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode;
-using namespace NCellNode;
-using namespace NHydra;
+using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,12 +90,13 @@ private:
         auto options = FromProto<TQueryOptions>(request->options());
         options.InputRowLimit = request->query().input_row_limit();
         options.OutputRowLimit = request->query().output_row_limit();
+        options.ReadSessionId = TReadSessionId::Create();
 
         auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
         LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "DataRangeCount: %v)",
+            "ReadSesisonId: %v, DataRangeCount: %v)",
             query->Id,
             options.InputRowLimit,
             options.OutputRowLimit,
@@ -102,6 +104,7 @@ private:
             options.MaxSubqueries,
             options.EnableCodeCache,
             options.WorkloadDescriptor,
+            options.ReadSessionId,
             dataSources.size());
 
         const auto& user = context->GetUser();
@@ -143,6 +146,7 @@ private:
         auto timestamp = TTimestamp(request->timestamp());
         // TODO(sandello): Extract this out of RPC request.
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
+        auto sessionId = TReadSessionId::Create();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto responseCodecId = NCompression::ECodec(request->response_codec());
 
@@ -151,11 +155,12 @@ private:
             retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonString(request->retention_config()));
         }
 
-        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, RetentionConfig: %Qv",
+        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %Qv",
             tabletId,
             timestamp,
             requestCodecId,
             responseCodecId,
+            sessionId,
             retentionConfig
                 ? ConvertToYsonString(retentionConfig, EYsonFormat::Text).GetData()
                 : TString("<nullptr>"));
@@ -192,6 +197,7 @@ private:
                     timestamp,
                     user,
                     workloadDescriptor,
+                    sessionId,
                     retentionConfig,
                     &reader,
                     &writer);

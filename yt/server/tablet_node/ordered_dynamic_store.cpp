@@ -360,6 +360,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             New<TChunkReaderConfig>(),
             chunkReader,
             GetNullBlockCache(),
+            TReadSessionId(),
             Schema_,
             TKeyColumns(),
             chunkMeta,
@@ -409,7 +410,8 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /*workloadDescriptor*/)
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TReadSessionId& /*sessionId*/)
 {
     return DoCreateReader(
         tabletIndex,

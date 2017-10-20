@@ -114,6 +114,7 @@ struct TQueryOptions
     int MaxSubqueries = std::numeric_limits<int>::max();
     ui64 RangeExpansionLimit = 0;
     TWorkloadDescriptor WorkloadDescriptor;
+    NChunkClient::TReadSessionId ReadSessionId;
 };
 
 struct TBaseColumn

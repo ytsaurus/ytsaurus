@@ -42,7 +42,8 @@ TPartitionChunkReader::TPartitionChunkReader(
     : TChunkReaderBase(
         config,
         underlyingReader,
-        blockCache)
+        blockCache,
+        TReadSessionId())
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , PartitionTag_(partitionTag)

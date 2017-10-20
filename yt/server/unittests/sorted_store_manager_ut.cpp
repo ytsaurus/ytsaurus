@@ -10,10 +10,11 @@ namespace NYT {
 namespace NTabletNode {
 namespace {
 
-using namespace NObjectClient;
-using namespace NTabletClient;
-using namespace NTabletClient::NProto;
 using namespace NApi;
+using namespace NChunkClient;
+using namespace NObjectClient;
+using namespace NTabletClient::NProto;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +145,7 @@ protected:
                 timestamp,
                 "ut",
                 TWorkloadDescriptor(),
+                TReadSessionId(),
                 &reader,
                 &writer);
             struct TMergedTag { };
