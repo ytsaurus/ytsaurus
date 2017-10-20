@@ -259,6 +259,8 @@ private:
     typedef yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
     TExecNodeByIdMap IdToNode_;
 
+    yhash_set<TJobId> RecentlyCompletedJobIds_;
+
     NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address);
 
     TJobResources CalculateResourceLimits(const TSchedulingTagFilter& filter);
