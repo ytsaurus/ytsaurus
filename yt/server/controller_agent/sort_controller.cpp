@@ -420,6 +420,10 @@ protected:
             YCHECK((AdjustedScheduledDataWeight += adjustedDelta) >= 0);
         }
 
+        virtual bool CanLoseJobs() const override
+        {
+            return Controller->Spec->EnableIntermediateOutputRecalculation;
+        }
 
         virtual bool CanScheduleJob(
             ISchedulingContext* context,
@@ -906,6 +910,11 @@ protected:
 
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
+
+        virtual bool CanLoseJobs() const override
+        {
+            return Controller->Spec->EnableIntermediateOutputRecalculation;
+        }
 
         virtual bool IsActive() const override
         {

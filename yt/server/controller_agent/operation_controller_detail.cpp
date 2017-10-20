@@ -1017,7 +1017,7 @@ yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
     yhash_set<TChunkId> intermediateChunks;
 
     for (const auto& pair : ChunkOriginMap) {
-        if (!pair.second->Lost) {
+        if (!pair.second->Suspended || pair.second->InputStripe) {
             intermediateChunks.insert(pair.first);
         }
     }
@@ -1046,7 +1046,7 @@ void TOperationControllerBase::ReinstallLivePreview()
         std::vector<TChunkTreeId> childIds;
         childIds.reserve(ChunkOriginMap.size());
         for (const auto& pair : ChunkOriginMap) {
-            if (!pair.second->Lost) {
+            if (!pair.second->Suspended) {
                 childIds.push_back(pair.first);
             }
         }
@@ -1897,6 +1897,8 @@ void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& ch
     // Intermediate chunks are always replicated.
     if (IsUnavailable(replicas, NErasure::ECodec::None)) {
         OnIntermediateChunkUnavailable(chunkId);
+    } else {
+        OnIntermediateChunkAvailable(chunkId, replicas);
     }
 }
 
@@ -2032,24 +2034,88 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
 {
     auto it = ChunkOriginMap.find(chunkId);
     YCHECK(it != ChunkOriginMap.end());
-    auto completedJob = it->second;
-    if (completedJob->Lost)
+    auto& completedJob = it->second;
+
+    // If completedJob->InputStripe != nullptr, that means that source pool/task don't support lost jobs
+    // and we have to use scraper to find new replicas of intermediate chunks.
+
+    if (completedJob->InputStripe && Spec_->UnavailableChunkTactics == EUnavailableChunkAction::Fail) {
+        auto error = TError("Intermediate chunk is unavailable")
+            << TErrorAttribute("chunk_id", chunkId);
+        OnOperationFailed(error, true);
+        return false;
+    }
+
+    // If lost jobs are enabled we don't track individual unavailable chunks,
+    // since we will regenerate them all anyway.
+    if (completedJob->InputStripe &&
+        completedJob->UnavailableChunks.insert(chunkId).second)
+    {
+        ++UnavailableIntermediateChunkCount;
+    }
+
+    if (completedJob->Suspended)
         return false;
 
-    LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
+    LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
         completedJob->NodeDescriptor.Address,
         completedJob->JobId,
         completedJob->SourceTask->GetId(),
         completedJob->OutputCookie,
-        completedJob->InputCookie);
+        completedJob->InputCookie,
+        UnavailableIntermediateChunkCount);
 
-    JobCounter->Lost(1);
-    completedJob->Lost = true;
+    completedJob->Suspended = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
-    completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
-    completedJob->SourceTask->OnJobLost(completedJob);
-    AddTaskPendingHint(completedJob->SourceTask);
+
+    if (!completedJob->InputStripe) {
+        JobCounter->Lost(1);
+        completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
+        completedJob->SourceTask->OnJobLost(completedJob);
+        AddTaskPendingHint(completedJob->SourceTask);
+    }
+
     return true;
+}
+
+void TOperationControllerBase::OnIntermediateChunkAvailable(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+{
+    auto it = ChunkOriginMap.find(chunkId);
+    YCHECK(it != ChunkOriginMap.end());
+    auto& completedJob = it->second;
+
+    if (!completedJob->InputStripe || !completedJob->Suspended) {
+        // Job will either be restarted or all chunks are fine.
+        return;
+    }
+
+    if (completedJob->UnavailableChunks.erase(chunkId) == 1) {
+        for (auto& dataSlice : completedJob->InputStripe->DataSlices) {
+            // Intermediate chunks are always unversioned.
+            auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+            if (inputChunk->ChunkId() == chunkId) {
+                inputChunk->SetReplicaList(replicas);
+            }
+        }
+        --UnavailableIntermediateChunkCount;
+
+        YCHECK(UnavailableIntermediateChunkCount > 0 ||
+            (UnavailableIntermediateChunkCount == 0 && completedJob->UnavailableChunks.empty()));
+        if (completedJob->UnavailableChunks.empty()) {
+            LOG_DEBUG("Job result is resumed (JobId: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
+                completedJob->JobId,
+                completedJob->InputCookie,
+                UnavailableIntermediateChunkCount);
+
+            completedJob->Suspended = false;
+            completedJob->DestinationPool->Resume(completedJob->InputCookie, completedJob->InputStripe);
+
+            // TODO (psushin).
+            // Unfortunately we don't know what task we are resuming, so
+            // add pending hints for all.
+            AddAllTaskPendingHints();
+        }
+    }
 }
 
 bool TOperationControllerBase::AreForeignTablesSupported() const
@@ -5271,7 +5337,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("compressed_data_size").Value(TotalEstimatedInputCompressedDataSize)
             .Item("data_weight").Value(TotalEstimatedInputDataWeight)
             .Item("row_count").Value(TotalEstimatedInputRowCount)
-            .Item("unavailable_chunk_count").Value(GetUnavailableInputChunkCount())
+            .Item("unavailable_chunk_count").Value(GetUnavailableInputChunkCount() + UnavailableIntermediateChunkCount)
             .Item("data_slice_count").Value(GetDataSliceCount())
         .EndMap()
         .Item("live_preview").BeginMap()
@@ -6200,6 +6266,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputCompressedDataSize);
     Persist(context, TotalEstimatedInputDataWeight);
     Persist(context, UnavailableInputChunkCount);
+    Persist(context, UnavailableIntermediateChunkCount);
     Persist(context, JobCounter);
     Persist(context, InputNodeDirectory_);
     Persist(context, InputTables);

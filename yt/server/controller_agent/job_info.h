@@ -114,23 +114,11 @@ DEFINE_REFCOUNTED_TYPE(TFinishedJobInfo)
 struct TCompletedJob
     : public TIntrinsicRefCounted
 {
-    //! For persistence only.
-    TCompletedJob() = default;
+    bool Suspended = false;
 
-    TCompletedJob(
-        const TJobId& jobId,
-        EJobType jobType,
-        TTaskPtr sourceTask,
-        NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-        i64 dataSize,
-        NChunkPools::IChunkPoolInput* destinationPool,
-        NChunkPools::IChunkPoolInput::TCookie inputCookie,
-        const NScheduler::TJobNodeDescriptor& nodeDescriptor);
-
-    bool Lost = false;
+    std::set<NChunkClient::TChunkId> UnavailableChunks;
 
     TJobId JobId;
-    EJobType JobType;
 
     TTaskPtr SourceTask;
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
@@ -138,6 +126,7 @@ struct TCompletedJob
 
     NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
     NChunkPools::IChunkPoolInput::TCookie InputCookie;
+    NChunkPools::TChunkStripePtr InputStripe;
 
     NScheduler::TJobNodeDescriptor NodeDescriptor;
 

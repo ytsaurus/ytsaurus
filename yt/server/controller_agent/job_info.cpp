@@ -121,37 +121,18 @@ void TFinishedJobInfo::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompletedJob::TCompletedJob(
-    const TJobId& jobId,
-    EJobType jobType,
-    TTaskPtr sourceTask,
-    NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-    i64 dataSize,
-    NChunkPools::IChunkPoolInput* destinationPool,
-    NChunkPools::IChunkPoolInput::TCookie inputCookie,
-    const NScheduler::TJobNodeDescriptor& nodeDescriptor)
-    : Lost(false)
-    , JobId(jobId)
-    , JobType(jobType)
-    , SourceTask(std::move(sourceTask))
-    , OutputCookie(outputCookie)
-    , DataWeight(dataSize)
-    , DestinationPool(destinationPool)
-    , InputCookie(inputCookie)
-    , NodeDescriptor(nodeDescriptor)
-{ }
-
 void TCompletedJob::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, Lost);
+    Persist(context, Suspended);
+    Persist(context, UnavailableChunks);
     Persist(context, JobId);
-    Persist(context, JobType);
     Persist(context, SourceTask);
     Persist(context, OutputCookie);
     Persist(context, DataWeight);
     Persist(context, DestinationPool);
     Persist(context, InputCookie);
+    Persist(context, InputStripe);
     Persist(context, NodeDescriptor);
 }
 

@@ -144,6 +144,9 @@ protected:
 
     virtual void OnJobStarted(TJobletPtr joblet);
 
+    //! True if task supports lost jobs.
+    virtual bool CanLoseJobs() const;
+
     void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
 
     std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
