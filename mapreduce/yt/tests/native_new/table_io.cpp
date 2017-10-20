@@ -294,7 +294,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
     {
         TConfigSaver configSaver;
 
-        auto client =CreateTestClient();
+        auto client = CreateTestClient();
         {
             auto writer = client->CreateTableWriter<TNode>(
                 TRichYPath("//testing/table").SortedBy("key"));
@@ -308,6 +308,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         TConfig::Get()->Hosts = "hosts?role=ERROR";
         TConfig::Get()->UseHosts = true;
         TConfig::Get()->RetryCount = 1;
+        TConfig::Get()->ReadRetryCount = 1;
 
         {
             auto tx = client->StartTransaction();
