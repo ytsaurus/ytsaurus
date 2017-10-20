@@ -791,6 +791,16 @@ TEST_F(TVersionedWriteTest, TestWriteRemapping)
         TErrorException);
 }
 
+TEST_F(TVersionedWriteTest, TestWriteTypeChecking)
+{
+    EXPECT_THROW(
+        WriteVersionedRow(
+            {"k0", "k1", "k2", "v3"},
+            "<id=0> 30; <id=1> 30; <id=2> 30;",
+            "<id=2;ts=3> %true;"),
+        TErrorException);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
