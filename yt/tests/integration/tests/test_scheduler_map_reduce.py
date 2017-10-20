@@ -1,10 +1,11 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, wait
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
 from collections import defaultdict
+import datetime
 
 
 ##################################################################
@@ -360,6 +361,116 @@ print "x={0}\ty={1}".format(x, y)
             spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @unix_only
+    def test_lost_jobs(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y" : 2}, {"x": 2, "y" : 3}] * 5)
+
+        events = EventsOnFs()
+
+        reducer_cmd = " ; ".join([
+            "cat",
+            events.notify_event_cmd("reducer_started"),
+            events.wait_event_cmd("continue_reducer")])
+
+        op = map_reduce(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             reduce_by="x",
+             sort_by="x",
+             reducer_command=reducer_cmd,
+             spec={
+                 "partition_count": 2,
+                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1}},
+                 "resource_limits" : { "user_slots" : 1}},
+             dont_track=True)
+
+        # We wait for the first reducer to start (second is pending due to resource_limits).
+        events.wait_event("reducer_started", timeout=datetime.timedelta(1000))
+
+        chunks = get("//sys/chunks")
+        banned_nodes = []
+        for c in chunks:
+            replicas = get("//sys/chunks/{0}/@stored_replicas".format(c))
+            if len(replicas) == 1:
+                # Intermediate chunk is stored in single replica.
+                # Ban node with intermediate chunk.
+                set("//sys/nodes/{0}/@banned".format(replicas[0]), True)
+                banned_nodes.append(replicas[0])
+
+        # First reducer will probably compelete successfully, but the second one
+        # must fail due to unavailable intermediate chunk.
+        # This will lead to a lost map job.
+        events.notify_event("continue_reducer")
+        op.track()
+
+        assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 1
+
+        for n in banned_nodes:
+            set("//sys/nodes/{0}/@banned".format(n), False)
+
+    @unix_only
+    def test_unavailable_intermediate_chunks(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y" : 2}, {"x": 2, "y" : 3}] * 5)
+
+        events = EventsOnFs()
+
+        reducer_cmd = " ; ".join([
+            "cat",
+            events.notify_event_cmd("reducer_started"),
+            events.wait_event_cmd("continue_reducer")])
+
+        op = map_reduce(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             reduce_by="x",
+             sort_by="x",
+             reducer_command=reducer_cmd,
+             spec={
+                 "enable_intermediate_output_recalculation" : False,
+                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1}},
+                 "partition_count": 2,
+                 "resource_limits" : { "user_slots" : 1}},
+             dont_track=True)
+
+        # We wait for the first reducer to start (second is pending due to resource_limits).
+        events.wait_event("reducer_started", timeout=datetime.timedelta(1000))
+
+        chunks = get("//sys/chunks")
+        banned_nodes = []
+        for c in chunks:
+            replicas = get("//sys/chunks/{0}/@stored_replicas".format(c))
+            if len(replicas) == 1:
+                # Intermediate chunk is stored in single replica.
+                # Ban node with intermediate chunk..
+                set("//sys/nodes/{0}/@banned".format(replicas[0]), True)
+                banned_nodes.append(replicas[0])
+
+        # First reducer will probably compelete successfully, but the second one
+        # must fail due to unavailable intermediate chunk.
+        # This will lead to a lost map job.
+        events.notify_event("continue_reducer")
+
+        def get_unavailable_chunk_count():
+            return get("//sys/operations/{0}/@progress/estimated_input_statistics/unavailable_chunk_count".format(op.id))
+
+        # Wait till scheduler discovers that chunk is unavailable.
+        wait(lambda: get_unavailable_chunk_count() > 0)
+
+        # Make chunk available again.
+        for n in banned_nodes:
+            set("//sys/nodes/{0}/@banned".format(n), False)
+
+        wait(lambda: get_unavailable_chunk_count() == 0)
+
+        op.track()
+
+        assert get("//sys/operations/{0}/@progress/partition_reduce_jobs/aborted".format(op.id)) > 0
+        assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 0
 
     @unix_only
     def test_query_reader_projection(self):

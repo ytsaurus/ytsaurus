@@ -381,6 +381,7 @@ protected:
 
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
+    int UnavailableIntermediateChunkCount = 0;
 
     // Job counters.
     TProgressCounterPtr JobCounter = New<TProgressCounter>();
@@ -625,6 +626,10 @@ protected:
     //! (i.e. that is not a part of the input).
     //! Returns false if the chunk was already considered lost.
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
+
+    void OnIntermediateChunkAvailable(
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::TChunkReplicaList& replicas);
 
     int EstimateSplitJobCount(const NScheduler::TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
     void ExtractInterruptDescriptor(NScheduler::TCompletedJobSummary& jobSummary) const;

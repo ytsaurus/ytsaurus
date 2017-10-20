@@ -558,6 +558,8 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(true);
     RegisterParameter("partitioned_data_balancing_tolerance", PartitionedDataBalancingTolerance)
         .Default(3.0);
+    RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
+        .Default(true);
 
     RegisterParameter("sort_job_proxy_memory_digest", SortJobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));

@@ -408,6 +408,11 @@ void TTask::PrepareJoblet(TJobletPtr /* joblet */)
 void TTask::OnJobStarted(TJobletPtr joblet)
 { }
 
+bool TTask::CanLoseJobs() const
+{
+    return false;
+}
+
 void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
     YCHECK(jobSummary.Statistics);
@@ -813,15 +818,15 @@ void TTask::RegisterStripe(
         }
 
         // Store recovery info.
-        auto completedJob = New<TCompletedJob>(
-            joblet->JobId,
-            joblet->JobType,
-            this,
-            joblet->OutputCookie,
-            joblet->InputStripeList->TotalDataWeight,
-            destinationPool,
-            inputCookie,
-            joblet->NodeDescriptor);
+        auto completedJob = New<TCompletedJob>();
+        completedJob->JobId = joblet->JobId;
+        completedJob->SourceTask = this;
+        completedJob->OutputCookie = joblet->OutputCookie;
+        completedJob->DataWeight = joblet->InputStripeList->TotalDataWeight;
+        completedJob->DestinationPool = destinationPool;
+        completedJob->InputCookie = inputCookie;
+        completedJob->InputStripe = CanLoseJobs() ? nullptr : stripe;
+        completedJob->NodeDescriptor = joblet->NodeDescriptor;
 
         TaskHost_->RegisterRecoveryInfo(
             completedJob,
