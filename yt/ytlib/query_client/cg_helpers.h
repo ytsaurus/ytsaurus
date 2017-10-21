@@ -275,9 +275,6 @@ public:
     void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, ui16 id, Twine nameTwine = "") const
     {
         StoreToValue(builder, valuePtr, nameTwine);
-        builder->CreateStore(
-            builder->getInt16(id),
-            builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Id, nameTwine + ".idPtr"));
     }
 
     void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine nameTwine = "") const
