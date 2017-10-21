@@ -96,6 +96,16 @@ public:
         unsigned align,
         llvm::Value* arraySize = nullptr,
         const llvm::Twine& name = "");
+
+    llvm::Value* CreateOr(llvm::Value* lhs, llvm::Value* rhs, const llvm::Twine& name = "");
+
+    llvm::Value* CreateAnd(llvm::Value* lhs, llvm::Value* rhs, const llvm::Twine& name = "");
+
+    llvm::Value* CreateSelect(
+        llvm::Value* condition,
+        llvm::Value* trueValue,
+        llvm::Value* falseValue,
+        const llvm::Twine& name = "");
 };
 
 ////////////////////////////////////////////////////////////////////////////////
