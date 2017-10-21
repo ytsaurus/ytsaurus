@@ -140,7 +140,9 @@ public:
         EValueType staticType,
         Twine name = Twine())
     {
-        YCHECK(isNull->getType() == builder->getInt1Ty());
+        YCHECK(
+            isNull->getType() == builder->getInt1Ty() ||
+            isNull->getType() == builder->getInt8Ty());
         if (IsStringLikeType(staticType)) {
             YCHECK(length->getType() == TTypeBuilder::TLength::get(builder->getContext()));
         }
@@ -178,16 +180,10 @@ public:
     {
         Value* isNull = builder->getFalse();
         if (nullbale) {
-            Value* type = builder->CreateLoad(
+            isNull = builder->CreateLoad(
                 builder->CreateConstInBoundsGEP2_32(
                     nullptr, valuePtr, 0, TTypeBuilder::Type, name + ".type"));
-
-            isNull = builder->CreateICmpEQ(
-                type,
-                ConstantInt::get(type->getType(), static_cast<int>(EValueType::Null)),
-                name + ".isNull");
         }
-
 
         Value* length = nullptr;
         if (IsStringLikeType(staticType)) {
@@ -286,12 +282,19 @@ public:
     void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine nameTwine = "")
     {
         const auto& type = TypeBuilder<NTableClient::TUnversionedValue, false>::TType::get(builder->getContext());
-        builder->CreateStore(
-            builder->CreateSelect(
-                IsNull(builder),
-                ConstantInt::get(type, static_cast<int>(EValueType::Null)),
-                ConstantInt::get(type, static_cast<int>(StaticType_))),
-            builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Type, nameTwine + ".typePtr"));
+
+        if (IsNull_->getType() == builder->getInt1Ty()) {
+            builder->CreateStore(
+                builder->CreateSelect(
+                    GetIsNull(builder),
+                    ConstantInt::get(type, static_cast<int>(EValueType::Null)),
+                    ConstantInt::get(type, static_cast<int>(StaticType_))),
+                builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Type, nameTwine + ".typePtr"));
+        } else {
+            builder->CreateStore(
+                IsNull_,
+                builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Type, nameTwine + ".typePtr"));
+        }
 
         if (IsStringLikeType(StaticType_)) {
             builder->CreateStore(
@@ -313,20 +316,29 @@ public:
         builder->CreateStore(
             data,
             builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Data, nameTwine + ".dataPtr"));
-
     }
 
-    Value* IsNull(TCGIRBuilderPtr& builder)
+    Value* IsNull() const
     {
         return IsNull_;
     }
 
-    Value* GetLength(TCGIRBuilderPtr& builder)
+    Value* GetIsNull(TCGIRBuilderPtr& builder) const
+    {
+        if (IsNull_->getType() == builder->getInt1Ty()) {
+            return IsNull_;
+        }
+        return builder->CreateICmpEQ(
+            IsNull_,
+            ConstantInt::get(IsNull_->getType(), static_cast<int>(EValueType::Null)));
+    }
+
+    Value* GetLength() const
     {
         return Length_;
     }
 
-    Value* GetData(TCGIRBuilderPtr& builder)
+    Value* GetData() const
     {
         return Data_;
     }
@@ -337,7 +349,7 @@ public:
             return *this;
         }
 
-        auto value = GetData(builder);
+        auto value = GetData();
 
         Value* result;
         if (dest == EValueType::Int64) {
@@ -374,9 +386,10 @@ public:
 
         return CreateFromValue(
             builder,
-            IsNull(builder),
+            // type changed, so we have to get isNull explicitly
+            GetIsNull(builder),
             IsStringLikeType(StaticType_)
-                ? GetLength(builder)
+                ? GetLength()
                 : nullptr,
             result,
             dest);
