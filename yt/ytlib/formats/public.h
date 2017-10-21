@@ -21,6 +21,7 @@ DECLARE_REFCOUNTED_CLASS(TProtobufTableConfig)
 DECLARE_REFCOUNTED_CLASS(TProtobufFormatConfig)
 DECLARE_REFCOUNTED_CLASS(TProtobufFormatDescription)
 DECLARE_REFCOUNTED_CLASS(TSchemalessWebJsonFormatConfig)
+DECLARE_REFCOUNTED_CLASS(TSkiffFormatConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IYamrConsumer)
 
@@ -33,6 +34,8 @@ struct IParser;
 class TEscapeTable;
 
 class TFormat;
+
+struct TSkiffTableDescription;
 
 ////////////////////////////////////////////////////////////////////////////////
 
