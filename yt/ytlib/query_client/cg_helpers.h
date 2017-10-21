@@ -465,11 +465,11 @@ private:
 struct TCodegenFragmentInfo;
 struct TCodegenFragmentInfos;
 
+typedef TypeBuilder<TExpressionClosure, false> TClosureTypeBuilder;
+
 class TCGExprData
 {
 public:
-    typedef TypeBuilder<TExpressionClosure, false> TClosureTypeBuilder;
-
     const TCodegenFragmentInfos& ExpressionFragments;
 
     Value* const Buffer;
@@ -518,7 +518,8 @@ public:
         const TCGOpaqueValuesContext& builder,
         const TCodegenFragmentInfos& fragmentInfos,
         Value* row,
-        Value* buffer);
+        Value* buffer,
+        Value* expressionClosurePtr = nullptr);
 
     Value* GetExpressionClosurePtr();
 

@@ -52,8 +52,9 @@ Value* TCGExprContext::GetFragmentFlag(size_t index) const
         ExpressionClosurePtr,
         {
             Builder_->getInt32(0),
-            Builder_->getInt32(TClosureTypeBuilder::Fields::FragmentFlags),
-            Builder_->getInt32(ExpressionFragments.Items[index].Index)
+            Builder_->getInt32(TClosureTypeBuilder::Fields::FragmentResults),
+            Builder_->getInt32(ExpressionFragments.Items[index].Index),
+            Builder_->getInt32(TTypeBuilder::Type)
         },
         Twine("flag#") + Twine(index));
 }
@@ -67,8 +68,8 @@ TCGExprContext TCGExprContext::Make(
     Value* opaqueValues = builder->CreateLoad(builder->CreateStructGEP(
         nullptr,
         expressionClosurePtr,
-        TClosureTypeBuilder::Fields::OpaqueValues,
-        "opaqueValues"));
+        TClosureTypeBuilder::Fields::OpaqueValues),
+        "opaqueValues");
 
     return TCGExprContext(
         TCGOpaqueValuesContext(builder, literals, opaqueValues),
@@ -77,13 +78,13 @@ TCGExprContext TCGExprContext::Make(
             builder->CreateLoad(builder->CreateStructGEP(
                 nullptr,
                 expressionClosurePtr,
-                TClosureTypeBuilder::Fields::Buffer,
-                "buffer")),
+                TClosureTypeBuilder::Fields::Buffer),
+                "buffer"),
             builder->CreateLoad(builder->CreateStructGEP(
                 nullptr,
                 expressionClosurePtr,
-                TClosureTypeBuilder::Fields::RowValues,
-                "rowValues")),
+                TClosureTypeBuilder::Fields::RowValues),
+                "rowValues"),
             expressionClosurePtr
         ));
 }
@@ -92,47 +93,51 @@ TCGExprContext TCGExprContext::Make(
     const TCGOpaqueValuesContext& builder,
     const TCodegenFragmentInfos& fragmentInfos,
     Value* rowValues,
-    Value* buffer)
+    Value* buffer,
+    Value* expressionClosurePtr)
 {
-    llvm::StructType* type = TClosureTypeBuilder::get(builder->getContext(), fragmentInfos.Functions.size());
+    if (!expressionClosurePtr) {
+        expressionClosurePtr = builder->CreateAlloca(
+            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos.Functions.size()),
+            nullptr,
+            "expressionClosurePtr");
+    }
 
-    Value* expressionClosure = llvm::ConstantStruct::get(
-        type,
-        {
-            llvm::UndefValue::get(TypeBuilder<TValue*, false>::get(builder->getContext())),
-            llvm::UndefValue::get(TypeBuilder<void* const*, false>::get(builder->getContext())),
-            llvm::UndefValue::get(TypeBuilder<TRowBuffer*, false>::get(builder->getContext())),
-            llvm::ConstantAggregateZero::get(
-                llvm::ArrayType::get(TypeBuilder<char, false>::get(
-                    builder->getContext()),
-                    fragmentInfos.Functions.size())),
-            llvm::UndefValue::get(
-                llvm::ArrayType::get(TypeBuilder<TValue, false>::get(
-                    builder->getContext()),
-                    fragmentInfos.Functions.size()))
-        });
-
-    expressionClosure = builder->CreateInsertValue(
-        expressionClosure,
+    builder->CreateStore(
         rowValues,
-        TClosureTypeBuilder::Fields::RowValues);
+        builder->CreateConstInBoundsGEP2_32(
+            nullptr,
+            expressionClosurePtr,
+            0,
+            TClosureTypeBuilder::Fields::RowValues));
 
-    expressionClosure = builder->CreateInsertValue(
-        expressionClosure,
+    builder->CreateStore(
         builder.GetOpaqueValues(),
-        TClosureTypeBuilder::Fields::OpaqueValues);
+        builder->CreateConstInBoundsGEP2_32(
+            nullptr,
+            expressionClosurePtr,
+            0,
+            TClosureTypeBuilder::Fields::OpaqueValues));
 
-    expressionClosure = builder->CreateInsertValue(
-        expressionClosure,
+    builder->CreateStore(
         buffer,
-        TClosureTypeBuilder::Fields::Buffer);
+        builder->CreateConstInBoundsGEP2_32(
+            nullptr,
+            expressionClosurePtr,
+            0,
+            TClosureTypeBuilder::Fields::Buffer));
 
-    Value* expressionClosurePtr = builder->CreateAlloca(
-        type,
-        nullptr,
-        "expressionClosurePtr");
-
-    builder->CreateStore(expressionClosure, expressionClosurePtr);
+    builder->CreateMemSet(
+        builder->CreatePointerCast(
+            builder->CreateConstInBoundsGEP2_32(
+                nullptr,
+                expressionClosurePtr,
+                0,
+                TClosureTypeBuilder::Fields::FragmentResults),
+            builder->getInt8PtrTy()),
+        builder->getInt8(static_cast<int>(EValueType::TheBottom)),
+        sizeof(TValue) * fragmentInfos.Functions.size(),
+        8);
 
     return TCGExprContext(
         builder,

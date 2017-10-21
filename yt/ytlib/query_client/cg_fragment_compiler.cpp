@@ -1134,7 +1134,7 @@ void CodegenFragmentBodies(
 
                 auto* evaluationNeeded = innerBuilder->CreateICmpEQ(
                     innerBuilder->CreateLoad(fragmentFlag),
-                    innerBuilder->getInt8(false));
+                    innerBuilder->getInt8(static_cast<int>(EValueType::TheBottom)));
 
                 CodegenIf<TCGExprContext>(
                     innerBuilder,
@@ -1142,8 +1142,6 @@ void CodegenFragmentBodies(
                     [&] (TCGExprContext& builder) {
                         builder.ExpressionFragments.Items[id].Generator(builder)
                             .StoreToValue(builder, builder.GetFragmentResult(id));
-
-                        builder->CreateStore(builder->getInt8(true), fragmentFlag);
                     });
 
                 innerBuilder->CreateRetVoid();
@@ -2037,11 +2035,22 @@ size_t MakeCodegenJoinOp(
                     keyPtr
                 });
 
+            Value* expressionClosurePtr = builder->CreateAlloca(
+                TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+                nullptr,
+                "expressionClosurePtr");
+
             builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
                 Value* keyPtrRef = builder->ViaClosure(keyPtr);
                 Value* keyRef = builder->CreateLoad(keyPtrRef);
 
-                auto rowBuilder = TCGExprContext::Make(builder, *fragmentInfos, row, builder.Buffer);
+                auto rowBuilder = TCGExprContext::Make(
+                    builder,
+                    *fragmentInfos,
+                    row,
+                    builder.Buffer,
+                    builder->ViaClosure(expressionClosurePtr));
+
                 for (int column = 0; column < lookupKeySize; ++column) {
                     if (!equations[column].second) {
                         auto joinKeyValue = CodegenFragment(rowBuilder, equations[column].first);
@@ -2183,6 +2192,11 @@ size_t MakeCodegenMultiJoinOp(
                     }),
                 primaryValuesPtr);
 
+            Value* expressionClosurePtr = builder->CreateAlloca(
+                TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+                nullptr,
+                "expressionClosurePtr");
+
             builder[producerSlot] = [&] (TCGContext& builder, Value* rowValues) {
                 Value* joinClosureRef = builder->ViaClosure(joinClosure);
                 Value* keyPtrsRef = builder->ViaClosure(keyPtrs);
@@ -2191,7 +2205,8 @@ size_t MakeCodegenMultiJoinOp(
                     builder,
                     *fragmentInfos,
                     rowValues,
-                    builder.Buffer);
+                    builder.Buffer,
+                    builder->ViaClosure(expressionClosurePtr));
 
                 for (size_t index = 0; index < parameters.size(); ++index) {
                     Value* keyValues = builder->CreateLoad(builder->CreateConstGEP1_32(keyPtrsRef, index));
@@ -2346,8 +2361,19 @@ size_t MakeCodegenFilterOp(
         predicateId,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
+        Value* expressionClosurePtr = builder->CreateAlloca(
+            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+            nullptr,
+            "expressionClosurePtr");
+
         builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
-            auto rowBuilder = TCGExprContext::Make(builder, *fragmentInfos, row, builder.Buffer);
+            auto rowBuilder = TCGExprContext::Make(
+                builder,
+                *fragmentInfos,
+                row,
+                builder.Buffer,
+                builder->ViaClosure(expressionClosurePtr));
+
             auto predicateResult = CodegenFragment(rowBuilder, predicateId);
 
             auto* ifBB = builder->CreateBBHere("if");
@@ -2437,11 +2463,20 @@ size_t MakeCodegenProjectOp(
         int projectionCount = argIds.size();
 
         Value* newValues = CodegenAllocateValues(builder, projectionCount);
+        Value* expressionClosurePtr = builder->CreateAlloca(
+            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+            nullptr,
+            "expressionClosurePtr");
 
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
             Value* newValuesRef = builder->ViaClosure(newValues);
 
-            auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, values, builder.Buffer);
+            auto innerBuilder = TCGExprContext::Make(
+                builder,
+                *fragmentInfos,
+                values,
+                builder.Buffer,
+                builder->ViaClosure(expressionClosurePtr));
 
             for (int index = 0; index < projectionCount; ++index) {
                 CodegenFragment(innerBuilder, argIds[index])
@@ -2558,12 +2593,22 @@ size_t MakeCodegenGroupOp(
                     newValuesPtr
                 });
 
+            Value* expressionClosurePtr = builder->CreateAlloca(
+                TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+                nullptr,
+                "expressionClosurePtr");
+
             builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
                 Value* bufferRef = builder->ViaClosure(buffer);
                 Value* newValuesPtrRef = builder->ViaClosure(newValuesPtr);
                 Value* newValuesRef = builder->CreateLoad(newValuesPtrRef);
 
-                auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, values, builder.Buffer);
+                auto innerBuilder = TCGExprContext::Make(
+                    builder,
+                    *fragmentInfos,
+                    values,
+                    builder.Buffer,
+                    builder->ViaClosure(expressionClosurePtr));
 
                 Value* dstValues = newValuesRef;
 
@@ -2754,6 +2799,11 @@ size_t MakeCodegenOrderOp(
         ) {
             Value* newValues = CodegenAllocateValues(builder, schemaSize + exprIds.size());
 
+            Value* expressionClosurePtr = builder->CreateAlloca(
+                TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+                nullptr,
+                "expressionClosurePtr");
+
             builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
                 Value* topCollectorRef = builder->ViaClosure(topCollector);
                 Value* newValuesRef = builder->ViaClosure(newValues);
@@ -2763,7 +2813,13 @@ size_t MakeCodegenOrderOp(
                     builder->CreatePointerCast(values, builder->getInt8PtrTy()),
                     schemaSize * sizeof(TValue), 8);
 
-                auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, values, builder.Buffer);
+                auto innerBuilder = TCGExprContext::Make(
+                    builder,
+                    *fragmentInfos,
+                    values,
+                    builder.Buffer,
+                    builder->ViaClosure(expressionClosurePtr));
+
                 for (size_t index = 0; index < exprIds.size(); ++index) {
                     auto columnIndex = schemaSize + index;
 
