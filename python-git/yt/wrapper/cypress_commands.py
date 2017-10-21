@@ -550,6 +550,11 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                 for yson_path in process_node(CompositeNode(path, node.depth + 1, value), nodes_to_request):
                     yield yson_path
 
+        if should_add:
+            node.ignore_opaque = True
+            node.yield_path = False
+            nodes_to_request.append(node)
+
     nodes_to_request = []
     nodes_to_request.append(CompositeNode(root, 0, ignore_opaque=True, ignore_resolve_error=ignore_root_path_resolve_error))
 
