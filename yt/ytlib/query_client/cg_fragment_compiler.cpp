@@ -2675,10 +2675,8 @@ size_t MakeCodegenProjectOp(
             auto innerBuilder = TCGExprContext::Make(builder, *fragmentInfos, values, builder.Buffer);
 
             for (int index = 0; index < projectionCount; ++index) {
-                auto id = index;
-
                 CodegenFragment(innerBuilder, argIds[index])
-                    .StoreToValues(innerBuilder, newValuesRef, index, id);
+                    .StoreToValues(innerBuilder, newValuesRef, index);
             }
 
             builder[consumerSlot](builder, newValuesRef);
@@ -2802,12 +2800,12 @@ size_t MakeCodegenGroupOp(
 
                 for (int index = 0; index < groupExprsIds.size(); index++) {
                     CodegenFragment(innerBuilder, groupExprsIds[index])
-                        .StoreToValues(builder, dstValues, index, index);
+                        .StoreToValues(builder, dstValues, index);
                 }
 
                 for (int index = groupExprsIds.size(); index < keyTypes.size(); ++index) {
                     TCGValue::CreateNull(builder, keyTypes[index])
-                        .StoreToValues(builder, dstValues, index, index);
+                        .StoreToValues(builder, dstValues, index);
                 }
 
                 Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
@@ -3148,7 +3146,7 @@ TCGExpressionCallback CodegenStandaloneExpression(
             buffer);
 
         CodegenFragment(builder, exprId)
-            .StoreToValue(builder, resultPtr, 0, "writeResult");
+            .StoreToValue(builder, resultPtr, "writeResult");
         builder->CreateRetVoid();
     });
 
