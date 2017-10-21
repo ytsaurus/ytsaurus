@@ -255,216 +255,6 @@ TValueTypeLabels CodegenHasherBody(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TValueTypeLabels CodegenEqComparerBody(
-    TCGBaseContext& builder,
-    Value* labelsArray,
-    Value* lhsValues,
-    Value* rhsValues,
-    Value* startIndex,
-    Value* finishIndex)
-{
-    auto* entryBB = builder->GetInsertBlock();
-    auto* gotoCmpBB = builder->CreateBBHere("gotoCmp");
-    builder->CreateBr(gotoCmpBB);
-
-    builder->SetInsertPoint(gotoCmpBB);
-    PHINode* indexPhi = builder->CreatePHI(builder->getInt64Ty(), 2, "phiIndex");
-    indexPhi->addIncoming(startIndex, entryBB);
-
-    BasicBlock* gotoNextBB = builder->CreateBBHere("gotoNext");
-    builder->SetInsertPoint(gotoNextBB);
-    Value* nextIndex = builder->CreateAdd(indexPhi, builder->getInt64(1));
-    indexPhi->addIncoming(nextIndex, gotoNextBB);
-
-    BasicBlock* returnEqBB = builder->CreateBBHere("returnEq");
-    builder->CreateCondBr(builder->CreateICmpSLT(nextIndex, finishIndex), gotoCmpBB, returnEqBB);
-
-    builder->SetInsertPoint(returnEqBB);
-    builder->CreateRet(builder->getInt8(true));
-
-    BasicBlock* returnNotEqBB = builder->CreateBBHere("returnNotEq");
-    builder->SetInsertPoint(returnNotEqBB);
-    builder->CreateRet(builder->getInt8(false));
-
-    // indexPhi, resultPhi, returnBB, gotoNextBB
-
-    auto cmpScalar = [&] (auto cmpEqual, EValueType type, const char* name) {
-        BasicBlock* cmpBB = builder->CreateBBHere(Twine("cmp.").concat(name));
-        builder->SetInsertPoint(cmpBB);
-
-        auto lhsValue = TCGValue::CreateFromLlvmValue(
-            builder,
-            builder->CreateInBoundsGEP(
-                lhsValues,
-                indexPhi),
-            type);
-
-        auto rhsValue = TCGValue::CreateFromLlvmValue(
-            builder,
-            builder->CreateInBoundsGEP(
-                rhsValues,
-                indexPhi),
-            type);
-
-        Value* lhsIsNull = lhsValue.GetIsNull(builder);
-        Value* rhsIsNull = rhsValue.GetIsNull(builder);
-        Value* lhsData = lhsValue.GetTypedData(builder);
-        Value* rhsData = rhsValue.GetTypedData(builder);
-
-        Value* nullEqual = builder->CreateICmpEQ(lhsIsNull, rhsIsNull);
-        Value* isEqual = builder->CreateAnd(
-            nullEqual,
-            builder->CreateOr(
-                lhsIsNull,
-                cmpEqual(builder, lhsData, rhsData)));
-
-        builder->CreateCondBr(isEqual, gotoNextBB, returnNotEqBB);
-
-        return cmpBB;
-    };
-
-    auto cmpScalarWithCheck = [&] (auto cmpEqual, EValueType type, const char* name) {
-        BasicBlock* cmpBB = builder->CreateBBHere(Twine("cmp.").concat(name));
-        builder->SetInsertPoint(cmpBB);
-
-        auto lhsValue = TCGValue::CreateFromLlvmValue(
-            builder,
-            builder->CreateInBoundsGEP(
-                lhsValues,
-                indexPhi),
-            type);
-
-        auto rhsValue = TCGValue::CreateFromLlvmValue(
-            builder,
-            builder->CreateInBoundsGEP(
-                rhsValues,
-                indexPhi),
-            type);
-
-        Value* lhsIsNull = lhsValue.GetIsNull(builder);
-        Value* rhsIsNull = rhsValue.GetIsNull(builder);
-
-        BasicBlock* cmpNullBB = builder->CreateBBHere(Twine("cmpNull.").concat(name));
-        BasicBlock* cmpDataBB = builder->CreateBBHere(Twine("cmpData.").concat(name));
-        builder->CreateCondBr(builder->CreateOr(lhsIsNull, rhsIsNull), cmpNullBB, cmpDataBB);
-
-        builder->SetInsertPoint(cmpNullBB);
-        builder->CreateCondBr(builder->CreateAnd(lhsIsNull, rhsIsNull), gotoNextBB, returnNotEqBB);
-
-        builder->SetInsertPoint(cmpDataBB);
-        Value* lhsData = lhsValue.GetTypedData(builder);
-        Value* rhsData = rhsValue.GetTypedData(builder);
-
-        if (type == EValueType::Double) {
-            CheckNaN(builder, lhsData, rhsData);
-        }
-
-        builder->CreateCondBr(cmpEqual(builder, lhsData, rhsData), gotoNextBB, returnNotEqBB);
-
-        return cmpBB;
-    };
-
-    BasicBlock* cmpIntBB = cmpScalar(
-        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
-            return builder->CreateICmpEQ(lhsData, rhsData);
-        },
-        EValueType::Int64,
-        "int64");
-
-    BasicBlock* cmpUintBB = cmpScalar(
-        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
-            return builder->CreateICmpEQ(lhsData, rhsData);
-        },
-        EValueType::Uint64,
-        "uint64");
-
-    BasicBlock* cmpDoubleBB = cmpScalarWithCheck(
-        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
-            return builder->CreateFCmpUEQ(lhsData, rhsData);
-        },
-        EValueType::Double,
-        "double");
-
-    BasicBlock* cmpStringBB = nullptr;
-    {
-        cmpStringBB = builder->CreateBBHere("cmp.string");
-        builder->SetInsertPoint(cmpStringBB);
-
-        auto lhsValue = TCGValue::CreateFromLlvmValue(
-            builder,
-            builder->CreateInBoundsGEP(
-                lhsValues,
-                indexPhi),
-            EValueType::String);
-
-        auto rhsValue = TCGValue::CreateFromLlvmValue(
-            builder,
-            builder->CreateInBoundsGEP(
-                rhsValues,
-                indexPhi),
-            EValueType::String);
-
-        Value* lhsIsNull = lhsValue.GetIsNull(builder);
-        Value* rhsIsNull = rhsValue.GetIsNull(builder);
-
-        Value* anyNull = builder->CreateOr(lhsIsNull, rhsIsNull);
-
-        BasicBlock* cmpNullBB = builder->CreateBBHere("cmpNull.string");
-        BasicBlock* cmpDataBB = builder->CreateBBHere("cmpData.string");
-        builder->CreateCondBr(anyNull, cmpNullBB, cmpDataBB);
-
-        builder->SetInsertPoint(cmpNullBB);
-        builder->CreateCondBr(builder->CreateICmpEQ(lhsIsNull, rhsIsNull), gotoNextBB, returnNotEqBB);
-
-        builder->SetInsertPoint(cmpDataBB);
-
-        Value* lhsLength = lhsValue.GetLength();
-        Value* rhsLength = rhsValue.GetLength();
-
-        Value* cmpLength = builder->CreateICmpULT(lhsLength, rhsLength);
-
-        Value* minLength = builder->CreateSelect(
-            cmpLength,
-            lhsLength,
-            rhsLength);
-
-        Value* lhsData = lhsValue.GetTypedData(builder);
-        Value* rhsData = rhsValue.GetTypedData(builder);
-
-        Value* cmpResult = builder->CreateCall(
-            builder.Module->GetRoutine("memcmp"),
-            {
-                lhsData,
-                rhsData,
-                builder->CreateZExt(minLength, builder->getSizeType())
-            });
-
-        builder->CreateCondBr(
-            builder->CreateAnd(
-                builder->CreateICmpEQ(cmpResult, builder->getInt32(0)),
-                builder->CreateICmpEQ(lhsLength, rhsLength)),
-            gotoNextBB,
-            returnNotEqBB);
-    }
-
-    builder->SetInsertPoint(gotoCmpBB);
-
-    Value* offset = builder->CreateLoad(builder->CreateGEP(labelsArray, indexPhi));
-    auto* indirectBranch = builder->CreateIndirectBr(offset);
-    indirectBranch->addDestination(cmpIntBB);
-    indirectBranch->addDestination(cmpUintBB);
-    indirectBranch->addDestination(cmpDoubleBB);
-    indirectBranch->addDestination(cmpStringBB);
-
-    return TValueTypeLabels{
-        llvm::BlockAddress::get(cmpIntBB),
-        llvm::BlockAddress::get(cmpIntBB),
-        llvm::BlockAddress::get(cmpUintBB),
-        llvm::BlockAddress::get(cmpDoubleBB),
-        llvm::BlockAddress::get(cmpStringBB)
-    };
-};
-
 void DefaultOnEqual(TCGBaseContext& builder)
 {
     builder->CreateRet(builder->getInt8(false));
@@ -733,20 +523,55 @@ struct TComparerManager
     Function* Hasher;
     TValueTypeLabels HashLables;
 
-    Function* EqComparer;
-    TValueTypeLabels EqLables;
+    Function* UniversalComparer;
+    TValueTypeLabels UniversalLables;
 
-    Function* LessComparer;
-    TValueTypeLabels LessLables;
-
-    Function* TernaryComparer;
-    TValueTypeLabels TernaryLables;
+    yhash<llvm::FoldingSetNodeID, llvm::GlobalVariable*> Labels;
 
     yhash<llvm::FoldingSetNodeID, Function*> Hashers;
     yhash<llvm::FoldingSetNodeID, Function*> EqComparers;
     yhash<llvm::FoldingSetNodeID, Function*> LessComparers;
     yhash<llvm::FoldingSetNodeID, Function*> TernaryComparers;
 
+    llvm::GlobalVariable* GetLabelsArray(
+        TCGBaseContext& builder,
+        const std::vector<EValueType>& types,
+        const TValueTypeLabels& valueTypeLabels);
+
+
+    void GetUniversalComparer(const TCGModulePtr& module)
+    {
+        if (!UniversalComparer) {
+            UniversalComparer = MakeFunction<i64(char**, TValue*, TValue*, size_t, size_t)>(
+                module,
+                "UniversalComparerImpl",
+            [&] (
+                TCGBaseContext& builder,
+                Value* labelsArray,
+                Value* lhsValues,
+                Value* rhsValues,
+                Value* startIndex,
+                Value* finishIndex
+            ) {
+                UniversalLables = CodegenLessComparerBody(
+                    builder,
+                    labelsArray,
+                    lhsValues,
+                    rhsValues,
+                    startIndex,
+                    finishIndex,
+                    [&] (TCGBaseContext& builder) {
+                        builder->CreateRet(builder->getInt64(0));
+                    },
+                    [&] (TCGBaseContext& builder, Value* result, Value* index) {
+                        index = builder->CreateAdd(index, builder->getInt64(1));
+                        builder->CreateRet(
+                            builder->CreateSelect(result, builder->CreateNeg(index), index));
+                    });
+            });
+        }
+    }
+
     Function* GetHasher(
         const std::vector<EValueType>& types,
         const TCGModulePtr& module,
@@ -786,6 +611,12 @@ struct TComparerManager
     Function* GetTernaryComparer(
         const std::vector<EValueType>& types,
         const TCGModulePtr& module);
+
+    Function* CodegenOrderByComparerFunction(
+        const std::vector<EValueType>& types,
+        const TCGModulePtr& module,
+        size_t offset,
+        const std::vector<bool>& isDesc);
 };
 
 DEFINE_REFCOUNTED_TYPE(TComparerManager);
@@ -795,12 +626,13 @@ TComparerManagerPtr MakeComparerManager()
     return New<TComparerManager>();
 }
 
-llvm::GlobalVariable* GetLabelsArray(
+llvm::GlobalVariable* TComparerManager::GetLabelsArray(
     TCGBaseContext& builder,
     const std::vector<EValueType>& types,
     const TValueTypeLabels& valueTypeLabels)
 {
     std::vector<Constant*> labels;
+    llvm::FoldingSetNodeID id;
     for (auto type : types) {
         switch (type) {
             case EValueType::Boolean:
@@ -827,20 +659,26 @@ llvm::GlobalVariable* GetLabelsArray(
             default:
                 Y_UNREACHABLE();
         }
+        id.AddPointer(labels.back());
     }
 
-    llvm::ArrayType* labelArrayType = llvm::ArrayType::get(
-        TypeBuilder<char*, false>::get(builder->getContext()),
-        types.size());
+    auto emplaced = Labels.emplace(id, nullptr);
+    if (emplaced.second) {
+        llvm::ArrayType* labelArrayType = llvm::ArrayType::get(
+            TypeBuilder<char*, false>::get(builder->getContext()),
+            types.size());
 
-    return new llvm::GlobalVariable(
-        *builder.Module->GetModule(),
-        labelArrayType,
-        true,
-        llvm::GlobalVariable::ExternalLinkage,
-        llvm::ConstantArray::get(
+        emplaced.first->second = new llvm::GlobalVariable(
+            *builder.Module->GetModule(),
             labelArrayType,
-            labels));
+            true,
+            llvm::GlobalVariable::ExternalLinkage,
+            llvm::ConstantArray::get(
+                labelArrayType,
+                labels));
+    }
+
+    return emplaced.first->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -930,24 +768,7 @@ Function* TComparerManager::GetEqComparer(
 
     auto emplaced = EqComparers.emplace(id, nullptr);
     if (emplaced.second) {
-        if (!EqComparer) {
-            EqComparer = MakeFunction<char(char**, TValue*, TValue*, size_t, size_t)>(module, "EqComparerImpl", [&] (
-                TCGBaseContext& builder,
-                Value* labelsArray,
-                Value* lhsValues,
-                Value* rhsValues,
-                Value* startIndex,
-                Value* finishIndex
-            ) {
-                EqLables = CodegenEqComparerBody(
-                    builder,
-                    labelsArray,
-                    lhsValues,
-                    rhsValues,
-                    startIndex,
-                    finishIndex);
-            });
-        }
+        GetUniversalComparer(module);
 
         emplaced.first->second = MakeFunction<TComparerFunction>(module, "EqComparer", [&] (
             TCGBaseContext& builder,
@@ -959,16 +780,19 @@ Function* TComparerManager::GetEqComparer(
                 result = builder->getInt8(1);
             } else {
                 result = builder->CreateCall(
-                    EqComparer,
+                    UniversalComparer,
                     {
                         builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, EqLables),
+                            GetLabelsArray(builder, types, UniversalLables),
                             TypeBuilder<char**, false>::get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
                         builder->getInt64(finish)
                     });
+                result = builder->CreateZExt(
+                    builder->CreateICmpEQ(result, builder->getInt64(0)),
+                    builder->getInt8Ty());
             }
 
             builder->CreateRet(result);
@@ -1004,27 +828,7 @@ Function* TComparerManager::GetLessComparer(
 
     auto emplaced = LessComparers.emplace(id, nullptr);
     if (emplaced.second) {
-        if (!LessComparer) {
-            LessComparer = MakeFunction<char(char**, TValue*, TValue*, size_t, size_t)>(module, "LessComparerImpl",
-            [&] (
-                TCGBaseContext& builder,
-                Value* labelsArray,
-                Value* lhsValues,
-                Value* rhsValues,
-                Value* startIndex,
-                Value* finishIndex
-            ) {
-                LessLables = CodegenLessComparerBody(
-                    builder,
-                    labelsArray,
-                    lhsValues,
-                    rhsValues,
-                    startIndex,
-                    finishIndex,
-                    DefaultOnEqual,
-                    DefaultOnNotEqual);
-            });
-        }
+        GetUniversalComparer(module);
 
         emplaced.first->second = MakeFunction<TComparerFunction>(module, "LessComparer", [&] (
             TCGBaseContext& builder,
@@ -1036,16 +840,19 @@ Function* TComparerManager::GetLessComparer(
                 result = builder->getInt8(0);
             } else {
                 result = builder->CreateCall(
-                    LessComparer,
+                    UniversalComparer,
                     {
                         builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, LessLables),
+                            GetLabelsArray(builder, types, UniversalLables),
                             TypeBuilder<char**, false>::get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
                         builder->getInt64(finish)
                     });
+                result = builder->CreateZExt(
+                    builder->CreateICmpSLT(result, builder->getInt64(0)),
+                    builder->getInt8Ty());
             }
 
             builder->CreateRet(result);
@@ -1081,33 +888,7 @@ Function* TComparerManager::GetTernaryComparer(
 
     auto emplaced = TernaryComparers.emplace(id, nullptr);
     if (emplaced.second) {
-        if (!TernaryComparer) {
-            TernaryComparer = MakeFunction<int(char**, TValue*, TValue*, size_t, size_t)>(module,
-            "TernaryComparerImpl",
-             [&] (
-                TCGBaseContext& builder,
-                Value* labelsArray,
-                Value* lhsValues,
-                Value* rhsValues,
-                Value* startIndex,
-                Value* finishIndex
-            ) {
-                TernaryLables = CodegenLessComparerBody(
-                    builder,
-                    labelsArray,
-                    lhsValues,
-                    rhsValues,
-                    startIndex,
-                    finishIndex,
-                    [&] (TCGBaseContext& builder) {
-                        builder->CreateRet(builder->getInt32(0));
-                    },
-                    [&] (TCGBaseContext& builder, Value* result, Value* index) {
-                        builder->CreateRet(
-                            builder->CreateSelect(result, builder->getInt32(-1), builder->getInt32(1)));
-                    });
-            });
-        }
+        GetUniversalComparer(module);
 
         emplaced.first->second = MakeFunction<TTernaryComparerFunction>(module, "TernaryComparer", [&] (
             TCGBaseContext& builder,
@@ -1119,10 +900,10 @@ Function* TComparerManager::GetTernaryComparer(
                 result = builder->getInt32(0);
             } else {
                 result = builder->CreateCall(
-                    TernaryComparer,
+                    UniversalComparer,
                     {
                         builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, TernaryLables),
+                            GetLabelsArray(builder, types, UniversalLables),
                             TypeBuilder<char**, false>::get(builder->getContext())),
                         lhsRow,
                         rhsRow,
@@ -1147,49 +928,22 @@ Function* TComparerManager::GetTernaryComparer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Function* CodegenOrderByComparerFunction(
+Function* TComparerManager::CodegenOrderByComparerFunction(
     const std::vector<EValueType>& types,
     const TCGModulePtr& module,
     size_t offset,
     const std::vector<bool>& isDesc)
 {
-    TValueTypeLabels lables;
+    GetUniversalComparer(module);
 
-    Function* comparer = MakeFunction<char(char**, char*, TValue*, TValue*)>(module, "OrderByComparerImpl", [&] (
+    return MakeFunction<char(TValue*, TValue*)>(module, "OrderByComparer", [&] (
         TCGBaseContext& builder,
-        Value* labelsArray,
-        Value* isDesc,
         Value* lhsValues,
         Value* rhsValues
     ) {
         lhsValues = builder->CreateGEP(lhsValues, builder->getInt64(offset));
         rhsValues = builder->CreateGEP(rhsValues, builder->getInt64(offset));
 
-        lables = CodegenLessComparerBody(
-            builder,
-            labelsArray,
-            lhsValues,
-            rhsValues,
-            builder->getInt64(0),
-            builder->getInt64(types.size()),
-            DefaultOnEqual,
-            [&] (TCGBaseContext& builder, Value* result, Value* index) {
-                Value* notEqualResult = builder->CreateZExt(result, builder->getInt8Ty());
-                if (isDesc) {
-                    notEqualResult = builder->CreateXor(
-                        notEqualResult,
-                        builder->CreateLoad(builder->CreateGEP(isDesc, index)));
-                }
-
-                builder->CreateRet(notEqualResult);
-            });
-    });
-
-    return MakeFunction<char(TValue*, TValue*)>(module, "OrderByComparer", [&] (
-        TCGBaseContext& builder,
-        Value* lhsRow,
-        Value* rhsRow
-    ) {
         std::vector<Constant*> isDescFlags;
         for (size_t index = 0; index < types.size(); ++index) {
             isDescFlags.push_back(builder->getInt8(index < isDesc.size() && isDesc[index]));
@@ -1209,19 +963,36 @@ Function* CodegenOrderByComparerFunction(
                     isDescArrayType,
                     isDescFlags));
 
-        builder->CreateRet(
-            builder->CreateCall(
-                comparer,
-                {
-                    builder->CreatePointerCast(
-                        GetLabelsArray(builder, types, lables),
-                        TypeBuilder<char**, false>::get(builder->getContext())),
-                    builder->CreatePointerCast(
-                        isDescArray,
-                        TypeBuilder<char*, false>::get(builder->getContext())),
-                    lhsRow,
-                    rhsRow
-                }));
+        Value* result = builder->CreateCall(
+            UniversalComparer,
+            {
+                builder->CreatePointerCast(
+                    GetLabelsArray(builder, types, UniversalLables),
+                    TypeBuilder<char**, false>::get(builder->getContext())),
+                lhsValues,
+                rhsValues,
+                builder->getInt64(0),
+                builder->getInt64(types.size())
+            });
+
+        auto* thenBB = builder->CreateBBHere("then");
+        auto* elseBB = builder->CreateBBHere("else");
+        builder->CreateCondBr(builder->CreateICmpEQ(result, builder->getInt64(0)), thenBB, elseBB);
+        builder->SetInsertPoint(thenBB);
+        builder->CreateRet(builder->getInt8(false));
+        builder->SetInsertPoint(elseBB);
+
+        Value* isLess = builder->CreateICmpSLT(result, builder->getInt64(0));
+
+        Value* index = builder->CreateSub(
+            builder->CreateSelect(isLess, builder->CreateNeg(result), result),
+            builder->getInt64(1));
+
+        result = builder->CreateXor(
+            builder->CreateZExt(isLess, builder->getInt8Ty()),
+            builder->CreateLoad(builder->CreateGEP(isDescArray, {builder->getInt64(0), index})));
+
+        builder->CreateRet(result);
     });
 }
 
@@ -2960,7 +2731,8 @@ size_t MakeCodegenOrderOp(
     std::vector<size_t> exprIds,
     std::vector<EValueType> orderColumnTypes,
     std::vector<EValueType> sourceSchema,
-    const std::vector<bool>& isDesc)
+    const std::vector<bool>& isDesc,
+    TComparerManagerPtr comparerManager)
 {
 
     size_t consumerSlot = (*slotCount)++;
@@ -2973,6 +2745,7 @@ size_t MakeCodegenOrderOp(
         MOVE(exprIds),
         MOVE(orderColumnTypes),
         MOVE(sourceSchema),
+        MOVE(comparerManager),
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         auto schemaSize = sourceSchema.size();
@@ -3030,7 +2803,7 @@ size_t MakeCodegenOrderOp(
             builder->CreateRetVoid();
         });
 
-        auto comparator = CodegenOrderByComparerFunction(
+        auto comparator = comparerManager->CodegenOrderByComparerFunction(
             orderColumnTypes,
             builder.Module,
             schemaSize,

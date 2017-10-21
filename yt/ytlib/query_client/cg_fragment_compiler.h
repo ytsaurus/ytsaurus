@@ -221,7 +221,8 @@ size_t MakeCodegenOrderOp(
     std::vector<size_t> exprIds,
     std::vector<EValueType> orderColumnTypes,
     std::vector<EValueType> sourceSchema,
-    const std::vector<bool>& isDesc);
+    const std::vector<bool>& isDesc,
+    TComparerManagerPtr comparerManager);
 
 size_t MakeCodegenProjectOp(
     TCodegenSource* codegenSource,
