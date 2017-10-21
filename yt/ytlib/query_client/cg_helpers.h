@@ -162,18 +162,28 @@ public:
         EValueType staticType,
         Twine name = Twine())
     {
-        auto valuePtr = builder->CreateConstInBoundsGEP1_32(
-            nullptr,
-            rowValues,
-            index,
-            name + ".valuePtr");
+        Value* isNull = builder->getFalse();
+        if (nullbale) {
+            Value* typePtr = builder->CreateConstInBoundsGEP2_32(
+                nullptr, rowValues, index, TTypeBuilder::Type, name + ".typePtr");
 
-        return CreateFromLlvmValue(
-            builder,
-            valuePtr,
-            nullbale,
-            staticType,
-            name);
+            isNull = builder->CreateLoad(typePtr, name + ".type");
+        }
+
+        Value* length = nullptr;
+        if (IsStringLikeType(staticType)) {
+            Value* lengthPtr = builder->CreateConstInBoundsGEP2_32(
+                nullptr, rowValues, index, TTypeBuilder::Length, name + ".lengthPtr");
+
+            length = builder->CreateLoad(lengthPtr, name + ".length");
+        }
+
+        Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
+            nullptr, rowValues, index, TTypeBuilder::Data, name + ".dataPtr");
+
+        Value* data = builder->CreateLoad(dataPtr, name + ".data");
+
+        return CreateFromValue(builder, isNull, length, data, staticType, name);
     }
 
     static TCGValue CreateFromRowValues(
@@ -199,25 +209,13 @@ public:
         EValueType staticType,
         Twine name = Twine())
     {
-        Value* isNull = builder->getFalse();
-        if (nullbale) {
-            isNull = builder->CreateLoad(
-                builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, 0, TTypeBuilder::Type, name + ".type"));
-        }
-
-        Value* length = nullptr;
-        if (IsStringLikeType(staticType)) {
-            length = builder->CreateLoad(
-                builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, 0, TTypeBuilder::Length, name + ".length"));
-        }
-
-        Value* data = builder->CreateLoad(
-            builder->CreateConstInBoundsGEP2_32(
-                nullptr, valuePtr, 0, TTypeBuilder::Data, name + ".data"));
-
-        return CreateFromValue(builder, isNull, length, data, staticType, name);
+        return CreateFromRowValues(
+            builder,
+            valuePtr,
+            0,
+            nullbale,
+            staticType,
+            name);
     }
 
     static TCGValue CreateFromLlvmValue(
