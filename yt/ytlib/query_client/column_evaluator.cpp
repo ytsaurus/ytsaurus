@@ -54,6 +54,8 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                 &column.Variables,
                 profilers)();
 
+            column.Variables.GetLiteralvalues();
+
             for (const auto& reference : references) {
                 column.ReferenceIds.push_back(schema.GetColumnIndexOrThrow(reference));
             }
@@ -86,6 +88,7 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
     fullRow[index] = MakeUnversionedSentinelValue(EValueType::Null);
 
     evaluator(
+        column.Variables.LiteralsRow.get(),
         column.Variables.GetOpaqueData(),
         &fullRow[index],
         fullRow,

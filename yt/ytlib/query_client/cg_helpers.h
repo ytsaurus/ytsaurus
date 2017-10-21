@@ -160,6 +160,7 @@ public:
         TCGIRBuilderPtr& builder,
         Value* rowValues,
         int index,
+        bool nullbale,
         EValueType staticType,
         Twine name = Twine())
     {
@@ -172,6 +173,22 @@ public:
         return CreateFromLlvmValue(
             builder,
             valuePtr,
+            nullbale,
+            staticType,
+            name);
+    }
+
+    static TCGValue CreateFromRowValues(
+        TCGIRBuilderPtr& builder,
+        Value* rowValues,
+        int index,
+        EValueType staticType,
+        Twine name = Twine())
+    {
+        return CreateFromRowValues(
+            builder,
+            rowValues,
+            index,
             true,
             staticType,
             name);
@@ -434,8 +451,10 @@ class TCGOpaqueValuesContext
 public:
     TCGOpaqueValuesContext(
         const TCGBaseContext& base,
+        Value* literals,
         Value* opaqueValues)
         : TCGBaseContext(base)
+        , Literals_(literals)
         , OpaqueValues_(opaqueValues)
     { }
 
@@ -443,9 +462,15 @@ public:
         const TCGBaseContext& base,
         const TCGOpaqueValuesContext& other)
         : TCGBaseContext(base)
+        , Literals_(other.Literals_)
         , OpaqueValues_(other.OpaqueValues_)
 
     { }
+
+    Value* GetLiterals() const
+    {
+        return Builder_->ViaClosure(Literals_, "literals");
+    }
 
     Value* GetOpaqueValues() const
     {
@@ -461,6 +486,7 @@ public:
     }
 
 private:
+    Value* const Literals_;
     Value* const OpaqueValues_;
 
 };
@@ -514,7 +540,8 @@ public:
     static TCGExprContext Make(
         const TCGBaseContext& builder,
         const TCodegenFragmentInfos& fragmentInfos,
-        Value* expressionClosure);
+        Value* expressionClosure,
+        Value* literals);
 
     static TCGExprContext Make(
         const TCGOpaqueValuesContext& builder,

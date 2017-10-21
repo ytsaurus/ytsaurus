@@ -1314,13 +1314,10 @@ TCodegenExpression MakeCodegenLiteralExpr(
             nullbale,
             type
         ] (TCGExprContext& builder) {
-            auto valuePtr = builder->CreatePointerCast(
-                builder.GetOpaqueValue(index),
-                TypeBuilder<TValue*, false>::get(builder->getContext()));
-
-            return TCGValue::CreateFromLlvmValue(
+            return TCGValue::CreateFromRowValues(
                 builder,
-                valuePtr,
+                builder.GetLiterals(),
+                index,
                 nullbale,
                 type,
                 "literal." + Twine(index))
@@ -1358,7 +1355,8 @@ TCGValue CodegenFragment(
         builder->CreateCall(
             builder.ExpressionFragments.Functions[expressionFragment.Index],
             {
-                builder.GetExpressionClosurePtr()
+                builder.GetExpressionClosurePtr(),
+                builder.GetLiterals()
             });
 
         return TCGValue::CreateFromLlvmValue(
@@ -1385,10 +1383,13 @@ void CodegenFragmentBodies(
 
             FunctionType* functionType = FunctionType::get(
                 TypeBuilder<void, false>::get(module->GetModule()->getContext()),
-                llvm::PointerType::getUnqual(
-                    TypeBuilder<TExpressionClosure, false>::get(
-                        module->GetModule()->getContext(),
-                        fragmentInfos.Functions.size())),
+                {
+                    llvm::PointerType::getUnqual(
+                        TypeBuilder<TExpressionClosure, false>::get(
+                            module->GetModule()->getContext(),
+                            fragmentInfos.Functions.size())),
+                    TypeBuilder<TValue*, false>::get(module->GetModule()->getContext())
+                },
                 true);
 
             Function* function =  Function::Create(
@@ -1398,14 +1399,16 @@ void CodegenFragmentBodies(
                 module->GetModule());
 
             function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
-
-            Value* expressionClosure = ConvertToPointer(function->arg_begin());
+            auto args = function->arg_begin();
+            Value* expressionClosure = ConvertToPointer(args++);
+            Value* literals = ConvertToPointer(args++);
             {
                 TCGIRBuilder irBuilder(function);
                 auto innerBuilder = TCGExprContext::Make(
                     TCGBaseContext(TCGIRBuilderPtr(&irBuilder), module),
                     fragmentInfos,
-                    expressionClosure);
+                    expressionClosure,
+                    literals);
 
                 Value* fragmentFlag = innerBuilder.GetFragmentFlag(id);
 
@@ -3176,13 +3179,14 @@ TCGQueryCallback CodegenEvaluate(
 
     MakeFunction<TCGQuerySignature>(module, entryFunctionName.c_str(), [&] (
         TCGBaseContext& baseBuilder,
+        Value* literals,
         Value* opaqueValuesPtr,
         Value* executionContextPtr
     ) {
         std::vector<std::shared_ptr<TCodegenConsumer>> consumers(slotCount);
 
         TCGOperatorContext builder(
-            TCGOpaqueValuesContext(baseBuilder, opaqueValuesPtr),
+            TCGOpaqueValuesContext(baseBuilder, literals, opaqueValuesPtr),
             executionContextPtr,
             &consumers);
 
@@ -3206,13 +3210,14 @@ TCGExpressionCallback CodegenStandaloneExpression(
 
     MakeFunction<TCGExpressionSignature>(module, entryFunctionName.c_str(), [&] (
         TCGBaseContext& baseBuilder,
+        Value* literals,
         Value* opaqueValuesPtr,
         Value* resultPtr,
         Value* inputRow,
         Value* buffer
     ) {
         auto builder = TCGExprContext::Make(
-            TCGOpaqueValuesContext(baseBuilder, opaqueValuesPtr),
+            TCGOpaqueValuesContext(baseBuilder, literals, opaqueValuesPtr),
             *fragmentInfos,
             inputRow,
             buffer);

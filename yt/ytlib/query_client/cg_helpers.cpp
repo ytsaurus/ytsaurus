@@ -61,7 +61,8 @@ Value* TCGExprContext::GetFragmentFlag(size_t index) const
 TCGExprContext TCGExprContext::Make(
     const TCGBaseContext& builder,
     const TCodegenFragmentInfos& fragmentInfos,
-    Value* expressionClosurePtr)
+    Value* expressionClosurePtr,
+    Value* literals)
 {
     Value* opaqueValues = builder->CreateLoad(builder->CreateStructGEP(
         nullptr,
@@ -70,7 +71,7 @@ TCGExprContext TCGExprContext::Make(
         "opaqueValues"));
 
     return TCGExprContext(
-        TCGOpaqueValuesContext(builder, opaqueValues),
+        TCGOpaqueValuesContext(builder, literals, opaqueValues),
         TCGExprData(
             fragmentInfos,
             builder->CreateLoad(builder->CreateStructGEP(
