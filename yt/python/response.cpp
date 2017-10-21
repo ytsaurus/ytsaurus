@@ -119,7 +119,9 @@ Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
 TDriverResponse::~TDriverResponse()
 {
     try {
-        Response_.Cancel();
+        if (Response_) {
+            Response_.Cancel();
+        }
     } catch (...) {
         // intentionally doing nothing
     }
