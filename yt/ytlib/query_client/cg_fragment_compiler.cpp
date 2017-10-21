@@ -1076,7 +1076,8 @@ TCGValue CodegenFragment(
             builder.ExpressionFragments.Functions[expressionFragment.Index],
             {
                 builder.GetExpressionClosurePtr(),
-                builder.GetLiterals()
+                builder.GetLiterals(),
+                builder.RowValues
             });
 
         return TCGValue::CreateFromLlvmValue(
@@ -1108,6 +1109,7 @@ void CodegenFragmentBodies(
                         TypeBuilder<TExpressionClosure, false>::get(
                             module->GetModule()->getContext(),
                             fragmentInfos.Functions.size())),
+                    TypeBuilder<TValue*, false>::get(module->GetModule()->getContext()),
                     TypeBuilder<TValue*, false>::get(module->GetModule()->getContext())
                 },
                 true);
@@ -1122,13 +1124,15 @@ void CodegenFragmentBodies(
             auto args = function->arg_begin();
             Value* expressionClosure = ConvertToPointer(args++);
             Value* literals = ConvertToPointer(args++);
+            Value* rowValues = ConvertToPointer(args++);
             {
                 TCGIRBuilder irBuilder(function);
                 auto innerBuilder = TCGExprContext::Make(
                     TCGBaseContext(TCGIRBuilderPtr(&irBuilder), module),
                     fragmentInfos,
                     expressionClosure,
-                    literals);
+                    literals,
+                    rowValues);
 
                 Value* fragmentFlag = innerBuilder.GetFragmentFlag(id);
 
@@ -2059,13 +2063,6 @@ size_t MakeCodegenJoinOp(
                     }
                 }
 
-                builder->CreateStore(
-                    keyRef,
-                    builder->CreateStructGEP(
-                        nullptr,
-                        rowBuilder.GetExpressionClosurePtr(),
-                        TypeBuilder<TExpressionClosure, false>::Fields::RowValues));
-
                 TCGExprContext evaluatedColumnsBuilder(builder, TCGExprData{
                     *fragmentInfos,
                     rowBuilder.Buffer,
@@ -2218,13 +2215,6 @@ size_t MakeCodegenMultiJoinOp(
                             joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
                         }
                     }
-
-                    builder->CreateStore(
-                        keyValues,
-                        builder->CreateStructGEP(
-                            nullptr,
-                            rowBuilder.GetExpressionClosurePtr(),
-                            TypeBuilder<TExpressionClosure, false>::Fields::RowValues));
 
                     TCGExprContext evaluatedColumnsBuilder(builder, TCGExprData{
                         *fragmentInfos,
