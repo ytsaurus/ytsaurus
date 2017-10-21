@@ -335,14 +335,27 @@ public:
         OpaqueValues_.clear();
     }
 
+    TValue* GetLiteralvalues()
+    {
+        LiteralsRow = std::make_unique<TValue[]>(LiteralValues.size());
+        size_t index = 0;
+        for (const auto& value : LiteralValues) {
+            LiteralsRow[index++] = TValue(value);
+        }
+        return LiteralsRow.get();
+    }
+
+    std::unique_ptr<TValue[]> LiteralsRow;
+    std::vector<TOwningValue> LiteralValues;
+
 private:
     std::vector<std::unique_ptr<void, void(*)(void*)>> OpaqueValues_;
     std::vector<void*> OpaquePointers_;
 
 };
 
-typedef void (TCGQuerySignature)(void* const*, TExecutionContext*);
-typedef void (TCGExpressionSignature)(void* const*, TValue*, TRow, TExpressionContext*);
+typedef void (TCGQuerySignature)(TValue*, void* const*, TExecutionContext*);
+typedef void (TCGExpressionSignature)(TValue*, void* const*, TValue*, TRow, TExpressionContext*);
 typedef void (TCGAggregateInitSignature)(TExpressionContext*, TValue*);
 typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const TValue*);
 typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*);

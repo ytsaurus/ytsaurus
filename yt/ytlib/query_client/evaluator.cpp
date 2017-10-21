@@ -118,6 +118,7 @@ public:
 
                 CallCGQueryPtr(
                     cgQuery,
+                    fragmentParams.GetLiteralvalues(),
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
 
@@ -211,14 +212,16 @@ private:
 
     static void CallCGQuery(
         const TCGQueryCallback& cgQuery,
+        TValue* literals,
         void* const* opaqueValues,
         TExecutionContext* executionContext)
     {
-        cgQuery(opaqueValues, executionContext);
+        cgQuery(literals, opaqueValues, executionContext);
     }
 
     void(*volatile CallCGQueryPtr)(
         const TCGQueryCallback& cgQuery,
+        TValue* literals,
         void* const* opaqueValues,
         TExecutionContext* executionContext) = CallCGQuery;
 
