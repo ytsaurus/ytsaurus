@@ -59,8 +59,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Value* CodegenValuesPtrFromRow(const TCGIRBuilderPtr& builder, Value* row);
-
 typedef TypeBuilder<TValue, false> TTypeBuilder;
 typedef TypeBuilder<TValueData, false> TDataTypeBuilder;
 

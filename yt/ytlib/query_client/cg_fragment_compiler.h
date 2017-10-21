@@ -210,7 +210,7 @@ size_t MakeCodegenAddStreamOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot,
-    std::vector<EValueType> sourceSchema,
+    size_t rowSize,
     EStreamTag value);
 
 size_t MakeCodegenOrderOp(
@@ -232,7 +232,8 @@ size_t MakeCodegenProjectOp(
 
 void MakeCodegenWriteOp(
     TCodegenSource* codegenSource,
-    size_t slot);
+    size_t slot,
+    size_t rowSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
