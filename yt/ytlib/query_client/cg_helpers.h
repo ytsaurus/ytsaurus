@@ -623,6 +623,14 @@ TResult CodegenIf(
     const std::function<TResult(TBuilder& builder)>& elseCodegen,
     Twine name = Twine())
 {
+    if (llvm::Constant* constantCondition = llvm::dyn_cast<llvm::Constant>(condition)) {
+        if (constantCondition->isNullValue()) {
+            return elseCodegen(builder);
+        } else {
+            return thenCodegen(builder);
+        }
+    }
+
     auto* thenBB = builder->CreateBBHere("then");
     auto* elseBB = builder->CreateBBHere("else");
     auto* endBB = builder->CreateBBHere("end");
@@ -659,6 +667,16 @@ void CodegenIf(
     const std::function<void(TBuilder& builder)>& thenCodegen,
     const std::function<void(TBuilder& builder)>& elseCodegen)
 {
+    if (llvm::Constant* constantCondition = llvm::dyn_cast<llvm::Constant>(condition)) {
+        if (constantCondition->isNullValue()) {
+            elseCodegen(builder);
+        } else {
+            thenCodegen(builder);
+        }
+
+        return;
+    }
+
     auto* thenBB = builder->CreateBBHere("then");
     auto* elseBB = builder->CreateBBHere("else");
     auto* endBB = builder->CreateBBHere("end");
@@ -684,6 +702,13 @@ void CodegenIf(
     Value* condition,
     const std::function<void(TBuilder& builder)>& thenCodegen)
 {
+    if (llvm::Constant* constantCondition = llvm::dyn_cast<llvm::Constant>(condition)) {
+        if (!constantCondition->isNullValue()) {
+            thenCodegen(builder);
+        }
+
+        return;
+    }
     auto* thenBB = builder->CreateBBHere("then");
     auto* endBB = builder->CreateBBHere("end");
 
