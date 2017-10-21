@@ -1634,6 +1634,69 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
             return evalData;
         };
 
+        if (!IsStringLikeType(lhsValue.GetStaticType()) && !IsStringLikeType(rhsValue.GetStaticType())) {
+            YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+
+            auto operandType = lhsValue.GetStaticType();
+
+            Value* lhsData = lhsValue.GetData();
+            Value* rhsData = rhsValue.GetData();
+            Value* evalData = nullptr;
+
+            switch (operandType) {
+                case EValueType::Boolean:
+                case EValueType::Int64:
+                    switch (opcode) {
+                        CMP_OP(Equal, ICmpEQ)
+                        CMP_OP(NotEqual, ICmpNE)
+                        CMP_OP(Less, ICmpSLT)
+                        CMP_OP(LessOrEqual, ICmpSLE)
+                        CMP_OP(Greater, ICmpSGT)
+                        CMP_OP(GreaterOrEqual, ICmpSGE)
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                    break;
+                case EValueType::Uint64:
+                    switch (opcode) {
+                        CMP_OP(Equal, ICmpEQ)
+                        CMP_OP(NotEqual, ICmpNE)
+                        CMP_OP(Less, ICmpULT)
+                        CMP_OP(LessOrEqual, ICmpULE)
+                        CMP_OP(Greater, ICmpUGT)
+                        CMP_OP(GreaterOrEqual, ICmpUGE)
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                    break;
+                case EValueType::Double:
+                    switch (opcode) {
+                        CMP_OP(Equal, FCmpUEQ)
+                        CMP_OP(NotEqual, FCmpUNE)
+                        CMP_OP(Less, FCmpULT)
+                        CMP_OP(LessOrEqual, FCmpULE)
+                        CMP_OP(Greater, FCmpUGT)
+                        CMP_OP(GreaterOrEqual, FCmpUGE)
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
+
+            Value* anyNull = builder->CreateOr(lhsIsNull, rhsIsNull);
+
+            return TCGValue::CreateFromValue(
+                builder,
+                builder->getFalse(),
+                nullptr,
+                builder->CreateZExtOrBitCast(
+                    builder->CreateSelect(anyNull, compareNulls(), evalData),
+                    TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                type);
+        }
+
         auto cmpResultToResult = [] (TCGBaseContext& builder, Value* cmpResult, EBinaryOp opcode) {
             Value* evalData;
             switch (opcode) {
@@ -1747,43 +1810,6 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 Value* evalData = nullptr;
 
                 switch (operandType) {
-                    case EValueType::Boolean:
-                    case EValueType::Int64:
-                        switch (opcode) {
-                            CMP_OP(Equal, ICmpEQ)
-                            CMP_OP(NotEqual, ICmpNE)
-                            CMP_OP(Less, ICmpSLT)
-                            CMP_OP(LessOrEqual, ICmpSLE)
-                            CMP_OP(Greater, ICmpSGT)
-                            CMP_OP(GreaterOrEqual, ICmpSGE)
-                            default:
-                                Y_UNREACHABLE();
-                        }
-                        break;
-                    case EValueType::Uint64:
-                        switch (opcode) {
-                            CMP_OP(Equal, ICmpEQ)
-                            CMP_OP(NotEqual, ICmpNE)
-                            CMP_OP(Less, ICmpULT)
-                            CMP_OP(LessOrEqual, ICmpULE)
-                            CMP_OP(Greater, ICmpUGT)
-                            CMP_OP(GreaterOrEqual, ICmpUGE)
-                            default:
-                                Y_UNREACHABLE();
-                        }
-                        break;
-                    case EValueType::Double:
-                        switch (opcode) {
-                            CMP_OP(Equal, FCmpUEQ)
-                            CMP_OP(NotEqual, FCmpUNE)
-                            CMP_OP(Less, FCmpULT)
-                            CMP_OP(LessOrEqual, FCmpULE)
-                            CMP_OP(Greater, FCmpUGT)
-                            CMP_OP(GreaterOrEqual, FCmpUGE)
-                            default:
-                                Y_UNREACHABLE();
-                        }
-                        break;
                     case EValueType::String: {
                         Value* lhsLength = lhsValue.GetLength();
                         Value* rhsLength = rhsValue.GetLength();
