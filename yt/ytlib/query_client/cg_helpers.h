@@ -246,38 +246,7 @@ public:
             name);
     }
 
-    void StoreToValues(TCGIRBuilderPtr& builder, Value* values, int index) const
-    {
-        auto name = values->getName();
-
-        auto valuePtr = builder->CreateConstInBoundsGEP1_32(
-            nullptr,
-            values,
-            index,
-            Twine(name).concat(".at.") + Twine(index));
-
-        StoreToValue(builder, valuePtr);
-    }
-
-    void StoreToValues(TCGIRBuilderPtr& builder, Value* values, int index, ui16 id) const
-    {
-        auto name = values->getName();
-
-        auto valuePtr = builder->CreateConstInBoundsGEP1_32(
-            nullptr,
-            values,
-            index,
-            Twine(name).concat(".at.") + Twine(index));
-
-        StoreToValue(builder, valuePtr, id);
-    }
-
-    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, ui16 id, Twine nameTwine = "") const
-    {
-        StoreToValue(builder, valuePtr, nameTwine);
-    }
-
-    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine nameTwine = "") const
+    void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index, Twine nameTwine = "") const
     {
         const auto& type = TypeBuilder<NTableClient::TUnversionedValue, false>::TType::get(builder->getContext());
 
@@ -287,17 +256,20 @@ public:
                     GetIsNull(builder),
                     ConstantInt::get(type, static_cast<int>(EValueType::Null)),
                     ConstantInt::get(type, static_cast<int>(StaticType_))),
-                builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Type, nameTwine + ".typePtr"));
+                builder->CreateConstInBoundsGEP2_32(
+                    nullptr, valuePtr, index, TTypeBuilder::Type, nameTwine + ".typePtr"));
         } else {
             builder->CreateStore(
                 IsNull_,
-                builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Type, nameTwine + ".typePtr"));
+                builder->CreateConstInBoundsGEP2_32(
+                    nullptr, valuePtr, index, TTypeBuilder::Type, nameTwine + ".typePtr"));
         }
 
         if (IsStringLikeType(StaticType_)) {
             builder->CreateStore(
                 Length_,
-                builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Length, nameTwine + ".lengthPtr"));
+                builder->CreateConstInBoundsGEP2_32(
+                    nullptr, valuePtr, index, TTypeBuilder::Length, nameTwine + ".lengthPtr"));
         }
 
         Value* data = nullptr;
@@ -313,7 +285,13 @@ public:
 
         builder->CreateStore(
             data,
-            builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Data, nameTwine + ".dataPtr"));
+            builder->CreateConstInBoundsGEP2_32(
+                nullptr, valuePtr, index, TTypeBuilder::Data, nameTwine + ".dataPtr"));
+    }
+
+    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine nameTwine = "") const
+    {
+        StoreToValues(builder, valuePtr, 0, nameTwine);
     }
 
     Value* IsNull() const
