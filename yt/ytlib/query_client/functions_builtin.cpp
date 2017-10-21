@@ -232,12 +232,25 @@ public:
                 auto argValue = CodegenFragment(builder, argIds[0]);
                 auto constant = CodegenFragment(builder, argIds[1]);
 
+                Value* argIsNull = argValue.IsNull(builder);
+
+                Value* length = nullptr;
+
+                if (IsStringLikeType(argValue.GetStaticType())) {
+                    length = builder->CreateSelect(
+                        argIsNull,
+                        constant.GetLength(builder),
+                        argValue.GetLength(builder));
+                }
+
                 return TCGValue::CreateFromValue(
                     builder,
+                    builder->CreateAnd(argIsNull, constant.IsNull(builder)),
+                    length,
                     builder->CreateSelect(
-                        argValue.IsNull(builder),
-                        constant.GetValue(builder, true),
-                        argValue.GetValue(builder, true)),
+                        argIsNull,
+                        constant.GetData(builder),
+                        argValue.GetData(builder)),
                     type);
             } else {
                 return CodegenFragment(builder, argIds[0]);

@@ -371,13 +371,15 @@ size_t TExpressionProfiler::Profile(
 
             int index = Variables_->AddOpaque<TOwningValue>(literalExpr->Value);
             Fold(index);
-            Fold(TValue(literalExpr->Value).Type == EValueType::Null);
+
+            bool nullable = TValue(literalExpr->Value).Type == EValueType::Null;
+            Fold(nullable);
 
             fragments->DebugInfos.emplace_back(expr, std::vector<size_t>());
             fragments->Items.emplace_back(
-                MakeCodegenLiteralExpr(index, literalExpr->Type),
+                MakeCodegenLiteralExpr(index, nullable, literalExpr->Type),
                 expr->Type,
-                TValue(literalExpr->Value).Type == EValueType::Null,
+                nullable,
                 true);
         }
         return emplaced.first->second;

@@ -82,6 +82,7 @@ Value* CodegenLexicographicalCompare(
 
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
+    bool nullable,
     EValueType type);
 
 TCodegenExpression MakeCodegenReferenceExpr(

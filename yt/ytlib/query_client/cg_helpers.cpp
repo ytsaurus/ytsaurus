@@ -179,22 +179,6 @@ TCGValue MakePhi(
     YCHECK(thenValue.GetStaticType() == elseValue.GetStaticType());
     EValueType type = thenValue.GetStaticType();
 
-    if (thenValue.GetValue(builder, false) || elseValue.GetValue(builder, false)) {
-        builder->SetInsertPoint(thenBB);
-        Value* thenLllvmValue = thenValue.GetValue(builder, true);
-
-        builder->SetInsertPoint(elseBB);
-        Value* elseLllvmValue = elseValue.GetValue(builder, true);
-
-        builder->SetInsertPoint(endBB);
-
-        PHINode* phiValue = builder->CreatePHI(thenLllvmValue->getType(), 2, name + ".phiValue");
-        phiValue->addIncoming(thenLllvmValue, thenBB);
-        phiValue->addIncoming(elseLllvmValue, elseBB);
-
-        return TCGValue::CreateFromValue(builder, phiValue, type, name);
-    }
-
     builder->SetInsertPoint(thenBB);
     Value* thenNull = thenValue.IsNull(builder);
     Value* thenData = thenValue.GetData(builder);
@@ -205,9 +189,23 @@ TCGValue MakePhi(
 
     builder->SetInsertPoint(endBB);
 
-    PHINode* phiNull = builder->CreatePHI(builder->getInt1Ty(), 2, name + ".phiNull");
-    phiNull->addIncoming(thenNull, thenBB);
-    phiNull->addIncoming(elseNull, elseBB);
+    Value* phiNull = [&] () -> Value* {
+        if (llvm::Constant* constantThenNull = llvm::dyn_cast<llvm::Constant>(thenNull)) {
+            if (llvm::Constant* constantElseNull = llvm::dyn_cast<llvm::Constant>(elseNull)) {
+                if (constantThenNull->isNullValue() && constantElseNull->isNullValue()) {
+                    return builder->getFalse();
+                }
+            }
+        }
+
+        Type* targetType = builder->getInt1Ty();
+
+        PHINode* phiNull = builder->CreatePHI(targetType, 2, name + ".phiNull");
+        phiNull->addIncoming(thenNull, thenBB);
+        phiNull->addIncoming(elseNull, elseBB);
+        return phiNull;
+    }();
+
 
     YCHECK(thenData->getType() == elseData->getType());
 
