@@ -449,10 +449,8 @@ TValueTypeLabels CodegenLessComparerBody(
         builder->CreateCondBr(anyNull, cmpNullBB, cmpDataBB);
 
         builder->SetInsertPoint(cmpNullBB);
-        resultPhi->addIncoming(
-            builder->CreateICmpUGT(lhsIsNull, rhsIsNull),
-            builder->GetInsertBlock());
-        builder->CreateBr(returnBB);
+        resultPhi->addIncoming(builder->CreateICmpUGT(lhsIsNull, rhsIsNull), builder->GetInsertBlock());
+        builder->CreateCondBr(builder->CreateAnd(lhsIsNull, rhsIsNull), gotoNextBB, returnBB);
 
         builder->SetInsertPoint(cmpDataBB);
 
