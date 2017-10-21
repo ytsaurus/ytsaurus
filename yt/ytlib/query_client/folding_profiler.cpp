@@ -840,7 +840,8 @@ void TQueryProfiler::Profile(
             orderExprIds,
             std::move(orderColumnTypes),
             schemaTypes,
-            std::move(isDesc));
+            std::move(isDesc),
+            ComparerManager_);
         MakeCodegenFragmentBodies(codegenSource, orderFragmentsInfos);
     }
 
