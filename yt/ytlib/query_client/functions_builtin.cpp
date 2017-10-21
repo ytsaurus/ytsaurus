@@ -60,7 +60,7 @@ public:
         auto codegenIf = [&] (TCGExprContext& builder) {
             return CodegenIf<TCGExprContext, TCGValue>(
                 builder,
-                builder->CreateIsNotNull(condition.GetData(builder)),
+                builder->CreateIsNotNull(condition.GetData()),
                 [&] (TCGExprContext& builder) {
                     return CodegenFragment(builder, argIds[1]).Cast(builder, type);
                 },
@@ -73,7 +73,7 @@ public:
         if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
             return CodegenIf<TCGExprContext, TCGValue>(
                 builder,
-                condition.IsNull(builder),
+                condition.GetIsNull(builder),
                 [&] (TCGExprContext& builder) {
                     return TCGValue::CreateNull(builder, type);
                 },
@@ -185,7 +185,7 @@ public:
                     builder->getFalse(),
                     nullptr,
                     builder->CreateZExtOrBitCast(
-                        argValue.IsNull(builder),
+                        argValue.GetIsNull(builder),
                         TDataTypeBuilder::TBoolean::get(builder->getContext())),
                     type);
             } else {
@@ -232,25 +232,25 @@ public:
                 auto argValue = CodegenFragment(builder, argIds[0]);
                 auto constant = CodegenFragment(builder, argIds[1]);
 
-                Value* argIsNull = argValue.IsNull(builder);
+                Value* argIsNull = argValue.GetIsNull(builder);
 
                 Value* length = nullptr;
 
                 if (IsStringLikeType(argValue.GetStaticType())) {
                     length = builder->CreateSelect(
                         argIsNull,
-                        constant.GetLength(builder),
-                        argValue.GetLength(builder));
+                        constant.GetLength(),
+                        argValue.GetLength());
                 }
 
                 return TCGValue::CreateFromValue(
                     builder,
-                    builder->CreateAnd(argIsNull, constant.IsNull(builder)),
+                    builder->CreateAnd(argIsNull, constant.GetIsNull(builder)),
                     length,
                     builder->CreateSelect(
                         argIsNull,
-                        constant.GetData(builder),
-                        argValue.GetData(builder)),
+                        constant.GetData(),
+                        argValue.GetData()),
                     type);
             } else {
                 return CodegenFragment(builder, argIds[0]);
@@ -333,17 +333,17 @@ public:
         {
             return CodegenIf<TCGBaseContext, TCGValue>(
                 builder,
-                builder->CreateNot(newValue.IsNull(builder)),
+                builder->CreateNot(newValue.GetIsNull(builder)),
                 [&] (TCGBaseContext& builder) {
                     Value* valueLength = nullptr;
                     if (argumentType == EValueType::String) {
-                        valueLength = newValue.GetLength(builder);
+                        valueLength = newValue.GetLength();
                     }
-                    Value* newData = newValue.GetData(builder);
+                    Value* newData = newValue.GetData();
 
                     return CodegenIf<TCGBaseContext, TCGValue>(
                         builder,
-                        aggregateValue.IsNull(builder),
+                        aggregateValue.GetIsNull(builder),
                         [&] (TCGBaseContext& builder) {
                             if (argumentType == EValueType::String) {
                                 Value* permanentData = builder->CreateCall(
@@ -368,7 +368,7 @@ public:
                             }
                         },
                         [&] (TCGBaseContext& builder) {
-                            Value* aggregateData = aggregateValue.GetData(builder);
+                            Value* aggregateData = aggregateValue.GetData();
                             Value* resultData = nullptr;
                             Value* resultLength = nullptr;
 
@@ -406,7 +406,7 @@ public:
                                             newData,
                                             valueLength,
                                             aggregateData,
-                                            aggregateValue.GetLength(builder));
+                                            aggregateValue.GetLength());
 
                                         newData = CodegenIf<TCGBaseContext, Value*>(
                                             builder,
@@ -438,7 +438,7 @@ public:
                                     resultLength = builder->CreateSelect(
                                         compareResult,
                                         valueLength,
-                                        aggregateValue.GetLength(builder));
+                                        aggregateValue.GetLength());
                                 }
 
                                 resultData = builder->CreateSelect(
@@ -461,7 +461,7 @@ public:
                                         compareResult = CodegenLexicographicalCompare(
                                             builder,
                                             aggregateData,
-                                            aggregateValue.GetLength(builder),
+                                            aggregateValue.GetLength(),
                                             newData,
                                             valueLength);
 
@@ -495,7 +495,7 @@ public:
                                     resultLength = builder->CreateSelect(
                                         compareResult,
                                         valueLength,
-                                        aggregateValue.GetLength(builder));
+                                        aggregateValue.GetLength());
                                 }
 
                                 resultData = builder->CreateSelect(

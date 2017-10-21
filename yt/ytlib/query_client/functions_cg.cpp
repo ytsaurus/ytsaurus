@@ -134,9 +134,9 @@ void PushArgument(
     std::vector<Value*>& argumentValues,
     TCGValue argumentValue)
 {
-    argumentValues.push_back(argumentValue.GetData(builder));
+    argumentValues.push_back(argumentValue.GetData());
     if (IsStringLikeType(argumentValue.GetStaticType())) {
-        argumentValues.push_back(argumentValue.GetLength(builder));
+        argumentValues.push_back(argumentValue.GetLength());
     }
 }
 
@@ -158,7 +158,7 @@ TCGValue PropagateNullArguments(
 
         return CodegenIf<TCGBaseContext, TCGValue>(
             builder,
-            currentArgValue.IsNull(builder),
+            currentArgValue.GetIsNull(builder),
             [&] (TCGBaseContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },

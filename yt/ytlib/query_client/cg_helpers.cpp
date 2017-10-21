@@ -180,12 +180,12 @@ TCGValue MakePhi(
     EValueType type = thenValue.GetStaticType();
 
     builder->SetInsertPoint(thenBB);
-    Value* thenNull = thenValue.IsNull(builder);
-    Value* thenData = thenValue.GetData(builder);
+    Value* thenNull = thenValue.IsNull();
+    Value* thenData = thenValue.GetData();
 
     builder->SetInsertPoint(elseBB);
-    Value* elseNull = elseValue.IsNull(builder);
-    Value* elseData = elseValue.GetData(builder);
+    Value* elseNull = elseValue.IsNull();
+    Value* elseData = elseValue.GetData();
 
     builder->SetInsertPoint(endBB);
 
@@ -198,7 +198,17 @@ TCGValue MakePhi(
             }
         }
 
-        Type* targetType = builder->getInt1Ty();
+        if (thenNull->getType() != elseNull->getType()) {
+            builder->SetInsertPoint(thenBB);
+            thenNull = thenValue.GetIsNull(builder);
+
+            builder->SetInsertPoint(elseBB);
+            elseNull = elseValue.GetIsNull(builder);
+
+            builder->SetInsertPoint(endBB);
+        }
+
+        Type* targetType = thenNull->getType();
 
         PHINode* phiNull = builder->CreatePHI(targetType, 2, name + ".phiNull");
         phiNull->addIncoming(thenNull, thenBB);
@@ -216,9 +226,9 @@ TCGValue MakePhi(
     PHINode* phiLength = nullptr;
     if (IsStringLikeType(type)) {
         builder->SetInsertPoint(thenBB);
-        Value* thenLength = thenValue.GetLength(builder);
+        Value* thenLength = thenValue.GetLength();
         builder->SetInsertPoint(elseBB);
-        Value* elseLength = elseValue.GetLength(builder);
+        Value* elseLength = elseValue.GetLength();
 
         builder->SetInsertPoint(endBB);
 
