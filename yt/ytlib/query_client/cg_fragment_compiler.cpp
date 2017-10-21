@@ -1538,84 +1538,53 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
         MOVE(type),
         MOVE(name)
     ] (TCGExprContext& builder) {
-        auto compare = [&] (bool parameter) {
-            auto lhsValue = CodegenFragment(builder, lhsId);
-            auto rhsValue = CodegenFragment(builder, rhsId);
+        auto lhsValue = CodegenFragment(builder, lhsId);
+        auto rhsValue = CodegenFragment(builder, rhsId);
 
-            const auto& items = builder.ExpressionFragments.Items;
+        const auto& items = builder.ExpressionFragments.Items;
 
-            Value* lhsIsNull = items[lhsId].Nullable ? lhsValue.GetIsNull(builder) : nullptr;
-            Value* rhsIsNull = items[rhsId].Nullable ? rhsValue.GetIsNull(builder) : nullptr;
+        Value* lhsIsNull = lhsValue.GetIsNull(builder);
+        Value* rhsIsNull = rhsValue.GetIsNull(builder);
 
-            auto next = [&] (TCGExprContext& builder) {
-                Value* lhsData = lhsValue.GetData();
-                return CodegenIf<TCGIRBuilderPtr, TCGValue>(
-                    builder,
-                    builder->CreateICmpEQ(lhsData, builder->getInt8(parameter)),
-                    [&] (TCGIRBuilderPtr& builder) {
-                        return lhsValue;
-                    },
-                    [&] (TCGIRBuilderPtr& builder) {
-                        if (items[rhsId].Nullable) {
-                            return CodegenIf<TCGIRBuilderPtr, TCGValue>(
-                                builder,
-                                rhsIsNull,
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return TCGValue::CreateNull(builder, type);
-                                },
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return rhsValue;
-                                });
-                        } else {
-                            return rhsValue;
-                        }
-                    });
-            };
-
-            if (items[lhsId].Nullable) {
-                return CodegenIf<TCGExprContext, TCGValue>(
-                    builder,
-                    lhsIsNull,
-                    [&] (TCGExprContext& builder) {
-                        auto right = [&] (TCGIRBuilderPtr& builder) {
-                            Value* rhsData = rhsValue.GetData();
-                            return CodegenIf<TCGIRBuilderPtr, TCGValue>(
-                                builder,
-                                builder->CreateICmpEQ(rhsData, builder->getInt8(parameter)),
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return rhsValue;
-                                },
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return TCGValue::CreateNull(builder, type);
-                                });
-                        };
-
-                        if (items[rhsId].Nullable) {
-                            return CodegenIf<TCGIRBuilderPtr, TCGValue>(
-                                builder,
-                                rhsIsNull,
-                                [&] (TCGIRBuilderPtr& builder) {
-                                    return TCGValue::CreateNull(builder, type);
-                                },
-                                right);
-                        } else {
-                            return right(builder);
-                        }
-                    },
-                    next);
-            } else {
-                return next(builder);
-            }
-        };
-
-        switch (opcode) {
-            case EBinaryOp::And:
-                return compare(false);
-            case EBinaryOp::Or:
-                return compare(true);
-            default:
-                Y_UNREACHABLE();
+        if (!items[lhsId].Nullable) {
+            YCHECK(llvm::dyn_cast<llvm::Constant>(lhsIsNull));
         }
+
+        if (!items[rhsId].Nullable) {
+            YCHECK(llvm::dyn_cast<llvm::Constant>(rhsIsNull));
+        }
+
+        Value* lhsData = builder->CreateTrunc(lhsValue.GetData(), builder->getInt1Ty());
+        Value* rhsData = builder->CreateTrunc(rhsValue.GetData(), builder->getInt1Ty());
+
+        Value* lhsMagic = lhsData;
+        Value* rhsMagic = rhsData;
+
+        if (opcode == EBinaryOp::Or) {
+            lhsMagic = builder->CreateNot(lhsMagic);
+            rhsMagic = builder->CreateNot(rhsMagic);
+        }
+
+        Value* isNull = builder->CreateOr(lhsIsNull, rhsIsNull);
+        isNull = builder->CreateAnd(isNull, builder->CreateOr(lhsIsNull, lhsMagic));
+        isNull = builder->CreateAnd(isNull, builder->CreateOr(rhsIsNull, rhsMagic));
+
+        Value* result = nullptr;
+
+        if (opcode == EBinaryOp::Or) {
+            result = builder->CreateOr(lhsData, rhsData);
+        } else {
+            result = builder->CreateAnd(lhsData, rhsData);
+        }
+
+        return TCGValue::CreateFromValue(
+            builder,
+            isNull,
+            nullptr,
+            builder->CreateZExt(
+                result,
+                TDataTypeBuilder::TBoolean::get(builder->getContext())),
+            type);
     };
 }
 
