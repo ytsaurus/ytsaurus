@@ -146,6 +146,9 @@ public:
         module->setTargetTriple(hostTriple);
         Module_ = module.get();
 
+        llvm::TargetOptions targetOptions;
+        targetOptions.EnableFastISel = true;
+
         // Create engine.
         std::string what;
         Engine_.reset(llvm::EngineBuilder(std::move(module))
@@ -154,6 +157,7 @@ public:
             .setMCJITMemoryManager(std::make_unique<TCGMemoryManager>(RoutineRegistry_))
             .setMCPU(hostCpu)
             .setErrorStr(&what)
+            .setTargetOptions(targetOptions)
             .create());
 
         if (!Engine_) {
@@ -293,7 +297,7 @@ private:
         LOG_DEBUG("Optimizing IR");
 
         llvm::PassManagerBuilder passManagerBuilder;
-        passManagerBuilder.OptLevel = 2;
+        passManagerBuilder.OptLevel = 0;
         passManagerBuilder.SizeLevel = 0;
         passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
 
