@@ -59,7 +59,7 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TRow row)
+void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* values)
 {
     CHECK_STACK();
 
@@ -80,7 +80,8 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TRow row)
     const auto& rowBuffer = closure->OutputBuffer;
 
     Y_ASSERT(batch.size() < batch.capacity());
-    batch.push_back(rowBuffer->Capture(row));
+
+    batch.push_back(rowBuffer->Capture(values, closure->RowSize));
 
     // NB: Aggregate flag is neighter set from TCG value nor cleared during row allocation.
     for (auto* value = batch.back().Begin(); value < batch.back().End(); ++value) {
@@ -108,14 +109,17 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TRow row)
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
+    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
     auto& reader = context->Reader;
+
 
     std::vector<TRow> rows;
     rows.reserve(context->IsOrdered && context->Limit < RowsetProcessingSize
         ? context->Limit
         : RowsetProcessingSize);
+    std::vector<const TValue*> values;
+    values.reserve(rows.capacity());
 
     auto* statistics = context->Statistics;
 
@@ -148,8 +152,13 @@ void ScanOpHelper(
             statistics->BytesRead += GetDataWeight(row);
         }
 
-        consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data(), rows.size());
+        for (auto row : rows) {
+            values.push_back(row.Begin());
+        }
+
+        consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());
         rows.clear();
+        values.clear();
         rowBuffer->Clear();
 
         if (!hasMoreData) {
@@ -167,12 +176,12 @@ void ScanOpHelper(
 void InsertJoinRow(
     TExecutionContext* context,
     TJoinClosure* closure,
-    TMutableRow* keyPtr,
-    TRow row)
+    TValue** keyPtr,
+    TValue* row)
 {
     CHECK_STACK();
 
-    TMutableRow key = *keyPtr;
+    TValue* key = *keyPtr;
 
     i64 chainIndex = closure->ChainedRows.size();
 
@@ -180,11 +189,15 @@ void InsertJoinRow(
         throw TInterruptedIncompleteException();
     }
 
-    closure->ChainedRows.emplace_back(TChainedRow{closure->Buffer->Capture(row), key, -1});
+    closure->ChainedRows.emplace_back(TChainedRow{
+        closure->Buffer->Capture(row, closure->PrimaryRowSize).Begin(),
+        key,
+        -1});
 
     if (!closure->LastKey || !closure->PrefixEqComparer(key, closure->LastKey)) {
         if (closure->LastKey) {
-            Y_ASSERT(CompareRows(closure->LastKey, key, closure->CommonKeyPrefixDebug) <= 0);
+            size_t rowSize = closure->CommonKeyPrefixDebug;
+            Y_ASSERT(CompareRows(closure->LastKey, closure->LastKey + rowSize, key, key + rowSize) <= 0);
         }
 
         closure->ProcessSegment();
@@ -198,7 +211,8 @@ void InsertJoinRow(
         for (int index = 0; index < closure->KeySize; ++index) {
             closure->Buffer->Capture(&key[index]);
         }
-        *keyPtr = closure->Buffer->AllocateUnversioned(closure->KeySize);
+
+        *keyPtr = closure->Buffer->AllocateUnversioned(closure->KeySize).Begin();
     } else {
         auto& startIndex = inserted.first->second.first;
         closure->ChainedRows.back().Key = inserted.first->first;
@@ -208,9 +222,10 @@ void InsertJoinRow(
 
     if (closure->ChainedRows.size() >= closure->BatchSize) {
         closure->ProcessJoinBatch();
-        *keyPtr = closure->Buffer->AllocateUnversioned(closure->KeySize);
+        *keyPtr = closure->Buffer->AllocateUnversioned(closure->KeySize).Begin();
     }
 }
+
 
 char* AllocateAlignedBytes(TRowBuffer* buffer, size_t byteCount)
 {
@@ -224,13 +239,14 @@ typedef std::pair<size_t, size_t> TSlot;
 TValue* AllocateJoinKeys(
     TExecutionContext* context,
     TMultiJoinClosure* closure,
-    TMutableRow* keyPtrs)
+    TValue** keyPtrs)
 {
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
+        auto& item = closure->Items[joinId];
         char* data = AllocateAlignedBytes(
-            closure->Items[joinId].Buffer.Get(),
-            GetUnversionedRowByteSize(closure->Items[joinId].KeySize) + sizeof(TSlot));
-        keyPtrs[joinId] = TMutableRow::Create(data, closure->Items[joinId].KeySize);
+            item.Buffer.Get(),
+            GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
+        keyPtrs[joinId] = TMutableRow::Create(data, item.KeySize).Begin();
     }
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * closure->Items.size();
@@ -242,7 +258,7 @@ void StorePrimaryRow(
     TExecutionContext* context,
     TMultiJoinClosure* closure,
     TValue** primaryValues,
-    TMutableRow* keysPtr)
+    TValue** keysPtr)
 {
     if (closure->PrimaryRows.size() >= context->JoinRowLimit) {
         throw TInterruptedIncompleteException();
@@ -257,7 +273,7 @@ void StorePrimaryRow(
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
         auto keyPtr = keysPtr + joinId;
         auto& item = closure->Items[joinId];
-        TMutableRow key = *keyPtr;
+        TValue* key = *keyPtr;
 
         if (!item.LastKey || !item.PrefixEqComparer(key, item.LastKey)) {
             closure->ProcessSegment(joinId);
@@ -266,7 +282,7 @@ void StorePrimaryRow(
             // Key will be realloacted further.
         }
 
-        *reinterpret_cast<TSlot*>(key.Begin() + item.KeySize) = TSlot(0, 0);
+        *reinterpret_cast<TSlot*>(key + item.KeySize) = TSlot(0, 0);
 
         auto inserted = item.Lookup.insert(key);
         if (inserted.second) {
@@ -277,11 +293,11 @@ void StorePrimaryRow(
             char* data = AllocateAlignedBytes(
                 item.Buffer.Get(),
                 GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
-            *keyPtr = TMutableRow::Create(data, item.KeySize);
+            *keyPtr = TMutableRow::Create(data, item.KeySize).Begin();
         }
 
         reinterpret_cast<TSlot**>(*primaryValues + closure->PrimaryRowSize)[joinId] = reinterpret_cast<TSlot*>(
-            const_cast<TValue*>(inserted.first->Begin()) + item.KeySize);
+            *inserted.first + item.KeySize);
     }
 
     if (closure->PrimaryRows.size() >= closure->BatchSize) {
@@ -289,10 +305,11 @@ void StorePrimaryRow(
 
         // Allocate all keys
         for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
+            auto& item = closure->Items[joinId];
             char* data = AllocateAlignedBytes(
-                closure->Items[joinId].Buffer.Get(),
-                GetUnversionedRowByteSize(closure->Items[joinId].KeySize) + sizeof(TSlot));
-            keysPtr[joinId] = TMutableRow::Create(data, closure->Items[joinId].KeySize);
+                item.Buffer.Get(),
+                GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
+            keysPtr[joinId] = TMutableRow::Create(data, item.KeySize).Begin();
         }
     }
 
@@ -306,7 +323,7 @@ class TJoinBatchState
 public:
     TJoinBatchState(
         void** consumeRowsClosure,
-        void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size),
+        void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size),
         const std::vector<size_t>& selfColumns,
         const std::vector<size_t>& foreignColumns)
         : ConsumeRowsClosure(consumeRowsClosure)
@@ -326,7 +343,7 @@ public:
         IntermediateBuffer->Clear();
     }
 
-    void JoinRow(TRow row, TRow foreignRow)
+    void JoinRow(const TValue* row, const TValue* foreignRow)
     {
         auto joinedRow = IntermediateBuffer->AllocateUnversioned(SelfColumns.size() + ForeignColumns.size());
 
@@ -338,14 +355,14 @@ public:
             joinedRow[column + SelfColumns.size()] = foreignRow[ForeignColumns[column]];
         }
 
-        JoinedRows.push_back(joinedRow);
+        JoinedRows.push_back(joinedRow.Begin());
 
         if (JoinedRows.size() >= RowsetProcessingSize) {
             ConsumeJoinedRows();
         }
     }
 
-    void JoinRowNull(TRow row)
+    void JoinRowNull(const TValue* row)
     {
         auto joinedRow = IntermediateBuffer->AllocateUnversioned(SelfColumns.size() + ForeignColumns.size());
 
@@ -357,14 +374,14 @@ public:
             joinedRow[column + SelfColumns.size()] = MakeUnversionedSentinelValue(EValueType::Null);
         }
 
-        JoinedRows.push_back(joinedRow);
+        JoinedRows.push_back(joinedRow.Begin());
 
         if (JoinedRows.size() >= RowsetProcessingSize) {
             ConsumeJoinedRows();
         }
     }
 
-    void JoinRows(const std::vector<TChainedRow>& chainedRows, int startIndex, TRow foreignRow)
+    void JoinRows(const std::vector<TChainedRow>& chainedRows, int startIndex, const TValue* foreignRow)
     {
         for (
             int chainedRowIndex = startIndex;
@@ -388,7 +405,7 @@ public:
 
     void SortMergeJoin(
         TExecutionContext* context,
-        const std::vector<std::pair<TRow, int>>& keysToRows,
+        const std::vector<std::pair<const TValue*, int>>& keysToRows,
         const std::vector<TChainedRow>& chainedRows,
         TTernaryComparerFunction* fullTernaryComparer,
         TComparerFunction* foreignPrefixEqComparer,
@@ -413,9 +430,9 @@ public:
         auto processSortedForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
             while (foreignIt != endForeignIt && currentKey != keysToRows.end()) {
                 int startIndex = currentKey->second;
-                int cmpResult = fullTernaryComparer(currentKey->first, *foreignIt);
+                int cmpResult = fullTernaryComparer(currentKey->first, foreignIt->Begin());
                 if (cmpResult == 0) {
-                    JoinRows(chainedRows, startIndex, *foreignIt);
+                    JoinRows(chainedRows, startIndex, foreignIt->Begin());
                     ++foreignIt;
                     lastJoined = currentKey;
                 } else if (cmpResult < 0) {
@@ -433,11 +450,13 @@ public:
 
         auto processForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
             while (foreignIt != endForeignIt) {
-                if (!lastForeignKey || !foreignPrefixEqComparer(*foreignIt, lastForeignKey)) {
+                if (!lastForeignKey || !foreignPrefixEqComparer(foreignIt->Begin(), lastForeignKey.Begin())) {
                     std::sort(
                         sortedForeignSequence.begin() + unsortedOffset,
                         sortedForeignSequence.end(),
-                        foreignSuffixLessComparer);
+                        [&] (TRow lhs, TRow rhs) {
+                            return foreignSuffixLessComparer(lhs.Begin(), rhs.Begin());
+                        });
                     unsortedOffset = sortedForeignSequence.size();
 
                     if (unsortedOffset >= RowsetProcessingSize) {
@@ -484,7 +503,9 @@ public:
             std::sort(
                 sortedForeignSequence.begin() + unsortedOffset,
                 sortedForeignSequence.end(),
-                foreignSuffixLessComparer);
+                [&] (TRow lhs, TRow rhs) {
+                    return foreignSuffixLessComparer(lhs.Begin(), rhs.Begin());
+                });
             processSortedForeignSequence(
                 sortedForeignSequence.begin(),
                 sortedForeignSequence.end());
@@ -521,7 +542,7 @@ public:
             bool shouldWait = foreignRows.empty();
 
             for (auto foreignRow : foreignRows) {
-                auto it = joinLookup->find(foreignRow);
+                auto it = joinLookup->find(foreignRow.Begin());
 
                 if (it == joinLookup->end()) {
                     continue;
@@ -529,7 +550,7 @@ public:
 
                 int startIndex = it->second.first;
                 bool& isJoined = it->second.second;
-                JoinRows(chainedRows, startIndex, foreignRow);
+                JoinRows(chainedRows, startIndex, foreignRow.Begin());
                 isJoined = true;
             }
 
@@ -566,13 +587,13 @@ public:
 
 private:
     void** ConsumeRowsClosure;
-    void (*ConsumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size);
+    void (*ConsumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size);
 
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
 
     TRowBufferPtr IntermediateBuffer;
-    std::vector<TRow> JoinedRows;
+    std::vector<const TValue*> JoinedRows;
 
 };
 
@@ -595,9 +616,15 @@ void JoinOpHelper(
         TJoinClosure* joinClosure,
         TRowBuffer* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
+    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
-    TJoinClosure closure(lookupHasher, lookupEqComparer, prefixEqComparer, keySize, parameters->BatchSize);
+    TJoinClosure closure(
+        lookupHasher,
+        lookupEqComparer,
+        prefixEqComparer,
+        keySize,
+        parameters->PrimaryRowSize,
+        parameters->BatchSize);
     closure.CommonKeyPrefixDebug = parameters->CommonKeyPrefixDebug;
 
     closure.ProcessSegment = [&] () {
@@ -607,8 +634,8 @@ void JoinOpHelper(
         }
 
         std::sort(closure.KeysToRows.begin() + offset, closure.KeysToRows.end(), [&] (
-            const std::pair<TRow, int>& lhs,
-            const std::pair<TRow, int>& rhs)
+            const std::pair<const TValue*, int>& lhs,
+            const std::pair<const TValue*, int>& rhs)
             {
                 return sortLessComparer(lhs.first, rhs.first);
             });
@@ -628,7 +655,7 @@ void JoinOpHelper(
         keys.reserve(keysToRows.size());
 
         for (const auto& item : keysToRows) {
-            keys.push_back(item.first);
+            keys.push_back(TRow(reinterpret_cast<const TUnversionedRowHeader*>(item.first) - 1));
         }
 
         TJoinBatchState batchState(
@@ -693,7 +720,7 @@ void JoinOpHelper(
                     bool shouldWait = foreignRows.empty();
 
                     for (auto row : rows) {
-                        foreignLookup.insert(foreignRowsBuffer->Capture(row));
+                        foreignLookup.insert(foreignRowsBuffer->Capture(row).Begin());
                     }
                     rows.clear();
 
@@ -732,7 +759,7 @@ void JoinOpHelper(
 
         closure.Lookup.clear();
         closure.Buffer->Clear();
-        closure.LastKey = TRow();
+        closure.LastKey = nullptr;
     };
 
     try {
@@ -756,7 +783,7 @@ void MultiJoinOpHelper(
         TMultiJoinClosure* joinClosure,
         TRowBuffer* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
+    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
     TMultiJoinClosure closure;
     closure.Buffer = New<TRowBuffer>(TPermanentBufferTag());
@@ -787,15 +814,21 @@ void MultiJoinOpHelper(
         std::vector<ISchemafulReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
+
+            std::vector<TRow> orderedKeys;
+            for (TValue* key : closure.Items[joinId].OrderedKeys) {
+                orderedKeys.push_back(TRow(reinterpret_cast<const TUnversionedRowHeader*>(key) - 1));
+            }
+
             auto reader = parameters->Items[joinId].ExecuteForeign(
-                closure.Items[joinId].OrderedKeys,
+                orderedKeys,
                 closure.Items[joinId].Buffer);
             readers.push_back(reader);
             closure.Items[joinId].Lookup.clear();
-            closure.Items[joinId].LastKey = TRow();
+            closure.Items[joinId].LastKey = nullptr;
         }
 
-        std::vector<std::vector<TRow>> sortedForeignSequences;
+        std::vector<std::vector<TValue*>> sortedForeignSequences;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
 
@@ -816,12 +849,13 @@ void MultiJoinOpHelper(
             auto foreignPrefixEqComparer = comparers[joinId].ForeignPrefixEqComparer;
             auto fullTernaryComparer = comparers[joinId].FullTernaryComparer;
 
-            std::vector<TRow> sortedForeignSequence;
+            std::vector<TValue*> sortedForeignSequence;
             size_t unsortedOffset = 0;
-            TRow lastForeignKey;
+            TValue* lastForeignKey = nullptr;
 
             std::vector<TRow> foreignRows;
             foreignRows.reserve(RowsetProcessingSize);
+            std::vector<TValue*> foreignValues;
 
             // Sort-merge join
             auto currentKey = orderedKeys.begin();
@@ -831,7 +865,7 @@ void MultiJoinOpHelper(
                 while (index != sortedForeignSequence.size() && currentKey != orderedKeys.end()) {
                     int cmpResult = fullTernaryComparer(*currentKey, sortedForeignSequence[index]);
                     if (cmpResult == 0) {
-                        TSlot* slot = reinterpret_cast<TSlot*>(const_cast<TValue*>(currentKey->Begin()) + keySize);
+                        TSlot* slot = reinterpret_cast<TSlot*>(*currentKey + keySize);
                         if (slot->second == 0) {
                             slot->first = index;
                         }
@@ -866,19 +900,20 @@ void MultiJoinOpHelper(
                 bool shouldWait = foreignRows.empty();
 
                 for (size_t rowIndex = 0; rowIndex < foreignRows.size(); ++rowIndex) {
-                    foreignRows[rowIndex] = closure.Buffer->Capture(foreignRows[rowIndex]);
+                    foreignValues.push_back(closure.Buffer->Capture(foreignRows[rowIndex]).Begin());
                 }
 
                 if (isPartiallySorted) {
-                    processForeignSequence(foreignRows.begin(), foreignRows.end());
+                    processForeignSequence(foreignValues.begin(), foreignValues.end());
                 } else {
                     sortedForeignSequence.insert(
                         sortedForeignSequence.end(),
-                        foreignRows.begin(),
-                        foreignRows.end());
+                        foreignValues.begin(),
+                        foreignValues.end());
                 }
 
                 foreignRows.clear();
+                foreignValues.clear();
 
                 if (!hasMoreData) {
                     break;
@@ -904,7 +939,7 @@ void MultiJoinOpHelper(
         }
 
         auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
-        std::vector<TRow> joinedRows;
+        std::vector<const TValue*> joinedRows;
         auto consumeJoinedRows = [&] () {
             // Consume joined rows.
             consumeRows(consumeRowsClosure, intermediateBuffer.Get(), joinedRows.data(), joinedRows.size());
@@ -937,7 +972,7 @@ void MultiJoinOpHelper(
 
                     if (slot.second != 0) {
                         YCHECK(indexes[joinId] < slot.second);
-                        TRow foreignRow = sortedForeignSequences[joinId][slot.first + indexes[joinId]];
+                        TValue* foreignRow = sortedForeignSequences[joinId][slot.first + indexes[joinId]];
 
                         if (incrementIndex == joinId) {
                             ++indexes[joinId];
@@ -948,7 +983,7 @@ void MultiJoinOpHelper(
                                 incrementIndex = 0;
                             }
                         }
-                        YCHECK(foreignRow.GetCount() > 0);
+
                         for (size_t columnIndex : foreignIndexes) {
                             joinedRow[offset++] = foreignRow[columnIndex];
                         }
@@ -965,7 +1000,7 @@ void MultiJoinOpHelper(
                     }
                 }
 
-                joinedRows.push_back(joinedRow);
+                joinedRows.push_back(joinedRow.Begin());
 
                 if (joinedRows.size() >= RowsetProcessingSize) {
                     consumeJoinedRows();
@@ -999,10 +1034,10 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
-TRow InsertGroupRow(
+const TValue* InsertGroupRow(
     TExecutionContext* context,
     TGroupByClosure* closure,
-    TMutableRow row)
+    TValue* row)
 {
     CHECK_STACK();
 
@@ -1042,7 +1077,7 @@ void GroupOpHelper(
         TGroupByClosure* groupByClosure,
         TRowBuffer* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
+    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
 {
     TGroupByClosure closure(groupHasher, groupComparer, keySize, checkNulls);
 
@@ -1065,14 +1100,14 @@ void GroupOpHelper(
     }
 }
 
-void AllocatePermanentRow(TExecutionContext* context, TRowBuffer* buffer, int valueCount, TMutableRow* row)
+void AllocatePermanentRow(TExecutionContext* context, TRowBuffer* buffer, int valueCount, TValue** row)
 {
     CHECK_STACK();
 
-    *row = buffer->AllocateUnversioned(valueCount);
+    *row = buffer->AllocateUnversioned(valueCount).Begin();
 }
 
-void AddRow(TTopCollector* topCollector, TRow row)
+void AddRow(TTopCollector* topCollector, TValue* row)
 {
     topCollector->AddRow(row);
 }
@@ -1083,14 +1118,14 @@ void OrderOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer* ,TRow* rows, i64 size),
-    int rowSize)
+    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size),
+    size_t rowSize)
 {
     auto limit = context->Limit;
 
-    TTopCollector topCollector(limit, comparer);
+    TTopCollector topCollector(limit, comparer, rowSize);
     collectRows(collectRowsClosure, &topCollector);
-    auto rows = topCollector.GetRows(rowSize);
+    auto rows = topCollector.GetRows();
 
     auto rowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
 
@@ -1103,10 +1138,12 @@ void OrderOpHelper(
 
 void WriteOpHelper(
     TExecutionContext* context,
+    size_t rowSize,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TWriteOpClosure* writeOpClosure))
 {
     TWriteOpClosure closure;
+    closure.RowSize = rowSize;
 
     try {
         collectRows(collectRowsClosure, &closure);
@@ -1149,17 +1186,23 @@ char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char IsRowInArray(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* rows)
+char IsRowInArray(TComparerFunction* comparer, TValue* values, TSharedRange<TRow>* rows)
 {
-    return std::binary_search(rows->Begin(), rows->End(), row, comparer);
+    auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
+        return comparer(const_cast<TValue*>(row.Begin()), values);
+    });
+
+    return found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()));
 }
 
-const TValue* TransformTuple(TComparerFunction* comparer, TRow row, TSharedRange<TRow>* rows)
+const TValue* TransformTuple(TComparerFunction* comparer, TValue* values, TSharedRange<TRow>* rows)
 {
-    auto found = std::lower_bound(rows->Begin(), rows->End(), row, comparer);
+    auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
+        return comparer(const_cast<TValue*>(row.Begin()), values);
+    });
 
-    if (found != rows->End() && !comparer(row, *found)) {
-        return &(*found)[row.GetCount()];
+    if (found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()))) {
+        return const_cast<TValue*>(found->Begin());
     }
 
     return nullptr;

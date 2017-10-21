@@ -46,9 +46,9 @@ struct TPermanentBufferTag
 
 static const size_t InitialGroupOpHashtableCapacity = 1024;
 
-using THasherFunction = ui64(TRow);
-using TComparerFunction = char(TRow, TRow);
-using TTernaryComparerFunction = int(TRow, TRow);
+using THasherFunction = ui64(const TValue*);
+using TComparerFunction = char(const TValue*, const TValue*);
+using TTernaryComparerFunction = int(const TValue*, const TValue*);
 
 namespace NDetail {
 class TGroupHasher
@@ -58,7 +58,7 @@ public:
         : Ptr_(ptr)
     { }
 
-    ui64 operator () (TRow row) const
+    ui64 operator () (const TValue* row) const
     {
         return Ptr_(row);
     }
@@ -74,9 +74,9 @@ public:
         : Ptr_(ptr)
     { }
 
-    bool operator () (TRow a, TRow b) const
+    bool operator () (const TValue* a, const TValue* b) const
     {
-        return a.GetHeader() == b.GetHeader() || a.GetHeader() && b.GetHeader() && Ptr_(a, b);
+        return a == b || a && b && Ptr_(a, b);
     }
 
 private:
@@ -85,18 +85,18 @@ private:
 } // namespace NDetail
 
 using TLookupRows = google::sparsehash::dense_hash_set<
-    TRow,
+    const TValue*,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
 using TJoinLookup = google::sparsehash::dense_hash_map<
-    TRow,
+    const TValue*,
     std::pair<int, bool>,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
 using TJoinLookupRows = std::unordered_multiset<
-    TRow,
+    const TValue*,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
@@ -113,6 +113,7 @@ struct TJoinParameters
     TJoinSubqueryEvaluator ExecuteForeign;
     size_t BatchSize;
     size_t CommonKeyPrefixDebug;
+    size_t PrimaryRowSize;
 };
 
 struct TSingleJoinParameters
@@ -133,8 +134,8 @@ struct TMultiJoinParameters
 
 struct TChainedRow
 {
-    TRow Row;
-    TRow Key;
+    const TValue* Row;
+    const TValue* Key;
     int NextRowIndex;
 };
 
@@ -147,9 +148,10 @@ struct TJoinClosure
     TComparerFunction* PrefixEqComparer;
     int KeySize;
 
-    TRow LastKey;
-    std::vector<std::pair<TRow, int>> KeysToRows;
+    const TValue* LastKey = nullptr;
+    std::vector<std::pair<const TValue*, int>> KeysToRows;
     size_t CommonKeyPrefixDebug;
+    size_t PrimaryRowSize;
 
     size_t BatchSize;
     std::function<void()> ProcessJoinBatch;
@@ -160,6 +162,7 @@ struct TJoinClosure
         TComparerFunction* lookupEqComparer,
         TComparerFunction* prefixEqComparer,
         int keySize,
+        int primaryRowSize,
         size_t batchSize);
 };
 
@@ -168,7 +171,7 @@ struct TMultiJoinClosure
     TRowBufferPtr Buffer;
 
     typedef google::sparsehash::dense_hash_set<
-        TRow,
+        TValue*,
         NDetail::TGroupHasher,
         NDetail::TRowComparer> THashJoinLookup;  // + slot after row
 
@@ -181,8 +184,8 @@ struct TMultiJoinClosure
         TComparerFunction* PrefixEqComparer;
 
         THashJoinLookup Lookup;
-        std::vector<TRow> OrderedKeys;  // + slot after row
-        TRow LastKey;
+        std::vector<TValue*> OrderedKeys;  // + slot after row
+        TValue* LastKey = nullptr;
 
         TItem(
             size_t keySize,
@@ -203,7 +206,7 @@ struct TGroupByClosure
 {
     TRowBufferPtr Buffer;
     TLookupRows Lookup;
-    std::vector<TRow> GroupedRows;
+    std::vector<const TValue*> GroupedRows;
     int KeySize;
     bool CheckNulls;
 
@@ -220,6 +223,7 @@ struct TWriteOpClosure
 
     // Rows stored in OutputBuffer
     std::vector<TRow> OutputRowsBatch;
+    size_t RowSize;
 
     TWriteOpClosure();
 
@@ -264,12 +268,12 @@ class TTopCollector
             : Ptr_(ptr)
         { }
 
-        bool operator() (const std::pair<TRow, int>& lhs, const std::pair<TRow, int>& rhs) const
+        bool operator() (const std::pair<const TValue*, int>& lhs, const std::pair<const TValue*, int>& rhs) const
         {
             return (*this)(lhs.first, rhs.first);
         }
 
-        bool operator () (TRow a, TRow b) const
+        bool operator () (const TValue* a, const TValue* b) const
         {
             return Ptr_(a, b);
         }
@@ -279,11 +283,11 @@ class TTopCollector
     };
 
 public:
-    TTopCollector(i64 limit, TComparerFunction* comparer);
+    TTopCollector(i64 limit, TComparerFunction* comparer, size_t rowSize);
 
-    std::vector<TMutableRow> GetRows(int rowSize) const;
+    std::vector<const TValue*> GetRows() const;
 
-    void AddRow(TRow row);
+    void AddRow(const TValue* row);
 
 private:
     // GarbageMemorySize <= AllocatedMemorySize <= TotalMemorySize
@@ -292,14 +296,15 @@ private:
     size_t GarbageMemorySize_ = 0;
 
     TComparer Comparer_;
+    size_t RowSize_;
 
     std::vector<TRowBufferPtr> Buffers_;
     std::vector<int> EmptyBufferIds_;
-    std::vector<std::pair<TMutableRow, int>> Rows_;
+    std::vector<std::pair<const TValue*, int>> Rows_;
 
-    std::pair<TMutableRow, int> Capture(TRow row);
+    std::pair<const TValue*, int> Capture(const TValue* row);
 
-    void AccountGarbage(TRow row);
+    void AccountGarbage(const TValue* row);
 
 };
 
@@ -354,8 +359,8 @@ private:
 
 };
 
-typedef void (TCGQuerySignature)(TValue*, void* const*, TExecutionContext*);
-typedef void (TCGExpressionSignature)(TValue*, void* const*, TValue*, TRow, TExpressionContext*);
+typedef void (TCGQuerySignature)(const TValue*, void* const*, TExecutionContext*);
+typedef void (TCGExpressionSignature)(const TValue*, void* const*, TValue*, const TValue*, TExpressionContext*);
 typedef void (TCGAggregateInitSignature)(TExpressionContext*, TValue*);
 typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const TValue*);
 typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*);

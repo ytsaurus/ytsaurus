@@ -91,11 +91,9 @@ TCGExprContext TCGExprContext::Make(
 TCGExprContext TCGExprContext::Make(
     const TCGOpaqueValuesContext& builder,
     const TCodegenFragmentInfos& fragmentInfos,
-    Value* row,
+    Value* rowValues,
     Value* buffer)
 {
-    Value* rowValues = CodegenValuesPtrFromRow(builder, row);
-
     llvm::StructType* type = TClosureTypeBuilder::get(builder->getContext(), fragmentInfos.Functions.size());
 
     Value* expressionClosure = llvm::ConstantStruct::get(
@@ -159,27 +157,6 @@ TCodegenConsumer& TCGOperatorContext::operator[] (size_t index) const
         (*Consumers_)[index] = std::make_shared<TCodegenConsumer>();
     }
     return *(*Consumers_)[index];
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Row manipulation helpers
-//
-
-Value* CodegenValuesPtrFromRow(const TCGIRBuilderPtr& builder, Value* row)
-{
-    auto name = row->getName();
-
-    auto headerPtr = builder->CreateExtractValue(
-        row,
-        TypeBuilder<TRow, false>::Fields::Header,
-        Twine(name).concat(".headerPtr"));
-
-    auto valuesPtr = builder->CreatePointerCast(
-        builder->CreateConstInBoundsGEP1_32(nullptr, headerPtr, 1, "valuesPtrUncasted"),
-        TypeBuilder<TValue*, false>::get(builder->getContext()),
-        Twine(name).concat(".valuesPtr"));
-
-    return valuesPtr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -864,33 +864,37 @@ void TQueryProfiler::Profile(
         schema = projectClause->GetTableSchema();
     }
 
+    size_t resultRowSize = schema.GetColumnCount();
+
     if (!isFinal) {
         finalSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
                 finalSlot,
-                GetTypesFromSchema(schema),
+                resultRowSize,
                 EStreamTag::Final);
 
         totalsSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
                 totalsSlot,
-                GetTypesFromSchema(schema),
+                resultRowSize,
                 EStreamTag::Totals);
 
         intermediateSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
-                GetTypesFromSchema(schema),
+                resultRowSize,
                 EStreamTag::Intermediate);
+
+        ++resultRowSize;
     }
 
     size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, finalSlot, totalsSlot);
     resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, resultSlot, intermediateSlot);
 
-    MakeCodegenWriteOp(codegenSource, resultSlot);
+    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);
 }
 
 struct TExtraColumnsChecker
@@ -1142,7 +1146,6 @@ void TQueryProfiler::Profile(
             TSchemaProfiler::Profile(schema);
         }
     } else {
-
         for (const auto& joinClause : query->JoinClauses) {
             Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
@@ -1259,6 +1262,7 @@ void TQueryProfiler::Profile(
                 joinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
                 joinParameters.BatchSize = joinBatchSize;
                 joinParameters.ExecuteForeign = joinProfiler(subquery, joinClause);
+                joinParameters.PrimaryRowSize = schema.GetColumnCount();
             }
 
             int index = Variables_->AddOpaque<TJoinParameters>(joinParameters);
