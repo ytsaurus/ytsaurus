@@ -1306,10 +1306,12 @@ Value* CodegenLexicographicalCompare(
 
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
+    bool nullbale,
     EValueType type)
 {
     return [
             index,
+            nullbale,
             type
         ] (TCGExprContext& builder) {
             auto valuePtr = builder->CreatePointerCast(
@@ -1319,6 +1321,7 @@ TCodegenExpression MakeCodegenLiteralExpr(
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 valuePtr,
+                nullbale,
                 type,
                 "literal." + Twine(index))
                 .Steal();
@@ -2172,9 +2175,9 @@ TCodegenExpression MakeCodegenTransformExpr(
             builder,
             builder->CreateIsNotNull(result),
             [&] (TCGExprContext& builder) {
-                return TCGValue::CreateFromValue(
+                return TCGValue::CreateFromLlvmValue(
                     builder,
-                    builder->CreateLoad(result),
+                    result,
                     resultType);
             },
             [&] (TCGExprContext& builder) {
@@ -2253,9 +2256,9 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
             auto* ifTotalsBB = builder->CreateBBHere("ifTotals");
             auto* endIfBB = builder->CreateBBHere("endIf");
 
-            auto streamIndexValue = TCGValue::CreateFromRow(
+            auto streamIndexValue = TCGValue::CreateFromRowValues(
                 builder,
-                row,
+                CodegenValuesPtrFromRow(builder, row),
                 streamIndex,
                 EValueType::Uint64,
                 "reference.streamIndex");
