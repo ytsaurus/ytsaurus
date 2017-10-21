@@ -64,6 +64,10 @@ Value* CodegenValuesPtrFromRow(const TCGIRBuilderPtr& builder, Value* row);
 typedef TypeBuilder<TValue, false> TTypeBuilder;
 typedef TypeBuilder<TValueData, false> TDataTypeBuilder;
 
+Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType);
+
+Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType);
+
 class TCGValue
 {
 private:
@@ -146,7 +150,9 @@ public:
         if (IsStringLikeType(staticType)) {
             YCHECK(length->getType() == TTypeBuilder::TLength::get(builder->getContext()));
         }
-        YCHECK(data->getType() == TDataTypeBuilder::get(builder->getContext(), staticType));
+        YCHECK(
+            data->getType() == GetLLVMType(builder->getContext(), staticType) ||
+            data->getType() == TDataTypeBuilder::get(builder->getContext()));
         return TCGValue(isNull, length, data, staticType, name);
     }
 
@@ -196,25 +202,7 @@ public:
             builder->CreateConstInBoundsGEP2_32(
                 nullptr, valuePtr, 0, TTypeBuilder::Data, name + ".data"));
 
-        Value* castedData = nullptr;
-        Type* targetType = TDataTypeBuilder::get(builder->getContext(), staticType);
-
-        if (targetType->isPointerTy()) {
-            castedData = builder->CreateIntToPtr(data,
-                targetType,
-                name + ".data");
-        } else if (targetType->isFloatingPointTy()) {
-            castedData = builder->CreateBitCast(data,
-                targetType,
-                name + ".data");
-        } else {
-            castedData = builder->CreateIntCast(data,
-                targetType,
-                false,
-                name + ".data");
-        }
-
-        return CreateFromValue(builder, isNull, length, castedData, staticType, name);
+        return CreateFromValue(builder, isNull, length, data, staticType, name);
     }
 
     static TCGValue CreateFromLlvmValue(
@@ -240,12 +228,12 @@ public:
             builder,
             builder->getTrue(),
             length,
-            llvm::UndefValue::get(TDataTypeBuilder::get(builder->getContext(), staticType)),
+            llvm::UndefValue::get(GetLLVMType(builder->getContext(), staticType)),
             staticType,
             name);
     }
 
-    void StoreToValues(TCGIRBuilderPtr& builder, Value* values, int index)
+    void StoreToValues(TCGIRBuilderPtr& builder, Value* values, int index) const
     {
         auto name = values->getName();
 
@@ -258,7 +246,7 @@ public:
         StoreToValue(builder, valuePtr);
     }
 
-    void StoreToValues(TCGIRBuilderPtr& builder, Value* values, int index, ui16 id)
+    void StoreToValues(TCGIRBuilderPtr& builder, Value* values, int index, ui16 id) const
     {
         auto name = values->getName();
 
@@ -271,7 +259,7 @@ public:
         StoreToValue(builder, valuePtr, id);
     }
 
-    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, ui16 id, Twine nameTwine = "")
+    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, ui16 id, Twine nameTwine = "") const
     {
         StoreToValue(builder, valuePtr, nameTwine);
         builder->CreateStore(
@@ -279,7 +267,7 @@ public:
             builder->CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Id, nameTwine + ".idPtr"));
     }
 
-    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine nameTwine = "")
+    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine nameTwine = "") const
     {
         const auto& type = TypeBuilder<NTableClient::TUnversionedValue, false>::TType::get(builder->getContext());
 
@@ -343,13 +331,33 @@ public:
         return Data_;
     }
 
-    TCGValue Cast(TCGIRBuilderPtr& builder, EValueType dest)
+    Value* GetTypedData(TCGIRBuilderPtr& builder, bool isAbi = false) const
+    {
+        Value* castedData = nullptr;
+        Type* targetType = (isAbi ? GetABIType : GetLLVMType)(builder->getContext(), StaticType_);
+
+        if (targetType->isPointerTy()) {
+            castedData = builder->CreateIntToPtr(Data_,
+                targetType);
+        } else if (targetType->isFloatingPointTy()) {
+            castedData = builder->CreateBitCast(Data_,
+                targetType);
+        } else {
+            castedData = builder->CreateIntCast(Data_,
+                targetType,
+                false);
+        }
+
+        return castedData;
+    }
+
+    TCGValue Cast(TCGIRBuilderPtr& builder, EValueType dest) const
     {
         if (dest == StaticType_) {
             return *this;
         }
 
-        auto value = GetData();
+        auto value = GetTypedData(builder);
 
         Value* result;
         if (dest == EValueType::Int64) {

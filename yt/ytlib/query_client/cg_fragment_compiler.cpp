@@ -239,7 +239,7 @@ TValueTypeLabels CodegenHasherBody(
         builder->SetInsertPoint(hashDataBB);
         Value* hashResult = CodegenFingerprint64(
             builder,
-            value.GetData());
+            value.GetTypedData(builder));
 
         result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
         builder->CreateBr(gotoNextBB);
@@ -265,7 +265,7 @@ TValueTypeLabels CodegenHasherBody(
         Value* hashResult = builder->CreateCall(
             builder.Module->GetRoutine("StringHash"),
             {
-                value.GetData(),
+                value.GetTypedData(builder),
                 value.GetLength()
             });
 
@@ -345,8 +345,8 @@ TValueTypeLabels CodegenEqComparerBody(
 
         Value* lhsIsNull = lhsValue.GetIsNull(builder);
         Value* rhsIsNull = rhsValue.GetIsNull(builder);
-        Value* lhsData = lhsValue.GetData();
-        Value* rhsData = rhsValue.GetData();
+        Value* lhsData = lhsValue.GetTypedData(builder);
+        Value* rhsData = rhsValue.GetTypedData(builder);
 
         Value* nullEqual = builder->CreateICmpEQ(lhsIsNull, rhsIsNull);
         Value* isEqual = builder->CreateAnd(
@@ -389,8 +389,8 @@ TValueTypeLabels CodegenEqComparerBody(
         builder->CreateCondBr(builder->CreateAnd(lhsIsNull, rhsIsNull), gotoNextBB, returnNotEqBB);
 
         builder->SetInsertPoint(cmpDataBB);
-        Value* lhsData = lhsValue.GetData();
-        Value* rhsData = rhsValue.GetData();
+        Value* lhsData = lhsValue.GetTypedData(builder);
+        Value* rhsData = rhsValue.GetTypedData(builder);
 
         if (type == EValueType::Double) {
             CheckNaN(builder, lhsData, rhsData);
@@ -465,8 +465,8 @@ TValueTypeLabels CodegenEqComparerBody(
             lhsLength,
             rhsLength);
 
-        Value* lhsData = lhsValue.GetData();
-        Value* rhsData = rhsValue.GetData();
+        Value* lhsData = lhsValue.GetTypedData(builder);
+        Value* rhsData = rhsValue.GetTypedData(builder);
 
         Value* cmpResult = builder->CreateCall(
             builder.Module->GetRoutine("memcmp"),
@@ -568,8 +568,8 @@ TValueTypeLabels CodegenLessComparerBody(
 
         Value* lhsIsNull = lhsValue.GetIsNull(builder);
         Value* rhsIsNull = rhsValue.GetIsNull(builder);
-        Value* lhsData = lhsValue.GetData();
-        Value* rhsData = rhsValue.GetData();
+        Value* lhsData = lhsValue.GetTypedData(builder);
+        Value* rhsData = rhsValue.GetTypedData(builder);
 
         Value* nullEqual = builder->CreateICmpEQ(lhsIsNull, rhsIsNull);
         Value* isEqual = builder->CreateAnd(
@@ -624,8 +624,8 @@ TValueTypeLabels CodegenLessComparerBody(
         builder->CreateCondBr(builder->CreateAnd(lhsIsNull, rhsIsNull), gotoNextBB, returnBB);
 
         builder->SetInsertPoint(cmpDataBB);
-        Value* lhsData = lhsValue.GetData();
-        Value* rhsData = rhsValue.GetData();
+        Value* lhsData = lhsValue.GetTypedData(builder);
+        Value* rhsData = rhsValue.GetTypedData(builder);
 
         if (type == EValueType::Double) {
             CheckNaN(builder, lhsData, rhsData);
@@ -713,8 +713,8 @@ TValueTypeLabels CodegenLessComparerBody(
             lhsLength,
             rhsLength);
 
-        Value* lhsData = lhsValue.GetData();
-        Value* rhsData = rhsValue.GetData();
+        Value* lhsData = lhsValue.GetTypedData(builder);
+        Value* rhsData = rhsValue.GetTypedData(builder);
 
         Value* cmpResult = builder->CreateCall(
             builder.Module->GetRoutine("memcmp"),
@@ -1462,7 +1462,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
         auto evaluate = [&] (TCGIRBuilderPtr& builder) {
             auto operandType = operandValue.GetStaticType();
-            Value* operandData = operandValue.GetData();
+            Value* operandData = operandValue.GetTypedData(builder);
             Value* evalData = nullptr;
 
             switch(opcode) {
@@ -1486,15 +1486,8 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
 
                 case EUnaryOp::BitNot:
-                    evalData = builder->CreateNot(operandData);
-                    break;
-
                 case EUnaryOp::Not:
-                    evalData = builder->CreateXor(
-                        builder->CreateZExtOrBitCast(
-                            builder->getTrue(),
-                            TDataTypeBuilder::TBoolean::get(builder->getContext())),
-                        operandData);
+                    evalData = builder->CreateNot(operandData);
                     break;
 
                 default:
@@ -1554,8 +1547,8 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
             YCHECK(llvm::dyn_cast<llvm::Constant>(rhsIsNull));
         }
 
-        Value* lhsData = builder->CreateTrunc(lhsValue.GetData(), builder->getInt1Ty());
-        Value* rhsData = builder->CreateTrunc(rhsValue.GetData(), builder->getInt1Ty());
+        Value* lhsData = lhsValue.GetTypedData(builder);
+        Value* rhsData = rhsValue.GetTypedData(builder);
 
         Value* lhsMagic = lhsData;
         Value* rhsMagic = rhsData;
@@ -1577,14 +1570,7 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
             result = builder->CreateAnd(lhsData, rhsData);
         }
 
-        return TCGValue::CreateFromValue(
-            builder,
-            isNull,
-            nullptr,
-            builder->CreateZExt(
-                result,
-                TDataTypeBuilder::TBoolean::get(builder->getContext())),
-            type);
+        return TCGValue::CreateFromValue(builder, isNull, nullptr, result, type);
     };
 }
 
@@ -1639,8 +1625,8 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
 
             auto operandType = lhsValue.GetStaticType();
 
-            Value* lhsData = lhsValue.GetData();
-            Value* rhsData = rhsValue.GetData();
+            Value* lhsData = lhsValue.GetTypedData(builder);
+            Value* rhsData = rhsValue.GetTypedData(builder);
             Value* evalData = nullptr;
 
             switch (operandType) {
@@ -1691,9 +1677,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 builder,
                 builder->getFalse(),
                 nullptr,
-                builder->CreateZExtOrBitCast(
-                    builder->CreateSelect(anyNull, compareNulls(), evalData),
-                    TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                builder->CreateSelect(anyNull, compareNulls(), evalData),
                 type);
         }
 
@@ -1734,7 +1718,8 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                     }
 
                     if (lhsValue.GetStaticType() == EValueType::Any) {
-                        Value* lhsData = lhsValue.GetData();
+                        Value* lhsData = lhsValue.GetTypedData(builder);
+                        Value* rhsData = rhsValue.GetTypedData(builder, true);
                         Value* lhsLength = lhsValue.GetLength();
 
                         Value* cmpResult = nullptr;
@@ -1746,7 +1731,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                     {
                                         lhsData,
                                         lhsLength,
-                                        rhsValue.GetData()
+                                        rhsData,
                                     });
                                 break;
                             }
@@ -1756,7 +1741,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                     {
                                         lhsData,
                                         lhsLength,
-                                        rhsValue.GetData()
+                                        rhsData
                                     });
                                 break;
                             }
@@ -1766,7 +1751,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                     {
                                         lhsData,
                                         lhsLength,
-                                        rhsValue.GetData()
+                                        rhsData
                                     });
                                 break;
                             }
@@ -1776,7 +1761,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                     {
                                         lhsData,
                                         lhsLength,
-                                        rhsValue.GetData()
+                                        rhsData
                                     });
                                 break;
                             }
@@ -1786,7 +1771,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                     {
                                         lhsData,
                                         lhsLength,
-                                        rhsValue.GetData(),
+                                        rhsData,
                                         rhsValue.GetLength()
                                     });
                                 break;
@@ -1805,8 +1790,8 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
 
                 auto operandType = lhsValue.GetStaticType();
 
-                Value* lhsData = lhsValue.GetData();
-                Value* rhsData = rhsValue.GetData();
+                Value* lhsData = lhsValue.GetTypedData(builder);
+                Value* rhsData = rhsValue.GetTypedData(builder);
                 Value* evalData = nullptr;
 
                 switch (operandType) {
@@ -1909,9 +1894,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
             builder,
             builder->getFalse(),
             nullptr,
-            builder->CreateZExtOrBitCast(
-                result,
-                TDataTypeBuilder::TBoolean::get(builder->getContext())),
+            result,
             type);
     };
 }
@@ -1959,8 +1942,8 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                     return TCGValue::CreateNull(builder, type);
                 },
                 [&] (TCGBaseContext& builder) {
-                    Value* lhsData = lhsValue.GetData();
-                    Value* rhsData = rhsValue.GetData();
+                    Value* lhsData = lhsValue.GetTypedData(builder);
+                    Value* rhsData = rhsValue.GetTypedData(builder);
                     Value* evalData = nullptr;
 
                     auto checkZero = [&] (Value* value) {
@@ -2008,8 +1991,8 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                 },
                 nameTwine);
         } else {
-            Value* lhsData = lhsValue.GetData();
-            Value* rhsData = rhsValue.GetData();
+            Value* lhsData = lhsValue.GetTypedData(builder);
+            Value* rhsData = rhsValue.GetTypedData(builder);
             Value* evalData = nullptr;
 
             switch (operandType) {
@@ -2132,7 +2115,7 @@ TCodegenExpression MakeCodegenInExpr(
             builder,
             builder->getFalse(),
             nullptr,
-            result,
+            builder->CreateTrunc(result, builder->getInt1Ty()),
             EValueType::Boolean);
     };
 }
@@ -2276,7 +2259,7 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
 
             builder->CreateStore(builder->getInt32(streamIndex), countPtr);
 
-            auto switcher = builder->CreateSwitch(streamIndexValue.GetData(), endIfBB);
+            auto switcher = builder->CreateSwitch(streamIndexValue.GetTypedData(builder), endIfBB);
 
             switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Final)), ifFinalBB);
             switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Intermediate)), ifIntermediateBB);
@@ -2666,7 +2649,7 @@ size_t MakeCodegenFilterOp(
             auto* endIfBB = builder->CreateBBHere("endIf");
 
             auto* notIsNull = builder->CreateNot(predicateResult.GetIsNull(builder));
-            auto* isTrue = builder->CreateICmpEQ(predicateResult.GetData(), builder->getInt8(true));
+            auto* isTrue = predicateResult.GetTypedData(builder);
 
             builder->CreateCondBr(
                 builder->CreateAnd(notIsNull, isTrue),

@@ -18,6 +18,22 @@ StringRef ToStringRef(const TSharedRef& sharedRef)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
+{
+    return TDataTypeBuilder::get(context, staticType);
+}
+
+Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
+{
+    if (staticType == EValueType::Boolean) {
+        return TypeBuilder<llvm::types::i<1>, false>::get(context);
+    }
+
+    return GetABIType(context, staticType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Value* TCGExprContext::GetFragmentResult(size_t index) const
 {
     return Builder_->CreateInBoundsGEP(
@@ -216,6 +232,15 @@ TCGValue MakePhi(
         return phiNull;
     }();
 
+    if (thenData->getType() != elseData->getType()) {
+        builder->SetInsertPoint(thenBB);
+        thenData = thenValue.GetTypedData(builder);
+
+        builder->SetInsertPoint(elseBB);
+        elseData = elseValue.GetTypedData(builder);
+
+        builder->SetInsertPoint(endBB);
+    }
 
     YCHECK(thenData->getType() == elseData->getType());
 

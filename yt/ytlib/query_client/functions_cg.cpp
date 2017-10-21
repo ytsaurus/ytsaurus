@@ -134,7 +134,7 @@ void PushArgument(
     std::vector<Value*>& argumentValues,
     TCGValue argumentValue)
 {
-    argumentValues.push_back(argumentValue.GetData());
+    argumentValues.push_back(argumentValue.GetTypedData(builder, true));
     if (IsStringLikeType(argumentValue.GetStaticType())) {
         argumentValues.push_back(argumentValue.GetLength());
     }
@@ -192,7 +192,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
     std::function<TCGValue(std::vector<Value*>)> callUdf;
     if (IsStringLikeType(type)) {
         auto resultPtr = builder->CreateAlloca(
-            TDataTypeBuilder::get(builder->getContext(), EValueType::String),
+            GetABIType(builder->getContext(), EValueType::String),
             nullptr,
             "resultPtr");
         llvmArgs.push_back(resultPtr);
@@ -220,6 +220,10 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
     } else {
         callUdf = [&] (std::vector<Value*> argValues) {
             Value* llvmResult = codegenBody(builder, argValues);
+            if (type == EValueType::Boolean) {
+                llvmResult = builder->CreateTrunc(llvmResult, builder->getInt1Ty());
+            }
+
             return TCGValue::CreateFromValue(
                 builder,
                 builder->getFalse(),
@@ -255,7 +259,7 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
         calleeArgumentTypes.push_back(PointerType::getUnqual(builder->getInt32Ty()));
 
     } else {
-        calleeResultType = TDataTypeBuilder::get(
+        calleeResultType = GetABIType(
             builder->getContext(),
             resultType);
     }
@@ -265,7 +269,7 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
             calleeArgumentTypes.push_back(builder->getInt8PtrTy());
             calleeArgumentTypes.push_back(builder->getInt32Ty());
         } else {
-            calleeArgumentTypes.push_back(TDataTypeBuilder::get(
+            calleeArgumentTypes.push_back(GetABIType(
                 builder->getContext(),
                 type));
         }
