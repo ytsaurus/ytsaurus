@@ -60,7 +60,7 @@ public:
         auto codegenIf = [&] (TCGExprContext& builder) {
             return CodegenIf<TCGExprContext, TCGValue>(
                 builder,
-                builder->CreateIsNotNull(condition.GetData()),
+                condition.GetTypedData(builder),
                 [&] (TCGExprContext& builder) {
                     return CodegenFragment(builder, argIds[1]).Cast(builder, type);
                 },
@@ -184,18 +184,14 @@ public:
                     builder,
                     builder->getFalse(),
                     nullptr,
-                    builder->CreateZExtOrBitCast(
-                        argValue.GetIsNull(builder),
-                        TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                    argValue.GetIsNull(builder),
                     type);
             } else {
                 return TCGValue::CreateFromValue(
                     builder,
                     builder->getFalse(),
                     nullptr,
-                    builder->CreateZExtOrBitCast(
-                        builder->getFalse(),
-                        TDataTypeBuilder::TBoolean::get(builder->getContext())),
+                    builder->getFalse(),
                     type);
             }
         };
@@ -249,8 +245,8 @@ public:
                     length,
                     builder->CreateSelect(
                         argIsNull,
-                        constant.GetData(),
-                        argValue.GetData()),
+                        constant.GetTypedData(builder),
+                        argValue.GetTypedData(builder)),
                     type);
             } else {
                 return CodegenFragment(builder, argIds[0]);
@@ -339,7 +335,7 @@ public:
                     if (argumentType == EValueType::String) {
                         valueLength = newValue.GetLength();
                     }
-                    Value* newData = newValue.GetData();
+                    Value* newData = newValue.GetTypedData(builder);
 
                     return CodegenIf<TCGBaseContext, TCGValue>(
                         builder,
@@ -368,7 +364,7 @@ public:
                             }
                         },
                         [&] (TCGBaseContext& builder) {
-                            Value* aggregateData = aggregateValue.GetData();
+                            Value* aggregateData = aggregateValue.GetTypedData(builder);
                             Value* resultData = nullptr;
                             Value* resultLength = nullptr;
 
