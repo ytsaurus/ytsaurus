@@ -66,13 +66,17 @@ protected:
     virtual void FlushWriter();
 
     virtual void DoWrite(const TRange<NTableClient::TUnversionedRow>& rows) = 0;
-    
+
     bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 
     bool IsSystemColumnId(int id) const;
     bool IsTableIndexColumnId(int id) const;
     bool IsRangeIndexColumnId(int id) const;
     bool IsRowIndexColumnId(int id) const;
+
+    int GetRangeIndexColumnId() const;
+    int GetRowIndexColumnId() const;
+    int GetTableIndexColumnId() const;
 
     // This is suitable only for switch-based control attributes,
     // e.g. in such formats as YAMR or YSON.
@@ -81,6 +85,7 @@ protected:
     virtual void WriteRangeIndex(i64 rangeIndex);
     virtual void WriteRowIndex(i64 rowIndex);
 
+    bool HasError() const;
     void RegisterError(const TError& error);
 
 private:
@@ -137,6 +142,10 @@ private:
     virtual void WriteRangeIndex(i64 rangeIndex) override;
     virtual void WriteRowIndex(i64 rowIndex) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void WriteYsonValue(NYson::IYsonConsumer* writer, const NTableClient::TUnversionedValue& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

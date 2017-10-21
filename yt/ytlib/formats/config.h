@@ -497,7 +497,7 @@ DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig)
 
 class TSchemalessWebJsonFormatConfig
     : public NYTree::TYsonSerializable
-{ 
+{
 public:
     int RowLimit;
     int ColumnLimit;
@@ -520,6 +520,23 @@ public:
 DEFINE_REFCOUNTED_TYPE(TSchemalessWebJsonFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TSkiffFormatConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NYTree::IMapNodePtr SkiffSchemaRegistry;
+    NYTree::IListNodePtr TableSkiffSchemas;
+
+    TSkiffFormatConfig()
+    {
+        RegisterParameter("skiff_schema_registry", SkiffSchemaRegistry)
+            .Default();
+        RegisterParameter("table_skiff_schemas", TableSkiffSchemas);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSkiffFormatConfig)
 
 } // namespace NFormats
 } // namespace NYT

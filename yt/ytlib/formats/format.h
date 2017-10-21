@@ -38,6 +38,7 @@ DEFINE_ENUM(EFormatType,
     (YamredDsv)
     (SchemafulDsv)
     (Protobuf)
+    (Skiff)
     (WebJson)
 );
 
