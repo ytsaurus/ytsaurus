@@ -63,7 +63,8 @@ TCGExprContext TCGExprContext::Make(
     const TCGBaseContext& builder,
     const TCodegenFragmentInfos& fragmentInfos,
     Value* expressionClosurePtr,
-    Value* literals)
+    Value* literals,
+    Value* rowValues)
 {
     Value* opaqueValues = builder->CreateLoad(builder->CreateStructGEP(
         nullptr,
@@ -80,11 +81,7 @@ TCGExprContext TCGExprContext::Make(
                 expressionClosurePtr,
                 TClosureTypeBuilder::Fields::Buffer),
                 "buffer"),
-            builder->CreateLoad(builder->CreateStructGEP(
-                nullptr,
-                expressionClosurePtr,
-                TClosureTypeBuilder::Fields::RowValues),
-                "rowValues"),
+            rowValues,
             expressionClosurePtr
         ));
 }
@@ -102,14 +99,6 @@ TCGExprContext TCGExprContext::Make(
             nullptr,
             "expressionClosurePtr");
     }
-
-    builder->CreateStore(
-        rowValues,
-        builder->CreateConstInBoundsGEP2_32(
-            nullptr,
-            expressionClosurePtr,
-            0,
-            TClosureTypeBuilder::Fields::RowValues));
 
     builder->CreateStore(
         builder.GetOpaqueValues(),
