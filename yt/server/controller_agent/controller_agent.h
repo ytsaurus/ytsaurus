@@ -34,6 +34,9 @@ public:
     void Disconnect();
     void ValidateConnected() const;
 
+    const IInvokerPtr& GetInvoker();
+    const IInvokerPtr& GetControllerThreadPoolInvoker();
+
     TMasterConnector* GetMasterConnector();
 
     void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config);

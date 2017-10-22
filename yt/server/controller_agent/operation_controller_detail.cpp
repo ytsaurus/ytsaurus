@@ -1,6 +1,7 @@
 #include "operation_controller_detail.h"
 
 #include "auto_merge_task.h"
+#include "controller_agent.h"
 #include "intermediate_chunk_scraper.h"
 #include "job_info.h"
 #include "job_helpers.h"
@@ -193,7 +194,8 @@ TOperationControllerBase::TOperationControllerBase(
     TOperation* operation)
     : Config(config)
     , Host(host)
-    , MasterConnector(Host->GetControllerAgentMasterConnector())
+    , ControllerAgent(Host->GetControllerAgent())
+    , MasterConnector(ControllerAgent->GetMasterConnector())
     , OperationId(operation->GetId())
     , OperationType(operation->GetType())
     , StartTime(operation->GetStartTime())
@@ -203,7 +205,7 @@ TOperationControllerBase::TOperationControllerBase(
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
     , Logger(OperationLogger)
     , CancelableContext(New<TCancelableContext>())
-    , Invoker(Host->CreateOperationControllerInvoker())
+    , Invoker(CreateSerializedInvoker(ControllerAgent->GetControllerThreadPoolInvoker()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(New<TProgressCounter>(0))
@@ -1753,7 +1755,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
         }
 
         auto asyncResult = BIND(&BuildBriefStatistics, Passed(std::move(jobSummary)))
-            .AsyncVia(Host->GetStatisticsAnalyzerInvoker())
+            .AsyncVia(ControllerAgent->GetControllerThreadPoolInvoker())
             .Run();
 
         // Resulting future is dropped intentionally.

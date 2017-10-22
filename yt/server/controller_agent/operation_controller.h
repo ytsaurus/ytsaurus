@@ -82,7 +82,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual TMasterConnector* GetControllerAgentMasterConnector() = 0;
+    virtual TControllerAgent* GetControllerAgent() = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -94,18 +94,6 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual IInvokerPtr GetControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const = 0;
-
-    //! Returns invoker for statistics analyzer.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const IInvokerPtr& GetStatisticsAnalyzerInvoker() const = 0;
-
-    //! Returns invoker for operation controller.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual IInvokerPtr CreateOperationControllerInvoker() = 0;
 
     //! Returns the manager of the throttlers to limit #LocateChunk requests from chunk scraper.
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const = 0;
