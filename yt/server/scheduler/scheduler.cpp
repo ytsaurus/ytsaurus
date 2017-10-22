@@ -139,8 +139,6 @@ public:
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
-        , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
-        , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "Statistics"))
         , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->JobSpecSliceThrottler,
             NLogging::TLogger(),
@@ -922,9 +920,9 @@ public:
 
 
     // IOperationHost implementation
-    virtual NControllerAgent::TMasterConnector* GetControllerAgentMasterConnector() override
+    virtual NControllerAgent::TControllerAgent* GetControllerAgent() override
     {
-        return Bootstrap_->GetControllerAgent()->GetMasterConnector();
+        return Bootstrap_->GetControllerAgent().Get();
     }
 
     virtual const TSchedulerConfigPtr& GetConfig() const override
@@ -945,11 +943,6 @@ public:
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const
     {
         return Bootstrap_->GetControlInvoker(queue);
-    }
-
-    virtual IInvokerPtr CreateOperationControllerInvoker() override
-    {
-        return CreateSerializedInvoker(ControllerThreadPool_->GetInvoker());
     }
 
     virtual const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override
@@ -1018,13 +1011,6 @@ public:
         return Strategy_;
     }
 
-    const IInvokerPtr& GetStatisticsAnalyzerInvoker() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return StatisticsAnalyzerThreadPool_->GetInvoker();
-    }
-
     virtual const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1063,8 +1049,6 @@ private:
     TBootstrap* const Bootstrap_;
 
     const TActionQueuePtr SnapshotIOQueue_;
-    const TThreadPoolPtr ControllerThreadPool_;
-    const TThreadPoolPtr StatisticsAnalyzerThreadPool_;
 
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;

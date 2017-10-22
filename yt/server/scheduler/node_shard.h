@@ -40,8 +40,6 @@ struct INodeShardHost
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
-    virtual const IInvokerPtr& GetStatisticsAnalyzerInvoker() const = 0;
-
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 
     virtual void ValidateOperationPermission(

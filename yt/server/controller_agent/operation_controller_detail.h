@@ -332,6 +332,7 @@ public:
 protected:
     TSchedulerConfigPtr Config;
     IOperationHost* Host;
+    TControllerAgent* ControllerAgent;
     TMasterConnectorPtr MasterConnector;
 
     const TOperationId OperationId;

@@ -3,7 +3,10 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
+#include <yt/server/scheduler/config.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -26,6 +29,7 @@ public:
     TImpl(TSchedulerConfigPtr config, NCellScheduler::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
+        , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
     { }
 
     void Disconnect()
@@ -37,6 +41,7 @@ public:
 
     void Connect(IInvokerPtr invoker)
     {
+        // TODO(ignat): fix it!
         Invoker_ = invoker;
 
         ControllerAgentMasterConnector_ = New<TMasterConnector>(
@@ -52,6 +57,16 @@ public:
         if (!Connected_) {
             THROW_ERROR_EXCEPTION(GetMasterDisconnectedError());
         }
+    }
+
+    const IInvokerPtr& GetInvoker()
+    {
+        return Bootstrap_->GetControllerAgentInvoker();
+    }
+
+    const IInvokerPtr& GetControllerThreadPoolInvoker()
+    {
+        return ControllerThreadPool_->GetInvoker();
     }
 
     TMasterConnector* GetMasterConnector()
@@ -138,6 +153,8 @@ private:
     NCellScheduler::TBootstrap* Bootstrap_;
     IInvokerPtr Invoker_;
 
+    const TThreadPoolPtr ControllerThreadPool_;
+
     std::atomic<bool> Connected_ = {false};
     TMasterConnectorPtr ControllerAgentMasterConnector_;
 
@@ -184,6 +201,16 @@ void TControllerAgent::Disconnect()
 void TControllerAgent::ValidateConnected() const
 {
     Impl_->ValidateConnected();
+}
+
+const IInvokerPtr& TControllerAgent::GetInvoker()
+{
+    return Impl_->GetInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
+{
+    return Impl_->GetControllerThreadPoolInvoker();
 }
 
 TMasterConnector* TControllerAgent::GetMasterConnector()
