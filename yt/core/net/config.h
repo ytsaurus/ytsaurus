@@ -68,7 +68,7 @@ public:
     TAddressResolverConfig()
     {
         RegisterParameter("enable_ipv4", EnableIPv4)
-            .Default(true);
+            .Default(false);
         RegisterParameter("enable_ipv6", EnableIPv6)
             .Default(true);
         RegisterParameter("localhost_fqdn", LocalHostFqdn)
