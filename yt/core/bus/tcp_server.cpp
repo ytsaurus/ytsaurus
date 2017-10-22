@@ -7,8 +7,9 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/address.h>
-#include <yt/core/misc/socket.h>
+#include <yt/core/net/address.h>
+
+#include <yt/core/net/socket.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/convert.h>
@@ -24,6 +25,7 @@ namespace NBus {
 
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -252,7 +254,7 @@ protected:
     {
         for (int attempt = 1; attempt <= Config_->BindRetryCount; ++attempt) {
             try {
-                ::NYT::BindSocket(ServerSocket_, address);
+                NNet::BindSocket(ServerSocket_, address);
                 return;
             } catch (const TErrorException& ex) {
                 if (attempt == Config_->BindRetryCount) {

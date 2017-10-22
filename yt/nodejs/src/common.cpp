@@ -8,7 +8,7 @@
 
 #include <yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/tracing/trace_manager.h>
 
@@ -38,6 +38,7 @@ namespace NNodeJS {
 COMMON_V8_USES
 
 using namespace NYTree;
+using namespace NNet;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

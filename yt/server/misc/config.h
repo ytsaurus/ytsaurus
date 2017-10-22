@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/misc/config.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/rpc/config.h>
 
@@ -28,7 +28,7 @@ class TServerConfig
 public:
     // Singletons.
     yhash<TString, int> FiberStackPoolSizes;
-    TAddressResolverConfigPtr AddressResolver;
+    NNet::TAddressResolverConfigPtr AddressResolver;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NLogging::TLogConfigPtr Logging;
     NTracing::TTraceManagerConfigPtr Tracing;

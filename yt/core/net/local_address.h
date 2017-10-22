@@ -1,8 +1,9 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 namespace NYT {
+namespace NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,4 +44,5 @@ bool UpdateLocalHostName(std::function<void(const char*, const char*)> errorCb);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNet
 } // namespace NYT

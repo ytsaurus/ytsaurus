@@ -14,6 +14,7 @@ namespace NBus {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 

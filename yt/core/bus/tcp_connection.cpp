@@ -6,8 +6,8 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/string.h>
-#include <yt/core/misc/socket.h>
 
+#include <yt/core/net/socket.h>
 #include <yt/core/net/dialer.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -1145,7 +1145,7 @@ void TTcpConnection::RearmPoller()
 
 int TTcpConnection::GetSocketError() const
 {
-    return ::NYT::GetSocketError(Socket_);
+    return NNet::GetSocketError(Socket_);
 }
 
 bool TTcpConnection::IsSocketError(ssize_t result)

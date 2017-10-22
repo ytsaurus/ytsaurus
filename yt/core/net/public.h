@@ -14,6 +14,7 @@ DECLARE_REFCOUNTED_STRUCT(IAsyncDialer)
 DECLARE_REFCOUNTED_STRUCT(IAsyncDialerSession)
 
 DECLARE_REFCOUNTED_CLASS(TDialerConfig)
+DECLARE_REFCOUNTED_CLASS(TAddressResolverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,7 +12,8 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/local_address.h>
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -542,7 +543,7 @@ void TServiceBase::HandleRequest(
     TRACE_ANNOTATION(
         traceContext,
         "server_host",
-        GetLocalHostName());
+        NNet::GetLocalHostName());
 
     TRACE_ANNOTATION(
         traceContext,

@@ -3,7 +3,8 @@
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/invoker.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/mpsc_queue.h>
 
@@ -29,6 +30,7 @@
 #endif
 
 namespace NYT {
+namespace NNet {
 
 using namespace NConcurrency;
 
@@ -512,5 +514,6 @@ TFuture<TNetworkAddress> TDnsResolver::ResolveName(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNet
 } // namespace NYT
 

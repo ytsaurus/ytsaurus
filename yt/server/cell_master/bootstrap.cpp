@@ -83,6 +83,8 @@
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
 
+#include <yt/core/net/local_address.h>
+
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/lfalloc_helpers.h>
@@ -107,6 +109,7 @@ namespace NCellMaster {
 using namespace NAdmin;
 using namespace NBus;
 using namespace NRpc;
+using namespace NNet;
 using namespace NYTree;
 using namespace NElection;
 using namespace NHydra;

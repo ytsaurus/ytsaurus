@@ -3,9 +3,10 @@
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/invoker.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
 
 namespace NYT {
+namespace NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +38,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNet
 } // namespace NYT
 

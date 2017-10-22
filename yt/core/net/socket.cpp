@@ -1,7 +1,7 @@
 #include "socket.h"
-
-#include "proc.h"
 #include "address.h"
+
+#include <yt/core/misc/proc.h>
 
 #ifdef _unix_
     #include <netinet/ip.h>
@@ -13,6 +13,7 @@
 #endif
 
 namespace NYT {
+namespace NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -382,4 +383,5 @@ void SetSocketEnableQuickAck(SOCKET socket)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNet
 } // namespace NYT

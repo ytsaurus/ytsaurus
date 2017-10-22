@@ -1,11 +1,12 @@
 #pragma once
 
-#include "public.h"
-#include "address.h"
+#include "yt/core/misc/public.h"
+#include "yt/core/net/address.h"
 
 #include <util/network/init.h>
 
 namespace NYT {
+namespace NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,4 +42,5 @@ void SetSocketEnableQuickAck(SOCKET socket);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNet
 } // namespace NYT
