@@ -1899,9 +1899,6 @@ private:
                 throw TFiberCanceledException();
             }
 
-            LOG_INFO("Operation has been revived (OperationId: %v)",
-                operation->GetId());
-
             operation->SetState(EOperationState::Pending);
             operation->SetPrepared(true);
             if (operation->GetActivated()) {
@@ -1914,6 +1911,9 @@ private:
             OnOperationFailed(operation->GetId(), wrappedError);
             return;
         }
+
+        LOG_INFO("Operation has been revived and is now running (OperationId: %v)",
+            operation->GetId());
     }
 
     TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
