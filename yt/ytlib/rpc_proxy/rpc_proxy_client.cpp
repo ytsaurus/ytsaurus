@@ -3,7 +3,8 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/small_set.h>
 
 #include <yt/core/ytree/convert.h>

@@ -64,7 +64,6 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/address.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/string.h>
 

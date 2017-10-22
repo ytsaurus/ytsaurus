@@ -1,7 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/address.h>
-#include <yt/core/misc/socket.h>
+#include <yt/core/net/address.h>
+#include <yt/core/net/socket.h>
 
 #ifdef _unix_
     #include <sys/types.h>
@@ -9,6 +9,7 @@
 #endif
 
 namespace NYT {
+namespace NNet {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,4 +136,5 @@ TEST(TIP6AddressTest, ToStringFromStringRandom)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+} // namespace NNet
 } // namespace NYT

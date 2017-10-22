@@ -1,9 +1,8 @@
 #pragma once
 
-#include "common.h"
-#include "config.h"
-#include "error.h"
-#include "local_address.h"
+#include "public.h"
+
+#include <yt/core/misc/error.h>
 
 #include <yt/core/actions/future.h>
 
@@ -18,6 +17,7 @@
 #include <array>
 
 namespace NYT {
+namespace NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,48 +38,6 @@ int GetServicePort(const TStringBuf& address);
 
 //! Extracts host name from a service address.
 TStringBuf GetServiceHostName(const TStringBuf& address);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Configuration for TAddressResolver singleton.
-class TAddressResolverConfig
-    : public TExpiringCacheConfig
-{
-public:
-    bool EnableIPv4;
-    bool EnableIPv6;
-    TNullable<TString> LocalHostFqdn;
-    int Retries;
-    TDuration ResolveTimeout;
-    TDuration MaxResolveTimeout;
-    TDuration WarningTimeout;
-
-    TAddressResolverConfig()
-    {
-        RegisterParameter("enable_ipv4", EnableIPv4)
-            .Default(false);
-        RegisterParameter("enable_ipv6", EnableIPv6)
-            .Default(true);
-        RegisterParameter("localhost_fqdn", LocalHostFqdn)
-            .Default();
-        RegisterParameter("retries", Retries)
-            .Default(25);
-        RegisterParameter("resolve_timeout", ResolveTimeout)
-            .Default(TDuration::MilliSeconds(500));
-        RegisterParameter("max_resolve_timeout", MaxResolveTimeout)
-            .Default(TDuration::MilliSeconds(5000));
-        RegisterParameter("warning_timeout", WarningTimeout)
-            .Default(TDuration::MilliSeconds(1000));
-
-        RegisterInitializer([this] () {
-            RefreshTime = TDuration::Seconds(60);
-            ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(120);
-            ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
-        });
-    }
-};
-
-typedef TIntrusivePtr<TAddressResolverConfig> TAddressResolverConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,4 +162,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNet
 } // namespace NYT

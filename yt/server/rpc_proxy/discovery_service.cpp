@@ -22,7 +22,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+#include <yt/core/net/local_address.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/helpers.h>
@@ -43,6 +44,7 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NRpc;
+using namespace NNet;
 using namespace NCellProxy;
 using namespace NNodeTrackerClient;
 

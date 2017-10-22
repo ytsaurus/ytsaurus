@@ -58,9 +58,10 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/size_literals.h>
 
+#include <yt/core/net/local_address.h>
+
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/timing.h>
 
 #include <yt/core/ytree/service_combiner.h>
 #include <yt/core/ytree/virtual.h>
@@ -75,6 +76,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NRpc;
+using namespace NNet;
 using namespace NApi;
 using namespace NCellScheduler;
 using namespace NObjectClient;

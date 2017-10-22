@@ -3,7 +3,8 @@
 #include "dispatcher.h"
 #include "message.h"
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/local_address.h>
+
 #include <yt/core/misc/checksum.h>
 
 #include <iterator>
@@ -192,7 +193,7 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
     NTracing::TraceEvent(
         traceContext,
         ClientHostAnnotation,
-        GetLocalHostName());
+        NNet::GetLocalHostName());
 }
 
 const TSharedRef& TClientRequest::GetSerializedBody() const

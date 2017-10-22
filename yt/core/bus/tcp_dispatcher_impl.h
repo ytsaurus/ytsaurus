@@ -5,7 +5,8 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/error.h>
 
 #include <util/thread/lfqueue.h>
@@ -17,7 +18,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNetworkAddress GetLocalBusAddress(int port);
+NNet::TNetworkAddress GetLocalBusAddress(int port);
 bool IsLocalBusTransportEnabled();
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,7 +21,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/fls.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/local_address.h>
 
 #include <yt/core/rpc/rpc.pb.h>
 #include <yt/core/rpc/server.h>
@@ -34,6 +34,7 @@
 namespace NYT {
 namespace NHiveServer {
 
+using namespace NNet;
 using namespace NRpc;
 using namespace NRpc::NProto;
 using namespace NHydra;

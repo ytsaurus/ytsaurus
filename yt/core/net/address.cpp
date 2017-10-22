@@ -1,5 +1,5 @@
 #include "address.h"
-#include "lazy_ptr.h"
+#include "config.h"
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -7,8 +7,10 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/dns_resolver.h>
-#include <yt/core/misc/local_address.h>
+#include <yt/core/net/dns_resolver.h>
+#include <yt/core/net/local_address.h>
+
+#include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/expiring_cache.h>
 #include <yt/core/misc/shutdown.h>
@@ -31,11 +33,12 @@
     #include <unistd.h>
 #endif
 
-#include <array>
-
 namespace NYT {
+namespace NNet {
 
 using namespace NConcurrency;
+
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,12 +49,12 @@ static const NProfiling::TProfiler Profiler("/network");
 
 TString BuildServiceAddress(const TStringBuf& hostName, int port)
 {
-    return TString(hostName) + ":" + ToString(port);
+    return Format("%v:%v", hostName, port);
 }
 
 void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* port)
 {
-    int colonIndex = address.find_last_of(':');
+    auto colonIndex = address.find_last_of(':');
     if (colonIndex == TString::npos) {
         THROW_ERROR_EXCEPTION("Service address %Qv is malformed, <host>:<port> format is expected",
             address);
@@ -623,7 +626,7 @@ bool TAddressResolver::TImpl::IsLocalHostNameOK()
     if (Config_->LocalHostFqdn) {
         return true;
     } else {
-        return ::NYT::UpdateLocalHostName([] (const char*, const char*) {});
+        return UpdateLocalHostName([] (const char*, const char*) {});
     }
 }
 
@@ -688,14 +691,14 @@ void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
     Config_ = std::move(config);
 
     if (Config_->LocalHostFqdn) {
-        ::NYT::SetLocalHostName(*Config_->LocalHostFqdn);
+        SetLocalHostName(*Config_->LocalHostFqdn);
     } else {
-        ::NYT::UpdateLocalHostName([&] (const char* message, const char* details) {
+        UpdateLocalHostName([&] (const char* message, const char* details) {
             LOG_INFO("Localhost FQDN resolution failed: %v: %v", message, details);
         });
     }
 
-    LOG_INFO("Localhost FQDN configured: %v", ::NYT::GetLocalHostName());
+    LOG_INFO("Localhost FQDN configured: %v", GetLocalHostName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -704,8 +707,7 @@ TAddressResolver::TAddressResolver()
     : Impl_(New<TImpl>(New<TAddressResolverConfig>()))
 { }
 
-TAddressResolver::~TAddressResolver()
-{ }
+TAddressResolver::~TAddressResolver() = default;
 
 TAddressResolver* TAddressResolver::Get()
 {
@@ -755,5 +757,6 @@ REGISTER_SHUTDOWN_CALLBACK(2, TAddressResolver::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNet
 } // namespace NYT
 

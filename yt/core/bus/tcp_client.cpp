@@ -7,7 +7,8 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/error.h>
 
 #include <yt/core/rpc/public.h>

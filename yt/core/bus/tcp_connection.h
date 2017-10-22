@@ -9,7 +9,8 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/ring_queue.h>
 
@@ -203,12 +204,12 @@ private:
 
     int GetSocketPort();
 
-    void ConnectSocket(const TNetworkAddress& address);
+    void ConnectSocket(const NNet::TNetworkAddress& address);
     void OnDialerFinished(SOCKET socket, TError error);
     void CloseSocket();
 
-    void OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& result);
-    void OnAddressResolved(const TNetworkAddress& address, ETcpInterfaceType interfaceType);
+    void OnAddressResolveFinished(const TErrorOr<NNet::TNetworkAddress>& result);
+    void OnAddressResolved(const NNet::TNetworkAddress& address, ETcpInterfaceType interfaceType);
     void SetupInterfaceType(ETcpInterfaceType interfaceType);
 
     int GetSocketError() const;

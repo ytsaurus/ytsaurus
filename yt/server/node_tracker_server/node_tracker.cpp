@@ -37,7 +37,8 @@
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/address.h>
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/id_generator.h>
 
 #include <yt/core/ypath/token.h>
@@ -54,6 +55,7 @@ namespace NYT {
 namespace NNodeTrackerServer {
 
 using namespace NConcurrency;
+using namespace NNet;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NNodeTrackerClient;
