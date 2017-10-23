@@ -213,6 +213,7 @@ bool TTask::ValidateChunkCount(int /* chunkCount */)
 void TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
+    const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
     if (!CanScheduleJob(context, jobLimits)) {
@@ -221,7 +222,7 @@ void TTask::ScheduleJob(
     }
 
     int jobIndex = TaskHost_->NextJobIndex();
-    auto joblet = New<TJoblet>(this, jobIndex);
+    auto joblet = New<TJoblet>(this, jobIndex, treeId);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;

@@ -56,6 +56,9 @@ class TFairShareStrategyTreeConfig
     : virtual public NYTree::TYsonSerializable
 {
 public:
+    // Specifies nodes that are served by this tree.
+    TSchedulingTagFilter NodesFilter;
+
     // The following settings can be overridden in operation spec.
     TDuration MinSharePreemptionTimeout;
     TDuration FairSharePreemptionTimeout;
@@ -127,7 +130,6 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyTreeConfig)
 
 class TFairShareStrategyConfig
     : public TFairShareStrategyOperationControllerConfig
-    , public TFairShareStrategyTreeConfig
 {
 public:
     //! How often to update, log, profile fair share in fair share trees.
@@ -137,6 +139,11 @@ public:
 
     //! How often min needed resources for jobs are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
+
+    //! Limit on number of running operations in cluster.
+    int MaxRunningOperationCount;
+    //! Limit on number of operations in cluster.
+    int MaxOperationCount;
 
     TFairShareStrategyConfig();
 };
@@ -676,6 +683,8 @@ public:
     TNullable<i32> IopsThreshold;
     TNullable<i32> IopsThrottlerLimit;
 
+    TDuration OrchidKeysUpdatePeriod;
+
     TDuration StaticOrchidCacheUpdatePeriod;
 
     // We use the same config for input chunk scraper and intermediate chunk scraper.
@@ -698,9 +707,6 @@ public:
 
     // Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
-
-    // Filter of main nodes, used to calculate resource limits in fair share strategy.
-    TSchedulingTagFilter MainNodesFilter;
 
     // Number of nodes to store by memory distribution.
     int MemoryDistributionDifferentNodeTypesThreshold;

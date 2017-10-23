@@ -89,14 +89,14 @@ void TFairShareContext::InitializeStructures(int treeSize, const std::vector<TSc
 TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerElement* element)
 {
     int index = element->GetTreeIndex();
-    YCHECK(index < DynamicAttributesList.size());
+    YCHECK(index != UnassignedTreeIndex && index < DynamicAttributesList.size());
     return DynamicAttributesList[index];
 }
 
 const TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerElement* element) const
 {
     int index = element->GetTreeIndex();
-    YCHECK(index < DynamicAttributesList.size());
+    YCHECK(index != UnassignedTreeIndex && index < DynamicAttributesList.size());
     return DynamicAttributesList[index];
 }
 
@@ -111,7 +111,7 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
     , MaxPossibleResourceUsage_(ZeroJobResources())
     , Host_(host)
     , TreeConfig_(treeConfig)
-    , TotalResourceLimits_(host->GetMainNodesResourceLimits())
+    , TotalResourceLimits_(host->GetResourceLimits(treeConfig->NodesFilter))
     , TreeId_(treeId)
 { }
 
@@ -201,7 +201,7 @@ void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
 {
     YCHECK(!Cloned_);
 
-    TotalResourceLimits_ = GetHost()->GetMainNodesResourceLimits();
+    TotalResourceLimits_ = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
     UpdateAttributes();
     dynamicAttributesList[GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);
@@ -1247,7 +1247,7 @@ void TPool::SetDefaultConfig()
 
 bool TPool::IsAggressiveStarvationPreemptionAllowed() const
 {
-    return Config_->AllowAggressiveStarvationPreemption;
+    return Config_->AllowAggressiveStarvationPreemption.Get(true);
 }
 
 bool TPool::IsExplicit() const
@@ -1268,12 +1268,12 @@ TString TPool::GetId() const
 
 double TPool::GetWeight() const
 {
-    return Config_->Weight;
+    return Config_->Weight.Get(1.0);
 }
 
 double TPool::GetMinShareRatio() const
 {
-    return Config_->MinShareRatio;
+    return Config_->MinShareRatio.Get(0.0);
 }
 
 TJobResources TPool::GetMinShareResources() const
@@ -1283,7 +1283,7 @@ TJobResources TPool::GetMinShareResources() const
 
 double TPool::GetMaxShareRatio() const
 {
-    return Config_->MaxShareRatio;
+    return Config_->MaxShareRatio.Get(1.0);
 }
 
 ESchedulableStatus TPool::GetStatus() const
@@ -1945,7 +1945,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     const auto& jobStartRequest = scheduleJobResult->JobStartRequest.Get();
     context.SchedulingContext->ResourceUsage() += jobStartRequest.ResourceLimits;
     OnJobStarted(jobStartRequest.Id, jobStartRequest.ResourceLimits);
-    auto job = context.SchedulingContext->StartJob(OperationId_, jobStartRequest);
+    auto job = context.SchedulingContext->StartJob(GetTreeId(), OperationId_, jobStartRequest);
 
     UpdateDynamicAttributes(context.DynamicAttributesList);
     updateAncestorsAttributes();
@@ -1972,7 +1972,7 @@ double TOperationElement::GetWeight() const
 
 double TOperationElement::GetMinShareRatio() const
 {
-    return Spec_->MinShareRatio;
+    return Spec_->MinShareRatio.Get(0.0);
 }
 
 TJobResources TOperationElement::GetMinShareResources() const
@@ -1982,7 +1982,7 @@ TJobResources TOperationElement::GetMinShareResources() const
 
 double TOperationElement::GetMaxShareRatio() const
 {
-    return Spec_->MaxShareRatio;
+    return Spec_->MaxShareRatio.Get(1.0);
 }
 
 const TSchedulingTagFilter& TOperationElement::GetSchedulingTagFilter() const
@@ -2115,7 +2115,9 @@ int TOperationElement::GetAggressivelyPreemptableJobCount() const
 
 int TOperationElement::GetSlotIndex() const
 {
-    return Operation_->GetSlotIndex();
+    auto slotIndex = Operation_->FindSlotIndex(GetTreeId());
+    YCHECK(slotIndex);
+    return *slotIndex;
 }
 
 void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage)
@@ -2195,7 +2197,8 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
     auto scheduleJobResult = Controller_->ScheduleJob(
         context.SchedulingContext,
         jobLimits,
-        ControllerConfig_->ScheduleJobTimeLimit);
+        ControllerConfig_->ScheduleJobTimeLimit,
+        GetTreeId());
 
     // Discard the job in case of resource overcommit.
     if (scheduleJobResult->JobStartRequest) {
@@ -2314,6 +2317,15 @@ TRootElement::TRootElement(const TRootElement& other)
     : TCompositeSchedulerElement(other, nullptr)
     , TRootElementFixedState(other)
 { }
+
+void TRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
+{
+    TCompositeSchedulerElement::UpdateTreeConfig(config);
+
+    Attributes_.AdjustedFairShareStarvationTolerance = GetFairShareStarvationTolerance();
+    Attributes_.AdjustedMinSharePreemptionTimeout = GetMinSharePreemptionTimeout();
+    Attributes_.AdjustedFairSharePreemptionTimeout = GetFairSharePreemptionTimeout();
+}
 
 void TRootElement::Update(TDynamicAttributesList& dynamicAttributesList)
 {

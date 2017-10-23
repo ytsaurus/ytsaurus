@@ -211,9 +211,10 @@ public:
 
     virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
-        const TJobResourcesWithQuota& jobLimits) override
+        const TJobResourcesWithQuota& jobLimits,
+        const TString& treeId) override
     {
-        return Underlying_->ScheduleJob(std::move(context), jobLimits);
+        return Underlying_->ScheduleJob(std::move(context), jobLimits, treeId);
     }
 
     virtual void UpdateConfig(TSchedulerConfigPtr config) override

@@ -142,7 +142,8 @@ struct IOperationControllerStrategyHost
     //! Called during heartbeat processing to request actions the node must perform.
     virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
         NScheduler::ISchedulingContextPtr context,
-        const NScheduler::TJobResourcesWithQuota& jobLimits) = 0;
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const TString& treeId) = 0;
 
     /*!
      *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.

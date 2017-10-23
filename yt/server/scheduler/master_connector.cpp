@@ -633,7 +633,7 @@ private:
                             "state",
                             "suspended",
                             "events",
-                            "slot_index"
+                            "slot_index_per_tree"
                         };
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                         batchReq->AddRequest(req, "get_op_attr");
@@ -957,8 +957,14 @@ private:
             Bootstrap->GetControlInvoker(),
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"),
-            attributes.Get<std::vector<TOperationEvent>>("events", {}),
-            attributes.Get<int>("slot_index", -1));
+            attributes.Get<std::vector<TOperationEvent>>("events", {}));
+
+        auto slotIndexMap = attributes.Find<yhash<TString, int>>("slot_index_per_tree");
+        if (slotIndexMap) {
+            for (const auto& pair : *slotIndexMap) {
+                result.Operation->SetSlotIndex(pair.first, pair.second);
+            }
+        }
 
         result.Operation->SetSecureVault(std::move(secureVault));
 

@@ -1719,7 +1719,6 @@ class TestSchedulingTags(YTEnvSetup):
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
             spec={"scheduling_tag_filter": "tagA & !tagC"})
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
-
         with pytest.raises(YtError):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
                 spec={"scheduling_tag_filter": "tagA & !tagB"})
@@ -1821,22 +1820,6 @@ class TestSchedulerConfig(YTEnvSetup):
 
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
         assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
-
-    def test_compat(self):
-        orchid_scheduler_config = "//sys/scheduler/orchid/scheduler/config"
-
-        set("//sys/scheduler/config", {"max_running_operation_count_per_pool": 666})
-        time.sleep(3)
-        assert get("{0}/max_running_operation_count_per_pool".format(orchid_scheduler_config)) == 666
-
-        set("//sys/scheduler/config", {})
-        time.sleep(3)
-        assert get("{0}/max_running_operation_count_per_pool".format(orchid_scheduler_config)) == 50
-
-        # COMPAT(acid): Remove this when max_running_operations_per_pool is removed.
-        set("//sys/scheduler/config", {"max_running_operations_per_pool": 999})
-        time.sleep(3)
-        assert get("{0}/max_running_operation_count_per_pool".format(orchid_scheduler_config)) == 999
 
     def test_adresses(self):
         adresses = get("//sys/scheduler/@addresses")

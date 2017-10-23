@@ -84,26 +84,72 @@ TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs)
     return result;
 }
 
+namespace NProto
+{
+
+void ToProto(NScheduler::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics)
+{
+    protoJobMetrics->set_disk_reads(jobMetrics.GetDiskReads());
+    protoJobMetrics->set_disk_writes(jobMetrics.GetDiskWrites());
+    protoJobMetrics->set_time_completed(jobMetrics.GetTimeCompleted());
+    protoJobMetrics->set_time_aborted(jobMetrics.GetTimeAborted());
+}
+
+void FromProto(NScheduler::TJobMetrics* jobMetrics, const NScheduler::NProto::TJobMetrics& protoJobMetrics)
+{
+    jobMetrics->SetDiskReads(protoJobMetrics.disk_reads());
+    jobMetrics->SetDiskWrites(protoJobMetrics.disk_writes());
+    jobMetrics->SetTimeCompleted(protoJobMetrics.time_completed());
+    jobMetrics->SetTimeAborted(protoJobMetrics.time_aborted());
+}
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto
+{
+
+void ToProto(
+    NScheduler::NProto::TTreeTaggedJobMetrics* protoJobMetrics,
+    const NScheduler::TTreeTaggedJobMetrics& jobMetrics)
+{
+    protoJobMetrics->set_tree_id(jobMetrics.TreeId);
+    ToProto(protoJobMetrics->mutable_metrics(), jobMetrics.Metrics);
+}
+
+void FromProto(
+    NScheduler::TTreeTaggedJobMetrics* jobMetrics,
+    const NScheduler::NProto::TTreeTaggedJobMetrics& protoJobMetrics)
+{
+    jobMetrics->TreeId = protoJobMetrics.tree_id();
+    FromProto(&jobMetrics->Metrics, protoJobMetrics.metrics());
+}
+
+} // namespace NProto
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
 
-void ToProto(NScheduler::NProto::TOperationJobMetrics* protoOperationJobMetrics, const NScheduler::TOperationJobMetrics& operationJobMetrics)
+void ToProto(
+    NScheduler::NProto::TOperationJobMetrics* protoOperationJobMetrics,
+    const NScheduler::TOperationJobMetrics& operationJobMetrics)
 {
+    using NYT::ToProto;
+
     ToProto(protoOperationJobMetrics->mutable_operation_id(), operationJobMetrics.OperationId);
-    protoOperationJobMetrics->set_disk_reads(operationJobMetrics.JobMetrics.GetDiskReads());
-    protoOperationJobMetrics->set_disk_writes(operationJobMetrics.JobMetrics.GetDiskWrites());
-    protoOperationJobMetrics->set_time_completed(operationJobMetrics.JobMetrics.GetTimeCompleted());
-    protoOperationJobMetrics->set_time_aborted(operationJobMetrics.JobMetrics.GetTimeAborted());
+    ToProto(protoOperationJobMetrics->mutable_metrics(), operationJobMetrics.Metrics);
 }
 
-void FromProto(NScheduler::TOperationJobMetrics* operationJobMetrics, const NScheduler::NProto::TOperationJobMetrics& protoOperationJobMetrics)
+void FromProto(
+    NScheduler::TOperationJobMetrics* operationJobMetrics,
+    const NScheduler::NProto::TOperationJobMetrics& protoOperationJobMetrics)
 {
+    using NYT::FromProto;
+
     FromProto(&operationJobMetrics->OperationId, protoOperationJobMetrics.operation_id());
-    operationJobMetrics->JobMetrics.SetDiskReads(protoOperationJobMetrics.disk_reads());
-    operationJobMetrics->JobMetrics.SetDiskWrites(protoOperationJobMetrics.disk_writes());
-    operationJobMetrics->JobMetrics.SetTimeCompleted(protoOperationJobMetrics.time_completed());
-    operationJobMetrics->JobMetrics.SetTimeAborted(protoOperationJobMetrics.time_aborted());
+    FromProto(&operationJobMetrics->Metrics, protoOperationJobMetrics.metrics());
 }
 
 } // namespace NProto

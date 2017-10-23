@@ -38,6 +38,12 @@ struct INodeShardHost
 
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
 
+    virtual TFuture<void> RegisterOrUpdateNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const yhash_set<TString>& tags) = 0;
+
+    virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
+
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
@@ -224,6 +230,8 @@ private:
 
     int ConcurrentHeartbeatCount_ = 0;
 
+    bool HasOngoingNodesAttributesUpdate_ = false;
+
     std::atomic<int> ActiveJobCount_ = {0};
 
     NConcurrency::TReaderWriterSpinLock ResourcesLock_;
@@ -354,6 +362,7 @@ private:
 
     void BuildNodeYson(TExecNodePtr node, NYTree::TFluentMap consumer);
 
+    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState);
 };
 
 typedef NYT::TIntrusivePtr<TNodeShard> TNodeShardPtr;

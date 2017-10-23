@@ -25,12 +25,13 @@ struct ISchedulerStrategyHost
     virtual ~ISchedulerStrategyHost() = default;
 
     virtual TJobResources GetTotalResourceLimits() = 0;
-    virtual TJobResources GetMainNodesResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
+    virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
 
     virtual TInstant GetConnectionTime() const = 0;
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
+    virtual void AbortOperation(const TOperationId& operationId, const TError& error) = 0;
 
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const = 0;
 
@@ -53,26 +54,34 @@ struct ISchedulerStrategyHost
 
 struct TUpdatedJob
 {
-    TUpdatedJob(const TOperationId& operationId, const TJobId& jobId, const TJobResources& delta)
+    TUpdatedJob(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TJobResources& delta,
+        const TString& treeId)
         : OperationId(operationId)
         , JobId(jobId)
         , Delta(delta)
+        , TreeId(treeId)
     { }
 
     TOperationId OperationId;
     TJobId JobId;
     TJobResources Delta;
+    TString TreeId;
 };
 
 struct TCompletedJob
 {
-    TCompletedJob(const TOperationId& operationId, const TJobId& jobId)
+    TCompletedJob(const TOperationId& operationId, const TJobId& jobId, const TString& treeId)
         : OperationId(operationId)
         , JobId(jobId)
+        , TreeId(treeId)
     { }
 
     TOperationId OperationId;
     TJobId JobId;
+    TString TreeId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,11 +143,14 @@ struct ISchedulerStrategy
 
     virtual void ProcessUpdatedAndCompletedJobs(
         std::vector<TUpdatedJob>* updatedJobs,
-        std::vector<NScheduler::TCompletedJob>* completedJobs) = 0;
+        std::vector<NScheduler::TCompletedJob>* completedJobs,
+        std::vector<TJobId>* jobsToAbort) = 0;
 
-    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& jobMetricsDelta) = 0;
+    virtual void ApplyJobMetricsDelta(const TOperationJobMetrics& operationJobMetrics) = 0;
 
     virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
+
+    virtual void ValidateNodeTags(const yhash_set<TString>& tags) = 0;
 
     virtual void UpdateOperationRuntimeParams(
         const TOperationPtr& operation,

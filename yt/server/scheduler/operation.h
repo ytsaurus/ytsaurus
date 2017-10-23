@@ -46,8 +46,9 @@ struct IOperationStrategyHost
 
     virtual TInstant GetStartTime() const = 0;
 
-    virtual int GetSlotIndex() const = 0;
-    virtual void SetSlotIndex(int index) = 0;
+    virtual TNullable<int> FindSlotIndex(const TString& treeId) const = 0;
+    virtual int GetSlotIndex(const TString& treeId) const = 0;
+    virtual void SetSlotIndex(const TString& treeId, int index) = 0;
 
     virtual TString GetAuthenticatedUser() const = 0;
 
@@ -145,9 +146,6 @@ public:
     //! Stores statistics about operation preparation and schedule job timings.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
-    //! Numeric index of operation in pool.
-    DEFINE_BYVAL_RW_PROPERTY(int, SlotIndex);
-
     //! Mark that operation attributes should be flushed to cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
@@ -192,6 +190,13 @@ public:
     //! Sets operation state and adds corresponding event.
     void SetState(EOperationState state);
 
+    //! Slot index machinery.
+    TNullable<int> FindSlotIndex(const TString& treeId) const override;
+    int GetSlotIndex(const TString& treeId) const override;
+    void SetSlotIndex(const TString& treeId, int value) override;
+
+    const yhash<TString, int>& GetSlotIndices() const;
+
     //! Returns a cancelable control invoker corresponding to this operation.
     const IInvokerPtr& GetCancelableControlInvoker();
 
@@ -210,13 +215,14 @@ public:
         IInvokerPtr controlInvoker,
         EOperationState state = EOperationState::None,
         bool suspended = false,
-        const std::vector<TOperationEvent>& events = {},
-        int slotIndex = -1);
+        const std::vector<TOperationEvent>& events = {});
 
 private:
     const TString CodicilData_;
     const TCancelableContextPtr CancelableContext_;
     const IInvokerPtr CancelableInvoker_;
+
+    yhash<TString, int> TreeIdToSlotIndex_;
 
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();

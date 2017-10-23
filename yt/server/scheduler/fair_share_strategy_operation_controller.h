@@ -37,7 +37,8 @@ public:
     TScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& jobLimits,
-        TDuration timeLimit);
+        TDuration timeLimit,
+        const TString& treeId);
 
     void AbortJob(std::unique_ptr<TAbortedJobSummary> abortedJobSummary);
 

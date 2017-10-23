@@ -49,18 +49,50 @@ TJobMetrics& operator-=(TJobMetrics& lhs, const TJobMetrics& rhs);
 TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs);
 TJobMetrics operator-(const TJobMetrics& lhs, const TJobMetrics& rhs);
 
+namespace NProto {
+
+void ToProto(NScheduler::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics);
+void FromProto(NScheduler::TJobMetrics* jobMetrics, const NScheduler::NProto::TJobMetrics& protoJobMetrics);
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTreeTaggedJobMetrics
+{
+    TString TreeId;
+    TJobMetrics Metrics;
+};
+
+namespace NProto {
+
+void ToProto(
+    NScheduler::NProto::TTreeTaggedJobMetrics* protoJobMetrics,
+    const NScheduler::TTreeTaggedJobMetrics& jobMetrics);
+
+void FromProto(
+    NScheduler::TTreeTaggedJobMetrics* jobMetrics,
+    const NScheduler::NProto::TTreeTaggedJobMetrics& protoJobMetrics);
+
+} // namespace NProto
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationJobMetrics
 {
     TOperationId OperationId;
-    TJobMetrics JobMetrics;
+    std::vector<TTreeTaggedJobMetrics> Metrics;
 };
 
 namespace NProto {
 
-void ToProto(NScheduler::NProto::TOperationJobMetrics* protoOperationJobMetrics, const NScheduler::TOperationJobMetrics& operationJobMetrics);
-void FromProto(NScheduler::TOperationJobMetrics* operationJobMetrics, const NScheduler::NProto::TOperationJobMetrics& protoOperationJobMetrics);
+void ToProto(
+    NScheduler::NProto::TOperationJobMetrics* protoOperationJobMetrics,
+    const NScheduler::TOperationJobMetrics& operationJobMetrics);
+
+void FromProto(
+    NScheduler::TOperationJobMetrics* operationJobMetrics,
+    const NScheduler::NProto::TOperationJobMetrics& protoOperationJobMetrics);
 
 } // namespace NProto
 

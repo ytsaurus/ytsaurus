@@ -28,11 +28,6 @@ struct TSchedulerStrategyHostMock
 
     virtual TJobResources GetTotalResourceLimits() override
     {
-        return GetMainNodesResourceLimits();
-    }
-
-    virtual TJobResources GetMainNodesResourceLimits() override
-    {
         TJobResources totalResources;
         for (const auto& resources : NodeResourceLimitsList) {
             totalResources += resources.ToJobResources();
@@ -45,7 +40,7 @@ struct TSchedulerStrategyHostMock
         if (!filter.IsEmpty()) {
             return ZeroJobResources();
         }
-        return GetMainNodesResourceLimits();
+        return GetTotalResourceLimits();
     }
 
     virtual TInstant GetConnectionTime() const override
@@ -56,6 +51,9 @@ struct TSchedulerStrategyHostMock
     virtual void ActivateOperation(const TOperationId& operationId) override
     { }
 
+    virtual void AbortOperation(const TOperationId& /* operationId */, const TError& /* error */) override
+    { }
+
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         TMemoryDistribution result;
@@ -63,6 +61,11 @@ struct TSchedulerStrategyHostMock
             ++result[resources.GetMemory()];
         }
         return result;
+    }
+
+    virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& /* filter */) const override
+    {
+        return {};
     }
 
     virtual void ValidatePoolPermission(
@@ -103,7 +106,8 @@ public:
 
     virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
-        const TJobResourcesWithQuota& jobLimits) override
+        const TJobResourcesWithQuota& jobLimits,
+        const TString& /* treeId */) override
     {
         Y_UNREACHABLE();
     }
@@ -177,12 +181,17 @@ public:
         return StartTime_;
     }
 
-    virtual int GetSlotIndex() const
+    virtual TNullable<int> FindSlotIndex(const TString& /* treeId */) const override
     {
         return 0;
     }
 
-    virtual void SetSlotIndex(int /* slotIndex */)
+    virtual int GetSlotIndex(const TString& treeId) const override
+    {
+        return 0;
+    }
+
+    virtual void SetSlotIndex(const TString& /* treeId */, int /* slotIndex */) override
     { }
 
     virtual TString GetAuthenticatedUser() const
@@ -223,11 +232,12 @@ TEST(FairShareTree, TestAttributes)
     jobResources.SetMemory(10);
 
     auto config = New<TFairShareStrategyConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
     auto host = New<TSchedulerStrategyHostMock>(std::vector<TJobResourcesWithQuota>(10, nodeResources));
 
     auto rootElement = New<TRootElement>(
         host.Get(),
-        config,
+        treeConfig,
         // TODO(ignat): eliminate profiling from test.
         NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
         "default");
@@ -237,7 +247,7 @@ TEST(FairShareTree, TestAttributes)
         "A",
         New<TPoolConfig>(),
         true,
-        config,
+        treeConfig,
         NProfiling::TProfileManager::Get()->RegisterTag("pool", "A"),
         "default");
 
@@ -246,7 +256,7 @@ TEST(FairShareTree, TestAttributes)
         "B",
         New<TPoolConfig>(),
         true,
-        config,
+        treeConfig,
         NProfiling::TProfileManager::Get()->RegisterTag("pool", "B"),
         "default");
 
@@ -259,7 +269,7 @@ TEST(FairShareTree, TestAttributes)
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResourcesWithQuota>(10, jobResources));
     auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
-        config,
+        treeConfig,
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
         operationControllerX,
@@ -298,11 +308,12 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
     jobResources.SetMemory(10);
 
     auto config = New<TFairShareStrategyConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
     auto host = New<TSchedulerStrategyHostMock>(std::vector<TJobResourcesWithQuota>(10, nodeResources));
 
     auto rootElement = New<TRootElement>(
         host.Get(),
-        config,
+        treeConfig,
         // TODO(ignat): eliminate profiling from test.
         NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
         "default");
@@ -310,7 +321,7 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResourcesWithQuota>(10, jobResources));
     auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
-        config,
+        treeConfig,
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
         operationControllerX,
@@ -365,11 +376,12 @@ TEST(FairShareTree, TestBestAllocationRatio)
     jobResources.SetMemory(150);
 
     auto config = New<TFairShareStrategyConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
     auto host = New<TSchedulerStrategyHostMock>(std::vector<TJobResourcesWithQuota>({nodeResourcesA, nodeResourcesA, nodeResourcesB}));
 
     auto rootElement = New<TRootElement>(
         host.Get(),
-        config,
+        treeConfig,
         // TODO(ignat): eliminate profiling from test.
         NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
         "default");
@@ -377,7 +389,7 @@ TEST(FairShareTree, TestBestAllocationRatio)
     auto operationX = New<TOperationStrategyHostMock>(std::vector<TJobResourcesWithQuota>(3, jobResources));
     auto operationControllerX = New<TFairShareStrategyOperationController>(operationX.Get());
     auto operationElementX = New<TOperationElement>(
-        config,
+        treeConfig,
         New<TStrategyOperationSpec>(),
         New<TOperationRuntimeParams>(),
         operationControllerX,
@@ -399,13 +411,13 @@ TEST(FairShareTree, TestBestAllocationRatio)
 
 TEST(FairShareTree, TestOperationCountLimits)
 {
-    auto config = New<TFairShareStrategyConfig>();
     auto host = New<TSchedulerStrategyHostMock>();
     auto poolConfig = New<TPoolConfig>();
+    auto treeConfig = New<TFairShareStrategyTreeConfig>();
 
     auto rootElement = New<TRootElement>(
         host.Get(),
-        config,
+        treeConfig,
         // TODO(ignat): eliminate profiling from test.
         NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
         "default");
@@ -417,7 +429,7 @@ TEST(FairShareTree, TestOperationCountLimits)
             "pool" + ToString(i),
             poolConfig,
             true, /* defaultConfigured */
-            config,
+            treeConfig,
             NProfiling::TProfileManager::Get()->RegisterTag("pool", "pool" + ToString(i)),
             "default");
     }

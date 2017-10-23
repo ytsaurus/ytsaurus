@@ -798,6 +798,8 @@ public:
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList) override;
 
+    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
+
     virtual bool IsRoot() const override;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;

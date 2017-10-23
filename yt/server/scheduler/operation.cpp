@@ -32,8 +32,7 @@ TOperation::TOperation(
     IInvokerPtr controlInvoker,
     EOperationState state,
     bool suspended,
-    const std::vector<TOperationEvent>& events,
-    int slotIndex)
+    const std::vector<TOperationEvent>& events)
     : Id_(id)
     , Type_(type)
     , MutationId_(mutationId)
@@ -48,7 +47,6 @@ TOperation::TOperation(
     , Owners_(owners)
     , StartTime_(startTime)
     , Events_(events)
-    , SlotIndex_(slotIndex)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
@@ -57,7 +55,7 @@ TOperation::TOperation(
     SecureVault_ = std::move(parsedSpec->SecureVault);
     Spec_->RemoveChild("secure_vault");
 
-    RuntimeParams_->Weight = parsedSpec->Weight;
+    RuntimeParams_->Weight = parsedSpec->Weight.Get(1.0);
     RuntimeParams_->ResourceLimits = parsedSpec->ResourceLimits;
     RuntimeParams_->Owners = parsedSpec->Owners;
 }
@@ -139,6 +137,29 @@ void TOperation::SetState(EOperationState state)
     State_ = state;
     Events_.emplace_back(TOperationEvent({TInstant::Now(), state}));
     ShouldFlush_ = true;
+}
+
+void TOperation::SetSlotIndex(const TString& treeId, int value)
+{
+    TreeIdToSlotIndex_.emplace(treeId, value);
+}
+
+TNullable<int> TOperation::FindSlotIndex(const TString& treeId) const
+{
+    auto it = TreeIdToSlotIndex_.find(treeId);
+    return it != TreeIdToSlotIndex_.end() ? MakeNullable(it->second) : Null;
+}
+
+int TOperation::GetSlotIndex(const TString& treeId) const
+{
+    auto slotIndex = FindSlotIndex(treeId);
+    YCHECK(slotIndex);
+    return *slotIndex;
+}
+
+const yhash<TString, int>& TOperation::GetSlotIndices() const
+{
+    return TreeIdToSlotIndex_;
 }
 
 const IInvokerPtr& TOperation::GetCancelableControlInvoker()

@@ -27,13 +27,24 @@ message TExecNodeDescriptorList
     repeated TExecNodeDescriptor exec_nodes = 1;
 }
 
+message TJobMetrics
+{
+    optional int64 disk_reads = 1;
+    optional int64 disk_writes = 2;
+    optional int64 time_completed = 3;
+    optional int64 time_aborted = 4;
+}
+
+message TTreeTaggedJobMetrics
+{
+    required string tree_id = 1;
+    optional TJobMetrics metrics = 2;
+}
+
 message TOperationJobMetrics
 {
     required NYT.NProto.TGuid operation_id = 1;
-    optional int64 disk_reads = 2;
-    optional int64 disk_writes = 3;
-    optional int64 time_completed = 4;
-    optional int64 time_aborted = 5;
+    repeated TTreeTaggedJobMetrics metrics = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
