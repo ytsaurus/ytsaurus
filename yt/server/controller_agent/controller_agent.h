@@ -36,6 +36,8 @@ public:
     void Disconnect();
     void ValidateConnected() const;
 
+    TInstant GetConnectionTime() const;
+
     const IInvokerPtr& GetInvoker();
     const IInvokerPtr& GetControllerThreadPoolInvoker();
 

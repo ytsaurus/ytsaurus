@@ -88,9 +88,6 @@ struct IOperationHost
     //! Returns the total number of online exec nodes.
     virtual int GetExecNodeCount() const = 0;
 
-    //! Returns last time the scheduler got connected to the cluster.
-    virtual TInstant GetConnectionTime() const = 0;
-
     //! Returns the descriptors of online exec nodes that can handle operations
     //! marked with a given #tag.
     /*!
