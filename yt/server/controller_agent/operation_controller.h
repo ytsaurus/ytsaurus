@@ -85,9 +85,6 @@ struct IOperationHost
      */
     virtual IInvokerPtr GetControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const = 0;
 
-    //! Returns the manager of the throttlers to limit #LocateChunk requests from chunk scraper.
-    virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const = 0;
-
     //! Returns the total number of online exec nodes.
     virtual int GetExecNodeCount() const = 0;
 

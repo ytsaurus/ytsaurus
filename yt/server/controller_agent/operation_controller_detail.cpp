@@ -893,7 +893,7 @@ void TOperationControllerBase::InitInputChunkScraper()
     InputChunkScraper = New<TChunkScraper>(
         Config->ChunkScraper,
         CancelableInvoker,
-        Host->GetChunkLocationThrottlerManager(),
+        ControllerAgent->GetChunkLocationThrottlerManager(),
         AuthenticatedInputMasterClient,
         InputNodeDirectory_,
         std::move(chunkIds),
@@ -911,7 +911,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
     IntermediateChunkScraper = New<TIntermediateChunkScraper>(
         Config->ChunkScraper,
         CancelableInvoker,
-        Host->GetChunkLocationThrottlerManager(),
+        ControllerAgent->GetChunkLocationThrottlerManager(),
         AuthenticatedInputMasterClient,
         InputNodeDirectory_,
         [weakThis = MakeWeak(this)] () {
@@ -4567,7 +4567,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
         DataSliceFetcherChunkScraper = CreateFetcherChunkScraper(
             Config->ChunkScraper,
             GetCancelableInvoker(),
-            Host->GetChunkLocationThrottlerManager(),
+            ControllerAgent->GetChunkLocationThrottlerManager(),
             AuthenticatedInputMasterClient,
             InputNodeDirectory_,
             Logger);
