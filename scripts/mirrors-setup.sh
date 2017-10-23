@@ -138,3 +138,4 @@ configure_github_mirror micheles-decorator
 configure_github_mirror dateutil-dateutil
 configure_github_mirror terencehonles-fusepy
 configure_github_mirror tqdm-tqdm
+configure_github_mirror kxxoling-PTable
