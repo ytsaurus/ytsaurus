@@ -421,6 +421,8 @@ void TOperationControllerBase::Initialize()
 
     MasterConnector->RegisterOperation(OperationId, MakeStrong(this));
 
+    UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
+
     LOG_INFO("Operation initialized");
 }
 
@@ -5226,6 +5228,13 @@ std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
     return jobs;
 }
 
+const NYTree::IMapNodePtr& TOperationControllerBase::GetUnrecognizedSpec() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return UnrecognizedSpec_;
+}
+
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)
 {
     for (const auto& pair : CellTagToRequiredChunkLists) {
@@ -5340,6 +5349,10 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
                     .Item("max_intermediate_chunk_count").Value(AutoMergeDirector_->GetMaxIntermediateChunkCount())
                     .Item("chunk_count_per_merge_job").Value(AutoMergeDirector_->GetChunkCountPerMergeJob())
                 .EndMap();
+        })
+        .DoIf(static_cast<bool>(UnrecognizedSpec_), [&] (TFluentMap fluent) {
+            fluent
+                .Item("unrecognized_spec").Value(GetUnrecognizedSpec());
         });
 }
 
@@ -6337,6 +6350,15 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, JobSplitter_);
     Persist(context, DataFlowGraph_);
+
+    TYsonString unrecognizedSpecYson("{}");
+    if (context.IsSave() && UnrecognizedSpec_) {
+        unrecognizedSpecYson = ConvertToYsonString(UnrecognizedSpec_);
+    }
+    Persist(context, unrecognizedSpecYson);
+    if (context.IsLoad()) {
+        UnrecognizedSpec_ = ConvertTo<IMapNodePtr>(unrecognizedSpecYson);
+    }
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already intialized.

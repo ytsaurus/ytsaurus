@@ -443,6 +443,11 @@ struct IOperationController
     //! Build scheduler jobs from the joblets. Used during revival pipeline.
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;
 
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    //! Return a map node containing all unrecognized spec options.
+    virtual const NYTree::IMapNodePtr& GetUnrecognizedSpec() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

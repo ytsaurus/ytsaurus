@@ -937,6 +937,11 @@ private:
     {
         return EJobType::OrderedMap;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyOrderedMapController);
@@ -1079,6 +1084,11 @@ private:
     virtual EJobType GetJobType() const override
     {
         return EJobType::OrderedMerge;
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
     }
 };
 
@@ -1242,6 +1252,11 @@ private:
     virtual EJobType GetJobType() const override
     {
         return EJobType::OrderedMerge;
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
     }
 };
 
@@ -1931,6 +1946,11 @@ private:
     {
         return EJobType::SortedMerge;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController);
@@ -2286,6 +2306,11 @@ protected:
     {
         return true;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2619,6 +2644,11 @@ private:
     {
         return EJobType::SortedReduce;
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyReduceController);
@@ -2776,6 +2806,11 @@ private:
     virtual EJobType GetJobType() const override
     {
         return EJobType::JoinReduce;
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
     }
 };
 

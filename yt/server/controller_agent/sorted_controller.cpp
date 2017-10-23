@@ -730,6 +730,11 @@ protected:
         return {EJobType::SortedMerge};
     }
 
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xf3b791ca);
 
@@ -936,6 +941,11 @@ public:
         return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
+
 protected:
     std::vector<TString> SortKeyColumns_;
 
@@ -1098,6 +1108,10 @@ private:
         return options;
     }
 
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController);
@@ -1189,6 +1203,11 @@ public:
     virtual i64 GetForeignInputDataWeight() const override
     {
         return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
     }
 
 protected:

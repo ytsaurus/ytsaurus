@@ -329,6 +329,8 @@ public:
 
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override;
 
+    virtual const NYTree::IMapNodePtr& GetUnrecognizedSpec() const override;
+
 protected:
     IOperationHost* Host;
     TControllerAgent* ControllerAgent;
@@ -461,6 +463,8 @@ protected:
     TTaskGroupPtr AutoMergeTaskGroup;
 
     TDataFlowGraph DataFlowGraph_;
+
+    NYTree::IMapNodePtr UnrecognizedSpec_;
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
@@ -635,6 +639,11 @@ protected:
     void OnIntermediateChunkAvailable(
         const NChunkClient::TChunkId& chunkId,
         const NChunkClient::TChunkReplicaList& replicas);
+
+    //! Return a pointer to `YsonSerializable` object that represents
+    //! the fully typed operation spec which know more than a simple
+    //! `TOperationSpecBase::Spec`.
+    virtual NYTree::TYsonSerializablePtr GetTypedSpec() const = 0;
 
     int EstimateSplitJobCount(const NScheduler::TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
     void ExtractInterruptDescriptor(NScheduler::TCompletedJobSummary& jobSummary) const;

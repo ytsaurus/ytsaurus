@@ -568,6 +568,11 @@ private:
             THROW_ERROR_EXCEPTION("No remote cluster is specified");
         }
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyRemoteCopyController);

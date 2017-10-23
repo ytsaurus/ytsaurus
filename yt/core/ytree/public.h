@@ -64,6 +64,8 @@ const i64 DefaultVirtualChildLimit = 1000;
 //! NB: Changing this value will invalidate all changelogs!
 static const int MaxYPathResolveIterations = 256;
 
+DECLARE_REFCOUNTED_CLASS(TYsonSerializable);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A static node type.

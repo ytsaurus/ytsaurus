@@ -672,6 +672,11 @@ private:
             2 * Options->MaxJobCount > JobCounter->GetTotal() &&
             TOperationControllerBase::IsJobInterruptible();
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
@@ -818,6 +823,11 @@ private:
             default:
                 Y_UNREACHABLE();
         }
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
     }
 };
 
