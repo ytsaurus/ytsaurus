@@ -160,10 +160,6 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->TableReader,
         TableReader);
 
-    config = UpdateYsonSerializable(
-        config,
-        GetUnrecognized());
-
     Options.Config = config;
 
     auto reader = WaitFor(context->GetClient()->CreateTableReader(
@@ -253,10 +249,6 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
         TableWriter);
-
-    config = UpdateYsonSerializable(
-        config,
-        GetUnrecognized());
 
     Options.Config = config;
 
