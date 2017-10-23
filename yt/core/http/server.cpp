@@ -8,8 +8,10 @@
 #include <yt/core/net/connection.h>
 
 #include <yt/core/concurrency/poller.h>
+#include <yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NHttp {
@@ -154,14 +156,31 @@ IServerPtr CreateServer(
 IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller)
 {
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
-    auto listener = CreateListener(address, poller);
-    return New<TServer>(config, listener, poller);
+    for (int i = 0;; ++i) {
+        try {
+            auto listener = CreateListener(address, poller);
+            return New<TServer>(config, listener, poller);
+        } catch (const std::exception& ex) {
+            if (i + 1 == config->BindRetryCount) {
+                throw;
+            } else {
+                LOG_ERROR(ex, "HTTP server bind failed");
+                Sleep(config->BindRetryBackoff);
+            }
+        }
+    }
 }
 
 IServerPtr CreateServer(int port, const IPollerPtr& poller)
 {
     auto config = New<TServerConfig>();
     config->Port = port;
+    return CreateServer(config, poller);
+}
+
+IServerPtr CreateServer(const TServerConfigPtr& config)
+{
+    auto poller = CreateThreadPoolPoller(1, "Http");
     return CreateServer(config, poller);
 }
 

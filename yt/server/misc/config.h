@@ -16,6 +16,8 @@
 
 #include <yt/core/logging/config.h>
 
+#include <yt/core/http/config.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -42,6 +44,8 @@ public:
 
     //! HTTP monitoring interface port number.
     int MonitoringPort;
+    NHttp::TServerConfigPtr MonitoringServer;
+    bool UseNewHttpServer;
 
     TServerConfig()
     {
@@ -72,6 +76,10 @@ public:
             .Default(0)
             .GreaterThanOrEqual(0)
             .LessThan(65536);
+        RegisterParameter("monitoring_server", MonitoringServer)
+            .DefaultNew();
+        RegisterParameter("use_new_http_server", UseNewHttpServer)
+            .Default(false);
     }
 
     virtual void OnLoaded() override
