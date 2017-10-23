@@ -79,7 +79,11 @@ void TPortoProcess::DoSpawn()
 
     YCHECK(execFuture);
     execFuture.Apply(BIND([=, this_ = MakeStrong(this)](int exitCode) {
-        LOG_DEBUG("Process inside porto exited (ExitCode: %v)", exitCode);
+        LOG_DEBUG("Process inside porto exited (ExitCode: %v, ExternalPid: %v, Container: %v)",
+            exitCode,
+            ProcessId_,
+            ContainerInstance_->GetName());
+
         Finished_ = true;
         FinishedPromise_.Set(StatusToError(exitCode));
     }));
