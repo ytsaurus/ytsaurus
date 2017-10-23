@@ -171,6 +171,9 @@ public:
         : public TRefCounted
     {
     public:
+        DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobId>, RecentlyCompletedJobIds);
+
+    public:
         explicit TRevivalState(TNodeShard* host);
 
         bool ShouldSkipUnknownJobs() const;
