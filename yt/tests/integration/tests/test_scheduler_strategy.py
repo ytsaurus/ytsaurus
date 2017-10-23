@@ -6,6 +6,7 @@ from yt_commands import *
 
 import time
 import __builtin__
+import datetime
 
 import os
 
@@ -751,6 +752,8 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
 
+        events = EventsOnFs()
+
         spec = {
             "pool": "fake_pool",
             "locality_timeout": 0,
@@ -761,18 +764,30 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec["data_size_per_job"] = data_size_per_job / 3 + 1
         else:
             spec["job_count"] = 3
+
+        mapper = " ; ".join([
+            events.notify_event_cmd("mapper_started_$YT_JOB_INDEX"),
+            "sleep 7",
+            "cat"])
         op1 = map(
             dont_track=True,
-            command="sleep 5; cat; echo stderr 1>&2",
+            command=mapper,
             in_=["//tmp/t_in"],
             out="//tmp/t_out1",
             spec=spec)
+
         time.sleep(3)
 
         assert get("//sys/scheduler/orchid/scheduler/pools/fake_pool/fair_share_ratio") >= 0.999
         assert get("//sys/scheduler/orchid/scheduler/pools/fake_pool/usage_ratio") >= 0.999
 
         create("map_node", "//sys/pools/test_pool", attributes={"min_share_ratio": 1.0})
+
+        # Ensure that all three jobs have started.
+        events.wait_event("mapper_started_0", timeout=datetime.timedelta(1000))
+        events.wait_event("mapper_started_1", timeout=datetime.timedelta(1000))
+        events.wait_event("mapper_started_2", timeout=datetime.timedelta(1000))
+
         op2 = map(
             dont_track=True,
             command="cat",
@@ -781,7 +796,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec={"pool": "test_pool"})
         op2.track()
         op1.track()
-        assert get("//sys/operations/" + op1.id + "/jobs/@count") == (4 if interruptible else 3)
+        assert get("//sys/operations/" + op1.id + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
 
     def test_min_share_ratio(self):
         create("map_node", "//sys/pools/test_min_share_ratio_pool", attributes={"min_share_ratio": 1.0})
