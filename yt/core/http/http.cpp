@@ -5,6 +5,9 @@
 namespace NYT {
 namespace NHttp {
 
+using namespace NYTree;
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUrlRef ParseUrl(TStringBuf url)

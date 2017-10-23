@@ -474,7 +474,9 @@ TSharedRef THttpOutput::GetChunkHeader(size_t size)
 
 TFuture<void> THttpOutput::Write(const TSharedRef& data)
 {
-    YCHECK(!MessageFinished_);
+    if (MessageFinished_) {
+        THROW_ERROR_EXCEPTION("Cannot write to finished HTTP message");
+    }
 
     std::vector<TSharedRef> writeRefs;
     if (!HeadersFlushed_) {
@@ -493,7 +495,9 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
 
 TFuture<void> THttpOutput::Close()
 {
-    YCHECK(!MessageFinished_);
+    if (MessageFinished_) {
+        return VoidFuture;
+    }
 
     if (!HeadersFlushed_) {
         return WriteBody(EmptySharedRef);

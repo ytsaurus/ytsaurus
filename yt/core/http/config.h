@@ -21,6 +21,9 @@ public:
     int ReadBufferSize;
     int WriteBufferSize;
 
+    int BindRetryCount;
+    TDuration BindRetryBackoff;
+
     TServerConfig() {
         RegisterParameter("port", Port)
             .Default(80);
@@ -33,6 +36,12 @@ public:
 
         RegisterParameter("write_buffer_size", WriteBufferSize)
             .Default(128_KB);
+
+        RegisterParameter("bind_retry_count", BindRetryCount)
+            .Default(5);
+
+        RegisterParameter("bind_retry_backoff", BindRetryBackoff)
+            .Default(TDuration::Seconds(1));
     }
 };
 
