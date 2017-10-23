@@ -6063,7 +6063,7 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
         return true;
     }
 
-    if (TInstant::Now() < Host->GetConnectionTime() + Config->SafeSchedulerOnlineTime) {
+    if (TInstant::Now() < ControllerAgent->GetConnectionTime() + Config->SafeSchedulerOnlineTime) {
         return true;
     }
 

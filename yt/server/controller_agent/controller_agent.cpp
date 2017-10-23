@@ -52,6 +52,8 @@ public:
         // TODO(ignat): fix it!
         Invoker_ = invoker;
 
+        ConnectionTime_ = TInstant::Now();
+
         ControllerAgentMasterConnector_ = New<TMasterConnector>(
             invoker,
             Config_,
@@ -65,6 +67,11 @@ public:
         if (!Connected_) {
             THROW_ERROR_EXCEPTION(GetMasterDisconnectedError());
         }
+    }
+
+    TInstant GetConnectionTime() const
+    {
+        return ConnectionTime_;
     }
 
     const IInvokerPtr& GetInvoker()
@@ -182,6 +189,7 @@ private:
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     std::atomic<bool> Connected_ = {false};
+    TInstant ConnectionTime_;
     TMasterConnectorPtr ControllerAgentMasterConnector_;
 
     TReaderWriterSpinLock ControllersLock_;
@@ -227,6 +235,11 @@ void TControllerAgent::Disconnect()
 void TControllerAgent::ValidateConnected() const
 {
     Impl_->ValidateConnected();
+}
+
+TInstant TControllerAgent::GetConnectionTime() const
+{
+    return Impl_->GetConnectionTime();
 }
 
 const IInvokerPtr& TControllerAgent::GetInvoker()
