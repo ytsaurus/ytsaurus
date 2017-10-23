@@ -42,7 +42,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -146,9 +145,6 @@ public:
             NLogging::TLogger(),
             NProfiling::TProfiler(SchedulerProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
-        , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
-            Config_->ChunkLocationThrottler,
-            SchedulerLogger))
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , CachedExecNodeDescriptorsByTags_(New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
             BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
@@ -941,11 +937,6 @@ public:
         return Bootstrap_->GetControlInvoker(queue);
     }
 
-    virtual const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override
-    {
-        return ChunkLocationThrottlerManager_;
-    }
-
     virtual IYsonConsumer* GetEventLogConsumer() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1048,8 +1039,6 @@ private:
 
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
-
-    const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> IsConnected_ = {false};
@@ -1607,7 +1596,6 @@ private:
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
 
-            ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
             ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
 
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);

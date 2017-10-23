@@ -44,6 +44,8 @@ public:
     const TSchedulerConfigPtr& GetConfig() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
 
+    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
+
     void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config);
     
     void RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller);

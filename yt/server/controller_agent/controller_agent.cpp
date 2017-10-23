@@ -8,6 +8,8 @@
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
 
+#include <yt/ytlib/chunk_client/throttler_manager.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
 
@@ -33,6 +35,9 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
+        , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
+            Config_->ChunkLocationThrottler,
+            ControllerAgentLogger))
     { }
 
     void Disconnect()
@@ -87,9 +92,15 @@ public:
         return Bootstrap_->GetMasterClient();
     }
 
+    const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const
+    {
+        return ChunkLocationThrottlerManager_;
+    }
+
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         Config_ = config;
+        ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
         if (ControllerAgentMasterConnector_) {
             ControllerAgentMasterConnector_->UpdateConfig(config);
         }
@@ -168,6 +179,8 @@ private:
 
     const TThreadPoolPtr ControllerThreadPool_;
 
+    const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
+
     std::atomic<bool> Connected_ = {false};
     TMasterConnectorPtr ControllerAgentMasterConnector_;
 
@@ -239,6 +252,11 @@ const TSchedulerConfigPtr& TControllerAgent::GetConfig() const
 const NApi::INativeClientPtr& TControllerAgent::GetMasterClient() const
 {
     return Impl_->GetMasterClient();
+}
+
+const TThrottlerManagerPtr& TControllerAgent::GetChunkLocationThrottlerManager() const
+{
+    return Impl_->GetChunkLocationThrottlerManager();
 }
 
 void TControllerAgent::UpdateConfig(const TSchedulerConfigPtr& config)

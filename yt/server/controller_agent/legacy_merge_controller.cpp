@@ -1402,7 +1402,7 @@ protected:
             FetcherChunkScraper = CreateFetcherChunkScraper(
                 Config->ChunkScraper,
                 GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
+                ControllerAgent->GetChunkLocationThrottlerManager(),
                 AuthenticatedInputMasterClient,
                 InputNodeDirectory_,
                 Logger);
