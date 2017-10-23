@@ -2570,11 +2570,11 @@ private:
     void ReleaseCompletedJobs(const TOperationPtr& operation)
     {
         if (const auto& controller = operation->GetController()) {
-            int numberOfJobsToRelease = controller->GetRecentlyCompletedJobCount();
-            if (numberOfJobsToRelease > 0) {
-                auto error = WaitFor(controller->ReleaseJobs(numberOfJobsToRelease));
-                YCHECK(error.IsOK() && "ReleaseJobs failed");
-            }
+            auto asyncResult = WaitFor(
+                BIND(&IOperationController::ReleaseJobs, controller)
+                    .AsyncVia(controller->GetInvoker())
+                    .Run(std::numeric_limits<i32>::max()));
+            YCHECK(asyncResult.IsOK() && "ReleaseJobs failed");
         }
     }
 
