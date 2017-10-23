@@ -959,6 +959,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         // Add all completed jobs that are now safe to remove.
         for (const auto& jobId : node->JobIdsToRemove()) {
+            YCHECK(RevivalState_->RecentlyCompletedJobIds().erase(jobId));
             ToProto(response->add_jobs_to_remove(), jobId);
         }
         node->JobIdsToRemove().clear();
@@ -1042,7 +1043,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     if (!job) {
         // We should not abort or remove unknown jobs until revival is finished because
         // we can decide what to do with these jobs only when all TJob's are revived.
-        if (RevivalState_->ShouldSkipUnknownJobs()) {
+        // Also we should not remove the completed jobs that were not
+        // saved to the snapshot.
+        if (RevivalState_->ShouldSkipUnknownJobs() || RevivalState_->RecentlyCompletedJobIds().has(jobId)) {
             return nullptr;
         }
         switch (state) {
@@ -1113,6 +1116,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     switch (state) {
         case EJobState::Completed: {
             LOG_DEBUG("Job completed, storage scheduled");
+            YCHECK(RevivalState_->RecentlyCompletedJobIds().insert(jobId).second);
             OnJobCompleted(job, jobStatus);
             ToProto(response->add_jobs_to_store(), jobId);
             break;
@@ -1725,6 +1729,7 @@ void TNodeShard::TRevivalState::PrepareReviving()
     ShouldSkipUnknownJobs_ = true;
     NodeIdsThatSentAllStoredJobs_.clear();
     NotConfirmedJobs_.clear();
+    RecentlyCompletedJobIds_.clear();
 }
 
 void TNodeShard::TRevivalState::StartReviving()
