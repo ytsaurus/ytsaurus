@@ -9,6 +9,7 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -207,12 +208,11 @@ public:
     typedef TIntrusivePtr<TUnorderedTaskBase> TUnorderedTaskPtr;
 
     TUnorderedOperationControllerBase(
-        TSchedulerConfigPtr config,
         TUnorderedOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     { }
@@ -483,12 +483,11 @@ class TMapController
 {
 public:
     TMapController(
-        TSchedulerConfigPtr config,
         TMapOperationSpecPtr spec,
         TMapOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TUnorderedOperationControllerBase(config, spec, options, host, operation)
+        : TUnorderedOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     {
@@ -668,12 +667,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMapController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TMapController>(config, spec, config->MapOperationOptions, host, operation);
+    return New<TMapController>(spec, host->GetControllerAgent()->GetConfig()->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -683,12 +681,11 @@ class TUnorderedMergeController
 {
 public:
     TUnorderedMergeController(
-        TSchedulerConfigPtr config,
         TUnorderedMergeOperationSpecPtr spec,
         TUnorderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TUnorderedOperationControllerBase(config, spec, options, host, operation)
+        : TUnorderedOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->JobProxyMemoryDigest);
@@ -817,12 +814,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateUnorderedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(operation->GetSpec());
-    return New<TUnorderedMergeController>(config, spec, config->UnorderedMergeOperationOptions, host, operation);
+    return New<TUnorderedMergeController>(spec, host->GetControllerAgent()->GetConfig()->UnorderedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

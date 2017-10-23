@@ -187,14 +187,13 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistence
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TOperationControllerBase(
-    TSchedulerConfigPtr config,
     TOperationSpecBasePtr spec,
     TOperationOptionsPtr options,
     IOperationHost* host,
     TOperation* operation)
-    : Config(config)
-    , Host(host)
+    : Host(host)
     , ControllerAgent(Host->GetControllerAgent())
+    , Config(ControllerAgent->GetConfig())
     , MasterConnector(ControllerAgent->GetMasterConnector())
     , OperationId(operation->GetId())
     , OperationType(operation->GetType())
@@ -254,7 +253,7 @@ TOperationControllerBase::TOperationControllerBase(
 
     UserTransactionId = operation->GetUserTransactionId();
     UserTransaction = UserTransactionId
-        ? Host->GetMasterClient()->AttachTransaction(UserTransactionId, userAttachOptions)
+        ? ControllerAgent->GetMasterClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
 }
 
@@ -1086,7 +1085,7 @@ void TOperationControllerBase::StartCompletionTransaction()
 
     // Set transaction id to cypress.
     {
-        const auto& client = Host->GetMasterClient();
+        const auto& client = ControllerAgent->GetMasterClient();
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
@@ -1102,7 +1101,7 @@ void TOperationControllerBase::CommitCompletionTransaction()
 {
     // Set committed flag.
     {
-        const auto& client = Host->GetMasterClient();
+        const auto& client = ControllerAgent->GetMasterClient();
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
@@ -1133,7 +1132,7 @@ void TOperationControllerBase::SleepInStage(EDelayInsideOperationCommitStage des
 
 void TOperationControllerBase::SetPartSize(const TNullable<TOutputTable>& table, size_t partSize)
 {
-    const auto& client = Host->GetMasterClient();
+    const auto& client = ControllerAgent->GetMasterClient();
     auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
@@ -1162,7 +1161,7 @@ void TOperationControllerBase::SafeCommit()
     CustomCommit();
 
     if (StderrTable_ || CoreTable_) {
-        const auto &client = Host->GetMasterClient();
+        const auto &client = ControllerAgent->GetMasterClient();
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
@@ -3413,7 +3412,7 @@ bool TOperationControllerBase::IsFinished() const
 
 void TOperationControllerBase::CreateLivePreviewTables()
 {
-    const auto& client = Host->GetMasterClient();
+    const auto& client = ControllerAgent->GetMasterClient();
     auto connection = client->GetNativeConnection();
 
     // NB: use root credentials.
@@ -4388,7 +4387,7 @@ void TOperationControllerBase::ParseInputQuery(
             THROW_ERROR_EXCEPTION("External UDF registry is not configured");
         }
 
-        auto descriptors = LookupAllUdfDescriptors(externalNames, Config->UdfRegistryPath.Get(), Host->GetMasterClient());
+        auto descriptors = LookupAllUdfDescriptors(externalNames, Config->UdfRegistryPath.Get(), ControllerAgent->GetMasterClient());
 
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
@@ -4413,7 +4412,7 @@ void TOperationControllerBase::ParseInputQuery(
         query->WhereClause,
         query->OriginalSchema,
         query->GetKeyColumns(),
-        Host->GetMasterClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
+        ControllerAgent->GetMasterClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
         BuiltinRangeExtractorMap,
         options);
 
@@ -4587,7 +4586,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 InputNodeDirectory_,
                 GetCancelableInvoker(),
                 DataSliceFetcherChunkScraper,
-                Host->GetMasterClient(),
+                ControllerAgent->GetMasterClient(),
                 RowBuffer,
                 Logger);
 
@@ -6017,7 +6016,7 @@ INativeClientPtr TOperationControllerBase::CreateClient()
 {
     TClientOptions options;
     options.User = AuthenticatedUser;
-    return Host
+    return ControllerAgent
         ->GetMasterClient()
         ->GetNativeConnection()
         ->CreateNativeClient(options);

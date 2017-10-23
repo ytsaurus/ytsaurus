@@ -170,8 +170,7 @@ public:
         YCHECK(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
 
-        auto primaryMasterCellTag = Bootstrap_
-            ->GetMasterClient()
+        auto primaryMasterCellTag = GetMasterClient()
             ->GetNativeConnection()
             ->GetPrimaryMasterCellTag();
 
@@ -283,6 +282,11 @@ public:
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->UpdateExecNodeDescriptorsPeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
+    }
+
+    const NApi::INativeClientPtr& GetMasterClient() const
+    {
+        return Bootstrap_->GetMasterClient();
     }
 
     IYPathServicePtr GetOrchidService()
@@ -925,16 +929,6 @@ public:
     virtual NControllerAgent::TControllerAgent* GetControllerAgent() override
     {
         return Bootstrap_->GetControllerAgent().Get();
-    }
-
-    virtual const TSchedulerConfigPtr& GetConfig() const override
-    {
-        return Config_;
-    }
-
-    virtual const NApi::INativeClientPtr& GetMasterClient() const override
-    {
-        return Bootstrap_->GetMasterClient();
     }
 
     virtual const TNodeDirectoryPtr& GetNodeDirectory() override

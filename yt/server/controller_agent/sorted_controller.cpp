@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
@@ -60,12 +61,11 @@ class TSortedControllerBase
 {
 public:
     TSortedControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(spec, options, host, operation)
         , Spec_(spec)
         , Options_(options)
     { }
@@ -551,7 +551,7 @@ private:
             InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper_,
-            Host->GetMasterClient(),
+            ControllerAgent->GetMasterClient(),
             RowBuffer,
             Logger);
     }
@@ -567,11 +567,10 @@ class TSortedMergeController
 {
 public:
     TSortedMergeController(
-        TSchedulerConfigPtr config,
         TSortedMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedControllerBase(config, spec, config->SortedMergeOperationOptions, host, operation)
+        : TSortedControllerBase(spec, host->GetControllerAgent()->GetConfig()->SortedMergeOperationOptions, host, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
@@ -738,12 +737,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
 
 IOperationControllerPtr CreateSortedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(operation->GetSpec());
-    return New<TSortedMergeController>(config, spec, host, operation);
+    return New<TSortedMergeController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -753,12 +751,11 @@ class TSortedReduceControllerBase
 {
 public:
     TSortedReduceControllerBase(
-        TSchedulerConfigPtr config,
         TReduceOperationSpecBasePtr spec,
         TReduceOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedControllerBase(config, spec, options, host, operation)
+        : TSortedControllerBase(spec, options, host, operation)
         , Spec_(spec)
         , Options_(options)
     { }
@@ -954,11 +951,10 @@ class TSortedReduceController
 {
 public:
     TSortedReduceController(
-        TSchedulerConfigPtr config,
         TReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
+        : TSortedReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->ReduceOperationOptions, host, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
@@ -1100,12 +1096,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController);
 
 IOperationControllerPtr CreateSortedReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
-    return New<TSortedReduceController>(config, spec, host, operation);
+    return New<TSortedReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1115,11 +1110,10 @@ class TJoinReduceController
 {
 public:
     TJoinReduceController(
-        TSchedulerConfigPtr config,
         TJoinReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
+        : TSortedReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->JoinReduceOperationOptions, host, operation)
         , Spec_(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
@@ -1210,12 +1204,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController);
 
 IOperationControllerPtr CreateJoinReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
-    return New<TJoinReduceController>(config, spec, host, operation);
+    return New<TJoinReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

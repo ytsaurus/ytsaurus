@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/rpc/service_detail.h>
 
 #include <yt/core/ytree/public.h>
@@ -38,6 +40,9 @@ public:
     const IInvokerPtr& GetControllerThreadPoolInvoker();
 
     TMasterConnector* GetMasterConnector();
+
+    const TSchedulerConfigPtr& GetConfig() const;
+    const NApi::INativeClientPtr& GetMasterClient() const;
 
     void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config);
     

@@ -72,16 +72,6 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual const TSchedulerConfigPtr& GetConfig() const = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const NApi::INativeClientPtr& GetMasterClient() const = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
     virtual TControllerAgent* GetControllerAgent() = 0;
 
     /*!

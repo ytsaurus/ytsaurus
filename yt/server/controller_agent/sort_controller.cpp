@@ -8,6 +8,7 @@
 #include "map_controller.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -76,15 +77,13 @@ class TSortControllerBase
 {
 public:
     TSortControllerBase(
-        TSchedulerConfigPtr config,
         TSortOperationSpecBasePtr spec,
         TSortOperationOptionsBasePtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
-        , Config(config)
         , CompletedPartitionCount(0)
         // Cannot do similar for SortedMergeJobCounter and UnorderedMergeJobCounter since the number
         // of these jobs is hard to predict.
@@ -1949,7 +1948,7 @@ protected:
         auto user = AuthenticatedUser;
         auto account = Spec->IntermediateDataAccount;
 
-        const auto& client = Host->GetMasterClient();
+        const auto& client = ControllerAgent->GetMasterClient();
         auto asyncResult = client->CheckPermission(
             user,
             "//sys/accounts/" + account,
@@ -2028,14 +2027,12 @@ class TSortController
 {
 public:
     TSortController(
-        TSchedulerConfigPtr config,
         TSortOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TSortControllerBase(
-            config,
             spec,
-            config->SortOperationOptions,
+            host->GetControllerAgent()->GetConfig()->SortOperationOptions,
             host,
             operation)
         , Spec(spec)
@@ -2163,7 +2160,7 @@ private:
                 GetCancelableInvoker(),
                 samplesRowBuffer,
                 FetcherChunkScraper,
-                Host->GetMasterClient(),
+                ControllerAgent->GetMasterClient(),
                 Logger);
 
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
@@ -2707,12 +2704,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
 
 IOperationControllerPtr CreateSortController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortOperationSpec>(operation->GetSpec());
-    return New<TSortController>(config, spec, host, operation);
+    return New<TSortController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2722,14 +2718,12 @@ class TMapReduceController
 {
 public:
     TMapReduceController(
-        TSchedulerConfigPtr config,
         TMapReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TSortControllerBase(
-            config,
             spec,
-            config->MapReduceOperationOptions,
+            host->GetControllerAgent()->GetConfig()->MapReduceOperationOptions,
             host,
             operation)
         , Spec(spec)
@@ -3389,12 +3383,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceController);
 
 IOperationControllerPtr CreateMapReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec());
-    return New<TMapReduceController>(config, spec, host, operation);
+    return New<TMapReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

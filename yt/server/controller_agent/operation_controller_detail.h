@@ -248,7 +248,6 @@ public:
     virtual void Persist(const TPersistenceContext& context) override;
 
     TOperationControllerBase(
-        TSchedulerConfigPtr config,
         TOperationSpecBasePtr spec,
         TOperationOptionsPtr options,
         IOperationHost* host,
@@ -330,9 +329,9 @@ public:
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override;
 
 protected:
-    TSchedulerConfigPtr Config;
     IOperationHost* Host;
     TControllerAgent* ControllerAgent;
+    TSchedulerConfigPtr Config;
     TMasterConnectorPtr MasterConnector;
 
     const TOperationId OperationId;
