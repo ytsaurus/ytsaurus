@@ -2716,6 +2716,11 @@ private:
     {
         return Spec->SortBy.size();
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
@@ -3394,6 +3399,11 @@ private:
     virtual int GetSortedMergeKeyColumnCount() const override
     {
         return Spec->ReduceBy.size();
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec;
     }
 };
 

@@ -602,6 +602,11 @@ private:
     {
         return {EJobType::OrderedMerge};
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
@@ -814,6 +819,11 @@ private:
 
         ValidateUserFileCount(Spec_->Mapper, "mapper");
     }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
@@ -998,6 +1008,11 @@ private:
     virtual EJobType GetJobType() const override
     {
         return EJobType::OrderedMerge;
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
     }
 };
 
@@ -1278,6 +1293,11 @@ private:
     virtual i64 GetMinTeleportChunkSize() override
     {
         return std::numeric_limits<i64>::max();
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
     }
 };
 

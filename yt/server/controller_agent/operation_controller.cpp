@@ -317,6 +317,11 @@ public:
         return Underlying_->BuildJobsFromJoblets();
     }
 
+    virtual const NYTree::IMapNodePtr& GetUnrecognizedSpec() const override
+    {
+        return Underlying_->GetUnrecognizedSpec();
+    }
+
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;

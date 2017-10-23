@@ -1700,7 +1700,8 @@ private:
             operationId);
 
         LogEventFluently(ELogEventType::OperationPrepared)
-            .Item("operation_id").Value(operationId);
+            .Item("operation_id").Value(operationId)
+            .Item("unrecognized_spec").Value(operation->GetController()->GetUnrecognizedSpec());
 
         // From this moment on the controller is fully responsible for the
         // operation's fate. It will eventually call #OnOperationCompleted or

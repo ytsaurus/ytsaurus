@@ -226,7 +226,7 @@ struct TGetUnrecognizedRecursively<T, std::enable_if_t<std::is_base_of<TYsonSeri
 {
     static IMapNodePtr Do(const T& parameter)
     {
-        return parameter->GetUnrecognizedRecursively();
+        return parameter ? parameter->GetUnrecognizedRecursively() : nullptr;
     }
 };
 
