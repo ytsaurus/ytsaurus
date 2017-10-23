@@ -383,7 +383,10 @@ print "x={0}\ty={1}".format(x, y)
              reducer_command=reducer_cmd,
              spec={
                  "partition_count": 2,
-                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1}},
+                 "sort_locality_timeout" : 0,
+                 "sort_assignment_timeout" : 0,
+                 "enable_partitioned_data_balancing" : False,
+                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
                  "resource_limits" : { "user_slots" : 1}},
              dont_track=True)
 
@@ -432,7 +435,10 @@ print "x={0}\ty={1}".format(x, y)
              reducer_command=reducer_cmd,
              spec={
                  "enable_intermediate_output_recalculation" : False,
-                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1}},
+                 "sort_assignment_timeout" : 0,
+                 "sort_locality_timeout" : 0,
+                 "enable_partitioned_data_balancing" : False,
+                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
                  "partition_count": 2,
                  "resource_limits" : { "user_slots" : 1}},
              dont_track=True)
