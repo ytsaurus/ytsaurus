@@ -205,7 +205,7 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                "//sys/pools",
+                "//sys/pool_trees",
                 transactionId,
                 EObjectType::MapNode,
                 BuildYsonStringFluently()

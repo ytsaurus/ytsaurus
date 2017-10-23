@@ -47,7 +47,10 @@ struct ISchedulingContext
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const = 0;
 
-    virtual TJobPtr StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest) = 0;
+    virtual TJobPtr StartJob(
+        const TString& treeId,
+        const TOperationId& operationId,
+        const TJobStartRequest& jobStartRequest) = 0;
 
     virtual void PreemptJob(TJobPtr job) = 0;
 

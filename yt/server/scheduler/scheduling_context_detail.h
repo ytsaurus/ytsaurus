@@ -40,7 +40,10 @@ public:
     virtual bool CanStartMoreJobs() const override;
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const override;
 
-    virtual TJobPtr StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest) override;
+    virtual TJobPtr StartJob(
+        const TString& treeId,
+        const TOperationId& operationId,
+        const TJobStartRequest& jobStartRequest) override;
 
     virtual void PreemptJob(TJobPtr job) override;
 

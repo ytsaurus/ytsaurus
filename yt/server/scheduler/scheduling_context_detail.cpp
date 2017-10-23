@@ -87,7 +87,10 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
     return filter.IsEmpty() || filter.CanSchedule(NodeTags_);
 }
 
-TJobPtr TSchedulingContextBase::StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest)
+TJobPtr TSchedulingContextBase::StartJob(
+    const TString& treeId,
+    const TOperationId& operationId,
+    const TJobStartRequest& jobStartRequest)
 {
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
     auto job = New<TJob>(
@@ -97,7 +100,8 @@ TJobPtr TSchedulingContextBase::StartJob(const TOperationId& operationId, const 
         Node_,
         startTime,
         jobStartRequest.ResourceLimits,
-        jobStartRequest.Interruptible);
+        jobStartRequest.Interruptible,
+        treeId);
     StartedJobs_.push_back(job);
     return job;
 }

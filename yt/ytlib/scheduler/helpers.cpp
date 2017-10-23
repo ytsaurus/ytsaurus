@@ -114,7 +114,7 @@ TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
 
 const TYPath& GetPoolsPath()
 {
-    static TYPath path =  "//sys/pools";
+    static TYPath path =  "//sys/pool_trees";
     return path;
 }
 

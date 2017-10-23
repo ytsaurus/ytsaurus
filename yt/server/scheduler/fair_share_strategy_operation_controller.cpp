@@ -93,11 +93,12 @@ void TFairShareStrategyOperationController::AbortJob(std::unique_ptr<TAbortedJob
 TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResources& jobLimits,
-    TDuration timeLimit)
+    TDuration timeLimit,
+    const TString& treeId)
 {
     auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationControllerStrategyHost::ScheduleJob, Controller_)
         .AsyncVia(Controller_->GetCancelableInvoker())
-        .Run(context, jobLimits);
+        .Run(context, jobLimits, treeId);
 
     auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
         .WithTimeout(timeLimit);

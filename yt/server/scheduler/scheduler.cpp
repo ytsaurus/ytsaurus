@@ -124,6 +124,27 @@ yhash<K, V> FilterLargestValues(const yhash<K, V>& input, size_t threshold)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPoolTreeKeysHolder
+{
+    TPoolTreeKeysHolder()
+    {
+        auto treeConfigTemplate = New<TFairShareStrategyTreeConfig>();
+        auto treeConfigKeys = treeConfigTemplate->GetRegisteredKeys();
+
+        auto poolConfigTemplate = New<TPoolConfig>();
+        auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
+
+        Keys.reserve(treeConfigKeys.size() + poolConfigKeys.size() + 1);
+        Keys.insert(Keys.end(), treeConfigKeys.begin(), treeConfigKeys.end());
+        Keys.insert(Keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
+        Keys.insert(Keys.end(), DefaultTreeAttributeName);
+    }
+
+    std::vector<TString> Keys;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TScheduler::TImpl
     : public TRefCounted
     , public NControllerAgent::IOperationHost
@@ -151,7 +172,6 @@ public:
             Config_->SchedulingTagFilterExpireTimeout,
             GetControlInvoker()))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
-        , MainNodesResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/main_nodes_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
@@ -286,10 +306,9 @@ public:
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(GetControlInvoker(EControlQueue::Orchid));
 
-        return New<TServiceCombiner>(std::vector<IYPathServicePtr> {
-            staticOrchidService,
-            dynamicOrchidService
-        });
+        return New<TServiceCombiner>(
+            std::vector<IYPathServicePtr>{staticOrchidService, dynamicOrchidService},
+            Config_->OrchidKeysUpdatePeriod);
     }
 
     std::vector<TOperationPtr> GetOperations()
@@ -863,13 +882,6 @@ public:
         return totalResourceLimits;
     }
 
-    virtual TJobResources GetMainNodesResourceLimits() override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return GetResourceLimits(Config_->MainNodesFilter);
-    }
-
     TJobResources GetTotalResourceUsage()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -913,6 +925,13 @@ public:
         }
     }
 
+    virtual void AbortOperation(const TOperationId& operationId, const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        DoAbortOperation(operationId, error);
+    }
+
     void MaterializeOperation(TOperationPtr operation)
     {
         auto controller = operation->GetController();
@@ -941,6 +960,19 @@ public:
         }
     }
 
+    virtual std::vector<TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        std::vector<TNodeId> result;
+        for (const auto& pair : NodeIdToTags_) {
+            if (filter.CanSchedule(pair.second)) {
+                result.push_back(pair.first);
+            }
+        }
+
+        return result;
+    }
 
     // IOperationHost implementation
     virtual NControllerAgent::TControllerAgent* GetControllerAgent() override
@@ -1000,6 +1032,32 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return nodeId % NodeShards_.size();
+    }
+
+    virtual TFuture<void> RegisterOrUpdateNode(TNodeId nodeId, const yhash_set<TString>& tags) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&TImpl::DoRegisterOrUpdateNodeTags, MakeStrong(this))
+            .AsyncVia(GetControlInvoker())
+            .Run(nodeId, tags);
+    }
+
+    void DoRegisterOrUpdateNodeTags(TNodeId nodeId, const yhash_set<TString>& tags)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Strategy_->ValidateNodeTags(tags);
+        NodeIdToTags_[nodeId] = tags;
+    }
+
+    virtual void UnregisterNode(TNodeId nodeId) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        BIND([this, this_ = MakeStrong(this), nodeId] { YCHECK(NodeIdToTags_.erase(nodeId) == 1); })
+            .AsyncVia(GetControlInvoker())
+            .Run();
     }
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const override
@@ -1079,7 +1137,6 @@ private:
 
 
     TProfiler TotalResourceLimitsProfiler_;
-    TProfiler MainNodesResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
 
     TSimpleCounter TotalCompletedJobTimeCounter_;
@@ -1098,6 +1155,8 @@ private:
     TString ServiceAddress_;
 
     std::vector<TNodeShardPtr> NodeShards_;
+
+    yhash<TNodeId, yhash_set<TString>> NodeIdToTags_;
 
     TEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
@@ -1200,7 +1259,6 @@ private:
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
         ProfileResources(TotalResourceLimitsProfiler_, GetTotalResourceLimits());
-        ProfileResources(MainNodesResourceLimitsProfiler_, GetMainNodesResourceLimits());
         ProfileResources(TotalResourceUsageProfiler_, GetTotalResourceUsage());
 
         {
@@ -1223,7 +1281,6 @@ private:
                 .Item("exec_node_count").Value(GetExecNodeCount())
                 .Item("total_node_count").Value(GetTotalNodeCount())
                 .Item("resource_limits").Value(GetTotalResourceLimits())
-                .Item("main_nodes_resource_limits").Value(GetMainNodesResourceLimits())
                 .Item("resource_usage").Value(GetTotalResourceUsage());
         }
     }
@@ -1384,12 +1441,11 @@ private:
 
     void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        static const auto poolConfigTemplate = New<TPoolConfig>();
-        static const auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
+        static const TPoolTreeKeysHolder PoolTreeKeysHolder;
 
         LOG_INFO("Updating pools");
         auto req = TYPathProxy::Get(GetPoolsPath());
-        ToProto(req->mutable_attributes()->mutable_keys(), poolConfigKeys);
+        ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
         batchReq->AddRequest(req, "get_pools");
     }
 
@@ -1644,14 +1700,12 @@ private:
 
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
-
             std::swap(CachedExecNodeDescriptors_, result);
         }
 
         auto execNodeMemoryDistribution = CalculateMemoryDistribution(EmptySchedulingTagFilter);
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
-
             CachedExecNodeMemoryDistribution_ = execNodeMemoryDistribution;
         }
     }
@@ -1737,7 +1791,8 @@ private:
         }
 
         LogEventFluently(ELogEventType::OperationStarted)
-            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation));
+            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
+            .Do(BIND(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation));
 
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
@@ -2008,8 +2063,7 @@ private:
             .Item("operation_id").Value(operation->GetId())
             .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
-            .Do(BIND(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation));
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
@@ -2468,7 +2522,6 @@ private:
                 .Item("connected").Value(MasterConnector_->IsConnected())
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(GetTotalResourceLimits())
-                    .Item("main_nodes_resource_limits").Value(GetMainNodesResourceLimits())
                     .Item("resource_usage").Value(GetTotalResourceUsage())
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())

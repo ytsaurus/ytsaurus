@@ -79,6 +79,7 @@ public:
     void ScheduleJob(
         NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits,
+        const TString& treeId,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
     virtual void OnJobCompleted(TJobletPtr joblet, NScheduler::TCompletedJobSummary& jobSummary);

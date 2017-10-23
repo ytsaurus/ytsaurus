@@ -2625,7 +2625,8 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
-    const NScheduler::TJobResourcesWithQuota& jobLimits)
+    const NScheduler::TJobResourcesWithQuota& jobLimits,
+    const TString& treeId)
 {
     if (Spec_->TestingOperationOptions->SchedulingDelay) {
         if (Spec_->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
@@ -2640,7 +2641,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 
     TWallTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
-    DoScheduleJob(context.Get(), jobLimits, scheduleJobResult.Get());
+    DoScheduleJob(context.Get(), jobLimits, treeId, scheduleJobResult.Get());
     if (scheduleJobResult->JobStartRequest) {
         JobCounter->Start(1);
     }
@@ -2823,6 +2824,7 @@ bool TOperationControllerBase::CheckJobLimits(
 void TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
     const NScheduler::TJobResourcesWithQuota& jobLimits,
+    const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -2837,9 +2839,9 @@ void TOperationControllerBase::DoScheduleJob(
         if (!CanSatisfyDiskRequest(context->DiskLimits(), context->DiskUsage(), jobLimits.GetDiskQuota())) {
             return;
         }
-        DoScheduleLocalJob(context, jobLimits.ToJobResources(), scheduleJobResult);
+        DoScheduleLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
         if (!scheduleJobResult->JobStartRequest) {
-            DoScheduleNonLocalJob(context, jobLimits.ToJobResources(), scheduleJobResult);
+            DoScheduleNonLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
         }
     }
 }
@@ -2847,6 +2849,7 @@ void TOperationControllerBase::DoScheduleJob(
 void TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
+    const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
     const auto& nodeResourceLimits = context->ResourceLimits();
@@ -2927,7 +2930,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 break;
             }
 
-            bestTask->ScheduleJob(context, jobLimits, scheduleJobResult);
+            bestTask->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
             if (scheduleJobResult->JobStartRequest) {
                 UpdateTask(bestTask);
                 break;
@@ -2945,6 +2948,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 void TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
+    const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
     auto now = NProfiling::CpuInstantToInstant(context->GetNow());
@@ -3051,7 +3055,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     break;
                 }
 
-                task->ScheduleJob(context, jobLimits, scheduleJobResult);
+                task->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
                 if (scheduleJobResult->JobStartRequest) {
                     UpdateTask(task);
                     return;
@@ -5281,10 +5285,16 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::ExtractJobMetricsDelt
     NScheduler::TOperationJobMetrics result;
     result.OperationId = OperationId;
     {
-        TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
-        result.JobMetrics = JobMetricsDelta_;
-        JobMetricsDelta_ = TJobMetrics();
+        TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
+
+        for (auto& pair : JobMetricsDeltaPerTree_) {
+            const auto& treeId = pair.first;
+            auto& delta = pair.second;
+            result.Metrics.push_back({treeId, delta});
+            delta = NScheduler::TJobMetrics();
+        }
     }
+
     return result;
 }
 
@@ -5695,8 +5705,14 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
 {
     auto delta = joblet->UpdateJobMetrics(jobSummary);
     {
-        TGuard<TSpinLock> guard(JobMetricsDeltaLock_);
-        JobMetricsDelta_ += delta;
+        TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
+
+        auto it = JobMetricsDeltaPerTree_.find(joblet->TreeId);
+        if (it == JobMetricsDeltaPerTree_.end()) {
+            YCHECK(JobMetricsDeltaPerTree_.insert(std::make_pair(joblet->TreeId, delta)).second);
+        } else {
+            it->second += delta;
+        }
     }
 }
 
@@ -6594,7 +6610,8 @@ NScheduler::TJobPtr TOperationControllerBase::BuildJobFromJoblet(const TJobletPt
         nullptr /* execNode */,
         joblet->StartTime,
         joblet->ResourceLimits,
-        IsJobInterruptible());
+        IsJobInterruptible(),
+        joblet->TreeId);
     job->SetState(EJobState::Running);
     job->SetRevived(true);
     job->RevivedNodeDescriptor() = joblet->NodeDescriptor;

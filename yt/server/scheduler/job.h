@@ -62,6 +62,9 @@ class TJob
     //! Current state of the job.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
 
+    //! Fair-share tree this job belongs to.
+    DEFINE_BYVAL_RO_PROPERTY(TString, TreeId);
+
     //! Abort reason saved if job was aborted.
     DEFINE_BYVAL_RW_PROPERTY(EAbortReason, AbortReason);
 
@@ -100,7 +103,8 @@ public:
         TExecNodePtr node,
         TInstant startTime,
         const TJobResources& resourceLimits,
-        bool interruptible);
+        bool interruptible,
+        const TString& treeId);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;

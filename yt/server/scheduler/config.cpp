@@ -25,6 +25,9 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
 
 TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 {
+    RegisterParameter("nodes_filter", NodesFilter)
+        .Default();
+
     RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
         .Default(TDuration::Seconds(15));
     RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
@@ -45,7 +48,6 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .Default(10);
 
     RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
-        .Alias("max_running_operations")
         .Default(200)
         .GreaterThan(0);
 
@@ -137,6 +139,15 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
         .Default(TDuration::Seconds(3));
+
+    RegisterParameter("max_operation_count", MaxOperationCount)
+        .Default(5000)
+        .GreaterThan(0);
+
+    RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+        .Alias("max_running_operations")
+        .Default(1000)
+        .GreaterThan(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -625,6 +636,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("orchid_keys_update_period", OrchidKeysUpdatePeriod)
+        .Default(TDuration::Seconds(1));
+
     RegisterParameter("iops_threshold", IopsThreshold)
         .Default(Null);
     RegisterParameter("iops_throttler_limit", IopsThrottlerLimit)
@@ -651,9 +665,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
         .Default(64_KB)
         .GreaterThan(0);
-
-    RegisterParameter("main_nodes_filter", MainNodesFilter)
-        .Default();
 
     RegisterParameter("memory_distribution_different_node_types_threshold", MemoryDistributionDifferentNodeTypesThreshold)
         .Default(4);

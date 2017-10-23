@@ -169,8 +169,8 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         NScheduler::TScheduleJobResultPtr,
         ScheduleJob,
-        (NScheduler::ISchedulingContextPtr context, const NScheduler::TJobResourcesWithQuota& jobLimits),
-        (context, jobLimits),
+        (NScheduler::ISchedulingContextPtr context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
+        (context, jobLimits, treeId),
         INVOKER_AFFINITY(CancelableInvoker),
         true,
         New<NScheduler::TScheduleJobResult>())
@@ -532,16 +532,19 @@ protected:
     void DoScheduleJob(
         NScheduler::ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const TString& treeId,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleLocalJob(
         NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits,
+        const TString& treeId,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
         NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits,
+        const TString& treeId,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
 
@@ -928,9 +931,9 @@ private:
     //! Aggregates job statistics.
     NJobTrackerClient::TStatistics JobStatistics;
 
-    TSpinLock JobMetricsDeltaLock_;
+    TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
-    NScheduler::TJobMetrics JobMetricsDelta_;
+    yhash<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
 
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;

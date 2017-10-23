@@ -330,9 +330,32 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 }
 
+void TNodeShard::UpdateNodeState(const TExecNodePtr& node, ENodeState newState)
+{
+    auto oldState = node->GetMasterState();
+    node->SetMasterState(newState);
+
+    if (oldState != newState) {
+        LOG_INFO("Node state changed (NodeId: %v, Address: %v, State: %v -> %v)",
+            node->GetId(),
+            node->NodeDescriptor().GetDefaultAddress(),
+            oldState,
+            newState);
+    }
+}
+
 void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INodePtr>>& nodeMaps)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    if (HasOngoingNodesAttributesUpdate_) {
+        LOG_WARNING("Node shard %v is handling nodes attributes update for too long, skipping new update",
+            Id_);
+        return;
+    }
+
+    HasOngoingNodesAttributesUpdate_ = true;
+    Finally([&] { HasOngoingNodesAttributesUpdate_ = false; });
 
     for (const auto& nodeMap : nodeMaps) {
         const auto& address = nodeMap.first;
@@ -360,29 +383,40 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INod
         }
 
         auto execNode = IdToNode_[nodeId];
-        auto oldState = execNode->GetMasterState();
-
-        execNode->Tags() = attributes.Get<yhash_set<TString>>("tags");
-
-        if (oldState != newState) {
-            if (oldState == ENodeState::Online && newState != ENodeState::Online) {
-                SubtractNodeResources(execNode);
-                AbortJobsAtNode(execNode);
-            }
-            if (oldState != ENodeState::Online && newState == ENodeState::Online) {
-                AddNodeResources(execNode);
-            }
-        }
-
-        execNode->SetMasterState(newState);
         execNode->SetIOWeights(ioWeights);
 
-        if (oldState != newState) {
-            LOG_INFO("Node state changed (NodeId: %v, Address: %v, State: %v -> %v)",
-                nodeId,
-                address,
-                oldState,
-                newState);
+        auto oldState = execNode->GetMasterState();
+        auto tags = attributes.Get<yhash_set<TString>>("tags");
+
+        if (oldState == ENodeState::Online && newState != ENodeState::Online) {
+            // NOTE: Tags will be validated when node become online, no need in additional check here.
+            execNode->Tags() = tags;
+            SubtractNodeResources(execNode);
+            AbortJobsAtNode(execNode);
+            UpdateNodeState(execNode, newState);
+            return;
+        }
+
+        if ((oldState != ENodeState::Online && newState == ENodeState::Online) || execNode->Tags() != tags) {
+            auto updateResult = WaitFor(Host_->RegisterOrUpdateNode(nodeId, tags));
+            if (!updateResult.IsOK()) {
+                LOG_WARNING(updateResult, "Node tags update failed (NodeId: %v, Address: %v, NewTags: %v)",
+                    nodeId,
+                    address,
+                    tags);
+
+                if (oldState == ENodeState::Online) {
+                    SubtractNodeResources(execNode);
+                    AbortJobsAtNode(execNode);
+                    UpdateNodeState(execNode, ENodeState::Offline);
+                }
+            } else {
+                if (oldState != ENodeState::Online) {
+                    AddNodeResources(execNode);
+                }
+                execNode->Tags() = tags;
+                UpdateNodeState(execNode, newState);
+            }
         }
     }
 }
@@ -902,8 +936,6 @@ void TNodeShard::UnregisterNode(TExecNodePtr node)
 
 void TNodeShard::DoUnregisterNode(TExecNodePtr node)
 {
-    LOG_INFO("Node unregistered (Address: %v)", node->GetDefaultAddress());
-
     if (node->GetMasterState() == ENodeState::Online) {
         SubtractNodeResources(node);
     }
@@ -911,6 +943,10 @@ void TNodeShard::DoUnregisterNode(TExecNodePtr node)
     AbortJobsAtNode(node);
 
     YCHECK(IdToNode_.erase(node->GetId()) == 1);
+
+    Host_->UnregisterNode(node->GetId());
+
+    LOG_INFO("Node unregistered (Address: %v)", node->GetDefaultAddress());
 }
 
 void TNodeShard::AbortJobsAtNode(TExecNodePtr node)
@@ -1332,7 +1368,7 @@ void TNodeShard::ProcessScheduledJobs(
                     Passed(std::make_unique<TAbortedJobSummary>(
                         job->GetId(),
                         EAbortReason::SchedulingOperationSuspended))));
-                CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId());
+                CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
             }
             continue;
         }
@@ -1388,7 +1424,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     }
 
     auto delta = status->resource_usage() - job->ResourceUsage();
-    UpdatedJobs_.emplace_back(job->GetOperationId(), job->GetId(), delta);
+    UpdatedJobs_.emplace_back(job->GetOperationId(), job->GetId(), delta, job->GetTreeId());
     job->ResourceUsage() = status->resource_usage();
 
     auto* operationState = FindOperationState(job->GetOperationId());
@@ -1524,9 +1560,16 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
 void TNodeShard::SubmitUpdatedAndCompletedJobsToStrategy()
 {
     if (!UpdatedJobs_.empty() || !CompletedJobs_.empty()) {
+        std::vector<TJobId> jobsToAbort;
+
         Host_->GetStrategy()->ProcessUpdatedAndCompletedJobs(
             &UpdatedJobs_,
-            &CompletedJobs_);
+            &CompletedJobs_,
+            &jobsToAbort);
+
+        for (const auto& jobId : jobsToAbort) {
+            AbortJob(jobId, TError("Aborting job by strategy request"));
+        }
     }
 }
 
@@ -1595,7 +1638,7 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
     if (operationState) {
         YCHECK(operationState->Jobs.erase(job->GetId()) == 1);
 
-        CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId());
+        CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
 
         LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
             job->GetId(),
