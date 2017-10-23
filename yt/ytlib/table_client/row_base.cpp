@@ -2,6 +2,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/format.h>
 
 namespace NYT {
 namespace NTableClient {
