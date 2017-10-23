@@ -193,10 +193,6 @@ TOperationSpecBase::TOperationSpecBase()
             }
         }
     });
-
-    // XXX(ignat): it seems that GetOptions is not used for this config.
-    // Should we delete this line?
-    SetKeepOptions(true);
 }
 
 TUserJobSpec::TUserJobSpec()

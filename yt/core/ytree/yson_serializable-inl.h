@@ -200,6 +200,36 @@ void LoadFromNode(
     }
 }
 
+// For all classes except descendants of TYsonSerializableLite and their intrusive pointers
+// we do not attempt to extract unrecognzied members. C++ prohibits function template specialization
+// so we have to deal with static struct members.
+template <class T, class = void>
+struct TGetUnrecognizedRecursively
+{
+    static IMapNodePtr Do(const T& parameter)
+    {
+        return nullptr;
+    }
+};
+
+template <class T>
+struct TGetUnrecognizedRecursively<T, std::enable_if_t<std::is_base_of<TYsonSerializableLite, T>::value>>
+{
+    static IMapNodePtr Do(const T& parameter)
+    {
+        return parameter.GetUnrecognizedRecursively();
+    }
+};
+
+template <class T>
+struct TGetUnrecognizedRecursively<T, std::enable_if_t<std::is_base_of<TYsonSerializableLite, typename T::TUnderlying>::value>>
+{
+    static IMapNodePtr Do(const T& parameter)
+    {
+        return parameter->GetUnrecognizedRecursively();
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // all
@@ -313,7 +343,6 @@ inline bool HasValue(TNullable<T>* parameter)
 template <class T>
 TYsonSerializableLite::TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
-    , Description(nullptr)
     , MergeStrategy(EMergeStrategy::Default)
 { }
 
@@ -394,13 +423,6 @@ const std::vector<TString>& TYsonSerializableLite::TParameter<T>::GetAliases() c
 }
 
 template <class T>
-TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Describe(const char* description)
-{
-    Description = description;
-    return *this;
-}
-
-template <class T>
 TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Optional()
 {
     DefaultValue = Parameter;
@@ -433,6 +455,12 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Merg
 {
     MergeStrategy = strategy;
     return *this;
+}
+
+template <class T>
+IMapNodePtr TYsonSerializableLite::TParameter<T>::GetUnrecognizedRecursively() const
+{
+    return NDetail::TGetUnrecognizedRecursively<T>::Do(Parameter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
