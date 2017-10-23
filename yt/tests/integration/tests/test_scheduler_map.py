@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal, assert_almost_equal
@@ -278,7 +278,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
             spec={"job_count": 6})
         assert read_table("//tmp/t2") == [{"hello": "world"} for _ in xrange(6)]
 
+    # We skip this one in porto because it requires a lot of interaction with porto
+    # (since there are a lot of operations with large number of jobs).
+    # There is completely nothing porto-specific here.
     @unix_only
+    @skip_if_porto
     def test_job_per_row(self):
         create("table", "//tmp/input")
 
