@@ -5,6 +5,9 @@
 
 #include <yt/server/scheduler/config.h>
 
+#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native_connection.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
 
@@ -72,6 +75,16 @@ public:
     TMasterConnector* GetMasterConnector()
     {
         return ControllerAgentMasterConnector_.Get();
+    }
+
+    const TSchedulerConfigPtr& GetConfig() const
+    {
+        return Config_;
+    }
+
+    const NApi::INativeClientPtr& GetMasterClient() const
+    {
+        return Bootstrap_->GetMasterClient();
     }
 
     void UpdateConfig(const TSchedulerConfigPtr& config)
@@ -216,6 +229,16 @@ const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 TMasterConnector* TControllerAgent::GetMasterConnector()
 {
     return Impl_->GetMasterConnector();
+}
+
+const TSchedulerConfigPtr& TControllerAgent::GetConfig() const
+{
+    return Impl_->GetConfig();
+}
+
+const NApi::INativeClientPtr& TControllerAgent::GetMasterClient() const
+{
+    return Impl_->GetMasterClient();
 }
 
 void TControllerAgent::UpdateConfig(const TSchedulerConfigPtr& config)

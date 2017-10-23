@@ -5,6 +5,7 @@
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
@@ -63,13 +64,12 @@ class TLegacyRemoteCopyController
 {
 public:
     TLegacyRemoteCopyController(
-        TSchedulerConfigPtr config,
         TRemoteCopyOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, config->RemoteCopyOperationOptions, host, operation)
+        : TOperationControllerBase(spec, host->GetControllerAgent()->GetConfig()->RemoteCopyOperationOptions, host, operation)
         , Spec_(spec)
-        , Options_(config->RemoteCopyOperationOptions)
+        , Options_(Config->RemoteCopyOperationOptions)
     {
         RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
     }
@@ -540,7 +540,7 @@ private:
         if (Spec_->ClusterConnection) {
             return CreateNativeConnection(*Spec_->ClusterConnection);
         } else if (Spec_->ClusterName) {
-            auto connection = Host
+            auto connection = ControllerAgent
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectory()
@@ -574,12 +574,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyRemoteCopyController);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyRemoteCopyController::TRemoteCopyTask);
 
 IOperationControllerPtr CreateLegacyRemoteCopyController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
-    return New<TLegacyRemoteCopyController>(config, spec, host, operation);
+    return New<TLegacyRemoteCopyController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

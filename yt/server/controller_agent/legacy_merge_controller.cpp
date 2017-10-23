@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "controller_agent.h"
 
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -59,12 +60,11 @@ class TLegacyMergeControllerBase
 {
 public:
     TLegacyMergeControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, options, host, operation)
+        : TOperationControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
         , TotalChunkCount(0)
@@ -691,12 +691,11 @@ class TLegacyOrderedMergeControllerBase
 {
 public:
     TLegacyOrderedMergeControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyMergeControllerBase(spec, options, host, operation)
     { }
 
 private:
@@ -730,12 +729,11 @@ class TLegacyOrderedMapController
 {
 public:
     TLegacyOrderedMapController(
-        TSchedulerConfigPtr config,
         TMapOperationSpecPtr spec,
         TMapOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyOrderedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyOrderedMergeControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     {
@@ -944,12 +942,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyOrderedMapController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateLegacyOrderedMapController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TLegacyOrderedMapController>(config, spec, config->MapOperationOptions, host, operation);
+    return New<TLegacyOrderedMapController>(spec, host->GetControllerAgent()->GetConfig()->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -959,12 +956,11 @@ class TLegacyOrderedMergeController
 {
 public:
     TLegacyOrderedMergeController(
-        TSchedulerConfigPtr config,
         TOrderedMergeOperationSpecPtr spec,
         TOrderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyOrderedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyOrderedMergeControllerBase(spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -1093,11 +1089,10 @@ class TLegacyEraseController
 {
 public:
     TLegacyEraseController(
-        TSchedulerConfigPtr config,
         TEraseOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyOrderedMergeControllerBase(config, spec, config->EraseOperationOptions, host, operation)
+        : TLegacyOrderedMergeControllerBase(spec, host->GetControllerAgent()->GetConfig()->EraseOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -1251,12 +1246,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyEraseController);
 
 IOperationControllerPtr CreateLegacyEraseController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
-    return New<TLegacyEraseController>(config, spec, host, operation);
+    return New<TLegacyEraseController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1272,12 +1266,11 @@ class TLegacySortedMergeControllerBase
 {
 public:
     TLegacySortedMergeControllerBase(
-        TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyMergeControllerBase(spec, options, host, operation)
     { }
 
     // Persistence.
@@ -1423,7 +1416,7 @@ protected:
             InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper,
-            Host->GetMasterClient(),
+            ControllerAgent->GetMasterClient(),
             RowBuffer,
             Logger);
 
@@ -1541,12 +1534,11 @@ class TLegacySortedMergeController
 {
 public:
     TLegacySortedMergeController(
-        TSchedulerConfigPtr config,
         TSortedMergeOperationSpecPtr spec,
         TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacySortedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacySortedMergeControllerBase(spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
@@ -1944,21 +1936,19 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateLegacyOrderedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(operation->GetSpec());
-    return New<TLegacyOrderedMergeController>(config, spec, config->OrderedMergeOperationOptions, host, operation);
+    return New<TLegacyOrderedMergeController>(spec, host->GetControllerAgent()->GetConfig()->OrderedMergeOperationOptions, host, operation);
 }
 
 IOperationControllerPtr CreateLegacySortedMergeController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(operation->GetSpec());
-    return New<TLegacySortedMergeController>(config, spec, config->SortedMergeOperationOptions, host, operation);
+    return New<TLegacySortedMergeController>(spec, host->GetControllerAgent()->GetConfig()->SortedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1968,12 +1958,11 @@ class TLegacyReduceControllerBase
 {
 public:
     TLegacyReduceControllerBase(
-        TSchedulerConfigPtr config,
         TReduceOperationSpecBasePtr spec,
         TReduceOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacySortedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacySortedMergeControllerBase(spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     { }
@@ -2304,11 +2293,10 @@ class TLegacyReduceController
 {
 public:
     TLegacyReduceController(
-        TSchedulerConfigPtr config,
         TReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
+        : TLegacyReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->ReduceOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
@@ -2634,12 +2622,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyReduceController);
 
 IOperationControllerPtr CreateLegacyReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
-    return New<TLegacyReduceController>(config, spec, host, operation);
+    return New<TLegacyReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2649,11 +2636,10 @@ class TLegacyJoinReduceController
 {
 public:
     TLegacyJoinReduceController(
-        TSchedulerConfigPtr config,
         TJoinReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TLegacyReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
+        : TLegacyReduceControllerBase(spec, host->GetControllerAgent()->GetConfig()->JoinReduceOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
@@ -2794,12 +2780,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyJoinReduceController);
 
 IOperationControllerPtr CreateLegacyJoinReduceController(
-    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
-    return New<TLegacyJoinReduceController>(config, spec, host, operation);
+    return New<TLegacyJoinReduceController>(spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
