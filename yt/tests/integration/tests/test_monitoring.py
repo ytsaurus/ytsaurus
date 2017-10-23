@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
 ##################################################################
@@ -26,6 +26,15 @@ class TestMonitoring(YTEnvSetup):
 
         config_orchid = self.get_json(http_port, "/config")
         assert "monitoring_port" in config_orchid
+
+        def monitoring_orchid_ready():
+            try:
+                self.get_json(http_port, "/profiling/logging/backlog_events")
+                return True
+            except urllib2.HTTPError:
+                return False
+
+        wait(monitoring_orchid_ready)
 
         profiling_orchid = self.get_json(http_port,
             "/profiling/logging/backlog_events?from_time={}".format(int(time.time())))
