@@ -215,7 +215,7 @@ TEST(TYsonSerializableTest, MissingSubconfig)
     EXPECT_EQ(0, config->SubconfigMap.size());
 }
 
-TEST(TYsonSerializableTest, Options)
+TEST(TYsonSerializableTest, UnrecognizedSimple)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -224,17 +224,54 @@ TEST(TYsonSerializableTest, Options)
         .EndMap();
 
     auto config = New<TTestConfig>();
-    config->SetKeepOptions(true);
     config->Load(configNode->AsMap());
 
-    auto optionsNode = config->GetOptions();
-    EXPECT_EQ(1, optionsNode->GetChildCount());
-    for (const auto& pair : optionsNode->GetChildren()) {
+    auto unrecognizedNode = config->GetUnrecognized();
+    auto unrecognizedRecursivelyNode = config->GetUnrecognizedRecursively();
+    EXPECT_TRUE(AreNodesEqual(unrecognizedNode, unrecognizedRecursivelyNode));
+    EXPECT_EQ(1, unrecognizedNode->GetChildCount());
+    for (const auto& pair : unrecognizedNode->GetChildren()) {
         const auto& name = pair.first;
         auto child = pair.second;
         EXPECT_EQ("option", name);
         EXPECT_EQ(1, child->AsInt64()->GetValue());
     }
+
+    auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
+    auto deserializedConfig = ConvertTo<TTestConfigPtr>(output);
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(config), ConvertToNode(deserializedConfig)));
+}
+
+TEST(TYsonSerializableTest, UnrecognizedRecursive)
+{
+    auto configNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("my_string").Value("TestString")
+            .Item("option").Value(1)
+            .Item("sub").BeginMap()
+                .Item("sub_option").Value(42)
+            .EndMap()
+        .EndMap();
+
+    auto config = New<TTestConfig>();
+    config->Load(configNode->AsMap());
+
+    auto unrecognizedRecursivelyNode = config->GetUnrecognizedRecursively();
+    EXPECT_EQ(2, unrecognizedRecursivelyNode->GetChildCount());
+    for (const auto& pair : unrecognizedRecursivelyNode->GetChildren()) {
+        const auto& name = pair.first;
+        auto child = pair.second;
+        if (name == "option") {
+            EXPECT_EQ(1, child->AsInt64()->GetValue());
+        } else {
+            EXPECT_EQ("sub", name);
+            EXPECT_EQ(42, child->AsMap()->GetChild("sub_option")->AsInt64()->GetValue());
+        }
+    }
+
+    auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
+    auto deserializedConfig = ConvertTo<TTestConfigPtr>(output);
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(config), ConvertToNode(deserializedConfig)));
 }
 
 TEST(TYsonSerializableTest, MissingRequiredParameter)

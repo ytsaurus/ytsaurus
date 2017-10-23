@@ -58,11 +58,6 @@ class TCommandBase
 protected:
     NLogging::TLogger Logger = DriverLogger;
 
-    TCommandBase()
-    {
-        SetKeepOptions(true);
-    }
-
     virtual void DoExecute(ICommandContextPtr context) = 0;
 
 public:

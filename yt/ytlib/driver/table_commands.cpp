@@ -162,7 +162,7 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
 
     config = UpdateYsonSerializable(
         config,
-        GetOptions());
+        GetUnrecognized());
 
     Options.Config = config;
 
@@ -256,7 +256,7 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
     config = UpdateYsonSerializable(
         config,
-        GetOptions());
+        GetUnrecognized());
 
     Options.Config = config;
 
