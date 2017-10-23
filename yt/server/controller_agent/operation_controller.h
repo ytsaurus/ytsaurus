@@ -474,22 +474,22 @@ struct IOperationController
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
 
     /*!
-     *  \note Invoker affinity: Controller invoker or scheduler control thread when controller is suspended.
+     *  \note Invoker affinity: scheduler control thread when controller is suspended (NB!).
      */
-    //! Return the number of jobs that become completed after the moment of last snapshot save.
-    virtual int GetRecentlyCompletedJobCount() const = 0;
+    //! Return the number of jobs that were completed up to this moment.
+    virtual int GetCompletedJobCount() const = 0;
 
     /*!
-     *  \note Invoker affinity: Controller invoker
+     *  \note Invoker affinity: Controller invoker (non-cancellable when called from controller destroy pipeline).
      */
-    //! Remove `jobCount` oldest jobs from the list of recent jobs waiting their removal inside controller
+    //! Remove oldest jobs from the list of recent jobs waiting their removal inside controller
     //! and submit them to the scheduler for the removal.
     //!
-    //!                  (`jobCount` first)           v current moment of time
-    //! completed jobs | x  x xxx xx xx xxx | ** * ** |    <- all these guys are stored in `recentCompletedJobs`
-    //!                |                    |                 inside the controller.
-    //!                ^ snapshot           ^ newly created snapshot
-    virtual TFuture<void> ReleaseJobs(int jobCount) = 0;
+    //!                    `completedJobIndexLimit` v         v current moment of time
+    //! completed jobs .. .. . | x  x xxx xx xx xxx | ** * ** |    <- all these guys are stored in `recentCompletedJobs`
+    //!                        |                    |                 inside the controller.
+    //!                        ^ snapshot           ^ newly created snapshot
+    virtual void ReleaseJobs(int completedJobIndexLimit) = 0;
 
     //! Build scheduler jobs from the joblets. Used during revival pipeline.
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;

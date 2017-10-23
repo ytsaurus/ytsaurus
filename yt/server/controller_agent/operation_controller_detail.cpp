@@ -206,6 +206,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Invoker(Host->CreateOperationControllerInvoker())
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
+    , ReleaseJobsFeasibleInvokers_({Invoker, CancelableInvoker})
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
@@ -5102,31 +5103,35 @@ TRowBufferPtr TOperationControllerBase::GetRowBuffer()
     return RowBuffer;
 }
 
-int TOperationControllerBase::GetRecentlyCompletedJobCount() const
+int TOperationControllerBase::GetCompletedJobCount() const
 {
-    YCHECK(SuspendableInvoker->IsSuspended() || IsFinished());
+    YCHECK(SuspendableInvoker->IsSuspended());
 
-    return RecentlyCompletedJobIds.size();
+    return ReleasedJobCount + RecentlyCompletedJobIds.size();
 }
 
-TFuture<void> TOperationControllerBase::ReleaseJobs(int jobCount)
+void TOperationControllerBase::ReleaseJobs(int completedJobIndexLimit)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKERS_AFFINITY(ReleaseJobsFeasibleInvokers_);
 
-    LOG_DEBUG("Releasing jobs (JobCount: %v)", jobCount);
+    LOG_DEBUG("Releasing jobs (ReleasedJobCount: %v, CompletedJobIndexLimit: %v)",
+        ReleasedJobCount,
+        completedJobIndexLimit);
 
-    YCHECK(jobCount <= RecentlyCompletedJobIds.size());
+    if (ReleasedJobCount >= completedJobIndexLimit) {
+        // Nothing to do here.
+        return;
+    }
 
-    auto future = Host->ReleaseJobs(std::vector<TJobId>(RecentlyCompletedJobIds.begin(), RecentlyCompletedJobIds.begin() + jobCount));
+    int jobCount = std::min(
+        completedJobIndexLimit - ReleasedJobCount,
+        static_cast<int>(RecentlyCompletedJobIds.size()));
 
-    auto rotateCompletedJobs = BIND([weakThis = MakeWeak(this), jobCount] {
-        if (auto this_ = weakThis.Lock()) {
-            auto& recentlyCompletedJobIds = this_->RecentlyCompletedJobIds;
-            recentlyCompletedJobIds.erase(recentlyCompletedJobIds.begin(), recentlyCompletedJobIds.begin() + jobCount);
-        }
-    }).Via(CancelableInvoker);
+    std::vector<TJobId> jobIdsToRelease(RecentlyCompletedJobIds.begin(), RecentlyCompletedJobIds.begin() + jobCount);
+    RecentlyCompletedJobIds.erase(RecentlyCompletedJobIds.begin(), RecentlyCompletedJobIds.begin() + jobCount);
 
-    return future.Apply(rotateCompletedJobs);
+    WaitFor(Host->ReleaseJobs(std::move(jobIdsToRelease)))
+        .ThrowOnError();
 }
 
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const

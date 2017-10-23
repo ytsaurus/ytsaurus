@@ -323,9 +323,9 @@ public:
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() override;
 
-    virtual int GetRecentlyCompletedJobCount() const override;
+    virtual int GetCompletedJobCount() const override;
 
-    virtual TFuture<void> ReleaseJobs(int jobCount) override;
+    virtual void ReleaseJobs(int completedJobIndexLimit) override;
 
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override;
 
@@ -354,6 +354,9 @@ protected:
     IInvokerPtr Invoker;
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
+
+    //! Invokers that are feasible when calling `ReleaseJobs`.
+    std::vector<IInvokerPtr> ReleaseJobsFeasibleInvokers_;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
     std::atomic<bool> Forgotten = {false};
@@ -875,6 +878,12 @@ private:
     //! List of job ids that were completed after the latest snapshot was built.
     //! This list is transient.
     std::deque<TJobId> RecentlyCompletedJobIds;
+
+    //! Index of `RecentlyCompletedJobIds`' head in a list of all completed jobs in
+    //! order of their completion. Equivalently, it is a number of completed jobs
+    //! that were released up to the current moment.
+    //! NB: this value is also transient, after revival it starts again from zero.
+    int ReleasedJobCount = 0;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 

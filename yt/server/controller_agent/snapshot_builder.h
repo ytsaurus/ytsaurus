@@ -27,9 +27,9 @@ struct TSnapshotJob
     NControllerAgent::IOperationControllerPtr Controller;
     NPipes::TAsyncReaderPtr Reader;
     std::unique_ptr<TFile> OutputFile;
-    //! The length of recent completed jobs prefix that may be safely removed after saving this snapshot.
+    //! Length of completed job prefix that may be safely removed after saving this snapshot
     //! (i.e. their progress won't be lost if we restore from this snapshot).
-    int NumberOfJobsToRelease = 0;
+    int CompletedJobCount = 0;
     bool Suspended = false;
 };
 

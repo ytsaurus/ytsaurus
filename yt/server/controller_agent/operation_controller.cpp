@@ -302,12 +302,12 @@ public:
         return Underlying_->BuildSuspiciousJobsYson();
     }
 
-    virtual int GetRecentlyCompletedJobCount() const override
+    virtual int GetCompletedJobCount() const override
     {
-        return Underlying_->GetRecentlyCompletedJobCount();
+        return Underlying_->GetCompletedJobCount();
     }
 
-    virtual TFuture<void> ReleaseJobs(int jobCount) override
+    virtual void ReleaseJobs(int jobCount) override
     {
         return Underlying_->ReleaseJobs(jobCount);
     }
