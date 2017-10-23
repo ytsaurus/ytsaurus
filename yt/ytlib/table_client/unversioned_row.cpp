@@ -11,6 +11,7 @@
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/varint.h>
 #include <yt/core/misc/range.h>
+#include <yt/core/misc/format.h>
 
 #include <yt/core/yson/consumer.h>
 
