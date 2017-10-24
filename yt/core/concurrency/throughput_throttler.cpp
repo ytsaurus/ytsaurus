@@ -146,8 +146,8 @@ public:
                 config->Period);
             PeriodicExecutor_->Start();
         } else {
-            ThroughputPerPeriod_ = -1;
-            Available_ = -1;
+            ThroughputPerPeriod_ = 0;
+            Available_ = 0;
         }
 
         ProcessRequests(std::move(guard));
@@ -167,14 +167,14 @@ private:
 
     NProfiling::TAggregateCounter ValueCounter_;
 
-    std::atomic<i64> Available_ = {-1};
+    std::atomic<i64> Available_ = {0};
     std::atomic<bool> HasLimit_ = {true};
     std::atomic<i64> QueueTotalCount_ = {0};
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
     TNullable<i64> Limit_;
-    i64 ThroughputPerPeriod_ = -1;
+    i64 ThroughputPerPeriod_ = 0;
     TPeriodicExecutorPtr PeriodicExecutor_;
 
     struct TRequest
