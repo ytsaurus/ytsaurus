@@ -25,6 +25,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NApi;
+using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NYTree;
@@ -33,20 +34,19 @@ using namespace NYTree;
 
 TRpcProxyClient::TRpcProxyClient(
     TRpcProxyConnectionPtr connection,
-    NRpc::IChannelPtr channel)
+    const TClientOptions& options)
     : Connection_(std::move(connection))
-    , Channel_(std::move(channel))
+    , Channel_(CreateRpcProxyChannel(Connection_, options))
 { }
 
-TRpcProxyClient::~TRpcProxyClient()
-{ }
+TRpcProxyClient::~TRpcProxyClient() = default;
 
 TRpcProxyConnectionPtr TRpcProxyClient::GetRpcProxyConnection()
 {
     return Connection_;
 }
 
-NRpc::IChannelPtr TRpcProxyClient::GetChannel()
+IChannelPtr TRpcProxyClient::GetChannel()
 {
     return Channel_;
 }
