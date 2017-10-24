@@ -48,8 +48,11 @@ public:
 
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
 
+    const TCoreDumperPtr& GetCoreDumper() const;
+    const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
+
     void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config);
-    
+
     void RegisterOperation(const TOperationId& operationId, IOperationControllerPtr controller);
     void UnregisterOperation(const TOperationId& operationId);
 
@@ -60,7 +63,7 @@ public:
         const NChunkClient::TChunkId& chunkId,
         const TOperationId& operationId,
         const TJobId& jobId);
-    
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

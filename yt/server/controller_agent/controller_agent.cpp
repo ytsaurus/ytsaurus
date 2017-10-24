@@ -10,6 +10,7 @@
 
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
+#include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
 
@@ -38,6 +39,7 @@ public:
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
             ControllerAgentLogger))
+        , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
     { }
 
     void Disconnect()
@@ -102,6 +104,16 @@ public:
     const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const
     {
         return ChunkLocationThrottlerManager_;
+    }
+
+    const TCoreDumperPtr& GetCoreDumper() const
+    {
+        return Bootstrap_->GetCoreDumper();
+    }
+
+    const TAsyncSemaphorePtr& GetCoreSemaphore() const
+    {
+        return CoreSemaphore_;
     }
 
     void UpdateConfig(const TSchedulerConfigPtr& config)
@@ -188,6 +200,8 @@ private:
 
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
+    const TAsyncSemaphorePtr CoreSemaphore_;
+
     std::atomic<bool> Connected_ = {false};
     TInstant ConnectionTime_;
     TMasterConnectorPtr ControllerAgentMasterConnector_;
@@ -270,6 +284,16 @@ const NApi::INativeClientPtr& TControllerAgent::GetMasterClient() const
 const TThrottlerManagerPtr& TControllerAgent::GetChunkLocationThrottlerManager() const
 {
     return Impl_->GetChunkLocationThrottlerManager();
+}
+
+const TCoreDumperPtr& TControllerAgent::GetCoreDumper() const
+{
+    return Impl_->GetCoreDumper();
+}
+
+const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
+{
+    return Impl_->GetCoreSemaphore();
 }
 
 void TControllerAgent::UpdateConfig(const TSchedulerConfigPtr& config)

@@ -147,17 +147,6 @@ struct IOperationHost
      */
     virtual std::unique_ptr<NTableClient::IValueConsumer> CreateLogConsumer() = 0;
 
-    //! Returns a TCoreDumper for current process.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const TCoreDumperPtr& GetCoreDumper() const = 0;
-
-    //! Returns an AsyncSemaphore limiting concurrency for core dumps being written by failed safe assertions.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const = 0;
 
     //! Sets operation alert.
     /*!
