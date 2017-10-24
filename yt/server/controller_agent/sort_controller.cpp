@@ -217,7 +217,7 @@ protected:
             }
 
             SortTask->SetInputVertex(controller->GetPartitionJobType());
-            SortedMergeTask->SetInputVertex(SortTask->GetJobType());
+            SortedMergeTask->SetInputVertex(controller->GetIntermediateSortJobType());
         }
 
         //! Sequential index (zero based).
@@ -2270,9 +2270,8 @@ private:
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
-        partition->SortTask->SetInputVertex(PartitionTask->GetJobType());
-        partition->SortedMergeTask->SetInputVertex(partition->SortTask->GetJobType());
-        partition->UnorderedMergeTask->SetInputVertex(PartitionTask->GetJobType());
+        partition->SortTask->SetInputVertex(GetPartitionJobType());
+        partition->SortedMergeTask->SetInputVertex(GetIntermediateSortJobType());
 
         partition->SortTask->FinishInput();
 
