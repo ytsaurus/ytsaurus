@@ -264,15 +264,16 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         ProfileDiskPressure(
             tabletSnapshot,
             tableWriter->GetDataStatistics(),
-            tabletSnapshot->RuntimeData->StoreFlushDiskPressureCounter);
+            StoreFlushTag_);
 
         auto dataStatistics = tableWriter->GetDataStatistics();
         auto diskSpace = CalculateDiskSpaceUsage(
             tabletSnapshot->WriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
-        LOG_DEBUG("Flushed ordered store (StoreId: %v, DiskSpace: %v)",
+        LOG_DEBUG("Flushed ordered store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
             store->GetId(),
+            chunkWriter->GetChunkId(),
             diskSpace);
 
         TAddStoreDescriptor descriptor;

@@ -111,6 +111,8 @@ private:
     NProfiling::TSimpleCounter FeasibleCompactionsCounter_;
     NProfiling::TSimpleCounter ScheduledPartitioningsCounter_;
     NProfiling::TSimpleCounter ScheduledCompactionsCounter_;
+    const NProfiling::TTagId CompactionTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction");
+    const NProfiling::TTagId PartitioningTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning");
 
     struct TTask
     {
@@ -798,7 +800,7 @@ private:
                 ProfileDiskPressure(
                     tabletSnapshot,
                     writer->GetDataStatistics(),
-                    tabletSnapshot->RuntimeData->PartitioningDiskPressureCounter);
+                    PartitioningTag_);
             }
 
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
@@ -1156,7 +1158,7 @@ private:
             ProfileDiskPressure(
                 tabletSnapshot,
                 writer->GetDataStatistics(),
-                tabletSnapshot->RuntimeData->CompactionDiskPressureCounter);
+                CompactionTag_);
 
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
                 rowCount,

@@ -80,10 +80,6 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
     std::atomic<i64> DynamicMemoryPoolSize = {0};
-
-    NProfiling::TSimpleCounter StoreFlushDiskPressureCounter;
-    NProfiling::TSimpleCounter CompactionDiskPressureCounter;
-    NProfiling::TSimpleCounter PartitioningDiskPressureCounter;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -143,6 +139,7 @@ struct TTabletSnapshot
 
     //! Profiler tags is empty iff EnableProfiling is false.
     NProfiling::TTagIdList ProfilerTags;
+    NProfiling::TTagIdList DiskProfilerTags;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -297,6 +294,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
 
     DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagIdList, ProfilerTags);
+    DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagIdList, DiskProfilerTags);
 
     DEFINE_BYREF_RO_PROPERTY(TTabletPerformanceCountersPtr, PerformanceCounters, New<TTabletPerformanceCounters>());
     DEFINE_BYREF_RO_PROPERTY(TRuntimeTabletDataPtr, RuntimeData, New<TRuntimeTabletData>());
