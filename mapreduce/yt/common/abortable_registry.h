@@ -60,7 +60,6 @@ class TAbortableRegistry
 {
 public:
     TAbortableRegistry() = default;
-    ~TAbortableRegistry();
     static ::TIntrusivePtr<TAbortableRegistry> Get();
 
     void AbortAllAndBlockForever();
