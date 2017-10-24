@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/ytlib/event_log/config.h>
+
 #include <yt/ytlib/table_client/config.h>
 
 #include <yt/ytlib/hive/config.h>
@@ -141,19 +143,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TEventLogConfig
-    : public NTableClient::TBufferedTableWriterConfig
-{
-public:
-    NYPath::TYPath Path;
-
-    TEventLogConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TEventLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -489,8 +478,6 @@ public:
 
     TDuration ClusterInfoLoggingPeriod;
 
-    TDuration PendingEventLogRowsFlushPeriod;
-
     TDuration UpdateExecNodeDescriptorsPeriod;
 
     TDuration OperationTimeLimitCheckPeriod;
@@ -638,7 +625,7 @@ public:
 
     NChunkClient::TFetcherConfigPtr Fetcher;
 
-    TEventLogConfigPtr EventLog;
+    NEventLog::TEventLogConfigPtr EventLog;
 
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;

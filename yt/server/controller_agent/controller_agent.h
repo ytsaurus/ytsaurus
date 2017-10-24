@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/event_log/public.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/core/rpc/service_detail.h>
@@ -52,6 +54,8 @@ public:
 
     const TCoreDumperPtr& GetCoreDumper() const;
     const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
+
+    NEventLog::TEventLogWriterPtr GetEventLogWriter() const;
 
     void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config);
 

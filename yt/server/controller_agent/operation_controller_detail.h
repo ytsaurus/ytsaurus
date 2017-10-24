@@ -941,8 +941,7 @@ private:
 
     TNullable<TJobResources> CachedMaxAvailableExecNodeResources_;
 
-    const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
-    const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
+    const std::unique_ptr<NYson::IYsonConsumer> EventLogConsumer_;
 
     typedef yhash<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
     TMemoryDigestMap JobProxyMemoryDigests_;

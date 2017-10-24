@@ -90,6 +90,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NSecurityClient;
 using namespace NShell;
+using namespace NEventLog;
 
 using NControllerAgent::TControllerTransactionsPtr;
 using NControllerAgent::IOperationController;
@@ -239,22 +240,11 @@ public:
             Config_->ProfilingUpdatePeriod);
         ProfilingExecutor_->Start();
 
-        auto nameTable = New<TNameTable>();
-        auto options = New<NTableClient::TTableWriterOptions>();
-        options->EnableValidationOptions();
-
-        EventLogWriter_ = CreateSchemalessBufferedTableWriter(
+        EventLogWriter_ = New<TEventLogWriter>(
             Config_->EventLog,
-            options,
             GetMasterClient(),
-            nameTable,
-            Config_->EventLog->Path);
-
-        // Open is always synchronous for buffered writer.
-        YCHECK(EventLogWriter_->Open().IsSet());
-
-        EventLogValueConsumer_.reset(new TWritingValueConsumer(EventLogWriter_, New<TTypeConversionConfig>(), true /* flushImmediately */));
-        EventLogTableConsumer_.reset(new TTableConsumer(EventLogValueConsumer_.get()));
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity));
+        EventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
@@ -264,12 +254,6 @@ public:
             BIND(&TImpl::OnLogging, MakeWeak(this)),
             Config_->ClusterInfoLoggingPeriod);
         LoggingExecutor_->Start();
-
-        PendingEventLogRowsFlushExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::OnPendingEventLogRowsFlush, MakeWeak(this)),
-            Config_->PendingEventLogRowsFlushPeriod);
-        PendingEventLogRowsFlushExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
@@ -934,7 +918,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return EventLogTableConsumer_.get();
+        return EventLogWriterConsumer_.get();
     }
 
     virtual void OnOperationCompleted(const TOperationId& operationId) override
@@ -969,11 +953,6 @@ public:
             BIND([=, this_ = MakeStrong(this)] {
                 DoAbortOperation(operationId, error);
             }));
-    }
-
-    virtual std::unique_ptr<IValueConsumer> CreateLogConsumer() override
-    {
-        return std::unique_ptr<IValueConsumer>(new TEventLogValueConsumer(this));
     }
 
     // INodeShardHost implementation
@@ -1066,53 +1045,14 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr LoggingExecutor_;
-    TPeriodicExecutorPtr PendingEventLogRowsFlushExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
 
     TString ServiceAddress_;
 
     std::vector<TNodeShardPtr> NodeShards_;
 
-    class TEventLogValueConsumer
-        : public IValueConsumer
-    {
-    public:
-        explicit TEventLogValueConsumer(TScheduler::TImpl* host)
-            : Host_(host)
-        { }
-
-        virtual const TNameTablePtr& GetNameTable() const override
-        {
-            return Host_->EventLogWriter_->GetNameTable();
-        }
-
-        virtual bool GetAllowUnknownColumns() const override
-        {
-            return true;
-        }
-
-        virtual void OnBeginRow() override
-        { }
-
-        virtual void OnValue(const TUnversionedValue& value) override
-        {
-            Builder_.AddValue(value);
-        }
-
-        virtual void OnEndRow() override
-        {
-            Host_->PendingEventLogRows_.Enqueue(Builder_.FinishRow());
-        }
-
-    private:
-        TScheduler::TImpl* const Host_;
-        TUnversionedOwningRowBuilder Builder_;
-    };
-
-    ISchemalessWriterPtr EventLogWriter_;
-    std::unique_ptr<IValueConsumer> EventLogValueConsumer_;
-    std::unique_ptr<IYsonConsumer> EventLogTableConsumer_;
-    TMultipleProducerSingleConsumerLockFreeStack<TUnversionedOwningRow> PendingEventLogRows_;
+    TEventLogWriterPtr EventLogWriter_;
+    std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1238,17 +1178,6 @@ private:
         }
     }
 
-
-    void OnPendingEventLogRowsFlush()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (IsConnected()) {
-            auto owningRows = PendingEventLogRows_.DequeueAll();
-            std::vector<TUnversionedRow> rows(owningRows.begin(), owningRows.end());
-            EventLogWriter_->Write(rows);
-        }
-    }
 
     void OnMasterConnected(const TMasterHandshakeResult& result)
     {
@@ -1590,9 +1519,10 @@ private:
             ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
 
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
-            PendingEventLogRowsFlushExecutor_->SetPeriod(Config_->PendingEventLogRowsFlushPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->UpdateExecNodeDescriptorsPeriod);
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
+
+            EventLogWriter_->UpdateConfig(Config_->EventLog);
         }
     }
 

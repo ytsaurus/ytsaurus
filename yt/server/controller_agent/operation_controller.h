@@ -136,13 +136,6 @@ struct IOperationHost
     virtual void OnUserTransactionAborted(
         const TOperationId& operationId) = 0;
 
-    //! Creates new value consumer that can be used for logging.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual std::unique_ptr<NTableClient::IValueConsumer> CreateLogConsumer() = 0;
-
-
     //! Sets operation alert.
     /*!
      *  \note Thread affinity: any

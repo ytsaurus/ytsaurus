@@ -15,13 +15,13 @@ TFluentLogEventImpl<TParent>::TFluentLogEventImpl(TFluentEventLogger* logger)
 {
     Acquire();
 }
-    
+
 template <class TParent>
 TFluentLogEventImpl<TParent>::TFluentLogEventImpl(NYson::IYsonConsumer* consumer)
     : TBase(consumer)
     , Logger_(nullptr)
 { }
-    
+
 template <class TParent>
 TFluentLogEventImpl<TParent>::TFluentLogEventImpl(TFluentLogEventImpl<TParent>&& other)
     : TBase(other.Consumer, other.Parent)
@@ -29,7 +29,7 @@ TFluentLogEventImpl<TParent>::TFluentLogEventImpl(TFluentLogEventImpl<TParent>&&
 {
     other.Logger_ = nullptr;
 }
-    
+
 template <class TParent>
 TFluentLogEventImpl<TParent>::TFluentLogEventImpl(const TFluentLogEventImpl<TParent>& other)
     : TBase(other.Consumer, other.Parent)
@@ -37,20 +37,20 @@ TFluentLogEventImpl<TParent>::TFluentLogEventImpl(const TFluentLogEventImpl<TPar
 {
     Acquire();
 }
-    
+
 template <class TParent>
 TFluentLogEventImpl<TParent>::~TFluentLogEventImpl()
 {
     Release();
 }
-    
+
 template <class TParent>
 NYTree::TFluentYsonBuilder::TAny<TFluentLogEventImpl<TParent>&&> TFluentLogEventImpl<TParent>::Item(const TStringBuf& key)
 {
     this->Consumer->OnKeyedItem(key);
     return NYTree::TFluentYsonBuilder::TAny<TThis&&>(this->Consumer, std::move(*this));
 }
-    
+
 template <class TParent>
 void TFluentLogEventImpl<TParent>::Acquire()
 {

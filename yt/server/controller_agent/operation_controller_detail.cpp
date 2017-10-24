@@ -239,8 +239,7 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::UpdateCachedMaxAvailableExecNodeResources, MakeWeak(this)),
         Config->MaxAvailableExecNodeResourcesUpdatePeriod))
-    , EventLogValueConsumer_(Host->CreateLogConsumer())
-    , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
+    , EventLogConsumer_(ControllerAgent->GetEventLogWriter()->CreateConsumer())
     , CodicilData_(MakeOperationCodicilString(OperationId))
     , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
@@ -1879,7 +1878,7 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return EventLogTableConsumer_.get();
+    return EventLogConsumer_.get();
 }
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
