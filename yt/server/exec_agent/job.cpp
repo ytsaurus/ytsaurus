@@ -88,6 +88,7 @@ public:
         , Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->ExecAgent)
         , Invoker_(Bootstrap_->GetControlInvoker())
+        , StartTime_(TInstant::Now())
         , ResourceUsage_(resourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -231,6 +232,11 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         return JobState_;
+    }
+
+    virtual TInstant GetStartTime() const override
+    {
+        return StartTime_;
     }
 
     virtual TNullable<TDuration> GetPrepareDuration() const override
@@ -487,6 +493,7 @@ private:
 
     const TExecAgentConfigPtr Config_;
     const IInvokerPtr Invoker_;
+    const TInstant StartTime_;
 
     TJobSpec JobSpec_;
 

@@ -753,6 +753,17 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                 .BeginMap()
                                     .Item("job_state").Value(job->GetState())
                                     .Item("job_phase").Value(job->GetPhase())
+                                    .Item("job_type").Value(job->GetType())
+                                    .Item("start_time").Value(job->GetStartTime())
+                                    .Item("duration").Value(TInstant::Now() - job->GetStartTime())
+                                    .DoIf(static_cast<bool>(job->GetStatistics()), [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("statistics").Value(job->GetStatistics());
+                                    })
+                                    .DoIf(static_cast<bool>(job->GetOperationId()), [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("operation_id").Value(job->GetOperationId());
+                                    })
                                 .EndMap();
                         });
                 })
