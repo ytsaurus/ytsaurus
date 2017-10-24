@@ -147,8 +147,6 @@ private:
 protected:
     TSortOperationOptionsBasePtr Options;
 
-    TSchedulerConfigPtr Config;
-
     // Counters.
     int CompletedPartitionCount;
     TProgressCounterPtr SortedMergeJobCounter = New<TProgressCounter>();
