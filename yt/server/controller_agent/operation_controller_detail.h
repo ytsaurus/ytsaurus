@@ -1012,7 +1012,7 @@ private:
         const TJobletPtr& joblet,
         NScheduler::TJobSummary* jobSummary);
 
-    NScheduler::TFluentLogEvent LogFinishedJobFluently(
+    NEventLog::TFluentLogEvent LogFinishedJobFluently(
         NScheduler::ELogEventType eventType,
         const TJobletPtr& joblet,
         const NScheduler::TJobSummary& jobSummary);
