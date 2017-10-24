@@ -80,6 +80,12 @@ public:
         const NTabletClient::TTableReplicaId& replicaId,
         const NApi::TAlterTableReplicaOptions& options) override;
 
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const NApi::TGetInSyncReplicasOptions& options) override;
+
     // Security
     virtual TFuture<void> AddMember(
         const TString&,

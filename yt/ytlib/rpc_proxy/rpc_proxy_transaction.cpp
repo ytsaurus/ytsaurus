@@ -237,18 +237,6 @@ TFuture<ISchemalessWriterPtr> TRpcProxyTransaction::CreateTableWriter(
     return Client_->CreateTableWriter(path, optionsCopy);
 }
 
-TFuture<std::vector<TTableReplicaId>>
-TRpcProxyTransaction::GetInSyncReplicas(
-    const NYPath::TYPath& path,
-    NTableClient::TNameTablePtr nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
-    const TGetInSyncReplicasOptions& options)
-{
-    auto optionsCopy = options;
-    optionsCopy.Timestamp = GetStartTimestamp();
-    return Client_->GetInSyncReplicas(path, nameTable, keys, optionsCopy);
-}
-
 TFuture<NYson::TYsonString> TRpcProxyTransaction::GetNode(
     const NYPath::TYPath& path,
     const TGetNodeOptions& options)

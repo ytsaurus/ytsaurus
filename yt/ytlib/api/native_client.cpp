@@ -365,6 +365,9 @@ struct TWriteRowsBufferTag
 struct TDeleteRowsBufferTag
 { };
 
+struct TGetInSyncReplicasTag
+{ };
+
 class TNativeClient
     : public INativeClient
 {
@@ -1850,7 +1853,7 @@ private:
     std::vector<TTableReplicaId> DoGetInSyncReplicas(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<TKey>& keys,
         const TGetInSyncReplicasOptions& options)
     {
         ValidateSyncTimestamp(options.Timestamp);
@@ -1863,6 +1866,14 @@ private:
         tableInfo->ValidateSorted();
         tableInfo->ValidateReplicated();
 
+        const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+        auto idMapping = BuildColumnIdMapping(schema, nameTable);
+
+        auto rowBuffer = New<TRowBuffer>(TGetInSyncReplicasTag());
+
+        auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
+        auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
+
         std::vector<TTableReplicaId> replicas;
 
         if (keys.Empty()) {
@@ -1873,7 +1884,13 @@ private:
             yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
             yhash_set<TTabletId> tabletIds;
             for (auto key : keys) {
-                auto tabletInfo = tableInfo->GetTabletForRow(key);
+                ValidateClientKey(key, schema, idMapping, nameTable);
+                auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, schema, idMapping);
+
+                if (evaluator) {
+                    evaluator->EvaluateKeys(capturedKey, rowBuffer);
+                }
+                auto tabletInfo = tableInfo->GetTabletForRow(capturedKey);
                 if (tabletIds.count(tabletInfo->TabletId) == 0) {
                     tabletIds.insert(tabletInfo->TabletId);
                     ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);

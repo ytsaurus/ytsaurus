@@ -322,6 +322,27 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2) == [replica_id]
         assert get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id]
 
+    def test_in_sync_relicas_expression(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.EXPRESSION_SCHEMA)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        self._create_replica_table("//tmp/r", replica_id, schema=self.EXPRESSION_SCHEMA)
+
+        self.sync_enable_table_replica(replica_id)
+
+        timestamp0 = generate_timestamp()
+        assert get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id]
+
+        rows = [{"key": 1, "value": 2}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+        timestamp1 = generate_timestamp()
+        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
+        sleep(1.0)  # wait for replica update
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 1, "key": 1, "value": 2}]
+        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
+        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id]
+
     def test_in_sync_relicas_disabled(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
