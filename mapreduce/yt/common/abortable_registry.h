@@ -56,10 +56,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAbortableRegistry
+    : public TThrRefBase
 {
 public:
     TAbortableRegistry() = default;
-    static TAbortableRegistry& Instance();
+    ~TAbortableRegistry();
+    static ::TIntrusivePtr<TAbortableRegistry> Get();
 
     void AbortAllAndBlockForever();
     void Add(const TGUID& id, IAbortablePtr abortable);

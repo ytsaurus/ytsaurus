@@ -1,7 +1,5 @@
 #include "transaction.h"
 
-
-#include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/wait_proxy.h>
@@ -21,6 +19,7 @@ TPingableTransaction::TPingableTransaction(
     const TMaybe<TString>& title,
     const TMaybe<TNode>& attributes)
     : Auth_(auth)
+    , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
     , Thread_(TThread::TParams{Pinger, (void*)this}.SetName("pingable_tx"))
 {
     TransactionId_ = StartTransaction(
@@ -31,7 +30,7 @@ TPingableTransaction::TPingableTransaction(
         title,
         attributes);
 
-    NDetail::TAbortableRegistry::Instance().Add(
+    AbortableRegistry_->Add(
         TransactionId_,
         ::MakeIntrusive<NDetail::TTransactionAbortable>(auth, TransactionId_));
 
@@ -79,7 +78,7 @@ void TPingableTransaction::Stop(bool commit)
         AbortTransaction(Auth_, TransactionId_);
     }
 
-    NDetail::TAbortableRegistry::Instance().Remove(TransactionId_);
+    AbortableRegistry_->Remove(TransactionId_);
 }
 
 void TPingableTransaction::Pinger()

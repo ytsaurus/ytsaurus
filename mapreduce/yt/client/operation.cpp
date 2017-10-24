@@ -1633,9 +1633,11 @@ NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TYtPoller& ytPoller)
     }
 
     auto operationId = GetId();
-    TAbortableRegistry::Instance().Add(operationId, ::MakeIntrusive<TOperationAbortable>(Auth_, operationId));
-    auto removeOperation = [operationId](const NThreading::TFuture<void>&) {
-        TAbortableRegistry::Instance().Remove(operationId);
+    TAbortableRegistry::Get()->Add(operationId, ::MakeIntrusive<TOperationAbortable>(Auth_, operationId));
+    auto registry = TAbortableRegistry::Get();
+    // We have to own an IntrusivePtr to registry to prevent use-after-free
+    auto removeOperation = [registry, operationId](const NThreading::TFuture<void>&) {
+        registry->Remove(operationId);
     };
     CompletePromise_->GetFuture().Subscribe(removeOperation);
 
