@@ -1,9 +1,11 @@
 #pragma once
 
+#include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/http/requests.h>
 
 #include <util/datetime/base.h>
 #include <util/generic/maybe.h>
+#include <util/generic/ptr.h>
 #include <util/system/thread.h>
 
 #include <atomic>
@@ -33,6 +35,8 @@ public:
 private:
     TAuth Auth_;
     TTransactionId TransactionId_;
+    // We have to own an IntrusivePtr to registry to prevent use-after-free
+    ::TIntrusivePtr<NDetail::TAbortableRegistry> AbortableRegistry_;
 
     std::atomic<bool> Running_{false};
     TThread Thread_;

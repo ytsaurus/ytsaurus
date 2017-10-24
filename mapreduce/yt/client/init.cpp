@@ -73,7 +73,7 @@ class TAbnormalTerminator
      static void TerminateWithTimeout(const TDuration& timeout, const std::function<void(void)>& exitFunction)
      {
          auto result = NThreading::Async([&] {
-                 NDetail::TAbortableRegistry::Instance().AbortAllAndBlockForever();
+                 NDetail::TAbortableRegistry::Get()->AbortAllAndBlockForever();
              },
              *Instance().HandlerThread_);
          Sleep(timeout);

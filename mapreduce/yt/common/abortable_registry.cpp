@@ -46,6 +46,11 @@ TString TOperationAbortable::GetType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAbortableRegistry::~TAbortableRegistry()
+{
+    LOG_DEBUG("TAbortableRegistry is being destructed");
+}
+
 void TAbortableRegistry::AbortAllAndBlockForever()
 {
     auto guard = Guard(Lock_);
@@ -88,9 +93,31 @@ void TAbortableRegistry::Remove(const TGUID& id)
     ActiveAbortables_.erase(id);
 }
 
-TAbortableRegistry& TAbortableRegistry::Instance()
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+class TRegistryHolder
 {
-    return *Singleton<TAbortableRegistry>();
+public:
+    TRegistryHolder()
+        : Registry_(::MakeIntrusive<TAbortableRegistry>())
+    { }
+
+    ::TIntrusivePtr<TAbortableRegistry> Get()
+    {
+        return Registry_;
+    }
+
+private:
+    ::TIntrusivePtr<TAbortableRegistry> Registry_;
+};
+
+} // namespace
+
+::TIntrusivePtr<TAbortableRegistry> TAbortableRegistry::Get()
+{
+    return Singleton<TRegistryHolder>()->Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
