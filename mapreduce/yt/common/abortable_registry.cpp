@@ -46,11 +46,6 @@ TString TOperationAbortable::GetType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortableRegistry::~TAbortableRegistry()
-{
-    LOG_DEBUG("TAbortableRegistry is being destructed");
-}
-
 void TAbortableRegistry::AbortAllAndBlockForever()
 {
     auto guard = Guard(Lock_);
