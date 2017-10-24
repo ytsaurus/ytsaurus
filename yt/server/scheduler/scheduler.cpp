@@ -474,9 +474,9 @@ public:
         return CreateJobHost(jobId, nodeShard);
     }
 
-    virtual TFuture<void> ReleaseJobs(const std::vector<TJobId>& jobIds) override
+    void DoReleaseJobs(const TOperationId& operationId, const std::vector<TJobId>& jobIds)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
 
         std::vector<std::vector<TJobId>> jobIdsToRemoveByShardId(NodeShards_.size());
         for (const auto& jobId : jobIds) {
@@ -495,7 +495,21 @@ public:
             submitFutures.emplace_back(std::move(submitFuture));
         }
 
-        return Combine(submitFutures);
+        auto error = WaitFor(Combine(submitFutures));
+        if (!error.IsOK()) {
+            DoFailOperation(operationId, error);
+        }
+    }
+
+    virtual void ReleaseJobs(const TOperationId& operationId, std::vector<TJobId> jobIds) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND(&TImpl::DoReleaseJobs,
+                MakeStrong(this),
+                operationId,
+                std::move(jobIds)));
     }
 
     virtual void SendJobMetricsToStrategy(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) override

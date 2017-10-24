@@ -163,7 +163,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual TFuture<void> ReleaseJobs(const std::vector<NJobTrackerClient::TJobId>& jobIds) = 0;
+    virtual void ReleaseJobs(const TOperationId& operationId, std::vector<TJobId> jobIds) = 0;
 
     virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const NScheduler::TJobMetrics& jobMetrics) = 0;
 };
