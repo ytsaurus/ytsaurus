@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
+#include <yt/ytlib/event_log/event_log.h>
+
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -20,10 +22,12 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NScheduler;
+using namespace NCellScheduler;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NEventLog;
 
 static const auto& Logger = ControllerAgentLogger;
 
@@ -41,6 +45,10 @@ public:
             Config_->ChunkLocationThrottler,
             ControllerAgentLogger))
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
+        , EventLogWriter_(New<TEventLogWriter>(
+            Config_->EventLog,
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity)))
     { }
 
     void Disconnect()
@@ -122,10 +130,16 @@ public:
         return CoreSemaphore_;
     }
 
+    TEventLogWriterPtr GetEventLogWriter() const
+    {
+        return EventLogWriter_;
+    }
+
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         Config_ = config;
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
+        EventLogWriter_->UpdateConfig(Config_->EventLog);
         if (ControllerAgentMasterConnector_) {
             ControllerAgentMasterConnector_->UpdateConfig(config);
         }
@@ -207,6 +221,8 @@ private:
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     const TAsyncSemaphorePtr CoreSemaphore_;
+
+    TEventLogWriterPtr EventLogWriter_;
 
     std::atomic<bool> Connected_ = {false};
     TInstant ConnectionTime_;
@@ -305,6 +321,11 @@ const TCoreDumperPtr& TControllerAgent::GetCoreDumper() const
 const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
 {
     return Impl_->GetCoreSemaphore();
+}
+
+TEventLogWriterPtr TControllerAgent::GetEventLogWriter() const
+{
+    return Impl_->GetEventLogWriter();
 }
 
 void TControllerAgent::UpdateConfig(const TSchedulerConfigPtr& config)

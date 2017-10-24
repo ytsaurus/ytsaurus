@@ -1,6 +1,12 @@
 #pragma once
 
+#include "config.h"
+
+#include <yt/ytlib/api/native_client.h>
+
 #include <yt/core/misc/enum.h>
+
+#include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -66,6 +72,28 @@ private:
     void Acquire();
     void Release();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEventLogWriter
+    : public TIntrinsicRefCounted
+{
+public:
+    TEventLogWriter(
+        const TEventLogConfigPtr& config,
+        const NApi::INativeClientPtr& client,
+        const IInvokerPtr& invoker);
+
+    std::unique_ptr<NYson::IYsonConsumer> CreateConsumer();
+
+    void UpdateConfig(const TEventLogConfigPtr& config);
+
+private:
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TEventLogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

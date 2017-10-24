@@ -141,14 +141,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEventLogConfig::TEventLogConfig()
-{
-    RegisterParameter("path", Path)
-        .Default("//sys/scheduler/event_log");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobSplitterConfig::TJobSplitterConfig()
 {
     RegisterParameter("min_job_time", MinJobTime)
@@ -408,9 +400,6 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(3));
 
     RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
-        .Default(TDuration::Seconds(1));
-
-    RegisterParameter("pending_event_log_rows_flush_period", PendingEventLogRowsFlushPeriod)
         .Default(TDuration::Seconds(1));
 
     RegisterParameter("update_exec_node_descriptors_period", UpdateExecNodeDescriptorsPeriod)
@@ -684,6 +673,10 @@ TSchedulerConfig::TSchedulerConfig()
         ChunkLocationThrottler->Limit = 10000;
 
         EventLog->MaxRowWeight = 128_MB;
+
+        if (!EventLog->Path) {
+            EventLog->Path = "//sys/scheduler/event_log";
+        }
 
         // Value in options is an upper bound hint on uncompressed data size for merge jobs.
         OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;
