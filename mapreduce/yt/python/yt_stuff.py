@@ -27,10 +27,10 @@ def get_value(value, default):
 class YtConfig(object):
     def __init__(self, fqdn=None, yt_id=None, proxy_port=None, node_count=None, node_config=None,
                  scheduler_config=None, master_config=None, proxy_config=None, yt_path=None,
-                 save_all_logs=None, enable_debug_log=None, yt_work_dir=None, keep_yt_work_dir=None,
-                 ram_drive_path=None, local_cypress_dir=None, wait_tablet_cell_initialization=None,
-                 jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
-                 forbid_chunk_storage_in_tmpfs=None, yt_version=None, cell_tag=None):
+                 save_all_logs=None, yt_work_dir=None, keep_yt_work_dir=None, ram_drive_path=None,
+                 local_cypress_dir=None, wait_tablet_cell_initialization=None, jobs_memory_limit=None,
+                 jobs_cpu_limit=None, jobs_user_slot_count=None, forbid_chunk_storage_in_tmpfs=None,
+                 yt_version=None, cell_tag=None):
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
 
@@ -61,7 +61,6 @@ class YtConfig(object):
         self.yt_path = yt_path
 
         self.save_all_logs = save_all_logs
-        self.enable_debug_log = enable_debug_log
         self.yt_work_dir = yt_work_dir
         self.keep_yt_work_dir = keep_yt_work_dir
         self.ram_drive_path = ram_drive_path
@@ -216,10 +215,11 @@ class YtStuff(object):
     def _prepare_env(self):
         self.env = {}
         self.env["PATH"] = ":".join([
+            "/usr/sbin",  # It is required to locate logrotate in watcher process
             self.yt_bins_path,
             self.yt_env_watcher_dir_path,
             self.yt_node_path,
-            self.yt_node_bin_path,
+            self.yt_node_bin_path
         ])
         self.env["NODE_MODULES"] = self.yt_node_modules_path
         self.env["NODE_PATH"] = ":".join([
@@ -258,7 +258,8 @@ class YtStuff(object):
                 "--id", self.yt_id,
                 "--path", self.yt_work_dir,
                 "--fqdn", self.config.fqdn,
-                "--jobs-memory-limit", str(self.config.jobs_memory_limit)
+                "--jobs-memory-limit", str(self.config.jobs_memory_limit),
+                "--enable-debug-logging"
             ]
 
             if self.config.jobs_cpu_limit:
@@ -275,12 +276,6 @@ class YtStuff(object):
                 self.yt_proxy_port = self.config.proxy_port
                 args += ["--proxy-port", str(self.config.proxy_port)]
 
-            enable_debug_log = self.config.enable_debug_log or yatest.common.get_param("yt_enable_debug_logging")
-            # Temporary hack: we want to analyse problems mr_apps tests.
-            if "quality/mr_apps/" in yatest.common.work_path():
-                enable_debug_log = True
-            if enable_debug_log:
-                args += ["--enable-debug-logging"]
             if self.tmpfs_path:
                 args += ["--tmpfs-path", self.tmpfs_path]
             if self.config.node_config:
