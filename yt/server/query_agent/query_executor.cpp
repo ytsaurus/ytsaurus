@@ -112,32 +112,66 @@ struct TRangeFormatter
     }
 };
 
-struct TDataKeys
-{
-    //! Either a chunk id or tablet id.
-    NObjectClient::TObjectId Id;
-    TSharedRange<TRow> Keys;
-};
-
 struct TSelectCounters
 {
     TSelectCounters(const TTagIdList& list)
-        : RowCount("/select/row_count", list)
-        , DataWeight("/select/data_weight", list)
-        , CpuTime("/select/cpu_time", list)
+        : CpuTime("/select/cpu_time", list)
     { }
 
-    TSimpleCounter RowCount;
-    TSimpleCounter DataWeight;
     TSimpleCounter CpuTime;
 };
 
 using TSelectProfilerTrait = TSimpleProfilerTrait<TSelectCounters>;
 
-auto& GetProfilerCounters(const TString& user)
+struct TTabletReadCounters
 {
-    return GetLocallyGloballyCachedValue<TSelectProfilerTrait>(AddUserTag(user));
-}
+    TTabletReadCounters(const NProfiling::TTagIdList& list)
+        : RowCount("/tablet_read/row_count", list)
+        , DataWeight("/tablet_read/data_weight", list)
+    { }
+
+    NProfiling::TSimpleCounter RowCount;
+    NProfiling::TSimpleCounter DataWeight;
+};
+
+using TTabletReadProfilerTrait = TTabletProfilerTrait<TTabletReadCounters>;
+
+class TProfilingReaderWrapper
+    : public ISchemafulReader
+{
+    ISchemafulReaderPtr Underlying_;
+    NProfiling::TTagIdList Tags_;
+public:
+
+    TProfilingReaderWrapper(ISchemafulReaderPtr underlying, NProfiling::TTagIdList tags)
+        : Underlying_(std::move(underlying))
+        , Tags_(tags)
+    { }
+
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    {
+        return Underlying_->Read(rows);
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return Underlying_->GetReadyEvent();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return Underlying_->GetDataStatistics();
+    }
+
+    ~TProfilingReaderWrapper()
+    {
+        auto statistics = GetDataStatistics();
+        auto& counters = GetLocallyGloballyCachedValue<TTabletReadProfilerTrait>(Tags_);
+        TabletNodeProfiler.Increment(counters.RowCount, statistics.row_count());
+        TabletNodeProfiler.Increment(counters.DataWeight, statistics.data_weight());
+    }
+
+};
 
 } // namespace
 
@@ -229,6 +263,7 @@ public:
         , Options_(std::move(options))
         , Logger(MakeQueryLogger(Query_))
         , TabletSnapshots_(bootstrap->GetTabletSlotManager())
+
     { }
 
     TFuture<TQueryStatistics> Execute(
@@ -249,15 +284,14 @@ public:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto maybeUser = securityManager->GetAuthenticatedUser();
+        MaybeUser_ = securityManager->GetAuthenticatedUser();
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
             .Run(
                 std::move(externalCGInfo),
                 std::move(dataSources),
-                std::move(writer),
-                maybeUser);
+                std::move(writer));
     }
 
 private:
@@ -272,6 +306,8 @@ private:
     const NLogging::TLogger Logger;
 
     TTabletSnapshotCache TabletSnapshots_;
+
+    TNullable<TString> MaybeUser_;
 
     typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
 
@@ -558,18 +594,15 @@ private:
     TQueryStatistics DoExecute(
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
-        ISchemafulWriterPtr writer,
-        const TNullable<TString>& maybeUser)
+        ISchemafulWriterPtr writer)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
+        TAuthenticatedUserGuard userGuard(securityManager, MaybeUser_);
 
         auto statistics = DoExecuteImpl(std::move(externalCGInfo), std::move(dataSources), std::move(writer));
 
-        if (maybeUser) {
-            auto& counters = GetProfilerCounters(*maybeUser);
-            TabletNodeProfiler.Increment(counters.RowCount, statistics.RowsRead);
-            TabletNodeProfiler.Increment(counters.DataWeight, statistics.BytesRead);
+        if (MaybeUser_) {
+            auto& counters = GetLocallyGloballyCachedValue<TSelectProfilerTrait>(AddUserTag(*MaybeUser_));
             TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
         }
 
@@ -1097,13 +1130,21 @@ private:
 
             return CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
         } else {
-            return CreateSchemafulSortedTabletReader(
+            auto profilerTags = tabletSnapshot->ProfilerTags;
+
+            auto reader = CreateSchemafulSortedTabletReader(
                 std::move(tabletSnapshot),
                 columnFilter,
                 bounds,
                 Options_.Timestamp,
                 Options_.WorkloadDescriptor,
                 Options_.ReadSessionId);
+
+            if (MaybeUser_) {
+                profilerTags = AddUserTag(*MaybeUser_, profilerTags);
+            }
+
+            return New<TProfilingReaderWrapper>(reader, profilerTags);
         }
     }
 
@@ -1114,13 +1155,21 @@ private:
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
         auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
 
-        return CreateSchemafulTabletReader(
+        auto profilerTags = tabletSnapshot->ProfilerTags;
+
+        auto reader = CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
             columnFilter,
             keys,
             Options_.Timestamp,
             Options_.WorkloadDescriptor,
             Options_.ReadSessionId);
+
+        if (MaybeUser_) {
+            profilerTags = AddUserTag(*MaybeUser_, profilerTags);
+        }
+
+        return New<TProfilingReaderWrapper>(reader, profilerTags);
     }
 
 };
