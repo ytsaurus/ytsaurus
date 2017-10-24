@@ -23,6 +23,7 @@ using namespace NScheduler;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 static const auto& Logger = ControllerAgentLogger;
 
@@ -99,6 +100,11 @@ public:
     const NApi::INativeClientPtr& GetMasterClient() const
     {
         return Bootstrap_->GetMasterClient();
+    }
+
+    const TNodeDirectoryPtr& GetNodeDirectory()
+    {
+        return Bootstrap_->GetNodeDirectory();
     }
 
     const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const
@@ -279,6 +285,11 @@ const TSchedulerConfigPtr& TControllerAgent::GetConfig() const
 const NApi::INativeClientPtr& TControllerAgent::GetMasterClient() const
 {
     return Impl_->GetMasterClient();
+}
+
+const TNodeDirectoryPtr& TControllerAgent::GetNodeDirectory()
+{
+    return Impl_->GetNodeDirectory();
 }
 
 const TThrottlerManagerPtr& TControllerAgent::GetChunkLocationThrottlerManager() const

@@ -1533,7 +1533,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     // Validate all node ids of the output chunks and populate the local node directory.
     // In case any id is not known, abort the job.
-    const auto& globalNodeDirectory = Host->GetNodeDirectory();
+    const auto& globalNodeDirectory = ControllerAgent->GetNodeDirectory();
     for (const auto& chunkSpec : schedulerResultExt.output_chunk_specs()) {
         auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
         for (auto replica : replicas) {
