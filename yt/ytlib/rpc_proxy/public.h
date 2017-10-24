@@ -14,8 +14,6 @@ DECLARE_REFCOUNTED_CLASS(TRpcProxyConnection)
 DECLARE_REFCOUNTED_CLASS(TRpcProxyClientBase)
 DECLARE_REFCOUNTED_CLASS(TRpcProxyClient)
 DECLARE_REFCOUNTED_CLASS(TRpcProxyTransaction)
-DECLARE_REFCOUNTED_CLASS(TOperableChannel)
-DECLARE_REFCOUNTED_CLASS(TPhoenixChannelGetter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
