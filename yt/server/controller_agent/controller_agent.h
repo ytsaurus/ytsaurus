@@ -46,6 +46,8 @@ public:
     const TSchedulerConfigPtr& GetConfig() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
 
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
+
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
 
     const TCoreDumperPtr& GetCoreDumper() const;

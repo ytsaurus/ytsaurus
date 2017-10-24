@@ -911,11 +911,6 @@ public:
         return Bootstrap_->GetControllerAgent().Get();
     }
 
-    virtual const TNodeDirectoryPtr& GetNodeDirectory() override
-    {
-        return Bootstrap_->GetNodeDirectory();
-    }
-
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const
     {
         return Bootstrap_->GetControlInvoker(queue);
