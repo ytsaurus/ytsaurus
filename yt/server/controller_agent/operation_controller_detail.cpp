@@ -30,6 +30,8 @@
 #include <yt/ytlib/core_dump/core_info.pb.h>
 #include <yt/ytlib/core_dump/helpers.h>
 
+#include <yt/ytlib/event_log/event_log.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -93,6 +95,7 @@ using namespace NTableClient;
 using namespace NQueryClient;
 using namespace NProfiling;
 using namespace NScheduler;
+using namespace NEventLog;
 
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
