@@ -11,6 +11,7 @@
 #include "helpers.h"
 #include "master_connector.h"
 #include "task_host.h"
+#include "controller_agent.h"
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/event_log.h>
@@ -122,8 +123,8 @@ public: \
     { \
         VERIFY_EVALUATOR(affinity); \
         TSafeAssertionsGuard guard( \
-            Host->GetCoreDumper(), \
-            Host->GetCoreSemaphore(), \
+            ControllerAgent->GetCoreDumper(), \
+            ControllerAgent->GetCoreSemaphore(), \
             {"OperationId: " + ToString(OperationId)}); \
         try { \
             return Safe ## method args; \
