@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "rpc_proxy_channel.h"
 
 #include <yt/core/concurrency/public.h>
 
@@ -42,7 +43,12 @@ public:
     virtual void Terminate() override;
 
     virtual TFuture<std::vector<NApi::TProxyInfo>> DiscoverProxies(
-        const NApi::TDiscoverProxyOptions& options) override;
+        const NApi::TDiscoverProxyOptions& options = {}) override;
+
+    NRpc::IChannelPtr CreateChannelAndRegister(
+        const NApi::TClientOptions& options,
+        NRpc::IRoamingChannelProvider* provider);
+    void Unregister(NRpc::IRoamingChannelProvider* provider);
 
 private:
     const TRpcProxyConnectionConfigPtr Config_;
@@ -57,6 +63,22 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr PingExecutor_;
 
+    NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
+
+    TSpinLock AddressSpinLock_;
+    std::vector<TString> Addresses_; // Must be sorted.
+    yhash<TString, yhash_set<NRpc::IRoamingChannelProvider*>> AddressToProviders_;
+    yhash<NRpc::IRoamingChannelProvider*, TString> ProviderToAddress_;
+
+    NRpc::IChannelPtr DiscoveryChannel_;
+    int FailedAttempts_ = 0;
+
+    TFuture<std::vector<NApi::TProxyInfo>> DiscoverProxies(
+        const NRpc::IChannelPtr& channel,
+        const NApi::TDiscoverProxyOptions& options = {});
+
+    void ResetAddresses();
+
 protected:
     friend class TRpcProxyClient;
     friend class TRpcProxyTransaction;
@@ -64,13 +86,14 @@ protected:
 
     // Implementation-specific methods.
 
-    NRpc::IChannelPtr GetRandomPeerChannel();
+    NRpc::IChannelPtr GetRandomPeerChannel(NRpc::IRoamingChannelProvider* provider = nullptr);
 
     void RegisterTransaction(TRpcProxyTransaction* transaction);
     void UnregisterTransaction(TRpcProxyTransaction* transaction);
 
     void OnPing();
     void OnPingCompleted(const TErrorOr<std::vector<TError>>& pingResults);
+    void OnProxyListUpdated();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRpcProxyConnection)

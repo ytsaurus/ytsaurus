@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rpc_proxy_client_base.h"
+#include "rpc_proxy_channel.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -18,7 +19,7 @@ class TRpcProxyClient
 public:
     TRpcProxyClient(
         TRpcProxyConnectionPtr connection,
-        NRpc::IChannelPtr channel);
+        const NApi::TClientOptions& options);
     ~TRpcProxyClient();
 
     virtual TFuture<void> Terminate() override
