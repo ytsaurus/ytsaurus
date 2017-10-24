@@ -82,6 +82,7 @@ public:
         : JobId_(jobId)
         , JobSpec_(jobSpec)
         , Config_(config)
+        , StartTime_(TInstant::Now())
         , Bootstrap_(bootstrap)
         , ResourceLimits_(resourceLimits)
     {
@@ -191,6 +192,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual TInstant GetStartTime() const override
+    {
+        return StartTime_;
+    }
+
     virtual TNullable<TDuration> GetPrepareDuration() const override
     {
         return Null;
@@ -270,6 +276,7 @@ protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;
     const TDataNodeConfigPtr Config_;
+    const TInstant StartTime_;
     TBootstrap* const Bootstrap_;
 
     TNodeResources ResourceLimits_;
