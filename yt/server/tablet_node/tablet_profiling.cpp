@@ -9,6 +9,7 @@
 #include <yt/core/profiling/profiler.h>
 
 #include <yt/core/misc/tls_cache.h>
+#include <yt/core/misc/farm_hash.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -65,19 +66,54 @@ TSimpleProfilerTraitBase::TKey TSimpleProfilerTraitBase::ToKey(const TTagIdList&
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TListProfilerTraitBase::TKey TListProfilerTraitBase::ToKey(const TTagIdList& list)
+{
+    //return std::vector<TTagId>(list.begin(), list.end());
+    return list;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDiskBytesWrittenCounters
+{
+    TDiskBytesWrittenCounters(const TTagIdList& list)
+        : DiskBytesWritten("/disk_bytes_written", list)
+    { }
+
+    TSimpleCounter DiskBytesWritten;
+};
+
+using TDiskBytesWrittenProfilerTrait = TListProfilerTrait<TDiskBytesWrittenCounters>;
+
 void ProfileDiskPressure(
     TTabletSnapshotPtr tabletSnapshot,
     const TDataStatistics& dataStatistics,
-    NProfiling::TSimpleCounter& counter)
+    TTagId methodTag)
 {
     auto diskSpace = CalculateDiskSpaceUsage(
         tabletSnapshot->WriterOptions->ReplicationFactor,
         dataStatistics.regular_disk_space(),
         dataStatistics.erasure_disk_space());
-    TabletNodeProfiler.Increment(counter, diskSpace);
+    auto tags = tabletSnapshot->DiskProfilerTags;
+    tags.push_back(methodTag);
+    auto& counters = GetLocallyGloballyCachedValue<TDiskBytesWrittenProfilerTrait>(tags);
+    TabletNodeProfiler.Increment(counters.DiskBytesWritten, diskSpace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t hash<NYT::NTabletNode::TListProfilerTraitBase::TKey>::operator()(const NYT::NTabletNode::TListProfilerTraitBase::TKey& list) const
+{
+    size_t result = 1;
+    for (auto tag : list) {
+        result = NYT::FarmFingerprint(result, tag);
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////

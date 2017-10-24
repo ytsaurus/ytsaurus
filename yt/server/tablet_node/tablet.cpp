@@ -1070,6 +1070,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     UpdateUnflushedTimestamp();
 
     snapshot->ProfilerTags = ProfilerTags_;
+    snapshot->DiskProfilerTags = DiskProfilerTags_;
 
     return snapshot;
 }
@@ -1142,20 +1143,9 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
     ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag("table_path", TablePath_));
 
     const auto& writerOptions = WriterOptions_;
-    TTagIdList tags;
-    tags.append({
+    DiskProfilerTags_.assign({
         TProfileManager::Get()->RegisterTag("account", writerOptions->Account),
         TProfileManager::Get()->RegisterTag("medium", writerOptions->MediumName)});
-    auto storeFlushTags = tags;
-    auto compactionTags = tags;
-    auto partitioningTags = tags;
-    storeFlushTags.push_back(TProfileManager::Get()->RegisterTag("method", "store_flush"));
-    compactionTags.push_back(TProfileManager::Get()->RegisterTag("method", "compaction"));
-    partitioningTags.push_back(TProfileManager::Get()->RegisterTag("method", "partitioning"));
-
-    RuntimeData_->StoreFlushDiskPressureCounter = TSimpleCounter("/disk_bytes_written", storeFlushTags);
-    RuntimeData_->CompactionDiskPressureCounter = TSimpleCounter("/disk_bytes_written", compactionTags);
-    RuntimeData_->PartitioningDiskPressureCounter = TSimpleCounter("/disk_bytes_written", partitioningTags);
 }
 
 void TTablet::UpdateReplicaCounters()
