@@ -168,12 +168,9 @@ void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
     }
 }
 
-void TTask::FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex)
+void TTask::FinishInput()
 {
-    LOG_DEBUG("Task input finished (InputVertex: %v)",
-        inputVertex);
-
-    InputVertex_ = inputVertex;
+    LOG_DEBUG("Task input finished" );
 
     GetChunkPoolInput()->Finish();
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
@@ -182,6 +179,13 @@ void TTask::FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex)
     }
     AddPendingHint();
     CheckCompleted();
+}
+
+void TTask::FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex)
+{
+    SetInputVertex(inputVertex);
+
+    FinishInput();
 }
 
 void TTask::CheckCompleted()
