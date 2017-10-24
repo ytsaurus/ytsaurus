@@ -17,8 +17,9 @@ set(SRCS
 
 add_library(${NAME} STATIC ${SRCS})
 
-if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  set_target_properties(deps-arcadia-contrib-libs-base64 PROPERTIES COMPILE_FLAGS -mavx2)
-  set_target_properties(deps-arcadia-contrib-libs-base64 PROPERTIES COMPILE_FLAGS -mssse3)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  set_target_properties(deps-arcadia-contrib-libs-base64 PROPERTIES COMPILE_FLAGS "-mavx2 -mssse3")
+else()
+  message(FATAL "Unsupported toolchain. :(")
 endif()
 
