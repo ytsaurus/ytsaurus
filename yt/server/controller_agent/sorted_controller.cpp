@@ -1070,6 +1070,11 @@ protected:
         return {EJobType::SortedReduce};
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        return Spec_->PivotKeys.empty() && TSortedControllerBase::IsJobInterruptible();
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController, 0x761aad8e);
 
