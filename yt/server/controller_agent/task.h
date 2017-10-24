@@ -27,6 +27,7 @@ class TTask
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+    DEFINE_BYVAL_RW_PROPERTY(TDataFlowGraph::TVertexDescriptor, InputVertex, TDataFlowGraph::TVertexDescriptor());
 
 public:
     //! For persistence only.
@@ -69,6 +70,7 @@ public:
 
     // NB: This works well until there is no more than one input data flow vertex for any task.
     void FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex);
+    void FinishInput();
 
     void CheckCompleted();
 
@@ -205,6 +207,8 @@ protected:
         TJobletPtr joblet,
         const NChunkPools::TChunkStripeKey& key = NChunkPools::TChunkStripeKey());
 
+    //! A convenience method for calling task->Finish() and
+    //! task->SetInputVertex(this->GetJobType());
     void FinishTaskInput(const TTaskPtr& task);
 
 protected:
@@ -216,7 +220,6 @@ private:
 
     int CachedPendingJobCount_;
     int CachedTotalJobCount_;
-    TDataFlowGraph::TVertexDescriptor InputVertex_;
 
     TNullable<i64> MaximumUsedTmfpsSize_;
 

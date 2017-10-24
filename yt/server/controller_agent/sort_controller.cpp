@@ -213,7 +213,11 @@ protected:
             if (!controller->SimpleSort) {
                 UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this);
                 controller->RegisterTask(UnorderedMergeTask);
+                UnorderedMergeTask->SetInputVertex(controller->GetPartitionJobType());
             }
+
+            SortTask->SetInputVertex(controller->GetPartitionJobType());
+            SortedMergeTask->SetInputVertex(SortTask->GetJobType());
         }
 
         //! Sequential index (zero based).
@@ -554,10 +558,10 @@ protected:
                         dataWeight);
 
                     if (partition->SortTask) {
-                        FinishTaskInput(partition->SortTask);
+                        partition->SortTask->FinishInput();
                     }
                     if (partition->UnorderedMergeTask) {
-                        FinishTaskInput(partition->UnorderedMergeTask);
+                        partition->UnorderedMergeTask->FinishInput();
                     }
                 }
             }
@@ -854,7 +858,7 @@ protected:
 
             // Kick-start the corresponding merge task.
             if (Controller->IsSortedMergeNeeded(Partition)) {
-                FinishTaskInput(Partition->SortedMergeTask);
+                Partition->SortedMergeTask->FinishInput();
             }
         }
 
@@ -2266,7 +2270,11 @@ private:
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
-        FinishTaskInput(partition->SortTask);
+        partition->SortTask->SetInputVertex(PartitionTask->GetJobType());
+        partition->SortedMergeTask->SetInputVertex(partition->SortTask->GetJobType());
+        partition->UnorderedMergeTask->SetInputVertex(PartitionTask->GetJobType());
+
+        partition->SortTask->FinishInput();
 
         // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
         SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
