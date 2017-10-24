@@ -2413,7 +2413,7 @@ private:
 
             reviveFutures.emplace_back(ReviveOperation(operation, operationReport.ControllerTransactions));
         }
-        WaitFor(Combine(reviveFutures))
+        WaitFor(CombineAll(reviveFutures))
             .ThrowOnError();
 
         // Start reviving process on node shards.
