@@ -68,7 +68,6 @@ TSimpleProfilerTraitBase::TKey TSimpleProfilerTraitBase::ToKey(const TTagIdList&
 
 TListProfilerTraitBase::TKey TListProfilerTraitBase::ToKey(const TTagIdList& list)
 {
-    //return std::vector<TTagId>(list.begin(), list.end());
     return list;
 }
 
