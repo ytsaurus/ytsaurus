@@ -987,10 +987,20 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
         chunkCountPerMergeJob,
         OperationId);
 
+    // NB: if row count limit is set on any output table, we do not
+    // enable auto merge as it prematurely stops the operation
+    // because wrong statistics are currently used when checking row count.
+    bool autoMergeEnabled = true;
+    for (int index = 0; index < OutputTables_.size(); ++index) {
+        if (OutputTables_[index].Path.GetRowCountLimit()) {
+            autoMergeEnabled = false;
+        }
+    }
+
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
-        if (outputTable.Path.GetAutoMerge()) {
+        if (autoMergeEnabled && outputTable.Path.GetAutoMerge()) {
             auto edgeDescriptor = standardEdgeDescriptors[index];
             // Auto-merge jobs produce single output, so we override the table
             // index in writer options with 0.

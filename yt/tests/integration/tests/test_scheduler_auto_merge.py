@@ -322,3 +322,27 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         for chunk_id in chunk_ids:
             assert get("#{0}/@media/default/replication_factor".format(chunk_id)) == 5
             assert get("#{0}/@compression_codec".format(chunk_id)) == "zstd_17"
+
+    @pytest.mark.timeout(30)
+    def test_row_count_limit_disables_auto_merge(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["<row_count_limit=5>//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 4,
+                    "max_intermediate_chunk_count" : 100
+                },
+                "data_size_per_job": 1,
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+            })
+        assert get("//tmp/t_out/@chunk_count") >= 5
