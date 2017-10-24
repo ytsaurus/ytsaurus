@@ -469,12 +469,6 @@ public:
         EObjectType type,
         const TCreateObjectOptions& options),
         (type, options))
-    DELEGATE_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TGetInSyncReplicasOptions& options),
-        (path, nameTable, keys, options))
 
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<IAsyncZeroCopyInputStreamPtr>, CreateFileReader, (

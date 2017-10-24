@@ -53,12 +53,6 @@ public:
         const TString& query,
         const NApi::TSelectRowsOptions& options) override;
 
-    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const NApi::TGetInSyncReplicasOptions& options) override;
-
     // TODO(babenko): batch read and batch write
 
     // Cypress

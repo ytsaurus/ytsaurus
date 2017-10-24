@@ -765,13 +765,6 @@ struct IClientBase
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = TTableWriterOptions()) = 0;
 
-    // TODO(sandello): Non-transactional!
-    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
-        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
-
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
@@ -926,6 +919,12 @@ struct IClient
     virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
         const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;
+
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
