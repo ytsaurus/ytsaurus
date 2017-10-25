@@ -5216,6 +5216,8 @@ void TOperationControllerBase::ReleaseJobs(int completedJobIndexLimit)
     RecentlyCompletedJobIds.erase(RecentlyCompletedJobIds.begin(), RecentlyCompletedJobIds.begin() + jobCount);
 
     Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease));
+    
+    ReleasedJobCount += jobCount;
 }
 
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
