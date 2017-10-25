@@ -712,6 +712,17 @@ struct TOperation
     TNullable<double> Weight;
 };
 
+struct TListOperationsResult
+{
+    std::vector<TOperation> Operations;
+    TNullable<yhash<TString, i64>> PoolCounts;
+    TNullable<yhash<TString, i64>> UserCounts;
+    TNullable<TEnumIndexedVector<i64, NScheduler::EOperationState>> StateCounts;
+    TNullable<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
+    TNullable<i64> FailedJobsCount;
+    bool Incomplete = false;
+};
+
 struct TJob
 {
     NJobTrackerClient::TJobId JobId;
@@ -727,15 +738,9 @@ struct TJob
     TNullable<TString> CoreInfos;
 };
 
-struct TListOperationsResult
+struct TListJobsResult
 {
-    std::vector<TOperation> Operations;
-    TNullable<yhash<TString, i64>> PoolCounts;
-    TNullable<yhash<TString, i64>> UserCounts;
-    TNullable<TEnumIndexedVector<i64, NScheduler::EOperationState>> StateCounts;
-    TNullable<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
-    TNullable<i64> FailedJobsCount;
-    bool Incomplete = false;
+    std::vector<TJob> Jobs;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
