@@ -278,6 +278,9 @@ public:
     //! Generic map to turn on/off different experimental options.
     NYTree::IMapNodePtr NightlyOptions;
 
+    //! If total input data weight of operation is less, we disable locality timeouts.
+    i64 MinLocalityInputDataWeight;
+
     TAutoMergeConfigPtr AutoMerge;
 
     TOperationSpecBase();

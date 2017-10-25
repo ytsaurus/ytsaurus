@@ -171,6 +171,10 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("nightly_options", NightlyOptions)
         .Default();
 
+    RegisterParameter("min_locality_input_data_weight", MinLocalityInputDataWeight)
+        .GreaterThanOrEqual(0)
+        .Default(1_GB);
+
     RegisterParameter("auto_merge", AutoMerge)
         .DefaultNew();
 

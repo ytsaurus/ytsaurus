@@ -77,7 +77,6 @@ public:
 
     //! Default parent pool for operations with unknown pool.
     TString DefaultParentPool;
-
     //! Forbid immediate operations in root.
     bool ForbidImmediateOperationsInRoot;
 
@@ -614,6 +613,9 @@ public:
 
     //! If |true|, jobs are revived from snapshot.
     bool EnableJobRevival;
+
+    //! If |false|, all locality timeouts are considered 0.
+    bool EnableLocality;
 
     //! Allow failing a controller by passing testing option `controller_failure`
     //! in operation spec. Used only for testing purposes.
