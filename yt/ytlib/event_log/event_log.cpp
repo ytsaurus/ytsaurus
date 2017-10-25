@@ -54,16 +54,6 @@ void TFluentEventLogger::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEventLogValueConsumer;
-
-class TEventLogWriterTImpl
-    : public TIntrinsicRefCounted
-{
-protected:
-    friend class TEventLogValueConsumer;
-
-};
-
 class TEventLogValueConsumer
     : public IValueConsumer
 {
@@ -123,10 +113,9 @@ class TEventLogWriter::TImpl
 {
 public:
     TImpl(const TEventLogConfigPtr& config, const INativeClientPtr& client, const IInvokerPtr& invoker)
+        : Config_(config)
+        , Client_(client)
     {
-        Config_ = config;
-        Client_ = client;
-
         YCHECK(Config_->Path);
 
         auto nameTable = New<TNameTable>();
