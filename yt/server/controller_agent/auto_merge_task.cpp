@@ -145,7 +145,7 @@ TTaskGroupPtr TAutoMergeTask::GetGroup() const
 
 TDuration TAutoMergeTask::GetLocalityTimeout() const
 {
-    return TDuration();
+    return TDuration::Zero();
 }
 
 TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joblet) const

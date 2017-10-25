@@ -181,7 +181,9 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->Spec->LocalityTimeout;
+            return Controller->IsLocalityEnabled()
+                ? Controller->Spec->LocalityTimeout
+                : TDuration::Zero();
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override

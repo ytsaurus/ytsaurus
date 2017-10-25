@@ -596,6 +596,8 @@ protected:
     bool InputHasVersionedTables() const;
     bool InputHasReadLimits() const;
 
+    bool IsLocalityEnabled() const;
+
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
 

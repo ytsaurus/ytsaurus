@@ -4738,6 +4738,11 @@ bool TOperationControllerBase::InputHasReadLimits() const
     return false;
 }
 
+bool TOperationControllerBase::IsLocalityEnabled() const
+{
+    return Config->EnableLocality && TotalEstimatedInputDataWeight > Spec_->MinLocalityInputDataWeight;
+}
+
 void TOperationControllerBase::SliceUnversionedChunks(
     const std::vector<TInputChunkPtr>& unversionedChunks,
     const IJobSizeConstraintsPtr& jobSizeConstraints,

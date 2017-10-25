@@ -558,6 +558,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("enable_job_revival", EnableJobRevival)
         .Default(true);
 
+    RegisterParameter("enable_locality", EnableLocality)
+        .Default(true);
+
     RegisterParameter("fetcher", Fetcher)
         .DefaultNew();
     RegisterParameter("event_log", EventLog)

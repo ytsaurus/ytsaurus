@@ -337,7 +337,9 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->Spec->PartitionLocalityTimeout;
+            return Controller->IsLocalityEnabled()
+                ? Controller->Spec->PartitionLocalityTimeout
+                : TDuration::Zero();
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
@@ -887,6 +889,10 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
+            if (!Controller->IsLocalityEnabled()) {
+                return TDuration::Zero();
+            }
+
             return Partition->AssignedNodeId == InvalidNodeId
                 ? Controller->Spec->SortAssignmentTimeout
                 : Controller->Spec->SortLocalityTimeout;
@@ -975,7 +981,9 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->Spec->SimpleSortLocalityTimeout;
+            return Controller->IsLocalityEnabled()
+                ? Controller->Spec->SimpleSortLocalityTimeout
+                : TDuration::Zero();
         }
 
     private:
@@ -1038,6 +1046,10 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
+            if (!Controller->IsLocalityEnabled()) {
+                return TDuration::Zero();
+            }
+
             return
                 Controller->SimpleSort
                 ? Controller->Spec->SimpleMergeLocalityTimeout
