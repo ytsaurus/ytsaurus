@@ -448,8 +448,6 @@ void TBootstrap::DoInitialize()
         Config_->MonitoringServer->Port = Config_->MonitoringPort;
         Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
         Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-        NewHttpServer_ = NHttp::CreateServer(
-            Config_->MonitoringServer);
     }
 
     if (Config_->CoreDumper) {
@@ -599,9 +597,7 @@ void TBootstrap::DoInitialize()
             "/orchid",
             NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
     } else {
-        NewHttpServer_->AddHandler(
-            "/orchid/",
-            NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+        OrchidHttpHandler_ = NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker()));
     }
 
     SetBuildAttributes(orchidRoot, "master");
@@ -669,6 +665,8 @@ void TBootstrap::DoRun()
     if (HttpServer_) {
         HttpServer_->Start();
     } else {
+        NewHttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+        NewHttpServer_->AddHandler("/orchid/", OrchidHttpHandler_);
         NewHttpServer_->Start();
     }
 
