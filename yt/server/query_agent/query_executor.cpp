@@ -125,13 +125,13 @@ using TSelectProfilerTrait = TSimpleProfilerTrait<TSelectCounters>;
 
 struct TTabletReadCounters
 {
-    TTabletReadCounters(const NProfiling::TTagIdList& list)
+    TTabletReadCounters(const TTagIdList& list)
         : RowCount("/tablet_read/row_count", list)
         , DataWeight("/tablet_read/data_weight", list)
     { }
 
-    NProfiling::TSimpleCounter RowCount;
-    NProfiling::TSimpleCounter DataWeight;
+    TSimpleCounter RowCount;
+    TSimpleCounter DataWeight;
 };
 
 using TTabletReadProfilerTrait = TTabletProfilerTrait<TTabletReadCounters>;
@@ -139,10 +139,11 @@ using TTabletReadProfilerTrait = TTabletProfilerTrait<TTabletReadCounters>;
 class TProfilingReaderWrapper
     : public ISchemafulReader
 {
+private:
     ISchemafulReaderPtr Underlying_;
     NProfiling::TTagIdList Tags_;
-public:
 
+public:
     TProfilingReaderWrapper(ISchemafulReaderPtr underlying, NProfiling::TTagIdList tags)
         : Underlying_(std::move(underlying))
         , Tags_(tags)
@@ -1099,6 +1100,9 @@ private:
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
         auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
+        auto profilerTags = tabletSnapshot->ProfilerTags;
+
+        ISchemafulReaderPtr reader;
 
         if (!tabletSnapshot->TableSchema.IsSorted()) {
             auto bottomSplitReaderGenerator = [
@@ -1128,24 +1132,22 @@ private:
                     Options_.ReadSessionId);
             };
 
-            return CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
+            reader = CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
         } else {
-            auto profilerTags = tabletSnapshot->ProfilerTags;
-
-            auto reader = CreateSchemafulSortedTabletReader(
+            reader = CreateSchemafulSortedTabletReader(
                 std::move(tabletSnapshot),
                 columnFilter,
                 bounds,
                 Options_.Timestamp,
                 Options_.WorkloadDescriptor,
                 Options_.ReadSessionId);
-
-            if (MaybeUser_) {
-                profilerTags = AddUserTag(*MaybeUser_, profilerTags);
-            }
-
-            return New<TProfilingReaderWrapper>(reader, profilerTags);
         }
+
+        if (MaybeUser_) {
+            profilerTags = AddUserTag(*MaybeUser_, profilerTags);
+        }
+
+        return New<TProfilingReaderWrapper>(reader, profilerTags);
     }
 
     ISchemafulReaderPtr GetTabletReader(

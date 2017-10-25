@@ -172,7 +172,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         def get_all_counters(count_name):
             return (
                 tablet_profiling.get_counter("lookup/" + count_name),
-                select_profiling.get_counter("select/" + count_name),
+                select_profiling.get_counter("tablet_read/" + count_name),
                 tablet_profiling.get_counter("write/" + count_name),
                 tablet_profiling.get_counter("commit/" + count_name))
 
@@ -207,8 +207,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sleep(2)
 
-        assert get_all_counters("row_count") == (1, 2, 1, 1)
-        assert get_all_counters("data_weight") == (10, 10*2+8, 10, 10)
+        assert get_all_counters("row_count") == (1, 1, 1, 1)
+        assert get_all_counters("data_weight") == (10, 10, 10, 10)
         assert tablet_profiling.get_counter("lookup/cpu_time") > 0
         assert select_profiling.get_counter("select/cpu_time") > 0
 
