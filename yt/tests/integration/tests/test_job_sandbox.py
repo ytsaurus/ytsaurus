@@ -42,7 +42,8 @@ class TestSandboxTmpfs(YTEnvSetup):
                 "mapper": {
                     "tmpfs_size": 1024 * 1024,
                     "tmpfs_path": "tmpfs",
-                }
+                },
+                "max_failed_job_count" : 1
             })
 
         jobs_path = "//sys/operations/" + op.id + "/jobs"
@@ -254,6 +255,29 @@ class TestSandboxTmpfs(YTEnvSetup):
             })
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
+
+    def test_inner_files(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("file", "//tmp/file.txt")
+        write_file("//tmp/file.txt", "{trump = moron};\n")
+
+        op = map(
+            command="cat; cat ./tmpfs/trump.txt",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            file=['<file_name="./tmpfs/trump.txt">//tmp/file.txt'],
+            spec={
+                "mapper": {
+                    "tmpfs_path": "tmpfs",
+                    "tmpfs_size": 1024 * 1024,
+                },
+                "max_failed_job_count": 1
+            })
+
+        assert get("//tmp/t_output/@row_count".format(op.id)) == 2
 
 ##################################################################
 

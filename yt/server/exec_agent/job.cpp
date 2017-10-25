@@ -931,6 +931,7 @@ private:
         WaitFor(Slot_->CreateSandboxDirectories())
             .ThrowOnError();
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path()) {
@@ -947,12 +948,6 @@ private:
                 if (!enable) {
                     TmpfsPath_ = Null;
                 }
-            }
-            if (userJobSpec.has_disk_space_limit() || userJobSpec.has_inode_limit()) {
-                auto diskSpaceLimit = userJobSpec.disk_space_limit();
-                auto inodeLimit = userJobSpec.inode_limit();
-                WaitFor(Slot_->SetQuota(diskSpaceLimit, inodeLimit))
-                    .ThrowOnError();
             }
         }
     }
@@ -1028,6 +1023,11 @@ private:
         bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
 
         for (const auto& artifact : Artifacts_) {
+            // Artifact preparation is uncancelable, so we check for an early exit.
+            if (JobPhase_ != EJobPhase::PreparingArtifacts) {
+                return;
+            }
+
             YCHECK(artifact.Chunk);
 
             if (copyFiles) {
@@ -1059,6 +1059,19 @@ private:
             LOG_INFO("Artifact prepared successfully (FileName: %v, SandboxKind: %v)",
                 artifact.Name,
                 artifact.SandboxKind);
+        }
+
+        // When all artifacts are prepared we can finally change permission for sandbox which will
+        // take away write access from the current user (see slot_location.cpp for details).
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+
+            TNullable<i64> inodeLimit(userJobSpec.has_inode_limit(), userJobSpec.inode_limit());
+            TNullable<i64> diskSpaceLimit(userJobSpec.has_disk_space_limit(), userJobSpec.disk_space_limit());
+
+            LOG_INFO("Setting sandbox quota and permissions");
+            WaitFor(Slot_->FinalizePreparation(diskSpaceLimit, inodeLimit))
+                .ThrowOnError();
         }
     }
 

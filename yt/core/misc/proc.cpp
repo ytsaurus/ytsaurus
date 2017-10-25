@@ -108,6 +108,36 @@ int GetCurrentThreadId()
 #endif
 }
 
+void ChownChmodDirectoriesRecursively(const TString& path, const TNullable<uid_t>& userId, const TNullable<int>& permissions)
+{
+#ifdef _unix_
+    for (const auto& directoryPath : NFS::EnumerateDirectories(path)) {
+        auto nestedPath = NFS::CombinePaths(path, directoryPath);
+        ChownChmodDirectoriesRecursively(nestedPath, userId, permissions);
+    }
+
+    if (userId) {
+        auto res = HandleEintr(::chown, path.data(), *userId, -1);
+        if (res != 0) {
+            THROW_ERROR_EXCEPTION("Failed to change owner for directory %v", path)
+                << TErrorAttribute("owner_uid", *userId)
+                << TError::FromSystem();
+        }
+    }
+
+    if (permissions) {
+        auto res = HandleEintr(::chmod, path.data(), *permissions);
+        if (res != 0) {
+            THROW_ERROR_EXCEPTION("Failed to set permissions for directory %v", path)
+                << TErrorAttribute("permissions", *permissions)
+                << TError::FromSystem();
+        }
+    }
+#else
+    Y_UNREACHABLE();
+#endif
+}
+
 void SetThreadPriority(int tid, int priority)
 {
 #ifdef _unix_
@@ -901,5 +931,16 @@ void TFSQuotaTool::operator()(TFSQuotaConfigPtr arg) const
 {
     SetQuota(arg);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChownChmodTool::operator()(TChownChmodConfigPtr config) const
+{
+    SafeSetUid(0);
+
+    ChownChmodDirectoriesRecursively(config->Path, config->UserId, config->Permissions);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
