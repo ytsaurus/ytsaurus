@@ -85,6 +85,7 @@ public:
                     continue;
                 }
 
+                LOG_DEBUG("Accepted client (RemoteAddress: %v)", client->RemoteAddress());
                 BIND(&TServer::HandleClient, MakeStrong(this), std::move(client))
                     .Via(Poller_->GetInvoker())
                     .Run();
@@ -123,6 +124,9 @@ private:
         response->SendConnectionCloseHeader();
         response->WriteHeaders(EStatusCode::InternalServerError);
 
+        LOG_INFO("Received HTTP request (Method: %v, Path: %v)",
+            request->GetMethod(),
+            request->GetUrl().Path);
         try {
             auto handler = Handlers_.Match(request->GetUrl().Path);
             if (!handler) {
@@ -142,6 +146,8 @@ private:
         }
 
         WaitFor(connection->Close()).ThrowOnError();
+        LOG_DEBUG("Client connection closed (RemoteAddress: %v)",
+            connection->RemoteAddress());
     }
 };
 
