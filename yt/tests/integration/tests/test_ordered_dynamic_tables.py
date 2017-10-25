@@ -83,7 +83,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         def get_all_counters(count_name):
             return (
-                select_profiling.get_counter("select/" + count_name),
+                tablet_profiling.get_counter("select/" + count_name),
                 tablet_profiling.get_counter("write/" + count_name),
                 tablet_profiling.get_counter("commit/" + count_name))
 
