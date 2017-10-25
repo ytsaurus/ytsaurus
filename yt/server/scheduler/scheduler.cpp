@@ -165,6 +165,12 @@ public:
         YCHECK(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
 
+        auto unrecognized = Config_->GetUnrecognizedRecursively();
+        if (unrecognized && unrecognized->GetChildCount() > 0) {
+            LOG_WARNING("Scheduler config contains unrecognized options (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, EYsonFormat::Text));
+        }
+
         auto primaryMasterCellTag = GetMasterClient()
             ->GetNativeConnection()
             ->GetPrimaryMasterCellTag();
@@ -1478,7 +1484,7 @@ private:
             try {
                 newConfig->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
             } catch (const std::exception& ex) {
-                auto error = TError("Error updating cell scheduler configuration")
+                auto error = TError("Error updating scheduler configuration")
                     << ex;
                 SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, error);
                 return;
@@ -1499,6 +1505,12 @@ private:
             LOG_INFO("Scheduler configuration updated");
 
             Config_ = newConfig;
+
+            auto unrecognized = Config_->GetUnrecognizedRecursively();
+            if (unrecognized && unrecognized->GetChildCount() > 0) {
+                LOG_WARNING("New scheduler config contains unrecognized options (Unrecognized: %v)",
+                    ConvertToYsonString(unrecognized, EYsonFormat::Text));
+            }
 
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
