@@ -172,7 +172,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         def get_all_counters(count_name):
             return (
                 tablet_profiling.get_counter("lookup/" + count_name),
-                select_profiling.get_counter("tablet_read/" + count_name),
+                select_profiling.get_counter("select/" + count_name),
                 tablet_profiling.get_counter("write/" + count_name),
                 tablet_profiling.get_counter("commit/" + count_name))
 
