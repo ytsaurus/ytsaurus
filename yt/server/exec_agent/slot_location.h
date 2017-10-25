@@ -48,12 +48,12 @@ public:
         int slotIndex,
         ESandboxKind kind,
         i64 size,
-        int userId,
         const TString& path,
         bool enable,
         IMounterPtr mounter);
 
-    TFuture<void> SetQuota(
+    // Set quota, permissions, etc. Must be called when all files are prepared.
+    TFuture<void> FinalizeSanboxPreparation(
         int slotIndex,
         TNullable<i64> diskSpaceLimit,
         TNullable<i64> inodeLimit,
