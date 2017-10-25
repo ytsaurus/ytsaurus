@@ -698,8 +698,16 @@ void TNodeShard::ReleaseJobs(const std::vector<TJobId>& jobIds)
     for (const auto& jobId : jobIds) {
         // NB: While we kept job id in operation controller, its execution node
         // could have unregistered.
+        const auto& nodeId = NodeIdFromJobId(jobId);
         if (auto execNode = GetNodeByJob(jobId)) {
+            LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v)",
+                jobId,
+                nodeId);
             execNode->JobIdsToRemove().emplace_back(jobId);
+        } else {
+            LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
+                jobId,
+                nodeId);
         }
     }
 }
@@ -941,7 +949,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 
     if (RevivalState_->ShouldSendStoredJobs(nodeId)) {
-        LOG_DEBUG("Asking node to include all stored jobs in the next hearbeat (Node: %v)", nodeId);
+        LOG_DEBUG("Asking node to include all stored jobs in the next heartbeat (NodeId: %v)", nodeId);
         response->set_include_stored_jobs_in_next_heartbeat(true);
         // If it is a first time we get the heartbeat from a given node,
         // there will definitely be some jobs that are missing. No need to abort
@@ -959,6 +967,9 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         // Add all completed jobs that are now safe to remove.
         for (const auto& jobId : node->JobIdsToRemove()) {
+            LOG_DEBUG("Asking node to remove job and removing it from recently completed job ids (JobId: %v, NodeId: %v)",
+                jobId,
+                nodeId);
             YCHECK(RevivalState_->RecentlyCompletedJobIds().erase(jobId));
             ToProto(response->add_jobs_to_remove(), jobId);
         }
@@ -1521,9 +1532,10 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
     YCHECK(node->IdToJob().insert(std::make_pair(job->GetId(), job)).second);
     ++ActiveJobCount_;
 
-    LOG_DEBUG("Job registered (JobId: %v, JobType: %v, OperationId: %v)",
+    LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v)",
         job->GetId(),
         job->GetType(),
+        job->GetRevived(),
         job->GetOperationId());
 }
 
