@@ -112,29 +112,29 @@ struct TRangeFormatter
     }
 };
 
-struct TSelectCounters
+struct TSelectCpuCounters
 {
-    TSelectCounters(const TTagIdList& list)
+    TSelectCpuCounters(const TTagIdList& list)
         : CpuTime("/select/cpu_time", list)
     { }
 
     TSimpleCounter CpuTime;
 };
 
-using TSelectProfilerTrait = TSimpleProfilerTrait<TSelectCounters>;
+using TSelectCpuProfilerTrait = TSimpleProfilerTrait<TSelectCpuCounters>;
 
-struct TTabletReadCounters
+struct TSelectReadCounters
 {
-    TTabletReadCounters(const TTagIdList& list)
-        : RowCount("/tablet_read/row_count", list)
-        , DataWeight("/tablet_read/data_weight", list)
+    TSelectReadCounters(const TTagIdList& list)
+        : RowCount("/select/row_count", list)
+        , DataWeight("/select/data_weight", list)
     { }
 
     TSimpleCounter RowCount;
     TSimpleCounter DataWeight;
 };
 
-using TTabletReadProfilerTrait = TTabletProfilerTrait<TTabletReadCounters>;
+using TSelectReadProfilerTrait = TTabletProfilerTrait<TSelectReadCounters>;
 
 class TProfilingReaderWrapper
     : public ISchemafulReader
@@ -167,7 +167,7 @@ public:
     ~TProfilingReaderWrapper()
     {
         auto statistics = GetDataStatistics();
-        auto& counters = GetLocallyGloballyCachedValue<TTabletReadProfilerTrait>(Tags_);
+        auto& counters = GetLocallyGloballyCachedValue<TSelectReadProfilerTrait>(Tags_);
         TabletNodeProfiler.Increment(counters.RowCount, statistics.row_count());
         TabletNodeProfiler.Increment(counters.DataWeight, statistics.data_weight());
     }
@@ -603,7 +603,7 @@ private:
         auto statistics = DoExecuteImpl(std::move(externalCGInfo), std::move(dataSources), std::move(writer));
 
         if (MaybeUser_) {
-            auto& counters = GetLocallyGloballyCachedValue<TSelectProfilerTrait>(AddUserTag(*MaybeUser_));
+            auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(AddUserTag(*MaybeUser_));
             TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
         }
 
