@@ -22,7 +22,7 @@ protected:
 private:
     int Fd_;
     TFile FdFile_;
-    TFileInput FdInput_;
+    TUnbufferedFileInput FdInput_;
     TBufferedInput BufferedInput_;
 
     static const size_t BUFFER_SIZE = 64 << 10;

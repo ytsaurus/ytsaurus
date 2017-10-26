@@ -658,7 +658,7 @@ public:
         TTableWriter<TNode>* output) override
     {
         for (; input->IsValid(); input->Next()) {
-            TFileInput file(FileName_);
+            TUnbufferedFileInput file(FileName_);
             output->AddRow(TNode()("b", file.ReadAll()));
         }
     }
