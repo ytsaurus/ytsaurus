@@ -257,6 +257,8 @@ class TBlobTableWriter;
 
 struct TChunkTimestamps;
 
+DECLARE_REFCOUNTED_CLASS(TSkynetColumnEvaluator)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

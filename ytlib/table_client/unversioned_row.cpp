@@ -20,6 +20,7 @@
 
 #include <util/generic/ymath.h>
 
+#include <util/charset/utf8.h>
 #include <util/stream/str.h>
 
 #include <cmath>
@@ -722,70 +723,6 @@ void ValidateDynamicValue(const TUnversionedValue& value)
     }
 }
 
-void ValidateKeyPart(
-    TUnversionedRow row,
-    const TTableSchema& schema)
-{
-    ValidateKeyColumnCount(schema.GetKeyColumnCount());
-
-    if (row.GetCount() < schema.GetKeyColumnCount()) {
-        THROW_ERROR_EXCEPTION("Too few values in row: actual %v, expected >= %v",
-            row.GetCount(),
-            schema.GetKeyColumnCount());
-    }
-
-    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
-        const auto& value = row[index];
-        ValidateKeyValue(value);
-        int mappedId = ApplyIdMapping(value, schema, nullptr);
-        if (mappedId < 0) {
-            continue;
-        }
-        ValidateValueType(value, schema, mappedId);
-        if (mappedId != index) {
-            THROW_ERROR_EXCEPTION("Invalid column: actual %Qv, expected %Qv",
-                schema.Columns()[mappedId].Name(),
-                schema.Columns()[index].Name());
-        }
-    }
-}
-
-void ValidateDataRow(
-    TUnversionedRow row,
-    const TNameTableToSchemaIdMapping* idMappingPtr,
-    const TTableSchema& schema)
-{
-    ValidateRowValueCount(row.GetCount());
-    ValidateKeyPart(row, schema);
-
-    for (int index = schema.GetKeyColumnCount(); index < row.GetCount(); ++index) {
-        const auto& value = row[index];
-        ValidateDataValue(value);
-        int mappedId = ApplyIdMapping(value, schema, idMappingPtr);
-        if (mappedId < 0) {
-            continue;
-        }
-        ValidateValueType(value, schema, mappedId);
-    }
-}
-
-void ValidateKey(
-    TKey key,
-    const TTableSchema& schema)
-{
-    if (!key) {
-        THROW_ERROR_EXCEPTION("Key cannot be null");
-    }
-
-    if (key.GetCount() != schema.GetKeyColumnCount()) {
-        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
-            schema.GetKeyColumnCount(),
-            key.GetCount());
-    }
-
-    ValidateKeyPart(key, schema);
-}
-
 void ValidateClientRow(
     TUnversionedRow row,
     const TTableSchema& schema,
@@ -813,7 +750,7 @@ void ValidateClientRow(
         }
 
         const auto& column = schema.Columns()[mappedId];
-        ValidateValueType(value, schema, mappedId);
+        ValidateValueType(value, schema, mappedId, /*typeAnyAcceptsAllValues*/false);
 
         if (value.Aggregate && !column.Aggregate()) {
             THROW_ERROR_EXCEPTION(
@@ -958,9 +895,10 @@ void TUnversionedRow::Load(TLoadContext& context)
 void ValidateValueType(
     const TUnversionedValue& value,
     const TTableSchema& schema,
-    int schemaId)
+    int schemaId,
+    bool typeAnyAcceptsAllValues)
 {
-    ValidateValueType(value, schema.Columns()[schemaId]);
+    ValidateValueType(value, schema.Columns()[schemaId], typeAnyAcceptsAllValues);
 }
 
 template <typename T>
@@ -994,20 +932,55 @@ static inline void ValidateIntegerRange(const TUnversionedValue& value, const TS
     }
 }
 
-void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& columnSchema)
+static inline TString GetStringPrefix(const char* data, size_t size, size_t maxSize)
+{
+    YCHECK(maxSize > 3);
+    if (size > maxSize) {
+        return TString(data, maxSize - 3) + "...";
+    } else {
+        return TString(data, size);
+    }
+}
+
+static inline void ValidateUtf8(const TUnversionedValue& value, const TString& columnName)
+{
+    if (!IsUtf(value.Data.String, value.Length)) {
+        auto prefix = GetStringPrefix(value.Data.String, value.Length, 50);
+        TErrorAttribute attr("value", prefix);
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::SchemaViolation,
+            "Value of column %Qv is not valid utf8 string",
+            columnName) << attr;
+    }
+}
+
+void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& columnSchema, bool typeAnyAcceptsAllValues)
 {
     if (value.Type == EValueType::Null) {
-        return;
+        if (columnSchema.Required()) {
+            // Any column can't be required.
+            YCHECK(columnSchema.LogicalType() != ELogicalValueType::Any);
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Required column %Qv cannot have %Qlv value",
+                columnSchema.Name(),
+                value.Type);
+        } else {
+            return;
+        }
     }
 
     if (columnSchema.GetPhysicalType() != value.Type) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::SchemaViolation,
-                "Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                columnSchema.Name(),
-                columnSchema.GetPhysicalType(),
-                EValueType::Null,
-                value.Type);
+        if (columnSchema.LogicalType() == ELogicalValueType::Any && typeAnyAcceptsAllValues) {
+            return;
+        }
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::SchemaViolation,
+            "Invalid type of column %Qv: expected physical type %Qlv or %Qlv but got %Qlv",
+            columnSchema.Name(),
+            columnSchema.GetPhysicalType(),
+            EValueType::Null,
+            value.Type);
     }
 
     switch (columnSchema.LogicalType()) {
@@ -1029,6 +1002,8 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
         case ELogicalValueType::Uint32:
             ValidateIntegerRange<ui32>(value, columnSchema.Name());
             break;
+        case ELogicalValueType::Utf8:
+            ValidateUtf8(value, columnSchema.Name());
         default:
             break;
     }
@@ -1387,7 +1362,7 @@ TOwningKey RowToKey(
 namespace {
 
 template <class TRow>
-TSharedRange<TUnversionedRow> CaptureRowsImpl(
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRowsImpl(
     const TRange<TRow>& rows,
     TRefCountedTypeCookie tagCookie)
 {
@@ -1437,19 +1412,19 @@ TSharedRange<TUnversionedRow> CaptureRowsImpl(
 
     YCHECK(alignedPtr == unalignedPtr);
 
-    return MakeSharedRange(MakeRange(capturedRows, rows.Size()), std::move(buffer));
+    return { MakeSharedRange(MakeRange(capturedRows, rows.Size()), std::move(buffer)), bufferSize };
 }
 
 } // namespace
 
-TSharedRange<TUnversionedRow> CaptureRows(
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
     const TRange<TUnversionedRow>& rows,
     TRefCountedTypeCookie tagCookie)
 {
     return CaptureRowsImpl(rows, tagCookie);
 }
 
-TSharedRange<TUnversionedRow> CaptureRows(
+std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
     const TRange<TUnversionedOwningRow>& rows,
     TRefCountedTypeCookie tagCookie)
 {

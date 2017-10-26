@@ -144,7 +144,7 @@ public:
 
     void RegisterRevivedJobs(const std::vector<TJobPtr>& jobs);
 
-    void ClearRevivalState();
+    void PrepareReviving();
     void StartReviving();
 
     TOperationId GetOperationIdByJobId(const TJobId& job);
@@ -175,16 +175,16 @@ public:
     public:
         explicit TRevivalState(TNodeShard* host);
 
-        bool ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId);
+        bool ShouldSkipUnknownJobs() const;
+        bool ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId) const;
 
         void OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId);
-
-        void Clear();
 
         void RegisterRevivedJob(const TJobPtr& job);
         void ConfirmJob(const TJobPtr& job);
         void UnregisterJob(const TJobPtr& job);
 
+        void PrepareReviving();
         void StartReviving();
 
     private:
@@ -192,6 +192,7 @@ public:
         yhash_set<NNodeTrackerClient::TNodeId> NodeIdsThatSentAllStoredJobs_;
         yhash_set<TJobPtr> NotConfirmedJobs_;
         bool Active_ = false;
+        bool ShouldSkipUnknownJobs_ = false;
 
         void FinalizeReviving();
     };

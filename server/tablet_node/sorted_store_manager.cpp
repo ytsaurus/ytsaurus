@@ -5,12 +5,14 @@
 #include "sorted_dynamic_store.h"
 #include "sorted_store_manager.h"
 #include "tablet.h"
+#include "tablet_profiling.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/confirming_writer.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -444,6 +446,20 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         WaitFor(tableWriter->Close())
             .ThrowOnError();
+
+        ProfileDiskPressure(
+            tabletSnapshot,
+            tableWriter->GetDataStatistics(),
+            tabletSnapshot->RuntimeData->StoreFlushDiskPressureCounter);
+
+        auto dataStatistics = tableWriter->GetDataStatistics();
+        auto diskSpace = CalculateDiskSpaceUsage(
+            tabletSnapshot->WriterOptions->ReplicationFactor,
+            dataStatistics.regular_disk_space(),
+            dataStatistics.erasure_disk_space());
+        LOG_DEBUG("Flushed sorted store (StoreId: %v, DiskSpace: %v)",
+            store->GetId(),
+            diskSpace);
 
         TAddStoreDescriptor descriptor;
         descriptor.set_store_type(static_cast<int>(EStoreType::SortedChunk));

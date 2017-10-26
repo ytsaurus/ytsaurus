@@ -45,6 +45,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NNodeTrackerClient;
 
 using NChunkClient::TDataSliceDescriptor;
 using NYT::TRange;
@@ -777,10 +778,12 @@ private:
 TSortedDynamicStore::TSortedDynamicStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
-    TTablet* tablet)
+    TTablet* tablet,
+    TNodeMemoryTracker* memoryTracker)
     : TStoreBase(config, id, tablet)
     , TDynamicStoreBase(config, id, tablet)
     , TSortedStoreBase(config, id, tablet)
+    , MemoryTracker_(memoryTracker)
     , RowKeyComparer_(Tablet_->GetRowKeyComparer())
     , Rows_(new TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
@@ -988,9 +991,11 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
 
     OnMemoryUsageUpdated();
 
+    auto dataWeight = GetDataWeight(row);
     ++PerformanceCounters_->DynamicRowWriteCount;
+    PerformanceCounters_->DynamicRowWriteDataWeightCount += dataWeight;
     ++context->RowCount;
-    context->DataWeight += GetDataWeight(row);
+    context->DataWeight += dataWeight;
 
     return result;
 }
@@ -1071,9 +1076,11 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 
     OnMemoryUsageUpdated();
 
+    auto dataWeight = GetDataWeight(row);
     ++PerformanceCounters_->DynamicRowWriteCount;
+    PerformanceCounters_->DynamicRowWriteDataWeightCount += dataWeight;
     ++context->RowCount;
-    context->DataWeight += GetDataWeight(row);
+    context->DataWeight += dataWeight;
 
     return result;
 }
@@ -1901,7 +1908,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
         auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
 
-        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, TWorkloadDescriptor(), Schema_);
+        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, TWorkloadDescriptor(), Schema_, MemoryTracker_);
         auto cachedMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
         TChunkSpec chunkSpec;

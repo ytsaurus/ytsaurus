@@ -203,8 +203,8 @@ private:
     //! Handles lease transaction abort.
     void OnLeaseTransactionAborted();
 
-    //! Starts the lease transaction and attaches the abort handler.
-    void SendRegisterRequest();
+    //! Sends |RegisterNode| request to the primary master and waits for the response.
+    void RegisterAtPrimaryMaster();
 
     //! Computes the current node statistics.
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();

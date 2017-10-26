@@ -21,6 +21,8 @@ public:
 
     TValue Get(const TKey& key);
 
+    void ForceUpdate();
+
     void Start();
     void Stop();
 

@@ -58,11 +58,11 @@ static const NProfiling::TProfiler Profiler("/operations/remote_copy");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteCopyController
+class TLegacyRemoteCopyController
     : public TOperationControllerBase
 {
 public:
-    TRemoteCopyController(
+    TLegacyRemoteCopyController(
         TSchedulerConfigPtr config,
         TRemoteCopyOperationSpecPtr spec,
         IOperationHost* host,
@@ -107,7 +107,7 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController, 0xbac5ad82);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacyRemoteCopyController, 0xbac5ad82);
 
     TRemoteCopyOperationSpecPtr Spec_;
     TRemoteCopyOperationOptionsPtr Options_;
@@ -120,7 +120,7 @@ private:
         TRemoteCopyTask()
         { }
 
-        TRemoteCopyTask(TRemoteCopyController* controller, int index)
+        TRemoteCopyTask(TLegacyRemoteCopyController* controller, int index)
             : TTask(controller)
             , Controller_(controller)
             , ChunkPool_(CreateAtomicChunkPool())
@@ -186,7 +186,7 @@ private:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyTask, 0x83b0dfe3);
 
-        TRemoteCopyController* Controller_ = nullptr;
+        TLegacyRemoteCopyController* Controller_ = nullptr;
 
         std::unique_ptr<IChunkPool> ChunkPool_;
 
@@ -463,6 +463,11 @@ private:
         }
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        return false;
+    }
+
     virtual void CustomizeJoblet(const TJobletPtr& joblet) override
     { }
 
@@ -478,7 +483,7 @@ private:
 
     virtual bool IsCompleted() const override
     {
-        return Tasks.size() == JobCounter.GetCompletedTotal();
+        return Tasks.size() == JobCounter->GetCompletedTotal();
     }
 
     // Progress reporting.
@@ -488,12 +493,12 @@ private:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, "
             "UnavailableInputChunks: %v",
-            JobCounter.GetTotal(),
-            JobCounter.GetRunning(),
-            JobCounter.GetCompletedTotal(),
+            JobCounter->GetTotal(),
+            JobCounter->GetRunning(),
+            JobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter.GetFailed(),
-            JobCounter.GetAbortedTotal(),
+            JobCounter->GetFailed(),
+            JobCounter->GetAbortedTotal(),
             GetUnavailableInputChunkCount());
     }
 
@@ -565,16 +570,16 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController::TRemoteCopyTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyRemoteCopyController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyRemoteCopyController::TRemoteCopyTask);
 
-IOperationControllerPtr CreateRemoteCopyController(
+IOperationControllerPtr CreateLegacyRemoteCopyController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
-    return New<TRemoteCopyController>(config, spec, host, operation);
+    return New<TLegacyRemoteCopyController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

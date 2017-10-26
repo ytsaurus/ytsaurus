@@ -38,17 +38,18 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NConcurrency;
-using namespace NYson;
-using namespace NYTree;
-using namespace NTableClient;
-using namespace NChunkClient;
+using namespace NApi;
 using namespace NChunkClient::NProto;
-using namespace NTransactionClient;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NDataNode;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NApi;
-using namespace NDataNode;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTransactionClient;
+using namespace NYTree;
+using namespace NYson;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
 
@@ -67,7 +68,8 @@ TStoreBase::TStoreBase(
     , ReaderConfig_(tablet->GetReaderConfig())
     , StoreId_(id)
     , Tablet_(tablet)
-    , PerformanceCounters_(Tablet_->GetPerformanceCounters())
+    , PerformanceCounters_(Tablet_->PerformanceCounters())
+    , RuntimeData_(Tablet_->RuntimeData())
     , TabletId_(Tablet_->GetId())
     , TablePath_(Tablet_->GetTablePath())
     , Schema_(Tablet_->PhysicalSchema())
@@ -88,6 +90,7 @@ TStoreBase::~TStoreBase()
     i64 delta = -MemoryUsage_;
     MemoryUsage_ = 0;
     MemoryUsageUpdated_.Fire(delta);
+    RuntimeData_->DynamicMemoryPoolSize += delta;
 }
 
 TStoreId TStoreBase::GetId() const
@@ -133,6 +136,7 @@ void TStoreBase::SetMemoryUsage(i64 value)
         i64 delta = value - MemoryUsage_;
         MemoryUsage_ = value;
         MemoryUsageUpdated_.Fire(delta);
+        RuntimeData_->DynamicMemoryPoolSize += delta;
     }
 }
 

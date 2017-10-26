@@ -5,7 +5,25 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyConfig::TFairShareStrategyConfig()
+TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControllerConfig()
+{
+    RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
+        .Default(10)
+        .GreaterThan(0);
+
+    RegisterParameter("schedule_job_time_limit", ScheduleJobTimeLimit)
+        .Default(TDuration::Seconds(60));
+
+    RegisterParameter("schedule_job_fail_backoff_time", ScheduleJobFailBackoffTime)
+        .Default(TDuration::MilliSeconds(100));
+
+    RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
+        .Default(TDuration::Seconds(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 {
     RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
         .Default(TDuration::Seconds(15));
@@ -22,18 +40,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
         .InRange(0.0, 1.0)
         .Default(0.8);
-
-    RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
-        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-        .Default(TDuration::MilliSeconds(1000));
-
-    RegisterParameter("fair_share_profiling_period", FairShareProfilingPeriod)
-        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-        .Default(TDuration::MilliSeconds(5000));
-
-    RegisterParameter("fair_share_log_period", FairShareLogPeriod)
-        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-        .Default(TDuration::MilliSeconds(1000));
 
     RegisterParameter("max_unpreemptable_running_job_count", MaxUnpreemptableRunningJobCount)
         .Default(10);
@@ -70,19 +76,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .Default(1.0)
         .GreaterThanOrEqual(1.0);
 
-    RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
-        .Default(10)
-        .GreaterThan(0);
-
-    RegisterParameter("schedule_job_time_limit", ControllerScheduleJobTimeLimit)
-        .Default(TDuration::Seconds(60));
-
-    RegisterParameter("schedule_job_fail_backoff_time", ControllerScheduleJobFailBackoffTime)
-        .Default(TDuration::MilliSeconds(100));
-
-    RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
-        .Default(TDuration::Seconds(1));
-
     RegisterParameter("preemption_satisfaction_threshold", PreemptionSatisfactionThreshold)
         .Default(1.0)
         .GreaterThan(0);
@@ -91,17 +84,11 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .Default(0.5)
         .GreaterThan(0);
 
-    RegisterParameter("enable_controller_failure_spec_option", EnableControllerFailureSpecOption)
-        .Default(false);
-
     RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
         .Default(true);
 
     RegisterParameter("heartbeat_tree_scheduling_info_log_period", HeartbeatTreeSchedulingInfoLogBackoff)
         .Default(TDuration::MilliSeconds(100));
-
-    RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
-        .Default(TDuration::Seconds(3));
 
     RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
         .GreaterThanOrEqual(1)
@@ -117,6 +104,12 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .InRange(0.0, 1.0)
         .Default(0.5);
 
+    RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
+        .Default(TDuration::Seconds(10));
+
+    RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
+        .Default(TDuration::Seconds(5));
+
     RegisterValidator([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
@@ -124,6 +117,26 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
                 << TErrorAttribute("threshold", PreemptionSatisfactionThreshold);
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareStrategyConfig::TFairShareStrategyConfig()
+{
+    RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
+        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
+        .Default(TDuration::MilliSeconds(1000));
+
+    RegisterParameter("fair_share_profiling_period", FairShareProfilingPeriod)
+        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
+        .Default(TDuration::MilliSeconds(5000));
+
+    RegisterParameter("fair_share_log_period", FairShareLogPeriod)
+        .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
+        .Default(TDuration::MilliSeconds(1000));
+
+    RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
+        .Default(TDuration::Seconds(3));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -295,6 +308,8 @@ TTestingOptions::TTestingOptions()
         .Default(false);
     RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
         .Default(Null);
+    RegisterParameter("validate_total_job_counter_correctness", ValidateTotalJobCounterCorrectness)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -365,6 +380,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(3));
     RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
         .Default(TDuration::Seconds(3));
+    RegisterParameter("nodes_attributes_update_period", NodesAttributesUpdatePeriod)
+        .Default(TDuration::Seconds(15));
     RegisterParameter("profiling_update_period", ProfilingUpdatePeriod)
         .Default(TDuration::Seconds(1));
     RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
@@ -542,6 +559,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(true);
     RegisterParameter("enable_snapshot_loading", EnableSnapshotLoading)
         .Default(false);
+    RegisterParameter("enable_controller_failure_spec_option", EnableControllerFailureSpecOption)
+        .Default(false);
     RegisterParameter("snapshot_temp_path", SnapshotTempPath)
         .NonEmpty()
         .Default("/tmp/yt/scheduler/snapshots");
@@ -549,6 +568,9 @@ TSchedulerConfig::TSchedulerConfig()
         .DefaultNew();
     RegisterParameter("snapshot_writer", SnapshotWriter)
         .DefaultNew();
+
+    RegisterParameter("enable_job_revival", EnableJobRevival)
+        .Default(true);
 
     RegisterParameter("fetcher", Fetcher)
         .DefaultNew();

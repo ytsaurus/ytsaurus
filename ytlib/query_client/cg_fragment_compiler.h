@@ -118,6 +118,7 @@ TCodegenExpression MakeCodegenInExpr(
 
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
+    TNullable<size_t> defaultExprId,
     int arrayIndex,
     EValueType resultType,
     TComparerManagerPtr comparerManager);
@@ -163,6 +164,24 @@ size_t MakeCodegenJoinOp(
     std::vector<std::pair<size_t, bool>> equations,
     size_t commonKeyPrefix,
     size_t foreignKeyPrefix,
+    TComparerManagerPtr comparerManager);
+
+struct TSingleJoinCGParameters
+{
+    std::vector<std::pair<size_t, bool>> Equations;
+    size_t CommonKeyPrefix;
+    size_t ForeignKeyPrefix;
+    std::vector<EValueType> LookupKeyTypes;
+};
+
+size_t MakeCodegenMultiJoinOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    int index,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<TSingleJoinCGParameters> parameters,
+    std::vector<std::pair<size_t, EValueType>> primaryColumns,
     TComparerManagerPtr comparerManager);
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(

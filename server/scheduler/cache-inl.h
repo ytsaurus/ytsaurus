@@ -48,16 +48,53 @@ TValue TExpiringCache<TKey, TValue>::Get(const TKey& key)
 
         auto it = Store_.find(key);
         if (it != Store_.end()) {
-            it->second = TEntry({now, now, result});
+            it->second = TEntry({now, now, std::move(result)});
         } else {
-            auto emplaceResult = Store_.emplace(key, TEntry({now, now, result}));
+            auto emplaceResult = Store_.emplace(key, TEntry({now, now, std::move(result)}));
             YCHECK(emplaceResult.second);
             it = emplaceResult.first;
         }
 
         return it->second.Value;
     }
+}
 
+template <class TKey, class TValue>
+void TExpiringCache<TKey, TValue>::ForceUpdate()
+{
+    auto now = NProfiling::GetCpuInstant();
+
+    std::vector<TKey> keys;
+    {
+        NConcurrency::TReaderGuard guard(StoreLock_);
+        keys.reserve(Store_.size());
+        for (const auto& pair : Store_) {
+            keys.push_back(pair.first);
+        }
+    }
+
+    std::vector<TValue> values;
+    values.reserve(keys.size());
+    for (const auto& key : keys) {
+        values.emplace_back(CalculateValueAction_.Run(key));
+    }
+
+    {
+        NConcurrency::TWriterGuard guard(StoreLock_);
+
+        for (size_t index = 0; index < keys.size(); ++index) {
+            const auto& key = keys[index];
+            auto& value = values[index];
+
+            auto it = Store_.find(key);
+            if (it != Store_.end()) {
+                it->second = TEntry({now, now, std::move(value)});
+            } else {
+                auto emplaceResult = Store_.emplace(key, TEntry({now, now, std::move(value)}));
+                YCHECK(emplaceResult.second);
+            }
+        }
+    }
 }
 
 template <class TKey, class TValue>

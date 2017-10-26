@@ -9,7 +9,8 @@ target_link_libraries(yt-library-server
   deps-arcadia-library-http
 )
 
-### master
+
+################################################################################
 
 add_executable(ytserver-master
   ${CMAKE_CURRENT_LIST_DIR}/cell_master_program/main.cpp
@@ -23,7 +24,7 @@ target_link_libraries(ytserver-master
 
 set_target_properties(ytserver-master PROPERTIES LINK_FLAGS "-static-libstdc++")
 
-### node
+################################################################################
 
 add_executable(ytserver-node
   ${CMAKE_CURRENT_LIST_DIR}/cell_node_program/main.cpp
@@ -37,7 +38,7 @@ target_link_libraries(ytserver-node
 
 set_target_properties(ytserver-node PROPERTIES LINK_FLAGS "-static-libstdc++")
 
-### scheduler
+################################################################################
 
 add_executable(ytserver-scheduler
   ${CMAKE_CURRENT_LIST_DIR}/cell_scheduler_program/main.cpp
@@ -51,7 +52,7 @@ target_link_libraries(ytserver-scheduler
 
 set_target_properties(ytserver-scheduler PROPERTIES LINK_FLAGS "-static-libstdc++")
 
-### proxy
+################################################################################
 
 add_executable(ytserver-proxy
   ${CMAKE_CURRENT_LIST_DIR}/cell_proxy_program/main.cpp
@@ -65,7 +66,7 @@ target_link_libraries(ytserver-proxy
 
 set_target_properties(ytserver-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
 
-### job proxy
+################################################################################
 
 add_executable(ytserver-job-proxy
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy_program/main.cpp
@@ -79,7 +80,7 @@ target_link_libraries(ytserver-job-proxy
 
 set_target_properties(ytserver-job-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
 
-### executor & shell
+################################################################################
 
 add_executable(ytserver-exec
   ${CMAKE_CURRENT_LIST_DIR}/exec_program/main.cpp
@@ -93,7 +94,7 @@ target_link_libraries(ytserver-exec
 
 set_target_properties(ytserver-exec PROPERTIES LINK_FLAGS "-static-libstdc++")
 
-### tools
+################################################################################
 
 add_executable(ytserver-tools
   ${CMAKE_CURRENT_LIST_DIR}/tools_program/main.cpp
@@ -107,7 +108,7 @@ target_link_libraries(ytserver-tools
 
 set_target_properties(ytserver-tools PROPERTIES LINK_FLAGS "-static-libstdc++")
 
-### core-forwarder
+################################################################################
 
 add_executable(ytserver-core-forwarder
   ${CMAKE_CURRENT_LIST_DIR}/core_forwarder/main.cpp
@@ -121,7 +122,21 @@ target_link_libraries(ytserver-core-forwarder
 
 set_target_properties(ytserver-core-forwarder PROPERTIES LINK_FLAGS "-static-libstdc++")
 
-###
+################################################################################
+
+add_executable(ytserver-skynet-manager
+  ${CMAKE_CURRENT_LIST_DIR}/skynet_manager_program/main.cpp
+)
+
+target_link_libraries(ytserver-skynet-manager
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-skynet-manager PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+################################################################################
 
 if(YT_BUILD_ENABLE_GDB_INDEX AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_gdb_index(TARGETS

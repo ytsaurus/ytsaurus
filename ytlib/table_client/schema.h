@@ -25,12 +25,13 @@ class TColumnSchema
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
-    DEFINE_BYREF_RO_PROPERTY(ELogicalValueType, LogicalType);
+    DEFINE_BYREF_RO_PROPERTY(ELogicalValueType, LogicalType, ELogicalValueType::Null);
     DEFINE_BYREF_RO_PROPERTY(TNullable<ESortOrder>, SortOrder);
     DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Lock);
     DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Expression);
     DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Aggregate);
     DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Group);
+    DEFINE_BYREF_RO_PROPERTY(bool, Required, false);
 
 public:
     TColumnSchema();
@@ -56,6 +57,7 @@ public:
     TColumnSchema& SetExpression(const TNullable<TString>& value);
     TColumnSchema& SetAggregate(const TNullable<TString>& value);
     TColumnSchema& SetGroup(const TNullable<TString>& value);
+    TColumnSchema& SetRequired(bool value);
 
     EValueType GetPhysicalType() const;
 };
@@ -72,6 +74,7 @@ class TTableSchema
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
+    //! Strict schema forbids columns not specified in the schema.
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys);
 
@@ -141,10 +144,10 @@ public:
     //! Returns the schema with UniqueKeys set to |true|.
     TTableSchema ToUniqueKeys() const;
 
-    //! Returns the schema with all column attributes unset expect Name and Type.
+    //! Returns the schema with all column attributes unset expect Name, Type and Required.
     TTableSchema ToStrippedColumnAttributes() const;
 
-    //! Returns the schema with all column attributes unset expect Name, Type and SortOrder.
+    //! Returns the schema with all column attributes unset expect Name, Type, Required and SortOrder.
     TTableSchema ToSortedStrippedColumnAttributes() const;
 
     //! Returns (possibly reordered) schema sorted by column names.

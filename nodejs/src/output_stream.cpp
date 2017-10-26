@@ -15,16 +15,7 @@ using namespace NConcurrency;
 
 namespace {
 
-static const int MaxPartsPerPull = 8;
-
 static Persistent<String> OnFlowingSymbol;
-
-void DeleteCallback(char* buffer, void* hint)
-{
-    const size_t length = (size_t)hint;
-    v8::V8::AdjustAmountOfExternalAllocatedMemory(-length);
-    delete[] buffer;
-}
 
 } // namespace
 
@@ -64,6 +55,10 @@ void TOutputStreamWrap::Initialize(Handle<Object> target)
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TOutputStreamWrap::Destroy);
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Drain", TOutputStreamWrap::Drain);
+
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "SetMaxPartCount", TOutputStreamWrap::SetMaxPartCount);
+
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "SetMaxPartLength", TOutputStreamWrap::SetMaxPartLength);
 
     target->Set(
         String::NewSymbol("TOutputStreamWrap"),
@@ -133,35 +128,50 @@ Handle<Value> TOutputStreamWrap::DoPull()
 {
     THREAD_AFFINITY_IS_V8();
 
-    Local<Array> parts = Array::New(MaxPartsPerPull);
-    size_t count = 0;
+    Local<Array> parts = Array::New(MaxPartCount_);
 
     // Short-path for destroyed streams.
 
     ProtectedUpdateAndNotifyWriter([&] () {
-        for (int i = 0; i < MaxPartsPerPull; ++i) {
+        for (int i = 0; i < MaxPartCount_; /**/) {
             if (Queue_.empty()) {
                 break;
             }
 
-            auto part = std::move(Queue_.front());
+            auto holder = std::move(Queue_.front());
             Queue_.pop_front();
 
-            YCHECK(static_cast<bool>(part));
+            auto* header = reinterpret_cast<TOutputPart*>(holder.get());
+            YCHECK(header->Length > 0);
+            YCHECK(header->RefCount == 0);
 
-            auto* buffer = node::Buffer::New(
-                part.Buffer.release(),
-                part.Length,
-                DeleteCallback,
-                (void*)part.Length);
+            auto* buffer = header->Buffer();
+            auto length = header->Length;
 
-            parts->Set(i, buffer->handle_);
-            ++count;
+            while (length > 0) {
+                auto partLength = length > MaxPartLength_ ? MaxPartLength_ : length;
+                auto* object = node::Buffer::New(
+                    buffer,
+                    partLength,
+                    DeleteCallback,
+                    (void*)header);
 
-            v8::V8::AdjustAmountOfExternalAllocatedMemory(part.Length);
+                parts->Set(i, object->handle_);
+                ++i;
+                ++header->RefCount;
 
-            BytesDequeued_ += part.Length;
-            BytesInFlight_ -= part.Length;
+                v8::V8::AdjustAmountOfExternalAllocatedMemory(partLength);
+
+                BytesDequeued_ += partLength;
+                BytesInFlight_ -= partLength;
+
+                buffer += partLength;
+                length -= partLength;
+            }
+
+            if (header->RefCount > 0) {
+                holder.release();
+            }
         }
     });
 
@@ -224,6 +234,40 @@ Handle<Value> TOutputStreamWrap::DoDrain()
     auto guard = Guard(Mutex_);
 
     return Boolean::New(IsFinished_ && Queue_.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TOutputStreamWrap::SetMaxPartCount(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 1);
+    EXPECT_THAT_IS(args[0], Uint32);
+
+    auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
+    auto value = args[0]->Uint32Value();
+    YCHECK(value > 0 && value < 16);
+    stream->MaxPartCount_ = value;
+
+    return scope.Close(Undefined());
+}
+
+Handle<Value> TOutputStreamWrap::SetMaxPartLength(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 1);
+    EXPECT_THAT_IS(args[0], Uint32);
+
+    auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
+    auto value = args[0]->Uint32Value();
+    YCHECK(value > 0 && value <= 1_GB);
+    stream->MaxPartLength_ = value;
+
+    return scope.Close(Undefined());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -312,15 +356,20 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
         length += parts[i].len;
     }
 
-    std::unique_ptr<char[]> buffer(new char[length]);
+    std::unique_ptr<char[]> holder(new char[sizeof(TOutputPart) + length]);
+    auto* header = reinterpret_cast<TOutputPart*>(holder.get());
+    auto* buffer = reinterpret_cast<char*>(header + 1);
+
+    header->Length = length;
+    header->RefCount = 0;
 
     for (size_t i = 0; i < count; ++i) {
         const auto& part = parts[i];
-        ::memcpy(&buffer[offset], part.buf, part.len);
+        ::memcpy(buffer + offset, part.buf, part.len);
         offset += part.len;
     }
 
-    PushToQueue(std::move(buffer), length);
+    PushToQueue(std::move(holder), length);
 }
 
 void TOutputStreamWrap::DoFinish()
@@ -354,7 +403,7 @@ void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mut
     }
 }
 
-void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t length)
+void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> holder, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
@@ -380,13 +429,25 @@ void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t lengt
         THROW_ERROR_EXCEPTION("TOutputStreamWrap was terminated");
     }
 
-    Queue_.emplace_back(std::move(buffer), length);
+    Queue_.emplace_back(std::move(holder));
 
     BytesEnqueued_ += length;
     BytesInFlight_ += length;
 
     RunFlow();
 }
+
+void TOutputStreamWrap::DeleteCallback(char* buffer, void* hint)
+{
+    auto* header = reinterpret_cast<TOutputPart*>(hint);
+    YCHECK(buffer >= header->Buffer() && buffer <= header->Buffer() + header->Length);
+    YCHECK(header->RefCount > 0);
+    v8::V8::AdjustAmountOfExternalAllocatedMemory(-header->Length);
+    if (--header->RefCount == 0) {
+        delete[] reinterpret_cast<char*>(header);
+    }
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

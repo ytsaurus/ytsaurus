@@ -18,6 +18,7 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TSchedulerElementSharedState)
 DECLARE_REFCOUNTED_CLASS(TOperationElement)
 DECLARE_REFCOUNTED_CLASS(TOperationElementSharedState)
+DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationController)
 DECLARE_REFCOUNTED_CLASS(TCompositeSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TPool)
 DECLARE_REFCOUNTED_CLASS(TRootElement)
@@ -25,7 +26,6 @@ DECLARE_REFCOUNTED_CLASS(TRootElement)
 struct TFairShareContext;
 
 class TJobMetrics;
-class TProgressCounter;
 
 using TOperationElementByIdMap = yhash<TOperationId, TOperationElement*>;
 
