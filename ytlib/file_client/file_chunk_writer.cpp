@@ -46,9 +46,7 @@ public:
     virtual TFuture<void> Close() override;
 
     virtual i64 GetMetaSize() const override;
-    virtual i64 GetCompressedDataSize() const override;
-
-    virtual i64 GetDataWeight() const override;
+    virtual i64 GetDataSize() const override;
 
     virtual bool IsCloseDemanded() const override;
     virtual TChunkMeta GetMasterMeta() const override;
@@ -164,14 +162,9 @@ TFuture<void> TFileChunkWriter::Close()
         .Run();
 }
 
-i64 TFileChunkWriter::GetCompressedDataSize() const
+i64 TFileChunkWriter::GetDataSize() const
 {
     return EncodingChunkWriter_->GetDataStatistics().compressed_data_size() + Buffer_.Size();
-}
-
-i64 TFileChunkWriter::GetDataWeight() const
-{
-    return 0;
 }
 
 i64 TFileChunkWriter::GetMetaSize() const

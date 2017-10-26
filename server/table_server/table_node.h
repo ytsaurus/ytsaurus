@@ -39,7 +39,6 @@ private:
     {
         NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
         NTransactionClient::ECommitOrdering CommitOrdering = NTransactionClient::ECommitOrdering::Weak;
-        NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
         NTabletClient::TTableReplicaId UpstreamReplicaId;
         NTabletServer::TTabletCellBundle* TabletCellBundle = nullptr;
         NTransactionClient::TTimestamp LastCommitTimestamp = NTransactionClient::NullTimestamp;
@@ -49,7 +48,6 @@ private:
         TNullable<i64> MinTabletSize;
         TNullable<i64> MaxTabletSize;
         TNullable<i64> DesiredTabletSize;
-        TNullable<int> DesiredTabletCount;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -67,7 +65,6 @@ public:
     DECLARE_EXTRA_PROPERTY_HOLDER(TDynamicTableAttributes, DynamicTableAttributes);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, Atomicity);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, CommitOrdering);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, InMemoryMode);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UpstreamReplicaId);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCellBundle);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastCommitTimestamp);
@@ -77,7 +74,6 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MinTabletSize);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MaxTabletSize);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletSize);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletCount);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);

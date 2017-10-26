@@ -4,8 +4,6 @@
 
 #include <yt/contrib/quicklz/quicklz.h>
 
-#define LZ4_DISABLE_DEPRECATE_WARNINGS
-
 #include <contrib/libs/lz4/lz4.h>
 #include <contrib/libs/lz4/lz4hc.h>
 

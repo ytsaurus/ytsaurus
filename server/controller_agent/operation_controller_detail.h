@@ -382,7 +382,7 @@ protected:
     int UnavailableInputChunkCount = 0;
 
     // Job counters.
-    TProgressCounterPtr JobCounter = New<TProgressCounter>();
+    TProgressCounter JobCounter;
 
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
@@ -454,8 +454,6 @@ protected:
     //! Auto merge task for each of the output tables.
     std::vector<TAutoMergeTaskPtr> AutoMergeTasks;
     TTaskGroupPtr AutoMergeTaskGroup;
-
-    TDataFlowGraph DataFlowGraph_;
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
@@ -626,7 +624,7 @@ protected:
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
     int EstimateSplitJobCount(const NScheduler::TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
-    void ExtractInterruptDescriptor(NScheduler::TCompletedJobSummary& jobSummary) const;
+    std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const NScheduler::TCompletedJobSummary& jobSummary) const;
     virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
     struct TStripeDescriptor
@@ -842,8 +840,6 @@ protected:
 
     virtual void UnstageChunkTreesNonRecursively(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds) override;
 
-    virtual TDataFlowGraph& DataFlowGraph() override;
-
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1039,8 +1035,6 @@ private:
 
     NScheduler::TJobPtr BuildJobFromJoblet(const TJobletPtr& joblet) const;
 
-    void AbortAllJoblets();
-
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
         : public NChunkPools::IChunkPoolInput
@@ -1052,9 +1046,7 @@ private:
 
         TSink(TThis* controller, int outputTableIndex);
 
-        virtual TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
-
-        virtual TCookie Add(NChunkPools::TChunkStripePtr stripe) override;
+        virtual TCookie Add(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
 
         virtual void Suspend(TCookie cookie) override;
         virtual void Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe) override;

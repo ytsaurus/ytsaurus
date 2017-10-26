@@ -10,7 +10,7 @@ message TReqStartTransaction
     optional NYT.NYTree.NProto.TAttributes attributes = 1;
     optional NYT.NProto.TGuid hint_id = 2;
     optional NYT.NProto.TGuid parent_id = 3;
-    required int64 timeout = 4;
+    required int32 timeout = 4;
     required string user_name = 5;
     optional string title = 6;
 }

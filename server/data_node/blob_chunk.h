@@ -6,10 +6,10 @@
 #include "chunk_detail.h"
 #include "chunk_meta_manager.h"
 
+#include <yt/server/misc/memory_usage_tracker.h>
+
 #include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
-
-#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 

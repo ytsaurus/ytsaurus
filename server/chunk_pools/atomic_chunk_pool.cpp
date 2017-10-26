@@ -25,7 +25,7 @@ class TAtomicChunkPool
 public:
     TAtomicChunkPool()
     {
-        JobCounter->Set(1);
+        JobCounter.Set(1);
     }
 
     // IChunkPoolInput implementation.
@@ -42,8 +42,8 @@ public:
         TSuspendableStripe suspendableStripe(stripe);
         Stripes.push_back(suspendableStripe);
 
-        DataWeightCounter->Increment(suspendableStripe.GetStatistics().DataWeight);
-        RowCounter->Increment(suspendableStripe.GetStatistics().RowCount);
+        DataWeightCounter.Increment(suspendableStripe.GetStatistics().DataWeight);
+        RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
 
         TotalDataSliceCount += stripe->DataSlices.size();
 
@@ -53,7 +53,7 @@ public:
     virtual void Finish() override
     {
         if (Finished) {
-            JobCounter->Increment(1);
+            JobCounter.Increment(1);
         } else {
             TChunkPoolInputBase::Finish();
         }
@@ -93,12 +93,12 @@ public:
             Finished &&
             GetPendingJobCount() == 0 &&
             SuspendedStripeCount == 0 &&
-            JobCounter->GetRunning() == 0;
+            JobCounter.GetRunning() == 0;
     }
 
     virtual int GetTotalJobCount() const override
     {
-        return Finished && HasPrimaryStripes && DataWeightCounter->GetTotal() > 0 ? 1 : 0;
+        return Finished && HasPrimaryStripes && DataWeightCounter.GetTotal() > 0 ? 1 : 0;
     }
 
     virtual i64 GetDataSliceCount() const override
@@ -111,7 +111,7 @@ public:
         return
             Finished &&
             SuspendedStripeCount == 0 &&
-            DataWeightCounter->GetPending() > 0 &&
+            DataWeightCounter.GetPending() > 0 &&
             HasPrimaryStripes
             ? 1 : 0;
     }
@@ -143,9 +143,9 @@ public:
                 nodeId);
         }
 
-        JobCounter->Start(1);
-        DataWeightCounter->Start(DataWeightCounter->GetTotal());
-        RowCounter->Start(RowCounter->GetTotal());
+        JobCounter.Start(1);
+        DataWeightCounter.Start(DataWeightCounter.GetTotal());
+        RowCounter.Start(RowCounter.GetTotal());
 
         return 0;
     }
@@ -174,9 +174,9 @@ public:
         YCHECK(ExtractedList);
         YCHECK(Finished);
 
-        JobCounter->Completed(1, jobSummary.InterruptReason);
-        DataWeightCounter->Completed(DataWeightCounter->GetTotal());
-        RowCounter->Completed(RowCounter->GetTotal());
+        JobCounter.Completed(1, jobSummary.InterruptReason);
+        DataWeightCounter.Completed(DataWeightCounter.GetTotal());
+        RowCounter.Completed(RowCounter.GetTotal());
 
         ExtractedList = nullptr;
     }
@@ -187,9 +187,9 @@ public:
         YCHECK(ExtractedList);
         YCHECK(Finished);
 
-        JobCounter->Failed(1);
-        DataWeightCounter->Failed(DataWeightCounter->GetTotal());
-        RowCounter->Failed(RowCounter->GetTotal());
+        JobCounter.Failed(1);
+        DataWeightCounter.Failed(DataWeightCounter.GetTotal());
+        RowCounter.Failed(RowCounter.GetTotal());
 
         ExtractedList = nullptr;
     }
@@ -200,9 +200,9 @@ public:
         YCHECK(ExtractedList);
         YCHECK(Finished);
 
-        JobCounter->Aborted(1, reason);
-        DataWeightCounter->Aborted(DataWeightCounter->GetTotal(), reason);
-        RowCounter->Aborted(RowCounter->GetTotal(), reason);
+        JobCounter.Aborted(1, reason);
+        DataWeightCounter.Aborted(DataWeightCounter.GetTotal(), reason);
+        RowCounter.Aborted(RowCounter.GetTotal(), reason);
 
         ExtractedList = nullptr;
     }
@@ -213,9 +213,9 @@ public:
         YCHECK(!ExtractedList);
         YCHECK(Finished);
 
-        JobCounter->Lost(1);
-        DataWeightCounter->Lost(DataWeightCounter->GetTotal());
-        RowCounter->Lost(RowCounter->GetTotal());
+        JobCounter.Lost(1);
+        DataWeightCounter.Lost(DataWeightCounter.GetTotal());
+        RowCounter.Lost(RowCounter.GetTotal());
     }
 
     // IPersistent implementation.

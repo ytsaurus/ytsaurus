@@ -1102,9 +1102,7 @@ private:
             return EAbortReason::WaitingTimeout;
         }
 
-        if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler) ||
-            resultError.FindMatching(NJobProxy::EErrorCode::JobNotPrepared))
-        {
+        if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
             return EAbortReason::Scheduler;
         }
 
@@ -1118,6 +1116,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
+            resultError.FindMatching(NJobProxy::EErrorCode::JobNotPrepared) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {
             return EAbortReason::Other;

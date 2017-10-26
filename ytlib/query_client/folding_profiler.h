@@ -33,7 +33,6 @@ TCGQueryCallbackGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     TJoinSubqueryProfiler joinProfiler,
-    bool useMultijoin,
     const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionCG.Get(),
     const TConstAggregateProfilerMapPtr& aggregateProfilers = BuiltinAggregateCG.Get());
 

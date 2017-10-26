@@ -18,6 +18,7 @@
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/serialize.h>
 
+#include <yt/server/chunk_server/helpers.h>
 #include <yt/server/chunk_server/chunk_list.h>
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_tree_traverser.h>
@@ -48,7 +49,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/election/config.h>
 
@@ -75,37 +75,38 @@
 namespace NYT {
 namespace NTabletServer {
 
-using namespace NCellMaster;
-using namespace NChunkClient::NProto;
-using namespace NChunkClient;
-using namespace NChunkServer;
 using namespace NConcurrency;
-using namespace NCypressClient;
-using namespace NCypressServer;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
+using namespace NObjectClient;
+using namespace NObjectClient::NProto;
+using namespace NObjectServer;
+using namespace NYTree;
+using namespace NYPath;
+using namespace NSecurityServer;
+using namespace NTableServer;
+using namespace NTabletClient;
+using namespace NTabletClient::NProto;
+using namespace NHydra;
 using namespace NHiveClient;
 using namespace NHiveServer;
-using namespace NHydra;
-using namespace NNodeTrackerClient::NProto;
-using namespace NNodeTrackerClient;
-using namespace NNodeTrackerServer::NProto;
-using namespace NNodeTrackerServer;
-using namespace NObjectClient::NProto;
-using namespace NObjectClient;
-using namespace NObjectServer;
-using namespace NSecurityServer;
-using namespace NTableClient::NProto;
-using namespace NTableClient;
-using namespace NTableServer;
-using namespace NTabletClient::NProto;
-using namespace NTabletClient;
-using namespace NTabletNode::NProto;
-using namespace NTabletServer::NProto;
 using namespace NTransactionServer;
-using namespace NYPath;
-using namespace NYTree;
+using namespace NTabletServer::NProto;
+using namespace NNodeTrackerServer;
+using namespace NNodeTrackerServer::NProto;
+using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
+using namespace NTabletNode::NProto;
+using namespace NChunkServer;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NCypressServer;
+using namespace NCypressClient;
+using namespace NCellMaster;
 using namespace NYson;
 
 using NTabletNode::TTableMountConfigPtr;
+using NTabletNode::EInMemoryMode;
 using NTabletNode::EStoreType;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -759,13 +760,6 @@ public:
         int lastTabletIndex,
         int newTabletCount)
     {
-
-        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
-
-        if (newTabletCount <= 0) {
-            THROW_ERROR_EXCEPTION("Tablet count must be positive");
-        }
-
         struct TEntry
         {
             TOwningKey MinKey;
@@ -1069,24 +1063,33 @@ public:
                         int firstTabletIndex = action->Tablets().front()->GetIndex();
                         int lastTabletIndex = action->Tablets().back()->GetIndex();
 
+                        std::vector<TOwningKey> pivotKeys;
+                        int newTabletCount;
+
+                        if (table->IsPhysicallySorted()) {
+                            if (auto tabletCount = action->GetTabletCount()) {
+                                pivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, *tabletCount);
+                            } else {
+                                pivotKeys = action->PivotKeys();
+                            }
+                            newTabletCount = pivotKeys.size();
+                        } else {
+                            newTabletCount = *action->GetTabletCount();
+                        }
+
                         std::vector<TTablet*> oldTablets;
                         oldTablets.swap(action->Tablets());
                         for (auto* tablet : oldTablets) {
                             tablet->SetAction(nullptr);
                         }
 
-                        int newTabletCount = action->GetTabletCount()
-                            ? *action->GetTabletCount()
-                            : action->PivotKeys().size();
-
                         try {
-                            newTabletCount = ReshardTable(
+                            ReshardTable(
                                 table,
                                 firstTabletIndex,
                                 lastTabletIndex,
                                 newTabletCount,
-                                action->PivotKeys(),
-                                false);
+                                pivotKeys);
                         } catch (const std::exception& ex) {
                             for (auto* tablet : oldTablets) {
                                 YCHECK(IsObjectAlive(tablet));
@@ -1098,7 +1101,7 @@ public:
 
                         action->Tablets() = std::vector<TTablet*>(
                             table->Tablets().begin() + firstTabletIndex,
-                            table->Tablets().begin() + firstTabletIndex + newTabletCount);
+                            table->Tablets().begin() + firstTabletIndex + pivotKeys.size());
                         for (auto* tablet : action->Tablets()) {
                             tablet->SetAction(action);
                         }
@@ -1199,12 +1202,10 @@ public:
         }
     }
 
-    const TTabletCellSet* FindAssignedTabletCells(const TString& address) const
+    int GetAssignedTabletCellCount(const TString& address) const
     {
-        auto it = AddressToCell_.find(address);
-        return it != AddressToCell_.end()
-            ? &it->second
-            : nullptr;
+        auto range = AddressToCell_.equal_range(address);
+        return std::distance(range.first, range.second);
     }
 
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
@@ -1221,7 +1222,6 @@ public:
         tabletStatistics.PreloadCompletedStoreCount = nodeStatistics.preload_completed_store_count();
         tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
         tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
-        tabletStatistics.DynamicMemoryPoolSize = nodeStatistics.dynamic_memory_pool_size();
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
@@ -1750,6 +1750,12 @@ public:
 
     void DestroyTable(TTableNode* table)
     {
+        if (table->GetTabletCellBundle()) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(table->GetTabletCellBundle());
+            table->SetTabletCellBundle(nullptr);
+        }
+
         if (!table->Tablets().empty()) {
             int firstTabletIndex = 0;
             int lastTabletIndex = static_cast<int>(table->Tablets().size()) - 1;
@@ -1768,12 +1774,6 @@ public:
             table->MutableTablets().clear();
         }
 
-        if (table->GetTabletCellBundle()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(table->GetTabletCellBundle());
-            table->SetTabletCellBundle(nullptr);
-        }
-
         if (table->GetType() == EObjectType::ReplicatedTable) {
             auto* replicatedTable = table->As<TReplicatedTableNode>();
             const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1786,40 +1786,7 @@ public:
         }
     }
 
-    int ReshardTable(
-        TTableNode* table,
-        int firstTabletIndex,
-        int lastTabletIndex,
-        int newTabletCount,
-        const std::vector<TOwningKey>& pivotKeys,
-        bool strictNewTabletCount = true)
-    {
-        if (!pivotKeys.empty() || !table->IsSorted()) {
-            DoReshardTable(
-                table,
-                firstTabletIndex,
-                lastTabletIndex,
-                newTabletCount,
-                pivotKeys);
-            return newTabletCount;
-        }
-
-        auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
-        if (strictNewTabletCount && newPivotKeys.size() != newTabletCount) {
-            THROW_ERROR_EXCEPTION("Unable to calculate pivot keys");
-        }
-
-        newTabletCount = newPivotKeys.size();
-        DoReshardTable(
-            table,
-            firstTabletIndex,
-            lastTabletIndex,
-            newTabletCount,
-            newPivotKeys);
-        return newTabletCount;
-    }
-
-    void DoReshardTable(
+    void ReshardTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -1902,7 +1869,7 @@ public:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Reshard table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount %v, PivotKeys: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Reshard table (TableId: %v, FirstTabletInded: %v, LastTabletIndex: %v, TabletCount %v, PivotKeys: %v)",
             table->GetId(),
             firstTabletIndex,
             lastTabletIndex,
@@ -2388,14 +2355,6 @@ public:
             return;
         }
 
-        auto tabletState = table->GetTabletState();
-        if (table->GetTabletCellBundle() != nullptr &&
-            tabletState != ETabletState::Unmounted &&
-            tabletState != ETabletState::None)
-        {
-            THROW_ERROR_EXCEPTION("Cannot change tablet cell bundle: table has mounted tablets");
-        }
-
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, EPermission::Use);
 
@@ -2431,7 +2390,7 @@ private:
 
     yhash<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
-    yhash<TString, TTabletCellSet> AddressToCell_;
+    yhash_mm<TString, TTabletCell*> AddressToCell_;
     yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
@@ -2882,16 +2841,15 @@ private:
         // Request slot starts.
         {
             int availableSlots = node->Statistics().available_tablet_slots();
-            auto it = AddressToCell_.find(address);
-            if (it != AddressToCell_.end()) {
-                for (auto* cell : it->second) {
-                    if (!IsObjectAlive(cell)) {
-                        continue;
-                    }
-                    if (actualCells.find(cell) == actualCells.end()) {
-                        requestCreateSlot(cell);
-                        --availableSlots;
-                    }
+            auto range = AddressToCell_.equal_range(address);
+            for (auto it = range.first; it != range.second; ++it) {
+                auto* cell = it->second;
+                if (!IsObjectAlive(cell)) {
+                    continue;
+                }
+                if (actualCells.find(cell) == actualCells.end()) {
+                    requestCreateSlot(cell);
+                    --availableSlots;
                 }
             }
         }
@@ -2960,27 +2918,17 @@ private:
 
     void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        const auto& address = descriptor.GetDefaultAddress();
-        auto cellsIt = AddressToCell_.find(address);
-        if (cellsIt == AddressToCell_.end()) {
-            cellsIt = AddressToCell_.insert(std::make_pair(address, TTabletCellSet())).first;
-        }
-        auto& set = cellsIt->second;
-        YCHECK(std::find(set.begin(), set.end(), cell) == set.end());
-        set.push_back(cell);
+        AddressToCell_.insert(std::make_pair(descriptor.GetDefaultAddress(), cell));
     }
 
     void RemoveFromAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        const auto& address = descriptor.GetDefaultAddress();
-        auto cellsIt = AddressToCell_.find(address);
-        YCHECK(cellsIt != AddressToCell_.end());
-        auto& set = cellsIt->second;
-        auto it = std::find(set.begin(), set.end(), cell);
-        YCHECK(it != set.end());
-        set.erase(it);
-        if (set.empty()) {
-            AddressToCell_.erase(cellsIt);
+        auto range = AddressToCell_.equal_range(descriptor.GetDefaultAddress());
+        for (auto it = range.first; it != range.second; ++it) {
+            if (it->second == cell) {
+                AddressToCell_.erase(it);
+                break;
+            }
         }
     }
 
@@ -3805,11 +3753,7 @@ private:
                 cellKeys.push_back(TCellKey{getCellSize(cell), cell});
             }
         }
-        if (cellKeys.empty()) {
-            // NB: Changed ycheck to throw when it was triggered inside tablet action.
-            THROW_ERROR_EXCEPTION("No tablet cells in bundle %Qv",
-                table->GetTabletCellBundle()->GetName());
-        }
+        YCHECK(!cellKeys.empty());
         std::sort(cellKeys.begin(), cellKeys.end());
 
         auto getTabletSize = [&] (const TTablet* tablet) -> i64 {
@@ -4411,9 +4355,9 @@ void TTabletManager::Initialize()
     return Impl_->Initialize();
 }
 
-const TTabletCellSet* TTabletManager::FindAssignedTabletCells(const TString& address) const
+int TTabletManager::GetAssignedTabletCellCount(const TString& address) const
 {
-    return Impl_->FindAssignedTabletCells(address);
+    return Impl_->GetAssignedTabletCellCount(address);
 }
 
 TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)

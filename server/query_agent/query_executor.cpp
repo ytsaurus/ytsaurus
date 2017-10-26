@@ -136,7 +136,7 @@ using TSelectProfilerTrait = TSimpleProfilerTrait<TSelectCounters>;
 
 auto& GetProfilerCounters(const TString& user)
 {
-    return GetLocallyGloballyCachedValue<TSelectProfilerTrait>(AddUserTag(user));
+    return GetLocallyGloballyCachedValue<TSelectProfilerTrait>(GetUserProfilerTags(user));
 }
 
 } // namespace
@@ -524,17 +524,15 @@ private:
                     } else {
                         TQueryStatistics statistics = result.Value();
 
-                        return Combine(*asyncSubqueryResults)
-                        .Apply(BIND([
-                            =,
-                            this_ = MakeStrong(this)
-                        ] (const std::vector<TQueryStatistics>& subqueryResults) mutable {
-                            for (const auto& subqueryResult : subqueryResults) {
-                                LOG_DEBUG("Remote subquery statistics %v", subqueryResult);
-                                statistics += subqueryResult;
-                            }
-                            return statistics;
-                        }));
+                        for (const auto& asyncSubqueryResult : *asyncSubqueryResults) {
+                            auto subqueryStatistics = WaitFor(asyncSubqueryResult)
+                                .ValueOrThrow();
+
+                            LOG_DEBUG("Remote subquery statistics %v", subqueryStatistics);
+                            statistics += subqueryStatistics;
+                        }
+
+                        return MakeFuture(statistics);
                     }
                 }));
 
@@ -1135,7 +1133,7 @@ public:
             config->FunctionImplCache,
             bootstrap->GetMasterClient()))
         , Bootstrap_(bootstrap)
-        , Evaluator_(New<TEvaluator>(Config_, "/query_agent"))
+        , Evaluator_(New<TEvaluator>(Config_))
         , ColumnEvaluatorCache_(Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()

@@ -105,13 +105,13 @@ public:
         TEndpoint leftEndpoint = {
             EEndpointType::ForeignLeft,
             dataSlice,
-            GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
+            WidenKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Min),
             dataSlice->LowerLimit().RowIndex.Get(0)
         };
         TEndpoint rightEndpoint = {
             EEndpointType::ForeignRight,
             dataSlice,
-            GetStrictKeySuccessor(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_),
+            WidenKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_, EValueType::Min),
             dataSlice->UpperLimit().RowIndex.Get(0)
         };
 
@@ -421,8 +421,6 @@ private:
             LOG_WARNING("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
                 JobSizeConstraints_->GetJobCount(),
                 Jobs_.size());
-
-            Jobs_.front()->SetUnsplittable();
             for (int index = 0; index < Endpoints_.size(); ++index) {
                 const auto& endpoint = Endpoints_[index];
                 LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %p)",
@@ -681,13 +679,13 @@ public:
         return
             Finished &&
             GetPendingJobCount() == 0 &&
-            JobManager_->JobCounter()->GetRunning() == 0 &&
+            JobManager_->JobCounter().GetRunning() == 0 &&
             JobManager_->GetSuspendedJobCount() == 0;
     }
 
     virtual int GetTotalJobCount() const override
     {
-        return JobManager_->JobCounter()->GetTotal();
+        return JobManager_->JobCounter().GetTotal();
     }
 
     virtual int GetPendingJobCount() const override
@@ -753,27 +751,27 @@ public:
 
     virtual i64 GetTotalDataWeight() const override
     {
-        return JobManager_->DataWeightCounter()->GetTotal();
+        return JobManager_->DataWeightCounter().GetTotal();
     }
 
     virtual i64 GetRunningDataWeight() const override
     {
-        return JobManager_->DataWeightCounter()->GetRunning();
+        return JobManager_->DataWeightCounter().GetRunning();
     }
 
     virtual i64 GetCompletedDataWeight() const override
     {
-        return JobManager_->DataWeightCounter()->GetCompletedTotal();
+        return JobManager_->DataWeightCounter().GetCompletedTotal();
     }
 
     virtual i64 GetPendingDataWeight() const override
     {
-        return JobManager_->DataWeightCounter()->GetPending();
+        return JobManager_->DataWeightCounter().GetPending();
     }
 
     virtual i64 GetTotalRowCount() const override
     {
-        return JobManager_->RowCounter()->GetTotal();
+        return JobManager_->RowCounter().GetTotal();
     }
 
     virtual i64 GetDataSliceCount() const override
@@ -781,7 +779,7 @@ public:
         return TotalDataSliceCount_;
     }
 
-    const TProgressCounterPtr& GetJobCounter() const
+    const TProgressCounter& GetJobCounter() const
     {
         return JobManager_->JobCounter();
     }

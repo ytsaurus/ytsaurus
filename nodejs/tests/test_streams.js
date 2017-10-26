@@ -240,8 +240,8 @@ describe("input stream interface", function() {
             .to.be.a("string").and.to.eql("foobarbarbarfoo");
     });
 
-    //it("should not allow to put more than high watermark");
-    //it("should fire |on_drain| callback after flushing down to low watermark");
+    it("should not allow to put more than high watermark");
+    it("should fire |on_drain| callback after flushing down to low watermark");
 
     it("should support 'identity' compression", function() {
         this.reader.AddCompression(binding.ECompression_None);
@@ -322,7 +322,6 @@ describe("output stream interface", function() {
 
     it("should be able to write one chunk", function(done) {
         this.stream.on_flowing = (function() {
-            // Since this is an off-V8-scheduled callback all data should be in place.
             var pulled_chunks = this.stream.Pull();
             GC();
 
@@ -354,31 +353,11 @@ describe("output stream interface", function() {
         this.writer.WriteSynchronously("dolly");
     });
 
-    it("should be able to split large chunks into smaller", function(done) {
-        this.stream.SetMaxPartLength(1024);
-        var s = GenerateString(1024 + 512)
+    it("should be able to die on request");
 
-        this.stream.on_flowing = (function() {
-            // Since this is an off-V8-scheduled callback all data should be in place.
-            var pulled_chunks = this.stream.Pull();
-            GC();
+    it("should be able to report its emptiness");
 
-            var chunks = pulled_chunks.filter(function(x) { return !!x; });
-            expect(chunks.length).to.be.equal(2);
-            expect(chunks[0].toString()).to.be.equal(s.slice(0, 1024));
-            expect(chunks[1].toString()).to.be.equal(s.slice(1024));
-
-            done();
-        }).bind(this);
-
-        this.writer.WriteSynchronously(s);
-    });
-
-    //it("should be able to die on request");
-
-    //it("should be able to report its emptiness");
-
-    //it("should block on buffer overflow");
+    it("should block on buffer overflow");
 
     // These are multi-parametric cases.
     [

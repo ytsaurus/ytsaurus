@@ -3,6 +3,7 @@
 #error "Direct inclusion of this file is not allowed, include chunk_owner_type_handler.h"
 #endif
 
+#include "helpers.h"
 #include "chunk_manager.h"
 
 #include <yt/server/cypress_server/node_detail.h>
@@ -18,7 +19,6 @@
 #include <yt/server/cell_master/hydra_facade.h>
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
-#include <yt/ytlib/chunk_client/helpers.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -75,7 +75,7 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetChunk
 {
     NSecurityServer::TClusterResources result;
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        result.DiskSpace[mediumIndex] = NChunkClient::CalculateDiskSpaceUsage(
+        result.DiskSpace[mediumIndex] = CalculateDiskSpaceUsage(
             chunkOwner.Properties()[mediumIndex].GetReplicationFactor(),
             statistics.regular_disk_space(),
             statistics.erasure_disk_space());

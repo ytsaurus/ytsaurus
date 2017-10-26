@@ -164,10 +164,10 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
 
 #if PY_MAJOR_VERSION >= 3
     auto* rawResult = PyBytes_FromStringAndSize(nullptr, size);
-    char* underlyingString = PyBytes_AsString(rawResult);
+    char* underlyingString = PyBytes_AS_STRING(rawResult);
 #else
     auto* rawResult = PyString_FromStringAndSize(nullptr, size);
-    char* underlyingString = PyBytes_AsString(rawResult);
+    char* underlyingString = PyString_AS_STRING(rawResult);
 #endif
 
     {

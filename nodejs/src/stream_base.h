@@ -24,6 +24,26 @@ protected:
 
     const ui32 Id_ = RandomNumber<ui32>();
 
+    struct TOutputPart
+    {
+        TOutputPart() = delete;
+        TOutputPart(TOutputPart&) = delete;
+        TOutputPart(TOutputPart&&) = default;
+
+        TOutputPart(std::unique_ptr<char[]> buffer, size_t length)
+            : Buffer(std::move(buffer))
+            , Length(length)
+        { }
+
+        std::unique_ptr<char[]> Buffer = nullptr;
+        size_t Length = 0;
+
+        inline explicit operator bool() const
+        {
+            return Buffer != nullptr && Length > 0;
+        }
+    };
+
     struct TInputPart
     {
         v8::Persistent<v8::Value> Handle;

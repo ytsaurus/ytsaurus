@@ -247,7 +247,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
         const TRange<TUnversionedRow>& unreadRows) const override;
 
 private:
@@ -279,7 +279,7 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         SessionHolder_.size());
 
     // NB: we don't combine completion error here, because reader opening must not be interrupted.
-    // Otherwise, race condition may occur between reading in DoOpen and GetInterruptDescriptor.
+    // Otherwise, race condition may occur between reading in DoOpen and GetUnreadDataSliceDescriptors.
     ReadyEvent_ = BIND(
         &TSchemalessSortedMergingReader::DoOpen,
         MakeStrong(this))
@@ -356,28 +356,36 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
     return true;
 }
 
-TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
+std::vector<TDataSliceDescriptor> TSchemalessSortedMergingReader::GetUnreadDataSliceDescriptors(
     const TRange<TUnversionedRow>& unreadRows) const
 {
-    TInterruptDescriptor result;
-
-    auto firstUnreadKey = !unreadRows.Empty()
-        ? GetKeyPrefix(unreadRows[0], ReduceKeyColumnCount_)
-        : MaxKey();
-    for (const auto& session : SessionHolder_) {
-        auto it = std::lower_bound(
-            session.Rows.begin(),
-            session.Rows.begin() + session.CurrentRowIndex,
-            firstUnreadKey,
-            [&] (const TUnversionedRow& row, const TOwningKey& key) -> bool {
-                return CompareRows(row, key, ReduceKeyColumnCount_) < 0;
-            });
-        auto interruptDescriptor = session.Reader->GetInterruptDescriptor(
-            NYT::TRange<TUnversionedRow>(&*it, &*session.Rows.end()));
-
-        result.MergeFrom(std::move(interruptDescriptor));
+    std::vector<TDataSliceDescriptor> result;
+    if (unreadRows.Empty()) {
+        for (const auto& session : SessionHolder_) {
+            auto unreadDescriptors = session.Reader->GetUnreadDataSliceDescriptors(
+                NYT::TRange<TUnversionedRow>(
+                    session.Rows.data() + session.CurrentRowIndex,
+                    session.Rows.data() + session.Rows.size()));
+            std::move(unreadDescriptors.begin(), unreadDescriptors.end(), std::back_inserter(result));
+        }
+    } else {
+        auto firstUnreadKey = GetKeyPrefix(unreadRows[0], ReduceKeyColumnCount_);
+        for (const auto& session : SessionHolder_) {
+            auto it = std::lower_bound(
+                session.Rows.begin(),
+                session.Rows.begin() + session.CurrentRowIndex,
+                firstUnreadKey,
+                [&] (const TUnversionedRow& row, const TOwningKey& key) -> bool {
+                    return CompareRows(row, key, ReduceKeyColumnCount_) < 0;
+                });
+            auto firstUnreadRowIndex = std::distance(session.Rows.begin(), it);
+            auto unreadDescriptors = session.Reader->GetUnreadDataSliceDescriptors(
+                NYT::TRange<TUnversionedRow>(
+                    session.Rows.data() + firstUnreadRowIndex,
+                    session.Rows.data() + session.Rows.size()));
+            std::move(unreadDescriptors.begin(), unreadDescriptors.end(), std::back_inserter(result));
+        }
     }
-
     return result;
 }
 
@@ -397,7 +405,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
         const TRange<TUnversionedRow>& unreadRows) const override;
 
     virtual void Interrupt() override;
@@ -444,7 +452,7 @@ TSchemalessJoiningReader::TSchemalessJoiningReader(
         SessionHolder_.size());
 
     // NB: we don't combine completion error here, because reader opening must not be interrupted.
-    // Otherwise, race condition may occur between reading in DoOpen and GetInterruptDescriptor.
+    // Otherwise, race condition may occur between reading in DoOpen and GetUnreadDataSliceDescriptors.
     ReadyEvent_ = BIND(
         &TSchemalessJoiningReader::DoOpen,
         MakeStrong(this))
@@ -559,13 +567,13 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
     return true;
 }
 
-TInterruptDescriptor TSchemalessJoiningReader::GetInterruptDescriptor(
+std::vector<TDataSliceDescriptor> TSchemalessJoiningReader::GetUnreadDataSliceDescriptors(
     const TRange<TUnversionedRow>& unreadRows) const
 {
     YCHECK(unreadRows.Empty());
 
     // Returns only UnreadDataSlices from primary readers.
-    return PrimarySession_->Reader->GetInterruptDescriptor(
+    return PrimarySession_->Reader->GetUnreadDataSliceDescriptors(
         NYT::TRange<TUnversionedRow>(
             PrimarySession_->Rows.data() + PrimarySession_->CurrentRowIndex,
             PrimarySession_->Rows.size() - PrimarySession_->CurrentRowIndex));

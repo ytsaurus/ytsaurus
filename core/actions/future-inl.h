@@ -69,9 +69,13 @@ private:
     TCancelHandlers CancelHandlers_;
 
     template <class F, class... As>
-    auto RunNoExcept(F&& functor, As&&... args) noexcept -> decltype(functor(std::forward<As>(args)...))
+    auto RunNoExcept(F&& functor, As&&... args) -> decltype(functor(std::forward<As>(args)...))
     {
-        return functor(std::forward<As>(args)...);
+        try {
+            return functor(std::forward<As>(args)...);
+        } catch (...) {
+            std::terminate();
+        }
     }
 
     template <class U, bool MustSet>

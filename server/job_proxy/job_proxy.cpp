@@ -277,45 +277,20 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        auto interruptDescriptor = Job_->GetInterruptDescriptor();
+        auto unreadDescriptors = Job_->GetUnreadDataSliceDescriptors();
 
-        if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
-            if (!interruptDescriptor.ReadDataSliceDescriptors.empty()) {
-                ToProto(
-                    schedulerResultExt->mutable_unread_chunk_specs(),
-                    schedulerResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
-                    interruptDescriptor.UnreadDataSliceDescriptors);
-                ToProto(
-                    schedulerResultExt->mutable_read_chunk_specs(),
-                    schedulerResultExt->mutable_chunk_spec_count_per_read_data_slice(),
-                    interruptDescriptor.ReadDataSliceDescriptors);
+        // COMPAT(psushin): currently we use old and new ways simultaneously to return unread descriptors to scheduler.
+        ToProto(schedulerResultExt->mutable_unread_input_data_slice_descriptors(), unreadDescriptors);
+        ToProto(
+            schedulerResultExt->mutable_unread_chunk_specs(),
+            schedulerResultExt->mutable_chunk_spec_count_per_data_slice(),
+            unreadDescriptors);
 
-                LOG_DEBUG(
-                    "Found interrupt descriptor (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
-                    interruptDescriptor.UnreadDataSliceDescriptors.size(),
-                    interruptDescriptor.ReadDataSliceDescriptors.size(),
-                    schedulerResultExt->ShortDebugString());
-            } else {
-                if (result.error().code() == 0) {
-                    auto getReadRowCount = [&] () -> i64 {
-                        auto statistics = GetStatistics();
-                        auto it = statistics.Data().find("/data/input/row_count");
-                        if (it == statistics.Data().end()) {
-                            return 0;
-                        } else {
-                            return it->second.GetSum();
-                        }
-                    };
-                    // Validate that job really didn't read anything.
-                    YCHECK(getReadRowCount() == 0);
-
-
-                    ToProto(
-                        result.mutable_error(),
-                        TError(EErrorCode::JobNotPrepared, "Job did not read anything"));
-                }
-            }
-        }
+        LOG_DEBUG_IF(
+            unreadDescriptors.size() > 0,
+            "Unread input data slice descriptors found (DescriptorCount: %v, SchedulerResultExt: %v)",
+            unreadDescriptors.size(),
+            schedulerResultExt->ShortDebugString());
     }
 
     auto statistics = ConvertToYsonString(GetStatistics());

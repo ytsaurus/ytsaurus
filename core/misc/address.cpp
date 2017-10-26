@@ -168,18 +168,6 @@ socklen_t TNetworkAddress::GetGenericLength(const sockaddr& sockAddr)
     }
 }
 
-ui16 TNetworkAddress::GetPort() const
-{
-    switch (Storage.ss_family) {
-        case AF_INET:
-            return ntohs(reinterpret_cast<const sockaddr_in*>(&Storage)->sin_port);
-        case AF_INET6:
-            return ntohs(reinterpret_cast<const sockaddr_in6*>(&Storage)->sin6_port);
-        default:
-            THROW_ERROR_EXCEPTION("Address has no port");
-    }
-}
-
 socklen_t TNetworkAddress::GetLength() const
 {
     return Length;

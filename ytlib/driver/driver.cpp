@@ -45,11 +45,6 @@ TDriverRequest::TDriverRequest()
     : ResponseParametersConsumer(GetNullYsonConsumer())
 { }
 
-TDriverRequest::TDriverRequest(THolderPtr holder)
-    : ResponseParametersConsumer(GetNullYsonConsumer())
-    , Holder_(std::move(holder))
-{ }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommandDescriptor IDriver::GetCommandDescriptor(const TString& commandName) const
@@ -400,12 +395,14 @@ private:
         virtual void ProduceOutputValue(const TYsonString& yson) override
         {
             YCHECK(Request_.OutputStream);
-            auto syncOutputStream = CreateBufferedSyncAdapter(Request_.OutputStream);
+            auto syncOutputStream = CreateSyncAdapter(Request_.OutputStream);
+
+            TBufferedOutput bufferedOutputStream(syncOutputStream.get());
 
             auto consumer = CreateConsumerForFormat(
                 GetOutputFormat(),
                 Descriptor_.OutputType,
-                syncOutputStream.get());
+                &bufferedOutputStream);
 
             Serialize(yson, consumer.get());
 

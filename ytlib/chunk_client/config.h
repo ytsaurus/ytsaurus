@@ -420,7 +420,6 @@ class TMultiChunkWriterConfig
 {
 public:
     i64 DesiredChunkSize;
-    i64 DesiredChunkWeight;
     i64 MaxMetaSize;
 
     TMultiChunkWriterConfig()
@@ -428,11 +427,6 @@ public:
         RegisterParameter("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
             .Default(1_GB);
-
-        RegisterParameter("desired_chunk_weight", DesiredChunkWeight)
-            .GreaterThan(0)
-            .Default(100_GB);
-
         RegisterParameter("max_meta_size", MaxMetaSize)
             .GreaterThan(0)
             .LessThanOrEqual(64_MB)

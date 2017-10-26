@@ -61,7 +61,7 @@ public:
     std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const;
     TNullable<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const;
     void InterruptReader();
-    NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const;
+    std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const;
 
 private:
     TCallback<TFuture<void>()> PrepareInputActionsPassthrough(

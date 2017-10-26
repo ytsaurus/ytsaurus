@@ -57,7 +57,7 @@ TFiberRegistry* GetFiberRegistry()
 TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
     : Callee_(std::move(callee))
     , Stack_(CreateExecutionStack(stackKind))
-    , Context_(Stack_.get(), this)
+    , Context_(CreateExecutionContext(Stack_.get(), &TFiber::Trampoline))
 {
     RegenerateId();
 #ifdef DEBUG
@@ -215,10 +215,13 @@ void TFiber::FsdResize()
     }
 }
 
-void TFiber::DoRun()
+void TFiber::Trampoline(void* opaque)
 {
+    auto* fiber = reinterpret_cast<TFiber*>(opaque);
+    Y_ASSERT(fiber);
+
     try {
-        Callee_.Run();
+        fiber->Callee_.Run();
     } catch (const TFiberCanceledException&) {
         // Thrown intentionally, ignore.
         LOG_DEBUG("Fiber canceled");
@@ -226,7 +229,7 @@ void TFiber::DoRun()
     // NB: All other uncaught exceptions will lead to std::terminate().
     // This way we preserve the much-needed backtrace.
 
-    State_ = EFiberState::Terminated;
+    fiber->State_ = EFiberState::Terminated;
 
     GetCurrentScheduler()->Return();
 

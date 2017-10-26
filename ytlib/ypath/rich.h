@@ -62,7 +62,6 @@ public:
 
     // "columns"
     TNullable<std::vector<TString>> GetColumns() const;
-    void SetColumns(const std::vector<TString>& columns);
 
     // "ranges"
     // COMPAT(ignat): also "lower_limit" and "upper_limit"

@@ -5,7 +5,6 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/pipes/async_reader.h>
-#include <yt/core/pipes/async_writer.h>
 
 #include <util/system/execpath.h>
 
@@ -23,8 +22,8 @@ static NLogging::TLogger Logger("Subprocess");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSubprocess::TSubprocess(const TString& path, bool copyEnv)
-    : Process_(New<TSimpleProcess>(path, copyEnv))
+TSubprocess::TSubprocess(const TString& path)
+    : Process_(New<TSimpleProcess>(path))
 { }
 
 TSubprocess TSubprocess::CreateCurrentProcessSpawner()
@@ -42,10 +41,9 @@ void TSubprocess::AddArguments(std::initializer_list<TStringBuf> args)
     Process_->AddArguments(args);
 }
 
-TSubprocessResult TSubprocess::Execute(const TSharedRef& input)
+TSubprocessResult TSubprocess::Execute()
 {
 #ifdef _unix_
-    auto inputStream = Process_->GetStdInWriter();
     auto outputStream = Process_->GetStdOutReader();
     auto errorStream = Process_->GetStdErrReader();
     auto finished = Process_->Spawn();
@@ -66,24 +64,9 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input)
         return TSharedRef::FromBlob(std::move(output));
     };
 
-    auto writeStdin = BIND([=] {
-        if (input.Size() > 0) {
-            WaitFor(inputStream->Write(input))
-                .ThrowOnError();
-        }
-
-        WaitFor(inputStream->Close())
-            .ThrowOnError();
-
-        //! Return dummy ref, so later we cat put Future into vector
-        //! along with stdout and stderr.
-        return EmptySharedRef;
-    });
-
     std::vector<TFuture<TSharedRef>> futures = {
         BIND(readIntoBlob, outputStream).AsyncVia(GetCurrentInvoker()).Run(),
         BIND(readIntoBlob, errorStream).AsyncVia(GetCurrentInvoker()).Run(),
-        writeStdin.AsyncVia(GetCurrentInvoker()).Run(),
     };
 
     try {
@@ -93,7 +76,7 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input)
             "IO error occurred during subprocess call");
 
         const auto& outputs = outputsOrError.Value();
-        YCHECK(outputs.size() == 3);
+        YCHECK(outputs.size() == 2);
 
         // This can block indefinitely.
         auto exitCode = WaitFor(finished);

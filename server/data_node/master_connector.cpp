@@ -18,6 +18,8 @@
 
 #include <yt/server/job_agent/job_controller.h>
 
+#include <yt/server/misc/memory_usage_tracker.h>
+
 #include <yt/server/tablet_node/slot_manager.h>
 #include <yt/server/tablet_node/tablet.h>
 #include <yt/server/tablet_node/tablet_slot.h>
@@ -32,8 +34,6 @@
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
-
-#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
@@ -267,9 +267,9 @@ void TMasterConnector::RegisterAtMaster()
 
     try {
         InitMedia();
-        StartLeaseTransaction();
-        RegisterAtPrimaryMaster();
         SyncDirectories();
+        StartLeaseTransaction();
+        SendRegisterRequest();
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Error registering at primary master");
         ResetAndScheduleRegisterAtMaster();
@@ -379,7 +379,7 @@ void TMasterConnector::StartLeaseTransaction()
             .Via(HeartbeatInvoker_));
 }
 
-void TMasterConnector::RegisterAtPrimaryMaster()
+void TMasterConnector::SendRegisterRequest()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -743,7 +743,6 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->RuntimeData->LastCommitTimestamp);
             protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->RuntimeData->LastWriteTimestamp);
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
-            protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 const auto& replicaId = pair.first;
@@ -759,7 +758,6 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoPerformanceCounters->set_dynamic_row_read_count(performanceCounters->DynamicRowReadCount);
             protoPerformanceCounters->set_dynamic_row_lookup_count(performanceCounters->DynamicRowLookupCount);
             protoPerformanceCounters->set_dynamic_row_write_count(performanceCounters->DynamicRowWriteCount);
-            protoPerformanceCounters->set_dynamic_row_write_data_weight_count(performanceCounters->DynamicRowWriteDataWeightCount);
             protoPerformanceCounters->set_dynamic_row_delete_count(performanceCounters->DynamicRowDeleteCount);
             protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);

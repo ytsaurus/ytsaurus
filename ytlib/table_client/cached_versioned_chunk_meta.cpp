@@ -20,7 +20,6 @@ using namespace NConcurrency;
 using namespace NTableClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NNodeTrackerClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -33,12 +32,11 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta() = default;
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
     const TChunkId& chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TTableSchema& schema,
-    TNodeMemoryTracker* memoryTracker)
+    const TTableSchema& schema)
 {
     auto cachedMeta = New<TCachedVersionedChunkMeta>();
     try {
-        cachedMeta->Init(chunkId, chunkMeta, schema, memoryTracker);
+        cachedMeta->Init(chunkId, chunkMeta, schema);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
             chunkId)
@@ -50,27 +48,25 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
     const TWorkloadDescriptor& workloadDescriptor,
-    const TTableSchema& schema,
-    TNodeMemoryTracker* memoryTracker)
+    const TTableSchema& schema)
 {
     auto cachedMeta = New<TCachedVersionedChunkMeta>();
     return BIND(&TCachedVersionedChunkMeta::DoLoad, cachedMeta)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run(chunkReader, workloadDescriptor, schema, memoryTracker);
+        .Run(chunkReader, workloadDescriptor, schema);
 }
 
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     IChunkReaderPtr chunkReader,
     const TWorkloadDescriptor& workloadDescriptor,
-    const TTableSchema& schema,
-    TNodeMemoryTracker* memoryTracker)
+    const TTableSchema& schema)
 {
     try {
         auto asyncChunkMeta = chunkReader->GetMeta(workloadDescriptor);
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
 
-        Init(chunkReader->GetChunkId(), chunkMeta, schema, memoryTracker);
+        Init(chunkReader->GetChunkId(), chunkMeta, schema);
         return this;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
@@ -82,8 +78,7 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
 void TCachedVersionedChunkMeta::Init(
     const TChunkId& chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TTableSchema& schema,
-    TNodeMemoryTracker* memoryTracker)
+    const TTableSchema& schema)
 {
     ChunkId_ = chunkId;
 
@@ -102,13 +97,6 @@ void TCachedVersionedChunkMeta::Init(
     if (boundaryKeysExt) {
         MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt->min()), GetKeyColumnCount());
         MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt->max()), GetKeyColumnCount());
-    }
-
-    if (memoryTracker) {
-        MemoryTrackerGuard_ = TNodeMemoryTrackerGuard::Acquire(
-            memoryTracker,
-            EMemoryCategory::CachedVersionedChunkMeta,
-            GetMemoryUsage());
     }
 }
 

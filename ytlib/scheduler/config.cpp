@@ -36,13 +36,13 @@ TJobIOConfig::TJobIOConfig()
 TTestingOperationOptions::TTestingOperationOptions()
 {
     RegisterParameter("scheduling_delay", SchedulingDelay)
-        .Default(Null);
+        .Default(TDuration::Seconds(0));
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
-        .Default(Null);
+        .Default(TDuration::Seconds(0));
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
-        .Default(Null);
+        .Default(EDelayInsideOperationCommitStage::Stage1);
     RegisterParameter("controller_failure", ControllerFailure)
         .Default(EControllerFailureType::None);
 }
@@ -154,7 +154,7 @@ TOperationSpecBase::TOperationSpecBase()
         .Default();
 
     RegisterParameter("testing", TestingOperationOptions)
-        .DefaultNew();
+        .Default();
 
     RegisterParameter("owners", Owners)
         .Default();
@@ -621,9 +621,6 @@ TSortOperationSpec::TSortOperationSpec()
 
         SortJobIO->TableReader->MaxBufferSize = 1_GB;
         SortJobIO->TableReader->RetryCount = 3;
-
-        // Output slices must be small enough to make reasonable jobs in sorted chunk pool.
-        SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
         MergeJobIO->TableReader->RetryCount = 3;
 
         MapSelectivityFactor = 1.0;
@@ -698,8 +695,6 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
         SortJobIO->TableReader->MaxBufferSize = 1_GB;
-        // Output slices must be small enough to make reasonable jobs in sorted chunk pool.
-        SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
 
         SortJobIO->TableReader->RetryCount = 3;
         MergeJobIO->TableReader->RetryCount = 3;

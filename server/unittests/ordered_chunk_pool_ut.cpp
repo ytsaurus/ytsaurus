@@ -46,11 +46,9 @@ protected:
     {
         Options_.MinTeleportChunkSize = Inf64;
         Options_.MaxTotalSliceCount = Inf64;
-        Options_.ShouldSliceByRowIndices = true;
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataSize_ = Inf64;
-        InputSliceRowCount_ = Inf64;
     }
 
     void InitJobConstraints()
@@ -64,7 +62,7 @@ protected:
             MaxDataSlicesPerJob_,
             0 /* maxDataSizePerJob_ */,
             InputSliceDataSize_,
-            InputSliceRowCount_ /* inputSliceRowCount */);
+            Inf64 /* inputSliceRowCount */);
     }
 
     TInputChunkPtr CreateChunk(
@@ -178,7 +176,6 @@ protected:
     {
         TBlobOutput output;
         TSaveContext saveContext;
-        saveContext.SetVersion(GetCurrentSnapshotVersion());
         saveContext.SetOutput(&output);
         Save(saveContext, ChunkPool_);
         auto blob = output.Flush();
@@ -186,7 +183,6 @@ protected:
 
         TMemoryInput input(blob.Begin(), blob.Size());
         TLoadContext loadContext;
-        loadContext.SetVersion(GetCurrentSnapshotVersion());
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);
@@ -323,8 +319,6 @@ protected:
     i32 MaxDataSlicesPerJob_;
 
     i64 InputSliceDataSize_;
-
-    i64 InputSliceRowCount_;
 
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
@@ -463,7 +457,6 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
 
     DataSizePerJob_ = 2_KB;
     InputSliceDataSize_ = 2_KB;
-    InputSliceRowCount_ = 100;
 
     InitJobConstraints();
 

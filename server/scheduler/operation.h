@@ -47,9 +47,6 @@ struct IOperationStrategyHost
     virtual TInstant GetStartTime() const = 0;
 
     virtual int GetSlotIndex() const = 0;
-    virtual void SetSlotIndex(int index) = 0;
-
-    virtual TString GetAuthenticatedUser() const = 0;
 
     virtual TOperationId GetId() const = 0;
 

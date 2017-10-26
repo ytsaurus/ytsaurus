@@ -6,7 +6,6 @@ option java_multiple_files = true;
 
 import "yt/core/rpc/rpc.proto";
 import "yt/core/misc/guid.proto";
-import "yt/ytlib/hive/timestamp_map.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Authentication.
@@ -48,18 +47,6 @@ enum ERowModificationType
 {
     WRITE = 0;
     DELETE = 1;
-}
-
-enum EAtomicity
-{
-    FULL = 0;
-    NONE = 1;
-}
-
-enum EDurability
-{
-    SYNC = 0;
-    ASYNC = 1;
 }
 
 message TAttribute
@@ -137,10 +124,7 @@ message TReqStartTransaction
     optional bool ping = 7 [default = true];
     optional bool ping_ancestors = 8 [default = true];
 
-    optional EAtomicity atomicity = 9 [default = FULL];
-    optional EDurability durability = 10 [default = SYNC];
-
-    // TODO(sandello): Attributes.
+    // TODO(sandello): Attributes, atomicity, durability.
 }
 
 message TRspStartTransaction
@@ -167,7 +151,6 @@ message TReqCommitTransaction
 
 message TRspCommitTransaction
 {
-    optional NHiveClient.NProto.TTimestampMap commit_timestamps = 1;
 }
 
 message TReqAbortTransaction
@@ -501,7 +484,6 @@ message TReqCopyNode
     optional bool force = 4 [default = false];
     optional bool preserve_account = 5 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
-    optional bool preserve_creation_time = 7 [default = false];
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;

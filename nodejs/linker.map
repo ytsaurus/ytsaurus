@@ -3,5 +3,4 @@ global:
     *;
 local:
     ares*;
-    http_*;
 };

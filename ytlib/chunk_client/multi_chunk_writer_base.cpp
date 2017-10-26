@@ -138,7 +138,7 @@ void TNontemplateMultiChunkWriterBase::DoSwitchSession()
 
 void TNontemplateMultiChunkWriterBase::FinishSession()
 {
-    if (CurrentSession_.TemplateWriter->GetCompressedDataSize() == 0) {
+    if (CurrentSession_.TemplateWriter->GetDataSize() == 0) {
         return;
     }
 
@@ -199,20 +199,12 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
         return true;
     }
 
-    if (CurrentSession_.TemplateWriter->GetDataWeight() > Config_->DesiredChunkWeight) {
-        LOG_DEBUG("Switching to next chunk: data weight is too large (DataWeight: %v)",
-            CurrentSession_.TemplateWriter->GetDataWeight());
-
-        SwitchSession();
-        return true;
-    }
-
-    if (CurrentSession_.TemplateWriter->GetCompressedDataSize() > Config_->DesiredChunkSize) {
+    if (CurrentSession_.TemplateWriter->GetDataSize() > Config_->DesiredChunkSize) {
         if (Options_->ErasureCodec != ECodec::None ||
-            CurrentSession_.TemplateWriter->GetCompressedDataSize() > 2 * Config_->DesiredChunkSize)
+            CurrentSession_.TemplateWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: compressed data size is too large (CurrentSessionSize: %v, DesiredChunkSize: %v)",
-                CurrentSession_.TemplateWriter->GetCompressedDataSize(),
+            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, DesiredChunkSize: %v)",
+                CurrentSession_.TemplateWriter->GetDataSize(),
                 Config_->DesiredChunkSize);
 
             SwitchSession();

@@ -188,17 +188,14 @@ struct TTransformExpression
     TTransformExpression(
         EValueType type,
         std::vector<TConstExpressionPtr> arguments,
-        TSharedRange<TRow> values,
-        TConstExpressionPtr defaultExpression)
+        TSharedRange<TRow> values)
         : TExpression(type)
         , Arguments(std::move(arguments))
         , Values(std::move(values))
-        , DefaultExpression(std::move(defaultExpression))
     { }
 
     std::vector<TConstExpressionPtr> Arguments;
     TSharedRange<TRow> Values;
-    TConstExpressionPtr DefaultExpression;
 };
 
 void ThrowTypeMismatchError(
@@ -774,12 +771,6 @@ struct TRewriter
             newArguments.push_back(newArgument);
         }
 
-        TConstExpressionPtr newDefaultExpression;
-        if (const auto& defaultExpression = transformExpr->DefaultExpression) {
-            newDefaultExpression = Visit(defaultExpression);
-            allEqual = allEqual && newDefaultExpression == defaultExpression;
-        }
-
         if (allEqual) {
             return transformExpr;
         }
@@ -787,8 +778,7 @@ struct TRewriter
         return New<TTransformExpression>(
             transformExpr->Type,
             std::move(newArguments),
-            transformExpr->Values,
-            newDefaultExpression);
+            transformExpr->Values);
     }
 
 };
@@ -835,14 +825,6 @@ struct TAbstractExpressionPrinter
     void OnRhs(const TBinaryOpExpression* binaryExpr, TArgs... args)
     {
         Visit(binaryExpr->Rhs, args...);
-    }
-
-    void OnDefaultExpression(const TTransformExpression* transformExpr, TArgs... args)
-    {
-        if (const auto& defaultExpression = transformExpr->DefaultExpression) {
-            Builder->AppendString(", ");
-            Visit(defaultExpression, args...);
-        }
     }
 
     template <class T>
@@ -994,11 +976,7 @@ struct TAbstractExpressionPrinter
                 });
         }
 
-        Builder->AppendChar(')');
-
-        Derived()->OnDefaultExpression(transformExpr, args...);
-
-        Builder->AppendChar(')');
+        Builder->AppendString("))");
     }
 
 };

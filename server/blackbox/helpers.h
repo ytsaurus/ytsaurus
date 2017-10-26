@@ -22,6 +22,8 @@ TErrorOr<T> GetByYPath(const NYTree::INodePtr& node, const NYPath::TYPath& path)
     }
 }
 
+TString ComputeMD5(const TString& token);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NBlackbox

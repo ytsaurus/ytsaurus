@@ -112,9 +112,8 @@ TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, TJobStatus* statu
 {
     const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
     InterruptReason = job->GetInterruptReason();
-    YCHECK(
-        (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
-        (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() != 0));
+    YCHECK((InterruptReason == EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) ||
+        (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() != 0));
 }
 
 void TCompletedJobSummary::Persist(const TPersistenceContext& context)
