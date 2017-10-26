@@ -527,7 +527,7 @@ private:
 
         // Holds outputStreamWrap if passed non-trivial stream argument
         std::unique_ptr<TOutputStreamWrap> outputStreamWrap;
-        std::unique_ptr<TFileOutput> fileOutput;
+        std::unique_ptr<TUnbufferedFileOutput> fileOutput;
         std::unique_ptr<TBufferedOutput> bufferedOutputStream;
 
         if (!outputStream) {
@@ -536,7 +536,7 @@ private:
 #if PY_MAJOR_VERSION < 3
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
-                fileOutput.reset(new TFileOutput(Duplicate(file)));
+                fileOutput.reset(new TUnbufferedFileOutput(Duplicate(file)));
                 outputStream = fileOutput.get();
                 wrapStream = false;
             }

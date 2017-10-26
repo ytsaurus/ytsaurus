@@ -160,7 +160,7 @@ void TNonOwningCGroup::Set(const TString& name, const TString& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
+    TUnbufferedFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
     output << value;
 #endif
 }
@@ -170,7 +170,7 @@ void TNonOwningCGroup::Append(const TString& name, const TString& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
+    TUnbufferedFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
     output << value;
 #endif
 }
