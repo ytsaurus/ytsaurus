@@ -41,6 +41,7 @@ using TContextSwitchHandlersList = std::forward_list<TContextSwitchHandlers>;
  */
 class TFiber
     : public TRefCounted
+    , public ITrampoLine
 {
 public:
     explicit TFiber(
@@ -175,7 +176,8 @@ private:
 
     void FsdResize();
 
-    static void Trampoline(void*);
+    // ITrampoLine implementation
+    virtual void DoRun();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFiber)

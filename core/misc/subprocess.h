@@ -21,14 +21,14 @@ struct TSubprocessResult
 class TSubprocess
 {
 public:
-    explicit TSubprocess(const TString& path);
+    explicit TSubprocess(const TString& path, bool copyEnv = true);
 
     static TSubprocess CreateCurrentProcessSpawner();
 
     void AddArgument(TStringBuf arg);
     void AddArguments(std::initializer_list<TStringBuf> args);
 
-    TSubprocessResult Execute();
+    TSubprocessResult Execute(const TSharedRef& input = EmptySharedRef);
     void Kill(int signal);
 
     TString GetCommandLine() const;

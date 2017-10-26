@@ -134,6 +134,7 @@ void ValidateTabletMountedOrFrozen(const TTableMountInfoPtr& tableInfo, const TT
     auto state = tabletInfo->State;
     if (state != ETabletState::Mounted &&
         state != ETabletState::Freezing &&
+        state != ETabletState::Unfreezing &&
         state != ETabletState::Frozen)
     {
         THROW_ERROR_EXCEPTION(
@@ -155,6 +156,18 @@ void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInf
             tableInfo->Path,
             tabletInfo->State)
             << TErrorAttribute("tablet_id", tabletInfo->TabletId);
+    }
+}
+
+void ValidateTabletMounted(
+    const TTableMountInfoPtr& tableInfo,
+    const TTabletInfoPtr& tabletInfo,
+    bool validateWrite)
+{
+    if (validateWrite) {
+        ValidateTabletMounted(tableInfo, tabletInfo);
+    } else {
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
     }
 }
 
@@ -185,12 +198,13 @@ namespace {
 template <class TRow>
 TTabletInfoPtr GetSortedTabletForRowImpl(
     const TTableMountInfoPtr& tableInfo,
-    TRow row)
+    TRow row,
+    bool validateWrite)
 {
     Y_ASSERT(tableInfo->IsSorted());
 
     auto tabletInfo = tableInfo->GetTabletForRow(row);
-    ValidateTabletMounted(tableInfo, tabletInfo);
+    ValidateTabletMounted(tableInfo, tabletInfo, validateWrite);
     return tabletInfo;
 }
 
@@ -198,23 +212,26 @@ TTabletInfoPtr GetSortedTabletForRowImpl(
 
 TTabletInfoPtr GetSortedTabletForRow(
     const TTableMountInfoPtr& tableInfo,
-    TUnversionedRow row)
+    TUnversionedRow row,
+    bool validateWrite)
 {
-    return GetSortedTabletForRowImpl(tableInfo, row);
+    return GetSortedTabletForRowImpl(tableInfo, row, validateWrite);
 }
 
 TTabletInfoPtr GetSortedTabletForRow(
     const TTableMountInfoPtr& tableInfo,
-    TVersionedRow row)
+    TVersionedRow row,
+    bool validateWrite)
 {
-    return GetSortedTabletForRowImpl(tableInfo, row);
+    return GetSortedTabletForRowImpl(tableInfo, row, validateWrite);
 }
 
 TTabletInfoPtr GetOrderedTabletForRow(
     const TTableMountInfoPtr& tableInfo,
     const TTabletInfoPtr& randomTabletInfo,
     TNullable<int> tabletIndexColumnId,
-    TUnversionedRow row)
+    TUnversionedRow row,
+    bool validateWrite)
 {
     Y_ASSERT(!tableInfo->IsSorted());
 
@@ -238,7 +255,7 @@ TTabletInfoPtr GetOrderedTabletForRow(
     }
 
     auto tabletInfo = tableInfo->Tablets[tabletIndex];
-    ValidateTabletMounted(tableInfo, tabletInfo);
+    ValidateTabletMounted(tableInfo, tabletInfo, validateWrite);
     return tabletInfo;
 }
 

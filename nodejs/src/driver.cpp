@@ -261,7 +261,7 @@ private:
 
         TTempBuf buffer;
         auto inputStream = CreateSyncAdapter(Request_.InputStream);
-        auto outputStream = CreateSyncAdapter(Request_.OutputStream);
+        auto outputStream = CreateBufferedSyncAdapter(Request_.OutputStream);
 
         while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
             outputStream->Write(buffer.Data(), length);

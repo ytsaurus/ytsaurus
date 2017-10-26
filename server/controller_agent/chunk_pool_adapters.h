@@ -20,7 +20,9 @@ public:
 
     explicit TChunkPoolInputAdapterBase(NChunkPools::IChunkPoolInput* underlyingInput);
 
-    virtual TCookie Add(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
+    virtual TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
+
+    virtual TCookie Add(NChunkPools::TChunkStripePtr stripe) override;
 
     virtual void Suspend(TCookie cookie) override;
 

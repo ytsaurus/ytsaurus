@@ -175,7 +175,6 @@ private:
                 true,
                 false)
             , Poller_(poller)
-            , Index_(index)
         { }
 
         void ScheduleUnregister(const TUnregisterEntryPtr& entry)
@@ -222,7 +221,6 @@ private:
 
     private:
         TThreadPoolPoller* const Poller_;
-        const int Index_;
         bool ExecutingCallbacks_ = false;
 
         TMultipleProducerSingleConsumerLockFreeStack<TUnregisterEntryPtr> UnregisterEntries_;

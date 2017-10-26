@@ -52,17 +52,20 @@ NTableClient::TNameTableToSchemaIdMapping BuildColumnIdMapping(
 
 NTabletClient::TTabletInfoPtr GetSortedTabletForRow(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
-    NTableClient::TUnversionedRow row);
+    NTableClient::TUnversionedRow row,
+    bool validateWrite = false);
 
 NTabletClient::TTabletInfoPtr GetSortedTabletForRow(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
-    NTableClient::TVersionedRow row);
+    NTableClient::TVersionedRow row,
+    bool validateWrite = false);
 
 NTabletClient::TTabletInfoPtr GetOrderedTabletForRow(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const NTabletClient::TTabletInfoPtr& randomTabletInfo,
     TNullable<int> tabletIndexColumnId,
-    NTableClient::TKey key);
+    NTableClient::TKey key,
+    bool validateWrite = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

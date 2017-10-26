@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/versioned_row.h>
 
@@ -34,7 +36,8 @@ public:
     TSortedDynamicStore(
         TTabletManagerConfigPtr config,
         const TStoreId& id,
-        TTablet* tablet);
+        TTablet* tablet,
+        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
     virtual ~TSortedDynamicStore();
 
 
@@ -151,6 +154,8 @@ private:
     class TRangeReader;
     class TLookupReader;
     class TLookupHashTable;
+
+    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
 
     const TSortedDynamicRowKeyComparer RowKeyComparer_;
     const std::unique_ptr<TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>> Rows_;

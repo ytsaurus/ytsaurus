@@ -133,7 +133,7 @@ public:
         }
         if (Limiter_.TryIncrease(statistics.EstimateSize())) {
             Batcher_.Enqueue(std::move(statistics));
-            PendingCount_.fetch_add(1, std::memory_order_relaxed);
+            Profiler_.Increment(PendingCounter_, 1);
             Profiler_.Increment(EnqueuedCounter_);
         } else {
             DroppedCount_.fetch_add(1, std::memory_order_relaxed);
@@ -154,6 +154,7 @@ private:
     TSimpleCounter EnqueuedCounter_ = {"/enqueued"};
     TSimpleCounter DequeuedCounter_ = {"/dequeued"};
     TSimpleCounter DroppedCounter_ = {"/dropped"};
+    TSimpleCounter PendingCounter_ = {"/pending"};
     TSimpleCounter CommittedCounter_ = {"/committed"};
     TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
@@ -166,7 +167,6 @@ private:
     TAsyncSemaphore EnableSemaphore_ {1};
     std::atomic<bool> Enabled_ = {false};
     std::atomic<ui64> DroppedCount_ = {0};
-    std::atomic<ui64> PendingCount_ = {0};
 
     // Must return dataweight of written batch inside transaction.
     virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) = 0;
@@ -183,7 +183,7 @@ private:
                 continue; // reporting has been disabled
             }
 
-            PendingCount_.fetch_sub(1, std::memory_order_relaxed);
+            Profiler_.Increment(PendingCounter_, -batch.size());
             Profiler_.Increment(DequeuedCounter_, batch.size());
             WriteBatchWithExpBackoff(batch);
         }
@@ -246,7 +246,7 @@ private:
 
     ui64 GetPendingCount()
     {
-        return PendingCount_.load(std::memory_order_relaxed);
+        return PendingCounter_.GetCurrent();
     }
 
     void DoEnable()
@@ -261,7 +261,7 @@ private:
         Batcher_.Drop();
         Limiter_.Reset();
         DroppedCount_.store(0, std::memory_order_relaxed);
-        PendingCount_.store(0, std::memory_order_relaxed);
+        Profiler_.Update(PendingCounter_, 0);
         LOG_INFO("Job statistics reporter disabled");
     }
 

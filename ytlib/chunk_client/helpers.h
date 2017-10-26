@@ -155,6 +155,13 @@ void SetRpcAttachedBlocks(const TRpcPtr& rpc, const std::vector<TBlock>& blocks)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 CalculateDiskSpaceUsage(
+    int replicationFactor,
+    i64 regularDiskSpace,
+    i64 erasureDiskSpace);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT
 

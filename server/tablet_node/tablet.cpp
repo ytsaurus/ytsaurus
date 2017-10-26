@@ -394,11 +394,6 @@ void TTablet::SetStoreManager(IStoreManagerPtr storeManager)
     StoreManager_ = std::move(storeManager);
 }
 
-const TTabletPerformanceCountersPtr& TTablet::GetPerformanceCounters() const
-{
-    return PerformanceCounters_;
-}
-
 void TTablet::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -1081,8 +1076,6 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
 
 void TTablet::Initialize()
 {
-    PerformanceCounters_ = New<TTabletPerformanceCounters>();
-
     PhysicalSchema_ = IsReplicated() ? TableSchema_.ToReplicationLog() : TableSchema_;
 
     PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_);
@@ -1134,20 +1127,35 @@ void TTablet::Initialize()
 void TTablet::FillProfilerTags(const TCellId& cellId)
 {
     ProfilerTags_.clear();
-    if (!Config_->EnableProfiling) {
-        return;
-    }
     if (TablePath_.empty()) {
         LOG_WARNING("Table path is empty, profiling will be disabled (TabletId: %v, CellId: %v)",
             Id_,
             cellId);
         return;
     }
-    ProfilerTags_.assign({
-        // tablet_id must be the first. See tablet_profiling.cpp for details.
-        TProfileManager::Get()->RegisterTag("tablet_id", Id_),
-        TProfileManager::Get()->RegisterTag("cell_id", cellId),
-        TProfileManager::Get()->RegisterTag("table_path", TablePath_)});
+    if (Config_->EnableProfiling) {
+        ProfilerTags_.assign({
+            // tablet_id must be the first. See tablet_profiling.cpp for details.
+            TProfileManager::Get()->RegisterTag("tablet_id", Id_),
+            TProfileManager::Get()->RegisterTag("cell_id", cellId)});
+    }
+    ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag("table_path", TablePath_));
+
+    const auto& writerOptions = WriterOptions_;
+    TTagIdList tags;
+    tags.append({
+        TProfileManager::Get()->RegisterTag("account", writerOptions->Account),
+        TProfileManager::Get()->RegisterTag("medium", writerOptions->MediumName)});
+    auto storeFlushTags = tags;
+    auto compactionTags = tags;
+    auto partitioningTags = tags;
+    storeFlushTags.push_back(TProfileManager::Get()->RegisterTag("method", "store_flush"));
+    compactionTags.push_back(TProfileManager::Get()->RegisterTag("method", "compaction"));
+    partitioningTags.push_back(TProfileManager::Get()->RegisterTag("method", "partitioning"));
+
+    RuntimeData_->StoreFlushDiskPressureCounter = TSimpleCounter("/disk_bytes_written", storeFlushTags);
+    RuntimeData_->CompactionDiskPressureCounter = TSimpleCounter("/disk_bytes_written", compactionTags);
+    RuntimeData_->PartitioningDiskPressureCounter = TSimpleCounter("/disk_bytes_written", partitioningTags);
 }
 
 void TTablet::UpdateReplicaCounters()
@@ -1157,11 +1165,16 @@ void TTablet::UpdateReplicaCounters()
             return nullptr;
         }
         auto replicaTags = ProfilerTags_;
-        replicaTags.append({
-            // replica_id must be the last tag. See tablet_profiling.cpp for details.
-            TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
-            TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
-            TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
+        if (Config_->EnableProfiling) {
+            replicaTags.append({
+                // replica_id must be the last tag. See tablet_profiling.cpp for details.
+                TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
+                TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
+                TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
+        } else {
+            replicaTags.push_back(
+                TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()));
+        }
         return &GetGloballyCachedValue<TReplicaProfilerTrait>(replicaTags);
     };
     for (auto& replica : Replicas_) {

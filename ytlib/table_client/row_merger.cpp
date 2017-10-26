@@ -524,7 +524,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                 auto timestamp = (retentionBeginIt - 1)->Timestamp;
                 if (CurrentTimestamp_ < MaxTimestamp &&
                     timestamp < CurrentTimestamp_ &&
-                    TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MinDataTtl)
+                    TimestampDiffToDuration(timestamp, CurrentTimestamp_).first >= Config_->MinDataTtl)
                 {
                     break;
                 }

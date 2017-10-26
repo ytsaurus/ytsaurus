@@ -34,7 +34,10 @@ TSessionBase::TSessionBase(
     , Options_(options)
     , Location_(location)
     , Lease_(lease)
-    , WriteInvoker_(CreateSerializedInvoker(Location_->GetWritePoolInvoker()))
+    , WriteInvoker_(CreateSerializedInvoker(
+        CreateFixedPriorityInvoker(
+            Location_->GetWritePoolInvoker(),
+            options.WorkloadDescriptor.GetPriority())))
     , Logger(DataNodeLogger)
     , Profiler(location->GetProfiler())
 {

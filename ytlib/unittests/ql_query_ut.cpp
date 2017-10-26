@@ -33,6 +33,8 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
+#include <yt/core/ytree/convert.h>
+
 #include <tuple>
 
 // Tests:
@@ -50,6 +52,8 @@ namespace {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NYPath;
+using namespace NYTree;
+using namespace NYson;
 
 using NChunkClient::NProto::TDataStatistics;
 
@@ -133,7 +137,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
 
     ExpectPrepareThrowsWithDiagnostics(
         query,
-        ContainsRegex("Plan fragment depth limit exceeded"));
+        ContainsRegex("Maximum expression depth exceeded"));
 }
 
 TEST_F(TQueryPrepareTest, BigQuery)
@@ -615,9 +619,36 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
 {
     return [MOVE(expectedResult)] (TRange<TRow> result, const TTableSchema& tableSchema) {
         EXPECT_EQ(expectedResult.size(), result.Size());
+        if (expectedResult.size() != result.Size()) {
+            return;
+        }
 
         for (int i = 0; i < expectedResult.size(); ++i) {
-            EXPECT_EQ(expectedResult[i], result[i]);
+            auto expectedRow = expectedResult[i];
+            auto row = result[i];
+            EXPECT_EQ(expectedRow.GetCount(), row.GetCount());
+            if (expectedRow.GetCount() != row.GetCount()) {
+                continue;
+            }
+            for (int j = 0; j < expectedRow.GetCount(); ++j) {
+                const auto& expectedValue = expectedRow[j];
+                const auto& value = row[j];
+                EXPECT_EQ(expectedValue.Type, value.Type);
+                if (expectedValue.Type != value.Type) {
+                    continue;
+                }
+                if (expectedValue.Type == EValueType::Any) {
+                    // Slow path.
+                    auto expectedYson = TYsonString(TString(expectedValue.Data.String, expectedValue.Length));
+                    auto expectedStableYson = ConvertToYsonStringStable(ConvertToNode(expectedYson));
+                    auto yson = TYsonString(TString(value.Data.String, value.Length));
+                    auto stableYson = ConvertToYsonStringStable(ConvertToNode(yson));
+                    EXPECT_EQ(expectedStableYson, stableYson);
+                } else {
+                    // Fast path.
+                    EXPECT_EQ(expectedValue, value);
+                }
+            }
         }
     };
 }
@@ -751,9 +782,12 @@ protected:
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
-        std::vector<std::vector<TString>> owningSources(1, owningSource);
-        std::map<TString, TDataSplit> dataSplits;
-        dataSplits["//t"] = dataSplit;
+        std::vector<std::vector<TString>> owningSources = {
+            owningSource
+        };
+        std::map<TString, TDataSplit> dataSplits = {
+            {"//t", dataSplit}
+        };
 
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -799,9 +833,12 @@ protected:
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
-        std::vector<std::vector<TString>> owningSources(1, owningSource);
-        std::map<TString, TDataSplit> dataSplits;
-        dataSplits["//t"] = dataSplit;
+        std::vector<std::vector<TString>> owningSources = {
+            owningSource
+        };
+        std::map<TString, TDataSplit> dataSplits = {
+            {"//t", dataSplit}
+        };
 
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -854,7 +891,8 @@ protected:
                 return [&, rows, subquery, joinClause] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer)
                 mutable {
                     TDataRanges dataSource;
-                    std::tie(subquery, dataSource) = GetForeignQuery(
+                    TQueryPtr preparedSubquery;
+                    std::tie(preparedSubquery, dataSource) = GetForeignQuery(
                         subquery,
                         joinClause,
                         std::move(keys),
@@ -867,7 +905,7 @@ protected:
                         FunctionProfilers_,
                         AggregateProfilers_,
                         failureLocation,
-                        subquery,
+                        preparedSubquery,
                         pipe->GetWriter(),
                         options);
 
@@ -1180,6 +1218,38 @@ TEST_F(TQueryEvaluateTest, SimpleTransform2)
 
     Evaluate(
         "transform((a, b), ((4.0, 'p'), (-10, 's')), (13, 17)) as x FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, SimpleTransformWithDefault)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String}
+    });
+
+    std::vector<TString> source = {
+        "a=4;b=p",
+        "a=-10;b=q",
+        "a=-10;b=s",
+        "a=15"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=13",
+        "x=-9",
+        "x=17",
+        "x=16",
+    }, resultSplit);
+
+    Evaluate(
+        "transform((a, b), ((4.0, 'p'), (-10, 's')), (13, 17), a + 1) as x FROM [//t]",
         split,
         source,
         ResultMatcher(result));
@@ -2367,15 +2437,15 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
     });
 
     auto result = YsonToRows({
-        "x=3",
-        "x=1"
+        "x=1",
+        "x=3"
     }, resultSplit);
 
     Evaluate(
         "a as x FROM [//left] join [//right] using a",
         splits,
         sources,
-        ResultMatcher(result),
+        OrderedResultMatcher(result, {"x"}),
         std::numeric_limits<i64>::max(), 4);
 
     result = YsonToRows({
@@ -2762,27 +2832,27 @@ TEST_F(TQueryEvaluateTest, TestPartialSortMergeJoin)
     });
 
     auto result = YsonToRows({
-        "a=1;b=1;c=3 ;d=1;e=1;f=3 ",
         "a=1;b=2;c=1 ;d=1;e=2;f=1 ",
         "a=1;b=3;c=2 ;d=1;e=3;f=2 ",
+        "a=1;b=1;c=3 ;d=1;e=1;f=3 ",
         "a=1;b=4;c=4 ;d=1;e=4;f=4 ",
+        "a=2;b=4;c=5 ;d=2;e=4;f=5 ",
+        "a=2;b=3;c=6 ;d=2;e=3;f=6 ",
         "a=2;b=1;c=7 ;d=2;e=1;f=7 ",
         "a=2;b=2;c=8 ;d=2;e=2;f=8 ",
-        "a=2;b=3;c=6 ;d=2;e=3;f=6 ",
-        "a=2;b=4;c=5 ;d=2;e=4;f=5 ",
         "a=3;b=1;c=9 ;d=3;e=1;f=9 ",
-        "a=3;b=2;c=12;d=3;e=2;f=12",
-        "a=3;b=3;c=11;d=3;e=3;f=11",
         "a=3;b=4;c=10;d=3;e=4;f=10",
-        "a=4;b=7;c=14;d=4;e=7;f=14",
+        "a=3;b=3;c=11;d=3;e=3;f=11",
+        "a=3;b=2;c=12;d=3;e=2;f=12",
         "a=4;b=8;c=13;d=4;e=8;f=13",
+        "a=4;b=7;c=14;d=4;e=7;f=14",
     }, resultSplit);
 
     {
         auto query = Evaluate("a, b, c, d, e, f FROM [//left] join [//right] on (a, b) = (d, e)",
             splits,
             sources,
-            ResultMatcher(result));
+            OrderedResultMatcher(result, {"c"}));
 
         EXPECT_EQ(query->JoinClauses.size(), 1);
         const auto& joinClauses = query->JoinClauses;
@@ -2818,7 +2888,7 @@ TEST_F(TQueryEvaluateTest, TestPartialSortMergeJoin)
         auto query = Evaluate("a, b, c, d, e, f FROM [//left] join [//right] on (a, b) = (d, e)",
             splits,
             sources,
-            ResultMatcher(result));
+            OrderedResultMatcher(result, {"c"}));
 
         EXPECT_EQ(query->JoinClauses.size(), 1);
         const auto& joinClauses = query->JoinClauses;
@@ -4363,7 +4433,6 @@ TEST_F(TQueryEvaluateTest, TestRegexEscape)
     SUCCEED();
 }
 
-
 TEST_F(TQueryEvaluateTest, TestAverageAgg)
 {
     auto split = MakeSplit({
@@ -4565,6 +4634,61 @@ TEST_F(TQueryEvaluateTest, TestUdfException)
     }, resultSplit);
 
     EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source, EFailureLocation::Execution);
+}
+
+TEST_F(TQueryEvaluateTest, TestMakeMapSuccess)
+{
+    auto split = MakeSplit({
+        {"v_any", EValueType::Any},
+        {"v_null", EValueType::Any}
+    });
+
+    std::vector<TString> source = {
+        "v_any={hello=world}"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Any},
+    });
+
+    auto result = YsonToRows({
+        "x={"
+        "  k_int=1;"
+        "  k_uint=2u;"
+        "  k_bool=%true;"
+        "  k_double=3.14;"
+        "  k_any={hello=world};"
+        "  k_null=#;"
+        "}",
+    }, resultSplit);
+
+    Evaluate(
+        "make_map("
+        "  \"k_int\", 1, "
+        "  \"k_uint\", 2u, "
+        "  \"k_bool\", %true, "
+        "  \"k_double\", 3.14, "
+        "  \"k_any\", v_any, "
+        "  \"k_null\", v_null"
+        ") as x FROM [//t]", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, TestMakeMapFailure)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Any}
+    });
+
+    std::vector<TString> source = {
+        "a=1"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Any},
+    });
+
+    EvaluateExpectingError("make_map(\"a\") as x FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("make_map(1, 1) as x FROM [//t]", split, source, EFailureLocation::Execution);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

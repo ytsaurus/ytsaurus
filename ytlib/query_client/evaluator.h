@@ -13,6 +13,7 @@ class TEvaluator
 {
 public:
     explicit TEvaluator(TExecutorConfigPtr config);
+    TEvaluator(TExecutorConfigPtr config, const TString& profilingPath);
     ~TEvaluator();
 
     TQueryStatistics RunWithExecutor(

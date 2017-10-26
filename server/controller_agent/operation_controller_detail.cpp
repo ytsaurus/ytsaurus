@@ -1,4 +1,5 @@
 #include "operation_controller_detail.h"
+
 #include "auto_merge_task.h"
 #include "intermediate_chunk_scraper.h"
 #include "job_info.h"
@@ -205,7 +206,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Invoker(Host->CreateOperationControllerInvoker())
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
-    , JobCounter(0)
+    , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
@@ -654,7 +655,8 @@ void TOperationControllerBase::SafeMaterialize()
             JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
         }
 
-        State = EControllerState::Running;
+        auto expectedState = EControllerState::Preparing;
+        State.compare_exchange_strong(expectedState, EControllerState::Running);
 
         LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
@@ -704,6 +706,10 @@ void TOperationControllerBase::Revive()
 
     ReinstallLivePreview();
 
+    if (!Config->EnableJobRevival) {
+        AbortAllJoblets();
+    }
+
     // To prevent operation failure on startup if available nodes are missing.
     AvaialableNodesLastSeenTime_ = GetCpuInstant();
 
@@ -715,6 +721,16 @@ void TOperationControllerBase::Revive()
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
 
     State = EControllerState::Running;
+}
+
+void TOperationControllerBase::AbortAllJoblets()
+{
+    for (const auto& pair : JobletMap) {
+        auto joblet = pair.second;
+        JobCounter->Aborted(1, EAbortReason::Scheduler);
+        joblet->Task->OnJobAborted(joblet, TAbortedJobSummary(pair.first, EAbortReason::Scheduler));
+    }
+    JobletMap.clear();
 }
 
 void TOperationControllerBase::InitializeTransactions()
@@ -1105,15 +1121,11 @@ void TOperationControllerBase::CommitCompletionTransaction()
 
 void TOperationControllerBase::SleepInStage(EDelayInsideOperationCommitStage desiredStage)
 {
-    auto delay = Spec_->TestingOperationOptions
-        ? Spec_->TestingOperationOptions->DelayInsideOperationCommit
-        : TDuration();
-    auto stage = Spec_->TestingOperationOptions
-        ? Spec_->TestingOperationOptions->DelayInsideOperationCommitStage
-        : EDelayInsideOperationCommitStage::Stage1;
+    auto delay = Spec_->TestingOperationOptions->DelayInsideOperationCommit;
+    auto stage = Spec_->TestingOperationOptions->DelayInsideOperationCommitStage;
 
-    if (delay && stage == desiredStage) {
-        WaitFor(TDelayedExecutor::MakeDelayed(delay));
+    if (delay && stage && *stage == desiredStage) {
+        WaitFor(TDelayedExecutor::MakeDelayed(*delay));
     }
 }
 
@@ -1544,10 +1556,10 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
-        jobSummary->UnreadInputDataSlices = ExtractInputDataSlices(*jobSummary);
+        ExtractInterruptDescriptor(*jobSummary);
     }
 
-    JobCounter.Completed(1, jobSummary->InterruptReason);
+    JobCounter->Completed(1, jobSummary->InterruptReason);
 
     auto joblet = GetJoblet(jobId);
 
@@ -1624,7 +1636,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     auto error = FromProto<TError>(result.error());
 
-    JobCounter.Failed(1);
+    JobCounter->Failed(1);
 
     auto joblet = GetJoblet(jobId);
 
@@ -1654,7 +1666,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
-    int failedJobCount = JobCounter.GetFailed();
+    int failedJobCount = JobCounter->GetFailed();
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (failedJobCount >= maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit exceeded")
@@ -1669,9 +1681,11 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     auto jobId = jobSummary->Id;
     auto abortReason = jobSummary->AbortReason;
 
-    JobCounter.Aborted(1, abortReason);
+    JobCounter->Aborted(1, abortReason);
 
     auto joblet = GetJoblet(jobId);
+
+    //DataFlowGraph_.OnJobAborted(joblet->JobType, abortReason);
 
     ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
     const auto& statistics = *jobSummary->Statistics;
@@ -1831,7 +1845,6 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
             fluent.Item("input_paths").Value(job->InputPaths);
         });
 }
-
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
     ELogEventType eventType,
@@ -2028,7 +2041,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
         completedJob->OutputCookie,
         completedJob->InputCookie);
 
-    JobCounter.Lost(1);
+    JobCounter->Lost(1);
     completedJob->Lost = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
     completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
@@ -2308,7 +2321,7 @@ TFuture<void> TOperationControllerBase::AnalyzeInputStatistics() const
 TFuture<void> TOperationControllerBase::AnalyzeIntermediateJobsStatistics() const
 {
     TError error;
-    if (JobCounter.GetLost() > 0) {
+    if (JobCounter->GetLost() > 0) {
         error = TError(
             "Some intermediate outputs were lost and will be regenerated; "
             "operation will take longer than usual");
@@ -2512,11 +2525,11 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
-    if (Spec_->TestingOperationOptions) {
+    if (Spec_->TestingOperationOptions->SchedulingDelay) {
         if (Spec_->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
-            WaitFor(TDelayedExecutor::MakeDelayed(Spec_->TestingOperationOptions->SchedulingDelay));
+            WaitFor(TDelayedExecutor::MakeDelayed(*Spec_->TestingOperationOptions->SchedulingDelay));
         } else {
-            Sleep(Spec_->TestingOperationOptions->SchedulingDelay);
+            Sleep(*Spec_->TestingOperationOptions->SchedulingDelay);
         }
     }
 
@@ -2527,7 +2540,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     auto scheduleJobResult = New<TScheduleJobResult>();
     DoScheduleJob(context.Get(), jobLimits, scheduleJobResult.Get());
     if (scheduleJobResult->JobStartRequest) {
-        JobCounter.Start(1);
+        JobCounter->Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
 
@@ -2575,9 +2588,9 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
     int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
     CachedPendingJobCount = newPendingJobCount;
 
-    int oldTotalJobCount = JobCounter.GetTotal();
-    JobCounter.Increment(task->GetTotalJobCountDelta());
-    int newTotalJobCount = JobCounter.GetTotal();
+    int oldTotalJobCount = JobCounter->GetTotal();
+    JobCounter->Increment(task->GetTotalJobCountDelta());
+    int newTotalJobCount = JobCounter->GetTotal();
 
     IncreaseNeededResources(task->GetTotalNeededResourcesDelta());
 
@@ -3025,7 +3038,7 @@ int TOperationControllerBase::GetTotalJobCount() const
         return 0;
     }
 
-    return JobCounter.GetTotal();
+    return JobCounter->GetTotal();
 }
 
 bool TOperationControllerBase::IsForgotten() const
@@ -3131,6 +3144,22 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     FlushOperationNode(/* checkFlushResult */ true);
 
     LogProgress(/* force */ true);
+
+    if (Config->TestingOptions->ValidateTotalJobCounterCorrectness) {
+        auto jobCounterRepresentation = ConvertToYsonString(JobCounter, EYsonFormat::Pretty);
+        auto totalJobCounterRepresentation = ConvertToYsonString(DataFlowGraph_.TotalJobCounter(), EYsonFormat::Pretty);
+        if (jobCounterRepresentation != totalJobCounterRepresentation) {
+            // For MR and Sort there the total job count behaves pretty strangely
+            // and sometimes simply doesn't work as it is supposed to.
+            auto logLevel = (OperationType == EOperationType::MapReduce || OperationType == EOperationType::Sort)
+                ? NLogging::ELogLevel::Warning
+                : NLogging::ELogLevel::Fatal;
+            LOG_EVENT(Logger, logLevel, "Data flow graph total job counter differs from the controller job counter "
+                "(DataFlowCounter: %qv, ControllerCounter: %qv)",
+                jobCounterRepresentation,
+                totalJobCounterRepresentation);
+        }
+    }
 
     Host->OnOperationCompleted(OperationId);
 }
@@ -4701,26 +4730,29 @@ void TOperationControllerBase::ReinstallUnreadInputDataSlices(
     Y_UNREACHABLE();
 }
 
-std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const
+void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
 {
     std::vector<TInputDataSlicePtr> dataSliceList;
 
     const auto& result = jobSummary.Result;
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+    std::vector<TDataSliceDescriptor> unreadDataSliceDescriptors;
+    std::vector<TDataSliceDescriptor> readDataSliceDescriptors;
     if (schedulerResultExt.unread_chunk_specs_size() > 0) {
         FromProto(
-            &dataSliceDescriptors,
+            &unreadDataSliceDescriptors,
             schedulerResultExt.unread_chunk_specs(),
-            schedulerResultExt.chunk_spec_count_per_data_slice());
-    } else if (schedulerResultExt.unread_input_data_slice_descriptors_size() > 0) {
-        // COMPAT(psushin).
-        dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(
-            schedulerResultExt.unread_input_data_slice_descriptors());
+            schedulerResultExt.chunk_spec_count_per_unread_data_slice());
+    }
+    if (schedulerResultExt.read_chunk_specs_size() > 0) {
+        FromProto(
+            &readDataSliceDescriptors,
+            schedulerResultExt.read_chunk_specs(),
+            schedulerResultExt.chunk_spec_count_per_read_data_slice());
     }
 
-    for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
+    auto extractDataSlice = [&] (const TDataSliceDescriptor& dataSliceDescriptor) {
         std::vector<TInputChunkSlicePtr> chunkSliceList;
         chunkSliceList.reserve(dataSliceDescriptor.ChunkSpecs.size());
         for (const auto& protoChunkSpec : dataSliceDescriptor.ChunkSpecs) {
@@ -4738,15 +4770,23 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
+        TInputDataSlicePtr dataSlice;
         if (InputTables[dataSliceDescriptor.GetDataSourceIndex()].IsDynamic) {
-            dataSliceList.emplace_back(CreateVersionedInputDataSlice(chunkSliceList));
+            dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
         } else {
             YCHECK(chunkSliceList.size() == 1);
-            dataSliceList.emplace_back(CreateUnversionedInputDataSlice(chunkSliceList[0]));
+            dataSlice = CreateUnversionedInputDataSlice(chunkSliceList[0]);
         }
-        dataSliceList.back()->Tag = dataSliceDescriptor.GetTag();
+        dataSlice->Tag = dataSliceDescriptor.GetTag();
+        return dataSlice;
+    };
+
+    for (const auto& dataSliceDescriptor : unreadDataSliceDescriptors) {
+        jobSummary.UnreadInputDataSlices.emplace_back(extractDataSlice(dataSliceDescriptor));
     }
-    return dataSliceList;
+    for (const auto& dataSliceDescriptor : readDataSliceDescriptors) {
+        jobSummary.ReadInputDataSlices.emplace_back(extractDataSlice(dataSliceDescriptor));
+    }
 }
 
 int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)
@@ -5241,6 +5281,9 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("count").Value(ScheduleJobStatistics_->Count)
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
+        .EndMap()
+        .Item("data_flow_graph").BeginMap()
+            .Do(BIND(&TDataFlowGraph::BuildYson, &DataFlowGraph_))
         .EndMap()
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
@@ -6203,6 +6246,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeJobSpecTemplates_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, JobSplitter_);
+    Persist(context, DataFlowGraph_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already intialized.
@@ -6298,6 +6342,11 @@ void TOperationControllerBase::UnstageChunkTreesNonRecursively(std::vector<TChun
     MasterConnector->AddChunksToUnstageList(std::move(chunkTreeIds));
 }
 
+TDataFlowGraph& TOperationControllerBase::DataFlowGraph()
+{
+    return DataFlowGraph_;
+}
+
 bool TOperationControllerBase::IsCompleted() const
 {
     for (const auto& task : AutoMergeTasks) {
@@ -6319,6 +6368,7 @@ NScheduler::TJobPtr TOperationControllerBase::BuildJobFromJoblet(const TJobletPt
         joblet->ResourceLimits,
         IsJobInterruptible());
     job->SetState(EJobState::Running);
+    job->SetRevived(true);
     job->RevivedNodeDescriptor() = joblet->NodeDescriptor;
     return job;
 }
@@ -6330,7 +6380,7 @@ TOperationControllerBase::TSink::TSink(TOperationControllerBase* controller, int
     , OutputTableIndex_(outputTableIndex)
 { }
 
-IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr stripe, TChunkStripeKey key)
+IChunkPoolInput::TCookie TOperationControllerBase::TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
     YCHECK(stripe->ChunkListId);
     auto& table = Controller_->OutputTables_[OutputTableIndex_];
@@ -6354,6 +6404,11 @@ IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr st
         key);
 
     return IChunkPoolInput::NullCookie;
+}
+
+IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr stripe)
+{
+    return AddWithKey(stripe, TChunkStripeKey());
 }
 
 void TOperationControllerBase::TSink::Suspend(TCookie cookie)

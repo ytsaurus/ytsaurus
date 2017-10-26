@@ -48,12 +48,20 @@ TString ToHex(const TString& data)
         EXPECT_TRUE(thrown); \
     } while (false);
 
-TEST(TProtobufYsonTest, YsonToProtobufSuccess)
-{
-    TString str;
-    StringOutputStream output(&str);
-    auto protobufWriter = CreateProtobufWriter(&output, ReflectProtobufMessageType<NYT::NProto::TMessage>());
+#define TEST_PROLOGUE(type) \
+    TString str; \
+    StringOutputStream output(&str); \
+    auto protobufWriter = CreateProtobufWriter(&output, ReflectProtobufMessageType<NYT::NProto::type>()); \
     BuildYsonFluently(protobufWriter.get())
+
+#define TEST_EPILOGUE() \
+    Cerr << ToHex(str) << Endl; \
+    NYT::NProto::TMessage message; \
+    EXPECT_TRUE(message.ParseFromArray(str.data(), str.length()));
+
+TEST(TYsonToProtobufYsonTest, Success)
+{
+    TEST_PROLOGUE(TMessage)
         .BeginMap()
             .Item("int32_field").Value(10000)
             .Item("uint32_field").Value(10000U)
@@ -93,11 +101,7 @@ TEST(TProtobufYsonTest, YsonToProtobufSuccess)
         .EndMap();
 
 
-    Cerr << ToHex(str) << Endl;
-
-    NYT::NProto::TMessage message;
-    EXPECT_TRUE(message.ParseFromArray(str.data(), str.length()));
-
+    TEST_EPILOGUE()
     EXPECT_EQ(10000, message.int32_field_xxx());
     EXPECT_EQ(10000U, message.uint32_field());
     EXPECT_EQ(10000, message.sint32_field());
@@ -134,13 +138,30 @@ TEST(TProtobufYsonTest, YsonToProtobufSuccess)
     EXPECT_EQ(654, message.repeated_nested_message().Get(1).int32_field());
 }
 
-#define TEST_PROLOGUE(type) \
-    TString str; \
-    StringOutputStream output(&str); \
-    auto protobufWriter = CreateProtobufWriter(&output, ReflectProtobufMessageType<NYT::NProto::type>()); \
-    BuildYsonFluently(protobufWriter.get())
+TEST(TYsonToProtobufTest, TypeConversions)
+{
+    TEST_PROLOGUE(TMessage)
+        .BeginMap()
+            .Item("int32_field").Value(10000U)
+            .Item("uint32_field").Value(10000)
+            .Item("sint32_field").Value(10000U)
+            .Item("int64_field").Value(10000U)
+            .Item("uint64_field").Value(10000)
+            .Item("fixed32_field").Value(10000)
+            .Item("fixed64_field").Value(10000)
+        .EndMap();
 
-TEST(TProtobufYsonTest, YsonToProtobufFailure)
+    TEST_EPILOGUE()
+    EXPECT_EQ(10000, message.int32_field_xxx());
+    EXPECT_EQ(10000U, message.uint32_field());
+    EXPECT_EQ(10000, message.sint32_field());
+    EXPECT_EQ(10000, message.int64_field());
+    EXPECT_EQ(10000U, message.uint64_field());
+    EXPECT_EQ(10000U, message.fixed32_field());
+    EXPECT_EQ(10000U, message.fixed64_field());
+}
+
+TEST(TYsonToProtobufTest, Failure)
 {
     EXPECT_YPATH({
         TEST_PROLOGUE(TMessage)
@@ -282,13 +303,126 @@ TEST(TProtobufYsonTest, YsonToProtobufFailure)
             .BeginMap()
             .EndMap();
     }, "/required_field");
+
+    // int32
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("int32_field").Value(10000000000)
+            .EndMap();
+    }, "/int32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("int32_field").Value(10000000000U)
+            .EndMap();
+    }, "/int32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("int32_field").Value(-10000000000)
+            .EndMap();
+    }, "/int32_field");
+
+    // sint32
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("sint32_field").Value(10000000000)
+            .EndMap();
+    }, "/sint32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("sint32_field").Value(10000000000U)
+            .EndMap();
+    }, "/sint32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("sint32_field").Value(-10000000000)
+            .EndMap();
+    }, "/sint32_field");
+
+    // uint32
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("uint32_field").Value(10000000000)
+            .EndMap();
+    }, "/uint32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("uint32_field").Value(10000000000U)
+            .EndMap();
+    }, "/uint32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("uint32_field").Value(-1)
+            .EndMap();
+    }, "/uint32_field");
+
+    // int32
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                  .Item("int64_field").Value(std::numeric_limits<ui64>::max())
+            .EndMap();
+    }, "/int64_field");
+
+    // uint64
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                  .Item("uint64_field").Value(-1)
+            .EndMap();
+    }, "/uint64_field");
+
+    // fixed32
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                  .Item("fixed32_field").Value(10000000000)
+            .EndMap();
+    }, "/fixed32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                  .Item("fixed32_field").Value(10000000000U)
+            .EndMap();
+    }, "/fixed32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                  .Item("fixed32_field").Value(-10000000000)
+            .EndMap();
+    }, "/fixed32_field");
+
+    // fixed64
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                  .Item("fixed64_field").Value(-1)
+            .EndMap();
+    }, "/fixed64_field");
 }
 
 #undef TEST_PROLOGUE
+#undef TEST_EPILOGUE
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TProtobufYsonTest, ProtobufToYsonSuccess)
+TEST(TProtobufToYsonTest, Success)
 {
     NYT::NProto::TMessage message;
     message.set_int32_field_xxx(10000);
@@ -376,7 +510,6 @@ TEST(TProtobufYsonTest, ProtobufToYsonSuccess)
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
 }
 
-
 #define TEST_PROLOGUE() \
     TString serialized; \
     StringOutputStream outputStream(&serialized); \
@@ -388,7 +521,7 @@ TEST(TProtobufYsonTest, ProtobufToYsonSuccess)
     ArrayInputStream inputStream(serialized.data(), serialized.length()); \
     ParseProtobuf(GetNullYsonConsumer(), &inputStream, ReflectProtobufMessageType<NYT::NProto::type>()); \
 
-TEST(TProtobufYsonTest, ProtobufToYsonFailure)
+TEST(TProtobufToYsonTest, Failure)
 {
     EXPECT_YPATH({
         TEST_PROLOGUE()

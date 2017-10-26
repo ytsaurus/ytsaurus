@@ -25,6 +25,8 @@
 #include <yt/core/misc/expiring_cache.h>
 #include <yt/core/misc/string.h>
 
+#include <yt/core/rpc/rpc.pb.h>
+
 #include <yt/core/ytree/ypath.pb.h>
 
 #include <util/datetime/base.h>
@@ -34,7 +36,6 @@ namespace NTabletClient {
 
 using namespace NConcurrency;
 using namespace NYTree;
-using namespace NYTree::NProto;
 using namespace NYPath;
 using namespace NRpc;
 using namespace NElection;
@@ -64,19 +65,21 @@ public:
         auto it = Map_.find(tabletInfo->TabletId);
         if (it != Map_.end()) {
             if (auto existingTabletInfo = it->second.Lock()) {
-                auto owners = std::move(tabletInfo->Owners);
-
-                for (const auto& owner : existingTabletInfo->Owners) {
-                    if (!owner.IsExpired()) {
-                        owners.push_back(owner);
+                auto copyOwners = [] (TTabletInfoPtr& tabletInfo, const auto& owners) {
+                    for (const auto& owner : owners) {
+                        if (!owner.IsExpired()) {
+                            tabletInfo->Owners.push_back(owner);
+                        }
                     }
-                }
+                };
 
                 if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
-                    tabletInfo.Swap(existingTabletInfo);
+                    auto owners = std::move(tabletInfo->Owners);
+                    *tabletInfo = *existingTabletInfo;
+                    copyOwners(tabletInfo, owners);
+                } else {
+                    copyOwners(tabletInfo, existingTabletInfo->Owners);
                 }
-
-                tabletInfo->Owners = std::move(owners);
             }
 
             it->second = MakeWeak(tabletInfo);
@@ -272,6 +275,14 @@ public:
                     }
                     auto tabletInfo = FindTablet(*tabletId);
                     if (tabletInfo) {
+                        LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, Owners:%v)",
+                            tabletInfo->TabletId,
+                            MakeFormattableRange(tabletInfo->Owners, [] (TStringBuilder* builder, const TWeakPtr<TTableMountInfo>& weakOwner) {
+                                if (auto owner = weakOwner.Lock()) {
+                                    FormatValue(builder, owner->Path, TStringBuf());
+                                }
+                            }));
+
                         LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
                         InvalidateTablet(tabletInfo);
                     }
@@ -304,9 +315,14 @@ private:
             path);
 
         auto req = TTableYPathProxy::GetMountInfo(path);
-        auto* cachingHeaderExt = req->Header().MutableExtension(TCachingHeaderExt::caching_header_ext);
+
+        auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
         cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
         cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
+
+        auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+        balancingHeaderExt->set_enable_stickness(true);
+        balancingHeaderExt->set_sticky_group_size(1);
 
         return ObjectProxy_.Execute(req).Apply(
             BIND([= , this_ = MakeStrong(this)] (const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError) {

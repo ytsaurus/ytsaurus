@@ -6,10 +6,11 @@
 #include "lazy_parser.h"
 #include "yson_lazy_map.h"
 #include "object_builder.h"
-
-#include <yt/ytlib/ypath/rich.h>
+#include "protobuf_descriptor_pool.h"
 
 #include <yt/core/ytree/convert.h>
+
+#include <yt/core/yson/protobuf_interop.h>
 
 #include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/blob.h>
@@ -17,10 +18,16 @@
 #include <contrib/libs/pycxx/Extensions.hxx>
 #include <contrib/libs/pycxx/Objects.hxx>
 
+#include <contrib/libs/protobuf/io/coded_stream.h>
+#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+
+#include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
+
 namespace NYT {
 namespace NPython {
 
 using namespace NYTree;
+using namespace NYson;
 
 static const int BufferSize = 1024 * 1024;
 
@@ -155,7 +162,12 @@ public:
     PyObject* iternext()
     {
         try {
-            auto item = Lexer_.NextItem();
+            TSharedRef item;
+
+            Py_BEGIN_ALLOW_THREADS
+            item = Lexer_.NextItem();
+            Py_END_ALLOW_THREADS
+
             if (!item) {
                 PyErr_SetNone(PyExc_StopIteration);
                 return 0;
@@ -270,17 +282,20 @@ public:
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();
         TLazyYsonIterator::InitType();
-        PyType_Ready(&TLazyYsonMapBaseType);
-        PyType_Ready(&TLazyYsonMapType);
+        PyType_Ready(TLazyYsonMapBaseType);
+        PyType_Ready(TLazyYsonMapType);
 
-        YsonLazyMapBaseClass = TPythonClassObject(&TLazyYsonMapBaseType);
-        YsonLazyMapClass = TPythonClassObject(&TLazyYsonMapType);
+        YsonLazyMapBaseClass = TPythonClassObject(TLazyYsonMapBaseType);
+        YsonLazyMapClass = TPythonClassObject(TLazyYsonMapType);
 
         add_keyword_method("load", &TYsonModule::Load, "Loads YSON from stream");
         add_keyword_method("loads", &TYsonModule::Loads, "Loads YSON from string");
 
         add_keyword_method("dump", &TYsonModule::Dump, "Dumps YSON to stream");
         add_keyword_method("dumps", &TYsonModule::Dumps, "Dumps YSON to string");
+
+        add_keyword_method("loads_proto", &TYsonModule::LoadsProto, "Loads proto message from yson string");
+        add_keyword_method("dumps_proto", &TYsonModule::DumpsProto, "Dumps proto message to yson string");
 
         initialize("Python bindings for YSON");
     }
@@ -339,6 +354,33 @@ public:
         } CATCH("Yson dumps failed");
 
         return Py::ConvertToPythonString(result);
+    }
+
+    Py::Object DumpsProto(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        auto protoObject = ExtractArgument(args, kwargs, "proto");
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            return DumpsProtoImpl(protoObject);
+        } CATCH("Yson dumps_proto failed");
+    }
+
+    Py::Object LoadsProto(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        auto stringObject = Py::Bytes(ExtractArgument(args, kwargs, "string"));
+        auto protoClassObject = Py::Callable(ExtractArgument(args, kwargs, "proto_class"));
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            return LoadsProtoImpl(stringObject, protoClassObject);
+        } CATCH("Yson loads_proto failed");
     }
 
     virtual ~TYsonModule()
@@ -597,6 +639,75 @@ private:
             bufferedOutputStream->Flush();
         }
     }
+
+    void RegisterFileDescriptor(Py::Object fileDescriptor)
+    {
+        auto name = ConvertStringObjectToString(GetAttr(fileDescriptor, "name"));
+        if (GetDescriptorPool()->FindFileByName(name)) {
+            return;
+        }
+
+        auto dependencies = GetAttr(fileDescriptor, "dependencies");
+        auto iterator = Py::Object(PyObject_GetIter(dependencies.ptr()), true);
+        while (auto* item = PyIter_Next(*iterator)) {
+            RegisterFileDescriptor(Py::Object(item, true));
+        }
+        if (PyErr_Occurred()) {
+            throw Py::Exception();
+        }
+
+        auto serializedFileDescriptor = ConvertStringObjectToString(GetAttr(fileDescriptor, "serialized_pb"));
+        ::google::protobuf::FileDescriptorProto fileDescriptorProto;
+        fileDescriptorProto.ParseFromArray(serializedFileDescriptor.begin(), serializedFileDescriptor.size());
+
+        auto result = GetDescriptorPool()->BuildFile(fileDescriptorProto);
+        YCHECK(result);
+    }
+
+    Py::Object DumpsProtoImpl(Py::Object protoObject)
+    {
+        auto serializeToString = Py::Callable(GetAttr(protoObject, "SerializeToString"));
+        auto serializedProto = Py::String(serializeToString.apply(Py::Tuple(), Py::Dict()));
+        auto serializedStringBuf = ConvertToStringBuf(serializedProto);
+
+        auto descriptorObject = GetAttr(protoObject, "DESCRIPTOR");
+        RegisterFileDescriptor(GetAttr(descriptorObject, "file"));
+
+        auto fullName = ConvertStringObjectToString(GetAttr(descriptorObject, "full_name"));
+        auto* descriptor = GetDescriptorPool()->FindMessageTypeByName(fullName);
+        auto* messageType = ReflectProtobufMessageType(descriptor);
+
+        ::google::protobuf::io::ArrayInputStream inputStream(serializedStringBuf.begin(), serializedStringBuf.size());
+
+        TString result;
+		TStringOutput outputStream(result);
+		TYsonWriter writer(&outputStream);
+		ParseProtobuf(&writer, &inputStream, messageType);
+
+        return Py::ConvertToPythonString(result);
+    }
+
+    Py::Object LoadsProtoImpl(Py::Object stringObject, Py::Object protoClassObject)
+    {
+        auto descriptorObject = GetAttr(protoClassObject, "DESCRIPTOR");
+        RegisterFileDescriptor(GetAttr(descriptorObject, "file"));
+
+        auto fullName = ConvertStringObjectToString(GetAttr(descriptorObject, "full_name"));
+        auto* descriptor = GetDescriptorPool()->FindMessageTypeByName(fullName);
+        auto* messageType = ReflectProtobufMessageType(descriptor);
+
+        TString result;
+        ::google::protobuf::io::StringOutputStream outputStream(&result);
+
+        auto writer = CreateProtobufWriter(&outputStream, messageType);
+
+        ParseYsonStringBuffer(ConvertToStringBuf(stringObject), EYsonType::Node, writer.get());
+
+        return Py::Callable(GetAttr(protoClassObject, "FromString")).apply(
+            Py::TupleN(Py::ConvertToPythonString(result)),
+            Py::Dict());
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

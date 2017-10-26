@@ -12,7 +12,7 @@
 namespace NYT {
 namespace NNet {
 
-using namespace NYT::NConcurrency;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

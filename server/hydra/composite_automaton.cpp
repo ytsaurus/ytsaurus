@@ -403,12 +403,8 @@ void TCompositeAutomaton::DoSaveSnapshot(
     ESyncStreamAdapterStrategy strategy,
     const std::function<void(TSaveContext&)>& callback)
 {
-    auto syncWriter = CreateSyncAdapter(writer, strategy);
-    auto checkpointableOutput = CreateCheckpointableOutputStream(syncWriter.get());
-    auto bufferedCheckpointableOutput = CreateBufferedCheckpointableOutputStream(
-        checkpointableOutput.get(),
-        SnapshotSaveBufferSize);
-    auto context = CreateSaveContext(bufferedCheckpointableOutput.get());
+    auto syncWriter = CreateBufferedCheckpointableSyncAdapter(writer, strategy, SnapshotSaveBufferSize);
+    auto context = CreateSaveContext(syncWriter.get());
     callback(*context);
 }
 
