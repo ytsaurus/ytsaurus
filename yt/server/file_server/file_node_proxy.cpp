@@ -8,12 +8,15 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
 
+#include <yt/ytlib/file_client/file_chunk_writer.h>
+
 namespace NYT {
 namespace NFileServer {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NCypressServer;
+using namespace NFileClient;
 using namespace NObjectServer;
 using namespace NYTree;
 using namespace NYson;
@@ -51,6 +54,26 @@ private:
         descriptors->push_back(TAttributeDescriptor("file_name")
             .SetCustom(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("md5")
+            .SetPresent(false)
+            .SetReplicated(true));
+    }
+
+    bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
+    {
+        const auto* node = GetThisImpl<TFileNode>();
+
+        if (key == "md5") {
+            auto hasher = node->GetMD5Hasher();
+            if (hasher) {
+                BuildYsonFluently(consumer)
+                    .Value(hasher->GetHexDigestLower());
+                return true;
+            }
+            return false;
+        }
+
+        return TBase::GetBuiltinAttribute(key, consumer);
     }
 
     virtual void ValidateCustomAttributeUpdate(
