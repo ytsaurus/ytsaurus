@@ -32,8 +32,8 @@ public:
     virtual TFuture<TAuthenticationResult> Authenticate(
         const TCookieCredentials& credentials) override
     {
-        auto sessionIdMD5 = TMD5Hasher().Append(credentials.SessionId).HexDigestUpper();
-        auto sslSessionIdMD5 = TMD5Hasher().Append(credentials.SslSessionId).HexDigestUpper();
+        auto sessionIdMD5 = TMD5Hasher().Append(credentials.SessionId).GetHexDigestUpper();
+        auto sslSessionIdMD5 = TMD5Hasher().Append(credentials.SslSessionId).GetHexDigestUpper();
         LOG_DEBUG(
             "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v)",
             sessionIdMD5,

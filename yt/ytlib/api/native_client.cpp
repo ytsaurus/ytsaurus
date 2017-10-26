@@ -26,6 +26,9 @@
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/file_client/file_chunk_writer.h>
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -85,6 +88,8 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/crypto/crypto.h>
+
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/helpers.h>
@@ -107,6 +112,7 @@ using namespace NYson;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NCypressClient;
+using namespace NFileClient;
 using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NTableClient;

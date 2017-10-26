@@ -33,7 +33,7 @@ public:
     {
         const auto& token = credentials.Token;
         const auto& userIP = credentials.UserIP;
-        auto tokenMD5 = TMD5Hasher().Append(token).HexDigestUpper();
+        auto tokenMD5 = TMD5Hasher().Append(token).GetHexDigestUpper();
         LOG_DEBUG(
             "Authenticating user via token (TokenMD5: %v, UserIP: %v)",
             tokenMD5,
