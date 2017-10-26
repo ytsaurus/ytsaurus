@@ -150,7 +150,7 @@ TString TNonOwningCGroup::Get(const TString& name) const
     TString result;
 #ifdef _linux_
     const auto path = GetPath(name);
-    result = TBufferedFileInput(path).ReadLine();
+    result = TFileInput(path).ReadLine();
 #endif
     return result;
 }

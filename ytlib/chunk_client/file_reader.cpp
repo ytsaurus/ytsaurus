@@ -194,7 +194,7 @@ TChunkMeta TFileReader::DoGetMeta(
     auto metaFileBlob = TSharedMutableRef::Allocate<TFileReaderMetaBufferTag>(metaFile.GetLength());
 
     NFS::ExpectIOErrors([&] () {
-        TBufferedFileInput metaFileInput(metaFile);
+        TFileInput metaFileInput(metaFile);
         metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
     });
 
