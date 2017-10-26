@@ -40,7 +40,7 @@ public class SelectRowsRequest {
     }
 
     public OptionalLong getInputRowsLimit() {
-        return OptionalLong.of(inputRowsLimit);
+        return inputRowsLimit == null ? OptionalLong.empty() : OptionalLong.of(inputRowsLimit);
     }
 
     public SelectRowsRequest setOutputRowsLimit(long outputRowsLimit) {
@@ -49,6 +49,6 @@ public class SelectRowsRequest {
     }
 
     public OptionalLong getOutputRowsLimit() {
-        return OptionalLong.of(outputRowsLimit);
+        return outputRowsLimit == null ? OptionalLong.empty() : OptionalLong.of(outputRowsLimit);
     }
 }
