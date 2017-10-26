@@ -275,7 +275,7 @@ void CreateTorrentsAndDirs(
         TBencodeWriter torrentBencode;
         torrent.Save(&torrentBencode);
 
-        skynetFile.InfoHash = TSHA1Hasher().Append(torrentBencode.Finish()).HexDigestLower();
+        skynetFile.InfoHash = TSHA1Hasher().Append(torrentBencode.Finish()).GetHexDigestLower();
 
         (*torrents)[skynetFile.InfoHash] = std::move(torrent);
     }
@@ -291,8 +291,8 @@ TString ComputeRbTorrentId(const TString& headBinary)
 
     for (size_t offset = 0; offset < headBinary.Size(); offset += SkynetPieceSize) {
         auto pieceHash = TSHA1Hasher()
-            .Append(TStringBuf(headBinary).SubStr(offset, SkynetPieceSize))
-            .Digest();
+                .Append(TStringBuf(headBinary).SubStr(offset, SkynetPieceSize))
+                .GetDigest();
 
         piecesOut.Write(pieceHash.data(), pieceHash.size());
     }
@@ -300,7 +300,7 @@ TString ComputeRbTorrentId(const TString& headBinary)
     TBencodeWriter metaBencode;
     Serialize(metaTorrent, &metaBencode);
 
-    return Format("rbtorrent:%v", TSHA1Hasher().Append(metaBencode.Finish()).HexDigestLower());
+    return Format("rbtorrent:%v", TSHA1Hasher().Append(metaBencode.Finish()).GetHexDigestLower());
 }
 
 TSkynetRbTorrent GenerateResource(const TSkynetShareMeta& meta)

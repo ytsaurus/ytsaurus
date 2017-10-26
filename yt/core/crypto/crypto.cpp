@@ -30,33 +30,49 @@ static_assert(
 
 TMD5Hasher::TMD5Hasher()
 {
-    MD5_Init(reinterpret_cast<MD5_CTX*>(CtxStorage_.data()));
+    MD5_Init(reinterpret_cast<MD5_CTX*>(State_.data()));
+}
+
+TMD5Hasher::TMD5Hasher(const TMD5State& data)
+{
+    State_ = data;
 }
 
 TMD5Hasher& TMD5Hasher::Append(TStringBuf data)
 {
-    MD5_Update(reinterpret_cast<MD5_CTX*>(CtxStorage_.data()), data.Data(), data.Size());
+    MD5_Update(reinterpret_cast<MD5_CTX*>(State_.data()), data.Data(), data.Size());
     return *this;
 }
 
-TMD5Hash TMD5Hasher::Digest()
+TMD5Hasher& TMD5Hasher::Append(const TRef& data)
+{
+    MD5_Update(reinterpret_cast<MD5_CTX*>(State_.data()), data.Begin(), data.Size());
+    return *this;
+}
+
+TMD5Hash TMD5Hasher::GetDigest()
 {
     TMD5Hash hash;
     MD5_Final(
         reinterpret_cast<unsigned char*>(hash.data()),
-        reinterpret_cast<MD5_CTX*>(CtxStorage_.data()));
+        reinterpret_cast<MD5_CTX*>(State_.data()));
     return hash;
 }
 
-TString TMD5Hasher::HexDigestUpper()
+TString TMD5Hasher::GetHexDigestUpper()
 {
-    auto md5 = Digest();
+    auto md5 = GetDigest();
     return HexEncode(md5.data(), md5.size());
 }
 
-TString TMD5Hasher::HexDigestLower()
+TString TMD5Hasher::GetHexDigestLower()
 {
-    return to_lower(HexDigestUpper());
+    return to_lower(GetHexDigestUpper());
+}
+
+const TMD5State& TMD5Hasher::GetState() const
+{
+    return State_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +105,7 @@ TSHA1Hasher& TSHA1Hasher::Append(TStringBuf data)
     return *this;
 }
 
-TSHA1Hash TSHA1Hasher::Digest()
+TSHA1Hash TSHA1Hasher::GetDigest()
 {
     TSHA1Hash hash;
     SHA1_Final(
@@ -98,16 +114,47 @@ TSHA1Hash TSHA1Hasher::Digest()
     return hash;
 }
 
-TString TSHA1Hasher::HexDigestUpper()
+TString TSHA1Hasher::GetHexDigestUpper()
 {
-    auto sha1 = Digest();
+    auto sha1 = GetDigest();
     return HexEncode(sha1.data(), sha1.size());
 }
 
-TString TSHA1Hasher::HexDigestLower()
+TString TSHA1Hasher::GetHexDigestLower()
 {
-    return to_lower(HexDigestUpper());
+    return to_lower(GetHexDigestUpper());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(NProto::TMD5Hasher* protoHasher, const TNullable<NYT::TMD5Hasher>& hasher)
+{
+    auto* outputBytes = protoHasher->mutable_state();
+    outputBytes->clear();
+    if (!hasher) {
+        return;
+    }
+
+    const auto& state = hasher->GetState();
+    outputBytes->assign(state.begin(), state.end());
+}
+
+void FromProto(TNullable<NYT::TMD5Hasher>* hasher, const NProto::TMD5Hasher& protoHasher)
+{
+    const auto& inputBytes = protoHasher.state();
+    if (inputBytes.empty()) {
+        return;
+    }
+
+    TMD5State state;
+    std::copy(inputBytes.begin(), inputBytes.end(), state.data());
+
+    hasher->Emplace(state);
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

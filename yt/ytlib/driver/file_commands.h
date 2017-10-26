@@ -33,6 +33,7 @@ public:
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr FileWriter;
+    bool ComputeMD5;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
