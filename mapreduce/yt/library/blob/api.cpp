@@ -95,7 +95,7 @@ void NYtBlob::Download(
     if (storeEntireFileInMemoryWhileDownloading) {
         TBufferOutput b;
         Download(b, filename, table, client);
-        TFileOutput out{path};
+        TUnbufferedFileOutput out{path};
         out.Write(b.Buffer().Data(), b.Buffer().Size());
         return;
     }
