@@ -24,7 +24,7 @@ public:
 private:
     struct TStream {
         TFile FdFile;
-        TFileOutput FdOutput;
+        TUnbufferedFileOutput FdOutput;
         TBufferedOutput BufferedOutput;
 
         explicit TStream(int fd);

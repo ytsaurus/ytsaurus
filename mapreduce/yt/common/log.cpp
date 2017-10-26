@@ -120,7 +120,7 @@ public:
     }
 
 private:
-    TFileOutput Stream_;
+    TUnbufferedFileOutput Stream_;
 };
 
 ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const TString& path, bool append)

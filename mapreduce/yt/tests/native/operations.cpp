@@ -764,7 +764,7 @@ YT_TEST(TOperationWith, LocalFile)
     WriteInput();
     TString localName("local_file");
     {
-        TFileOutput stream(localName);
+        TUnbufferedFileOutput stream(localName);
         stream << "file content" << Endl;
     }
 
