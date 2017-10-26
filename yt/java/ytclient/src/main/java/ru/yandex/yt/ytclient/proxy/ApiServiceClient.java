@@ -204,9 +204,22 @@ public class ApiServiceClient {
     }
 
     public CompletableFuture<UnversionedRowset> selectRows(String query) {
+        return selectRows(SelectRowsRequest.of(query));
+    }
+
+    public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
         RpcClientRequestBuilder<TReqSelectRows.Builder, RpcClientResponse<TRspSelectRows>> builder =
                 service.selectRows();
-        builder.body().setQuery(query);
+        builder.body().setQuery(request.getQuery());
+        if (request.getTimestamp().isPresent()) {
+            builder.body().setTimestamp(request.getTimestamp().get().getValue());
+        }
+        if (request.getInputRowsLimit().isPresent()) {
+            builder.body().setInputRowLimit(request.getInputRowsLimit().getAsLong());
+        }
+        if (request.getOutputRowsLimit().isPresent()) {
+            builder.body().setOutputRowLimit(request.getOutputRowsLimit().getAsLong());
+        }
         return handleHeavyResponse(builder.invoke(), response -> {
             logger.trace("SelectRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
             return ApiServiceUtil
@@ -219,7 +232,7 @@ public class ApiServiceClient {
                 service.modifyRows();
         builder.body().setTransactionId(transactionId.toProto());
         builder.body().setPath(request.getPath());
-        if (request.getRequireSyncReplica().isPresent()){
+        if (request.getRequireSyncReplica().isPresent()) {
             builder.body().setRequireSyncReplica(request.getRequireSyncReplica().get());
         }
         builder.body().addAllRowModificationTypes(request.getRowModificationTypes());

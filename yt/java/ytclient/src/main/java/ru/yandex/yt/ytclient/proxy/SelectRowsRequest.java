@@ -1,0 +1,54 @@
+package ru.yandex.yt.ytclient.proxy;
+
+import java.time.Duration;
+import java.util.Optional;
+import java.util.OptionalLong;
+
+import ru.yandex.yt.ytclient.misc.YtTimestamp;
+
+public class SelectRowsRequest {
+    private final String query;
+    private YtTimestamp timestamp;
+    private Long inputRowsLimit;
+    private Long outputRowsLimit;
+    private Duration timeout;
+
+    private SelectRowsRequest(String query) {
+        this.query = query;
+    }
+
+    public static SelectRowsRequest of(String query) {
+        return new SelectRowsRequest(query);
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
+    public SelectRowsRequest setTimestamp(YtTimestamp timestamp) {
+        this.timestamp = timestamp;
+        return this;
+    }
+
+    public Optional<YtTimestamp> getTimestamp() {
+        return Optional.ofNullable(timestamp);
+    }
+
+    public SelectRowsRequest setInputRowsLimit(long inputRowsLimit) {
+        this.inputRowsLimit = inputRowsLimit;
+        return this;
+    }
+
+    public OptionalLong getInputRowsLimit() {
+        return OptionalLong.of(inputRowsLimit);
+    }
+
+    public SelectRowsRequest setOutputRowsLimit(long outputRowsLimit) {
+        this.outputRowsLimit = outputRowsLimit;
+        return this;
+    }
+
+    public OptionalLong getOutputRowsLimit() {
+        return OptionalLong.of(outputRowsLimit);
+    }
+}

@@ -41,7 +41,7 @@ public class ModifyRowsRequest {
         return Collections.unmodifiableList(rowModificationTypes);
     }
 
-    public ModifyRowsRequest withRequireSyncReplica(boolean requireSyncReplica) {
+    public ModifyRowsRequest setRequireSyncReplica(boolean requireSyncReplica) {
         this.requireSyncReplica = requireSyncReplica;
         return this;
     }
