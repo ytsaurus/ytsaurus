@@ -910,7 +910,7 @@ public:
     void ChangeTabletActionState(TTabletAction* action, ETabletActionState state, bool recursive = true)
     {
         action->SetState(state);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %v)",
             action->GetId(),
             state);
         if (recursive) {
