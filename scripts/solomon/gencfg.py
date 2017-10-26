@@ -435,8 +435,6 @@ def update_tablet_nodes(token, cluster, yes):
     cluster_solomon = "yt_%s_tablet_nodes" % cluster
     resource = Resource("/projects/yt/clusters/%s" % cluster_solomon, token)
     resource.load()
-    print resource.remote
-    print resource.remote["hosts"]
     nodes = yt.get("//sys/nodes", attributes=["tablet_slots"])
     tablet_nodes = []
     for node, attributes in nodes.items():
@@ -454,7 +452,6 @@ def update_tablet_nodes(token, cluster, yes):
     for number in node_numbers:
         pattern_range += " %s-%s" % (number, number)
     pattern_range = pattern_range[1:]
-    print pattern_range
     resource.local["hosts"][0]["ranges"] = pattern_range
     resource.save(dry_run=(not yes))
 
