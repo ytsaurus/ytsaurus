@@ -52,7 +52,6 @@ class TUnorderedOperationControllerBase
     : public TOperationControllerBase
 {
 public:
-
     class TUnorderedTaskBase
         : public TTask
     {
@@ -143,11 +142,6 @@ public:
                 Controller->UnorderedPool->GetApproximateStripeStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
-        }
-
-        virtual bool IsIntermediateOutput() const override
-        {
-            return false;
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -374,7 +368,6 @@ protected:
                 }
                 if (requiresAutoMerge) {
                     UnorderedTask = New<TAutoMergeableUnorderedTask>(this, std::move(edgeDescriptors));
-                    RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, Spec->JobProxyMemoryDigest);
                 } else {
                     UnorderedTask = New<TUnorderedTask>(this, std::move(edgeDescriptors));
                 }
@@ -411,13 +404,13 @@ protected:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
             "UnavailableInputChunks: %v",
-            JobCounter.GetTotal(),
-            JobCounter.GetRunning(),
-            JobCounter.GetCompletedTotal(),
+            JobCounter->GetTotal(),
+            JobCounter->GetRunning(),
+            JobCounter->GetCompletedTotal(),
             GetPendingJobCount(),
-            JobCounter.GetFailed(),
-            JobCounter.GetAbortedTotal(),
-            JobCounter.GetInterruptedTotal(),
+            JobCounter->GetFailed(),
+            JobCounter->GetAbortedTotal(),
+            JobCounter->GetInterruptedTotal(),
             GetUnavailableInputChunkCount());
     }
 
@@ -501,6 +494,9 @@ public:
     {
         RegisterJobProxyMemoryDigest(EJobType::Map, spec->JobProxyMemoryDigest);
         RegisterUserJobMemoryDigest(EJobType::Map, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
+        if (Spec->AutoMerge->Mode != EAutoMergeMode::Disabled) {
+            RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, Spec->JobProxyMemoryDigest);
+        }
     }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
@@ -661,8 +657,8 @@ private:
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         return
             !IsExplicitJobCount &&
-            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size() &&
-            2 * Options->MaxJobCount > JobCounter.GetTotal() &&
+            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+            2 * Options->MaxJobCount > JobCounter->GetTotal() &&
             TOperationControllerBase::IsJobInterruptible();
     }
 };

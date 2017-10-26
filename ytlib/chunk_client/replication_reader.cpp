@@ -684,7 +684,7 @@ protected:
             if (!address) {
                 RegisterError(TError(
                     NNodeTrackerClient::EErrorCode::NoSuchNetwork,
-                    "Cannot find %v address for seed %v",
+                    "Cannot find any of %v addresses for seed %v",
                     Networks_,
                     descriptor.GetDefaultAddress()));
                 OnSessionFailed();

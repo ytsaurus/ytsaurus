@@ -35,6 +35,20 @@ const TDataSliceDescriptor& GetIncompatibleDataSliceDescriptor();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TInterruptDescriptor
+{
+    std::vector<TDataSliceDescriptor> UnreadDataSliceDescriptors;
+    std::vector<TDataSliceDescriptor> ReadDataSliceDescriptors;
+
+    void MergeFrom(TInterruptDescriptor&& source);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MergeInterruptDescriptors(TInterruptDescriptor* source, TInterruptDescriptor&& target);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Deprecated.
 void ToProto(
     NProto::TDataSliceDescriptor* protoDataSliceDescriptor,

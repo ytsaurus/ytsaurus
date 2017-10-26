@@ -27,7 +27,30 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategyConfig
+class TFairShareStrategyOperationControllerConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Limit on the number of concurrent calls to ScheduleJob of single controller.
+    int MaxConcurrentControllerScheduleJobCalls;
+
+    //! Maximum allowed time for single job scheduling.
+    TDuration ScheduleJobTimeLimit;
+
+    //! Backoff time after controller schedule job failure.
+    TDuration ScheduleJobFailBackoffTime;
+
+    //! Backoff between schedule job statistics logging.
+    TDuration ScheduleJobStatisticsLogBackoff;
+
+    TFairShareStrategyOperationControllerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareStrategyTreeConfig
     : virtual public NYTree::TYsonSerializable
 {
 public:
@@ -40,16 +63,8 @@ public:
     TDuration FairSharePreemptionTimeoutLimit;
     double FairShareStarvationToleranceLimit;
 
-    TDuration FairShareUpdatePeriod;
-    TDuration FairShareProfilingPeriod;
-    TDuration FairShareLogPeriod;
-
     //! Any operation with less than this number of running jobs cannot be preempted.
     int MaxUnpreemptableRunningJobCount;
-
-    //! Limit on number of operations in cluster.
-    int MaxRunningOperationCount;
-    int MaxOperationCount;
 
     //! Limit on number of operations in pool.
     int MaxOperationCountPerPool;
@@ -68,35 +83,16 @@ public:
     // discounted proportionally to this coefficient.
     double JobCountPreemptionTimeoutCoefficient;
 
-    //! Limit on the number of concurrent calls to ScheduleJob of single controller.
-    int MaxConcurrentControllerScheduleJobCalls;
-
-    //! Maximum allowed time for single job scheduling.
-    TDuration ControllerScheduleJobTimeLimit;
-
-    //! Backoff time after controller schedule job failure.
-    TDuration ControllerScheduleJobFailBackoffTime;
-
-    //! Backoff between schedule job statistics logging.
-    TDuration ScheduleJobStatisticsLogBackoff;
-
     //! Thresholds to partition jobs of operation
     //! to preemptable, aggressively preemptable and non-preemptable lists.
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
-
-    //! Allow failing a controller by passing testing option `controller_failure`
-    //! in operation spec. Used only for testing purposes.
-    bool EnableControllerFailureSpecOption;
 
     //! To investigate CPU load of node shard threads.
     bool EnableSchedulingTags;
 
     //! Backoff for printing tree scheduling info in heartbeat.
     TDuration HeartbeatTreeSchedulingInfoLogBackoff;
-
-    //! How often min needed resources for jobs are retrieved from controller.
-    TDuration MinNeededResourcesUpdatePeriod;
 
     //! Maximum number of ephemeral pools that can be created by user.
     int MaxEphemeralPoolsPerUser;
@@ -110,6 +106,36 @@ public:
 
     //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
     double ThresholdToEnableMaxPossibleUsageRegularization;
+
+    //! Limit on number of operations in tree.
+    int MaxRunningOperationCount;
+    int MaxOperationCount;
+
+    //! Delay before starting considering total resource limits after scheduler connection.
+    TDuration TotalResourceLimitsConsiderDelay;
+
+    //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
+    TDuration PreemptiveSchedulingBackoff;
+
+    TFairShareStrategyTreeConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyTreeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareStrategyConfig
+    : public TFairShareStrategyOperationControllerConfig
+    , public TFairShareStrategyTreeConfig
+{
+public:
+    //! How often to update, log, profile fair share in fair share trees.
+    TDuration FairShareUpdatePeriod;
+    TDuration FairShareProfilingPeriod;
+    TDuration FairShareLogPeriod;
+
+    //! How often min needed resources for jobs are retrieved from controller.
+    TDuration MinNeededResourcesUpdatePeriod;
 
     TFairShareStrategyConfig();
 };
@@ -354,6 +380,9 @@ public:
     // Testing option that enables sleeping between intermediate and final states of operation.
     TNullable<TDuration> FinishOperationTransitionDelay;
 
+    //! Check that controller job counter agrees with the total job counter in data flow graph.
+    bool ValidateTotalJobCounterCorrectness;
+
     TTestingOptions();
 };
 
@@ -432,6 +461,8 @@ public:
     TDuration OperationsUpdatePeriod;
 
     TDuration WatchersUpdatePeriod;
+
+    TDuration NodesAttributesUpdatePeriod;
 
     TDuration ProfilingUpdatePeriod;
 
@@ -596,6 +627,13 @@ public:
 
     //! If |true|, snapshots are loaded during revival.
     bool EnableSnapshotLoading;
+
+    //! If |true|, jobs are revived from snapshot.
+    bool EnableJobRevival;
+
+    //! Allow failing a controller by passing testing option `controller_failure`
+    //! in operation spec. Used only for testing purposes.
+    bool EnableControllerFailureSpecOption;
 
     TString SnapshotTempPath;
     NApi::TFileReaderConfigPtr SnapshotReader;

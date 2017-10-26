@@ -103,7 +103,7 @@ TNullable<i64> TTask::GetMaximumUsedTmpfsSize() const
     return MaximumUsedTmfpsSize_;
 }
 
-const TProgressCounter& TTask::GetJobCounter() const
+const TProgressCounterPtr& TTask::GetJobCounter() const
 {
     return GetChunkPoolOutput()->GetJobCounter();
 }
@@ -122,11 +122,6 @@ TJobResources TTask::GetTotalNeededResources() const
     i64 count = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
     return count == 0 ? ZeroJobResources() : GetMinNeededResources() * count;
-}
-
-bool TTask::IsIntermediateOutput() const
-{
-    return false;
 }
 
 bool TTask::IsStderrTableEnabled() const
@@ -178,6 +173,10 @@ void TTask::FinishInput()
     LOG_DEBUG("Task input finished");
 
     GetChunkPoolInput()->Finish();
+    auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
+    if (!progressCounter->Parent()) {
+        progressCounter->SetParent(TaskHost_->DataFlowGraph().JobCounter(GetJobType()));
+    }
     AddPendingHint();
     CheckCompleted();
 }
@@ -274,7 +273,11 @@ void TTask::ScheduleJob(
 
     auto jobType = GetJobType();
     joblet->JobId = context->GenerateJobId();
-    auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
+
+    // Job is restarted if LostJobCookieMap contains at least one entry with this output cookie.
+    auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
+    bool restarted = it != LostJobCookieMap.end() && it->first.first == joblet->OutputCookie;
+
     joblet->Account = TaskHost_->Spec()->JobNodeAccount;
     joblet->JobSpecProtoFuture = BIND(&TTask::BuildJobSpecProto, MakeStrong(this), joblet)
         .AsyncVia(TaskHost_->GetCancelableInvoker())
@@ -298,7 +301,7 @@ void TTask::ScheduleJob(
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
-        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
+        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Splittable: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
@@ -312,6 +315,7 @@ void TTask::ScheduleJob(
         joblet->InputStripeList->TotalDataWeight,
         joblet->InputStripeList->LocalDataWeight,
         joblet->InputStripeList->TotalRowCount,
+        joblet->InputStripeList->IsSplittable,
         restarted,
         FormatResources(estimatedResourceUsage),
         joblet->JobProxyMemoryReserveFactor,
@@ -393,7 +397,13 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, CompletedFired_);
 
-    Persist(context, LostJobCookieMap);
+    Persist<
+        TMapSerializer<
+            TTupleSerializer<TCookieAndPool, 2>,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, LostJobCookieMap);
 
     Persist(context, EdgeDescriptors_);
 }
@@ -493,7 +503,7 @@ void TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary
 void TTask::OnJobLost(TCompletedJobPtr completedJob)
 {
     YCHECK(LostJobCookieMap.insert(std::make_pair(
-        completedJob->OutputCookie,
+        TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
         completedJob->InputCookie)).second);
 }
 
@@ -787,19 +797,31 @@ void TTask::RegisterStripe(
     if (edgeDescriptor.RequiresRecoveryInfo) {
         YCHECK(joblet);
 
-        IChunkPoolInput::TCookie inputCookie;
-        auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
+        IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
+        auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, edgeDescriptor.DestinationPool));
         if (lostIt == LostJobCookieMap.end()) {
-            inputCookie = destinationPool->Add(stripe, key);
+            // NB: if job is not restarted, we should not add its output for the
+            // second time to the destination pools that did not trigger the replay.
+            if (!joblet->Restarted) {
+                inputCookie = destinationPool->AddWithKey(stripe, key);
+            }
         } else {
             inputCookie = lostIt->second;
+            YCHECK(inputCookie != IChunkPoolInput::NullCookie);
             destinationPool->Resume(inputCookie, stripe);
             LostJobCookieMap.erase(lostIt);
+        }
+
+        // If destination pool decides not to do anything with this data,
+        // so there is no need to store any recovery info.
+        if (inputCookie == IChunkPoolInput::NullCookie) {
+            return;
         }
 
         // Store recovery info.
         auto completedJob = New<TCompletedJob>(
             joblet->JobId,
+            joblet->JobType,
             this,
             joblet->OutputCookie,
             joblet->InputStripeList->TotalDataWeight,
@@ -811,7 +833,7 @@ void TTask::RegisterStripe(
             completedJob,
             stripe);
     } else {
-        destinationPool->Add(stripe, key);
+        destinationPool->AddWithKey(stripe, key);
     }
 }
 

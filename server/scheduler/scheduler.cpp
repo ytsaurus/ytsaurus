@@ -219,12 +219,10 @@ public:
             &TImpl::HandlePools,
             Unretained(this)));
 
-        MasterConnector_->AddGlobalWatcherRequester(BIND(
-            &TImpl::RequestNodesAttributes,
-            Unretained(this)));
-        MasterConnector_->AddGlobalWatcherHandler(BIND(
-            &TImpl::HandleNodesAttributes,
-            Unretained(this)));
+        MasterConnector_->AddGlobalWatcher(
+            BIND(&TImpl::RequestNodesAttributes, Unretained(this)),
+            BIND(&TImpl::HandleNodesAttributes, Unretained(this)),
+            Config_->NodesAttributesUpdatePeriod);
 
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TImpl::RequestConfig,
@@ -341,7 +339,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!AcceptsHeartbeats_ || !IsConnected()) {
+        if (!IsConnected()) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
                 "Scheduler is not able to accept heartbeats");
@@ -666,7 +664,10 @@ public:
             return operation->GetFinished();
         }
 
-        DoAbortOperation(operation->GetId(), error);
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND([=, this_ = MakeStrong(this)] {
+                DoAbortOperation(operation->GetId(), error);
+            }));
 
         return operation->GetFinished();
     }
@@ -895,10 +896,14 @@ public:
     {
         auto controller = operation->GetController();
         if (controller->IsRevivedFromSnapshot()) {
-            operation->SetState(EOperationState::Running);
-            auto asyncResult = RegisterJobsFromRevivedOperation(operation);
-            auto error = WaitFor(asyncResult);
-            YCHECK(error.IsOK() && "Error while registering jobs from the revived operation");
+            operation->SetState(EOperationState::RevivingJobs);
+            RegisterJobsFromRevivedOperation(operation)
+                .Subscribe(BIND([operation] (const TError& error) {
+                    YCHECK(error.IsOK() && "Error while registering jobs from the revived operation");
+                    if (operation->GetState() == EOperationState::RevivingJobs) {
+                        operation->SetState(EOperationState::Running);
+                    }
+                }));
         } else {
             operation->SetState(EOperationState::Materializing);
             BIND(&IOperationController::Materialize, controller)
@@ -1068,10 +1073,6 @@ private:
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> IsConnected_ = {false};
-    // We have to postpone heartbeat process until all controllers are revived
-    // (otherwise we won't know what to do with information about jobs running on the nodes).
-    // On the other hand we want to receive user requests earlier than all controllers are revived.
-    std::atomic<bool> AcceptsHeartbeats_ = {false};
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1323,15 +1324,13 @@ private:
 
         ConnectionTime_ = TInstant::Now();
 
+        Strategy_->StartPeriodicActivity();
+
         auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
         WaitFor(processFuture)
             .ThrowOnError();
-
-        AcceptsHeartbeats_.store(true);
-
-        Strategy_->StartPeriodicActivity();
     }
 
     void OnMasterDisconnected()
@@ -1342,7 +1341,6 @@ private:
 
         LOG_INFO("Starting scheduler state cleanup");
 
-        AcceptsHeartbeats_.store(false);
         IsConnected_.store(false);
 
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
@@ -2386,7 +2384,7 @@ private:
         // Prepare reviving process on node shards.
         std::vector<TFuture<void>> prepareFutures;
         for (auto& shard : NodeShards_) {
-            auto prepareFuture = BIND(&TNodeShard::ClearRevivalState, shard)
+            auto prepareFuture = BIND(&TNodeShard::PrepareReviving, shard)
                 .AsyncVia(shard->GetInvoker())
                 .Run();
             prepareFutures.emplace_back(std::move(prepareFuture));

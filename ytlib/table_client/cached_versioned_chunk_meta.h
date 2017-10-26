@@ -8,6 +8,10 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/public.h>
@@ -36,25 +40,31 @@ public:
     static TCachedVersionedChunkMetaPtr Create(
         const NChunkClient::TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const TTableSchema& schema);
+        const TTableSchema& schema,
+        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr chunkReader,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TTableSchema& schema);
+        const TTableSchema& schema,
+        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
 
 private:
+    NNodeTrackerClient::TNodeMemoryTrackerGuard MemoryTrackerGuard_;
+
     TCachedVersionedChunkMeta();
 
     TCachedVersionedChunkMetaPtr DoLoad(
         NChunkClient::IChunkReaderPtr chunkReader,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TTableSchema& schema);
+        const TTableSchema& schema,
+        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker);
 
     void Init(
         const NChunkClient::TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const TTableSchema& schema);
+        const TTableSchema& schema,
+        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker);
 
     void ValidateChunkMeta();
     void ValidateSchema(const TTableSchema& readerSchema);

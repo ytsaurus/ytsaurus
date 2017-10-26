@@ -366,9 +366,9 @@ public:
         return UserJobReadController_->GetFailedChunkIds();
     }
 
-    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override
+    virtual TInterruptDescriptor GetInterruptDescriptor() const override
     {
-        return UserJobReadController_->GetUnreadDataSliceDescriptors();
+        return UserJobReadController_->GetInterruptDescriptor();
     }
 
 private:

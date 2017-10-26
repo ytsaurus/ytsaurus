@@ -10,6 +10,9 @@ namespace NConcurrency {
 class TExecutionStackBase
 {
 public:
+    TExecutionStackBase(const TExecutionStackBase& other) = delete;
+    TExecutionStackBase& operator=(const TExecutionStackBase& other) = delete;
+
     virtual ~TExecutionStackBase() = default;
 
     void* GetStack() const;
@@ -20,7 +23,6 @@ protected:
     size_t Size_;
 
     explicit TExecutionStackBase(size_t size);
-
 };
 
 #if defined(_unix_)
@@ -36,13 +38,10 @@ public:
 private:
     char* Base_;
 
-    static const int GuardPages = 4;
-
+    static const int GuardPageCount = 4;
 };
 
 #elif defined(_win_)
-
-class TExecutionContext;
 
 //! Stack plus Window fiber holder.
 class TExecutionStack

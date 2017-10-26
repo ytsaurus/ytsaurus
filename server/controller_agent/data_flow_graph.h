@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "serialize.h"
+#include "progress_counter.h"
 
 #include <yt/server/chunk_pools/public.h>
 
@@ -31,6 +32,27 @@ struct TEdgeDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDataFlowGraph
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(TProgressCounterPtr, TotalJobCounter, New<TProgressCounter>(0));
+
+public:
+    TDataFlowGraph() = default;
+
+    void BuildYson(NYson::IYsonConsumer* consumer) const;
+
+    const TProgressCounterPtr& JobCounter(EJobType jobType);
+
+    void Persist(const TPersistenceContext& context);
+
+    std::vector<EJobType> GetTopologicalOrder() const;
+
+private:
+    yhash<EJobType, TProgressCounterPtr> JobCounters_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NControllerAgent
 } // namespace NYT
-

@@ -26,14 +26,14 @@ TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
     , ChunkSizeThreshold_(chunkSizeThreshold)
 { }
 
-IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe, TChunkStripeKey key)
+IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
-    ProcessStripe(stripe);
+    ProcessStripe(stripe, true /* teleportLargeChunks */);
 
     if (stripe->DataSlices.empty()) {
         return IChunkPoolInput::NullCookie;
     } else {
-        auto cookie = TChunkPoolInputAdapterBase::Add(stripe, key);
+        auto cookie = TChunkPoolInputAdapterBase::AddWithKey(stripe, key);
         if (CookieChunkCount_.size() <= cookie) {
             CookieChunkCount_.resize(cookie + 1);
         }
@@ -42,16 +42,17 @@ IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe,
     }
 }
 
+IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe)
+{
+    return AddWithKey(stripe, TChunkStripeKey());
+}
+
 void TAutoMergeChunkPoolAdapter::Resume(TCookie cookie, NChunkPools::TChunkStripePtr stripe)
 {
-    ProcessStripe(stripe);
+    ProcessStripe(stripe, false /* teleportLargeChunks */);
 
-    if (stripe->DataSlices.empty()) {
-        return;
-    } else {
-        CookieChunkCount_[cookie] = stripe->GetChunkCount();
-        return TChunkPoolInputAdapterBase::Resume(cookie, stripe);
-    }
+    CookieChunkCount_[cookie] = stripe->GetChunkCount();
+    return TChunkPoolInputAdapterBase::Resume(cookie, stripe);
 }
 
 void TAutoMergeChunkPoolAdapter::Suspend(TCookie cookie)
@@ -73,14 +74,20 @@ void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
     Persist(context, CookieChunkCount_);
 }
 
-void TAutoMergeChunkPoolAdapter::ProcessStripe(const TChunkStripePtr& stripe) const
+void TAutoMergeChunkPoolAdapter::ProcessStripe(const TChunkStripePtr& stripe, bool teleportLargeChunks) const
 {
     // We perform an in-place filtration of all large chunks.
     int firstUnusedIndex = 0;
     for (auto& slice : stripe->DataSlices) {
         const auto& chunk = slice->GetSingleUnversionedChunkOrThrow();
         if (chunk->IsLargeCompleteChunk(ChunkSizeThreshold_)) {
-            Task_->RegisterTeleportChunk(chunk);
+            if (teleportLargeChunks) {
+                Task_->RegisterTeleportChunk(chunk);
+            } else {
+                // NB: If we process resumed stripe, we should not teleport its large chunks.
+                // Otherwise they would appear twice in the output.
+                // Do nothing.
+            }
         } else {
             stripe->DataSlices[firstUnusedIndex++] = std::move(slice);
         }
@@ -121,6 +128,7 @@ TAutoMergeTask::TAutoMergeTask(
         autoMergeJobSizeConstraints,
         nullptr /* jobSizeAdjusterConfig */,
         EUnorderedChunkPoolMode::AutoMerge /* autoMergeMode */);
+    ChunkPool_->GetJobCounter()->SetParent(TaskHost_->DataFlowGraph().JobCounter(EJobType::UnorderedMerge));
 
     ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(ChunkPool_.get(), this, chunkSizeThreshold);
 }
@@ -278,4 +286,3 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);
 
 } // namespace NControllerAgent
 } // namespace NYT
-

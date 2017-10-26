@@ -2,6 +2,8 @@
 
 #include <yt/ytlib/object_client/public.h>
 
+#include <yt/ytlib/misc/public.h>
+
 #include <yt/core/misc/public.h>
 
 namespace NYT {
@@ -42,16 +44,6 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchDataCenter)  (1604))
 );
 
-DEFINE_ENUM(EMemoryCategory,
-    ((Footprint)      (0))
-    ((BlockCache)     (1))
-    ((ChunkMeta)      (2))
-    ((Jobs)           (3))
-    ((TabletStatic)   (4))
-    ((TabletDynamic)  (5))
-    ((BlobSession)    (6))
-);
-
 DEFINE_ENUM(EAddressType,
     ((InternalRpc)    (0))
     ((SkynetHttp)     (1))
@@ -87,6 +79,20 @@ DECLARE_REFCOUNTED_STRUCT(INodeChannelFactory)
 
 extern const TString DefaultNetworkName;
 extern const TNetworkPreferenceList DefaultNetworkPreferences;
+
+DEFINE_ENUM(EMemoryCategory,
+    ((Footprint)                   (0))
+    ((BlockCache)                  (1))
+    ((ChunkMeta)                   (2))
+    ((Jobs)                        (3))
+    ((TabletStatic)                (4))
+    ((TabletDynamic)               (5))
+    ((BlobSession)                 (6))
+    ((CachedVersionedChunkMeta)    (7))
+);
+
+using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory>;
+using TNodeMemoryTrackerGuard = TMemoryUsageTrackerGuard<EMemoryCategory>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -103,6 +103,7 @@ struct TQueryBaseOptions
     bool EnableCodeCache = true;
     i64 InputRowLimit = std::numeric_limits<i64>::max();
     i64 OutputRowLimit = std::numeric_limits<i64>::max();
+    bool UseMultijoin = true;
 };
 
 struct TQueryOptions

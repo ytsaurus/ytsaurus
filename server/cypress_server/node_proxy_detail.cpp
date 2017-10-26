@@ -374,6 +374,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const TString& key, c
         auto name = ConvertTo<TString>(value);
         auto* account = securityManager->GetAccountByNameOrThrow(name);
 
+        ValidateStorageParametersUpdate();
         ValidatePermission(account, EPermission::Use);
 
         auto* node = LockThisImpl();
@@ -644,6 +645,9 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
     return TObjectProxyBase::GetBuiltinAttribute(key, consumer);
 }
+
+void TNontemplateCypressNodeProxyBase::ValidateStorageParametersUpdate()
+{ }
 
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& context)
 {
@@ -1207,16 +1211,18 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
     bool preserveExpirationTime = request->preserve_expiration_time();
+    bool preserveCreationTime = request->preserve_creation_time();
     bool removeSource = request->remove_source();
     auto recursive = request->recursive();
     auto force = request->force();
     auto targetPath = GetRequestYPath(context->RequestHeader());
 
-    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, PreserveExpirationTime: %v, RemoveSource: %v, "
-        "Recursive: %v, Force: %v",
+    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
+        "RemoveSource: %v, Recursive: %v, Force: %v",
         sourcePath,
         preserveAccount,
         preserveExpirationTime,
+        preserveCreationTime,
         removeSource,
         recursive,
         force);
@@ -1275,6 +1281,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     TNodeFactoryOptions options;
     options.PreserveAccount = preserveAccount;
     options.PreserveExpirationTime = preserveExpirationTime;
+    options.PreserveCreationTime = preserveCreationTime;
     auto factory = CreateCypressFactory(account, options);
 
     auto* clonedImpl = factory->CloneNode(

@@ -15,7 +15,7 @@ void Shutdown();
 ////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_SHUTDOWN_CALLBACK(priority, callback) \
-    static int dummy_shutdown ## __LINE__ = [] { \
+    static int dummy_shutdown ## __LINE__ __attribute__((unused)) = [] { \
         RegisterShutdownCallback(priority, callback); \
         return 0; \
     }();
