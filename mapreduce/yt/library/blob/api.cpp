@@ -100,7 +100,7 @@ void NYtBlob::Download(
         return;
     }
 
-    TAdaptiveFileOutput out{path};
+    TFileOutput out{path};
     Download(out, filename, table, client);
 }
 
