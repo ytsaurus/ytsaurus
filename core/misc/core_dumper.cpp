@@ -21,7 +21,7 @@ NLogging::TLogger Logger("CoreDumper");
 ////////////////////////////////////////////////////////////////////////////////
 
 void RedirectCoreDumpToFile(
-    TFileInput&& coreInput,
+    TUnbufferedFileInput&& coreInput,
     TFileOutput&& coreOutput,
     TGuid id)
 {
@@ -77,7 +77,7 @@ TCoreDump TCoreDumper::WriteCoreDump(const std::vector<TString>& notes)
             Config_->ComponentName);
 
         TFile coreInputFile = TFile(fd);
-        TFileInput coreInput(coreInputFile);
+        TUnbufferedFileInput coreInput(coreInputFile);
         TFileOutput coreOutput(corePath);
 
         auto asyncResult = BIND(RedirectCoreDumpToFile, Passed(std::move(coreInput)), Passed(std::move(coreOutput)), id)
