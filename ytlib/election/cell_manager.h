@@ -41,6 +41,7 @@ public:
     const NProfiling::TTagIdList& GetPeerTags(TPeerId id) const;
     const NProfiling::TTagIdList& GetAllPeersTags() const;
     const NProfiling::TTagIdList& GetPeerQuorumTags() const;
+    const NProfiling::TTagIdList& GetCellIdTags() const;
 
     void Reconfigure(TCellConfigPtr newConfig);
 
@@ -60,6 +61,7 @@ private:
     std::vector<NProfiling::TTagIdList> PeerTags_;
     NProfiling::TTagIdList AllPeersTags_;
     NProfiling::TTagIdList PeerQuorumTags_;
+    NProfiling::TTagIdList CellIdTags_;
 
     NLogging::TLogger Logger;
          

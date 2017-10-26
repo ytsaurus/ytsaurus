@@ -50,6 +50,7 @@ message TReqCopy
     optional bool recursive = 4 [default = false];
     optional bool force = 5 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
+    optional bool preserve_creation_time = 7 [default = false];
 }
 
 message TRspCopy

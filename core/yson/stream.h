@@ -3,6 +3,8 @@
 #include "public.h"
 #include "string.h"
 
+#include <yt/core/concurrency/async_stream.h>
+
 namespace NYT {
 namespace NYson {
 
@@ -15,9 +17,13 @@ public:
         IInputStream* stream,
         EYsonType type = EYsonType::Node);
 
+    explicit TYsonInput(
+        const NConcurrency::IAsyncZeroCopyInputStreamPtr& asyncStream,
+        EYsonType type = EYsonType::Node);
+
+    DEFINE_BYREF_RO_PROPERTY(NConcurrency::IAsyncZeroCopyInputStreamPtr, AsyncStream);
     DEFINE_BYVAL_RO_PROPERTY(IInputStream*, Stream);
     DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -122,6 +122,11 @@ int TJobStub::GetPreliminarySliceCount() const
     return PrimarySliceCount_ + PreliminaryForeignSliceCount_;
 }
 
+void TJobStub::SetUnsplittable()
+{
+    StripeList_->IsSplittable = false;
+}
+
 const TChunkStripePtr& TJobStub::GetStripe(int streamIndex, bool isStripePrimary)
 {
     if (streamIndex >= StripeList_->Stripes.size()) {
@@ -281,9 +286,9 @@ TJobManager::TJobManager(EStripeListExtractionOrder extractionOrder)
     : ExtractionOrder_(extractionOrder)
     , CookiePool_(std::make_unique<TCookiePool>(TJobManager::TStripeListComparator(this /* owner */)))
 {
-    DataWeightCounter_.Set(0);
-    RowCounter_.Set(0);
-    JobCounter_.Set(0);
+    DataWeightCounter_->Set(0);
+    RowCounter_->Set(0);
+    JobCounter_->Set(0);
 }
 
 void TJobManager::AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs)
@@ -331,17 +336,17 @@ IChunkPoolOutput::TCookie TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
     Jobs_.back().SetState(EJobState::Pending);
     Jobs_.back().ChangeSuspendedStripeCountBy(initialSuspendedStripeCount);
 
-    JobCounter_.Increment(1);
-    DataWeightCounter_.Increment(Jobs_.back().GetDataWeight());
-    RowCounter_.Increment(Jobs_.back().GetRowCount());
+    JobCounter_->Increment(1);
+    DataWeightCounter_->Increment(Jobs_.back().GetDataWeight());
+    RowCounter_->Increment(Jobs_.back().GetRowCount());
     return outputCookie;
 }
 
 void TJobManager::Completed(IChunkPoolOutput::TCookie cookie, EInterruptReason reason)
 {
-    JobCounter_.Completed(1, reason);
-    DataWeightCounter_.Completed(Jobs_[cookie].GetDataWeight());
-    RowCounter_.Completed(Jobs_[cookie].GetRowCount());
+    JobCounter_->Completed(1, reason);
+    DataWeightCounter_->Completed(Jobs_[cookie].GetDataWeight());
+    RowCounter_->Completed(Jobs_[cookie].GetRowCount());
     if (reason == EInterruptReason::None) {
         Jobs_[cookie].SetState(EJobState::Completed);
     }
@@ -351,9 +356,9 @@ IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
 {
     auto cookie = *(CookiePool_->begin());
 
-    JobCounter_.Start(1);
-    DataWeightCounter_.Start(Jobs_[cookie].GetDataWeight());
-    RowCounter_.Start(Jobs_[cookie].GetRowCount());
+    JobCounter_->Start(1);
+    DataWeightCounter_->Start(Jobs_[cookie].GetDataWeight());
+    RowCounter_->Start(Jobs_[cookie].GetRowCount());
     Jobs_[cookie].SetState(EJobState::Running);
 
     return cookie;
@@ -361,17 +366,17 @@ IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
 
 void TJobManager::Failed(IChunkPoolOutput::TCookie cookie)
 {
-    JobCounter_.Failed(1);
-    DataWeightCounter_.Failed(Jobs_[cookie].GetDataWeight());
-    RowCounter_.Failed(Jobs_[cookie].GetRowCount());
+    JobCounter_->Failed(1);
+    DataWeightCounter_->Failed(Jobs_[cookie].GetDataWeight());
+    RowCounter_->Failed(Jobs_[cookie].GetRowCount());
     Jobs_[cookie].SetState(EJobState::Pending);
 }
 
 void TJobManager::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
 {
-    JobCounter_.Aborted(1, reason);
-    DataWeightCounter_.Aborted(Jobs_[cookie].GetDataWeight(), reason);
-    RowCounter_.Aborted(Jobs_[cookie].GetRowCount(), reason);
+    JobCounter_->Aborted(1, reason);
+    DataWeightCounter_->Aborted(Jobs_[cookie].GetDataWeight(), reason);
+    RowCounter_->Aborted(Jobs_[cookie].GetRowCount(), reason);
     Jobs_[cookie].SetState(EJobState::Pending);
 }
 

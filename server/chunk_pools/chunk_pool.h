@@ -28,7 +28,11 @@ struct IChunkPoolInput
     using TCookie = TIntCookie;
     static const TCookie NullCookie = -1;
 
-    virtual TCookie Add(TChunkStripePtr stripe, TChunkStripeKey key = TChunkStripeKey()) = 0;
+    virtual TCookie Add(TChunkStripePtr stripe) = 0;
+
+    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) {
+        return Add(stripe);
+    }
 
     virtual void Suspend(TCookie cookie) = 0;
     virtual void Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
@@ -47,15 +51,13 @@ public:
     //! This implementation checks that key is not set (that is true for all standard
     //! chunk pools) and that `stripe` contains data slices, after that it
     //! forwards the call to the internal `Add` method.
-    virtual TCookie Add(TChunkStripePtr stripe, TChunkStripeKey key) override;
+    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override;
 
     // IPersistent implementation.
     virtual void Persist(const TPersistenceContext& context) override;
 
 protected:
     bool Finished = false;
-
-    virtual TCookie Add(TChunkStripePtr stripe) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +79,7 @@ struct IChunkPoolOutput
 
     virtual int GetTotalJobCount() const = 0;
     virtual int GetPendingJobCount() const = 0;
-    virtual const NControllerAgent::TProgressCounter& GetJobCounter() const = 0;
+    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const = 0;
 
     virtual i64 GetDataSliceCount() const = 0;
 
@@ -128,7 +130,7 @@ public:
 
     virtual i64 GetTotalRowCount() const override;
 
-    virtual const NControllerAgent::TProgressCounter& GetJobCounter() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
 
     // IPersistent implementation.
 
@@ -142,9 +144,9 @@ public:
     DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
 
 protected:
-    NControllerAgent::TProgressCounter DataWeightCounter;
-    NControllerAgent::TProgressCounter RowCounter;
-    NControllerAgent::TProgressCounter JobCounter;
+    NControllerAgent::TProgressCounterPtr DataWeightCounter;
+    NControllerAgent::TProgressCounterPtr RowCounter;
+    NControllerAgent::TProgressCounterPtr JobCounter;
 
     std::vector<NChunkClient::TInputChunkPtr> TeleportChunks_;
 };

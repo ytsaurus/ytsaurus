@@ -219,14 +219,12 @@ void TLocateSkynetShareCommand::DoExecute(ICommandContextPtr context)
     auto skynetPartsLocations = WaitFor(asyncSkynetPartsLocations);
 
     auto format = context->GetOutputFormat();
-    auto syncOutputStream = CreateSyncAdapter(context->Request().OutputStream);
-
-    TBufferedOutput bufferedOutputStream(syncOutputStream.get());
+    auto syncOutputStream = CreateBufferedSyncAdapter(context->Request().OutputStream);
 
     auto consumer = CreateConsumerForFormat(
         format,
         EDataType::Structured,
-        &bufferedOutputStream);
+        syncOutputStream.get());
 
     Serialize(*skynetPartsLocations.ValueOrThrow(), consumer.get());
     consumer->Flush();
@@ -436,6 +434,8 @@ TSelectRowsCommand::TSelectRowsCommand()
     RegisterParameter("max_subqueries", Options.MaxSubqueries)
         .Optional();
     RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
+        .Optional();
+    RegisterParameter("use_multijoin", Options.UseMultijoin)
         .Optional();
 }
 

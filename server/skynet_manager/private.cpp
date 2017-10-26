@@ -1,0 +1,17 @@
+#include "private.h"
+
+#include <yt/core/logging/log.h>
+
+namespace NYT {
+namespace NSkynetManager {
+
+using namespace NYT::NLogging;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TLogger SkynetManagerLogger{"SkynetManager"};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NSkynetManager
+} // namespace NYT

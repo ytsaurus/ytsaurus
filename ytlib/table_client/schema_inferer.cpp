@@ -60,7 +60,7 @@ public:
             if (schemaMode == ETableSchemaMode::Weak) {
                 OutputTableSchemaMode_ = ETableSchemaMode::Weak;
             }
-            if (*OutputTableSchema_ != tableSchema) {
+            if (*OutputTableSchema_ != tableSchema.ToStrippedColumnAttributes().ToCanonical()) {
                 OutputTableSchema_ = TTableSchema();
                 OutputTableSchemaMode_ = ETableSchemaMode::Weak;
             }

@@ -28,6 +28,7 @@ namespace NDriver {
 struct TDriverRequest
 {
     TDriverRequest();
+    explicit TDriverRequest(TIntrusivePtr<TIntrinsicRefCounted> holder);
 
     //! Request identifier to be logged.
     ui64 Id = 0;
@@ -52,6 +53,10 @@ struct TDriverRequest
     //! Provides means to return arbitrary structured data from any command.
     //! Must be filled before writing data to output stream.
     NYson::IYsonConsumer* ResponseParametersConsumer;
+
+private:
+    using THolderPtr = TIntrusivePtr<TIntrinsicRefCounted>;
+    THolderPtr Holder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

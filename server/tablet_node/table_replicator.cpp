@@ -196,6 +196,7 @@ private:
                 // Some log rows are prepared for replication, hence replication cannot proceed.
                 // Seeing this is unusual since we're waiting for the replication commit to complete (see below).
                 // However we may occasionally run into this check on epoch change.
+                replicaRuntimeData->Error.Store(TError());
                 return;
             }
 
@@ -218,6 +219,7 @@ private:
                 replicaRuntimeData->LastReplicationTimestamp.store(
                     Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
                     std::memory_order_relaxed);
+                replicaRuntimeData->Error.Store(TError());
                 return;
             }
 

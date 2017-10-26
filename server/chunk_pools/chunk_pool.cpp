@@ -15,7 +15,7 @@ void TChunkPoolInputBase::Finish()
     Finished = true;
 }
 
-IChunkPoolInput::TCookie TChunkPoolInputBase::Add(TChunkStripePtr stripe, TChunkStripeKey key)
+IChunkPoolInput::TCookie TChunkPoolInputBase::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
     // `key` argument should be set to something non-trivial only for sink chunk pool inputs,
     // so for all classes that are inherited from this `key` should never be set.
@@ -37,38 +37,39 @@ void TChunkPoolInputBase::Persist(const TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkPoolOutputBase::TChunkPoolOutputBase()
-    : DataWeightCounter(0)
-    , RowCounter(0)
+    : DataWeightCounter(New<TProgressCounter>(0))
+    , RowCounter(New<TProgressCounter>(0))
+    , JobCounter(New<TProgressCounter>())
 { }
 
 // IChunkPoolOutput implementation.
 
 i64 TChunkPoolOutputBase::GetTotalDataWeight() const
 {
-    return DataWeightCounter.GetTotal();
+    return DataWeightCounter->GetTotal();
 }
 
 i64 TChunkPoolOutputBase::GetRunningDataWeight() const
 {
-    return DataWeightCounter.GetRunning();
+    return DataWeightCounter->GetRunning();
 }
 
 i64 TChunkPoolOutputBase::GetCompletedDataWeight() const
 {
-    return DataWeightCounter.GetCompletedTotal();
+    return DataWeightCounter->GetCompletedTotal();
 }
 
 i64 TChunkPoolOutputBase::GetPendingDataWeight() const
 {
-    return DataWeightCounter.GetPending();
+    return DataWeightCounter->GetPending();
 }
 
 i64 TChunkPoolOutputBase::GetTotalRowCount() const
 {
-    return RowCounter.GetTotal();
+    return RowCounter->GetTotal();
 }
 
-const TProgressCounter& TChunkPoolOutputBase::GetJobCounter() const
+const TProgressCounterPtr& TChunkPoolOutputBase::GetJobCounter() const
 {
     return JobCounter;
 }

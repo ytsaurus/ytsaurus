@@ -33,6 +33,8 @@
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
 #include <yt/ytlib/security_client/helpers.h>
 
+#include <yt/core/misc/nullable.h>
+
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/ypath/token.h>
@@ -761,17 +763,25 @@ public:
     {
         TAccessControlList result;
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        int depth = 0;
         while (object) {
             const auto& handler = objectManager->GetHandler(object);
             auto* acd = handler->FindAcd(object);
             if (acd) {
-                result.Entries.insert(result.Entries.end(), acd->Acl().Entries.begin(), acd->Acl().Entries.end());
+                for (auto entry : acd->Acl().Entries) {
+                    auto inheritedMode = GetInheritedInheritanceMode(entry.InheritanceMode, depth);
+                    if (inheritedMode) {
+                        entry.InheritanceMode = *inheritedMode;
+                        result.Entries.push_back(entry);
+                    }
+                }
                 if (!acd->GetInherit()) {
                     break;
                 }
             }
 
             object = handler->GetParent(object);
+            ++depth;
         }
 
         return result;
@@ -793,24 +803,25 @@ public:
         return AuthenticatedUser_ ? AuthenticatedUser_ : RootUser_;
     }
 
+    static TNullable<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
+    {
+        auto nothing = TNullable<EAceInheritanceMode>();
+        switch (mode) {
+            case EAceInheritanceMode::ObjectAndDescendants:
+                return EAceInheritanceMode::ObjectAndDescendants;
+            case EAceInheritanceMode::ObjectOnly:
+                return (depth == 0 ? EAceInheritanceMode::ObjectOnly : nothing);
+            case EAceInheritanceMode::DescendantsOnly:
+                return (depth > 0 ? EAceInheritanceMode::ObjectAndDescendants : nothing);
+            case EAceInheritanceMode::ImmediateDescendantsOnly:
+                return (depth == 1 ? EAceInheritanceMode::ObjectOnly : nothing);
+        }
+        Y_UNREACHABLE();
+    }
 
     static bool CheckInheritanceMode(EAceInheritanceMode mode, int depth)
     {
-        switch (depth) {
-            case 0:
-                return
-                    mode == EAceInheritanceMode::ObjectAndDescendants ||
-                    mode == EAceInheritanceMode::ObjectOnly;
-            case 1:
-                return
-                    mode == EAceInheritanceMode::ObjectAndDescendants ||
-                    mode == EAceInheritanceMode::DescendantsOnly ||
-                    mode == EAceInheritanceMode::ImmediateDescendantsOnly;
-            default: // >= 2
-                return
-                    mode == EAceInheritanceMode::ObjectAndDescendants ||
-                    mode == EAceInheritanceMode::DescendantsOnly;
-        }
+        return GetInheritedInheritanceMode(mode, depth).HasValue();
     }
 
     bool IsUserRootOrSuperuser(const TUser* user)

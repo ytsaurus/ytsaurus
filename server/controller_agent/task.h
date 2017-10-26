@@ -45,13 +45,10 @@ public:
     virtual int GetTotalJobCount() const;
     int GetTotalJobCountDelta();
 
-    const TProgressCounter& GetJobCounter() const;
+    const TProgressCounterPtr& GetJobCounter() const;
 
     virtual TJobResources GetTotalNeededResources() const;
     TJobResources GetTotalNeededResourcesDelta();
-
-    // TODO(max42): Remove this method in favour of EdgeDescriptors_.
-    virtual bool IsIntermediateOutput() const;
 
     bool IsStderrTableEnabled() const;
 
@@ -221,8 +218,9 @@ private:
     NProfiling::TCpuInstant DemandSanityCheckDeadline_;
     bool CompletedFired_;
 
-    //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
-    yhash<NChunkPools::IChunkPoolOutput::TCookie, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
+    using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IChunkPoolInput*>;
+    //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
+    std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
 
     TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 

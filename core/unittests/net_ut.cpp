@@ -36,7 +36,8 @@ protected:
     const TDialerConfigPtr Config = New<TDialerConfig>();
     NLogging::TLogger Logger = NLogging::TLogger("Net");
 
-    IDialerPtr CreateDialer() {
+    IDialerPtr CreateDialer()
+    {
         return NNet::CreateDialer(
             Config,
             Poller,
@@ -56,6 +57,23 @@ TEST_F(TNetTest, TransferFourBytes)
     std::tie(a, b) = CreateConnectionPair(Poller);
 
     a->Write(TSharedRef::FromString("ping")).Get();
+
+    TSharedMutableRef buffer = TSharedMutableRef::Allocate(10);
+    ASSERT_EQ(4, b->Read(buffer).Get().ValueOrThrow());
+    ASSERT_EQ(ToString(buffer.Slice(0, 4)), TString("ping"));
+}
+
+TEST_F(TNetTest, TransferFourBytesUsingWriteV)
+{
+    IConnectionPtr a, b;
+    std::tie(a, b) = CreateConnectionPair(Poller);
+
+    a->WriteV(TSharedRefArray(std::vector<TSharedRef>{
+        TSharedRef::FromString("p"),
+        TSharedRef::FromString("i"),
+        TSharedRef::FromString("n"),
+        TSharedRef::FromString("g")
+    })).Get();
 
     TSharedMutableRef buffer = TSharedMutableRef::Allocate(10);
     ASSERT_EQ(4, b->Read(buffer).Get().ValueOrThrow());
