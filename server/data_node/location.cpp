@@ -429,7 +429,7 @@ void TLocation::ValidateLockFile()
     }
 
     TFile file(lockFilePath, OpenExisting | RdOnly | Seq | CloseOnExec);
-    TBufferedFileInput fileInput(file);
+    TFileInput fileInput(file);
 
     auto errorData = fileInput.ReadAll();
     if (errorData.Empty()) {
