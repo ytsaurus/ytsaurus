@@ -198,7 +198,7 @@ void TLocation::Disable(const TError& reason)
     try {
         auto errorData = ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).GetData();
         TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput fileOutput(file);
+        TUnbufferedFileOutput fileOutput(file);
         fileOutput << errorData;
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error creating location lock file");
@@ -553,7 +553,7 @@ void TLocation::DoStart()
     } else {
         LOG_INFO("Cell id file is not found, creating");
         TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput cellIdFile(file);
+        TUnbufferedFileOutput cellIdFile(file);
         cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
     }
 

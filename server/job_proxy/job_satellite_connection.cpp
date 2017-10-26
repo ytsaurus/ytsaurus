@@ -51,7 +51,7 @@ void TJobSatelliteConnection::MakeConfig()
     ConfigFile_ = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), SatelliteConfigFileName);
     try {
         TFile file(ConfigFile_, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput output(file);
+        TUnbufferedFileOutput output(file);
         NYson::TYsonWriter writer(&output, EYsonFormat::Pretty);
         Serialize(ConnectionConfig_, &writer);
         writer.Flush();

@@ -864,7 +864,7 @@ private:
             tempMetaFile->Flock(LOCK_EX);
         })).Run();
 
-        TFileOutput fileOutput(*tempDataFile);
+        TUnbufferedFileOutput fileOutput(*tempDataFile);
         TErrorInterceptingOutput checkedOutput(location, &fileOutput);
 
         producer(&checkedOutput);

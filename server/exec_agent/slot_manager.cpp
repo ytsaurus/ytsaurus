@@ -98,7 +98,7 @@ void TSlotManager::Initialize()
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
                 auto filePath = Format("%v/%v", *Config_->JobProxySocketNameDirectory, JobEnvironment_->GetUserId(slotIndex));
                 TFile file(filePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-                TFileOutput fileOutput(file);
+                TUnbufferedFileOutput fileOutput(file);
                 fileOutput << GetJobProxyUnixDomainName(NodeTag_, slotIndex) << Endl;
             }
             JobProxySocketNameDirectoryCreated_ = true;
