@@ -56,7 +56,7 @@ protected:
         std::vector<TString> lines;
 
         TString line;
-        auto input = TFileInput(fileName);
+        auto input = TUnbufferedFileInput(fileName);
         while (input.ReadLine(line)) {
             lines.push_back(line + "\n");
         }

@@ -91,7 +91,7 @@ private:
     NLogging::TLogger Logger = HydraLogger;
 
     std::unique_ptr<TFile> File_;
-    std::unique_ptr<TFileInput> FileInput_;
+    std::unique_ptr<TUnbufferedFileInput> FileInput_;
     std::unique_ptr<IInputStream> CodecInput_;
     std::unique_ptr<IInputStream> FakeCheckpointableInput_;
     IInputStream* FacadeInput_;
@@ -108,7 +108,7 @@ private:
 
         try {
             File_.reset(new TFile(FileName_, OpenExisting | CloseOnExec));
-            TFileInput input(*File_);
+            TUnbufferedFileInput input(*File_);
 
             ui64 signature;
             ReadPod(input, signature);
@@ -141,7 +141,7 @@ private:
                     File_->Seek(Offset_, sSet);
                 }
 
-                FileInput_.reset(new TFileInput(*File_));
+                FileInput_.reset(new TUnbufferedFileInput(*File_));
 
                 if (IsRaw_) {
                     FacadeInput_ = FileInput_.get();

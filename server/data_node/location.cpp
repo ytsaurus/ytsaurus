@@ -538,7 +538,7 @@ void TLocation::DoStart()
 {
     auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
     if (NFS::Exists(cellIdPath)) {
-        TFileInput cellIdFile(cellIdPath);
+        TUnbufferedFileInput cellIdFile(cellIdPath);
         auto cellIdString = cellIdFile.ReadAll();
         TCellId cellId;
         if (!TCellId::FromString(cellIdString, &cellId)) {

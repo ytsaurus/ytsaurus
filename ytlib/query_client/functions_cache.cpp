@@ -667,7 +667,7 @@ void FetchJobImplementations(
         LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
         auto path = implementationPath + "/" + function.Name;
-            TFileInput file(path);
+            TUnbufferedFileInput file(path);
         auto impl =  TSharedRef::FromString(file.ReadAll());
 
         AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, impl);

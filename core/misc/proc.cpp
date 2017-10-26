@@ -141,7 +141,7 @@ TString GetProcessName(int pid)
 {
 #ifdef _linux_
     TString path = Format("/proc/%v/comm", pid);
-    return Trim(TFileInput(path).ReadAll(), "\n");
+    return Trim(TUnbufferedFileInput(path).ReadAll(), "\n");
 #else
     return "";
 #endif
@@ -151,7 +151,7 @@ std::vector<TString> GetProcessCommandLine(int pid)
 {
 #ifdef _linux_
     TString path = Format("/proc/%v/cmdline", pid);
-    auto raw = TFileInput(path).ReadAll();
+    auto raw = TUnbufferedFileInput(path).ReadAll();
     std::vector<TString> result;
     auto begin = 0;
     while (begin < raw.length()) {

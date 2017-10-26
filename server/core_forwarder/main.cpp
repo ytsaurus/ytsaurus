@@ -66,7 +66,7 @@ protected:
         if (JobProxySocketPath_ || Exists(jobProxySocketNameFile)) {
             auto jobProxySocketName = JobProxySocketPath_
                 ? JobProxySocketPath_.Get()
-                : TFileInput(jobProxySocketNameFile).ReadLine();
+                : TUnbufferedFileInput(jobProxySocketNameFile).ReadLine();
             ForwardCore(jobProxySocketName);
         } else {
             WriteCoreToDisk();
