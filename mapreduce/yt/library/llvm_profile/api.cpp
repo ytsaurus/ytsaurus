@@ -94,7 +94,7 @@ static void StopAndDumpProfile(TData& d) {
         }
         const auto profileFileName = TString{STRINGBUF("default.profraw")};
         if (NFs::Exists(profileFileName)) {
-            profileToUpload = TBufferedFileInput{profileFileName}.ReadAll();
+            profileToUpload = TFileInput{profileFileName}.ReadAll();
             NFs::Remove(profileFileName);
         }
         d.Started = false;

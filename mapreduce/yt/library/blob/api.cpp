@@ -26,7 +26,7 @@ void NYtBlob::Upload(
     const TString& path, const TString& filename,
     const ::NYT::TYPath& table, NYT::IClientBasePtr client) {
 
-    TBufferedFileInput in{path};
+    TFileInput in{path};
     Upload(in, filename, table, client);
 }
 
