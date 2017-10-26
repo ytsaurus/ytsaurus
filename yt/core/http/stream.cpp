@@ -229,10 +229,8 @@ THttpInput::THttpInput(
     , MessageType_(messageType)
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(bufferSize))
     , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE)
-{
-    ReadClosure_ = BIND(&THttpInput::DoRead, MakeStrong(this))
-        .AsyncVia(readInvoker);
-}
+    , ReadInvoker_(readInvoker)
+{ }
 
 std::pair<int, int> THttpInput::GetVersion()
 {
@@ -322,7 +320,9 @@ void THttpInput::EnsureHeadersReceived()
 
 TFuture<TSharedRef> THttpInput::Read()
 {
-    return ReadClosure_.Run();
+    return BIND(&THttpInput::DoRead, MakeStrong(this))
+        .AsyncVia(ReadInvoker_)
+        .Run();
 }
 
 TSharedRef THttpInput::DoRead()
