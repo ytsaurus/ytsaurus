@@ -470,11 +470,8 @@ static INodePtr WalkNodeByYPath(
 {
     auto currentNode = root;
     NYPath::TTokenizer tokenizer(path);
-    while (true) {
+    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
         tokenizer.Skip(NYPath::ETokenType::Ampersand);
-        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            break;
-        }
         tokenizer.Expect(NYPath::ETokenType::Slash);
         tokenizer.Advance();
         if (tokenizer.GetType() == NYPath::ETokenType::At) {

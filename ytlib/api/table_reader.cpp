@@ -90,7 +90,7 @@ public:
     virtual bool IsFetchingCompleted() const override;
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
     virtual std::vector<TChunkId> GetFailedChunkIds() const override;
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
         const TRange<TUnversionedRow>& unreadRows) const override;
     virtual void Interrupt() override;
 
@@ -389,7 +389,7 @@ std::vector<TChunkId> TSchemalessTableReader::GetFailedChunkIds() const
     return UnderlyingReader_->GetFailedChunkIds();
 }
 
-TInterruptDescriptor TSchemalessTableReader::GetInterruptDescriptor(
+std::vector<TDataSliceDescriptor> TSchemalessTableReader::GetUnreadDataSliceDescriptors(
     const TRange<TUnversionedRow>& unreadRows) const
 {
     Y_UNREACHABLE();

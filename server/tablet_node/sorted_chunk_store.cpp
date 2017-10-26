@@ -19,8 +19,6 @@
 
 #include <yt/ytlib/misc/workload.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -65,7 +63,6 @@ TSortedChunkStore::TSortedChunkStore(
     const TStoreId& id,
     TTablet* tablet,
     IBlockCachePtr blockCache,
-    TNodeMemoryTracker* memoryTracker,
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
     INativeClientPtr client,
@@ -82,7 +79,6 @@ TSortedChunkStore::TSortedChunkStore(
         localDescriptor)
     , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
-    , MemoryTracker_(memoryTracker)
 {
     LOG_DEBUG("Sorted chunk store created");
 }
@@ -146,7 +142,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor);
+    auto chunkState = PrepareCachedChunkState(chunkReader);
 
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
@@ -222,7 +218,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor);
+    auto chunkState = PrepareCachedChunkState(chunkReader);
 
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
@@ -284,7 +280,7 @@ TError TSortedChunkStore::CheckRowLocks(
         << TErrorAttribute("key", RowToKey(row));
 }
 
-TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkReader, const TWorkloadDescriptor& workloadDescriptor)
+TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkReader)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -298,9 +294,8 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkR
     // TODO(babenko): do we need to make this workload descriptor configurable?
     auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
         chunkReader,
-        workloadDescriptor,
-        Schema_,
-        MemoryTracker_);
+        TWorkloadDescriptor(EWorkloadCategory::UserBatch),
+        Schema_);
     auto cachedMeta = WaitFor(asyncCachedMeta)
         .ValueOrThrow();
     TChunkSpec chunkSpec;

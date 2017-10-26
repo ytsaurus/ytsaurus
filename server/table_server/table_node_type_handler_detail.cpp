@@ -33,6 +33,8 @@ using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
 
+using NTabletNode::EInMemoryMode;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>

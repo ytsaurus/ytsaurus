@@ -19,7 +19,7 @@ TInputStreamWrap::TInputStreamWrap(const Py::Object& inputStream)
     , ReadFunction_(InputStream_.getAttr("read"))
 { }
 
-TInputStreamWrap::~TInputStreamWrap() noexcept
+TInputStreamWrap::~TInputStreamWrap() throw()
 { }
 
 size_t TInputStreamWrap::DoRead(void* buf, size_t len)
@@ -56,7 +56,7 @@ TOutputStreamWrap::TOutputStreamWrap(const Py::Object& outputStream)
     , WriteFunction_(OutputStream_.getAttr("write"))
 { }
 
-TOutputStreamWrap::~TOutputStreamWrap() noexcept
+TOutputStreamWrap::~TOutputStreamWrap() throw()
 { }
 
 void TOutputStreamWrap::DoWrite(const void* buf, size_t len)

@@ -67,8 +67,6 @@ TFuture<NApi::ITransactionPtr> TRpcProxyClientBase::StartTransaction(
     req->set_sticky(sticky);
     req->set_ping(options.Ping);
     req->set_ping_ancestors(options.PingAncestors);
-    req->set_atomicity(static_cast<NProto::EAtomicity>(options.Atomicity));
-    req->set_durability(static_cast<NProto::EDurability>(options.Durability));
 
     return req->Invoke().Apply(BIND(
         [connection = std::move(connection), channel = std::move(channel), sticky = sticky]
@@ -304,7 +302,6 @@ TFuture<NCypressClient::TNodeId> TRpcProxyClientBase::CopyNode(
     req->set_force(options.Force);
     req->set_preserve_account(options.PreserveAccount);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
-    req->set_preserve_creation_time(options.PreserveCreationTime);
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);

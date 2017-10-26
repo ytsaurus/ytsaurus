@@ -119,7 +119,7 @@ public:
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
         const TRange<TUnversionedRow>& unreadRows) const override
     {
         Y_UNREACHABLE();

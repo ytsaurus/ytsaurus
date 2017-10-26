@@ -171,8 +171,6 @@ private:
                 GetTag());
             YCHECK(result == GRPC_CALL_OK);
 
-            EndpointDescription_ = CallDetails_->host;
-
             Ref();
         }
 
@@ -216,7 +214,7 @@ private:
         // IBus overrides
         virtual const TString& GetEndpointDescription() const override
         {
-            return EndpointDescription_;
+            Y_UNREACHABLE();
         }
 
         virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
@@ -257,8 +255,6 @@ private:
         TString MethodName_;
         TNullable<TDuration> Timeout_;
         IServicePtr Service_;
-
-        TString EndpointDescription_;
 
         TGrpcMetadataArrayBuilder InitialMetadataBuilder_;
         TGrpcMetadataArrayBuilder TrailingMetadataBuilder_;

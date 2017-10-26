@@ -45,6 +45,9 @@ static constexpr size_t MaxBatchWriteSize    = 64 * 1024;
 static constexpr size_t MaxWriteCoalesceSize = 4 * 1024;
 static constexpr auto WriteTimeWarningThreshold = TDuration::MilliSeconds(100);
 
+static constexpr auto MinRto = TDuration::MilliSeconds(100);
+static constexpr auto MaxRto = TDuration::Seconds(30);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTcpConnectionReadBufferTag { };

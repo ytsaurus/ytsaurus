@@ -115,7 +115,7 @@ TChunkId TFileChunkOutput::GetChunkId() const
 
 i64 TFileChunkOutput::GetSize() const
 {
-    return FileChunkWriter_->GetCompressedDataSize();
+    return FileChunkWriter_->GetDataSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

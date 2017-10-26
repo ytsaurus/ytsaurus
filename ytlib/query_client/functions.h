@@ -28,8 +28,6 @@ struct ITypeInferrer
 
 DEFINE_REFCOUNTED_TYPE(ITypeInferrer)
 
-////////////////////////////////////////////////////////////////////////////////
-
 struct TFunctionTypeInferrer
     : public ITypeInferrer
 {
@@ -39,8 +37,8 @@ public:
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
         TType resultType)
-        : TypeArgumentConstraints_(std::move(typeArgumentConstraints))
-        , ArgumentTypes_(std::move(argumentTypes))
+        : TypeArgumentConstraints_(typeArgumentConstraints)
+        , ArgumentTypes_(argumentTypes)
         , RepeatedArgumentType_(repeatedArgumentType)
         , ResultType_(resultType)
     { }
@@ -49,20 +47,13 @@ public:
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType resultType)
-        : TFunctionTypeInferrer(
-            std::move(typeArgumentConstraints),
-            std::move(argumentTypes),
-            EValueType::Null,
-            resultType)
+        : TFunctionTypeInferrer(typeArgumentConstraints, argumentTypes, EValueType::Null, resultType)
     { }
 
     TFunctionTypeInferrer(
         std::vector<TType> argumentTypes,
         TType resultType)
-        : TFunctionTypeInferrer(
-            std::unordered_map<TTypeArgument, TUnionType>(),
-            std::move(argumentTypes),
-            resultType)
+        : TFunctionTypeInferrer(std::unordered_map<TTypeArgument, TUnionType>(), argumentTypes, resultType)
     { }
 
     size_t GetNormalizedConstraints(
@@ -71,10 +62,11 @@ public:
         TNullable<std::pair<size_t, bool>>* repeatedType) const;
 
 private:
-    const std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
-    const std::vector<TType> ArgumentTypes_;
-    const TType RepeatedArgumentType_;
-    const TType ResultType_;
+    std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
+    std::vector<TType> ArgumentTypes_;
+    TType RepeatedArgumentType_;
+    TType ResultType_;
+
 };
 
 struct TAggregateTypeInferrer
@@ -86,7 +78,7 @@ public:
         TType argumentType,
         TType resultType,
         TType stateType)
-        : TypeArgumentConstraints_(std::move(typeArgumentConstraints))
+        : TypeArgumentConstraints_(typeArgumentConstraints)
         , ArgumentType_(argumentType)
         , ResultType_(resultType)
         , StateType_(stateType)
@@ -99,18 +91,19 @@ public:
         const TStringBuf& name) const;
 
 private:
-    const std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
-    const TType ArgumentType_;
-    const TType ResultType_;
-    const TType StateType_;
+    std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
+    TType ArgumentType_;
+    TType ResultType_;
+    TType StateType_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRangeExtractor = std::function<TKeyTriePtr(
+typedef std::function<TKeyTriePtr(
     const TConstFunctionExpressionPtr& expr,
     const TKeyColumns& keyColumns,
-    const TRowBufferPtr& rowBuffer)>;
+    const TRowBufferPtr& rowBuffer)> TRangeExtractor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,6 +112,7 @@ struct TTypeInferrerMap
     , public std::unordered_map<TString, ITypeInferrerPtr>
 {
     const ITypeInferrerPtr& GetFunction(const TString& functionName) const;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TTypeInferrerMap)
@@ -135,6 +129,7 @@ struct TFunctionProfilerMap
     , public std::unordered_map<TString, IFunctionCodegenPtr>
 {
     const IFunctionCodegenPtr& GetFunction(const TString& functionName) const;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TFunctionProfilerMap)
@@ -144,6 +139,7 @@ struct TAggregateProfilerMap
     , public std::unordered_map<TString, IAggregateCodegenPtr>
 {
     const IAggregateCodegenPtr& GetAggregate(const TString& functionName) const;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TAggregateProfilerMap)

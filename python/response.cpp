@@ -9,53 +9,18 @@ namespace NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDriverResponseHolder::TDriverResponseHolder()
-#if PY_MAJOR_VERSION < 3
-    : ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, Null))
-#else
-    : ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, MakeNullable<TString>("utf-8")))
-#endif
-    , ResponseParametersConsumer_(new NYTree::TGilGuardedYsonConsumer(ResponseParametersBuilder_.get()))
-{ }
-
-TDriverResponseHolder::~TDriverResponseHolder()
-{
-    TGilGuard guard;
-    // Releasing Python objects under GIL.
-    InputStream_.reset(nullptr);
-    OutputStream_.reset(nullptr);
-    ResponseParametersBuilder_.reset(nullptr);
-}
-
-NYson::IYsonConsumer* TDriverResponseHolder::GetResponseParametersConsumer()
-{
-    return ResponseParametersConsumer_.get();
-}
-
-NYTree::TPythonObjectBuilder* TDriverResponseHolder::GetPythonObjectBuilder()
-{
-    return ResponseParametersBuilder_.get();
-}
-
-void TDriverResponseHolder::OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream)
-{
-    InputStream_.swap(inputStream);
-}
-
-void TDriverResponseHolder::OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& outputStream)
-{
-    OutputStream_.swap(outputStream);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwargs)
-    , Holder_(New<TDriverResponseHolder>())
+#if PY_MAJOR_VERSION < 3
+    , ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, Null))
+#else
+    , ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, MakeNullable<TString>("utf-8")))
+#endif
+    , ResponseParametersConsumer_(new NYTree::TGilGuardedYsonConsumer(ResponseParametersBuilder_.get()))
     , ResponseParameters_(Py::None())
 {
-    // TODO(ignat): Remake using forwarding yson consumer
-    Holder_->GetResponseParametersConsumer()->OnBeginMap();
+    // TODO(ignat): remake usign forwarding yson consumer
+    ResponseParametersBuilder_->OnBeginMap();
 }
 
 void TDriverResponse::SetResponse(TFuture<void> response)
@@ -63,18 +28,28 @@ void TDriverResponse::SetResponse(TFuture<void> response)
     Response_ = response;
 }
 
-TIntrusivePtr<TDriverResponseHolder> TDriverResponse::GetHolder() const
+NYson::IYsonConsumer* TDriverResponse::GetResponseParametersConsumer()
 {
-    return Holder_;
+    return ResponseParametersConsumer_.get();
+}
+
+void TDriverResponse::OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream)
+{
+    InputStream_.swap(inputStream);
+}
+
+void TDriverResponse::OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& outputStream)
+{
+    OutputStream_.swap(outputStream);
 }
 
 Py::Object TDriverResponse::ResponseParameters(Py::Tuple& args, Py::Dict& kwargs)
 {
     if (!ResponseParametersFinished_) {
         ResponseParametersFinished_ = true;
-        Holder_->GetResponseParametersConsumer()->OnEndMap();
-        if (Holder_->GetPythonObjectBuilder()->HasObject()) {
-            ResponseParameters_ = Holder_->GetPythonObjectBuilder()->ExtractObject();
+        ResponseParametersBuilder_->OnEndMap();
+        if (ResponseParametersBuilder_->HasObject()) {
+            ResponseParameters_ = ResponseParametersBuilder_->ExtractObject();
         }
     }
     return ResponseParameters_;
@@ -117,13 +92,7 @@ Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
 }
 
 TDriverResponse::~TDriverResponse()
-{
-    try {
-        Response_.Cancel();
-    } catch (...) {
-        // intentionally doing nothing
-    }
-}
+{ }
 
 void TDriverResponse::InitType()
 {

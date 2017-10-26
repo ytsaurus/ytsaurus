@@ -68,16 +68,7 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
         blockLastKeys.push_back(wideKey);
     }
 
-    std::tie(BlockLastKeys_, BlockLastKeysSize_) = CaptureRows<TBlockLastKeysBufferTag>(MakeRange(blockLastKeys));
-}
-
-i64 TColumnarChunkMeta::GetMemoryUsage() const
-{
-    return BlockLastKeysSize_ +
-        sizeof(Misc_) +
-        BlockMeta_->GetSize() +
-        (ColumnMeta_ ? ColumnMeta_->GetSize() : 0);
-    // TODO(psushin): account schema here, or make it ref-counted.
+    BlockLastKeys_ = CaptureRows<TBlockLastKeysBufferTag>(MakeRange(blockLastKeys));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

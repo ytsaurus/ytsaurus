@@ -75,7 +75,7 @@ public:
                     {
                         row[valueIndex] = MakeAnyFromScalar(value);
                     } else {
-                        ValidateValueType(value, ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false);
+                        ValidateValueType(value, ReaderSchema_, valueIndex);
                     }
                 }
                 rows_[i] = row;

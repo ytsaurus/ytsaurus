@@ -37,8 +37,6 @@ struct TTabletInfo
     NObjectClient::TObjectId TableId;
     TInstant UpdateTime;
     std::vector<TWeakPtr<TTableMountInfo>> Owners;
-
-    TTabletInfo& operator= (const TTabletInfo& other);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletInfo)

@@ -25,13 +25,6 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
-#define PRINT_PASSES_TIME
-#ifdef PRINT_PASSES_TIME
-#include <llvm/Support/Timer.h>
-#include <llvm/Transforms/Scalar.h>
-#endif
-
-
 #include <mutex>
 
 #ifdef _linux_
@@ -49,12 +42,6 @@ static const auto& Logger = CodegenLogger;
 static bool IsIRDumpEnabled()
 {
     static bool result = (getenv("DUMP_IR") != nullptr);
-    return result;
-}
-
-static bool IsPassesTimeDumpEnabled()
-{
-    static bool result = (getenv("DUMP_PASSES_TIME") != nullptr);
     return result;
 }
 
@@ -250,12 +237,6 @@ private:
         using PassManager = llvm::legacy::PassManager;
         using FunctionPassManager = llvm::legacy::FunctionPassManager;
 
-#ifdef PRINT_PASSES_TIME
-        if (IsPassesTimeDumpEnabled()) {
-            llvm::TimePassesIsEnabled = true;
-        }
-#endif
-
         LOG_DEBUG("Started compiling module");
 
         if (IsIRDumpEnabled()) {
@@ -322,11 +303,7 @@ private:
         LOG_DEBUG("Finalizing module");
 
         Engine_->finalizeObject();
-#ifdef PRINT_PASSES_TIME
-        if (IsPassesTimeDumpEnabled()) {
-            llvm::TimerGroup::printAll(llvm::errs());
-        }
-#endif
+
         LOG_DEBUG("Finished compiling module");
         // TODO(sandello): Clean module here.
     }

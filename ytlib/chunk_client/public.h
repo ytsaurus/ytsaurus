@@ -227,8 +227,6 @@ using TPlacementId = TGuid;
 
 struct TDataSliceDescriptor;
 
-struct TInterruptDescriptor;
-
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
 ////////////////////////////////////////////////////////////////////////////////

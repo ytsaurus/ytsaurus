@@ -50,7 +50,7 @@ size_t TExecutionStackBase::GetSize() const
 TExecutionStack::TExecutionStack(size_t size)
     : TExecutionStackBase(size)
 {
-    const size_t guardSize = GuardPageCount * GetPageSize();
+    const size_t guardSize = GuardPages * GetPageSize();
 
     int flags =
 #if defined(_darwin_)
@@ -82,7 +82,7 @@ TExecutionStack::TExecutionStack(size_t size)
 
 TExecutionStack::~TExecutionStack()
 {
-    const size_t guardSize = GuardPageCount * GetPageSize();
+    const size_t guardSize = GuardPages * GetPageSize();
     ::munmap(Base_, guardSize + Size_);
 }
 

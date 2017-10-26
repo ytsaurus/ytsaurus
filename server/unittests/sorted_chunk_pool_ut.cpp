@@ -319,7 +319,6 @@ protected:
     {
         TBlobOutput output;
         TSaveContext saveContext;
-        saveContext.SetVersion(GetCurrentSnapshotVersion());
         saveContext.SetOutput(&output);
         Save(saveContext, ChunkPool_);
         auto blob = output.Flush();
@@ -327,7 +326,6 @@ protected:
 
         TMemoryInput input(blob.Begin(), blob.Size());
         TLoadContext loadContext;
-        loadContext.SetVersion(GetCurrentSnapshotVersion());
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);

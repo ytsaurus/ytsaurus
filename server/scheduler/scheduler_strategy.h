@@ -27,8 +27,6 @@ struct ISchedulerStrategyHost
     virtual TJobResources GetMainNodesResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
 
-    virtual TInstant GetConnectionTime() const = 0;
-
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 
     virtual int GetExecNodeCount() const = 0;
@@ -133,8 +131,8 @@ struct ISchedulerStrategy
     virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
 
     virtual void ProcessUpdatedAndCompletedJobs(
-        std::vector<TUpdatedJob>* updatedJobs,
-        std::vector<NScheduler::TCompletedJob>* completedJobs) = 0;
+        const std::vector<TUpdatedJob>& updatedJobs,
+        const std::vector<NScheduler::TCompletedJob>& completedJobs) = 0;
 
     virtual void ApplyJobMetricsDelta(
         const TOperationId& operationId,

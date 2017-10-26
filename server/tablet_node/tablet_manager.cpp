@@ -35,6 +35,8 @@
 #include <yt/server/hydra/mutation.h>
 #include <yt/server/hydra/mutation_context.h>
 
+#include <yt/server/misc/memory_usage_tracker.h>
+
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 #include <yt/server/tablet_node/transaction_manager.h>
 
@@ -42,8 +44,6 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -1264,7 +1264,7 @@ private:
 
         if (tablet->IsProfilingEnabled() && user) {
             auto& counters = GetLocallyGloballyCachedValue<TWriteProfilerTrait>(
-                AddUserTag(user, tablet->GetProfilerTags()));
+                GetUserProfilerTags(user, tablet->GetProfilerTags()));
             TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
             TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
         }
@@ -2141,7 +2141,7 @@ private:
                     }
 
                     auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
-                        AddUserTag(transaction->GetUser(), tablet->GetProfilerTags()));
+                        GetUserProfilerTags(transaction->GetUser(), tablet->GetProfilerTags()));
                     TabletNodeProfiler.Increment(counters.RowCount, record.RowCount);
                     TabletNodeProfiler.Increment(counters.DataWeight, record.DataWeight);
                 }
@@ -2336,7 +2336,7 @@ private:
         if (!store->IsDynamic()) {
             return;
         }
-
+        
         auto dynamicStore = store->AsDynamic();
         auto lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
@@ -2981,7 +2981,6 @@ private:
                     storeId,
                     tablet,
                     Bootstrap_->GetBlockCache(),
-                    Bootstrap_->GetMemoryUsageTracker(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetMasterClient(),
@@ -2994,8 +2993,7 @@ private:
                 return New<TSortedDynamicStore>(
                     Config_,
                     storeId,
-                    tablet,
-                    Bootstrap_->GetMemoryUsageTracker());
+                    tablet);
 
             case EStoreType::OrderedChunk: {
                 auto store = New<TOrderedChunkStore>(

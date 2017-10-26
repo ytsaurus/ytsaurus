@@ -1,15 +1,10 @@
 #include "stream.h"
 #include "parser.h"
 
-#include <yt/core/concurrency/async_stream.h>
-#include <yt/core/concurrency/scheduler.h>
-
 #include <yt/core/yson/parser.h>
 
 namespace NYT {
 namespace NYson {
-
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,16 +13,7 @@ static const size_t ParseBufferSize = 1 << 16;
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonInput::TYsonInput(IInputStream* stream, EYsonType type)
-    : AsyncStream_(nullptr)
-    , Stream_(stream)
-    , Type_(type)
-{ }
-
-TYsonInput::TYsonInput(
-    const NConcurrency::IAsyncZeroCopyInputStreamPtr& asyncStream,
-    EYsonType type)
-    : AsyncStream_(asyncStream)
-    , Stream_(nullptr)
+    : Stream_(stream)
     , Type_(type)
 { }
 
@@ -51,28 +37,14 @@ void ParseYson(
     bool enableLinePositionInfo)
 {
     TYsonParser parser(consumer, input.GetType(), enableLinePositionInfo);
-    if (input.GetStream()) {
-        char buffer[ParseBufferSize];
-        while (true) {
-            size_t bytesRead = input.GetStream()->Read(buffer, ParseBufferSize);
-            if (bytesRead == 0) {
-                break;
-            }
-            parser.Read(TStringBuf(buffer, bytesRead));
+    char buffer[ParseBufferSize];
+    while (true) {
+        size_t bytesRead = input.GetStream()->Read(buffer, ParseBufferSize);
+        if (bytesRead == 0) {
+            break;
         }
-    } else {
-        while (true) {
-            auto buffer = WaitFor(input.AsyncStream()->Read())
-                .ValueOrThrow();
-
-            if (buffer.Empty()) {
-                break;
-            }
-
-            parser.Read(TStringBuf(buffer.Begin(), buffer.Size()));
-        }
+        parser.Read(TStringBuf(buffer, bytesRead));
     }
-
     parser.Finish();
 }
 

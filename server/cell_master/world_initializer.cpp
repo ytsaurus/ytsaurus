@@ -524,7 +524,9 @@ private:
     {
         TTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
-        req->set_timeout(ToProto<i64>(InitTransactionTimeout));
+        auto timeout = ToProto<i64>(InitTransactionTimeout);
+        req->set_timeout_old(timeout); // will be removed
+        req->set_timeout_new(timeout);
         req->set_title("World initialization");
 
         auto rsp = WaitFor(req->Invoke())

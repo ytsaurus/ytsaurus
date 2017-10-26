@@ -2,11 +2,11 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/server/cell_node/bootstrap.h>
-
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/server/misc/memory_usage_tracker.h>
+
+#include <yt/server/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NDataNode {

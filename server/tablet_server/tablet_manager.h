@@ -17,21 +17,14 @@
 #include <yt/server/object_server/public.h>
 
 #include <yt/server/table_server/public.h>
-#include <yt/server/table_server/table_node.h>
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
 #include <yt/ytlib/table_client/public.h>
-
-#include <yt/core/misc/small_vector.h>
+#include <yt/server/table_server/table_node.h>
 
 namespace NYT {
 namespace NTabletServer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-constexpr int TypicalTabletSlotCount = 10;
-using TTabletCellSet = SmallVector<TTabletCell*, TypicalTabletSlotCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +39,7 @@ public:
 
     void Initialize();
 
-    const TTabletCellSet* FindAssignedTabletCells(const TString& address) const;
+    int GetAssignedTabletCellCount(const TString& address) const;
 
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 

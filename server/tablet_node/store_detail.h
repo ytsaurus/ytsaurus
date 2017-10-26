@@ -74,7 +74,6 @@ protected:
     TTablet* const Tablet_;
 
     const TTabletPerformanceCountersPtr PerformanceCounters_;
-    const TRuntimeTabletDataPtr RuntimeData_;
     const TTabletId TabletId_;
     const NYPath::TYPath TablePath_;
     const NTableClient::TTableSchema Schema_;
@@ -233,8 +232,8 @@ public:
 
     virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
 
-    virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
-    virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode, ui64 configRevision) override;
+    virtual EInMemoryMode GetInMemoryMode() const override;
+    virtual void SetInMemoryMode(EInMemoryMode mode, ui64 configRevision) override;
 
     virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
 
@@ -245,7 +244,7 @@ protected:
     const NApi::INativeClientPtr Client_;
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
-    NTabletClient::EInMemoryMode InMemoryMode_ = NTabletClient::EInMemoryMode::None;
+    EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
     ui64 InMemoryConfigRevision_ = 0;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;

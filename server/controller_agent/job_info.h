@@ -119,7 +119,6 @@ struct TCompletedJob
 
     TCompletedJob(
         const TJobId& jobId,
-        EJobType jobType,
         TTaskPtr sourceTask,
         NChunkPools::IChunkPoolOutput::TCookie outputCookie,
         i64 dataSize,
@@ -130,7 +129,6 @@ struct TCompletedJob
     bool Lost = false;
 
     TJobId JobId;
-    EJobType JobType;
 
     TTaskPtr SourceTask;
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie;

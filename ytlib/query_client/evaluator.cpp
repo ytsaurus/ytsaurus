@@ -56,10 +56,6 @@ public:
         : TAsyncSlruCacheBase(config->CGCache)
     { }
 
-    explicit TImpl(TExecutorConfigPtr config, TString profilingPath)
-        : TAsyncSlruCacheBase(config->CGCache, NProfiling::TProfiler(profilingPath + "/cg_cache"))
-    { }
-
     TQueryStatistics Run(
         TConstBaseQueryPtr query,
         ISchemafulReaderPtr reader,
@@ -95,8 +91,7 @@ public:
                     functionProfilers,
                     aggregateProfilers,
                     statistics,
-                    options.EnableCodeCache,
-                    options.UseMultijoin);
+                    options.EnableCodeCache);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -154,8 +149,7 @@ private:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         TQueryStatistics& statistics,
-        bool enableCodeCache,
-        bool useMultijoin)
+        bool enableCodeCache)
     {
         llvm::FoldingSetNodeID id;
 
@@ -164,7 +158,6 @@ private:
             &id,
             &variables,
             joinProfiler,
-            useMultijoin,
             functionProfilers,
             aggregateProfilers);
 
@@ -223,10 +216,6 @@ private:
 
 TEvaluator::TEvaluator(TExecutorConfigPtr config)
     : Impl_(New<TImpl>(std::move(config)))
-{ }
-
-TEvaluator::TEvaluator(TExecutorConfigPtr config, const TString& profilingPath)
-    : Impl_(New<TImpl>(std::move(config), profilingPath))
 { }
 
 TEvaluator::~TEvaluator() = default;

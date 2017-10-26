@@ -48,8 +48,6 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ELogicalValueType, ui32,
 
     ((Int32)       (0x1005))
     ((Uint32)      (0x1006))
-
-    ((Utf8)        (0x1007))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,9 +73,6 @@ inline EValueType GetPhysicalType(ELogicalValueType type)
         case ELogicalValueType::Uint16:
         case ELogicalValueType::Uint32:
             return EValueType::Uint64;
-
-        case ELogicalValueType::Utf8:
-            return EValueType::String;
 
         default:
             Y_UNREACHABLE();

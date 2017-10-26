@@ -172,11 +172,6 @@ void TChunkStripeList::Persist(const TPersistenceContext& context)
     Persist(context, TotalRowCount);
     Persist(context, TotalChunkCount);
     Persist(context, LocalChunkCount);
-
-    // COMPAT(psushin).
-    if (!context.IsLoad() || context.GetVersion() >= 200840) {
-        Persist(context, IsSplittable);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

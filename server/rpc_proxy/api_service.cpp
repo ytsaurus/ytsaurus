@@ -298,8 +298,6 @@ private:
         options.Sticky = request->sticky();
         options.Ping = request->ping();
         options.PingAncestors = request->ping_ancestors();
-        options.Atomicity = static_cast<NTransactionClient::EAtomicity>(request->atomicity());
-        options.Durability = static_cast<NTransactionClient::EDurability>(request->durability());
 
         CompleteCallWith(
             context,
@@ -349,7 +347,7 @@ private:
             context,
             transaction->Commit(),
             [response] (const TTransactionCommitResult& result) {
-                ToProto(response->mutable_commit_timestamps(), result.CommitTimestamps);
+                // TODO(sandello): Fill me.
             });
     }
 
@@ -796,9 +794,6 @@ private:
         }
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
-        }
-        if (request->has_preserve_creation_time()) {
-            options.PreserveCreationTime = request->preserve_creation_time();
         }
 
         if (request->has_transactional_options()) {

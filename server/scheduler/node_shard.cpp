@@ -12,8 +12,6 @@
 
 #include <yt/server/shell/config.h>
 
-#include <yt/ytlib/job_proxy/public.h>
-
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/misc/finally.h>
@@ -715,9 +713,9 @@ void TNodeShard::RegisterRevivedJobs(const std::vector<TJobPtr>& jobs)
     }
 }
 
-void TNodeShard::PrepareReviving()
+void TNodeShard::ClearRevivalState()
 {
-    RevivalState_->PrepareReviving();
+    RevivalState_->Clear();
 }
 
 void TNodeShard::StartReviving()
@@ -1040,11 +1038,6 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
     auto job = FindJob(jobId, node);
     if (!job) {
-        // We should not abort or remove unknown jobs until revival is finished because
-        // we can decide what to do with these jobs only when all TJob's are revived.
-        if (RevivalState_->ShouldSkipUnknownJobs()) {
-            return nullptr;
-        }
         switch (state) {
             case EJobState::Completed:
                 LOG_DEBUG("Unknown job has completed, removal scheduled");
@@ -1129,10 +1122,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         case EJobState::Aborted: {
             auto error = FromProto<TError>(jobStatus->result().error());
             LOG_DEBUG(error, "Job aborted, removal scheduled");
-            if (job->GetPreempted() &&
-                (error.FindMatching(NExecAgent::EErrorCode::AbortByScheduler) ||
-                error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)))
-            {
+            if (job->GetPreempted() && error.GetCode() == NExecAgent::EErrorCode::AbortByScheduler) {
                 auto error = TError("Job preempted")
                     << TErrorAttribute("abort_reason", EAbortReason::Preemption)
                     << TErrorAttribute("preemption_reason", job->GetPreemptionReason());
@@ -1238,11 +1228,6 @@ void TNodeShard::UpdateNodeResources(TExecNodePtr node, const TJobResources& lim
 
         TotalResourceUsage_ -= oldResourceUsage;
         TotalResourceUsage_ += node->GetResourceUsage();
-
-        // Force update cache if node has come with non-zero usage.
-        if (oldResourceLimits.GetUserSlots() == 0 && node->GetResourceUsage().GetUserSlots() > 0) {
-            CachedResourceLimitsByTags_->ForceUpdate();
-        }
     }
 }
 
@@ -1373,7 +1358,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         if (status != nullptr) {
             const auto& result = status->result();
             const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            if (schedulerResultExt.unread_chunk_specs_size() == 0) {
+            if (schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) {
                 job->SetInterruptReason(EInterruptReason::None);
             } else if (job->GetRevived()) {
                 // NB: We lose the original interrupt reason during the revival,
@@ -1481,8 +1466,10 @@ void TNodeShard::SubmitUpdatedAndCompletedJobsToStrategy()
 {
     if (!UpdatedJobs_.empty() || !CompletedJobs_.empty()) {
         Host_->GetStrategy()->ProcessUpdatedAndCompletedJobs(
-            &UpdatedJobs_,
-            &CompletedJobs_);
+            UpdatedJobs_,
+            CompletedJobs_);
+        UpdatedJobs_.clear();
+        CompletedJobs_.clear();
     }
 }
 
@@ -1687,12 +1674,7 @@ TNodeShard::TRevivalState::TRevivalState(TNodeShard* host)
     : Host_(host)
 { }
 
-bool TNodeShard::TRevivalState::ShouldSkipUnknownJobs() const
-{
-    return ShouldSkipUnknownJobs_;
-}
-
-bool TNodeShard::TRevivalState::ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId) const
+bool TNodeShard::TRevivalState::ShouldSendStoredJobs(NNodeTrackerClient::TNodeId nodeId)
 {
     return Active_ && !NodeIdsThatSentAllStoredJobs_.has(nodeId);
 }
@@ -1700,6 +1682,13 @@ bool TNodeShard::TRevivalState::ShouldSendStoredJobs(NNodeTrackerClient::TNodeId
 void TNodeShard::TRevivalState::OnReceivedStoredJobs(NNodeTrackerClient::TNodeId nodeId)
 {
     NodeIdsThatSentAllStoredJobs_.insert(nodeId);
+}
+
+void TNodeShard::TRevivalState::Clear()
+{
+    Active_ = false;
+    NodeIdsThatSentAllStoredJobs_.clear();
+    NotConfirmedJobs_.clear();
 }
 
 void TNodeShard::TRevivalState::RegisterRevivedJob(const TJobPtr& job)
@@ -1719,18 +1708,9 @@ void TNodeShard::TRevivalState::UnregisterJob(const TJobPtr& job)
     NotConfirmedJobs_.erase(job);
 }
 
-void TNodeShard::TRevivalState::PrepareReviving()
-{
-    Active_ = false;
-    ShouldSkipUnknownJobs_ = true;
-    NodeIdsThatSentAllStoredJobs_.clear();
-    NotConfirmedJobs_.clear();
-}
-
 void TNodeShard::TRevivalState::StartReviving()
 {
     Active_ = true;
-    ShouldSkipUnknownJobs_ = false;
 
     //! Give some time for nodes to confirm the jobs.
     TDelayedExecutor::Submit(
@@ -1752,7 +1732,7 @@ void TNodeShard::TRevivalState::FinalizeReviving()
         Host_->Config_->JobRevivalAbortTimeout);
 
     // NB: DoUnregisterJob attempts to erase job from the revival state, so we need to
-    // eliminate set modification during its traversal by moving it to the local variable.
+    // eliminate set modification during its traversal my moving it to the local variable.
     auto notConfirmedJobs = std::move(NotConfirmedJobs_);
     for (const auto& job : notConfirmedJobs) {
         LOG_DEBUG("Aborting revived job that was not confirmed (JobId: %v)",
@@ -1761,6 +1741,8 @@ void TNodeShard::TRevivalState::FinalizeReviving()
             TError("Job not confirmed")
                 << TErrorAttribute("abort_reason", EAbortReason::RevivalConfirmationTimeout));
         Host_->OnJobAborted(job, &status);
+        auto execNode = Host_->GetNodeByJob(job->GetId());
+        execNode->JobIdsToRemove().emplace_back(job->GetId());
     }
 }
 

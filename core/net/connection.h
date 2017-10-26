@@ -16,8 +16,6 @@ struct IConnection
     : public NConcurrency::IAsyncOutputStream
     , public NConcurrency::IAsyncInputStream
 {
-    virtual TFuture<void> WriteV(const TSharedRefArray& data) = 0;
-
     virtual TFuture<void> CloseRead() = 0;
     virtual TFuture<void> CloseWrite() = 0;
 
