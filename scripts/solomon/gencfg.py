@@ -9,6 +9,7 @@ import pprint
 import logging
 import random
 import re
+import collections
 
 import yt.wrapper as yt
 
@@ -173,9 +174,9 @@ SENSOR = {
     "rawDataMemOnly": False,
 }
 
-CLUSTER_NODES_MASKS = {
-    "hahn": "n%s-sas.hahn.yt.yandex.net",
-    "banach": "n%si.banach.yt.yandex.net",
+CLUSTER_NODE_MASKS = {
+    "hahn": ["n%s-sas.hahn.yt.yandex.net"],
+    "banach": ["p%si.banach.yt.yandex.net", "n%si.banach.yt.yandex.net"],
 }
 
 ###################################################################################################################
@@ -281,6 +282,8 @@ class Resource(object):
             message += "## %s\n" % self.admin_url
             if "deleted" in self.remote:
                 message += "## [version=%s; deleted=%s]\n" % (self.remote["version"], self.remote["deleted"])
+            else:
+                message += "## [version=%s]\n" % self.remote["version"]
             message += "#" * 80 + "\n"
             message += "\n"
             for key in self._local_data:
@@ -301,6 +304,18 @@ class Resource(object):
             if rsp.ok:
                 self._remote_data = rsp.json()
                 self._local_data = copy.deepcopy(self._remote_data)
+
+
+class NodeRanges(object):
+    def __init__(self):
+        self.numbers = []
+
+    def append(self, number):
+        self.numbers.append(number)
+
+    @property
+    def ranges(self):
+        return " ".join(["{0}-{0}".format(number) for number in sorted(self.numbers)])
 
 
 def normalize_cluster_id(cluster):
@@ -429,12 +444,14 @@ def list_shards(token, mode):
 @click.option("--cluster", required=True)
 @click.option("--yes", is_flag=True)
 def update_tablet_nodes(token, cluster, yes):
-    assert cluster in CLUSTER_NODES_MASKS
+    assert cluster in CLUSTER_NODE_MASKS
     yt.config["proxy"]["url"] = cluster
-    mask = CLUSTER_NODES_MASKS[cluster]
+    masks = CLUSTER_NODE_MASKS[cluster]
     cluster_solomon = "yt_%s_tablet_nodes" % cluster
     resource = Resource("/projects/yt/clusters/%s" % cluster_solomon, token)
     resource.load()
+
+    logging.info("Getting tablet nodes from cluster %s", cluster)
     nodes = yt.get("//sys/nodes", attributes=["tablet_slots"])
     tablet_nodes = []
     for node, attributes in nodes.items():
@@ -442,17 +459,38 @@ def update_tablet_nodes(token, cluster, yes):
         if len(slots) > 0:
             tablet_nodes.append(node)
     logging.info("Found %s tablet nodes", len(tablet_nodes))
-    node_numbers = []
+
+    logging.info("Generating table nodes ranges")
+    ranges = collections.defaultdict(NodeRanges)
     for node in tablet_nodes:
-        digs = re.search(r"(\d+)", node).group(0)
-        assert len(digs) == 4
-        node_numbers.append(digs)
-    node_numbers = sorted(node_numbers)
-    pattern_range = ""
-    for number in node_numbers:
-        pattern_range += " %s-%s" % (number, number)
-    pattern_range = pattern_range[1:]
-    resource.local["hosts"][0]["ranges"] = pattern_range
+        digits = re.search(r"(\d+)", node).group(0)
+        assert len(digits) == 4
+        appended = False
+        for i, mask in enumerate(masks):
+            if node.startswith(mask % digits):
+                ranges[i].append(digits)
+                appended = True
+        if not appended:
+            raise Exception("Cannot find mask for %s" % node)
+
+    def update(ranges, mask):
+        pattern = mask % "%04d"
+        hosts = resource.local["hosts"]
+        for host in hosts:
+            if host["urlPattern"] == pattern:
+                host["ranges"] = ranges
+                return
+        hosts.append({
+            "urlPattern": pattern,
+            "ranges": ranges,
+            "labels": [
+                "type=tablet_node"
+            ]
+        })
+
+    logging.info("Updating solomon")
+    for i, mask in enumerate(masks):
+        update(ranges[i].ranges, mask)
     resource.save(dry_run=(not yes))
 
 
