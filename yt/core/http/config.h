@@ -24,25 +24,7 @@ public:
     int BindRetryCount;
     TDuration BindRetryBackoff;
 
-    TServerConfig() {
-        RegisterParameter("port", Port)
-            .Default(80);
-
-        RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
-            .Default(50000);
-
-        RegisterParameter("read_buffer_size", ReadBufferSize)
-            .Default(128_KB);
-
-        RegisterParameter("write_buffer_size", WriteBufferSize)
-            .Default(128_KB);
-
-        RegisterParameter("bind_retry_count", BindRetryCount)
-            .Default(5);
-
-        RegisterParameter("bind_retry_backoff", BindRetryBackoff)
-            .Default(TDuration::Seconds(1));
-    }
+    TServerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerConfig);

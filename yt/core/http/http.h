@@ -241,9 +241,10 @@ DEFINE_REFCOUNTED_TYPE(IResponse)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IHttpHandler
+class IHttpHandler
     : public virtual TRefCounted
 {
+public:
     virtual void HandleHttp(
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp) = 0;

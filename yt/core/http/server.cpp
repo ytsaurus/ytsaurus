@@ -17,6 +17,7 @@ namespace NYT {
 namespace NHttp {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NNet;
 
 static const auto& Logger = HttpLogger;
@@ -78,7 +79,9 @@ public:
 
             while (true) {
                 auto client = WaitFor(Listener_->Accept()).ValueOrThrow();
+                HttpProfiler.Increment(ConnectionsAccepted_);
                 if (++ActiveClients_ >= Config_->MaxSimultaneousConnections) {
+                    HttpProfiler.Increment(ConnectionsDropped_);
                     --ActiveClients_;
                     LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
                         client->RemoteAddress());
@@ -87,7 +90,7 @@ public:
 
                 LOG_DEBUG("Accepted client (RemoteAddress: %v)", client->RemoteAddress());
                 BIND(&TServer::HandleClient, MakeStrong(this), std::move(client))
-                    .Via(Poller_->GetInvoker())
+                    .AsyncVia(Poller_->GetInvoker())
                     .Run();
             }
         })
@@ -104,6 +107,9 @@ private:
 
     std::atomic<bool> Started_ = {false};
     TRequestPathMatcher Handlers_;
+
+    TSimpleCounter ConnectionsAccepted_{"/connections_accepted"};
+    TSimpleCounter ConnectionsDropped_{"/connections_dropped"};
 
     void HandleClient(const IConnectionPtr& connection)
     {
@@ -124,10 +130,11 @@ private:
         response->SendConnectionCloseHeader();
         response->WriteHeaders(EStatusCode::InternalServerError);
 
-        LOG_INFO("Received HTTP request (Method: %v, Path: %v)",
-            request->GetMethod(),
-            request->GetUrl().Path);
         try {
+            LOG_INFO("Received HTTP request (Method: %v, Path: %v)",
+                request->GetMethod(),
+                request->GetUrl().Path);
+
             auto handler = Handlers_.Match(request->GetUrl().Path);
             if (!handler) {
                 response->WriteHeaders(EStatusCode::NotFound);
