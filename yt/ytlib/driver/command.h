@@ -60,6 +60,11 @@ protected:
 
     virtual void DoExecute(ICommandContextPtr context) = 0;
 
+    TCommandBase()
+    {
+        SetKeepUnrecognized(true);
+    }
+
 public:
     virtual void Execute(ICommandContextPtr context) override
     {

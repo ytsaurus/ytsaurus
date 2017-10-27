@@ -29,6 +29,9 @@ class TYsonSerializableLite
     : private TNonCopyable
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(bool, KeepUnrecognized);
+
+public:
     typedef std::function<void()> TValidator;
     typedef std::function<void()> TInitializer;
 
