@@ -17,7 +17,21 @@ TBlockWriter::~TBlockWriter()
 {
     try {
         DoFinish();
+    } catch (const std::exception& ex) {
+        if (!std::uncaught_exception()) {
+            Y_FAIL(
+                "Destructor of TBlockWriter caught exception during DoFinish: %s.\n"
+                "Some data is probably has not been written.\n"
+                "In order to handle such exceptions consider explicitly call Finish() method\n",
+                ex.what());
+        }
     } catch (...) {
+        if (!std::uncaught_exception()) {
+            Y_FAIL(
+                "Destructor of TBlockWriter caught unknown exception during DoFinish.\n"
+                "Some data is probably has not been written.\n"
+                "In order to handle such exceptions consider explicitly call Finish() method\n");
+        }
     }
 }
 

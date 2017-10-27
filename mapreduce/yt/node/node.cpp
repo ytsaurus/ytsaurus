@@ -200,7 +200,7 @@ TNode::EType TNode::GetType() const
         case TValue::TagOf<double>():
             return Double;
         case TValue::TagOf<bool>():
-            return Boolean;
+            return Bool;
         case TValue::TagOf<TList>():
             return List;
         case TValue::TagOf<TMap>():
