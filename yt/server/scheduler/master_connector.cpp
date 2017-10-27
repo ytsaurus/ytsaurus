@@ -283,8 +283,6 @@ public:
         }
 
         ScheduleTestingDisconnection();
-
-        Bootstrap->GetControllerAgent()->UpdateConfig(config);
     }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
@@ -405,7 +403,7 @@ private:
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
                 .Via(CancelableControlInvoker));
 
-        Bootstrap->GetControllerAgent()->Connect(CancelableControlInvoker);
+        Bootstrap->GetControllerAgent()->Connect();
 
         StartPeriodicActivities();
 

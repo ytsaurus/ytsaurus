@@ -34,14 +34,17 @@ public:
         NScheduler::TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
 
-    void Connect(IInvokerPtr invoker);
+    void Connect();
     void Disconnect();
     void ValidateConnected() const;
 
     TInstant GetConnectionTime() const;
 
     const IInvokerPtr& GetInvoker();
+    const IInvokerPtr& GetCancelableInvoker();
+
     const IInvokerPtr& GetControllerThreadPoolInvoker();
+    const IInvokerPtr& GetSnapshotIOInvoker();
 
     TMasterConnector* GetMasterConnector();
 

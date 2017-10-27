@@ -155,9 +155,9 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
 
     IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
-    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY(ControlThread), false)
-    IMPLEMENT_SAFE_VOID_METHOD(Forget, (), (), THREAD_AFFINITY(ControlThread), false)
-    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY(ControlThread), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY_ANY(), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Forget, (), (), THREAD_AFFINITY_ANY(), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY_ANY(), false)
 
     IMPLEMENT_SAFE_METHOD(
         NScheduler::TScheduleJobResultPtr,
@@ -215,6 +215,9 @@ public:
 
     virtual bool IsForgotten() const override;
     virtual bool IsRevivedFromSnapshot() const override;
+
+    //! Returns |true| as long as the operation can schedule new jobs.
+    virtual bool IsRunning() const override;
 
     virtual void SetProgressUpdated() override;
     virtual bool ShouldUpdateProgress() const override;
@@ -525,8 +528,6 @@ protected:
         const TJobResources& jobLimits,
         NScheduler::TScheduleJobResult* scheduleJobResult);
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
 
     TJobletPtr FindJoblet(const TJobId& jobId) const;
     TJobletPtr GetJoblet(const TJobId& jobId) const;
@@ -711,9 +712,6 @@ protected:
      *  while this function returns |false|.
      */
     bool IsPrepared() const;
-
-    //! Returns |true| as long as the operation can schedule new jobs.
-    bool IsRunning() const;
 
     //! Returns |true| as long as the operation is waiting for jobs abort events.
     bool IsFailing() const;
@@ -1066,6 +1064,7 @@ private:
 
     NScheduler::TJobPtr BuildJobFromJoblet(const TJobletPtr& joblet) const;
 
+    void DoAbort();
     void AbortAllJoblets();
 
     //! Helper class that implements IChunkPoolInput interface for output tables.

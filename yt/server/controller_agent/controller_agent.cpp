@@ -41,6 +41,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
+        , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
             ControllerAgentLogger))
@@ -55,18 +56,20 @@ public:
     {
         Connected_.store(false);
 
+        CancelableContext_->Cancel();
+
         ControllerAgentMasterConnector_.Reset();
     }
 
-    void Connect(IInvokerPtr invoker)
+    void Connect()
     {
-        // TODO(ignat): fix it!
-        Invoker_ = invoker;
-
         ConnectionTime_ = TInstant::Now();
 
+        CancelableContext_ = New<TCancelableContext>();
+        CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
+
         ControllerAgentMasterConnector_ = New<TMasterConnector>(
-            invoker,
+            CancelableInvoker_,
             Config_,
             Bootstrap_);
 
@@ -90,9 +93,19 @@ public:
         return Bootstrap_->GetControllerAgentInvoker();
     }
 
+    const IInvokerPtr& GetCancelableInvoker()
+    {
+        return CancelableInvoker_;
+    }
+
     const IInvokerPtr& GetControllerThreadPoolInvoker()
     {
         return ControllerThreadPool_->GetInvoker();
+    }
+
+    const IInvokerPtr& GetSnapshotIOInvoker()
+    {
+        return SnapshotIOQueue_->GetInvoker();
     }
 
     TMasterConnector* GetMasterConnector()
@@ -214,9 +227,12 @@ public:
 private:
     TSchedulerConfigPtr Config_;
     NCellScheduler::TBootstrap* Bootstrap_;
-    IInvokerPtr Invoker_;
+
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableInvoker_;
 
     const TThreadPoolPtr ControllerThreadPool_;
+    const TActionQueuePtr SnapshotIOQueue_;
 
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
@@ -258,9 +274,9 @@ TControllerAgent::TControllerAgent(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-void TControllerAgent::Connect(IInvokerPtr invoker)
+void TControllerAgent::Connect()
 {
-    Impl_->Connect(invoker);
+    Impl_->Connect();
 }
 
 void TControllerAgent::Disconnect()
@@ -283,9 +299,19 @@ const IInvokerPtr& TControllerAgent::GetInvoker()
     return Impl_->GetInvoker();
 }
 
+const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
+{
+    return Impl_->GetCancelableInvoker();
+}
+
 const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 {
     return Impl_->GetControllerThreadPoolInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetSnapshotIOInvoker()
+{
+    return Impl_->GetSnapshotIOInvoker();
 }
 
 TMasterConnector* TControllerAgent::GetMasterConnector()

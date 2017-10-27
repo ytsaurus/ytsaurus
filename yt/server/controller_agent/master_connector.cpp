@@ -2,6 +2,7 @@
 #include "operation_controller.h"
 #include "snapshot_downloader.h"
 #include "snapshot_builder.h"
+#include "controller_agent.h"
 #include "serialize.h"
 
 #include <yt/server/scheduler/config.h>
@@ -102,11 +103,11 @@ public:
         return Invoker_;
     }
 
-    void RegisterOperation(
+    void DoRegisterOperation(
         const TOperationId& operationId,
         const IOperationControllerPtr& controller)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         {
             TGuard<TSpinLock> guard(ControllersLock_);
@@ -114,6 +115,18 @@ public:
         }
 
         OperationNodesUpdateExecutor_->AddUpdate(operationId, TOperationNodeUpdate(operationId));
+    }
+
+    void RegisterOperation(
+        const TOperationId& operationId,
+        const IOperationControllerPtr& controller)
+    {
+        BIND(&TImpl::DoRegisterOperation, MakeStrong(this), operationId, controller)
+            .AsyncVia(Invoker_)
+            .Run()
+            .Subscribe(BIND([] (TError error) {
+                YCHECK(error.IsOK() && "RegisterOperation failed");
+            }));
     }
 
     void UnregisterOperation(const TOperationId& operationId)
@@ -172,7 +185,7 @@ public:
 
     TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         if (!Config_->EnableSnapshotLoading) {
             return MakeFuture<TOperationSnapshot>(TError("Snapshot loading is disabled in configuration"));
@@ -223,9 +236,9 @@ public:
         }
     }
 
-    void UpdateConfig(const TSchedulerConfigPtr& config)
+    void DoUpdateConfig(const TSchedulerConfigPtr& config)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         Config_ = config;
 
@@ -235,13 +248,23 @@ public:
         UnstageExecutor_->SetPeriod(Config_->ChunkUnstagePeriod);
     }
 
+    void UpdateConfig(const TSchedulerConfigPtr& config)
+    {
+        BIND(&TImpl::DoUpdateConfig, MakeStrong(this), config)
+            .AsyncVia(Invoker_)
+            .Run()
+            .Subscribe(BIND([] (TError error) {
+                YCHECK(error.IsOK() && "UpdateConfig failed");
+            }));
+    }
+
 private:
     const IInvokerPtr Invoker_;
     TSchedulerConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     TSpinLock ControllersLock_;
-    yhash<TOperationId, IOperationControllerPtr> ControllerMap_;
+    TOperationIdToControllerMap ControllerMap_;
 
     struct TLivePreviewRequest
     {
@@ -278,8 +301,6 @@ private:
     yhash<TCellTag, std::vector<TChunkId>> CellTagToChunkUnstageList_;
 
     const TCallback<TFuture<void>()> VoidCallback_ = BIND([] { return VoidFuture; });
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
@@ -973,10 +994,19 @@ private:
         if (!Config_->EnableSnapshotBuilding)
             return;
 
+
+        TOperationIdToControllerMap controllersMap;
+
+        {
+            TGuard<TSpinLock> guard(ControllersLock_);
+            controllersMap = ControllerMap_;
+        }
+
         auto builder = New<TSnapshotBuilder>(
             Config_,
-            Bootstrap_->GetScheduler(),
-            Bootstrap_->GetMasterClient());
+            std::move(controllersMap),
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker());
 
         // NB: Result is logged in the builder.
         auto error = WaitFor(builder->Run());
@@ -1021,7 +1051,7 @@ private:
 
     void UnstageChunks()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         for (auto& pair : CellTagToChunkUnstageList_) {
             const auto& cellTag = pair.first;

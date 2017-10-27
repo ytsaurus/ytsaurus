@@ -283,8 +283,6 @@ void TOperationControllerBase::InitializeConnections()
 
 void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr controllerTransactions)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
     LOG_INFO("Initializing operation for revive");
 
     InitializeConnections();
@@ -399,8 +397,6 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
 void TOperationControllerBase::Initialize()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
     LOG_INFO("Initializing operation (Title: %v)",
         Spec_->Title);
 
@@ -412,7 +408,7 @@ void TOperationControllerBase::Initialize()
     });
 
     auto initializeFuture = initializeAction
-        .AsyncVia(Host->GetControlInvoker())
+        .AsyncVia(CancelableInvoker)
         .Run()
         .WithTimeout(Config->OperationInitializationTimeout);
 
@@ -2198,14 +2194,8 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
     return false;
 }
 
-void TOperationControllerBase::SafeAbort()
+void TOperationControllerBase::DoAbort()
 {
-    LOG_INFO("Aborting operation controller");
-
-    // NB: context should be cancelled before aborting transactions,
-    // since controller methods can use this transactions.
-    CancelableContext->Cancel();
-
     // NB: Errors ignored since we cannot do anything with it.
     WaitFor(MasterConnector->FlushOperationNode(OperationId));
 
@@ -2263,6 +2253,21 @@ void TOperationControllerBase::SafeAbort()
     LogProgress(/* force */ true);
 
     LOG_INFO("Operation controller aborted");
+}
+
+void TOperationControllerBase::SafeAbort()
+{
+    LOG_INFO("Aborting operation controller");
+
+    // NB: context should be cancelled before aborting transactions,
+    // since controller methods can use this transactions.
+    CancelableContext->Cancel();
+
+    auto asyncResult = BIND(&TOperationControllerBase::DoAbort, MakeStrong(this))
+        .AsyncVia(GetInvoker())
+        .Run();
+    WaitFor(asyncResult)
+        .ThrowOnError();
 }
 
 void TOperationControllerBase::SafeForget()
@@ -3079,14 +3084,14 @@ IInvokerPtr TOperationControllerBase::GetInvoker() const
 
 TFuture<void> TOperationControllerBase::Suspend()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     return SuspendableInvoker->Suspend();
 }
 
 void TOperationControllerBase::Resume()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     SuspendableInvoker->Resume();
 }
@@ -5337,7 +5342,8 @@ void TOperationControllerBase::BuildSpec(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    // TODO(ignat): make it async somehow.
+    // VERIFY_THREAD_AFFINITY(ControlThread);
 
     BuildYsonMapFluently(consumer)
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
