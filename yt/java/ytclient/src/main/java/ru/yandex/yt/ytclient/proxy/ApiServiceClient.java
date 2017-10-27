@@ -98,12 +98,12 @@ public class ApiServiceClient {
         if (options.getSticky() != null) {
             builder.body().setSticky(options.getSticky());
         }
-        /*if (options.getAtomicity() != null) {
+        if (options.getAtomicity() != null) {
             builder.body().setAtomicity(options.getAtomicity());
         }
         if (options.getDurability() != null) {
             builder.body().setDurability(options.getDurability());
-        }*/
+        }
         final boolean ping = builder.body().getPing();
         final boolean sticky = builder.body().getSticky();
         return RpcUtil.apply(builder.invoke(), response -> {
