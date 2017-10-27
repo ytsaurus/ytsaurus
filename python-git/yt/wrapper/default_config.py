@@ -344,7 +344,9 @@ default_config = {
         "stderr_download_thread_count": 10,
         # Timeout for downloading jobs stderr messages.
         # This parameter is only supported if stderr_download_threading_enable is True.
-        "stderr_download_timeout": 60 * 1000
+        "stderr_download_timeout": 60 * 1000,
+        # Enables logging in text format operation failed error and job errors.
+        "enable_logging_failed_operation": False,
     },
 
     "read_parallel": {
