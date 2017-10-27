@@ -1056,6 +1056,11 @@ class YTInstance(object):
                         log_path = _config_safe_get(config, service, log_config_path)
                         config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
 
+                        if service == "node":
+                            job_proxy_log_config_path = "exec_agent/job_proxy_logging/writers/debug/file_name"
+                            job_proxy_log_path = _config_safe_get(config, service, job_proxy_log_config_path)
+                            config_file.write("{0}\n{{\n{1}\n}}\n\n".format(job_proxy_log_path, "\n".join(logrotate_options)))
+
             if self.has_proxy:
                 proxy_log_path = _config_safe_get(self.configs["proxy"], "proxy", "logging/filename")
                 config_file.write("{0}\n{{\n{1}\n}}\n\n".format(proxy_log_path, "\n".join(logrotate_options)))
