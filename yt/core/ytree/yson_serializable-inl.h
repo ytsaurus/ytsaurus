@@ -36,7 +36,8 @@ void LoadFromNode(
     T& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy /*mergeStrategy*/)
+    EMergeStrategy /*mergeStrategy*/,
+    bool /*keepUnrecognizedRecursively*/)
 {
     try {
         Deserialize(parameter, node);
@@ -52,7 +53,8 @@ inline void LoadFromNode(
     NYTree::INodePtr& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& /*path*/,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    bool /*keepUnrecognizedRecursively*/)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -81,10 +83,15 @@ void LoadFromNode(
     TIntrusivePtr<T>& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
 {
     if (!parameter || mergeStrategy == EMergeStrategy::Overwrite) {
         parameter = New<T>();
+    }
+
+    if (keepUnrecognizedRecursively) {
+        parameter->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
     }
 
     switch (mergeStrategy) {
@@ -106,7 +113,8 @@ void LoadFromNode(
     TNullable<T>& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    EUnrecognizedStrategy unrecognizedStrategy)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -115,7 +123,7 @@ void LoadFromNode(
                 parameter = Null;
             } else {
                 T value;
-                LoadFromNode(value, node, path, EMergeStrategy::Overwrite);
+                LoadFromNode(value, node, path, EMergeStrategy::Overwrite, unrecognizedStrategy);
                 parameter = value;
             }
             break;
@@ -132,7 +140,8 @@ void LoadFromNode(
     std::vector<T...>& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -145,7 +154,8 @@ void LoadFromNode(
                     parameter[i],
                     listNode->GetChild(i),
                     path + "/" + NYPath::ToYPathLiteral(i),
-                    EMergeStrategy::Overwrite);
+                    EMergeStrategy::Overwrite,
+                    keepUnrecognizedRecursively);
             }
             break;
         }
@@ -161,7 +171,8 @@ void LoadFromNode(
     Map<T...>& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -175,7 +186,8 @@ void LoadFromNode(
                     value,
                     pair.second,
                     path + "/" + NYPath::ToYPathLiteral(key),
-                    EMergeStrategy::Overwrite);
+                    EMergeStrategy::Overwrite,
+                    keepUnrecognizedRecursively);
                 parameter.emplace(FromString<typename Map<T...>::key_type>(key), std::move(value));
             }
             break;
@@ -189,7 +201,8 @@ void LoadFromNode(
                     value,
                     pair.second,
                     path + "/" + NYPath::ToYPathLiteral(key),
-                    EMergeStrategy::Combine);
+                    EMergeStrategy::Combine,
+                    keepUnrecognizedRecursively);
                 parameter[FromString<typename Map<T...>::key_type>(key)] = std::move(value);
             }
             break;
@@ -350,7 +363,7 @@ template <class T>
 void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     if (node) {
-        NDetail::LoadFromNode(Parameter, node, path, MergeStrategy);
+        NDetail::LoadFromNode(Parameter, node, path, MergeStrategy, KeepUnrecognizedRecursively);
     } else if (!DefaultValue) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             path);
@@ -461,6 +474,12 @@ template <class T>
 IMapNodePtr TYsonSerializableLite::TParameter<T>::GetUnrecognizedRecursively() const
 {
     return NDetail::TGetUnrecognizedRecursively<T>::Do(Parameter);
+}
+
+template <class T>
+void TYsonSerializableLite::TParameter<T>::SetKeepUnrecognizedRecursively()
+{
+    KeepUnrecognizedRecursively = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
