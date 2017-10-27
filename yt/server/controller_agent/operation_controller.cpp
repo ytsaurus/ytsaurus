@@ -307,14 +307,19 @@ public:
         return Underlying_->BuildSuspiciousJobsYson();
     }
 
-    virtual int GetCompletedJobCount() const override
+    virtual int OnSnapshotStarted() override
     {
-        return Underlying_->GetCompletedJobCount();
+        return Underlying_->OnSnapshotStarted();
     }
 
-    virtual void ReleaseJobs(int jobCount) override
+    virtual void OnSnapshotCompleted(int snapshotIndex) override
     {
-        return Underlying_->ReleaseJobs(jobCount);
+        return Underlying_->OnSnapshotCompleted(snapshotIndex);
+    }
+
+    virtual void OnBeforeDisposal() override
+    {
+        return Underlying_->OnBeforeDisposal();
     }
 
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override

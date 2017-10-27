@@ -15,6 +15,8 @@
 
 #include <yt/server/misc/job_table_schema.h>
 
+#include <yt/server/chunk_pools/helpers.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
@@ -210,7 +212,6 @@ TOperationControllerBase::TOperationControllerBase(
     , Invoker(CreateSerializedInvoker(ControllerAgent->GetControllerThreadPoolInvoker()))
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
-    , ReleaseJobsFeasibleInvokers_({Invoker, CancelableInvoker})
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
@@ -974,14 +975,15 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
 
     LOG_INFO("Auto merge parameters calculated ("
         "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v,"
-        "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v)",
+        "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v, IntermediateChunkUnstageMode: %v)",
         mode,
         outputChunkCountEstimate,
         maxIntermediateChunkCount,
         chunkCountPerMergeJob,
         autoMergeSpec->ChunkSizeThreshold,
         desiredChunkSize,
-        desiredChunkDataWeight);
+        desiredChunkDataWeight,
+        GetIntermediateChunkUnstageMode());
 
     AutoMergeDirector_ = std::make_unique<TAutoMergeDirector>(
         maxIntermediateChunkCount,
@@ -1528,7 +1530,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     // NB: We should not explicitly tell node to remove abandoned job because it may be still
     // running at the node.
     if (!jobSummary->Abandoned) {
-        RecentlyCompletedJobIds.emplace_back(jobId);
+        CompletedJobIdsReleaseQueue_.Push(jobId);
     }
 
     // Testing purpose code.
@@ -3087,6 +3089,12 @@ TFuture<void> TOperationControllerBase::Suspend()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    if (Spec_->TestingOperationOptions->DelayInsideSuspend) {
+        return Combine(std::vector<TFuture<void>> {
+            SuspendableInvoker->Suspend(),
+            TDelayedExecutor::MakeDelayed(*Spec_->TestingOperationOptions->DelayInsideSuspend)});
+    }
+
     return SuspendableInvoker->Suspend();
 }
 
@@ -3284,7 +3292,6 @@ TError TOperationControllerBase::GetTimeLimitError() const
     return TError("Operation is running for too long, aborted")
         << TErrorAttribute("time_limit", GetTimeLimit());
 }
-
 
 void TOperationControllerBase::OnOperationTimeLimitExceeded()
 {
@@ -5194,37 +5201,78 @@ TRowBufferPtr TOperationControllerBase::GetRowBuffer()
     return RowBuffer;
 }
 
-int TOperationControllerBase::GetCompletedJobCount() const
+int TOperationControllerBase::OnSnapshotStarted()
 {
-    YCHECK(SuspendableInvoker->IsSuspended());
+    VERIFY_INVOKER_AFFINITY(Invoker);
 
-    return ReleasedJobCount + RecentlyCompletedJobIds.size();
+    if (RecentSnapshotIndex_) {
+        LOG_WARNING("Starting next snapshot without completing previous one (SnapshotIndex: %v)",
+            SnapshotIndex_);
+    }
+    RecentSnapshotIndex_ = SnapshotIndex_++;
+
+    CompletedJobIdsSnapshotCookie_ = CompletedJobIdsReleaseQueue_.Checkpoint();
+    StripeListSnapshotCookie_ = StripeListReleaseQueue_.Checkpoint();
+    LOG_INFO("Storing snapshot cookies "
+        "(CompletedJobIdsSnapshotCookie: %v, StripeListSnapshotCookie: %v, SnapshotIndex: %v",
+        CompletedJobIdsSnapshotCookie_,
+        StripeListSnapshotCookie_,
+        *RecentSnapshotIndex_);
+
+    return *RecentSnapshotIndex_;
 }
 
-void TOperationControllerBase::ReleaseJobs(int completedJobIndexLimit)
+void TOperationControllerBase::SafeOnSnapshotCompleted(int snapshotIndex)
 {
-    VERIFY_INVOKERS_AFFINITY(ReleaseJobsFeasibleInvokers_);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    LOG_DEBUG("Releasing jobs (ReleasedJobCount: %v, CompletedJobIndexLimit: %v, SchedulerIncarnation: %v)",
-        ReleasedJobCount,
-        completedJobIndexLimit,
-        SchedulerIncarnation_);
+    // OnSnapshotCompleted should match the most recent OnSnapshotStarted.
+    YCHECK(RecentSnapshotIndex_);
+    YCHECK(snapshotIndex == *RecentSnapshotIndex_);
 
-    if (ReleasedJobCount >= completedJobIndexLimit) {
-        // Nothing to do here.
-        return;
+    // Completed job ids.
+    {
+        auto headCookie = CompletedJobIdsReleaseQueue_.GetHeadCookie();
+        auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release(CompletedJobIdsSnapshotCookie_);
+        LOG_INFO("Releasing job ids (SnapshotCookie: %v, HeadCookie: %v, JobCount: %v, SnapshotIndex: %v, SchedulerIncarnation: %v)",
+            CompletedJobIdsSnapshotCookie_,
+            headCookie,
+            jobIdsToRelease.size(),
+            snapshotIndex,
+            SchedulerIncarnation_);
+        Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease), SchedulerIncarnation_);
     }
 
-    int jobCount = std::min(
-        completedJobIndexLimit - ReleasedJobCount,
-        static_cast<int>(RecentlyCompletedJobIds.size()));
+    // Stripe lists.
+    {
+        auto headCookie = StripeListReleaseQueue_.GetHeadCookie();
+        auto stripeListsToRelease = StripeListReleaseQueue_.Release(StripeListSnapshotCookie_);
+        LOG_INFO("Releasing stripe lists (SnapshotCookie: %v, HeadCookie: %v, StripeListCount: %v, SnapshotIndex: %v)",
+            StripeListSnapshotCookie_,
+            headCookie,
+            stripeListsToRelease.size(),
+            snapshotIndex);
 
-    std::vector<TJobId> jobIdsToRelease(RecentlyCompletedJobIds.begin(), RecentlyCompletedJobIds.begin() + jobCount);
-    RecentlyCompletedJobIds.erase(RecentlyCompletedJobIds.begin(), RecentlyCompletedJobIds.begin() + jobCount);
+        for (const auto& stripeList : stripeListsToRelease) {
+            auto chunkIds = GetStripeListChunkIds(stripeList);
+            MasterConnector->AddChunksToUnstageList(std::move(chunkIds));
+            OnChunksReleased(stripeList->TotalChunkCount);
+        }
+    }
 
+    RecentSnapshotIndex_.Reset();
+}
+
+void TOperationControllerBase::OnBeforeDisposal()
+{
+    VERIFY_INVOKER_AFFINITY(Invoker);
+
+    auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
+    LOG_INFO("Releasing job ids before controller disposal (HeadCookie: %v, SchedulerIncarnation: %v)",
+        headCookie,
+        SchedulerIncarnation_);
+    auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
     Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease), SchedulerIncarnation_);
-    
-    ReleasedJobCount += jobCount;
 }
 
 std::vector<TJobPtr> TOperationControllerBase::BuildJobsFromJoblets() const
@@ -5267,9 +5315,13 @@ TChunkListId TOperationControllerBase::ExtractChunkList(TCellTag cellTag)
     return ChunkListPool_->Extract(cellTag);
 }
 
-void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>& ids)
+void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>& ids, bool unstageNonRecursively)
 {
-    ChunkListPool_->Release(ids);
+    if (unstageNonRecursively) {
+        MasterConnector->AddChunksToUnstageList(ids);
+    } else {
+        ChunkListPool_->Release(ids);
+    }
 }
 
 void TOperationControllerBase::RegisterJoblet(const TJobletPtr& joblet)
@@ -6303,6 +6355,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
+    Persist(context, SnapshotIndex_);
     Persist(context, TotalEstimatedInputChunkCount);
     Persist(context, TotalEstimatedInputUncompressedDataSize);
     Persist(context, TotalEstimatedInputRowCount);
@@ -6414,6 +6467,11 @@ TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
     return TCodicilGuard(CodicilData_);
 }
 
+EIntermediateChunkUnstageMode TOperationControllerBase::GetIntermediateChunkUnstageMode() const
+{
+    return EIntermediateChunkUnstageMode::OnSnapshotCompleted;
+}
+
 TBlobTableWriterConfigPtr TOperationControllerBase::GetStderrTableWriterConfig() const
 {
     return nullptr;
@@ -6433,6 +6491,9 @@ TNullable<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
     return Null;
 }
+
+void TOperationControllerBase::OnChunksReleased(int /* chunkCount */)
+{ }
 
 TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptions() const
 {
@@ -6458,9 +6519,20 @@ TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate(
     return descriptor;
 }
 
-void TOperationControllerBase::UnstageChunkTreesNonRecursively(std::vector<TChunkTreeId> chunkTreeIds)
+void TOperationControllerBase::ReleaseStripeList(const NChunkPools::TChunkStripeListPtr& stripeList)
 {
-    MasterConnector->AddChunksToUnstageList(std::move(chunkTreeIds));
+    switch (GetIntermediateChunkUnstageMode()) {
+        case EIntermediateChunkUnstageMode::OnJobCompleted: {
+            auto chunkIds = GetStripeListChunkIds(stripeList);
+            MasterConnector->AddChunksToUnstageList(std::move(chunkIds));
+            OnChunksReleased(stripeList->TotalChunkCount);
+            break;
+        }
+        case EIntermediateChunkUnstageMode::OnSnapshotCompleted: {
+            StripeListReleaseQueue_.Push(stripeList);
+            break;
+        }
+    }
 }
 
 TDataFlowGraph& TOperationControllerBase::DataFlowGraph()

@@ -99,6 +99,13 @@ DEFINE_ENUM(ETransactionType,
     (DebugOutput)
 );
 
+DEFINE_ENUM(EIntermediateChunkUnstageMode,
+    // Unstage chunks when job is completed.
+    (OnJobCompleted)
+    // Keep a release queue of chunks and unstage then when snapshot is built.
+    (OnSnapshotCompleted)
+)
+
 class TOperationControllerBase
     : public IOperationController
     , public NScheduler::TEventLogHostBase
@@ -182,6 +189,14 @@ private: \
         (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
         (chunkId, replicas),
         THREAD_AFFINITY_ANY(),
+        false)
+
+    //! Called by `TSnapshotBuilder` when snapshot is built.
+    IMPLEMENT_SAFE_VOID_METHOD(
+        OnSnapshotCompleted,
+        (int snapshotIndex),
+        (snapshotIndex),
+        INVOKER_AFFINITY(CancelableInvoker),
         false)
 
 public:
@@ -300,7 +315,10 @@ public:
 
     virtual const TChunkListPoolPtr& ChunkListPool() const override;
     virtual NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag) override;
-    virtual void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& chunkListIds) override;
+    virtual void ReleaseChunkLists(
+        const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+        bool unstageNonRecursively) override;
+    virtual void ReleaseStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) override;
 
     virtual TOperationId GetOperationId() const override;
     virtual EOperationType GetOperationType() const override;
@@ -326,13 +344,13 @@ public:
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() override;
 
-    virtual int GetCompletedJobCount() const override;
-
-    virtual void ReleaseJobs(int completedJobIndexLimit) override;
-
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const override;
 
     virtual const NYTree::IMapNodePtr& GetUnrecognizedSpec() const override;
+
+    virtual int OnSnapshotStarted() override;
+
+    virtual void OnBeforeDisposal() override;
 
 protected:
     IOperationHost* Host;
@@ -360,9 +378,6 @@ protected:
     IInvokerPtr Invoker;
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
-
-    //! Invokers that are feasible when calling `ReleaseJobs`.
-    std::vector<IInvokerPtr> ReleaseJobsFeasibleInvokers_;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
     std::atomic<bool> Forgotten = {false};
@@ -615,11 +630,17 @@ protected:
     //! Called in jobs duration analyzer to get interesting for analysis jobs set.
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const = 0;
 
+    //! What to do with intermediate chunks that are not useful any more.
+    virtual EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const;
+
     //! Called to extract stderr table writer config from the spec.
     virtual NTableClient::TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const;
 
     //! Called to extract core table writer config from the spec.
     virtual NTableClient::TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const;
+
+    //! Is called by controller when chunks are passed to master connector for unstaging.
+    virtual void OnChunksReleased(int chunkCount);
 
     typedef std::pair<NYPath::TRichYPath, EOperationStage> TPathWithStage;
 
@@ -858,8 +879,6 @@ protected:
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
     TEdgeDescriptor GetIntermediateEdgeDescriptorTemplate() const;
 
-    virtual void UnstageChunkTreesNonRecursively(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds) override;
-
     virtual TDataFlowGraph& DataFlowGraph() override;
 
     void FinishTaskInput(const TTaskPtr& task);
@@ -895,16 +914,6 @@ private:
 
     //! Maps scheduler's job ids to controller's joblets.
     yhash<TJobId, TJobletPtr> JobletMap;
-
-    //! List of job ids that were completed after the latest snapshot was built.
-    //! This list is transient.
-    std::deque<TJobId> RecentlyCompletedJobIds;
-
-    //! Index of `RecentlyCompletedJobIds`' head in a list of all completed jobs in
-    //! order of their completion. Equivalently, it is a number of completed jobs
-    //! that were released up to the current moment.
-    //! NB: this value is also transient, after revival it starts again from zero.
-    int ReleasedJobCount = 0;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
@@ -990,6 +999,27 @@ private:
     std::vector<NJobTrackerClient::NProto::TJobSpec> AutoMergeJobSpecTemplates_;
 
     std::unique_ptr<TAutoMergeDirector> AutoMergeDirector_;
+
+    //! Release queue of job ids that were completed after the latest snapshot was built.
+    //! It is a transient field.
+    TReleaseQueue<TJobId> CompletedJobIdsReleaseQueue_;
+
+    //! Cookie corresponding to a state of the completed job ids release queue
+    //! by the moment the most recent snapshot started to be built.
+    TReleaseQueue<TJobId>::TCookie CompletedJobIdsSnapshotCookie_ = 0;
+
+    //! Release queue of chunk stripe lists that are no longer needed by a controller.
+    //! Similar to the previous field.
+    TReleaseQueue<NChunkPools::TChunkStripeListPtr> StripeListReleaseQueue_;
+
+    //! Cookie corresponding to a state of stripe list release queue
+    //! by the moment the most recent snapshot started to be built.
+    TReleaseQueue<NChunkPools::TChunkStripeListPtr>::TCookie StripeListSnapshotCookie_ = 0;
+
+    //! Number of times `OnSnapshotStarted()` was called up to this moment.
+    int SnapshotIndex_ = 0;
+    //! Index of a snapshot that is building right now.
+    TNullable<int> RecentSnapshotIndex_ = Null;
 
     void BuildAndSaveProgress();
 

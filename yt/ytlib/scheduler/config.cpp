@@ -39,6 +39,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(Null);
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
+    RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
+        .Default(Null);
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
         .Default(Null);
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
@@ -258,6 +260,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(Null)
         .GreaterThanOrEqual(0);
     RegisterParameter("copy_files", CopyFiles)
+        .Default(false);
+    RegisterParameter("deterministic", Deterministic)
         .Default(false);
 
     RegisterValidator([&] () {

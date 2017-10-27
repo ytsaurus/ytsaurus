@@ -186,6 +186,8 @@ public:
     TNullable<TDuration> DelayInsideOperationCommit;
     TNullable<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
 
+    TNullable<TDuration> DelayInsideSuspend;
+
     //! Intentionally fails the operation controller. Used only for testing purposes.
     EControllerFailureType ControllerFailure;
 
@@ -333,6 +335,9 @@ public:
     TNullable<i64> InodeLimit;
 
     bool CopyFiles;
+
+    //! Flag showing that user code is guaranteed to be deterministic.
+    bool Deterministic;
 
     TUserJobSpec();
 

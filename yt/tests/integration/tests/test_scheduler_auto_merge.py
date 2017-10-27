@@ -19,6 +19,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
             "chunk_unstage_period": 10,
+            "snapshot_period": 3000,
         },
     }
 
