@@ -1631,3 +1631,12 @@ if __name__ == "__main__":
             yt.run_map(mapper, table, output_tables,
                        format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
                        spec={"mapper": {"enable_input_table_index": True}})
+
+    def test_enable_logging_failed_operation(self):
+        tableX = TEST_DIR + "/tableX"
+        tableY = TEST_DIR + "/tableY"
+        yt.write_table(tableX, [{"x": 1}])
+        with set_config_option("operation_tracker/enable_logging_failed_operation", True):
+            with pytest.raises(yt.YtError):
+                yt.run_map("cat; echo 'Hello %username%!' >&2; exit 1", tableX, tableY)
+

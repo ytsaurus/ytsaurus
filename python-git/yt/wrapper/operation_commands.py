@@ -309,25 +309,26 @@ def get_stderrs(operation, only_failed_jobs, client=None):
             pool.join()
     return result
 
-def format_operation_stderrs(jobs_with_stderr):
-    """Formats operation jobs with stderr to string."""
+def format_operation_stderr(job_with_stderr, output):
+    output.write("Host: ")
+    output.write(job_with_stderr["host"])
+    output.write("\n")
 
-    output = StringIO()
-
-    for job in jobs_with_stderr:
-        output.write("Host: ")
-        output.write(job["host"])
+    if "error" in job_with_stderr:
+        output.write("Error:\n")
+        output.write(format_error(job_with_stderr["error"]))
         output.write("\n")
 
-        if "error" in job:
-            output.write("Error:\n")
-            output.write(format_error(job["error"]))
-            output.write("\n")
+    if "stderr" in job_with_stderr:
+        output.write(job_with_stderr["stderr"])
+        output.write("\n")
 
-        if "stderr" in job:
-            output.write(job["stderr"])
-            output.write("\n\n")
-
+def format_operation_stderrs(jobs_with_stderr):
+    """Formats operation jobs with stderr to string."""
+    output = StringIO()
+    for job_with_stderr in jobs_with_stderr:
+        format_operation_stderr(job_with_stderr, output)
+        output.write("\n")
     return output.getvalue()
 
 # TODO(ignat): is it convinient and generic way to get stderrs? Move to tests? Or remove it completely?
@@ -471,7 +472,14 @@ class Operation(object):
                 finalize_function(state)
 
         if check_result and state.is_unsuccessfully_finished():
-            raise _create_operation_failed_error(self, state)
+            error = _create_operation_failed_error(self, state)
+            if get_config(self.client)["operation_tracker"]["enable_logging_failed_operation"]:
+                logger.warning("***** Failed operation information:\n%s", str(error))
+                if error.attributes["stderrs"]:
+                    job_output = StringIO()
+                    format_operation_stderr(error.attributes["stderrs"][0], job_output)
+                    logger.warning("One of the failed jobs:\n%s", job_output.getvalue())
+            raise error
 
         if get_config(self.client)["operation_tracker"]["log_job_statistics"]:
             statistics = self.get_job_statistics()
