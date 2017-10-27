@@ -115,6 +115,7 @@ struct TQueryOptions
     ui64 RangeExpansionLimit = 0;
     TWorkloadDescriptor WorkloadDescriptor;
     NChunkClient::TReadSessionId ReadSessionId;
+    bool AllowFullScan = true;
 };
 
 struct TBaseColumn

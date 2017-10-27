@@ -1789,6 +1789,16 @@ private:
         const auto& query = fragment->Query;
         const auto& dataSource = fragment->Ranges;
 
+        for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
+            if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
+                const auto& ast = parsedQuery->AstHead.Ast.As<NAst::TQuery>();
+
+                THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
+                    "the query is inefficient, consider rewriting it")
+                    << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
+            }
+        }
+
         TQueryOptions queryOptions;
         queryOptions.Timestamp = options.Timestamp;
         queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
@@ -1799,6 +1809,7 @@ private:
         queryOptions.InputRowLimit = inputRowLimit;
         queryOptions.OutputRowLimit = outputRowLimit;
         queryOptions.UseMultijoin = options.UseMultijoin;
+        queryOptions.AllowFullScan = options.AllowFullScan;
 
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -3657,7 +3668,7 @@ private:
                 }
                 itemsSortDirection = "ASC";
             }
-            
+
             if (options.Pool) {
                 itemsConditions.push_back(Format("pool = %Qv", *options.Pool));
             }
