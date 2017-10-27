@@ -10,9 +10,12 @@ from time import sleep
 REPEAT = -1
 CANCEL = -2
 
-def atomic_pop(list, retries_count=10, delay=5.0):
+RETRIES_COUNT = 10
+DELAY = 5.0
+
+def atomic_pop(list):
     with yt.Transaction():
-        for i in xrange(retries_count):
+        for i in xrange(RETRIES_COUNT):
             logger.info("Trying to take lock, %d-th attempt...", i + 1)
             try:
                 count = int(yt.get(list + "/@count"))
@@ -25,7 +28,7 @@ def atomic_pop(list, retries_count=10, delay=5.0):
             # We hope that it is cannot take lock error
             except yt.YtResponseError as rsp:
                 if rsp.is_concurrent_transaction_lock_conflict():
-                    timeout = random.uniform(0.1, delay)
+                    timeout = random.uniform(0.1, DELAY)
                     logger.info("Lock conflict, waiting for %f second...", timeout)
                     sleep(timeout)
                 else:
@@ -34,7 +37,17 @@ def atomic_pop(list, retries_count=10, delay=5.0):
 
 def atomic_push(list, value):
     logger.warning("Put value '%s' to queue '%s'", str(value), list)
-    yt.set(list + "/begin", value)
+    for i in xrange(RETRIES_COUNT):
+        try:
+            yt.set(list + "/begin", value)
+            break
+        except yt.YtResponseError as rsp:
+            if rsp.is_concurrent_transaction_lock_conflict():
+                timeout = random.uniform(0.1, DELAY)
+                logger.info("Lock conflict, waiting for %f second...", timeout)
+                sleep(timeout)
+            else:
+                raise
 
 def is_hashable(obj):
     try:
