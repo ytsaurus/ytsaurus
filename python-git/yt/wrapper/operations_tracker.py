@@ -1,5 +1,5 @@
 from .common import get_value
-from .errors import YtError, YtOperationFailedError, YtResponseError
+from .errors import YtError, YtResponseError
 from .exceptions_catcher import ExceptionCatcher
 from .operation_commands import Operation, get_operation_attributes, _create_operation_failed_error
 from .spec_builders import SpecBuilder
