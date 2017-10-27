@@ -8,7 +8,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TRingQueue, PodRandomOperations)
+TEST(TRingQueueTest, PodRandomOperations)
 {
     TRingQueue<int> queue;
     EXPECT_EQ(0, queue.size());
@@ -76,7 +76,7 @@ private:
 DEFINE_REFCOUNTED_TYPE(TFoo)
 DECLARE_REFCOUNTED_TYPE(TFoo)
 
-TEST(TRingQueue, TestLifetimeWithRefCount)
+TEST(TRingQueueTest, TestLifetimeWithRefCount)
 {
     const int N = 100000;
     int counter = 0;

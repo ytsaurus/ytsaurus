@@ -426,6 +426,29 @@ protected:
             GetUnavailableInputChunkCount());
     }
 
+    virtual void OnChunksReleased(int chunkCount) override
+    {
+        TOperationControllerBase::OnChunksReleased(chunkCount);
+
+        if (const auto& autoMergeDirector = GetAutoMergeDirector()) {
+            autoMergeDirector->OnMergeJobFinished(chunkCount /* unregisteredIntermediateChunkCount */);
+        }
+    }
+
+    virtual EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const override
+    {
+        auto mapperSpec = GetUserJobSpec();
+        // We could get here only if this is an unordered map and auto-merge is enabled.
+        YCHECK(mapperSpec);
+        YCHECK(Spec->AutoMerge->Mode != EAutoMergeMode::Disabled);
+
+        if (Spec->AutoMerge->Mode != EAutoMergeMode::Relaxed && mapperSpec->Deterministic) {
+            return EIntermediateChunkUnstageMode::OnJobCompleted;
+        } else {
+            return EIntermediateChunkUnstageMode::OnSnapshotCompleted;
+        }
+    }
+
     // Unsorted helpers.
     virtual EJobType GetJobType() const = 0;
 
@@ -723,7 +746,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x9a17a41f);
 
     TUnorderedMergeOperationSpecPtr Spec;
-
 
     // Custom bits of preparation pipeline.
     virtual EJobType GetJobType() const override

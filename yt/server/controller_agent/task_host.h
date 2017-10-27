@@ -69,7 +69,10 @@ struct ITaskHost
 
     virtual const TChunkListPoolPtr& ChunkListPool() const = 0;
     virtual NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag) = 0;
-    virtual void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& chunkListIds) = 0;
+    virtual void ReleaseChunkLists(
+        const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+        bool unstageNonRecursively = false) = 0;
+    virtual void ReleaseStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) = 0;
 
     virtual TOperationId GetOperationId() const = 0;
     virtual EOperationType GetOperationType() const = 0;
@@ -110,8 +113,6 @@ struct ITaskHost
         NChunkClient::TInputChunkPtr chunkSpec,
         NChunkPools::TChunkStripeKey key,
         int tableIndex) = 0;
-
-    virtual void UnstageChunkTreesNonRecursively(std::vector<NChunkClient::TChunkTreeId> chunkTreeIds) = 0;
 
     virtual TDataFlowGraph& DataFlowGraph() = 0;
 };

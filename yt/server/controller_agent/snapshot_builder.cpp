@@ -59,6 +59,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     , Controllers_(std::move(controllers))
     , Client_(client)
     , IOInvoker_(IOInvoker)
+    , ControlInvoker_(GetCurrentInvoker())
     , Profiler(SchedulerProfiler.GetPathPrefix() + "/snapshot")
 {
     YCHECK(Config_);
@@ -70,12 +71,14 @@ TSnapshotBuilder::TSnapshotBuilder(
 
 TFuture<void> TSnapshotBuilder::Run()
 {
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
     LOG_INFO("Snapshot builder started");
 
-    std::vector<TFuture<void>> operationSuspendFutures;
     std::vector<TOperationId> operationIds;
 
-    LOG_INFO("Suspending controllers");
+    LOG_INFO("Preparing controllers for suspension");
+    std::vector<TFuture<int>> onSnapshotStartedFutures;
 
     // Capture everything needed in Build.
     for (const auto& pair : Controllers_) {
@@ -95,35 +98,55 @@ TFuture<void> TSnapshotBuilder::Run()
         job->Suspended = false;
         Jobs_.push_back(job);
 
-        operationSuspendFutures.push_back(job
-            ->Controller
-            ->Suspend().Apply(
-                BIND([=, this_ = MakeStrong(this)] () {
-                    if (!ControllersSuspended_) {
-                        job->Suspended = true;
-                        LOG_DEBUG("Controller suspended (OperationId: %v)",
-                            operationId);
-                        job->CompletedJobCount = job->Controller->GetCompletedJobCount();
-                    } else {
-                        LOG_DEBUG("Controller suspended too late (OperationId: %v)",
-                            operationId);
-                    }
-                })
-                .AsyncVia(GetCurrentInvoker())
-            ));
+        onSnapshotStartedFutures.push_back(BIND(&IOperationController::OnSnapshotStarted, job->Controller)
+            .AsyncVia(job->Controller->GetInvoker())
+            .Run());
         operationIds.push_back(operationId);
 
-        LOG_INFO("Snapshot job registered (OperationId: %v)",
+        LOG_INFO("Preparing controller for suspension (OperationId: %v)",
             operationId);
     }
 
+    // We need to filter those controllers who were not able to return snapshot index
+    // on OnSnapshotStarted call. This may normally happen when promise was abandoned
+    // because controller was disposed.
+    std::vector<TSnapshotJobPtr> preparedJobs;
+
+    PROFILE_TIMING("/controllers_prepare_time") {
+        auto result = WaitFor(CombineAll(onSnapshotStartedFutures));
+        YCHECK(result.IsOK() && "CombineAll failed");
+        const auto& snapshotIndices = result.Value();
+        YCHECK(snapshotIndices.size() == Jobs_.size());
+        for (int index = 0; index < Jobs_.size(); ++index) {
+            auto snapshotIndexOrError = snapshotIndices[index];
+            if (!snapshotIndexOrError.IsOK()) {
+                LOG_WARNING(snapshotIndexOrError, "Failed to get snapshot index from controller (OperationId: %v)",
+                    Jobs_[index]->OperationId);
+            } else {
+                Jobs_[index]->SnapshotIndex = snapshotIndexOrError.Value();
+                preparedJobs.emplace_back(Jobs_[index]);
+            }
+        }
+    }
+
+    Jobs_ = std::move(preparedJobs);
+
+    LOG_INFO("Suspending controllers (ControllerCount: %v)", Jobs_.size());
+
+    std::vector<TFuture<void>> operationSuspendFutures;
+
+    for (const auto& job : Jobs_) {
+        operationSuspendFutures.emplace_back(job->Controller->Suspend()
+            .Apply(BIND(&TSnapshotBuilder::OnControllerSuspended, MakeWeak(this), job)
+                .AsyncVia(ControlInvoker_)));
+    }
+
     PROFILE_TIMING ("/controllers_suspend_time") {
-        auto result = WaitFor(
-            Combine(operationSuspendFutures)
-                .WithTimeout(Config_->OperationControllerSuspendTimeout));
+        auto result = WaitFor(Combine(operationSuspendFutures)
+            .WithTimeout(Config_->OperationControllerSuspendTimeout));
         if (!result.IsOK()) {
             if (result.GetCode() == NYT::EErrorCode::Timeout) {
-                LOG_WARNING("Suspend of some controllers timed out");
+                LOG_WARNING("Some of the controllers timed out");
             } else {
                 LOG_FATAL(result, "Failed to suspend controllers");
             }
@@ -159,6 +182,22 @@ TFuture<void> TSnapshotBuilder::Run()
                 }
             }));
     return Combine(std::vector<TFuture<void>>{forkFuture, uploadFuture});
+}
+
+void TSnapshotBuilder::OnControllerSuspended(const TSnapshotJobPtr& job)
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    if (!ControllersSuspended_) {
+        LOG_DEBUG("Controller suspended (OperationId: %v, SnapshotIndex: %v)",
+            job->OperationId,
+            job->SnapshotIndex);
+        job->Suspended = true;
+    } else {
+        LOG_DEBUG("Controller suspended too late (OperationId: %v, SnapshotIndex: %v)",
+            job->OperationId,
+            job->SnapshotIndex);
+    }
 }
 
 TDuration TSnapshotBuilder::GetTimeout() const
@@ -335,14 +374,17 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
+        LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
+            job->SnapshotIndex);
+
         auto controller = job->Controller;
 
         if (controller->IsRunning()) {
             // Safely remove jobs that we do not need any more.
             WaitFor(
-                BIND(&IOperationController::ReleaseJobs, controller)
+                BIND(&IOperationController::OnSnapshotCompleted, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
-                    .Run(job->CompletedJobCount))
+                    .Run(job->SnapshotIndex))
                 .ThrowOnError();
         }
     } catch (const std::exception& ex) {

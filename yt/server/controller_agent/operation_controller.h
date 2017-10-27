@@ -10,6 +10,10 @@
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/job_metrics.h>
 
+#include <yt/server/table_server/public.h>
+
+#include <yt/server/misc/release_queue.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/hive/public.h>
@@ -22,6 +26,10 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/ytlib/object_client/public.h>
+
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/future.h>
 
@@ -32,12 +40,6 @@
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/public.h>
-
-#include <yt/ytlib/chunk_client/public.h>
-
-#include <yt/ytlib/object_client/public.h>
-
-#include <yt/server/table_server/public.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -422,24 +424,6 @@ struct IOperationController
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
 
-    /*!
-     *  \note Invoker affinity: scheduler control thread when controller is suspended (NB!).
-     */
-    //! Return the number of jobs that were completed up to this moment.
-    virtual int GetCompletedJobCount() const = 0;
-
-    /*!
-     *  \note Invoker affinity: Controller invoker (non-cancellable when called from controller destroy pipeline).
-     */
-    //! Remove oldest jobs from the list of recent jobs waiting their removal inside controller
-    //! and submit them to the scheduler for the removal.
-    //!
-    //!                    `completedJobIndexLimit` v         v current moment of time
-    //! completed jobs .. .. . | x  x xxx xx xx xxx | ** * ** |    <- all these guys are stored in `recentCompletedJobs`
-    //!                        |                    |                 inside the controller.
-    //!                        ^ snapshot           ^ newly created snapshot
-    virtual void ReleaseJobs(int completedJobIndexLimit) = 0;
-
     //! Build scheduler jobs from the joblets. Used during revival pipeline.
     virtual std::vector<NScheduler::TJobPtr> BuildJobsFromJoblets() const = 0;
 
@@ -448,6 +432,29 @@ struct IOperationController
      */
     //! Return a map node containing all unrecognized spec options.
     virtual const NYTree::IMapNodePtr& GetUnrecognizedSpec() const = 0;
+
+    /*!
+     *  \note Invoker affinity: controller invoker.
+     */
+    //! Method that is called right before the controller is suspended and snapshot builder forks.
+    //! Return value is an index of snapshot upload attempt starting from zero.
+    //! This method should not throw.
+    virtual int OnSnapshotStarted() = 0;
+
+    /*!
+     *  \note Invoker affinity: cancellable controller invoker.
+     */
+    //! Method that is called right after each snapshot is uploaded.
+    //! `snapshotIndex` should be equal to a last `OnSnapshotStarted()` return value,
+    //! otherwise controller crashes.
+    virtual void OnSnapshotCompleted(int snapshotIndex) = 0;
+
+    /*!
+     *  \note Invoker affinity: controller invoker.
+     */
+    //! Method that is called after operation results are commited and before
+    //! controller is disposed.
+    virtual void OnBeforeDisposal() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

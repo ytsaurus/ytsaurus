@@ -2081,7 +2081,10 @@ private:
                 YCHECK(operation->GetState() == EOperationState::Completed);
             }
 
-            ReleaseCompletedJobs(operation);
+            // Notify controller that it is going to be disposed.
+            if (const auto& controller = operation->GetController()) {
+                controller->GetInvoker()->Invoke(BIND(&IOperationController::OnBeforeDisposal, controller));
+            }
 
             FinishOperation(operation);
         } catch (const std::exception& ex) {
@@ -2254,7 +2257,14 @@ private:
                 return;
         }
 
-        ReleaseCompletedJobs(operation);
+        // Notify controller that it is going to be disposed.
+        if (const auto& controller = operation->GetController()) {
+            auto error = WaitFor(
+                BIND(&IOperationController::OnBeforeDisposal, controller)
+                    .AsyncVia(controller->GetInvoker())
+                    .Run());
+            YCHECK(error.IsOK() && "OnBeforeDisposal failed");
+        }
 
         LogOperationFinished(operation, logEventType, error);
 
@@ -2501,17 +2511,6 @@ private:
                     asyncResult.ThrowOnError();
                 })
             .EndMap();
-    }
-
-    void ReleaseCompletedJobs(const TOperationPtr& operation)
-    {
-        if (const auto& controller = operation->GetController()) {
-            auto asyncResult = WaitFor(
-                BIND(&IOperationController::ReleaseJobs, controller)
-                    .AsyncVia(controller->GetInvoker())
-                    .Run(std::numeric_limits<i32>::max()));
-            YCHECK(asyncResult.IsOK() && "ReleaseJobs failed");
-        }
     }
 
     IYPathServicePtr GetDynamicOrchidService()

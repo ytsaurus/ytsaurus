@@ -436,7 +436,7 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
             if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
-                this->TaskHost_->UnstageChunkTreesNonRecursively({joblet->ChunkListIds[index]});
+                this->TaskHost_->ReleaseChunkLists({joblet->ChunkListIds[index]}, true /* unstageNonRecursively */);
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
         }
