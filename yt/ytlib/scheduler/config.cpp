@@ -96,7 +96,7 @@ void TSupportsSchedulingTagsConfig::OnLoaded()
 
 TOperationSpecBase::TOperationSpecBase()
 {
-    SetKeepUnrecognized(true);
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
     RegisterParameter("intermediate_data_account", IntermediateDataAccount)
         .Default("intermediate");
