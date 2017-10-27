@@ -19,6 +19,7 @@ import yt.wrapper as yt
 SERVICES = [
     # --- master ---
     {
+        "type": "master",
         "solomon_id": "yt_bridge_master_internal",
         "solomon_name": "yt_master_internal",
         "yt_port": 10010,
@@ -29,6 +30,7 @@ SERVICES = [
         ],
     },
     {
+        "type": "master",
         "solomon_id": "yt_bridge_master_other",
         "solomon_name": "yt_master",
         "yt_port": 10010,
@@ -39,6 +41,7 @@ SERVICES = [
         ],
     },
     {
+        "type": "master",
         "solomon_id": "yt_bridge_master_rpc",
         "solomon_name": "yt_master_rpc",
         "yt_port": 10010,
@@ -50,6 +53,7 @@ SERVICES = [
     },
     # --- scheduler ---
     {
+        "type": "scheduler",
         "solomon_id": "yt_bridge_scheduler_internal",
         "solomon_name": "yt_scheduler_internal",
         "yt_port": 10011,
@@ -60,6 +64,7 @@ SERVICES = [
         ],
     },
     {
+        "type": "scheduler",
         "solomon_id": "yt_bridge_scheduler_other",
         "solomon_name": "yt_scheduler",
         "yt_port": 10011,
@@ -70,6 +75,7 @@ SERVICES = [
         ],
     },
     {
+        "type": "scheduler",
         "solomon_id": "yt_bridge_scheduler_rpc",
         "solomon_name": "yt_scheduler_rpc",
         "yt_port": 10011,
@@ -81,6 +87,7 @@ SERVICES = [
     },
     # --- node ---
     {
+        "type": "node",
         "solomon_id": "yt_bridge_node_internal",
         "solomon_name": "yt_node_internal",
         "yt_port": 10012,
@@ -91,6 +98,7 @@ SERVICES = [
         ],
     },
     {
+        "type": "node",
         "solomon_id": "yt_bridge_node_other",
         "solomon_name": "yt_node",
         "yt_port": 10012,
@@ -102,6 +110,7 @@ SERVICES = [
         ],
     },
     {
+        "type": "node",
         "solomon_id": "yt_bridge_node_rpc",
         "solomon_name": "yt_node_rpc",
         "yt_port": 10012,
@@ -112,6 +121,7 @@ SERVICES = [
         ],
     },
     {
+        "type": "node",
         "solomon_id": "yt_bridge_node_tablet_profiling",
         "solomon_name": "yt_node_tablet_profiling",
         "yt_port": 10012,
@@ -123,6 +133,7 @@ SERVICES = [
     },
     # --- rpc proxy ---
     {
+        "type": "rpc_proxy",
         "solomon_id": "yt_bridge_rpc_proxy_internal",
         "solomon_name": "yt_rpc_proxy_internal",
         "yt_port": 10014,
@@ -133,6 +144,7 @@ SERVICES = [
         ],
     },
     {
+        "type": "rpc_proxy",
         "solomon_id": "yt_bridge_rpc_proxy_other",
         "solomon_name": "yt_rpc_proxy",
         "yt_port": 10014,
@@ -143,6 +155,7 @@ SERVICES = [
         ],
     },
     {
+        "type": "rpc_proxy",
         "solomon_id": "yt_bridge_rpc_proxy_rpc",
         "solomon_name": "yt_rpc_proxy_rpc",
         "yt_port": 10014,
@@ -154,22 +167,29 @@ SERVICES = [
     },
 ]
 
+CONDUCTOR_GROUPS = {
+    "master": ["masters"],
+    "scheduler": ["schedulers"],
+    "node": ["nodes"],
+    "rpc_proxy": ["nodes"],
+}
+
 SENSOR = {
     "aggrRules": [
-      {"cond": ["host=*"], "target": ["host=Aggr"]},
-      {"cond": ["DC=*"], "target": ["host=Aggr_DC_{{DC}}"]},
+        {"cond": ["host=*"], "target": ["host=Aggr"]},
+        {"cond": ["DC=*"], "target": ["host=Aggr_DC_{{DC}}"]},
     ],
     "priorityRules": [
-      {"target": "host=Aggr_DC_Ugr", "priority": 10},
-      {"target": "host=Aggr_DC_Sas", "priority": 10},
-      {"target": "host=Aggr_DC_Fol", "priority": 10},
-      {"target": "host=Aggr_DC_Iva", "priority": 10},
-      {"target": "host=Aggr_DC_Myt", "priority": 10},
-      {"target": "host=Aggr_DC_Ash", "priority": 10},
-      {"target": "host=Aggr_DC_Ams", "priority": 10},
-      {"target": "host=Aggr_DC_Veg", "priority": 10},
-      {"target": "host=Aggr_DC_Man", "priority": 10},
-      {"target": "host=Aggr", "priority": 100}
+        {"target": "host=Aggr_DC_Ugr", "priority": 10},
+        {"target": "host=Aggr_DC_Sas", "priority": 10},
+        {"target": "host=Aggr_DC_Fol", "priority": 10},
+        {"target": "host=Aggr_DC_Iva", "priority": 10},
+        {"target": "host=Aggr_DC_Myt", "priority": 10},
+        {"target": "host=Aggr_DC_Ash", "priority": 10},
+        {"target": "host=Aggr_DC_Ams", "priority": 10},
+        {"target": "host=Aggr_DC_Veg", "priority": 10},
+        {"target": "host=Aggr_DC_Man", "priority": 10},
+        {"target": "host=Aggr", "priority": 100}
     ],
     "rawDataMemOnly": False,
 }
@@ -218,6 +238,13 @@ class Resource(object):
         return "http://solomon.yandex.net/api/v2" + uri
 
     @staticmethod
+    def make_cluster_uri(cluster=None):
+        if cluster:
+            return Resource.make_api_url("/projects/yt/clusters/%s" % cluster)
+        else:
+            return Resource.make_api_url("/projects/yt/clusters")
+
+    @staticmethod
     def make_admin_url(uri):
         return "https://solomon.yandex-team.ru/admin" + uri
 
@@ -250,9 +277,10 @@ class Resource(object):
     def headers(self):
         return {"Authorization": "OAuth " + self.token}
 
-    def create(self, uri, data):
+    @staticmethod
+    def create(uri, data, token):
         logging.debug("Creating resource '%s'", uri)
-        rsp = requests.post(self.api_url, headers=self.headers, json=data)
+        rsp = requests.post(uri, headers={"Authorization": "OAuth " + token}, json=data)
         if not rsp.ok:
             view_response(rsp)
 
@@ -265,9 +293,21 @@ class Resource(object):
     def load(self):
         logging.debug("Loading resource '%s'", self.uri)
         rsp = requests.get(self.api_url, headers=self.headers)
-        assert rsp.ok
+        if not rsp.ok:
+            rsp.raise_for_status()
         self._remote_data = rsp.json()
         self._local_data = copy.deepcopy(self._remote_data)
+
+    def try_load(self):
+        logging.debug("Loading resource '%s'", self.uri)
+        rsp = requests.get(self.api_url, headers=self.headers)
+        if not rsp.ok:
+            if rsp.status_code == 404:
+                return False
+            rsp.raise_for_status()
+        self._remote_data = rsp.json()
+        self._local_data = copy.deepcopy(self._remote_data)
+        return True
 
     def save(self, dry_run):
         if not self.is_dirty:
@@ -280,10 +320,10 @@ class Resource(object):
             message += "#" * 80 + "\n"
             message += "## Dry run for resource '%s'\n" % self.uri
             message += "## %s\n" % self.admin_url
-            if "deleted" in self.remote:
-                message += "## [version=%s; deleted=%s]\n" % (self.remote["version"], self.remote["deleted"])
-            else:
+            if "version" in self.remote:
                 message += "## [version=%s]\n" % self.remote["version"]
+            if "deleted" in self.remote:
+                message += "## [deleted=%s]\n" % self.remote["deleted"]
             message += "#" * 80 + "\n"
             message += "\n"
             for key in self._local_data:
@@ -323,6 +363,26 @@ def normalize_cluster_id(cluster):
     if not cluster.startswith("yt_"):
         cluster = "yt_" + cluster
     return cluster
+
+
+def extract_cluster_names(name):
+    return set(map(lambda s: s[name], SERVICES))
+
+
+def get_cluster_types():
+    return extract_cluster_names("type")
+
+
+def get_cluster_services():
+    return extract_cluster_names("solomon_id")
+
+
+def get_solomon_cluster_type(cluster, type):
+    return "%s_%s" % (cluster, type)
+
+
+def get_conductor_groups(cluster, type):
+    return [get_solomon_cluster_type(cluster, group) for group in CONDUCTOR_GROUPS[type]]
 
 
 @click.group()
@@ -367,6 +427,45 @@ def check_solomon_services(token, yes):
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
 @click.option("--yes", is_flag=True)
+def update_solomon_cluster(token, cluster, yes):
+    solomon_cluster = normalize_cluster_id(cluster)
+    types = get_cluster_types()
+
+    for type in types:
+        conductor_groups = get_conductor_groups(solomon_cluster, type)
+        solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type)
+        solomon_conductor_groups = [{
+            "group": group,
+            "labels": ["type=%s" % type]
+        } for group in conductor_groups]
+
+        cluster_services = Resource(
+            Resource.make_cluster_uri(solomon_cluster_type),
+            token,
+            local_data={
+                "id": solomon_cluster_type,
+                "name": cluster,
+                "projectId": "yt",
+                "conductorGroups": solomon_conductor_groups,
+            })
+        loaded = cluster_services.try_load()
+        if loaded:
+            cluster_services.local["conductorGroups"] = solomon_conductor_groups
+            cluster_services.save(dry_run=(not yes))
+        else:
+            logging.info("Creating cluster type %s" % type)
+            Resource.create(Resource.make_cluster_uri(), data={
+                "id": solomon_cluster_type,
+                "name": cluster,
+                "projectId": "yt",
+                "conductorGroups": solomon_conductor_groups,
+            }, token=token)
+
+
+@cli.command()
+@click.option("--token", required=True)
+@click.option("--cluster", required=True)
+@click.option("--yes", is_flag=True)
 def link_cluster(token, cluster, yes):
     cluster = normalize_cluster_id(cluster)
 
@@ -398,7 +497,7 @@ def link_cluster(token, cluster, yes):
             #},
         }
         if yes:
-            Resource.create("/projects/yt/shards", data)
+            Resource.create("/projects/yt/shards", data, token)
         else:
             view_object("Creating shard", data)
 
