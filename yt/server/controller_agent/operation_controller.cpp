@@ -165,6 +165,11 @@ public:
         return Underlying_->IsForgotten();
     }
 
+    virtual bool IsRunning() const override
+    {
+        return Underlying_->IsRunning();
+    }
+
     virtual bool IsRevivedFromSnapshot() const override
     {
         return Underlying_->IsRevivedFromSnapshot();

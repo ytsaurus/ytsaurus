@@ -39,8 +39,6 @@ public:
 
     std::vector<TOperationPtr> GetOperations();
 
-    IInvokerPtr GetSnapshotIOInvoker();
-
     bool IsConnected();
     void ValidateConnected();
     void ValidateAcceptsHeartbeats();

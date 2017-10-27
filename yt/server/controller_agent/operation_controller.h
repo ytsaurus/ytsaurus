@@ -74,12 +74,6 @@ struct IOperationHost
      */
     virtual TControllerAgent* GetControllerAgent() = 0;
 
-    //! Returns the control invoker of the scheduler.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual IInvokerPtr GetControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const = 0;
-
     //! Returns the total number of online exec nodes.
     virtual int GetExecNodeCount() const = 0;
 
@@ -318,6 +312,9 @@ struct IOperationController
 
     //! Returns whether controller was forgotten or not.
     virtual bool IsForgotten() const = 0;
+
+    //! Returns whether controller is running or not.
+    virtual bool IsRunning() const = 0;
 
     //! Returns whether controller was revived from snapshot.
     virtual bool IsRevivedFromSnapshot() const = 0;

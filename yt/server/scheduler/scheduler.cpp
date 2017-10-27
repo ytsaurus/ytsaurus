@@ -139,7 +139,6 @@ public:
         : Config_(config)
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
-        , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->JobSpecSliceThrottler,
             NLogging::TLogger(),
@@ -298,11 +297,6 @@ public:
             operations.push_back(pair.second);
         }
         return operations;
-    }
-
-    IInvokerPtr GetSnapshotIOInvoker()
-    {
-        return SnapshotIOQueue_->GetInvoker();
     }
 
     bool IsConnected()
@@ -992,7 +986,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&NControllerAgent::TControllerAgent::AttachJobContext, Bootstrap_->GetControllerAgent())
-            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .AsyncVia(Bootstrap_->GetControllerAgent()->GetCancelableInvoker())
             .Run(path, chunkId, operationId, jobId);
     }
 
@@ -1012,8 +1006,6 @@ private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
     TBootstrap* const Bootstrap_;
-
-    const TActionQueuePtr SnapshotIOQueue_;
 
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
@@ -1528,6 +1520,9 @@ private:
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
 
+            // TODO(ignat): Make separate logic for updating config in controller agent (after separating configs).
+            Bootstrap_->GetControllerAgent()->UpdateConfig(Config_);
+
             ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
 
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
@@ -1628,7 +1623,13 @@ private:
             RegisterOperation(operation);
             registered = true;
 
-            controller->Initialize();
+            {
+                auto asyncResult = BIND(&IOperationController::Initialize, controller)
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
+                auto error = WaitFor(asyncResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            }
             auto initializeResult = controller->GetInitializeResult();
 
             WaitFor(MasterConnector_->CreateOperationNode(operation, initializeResult))
@@ -1754,6 +1755,7 @@ private:
             return;
         }
 
+        // NB: Should not throw!
         RegisterOperation(operation);
     }
 
@@ -1778,7 +1780,13 @@ private:
         try {
             auto controller = operation->GetController();
 
-            controller->InitializeReviving(controllerTransactions);
+            {
+                auto asyncResult = BIND(&IOperationController::InitializeReviving, controller, controllerTransactions)
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
+                auto error = WaitFor(asyncResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            }
 
             if (operation->GetState() != EOperationState::Reviving) {
                 throw TFiberCanceledException();
@@ -1868,6 +1876,7 @@ private:
             operation,
             BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
+        // Ignore result? (we cannot throw error here)
         Bootstrap_->GetControllerAgent()->RegisterOperation(operation->GetId(), operation->GetController());
 
         LOG_DEBUG("Operation registered (OperationId: %v)",
@@ -2638,11 +2647,6 @@ IYPathServicePtr TScheduler::GetOrchidService()
 std::vector<TOperationPtr> TScheduler::GetOperations()
 {
     return Impl_->GetOperations();
-}
-
-IInvokerPtr TScheduler::GetSnapshotIOInvoker()
-{
-    return Impl_->GetSnapshotIOInvoker();
 }
 
 bool TScheduler::IsConnected()
