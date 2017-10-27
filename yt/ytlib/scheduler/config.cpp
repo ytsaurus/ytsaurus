@@ -96,6 +96,8 @@ void TSupportsSchedulingTagsConfig::OnLoaded()
 
 TOperationSpecBase::TOperationSpecBase()
 {
+    SetKeepUnrecognized(true);
+
     RegisterParameter("intermediate_data_account", IntermediateDataAccount)
         .Default("intermediate");
     RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)

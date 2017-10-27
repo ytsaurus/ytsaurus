@@ -24,13 +24,9 @@ IMapNodePtr TYsonSerializableLite::GetUnrecognized() const
 
 IMapNodePtr TYsonSerializableLite::GetUnrecognizedRecursively() const
 {
-    if (!Unrecognized) {
-        return nullptr;
-    }
-
     // Take a copy of `Unrecognized` and add parameter->GetUnrecognizedRecursively()
     // for all parameters that are TYsonSerializable's themselves.
-    auto result = ConvertTo<IMapNodePtr>(Unrecognized);
+    auto result = Unrecognized ? ConvertTo<IMapNodePtr>(Unrecognized) : GetEphemeralNodeFactory()->CreateMap();
     for (const auto& pair : Parameters) {
         const auto& parameter = pair.second;
         const auto& name = pair.first;
@@ -88,13 +84,15 @@ void TYsonSerializableLite::Load(
         parameter->Load(child, childPath);
     }
 
-    auto registeredKeys = GetRegisteredKeys();
-    Unrecognized = GetEphemeralNodeFactory()->CreateMap();
-    for (const auto& pair : mapNode->GetChildren()) {
-        const auto& key = pair.first;
-        auto child = pair.second;
-        if (registeredKeys.find(key) == registeredKeys.end()) {
-            YCHECK(Unrecognized->AddChild(ConvertToNode(child), key));
+    if (KeepUnrecognized_) {
+        auto registeredKeys = GetRegisteredKeys();
+        Unrecognized = GetEphemeralNodeFactory()->CreateMap();
+        for (const auto& pair : mapNode->GetChildren()) {
+            const auto& key = pair.first;
+            auto child = pair.second;
+            if (registeredKeys.find(key) == registeredKeys.end()) {
+                YCHECK(Unrecognized->AddChild(ConvertToNode(child), key));
+            }
         }
     }
 
