@@ -12,6 +12,8 @@ using std::nullptr_t;
 
 namespace NYT {
 
+struct TAuth;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMultiFormatDesc
@@ -27,14 +29,26 @@ struct TMultiFormatDesc
     yvector<const ::google::protobuf::Descriptor*> ProtoDescriptors;
 };
 
-struct TOperationIOSpecBase
+class TOperationIOSpecBase
 {
+public:
     template <class T, class = void>
     struct TFormatAdder;
 
     yvector<TRichYPath> Inputs_;
     yvector<TRichYPath> Outputs_;
 
+    const TMultiFormatDesc& GetInputDesc() const
+    {
+        return InputDesc_;
+    }
+
+    const TMultiFormatDesc& GetOutputDesc() const
+    {
+        return OutputDesc_;
+    }
+
+protected:
     TMultiFormatDesc InputDesc_;
     TMultiFormatDesc OutputDesc_;
 };
