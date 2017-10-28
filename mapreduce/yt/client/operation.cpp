@@ -111,8 +111,6 @@ public:
         : Auth_(auth)
         , TransactionId_(transactionId)
         , Spec_(spec)
-        , InputDesc_(inputDesc)
-        , OutputDesc_(outputDesc)
         , Options_(options)
     {
         BinaryPath_ = GetExecPath();
@@ -186,8 +184,6 @@ private:
     TAuth Auth_;
     TTransactionId TransactionId_;
     TUserJobSpec Spec_;
-    TMultiFormatDesc InputDesc_;
-    TMultiFormatDesc OutputDesc_;
     TOperationOptions Options_;
 
     TString BinaryPath_;
@@ -946,7 +942,7 @@ TOperationId ExecuteMap(
     spec.MapperSpec_.Files_ = CanonizePaths(auth, spec.MapperSpec_.Files_);
 
     TMaybe<TNode> format;
-    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
+    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
         format = GetTableFormats(auth, transactionId, spec.Inputs_);
@@ -966,8 +962,8 @@ TOperationId ExecuteMap(
         spec.MapperSpec_,
         mapper,
         spec.Outputs_.size(),
-        spec.InputDesc_,
-        spec.OutputDesc_,
+        spec.GetInputDesc(),
+        spec.GetOutputDesc(),
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -976,8 +972,8 @@ TOperationId ExecuteMap(
             BuildUserJobFluently,
             std::cref(map),
             format,
-            spec.InputDesc_,
-            spec.OutputDesc_,
+            spec.GetInputDesc(),
+            spec.GetOutputDesc(),
             std::placeholders::_1))
         .Item("input_table_paths").List(spec.Inputs_)
         .Item("output_table_paths").List(spec.Outputs_)
@@ -1025,7 +1021,7 @@ TOperationId ExecuteReduce(
     spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
 
     TMaybe<TNode> format;
-    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
+    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
         format = GetTableFormats(auth, transactionId, spec.Inputs_);
@@ -1045,8 +1041,8 @@ TOperationId ExecuteReduce(
         spec.ReducerSpec_,
         reducer,
         spec.Outputs_.size(),
-        spec.InputDesc_,
-        spec.OutputDesc_,
+        spec.GetInputDesc(),
+        spec.GetOutputDesc(),
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1055,8 +1051,8 @@ TOperationId ExecuteReduce(
             BuildUserJobFluently,
             std::cref(reduce),
             format,
-            spec.InputDesc_,
-            spec.OutputDesc_,
+            spec.GetInputDesc(),
+            spec.GetOutputDesc(),
             std::placeholders::_1))
         .Item("sort_by").Value(spec.SortBy_)
         .Item("reduce_by").Value(spec.ReduceBy_)
@@ -1107,7 +1103,7 @@ TOperationId ExecuteJoinReduce(
     spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
 
     TMaybe<TNode> format;
-    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
+    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
         format = GetTableFormats(auth, transactionId, spec.Inputs_);
@@ -1127,8 +1123,8 @@ TOperationId ExecuteJoinReduce(
         spec.ReducerSpec_,
         reducer,
         spec.Outputs_.size(),
-        spec.InputDesc_,
-        spec.OutputDesc_,
+        spec.GetInputDesc(),
+        spec.GetOutputDesc(),
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1137,8 +1133,8 @@ TOperationId ExecuteJoinReduce(
             BuildUserJobFluently,
             std::cref(reduce),
             format,
-            spec.InputDesc_,
-            spec.OutputDesc_,
+            spec.GetInputDesc(),
+            spec.GetOutputDesc(),
             std::placeholders::_1))
         .Item("join_by").Value(spec.JoinBy_)
         .Item("input_table_paths").List(spec.Inputs_)
@@ -1193,7 +1189,7 @@ TOperationId ExecuteMapReduce(
     spec.ReducerSpec_.Files_ = CanonizePaths(auth, spec.ReducerSpec_.Files_);
 
     TMaybe<TNode> format;
-    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
+    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
         format = GetTableFormats(auth, transactionId, spec.Inputs_);
@@ -1213,7 +1209,7 @@ TOperationId ExecuteMapReduce(
         sortBy = reduceBy;
     }
 
-    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR && format && !mapper) {
+    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR && format && !mapper) {
         auto& attrs = format.Get()->Attributes();
        auto& keyColumns = attrs["key_column_names"].AsList();
 
@@ -1233,7 +1229,7 @@ TOperationId ExecuteMapReduce(
         }
     }
 
-    const auto& reduceOutputDesc = spec.OutputDesc_;
+    const auto& reduceOutputDesc = spec.GetOutputDesc();
 
     auto reduceInputDesc = MergeIntermediateDesc(reducerClassInputDesc, spec.ReduceInputHintDesc_,
         "spec from reducer CLASS input", "spec from HINT for reduce input");
@@ -1247,7 +1243,7 @@ TOperationId ExecuteMapReduce(
     auto mapOutputDesc = MergeIntermediateDesc(mapperClassOutputDesc, spec.MapOutputHintDesc_,
         "spec from mapper CLASS output", "spec from HINT for map output");
 
-    const auto& mapInputDesc = spec.InputDesc_;
+    const auto& mapInputDesc = spec.GetInputDesc();
 
     const bool hasMapper = mapper != nullptr;
     const bool hasCombiner = reduceCombiner != nullptr;

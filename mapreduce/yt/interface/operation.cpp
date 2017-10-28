@@ -11,8 +11,8 @@ IOperationPtr IOperationClient::Map(
 {
     Y_VERIFY(mapper.Get());
 
-    mapper->CheckInputFormat("mapper", spec.InputDesc_);
-    mapper->CheckOutputFormat("mapper", spec.OutputDesc_);
+    mapper->CheckInputFormat("mapper", spec.GetInputDesc());
+    mapper->CheckOutputFormat("mapper", spec.GetOutputDesc());
 
     return DoMap(
         spec,
@@ -27,8 +27,8 @@ IOperationPtr IOperationClient::Reduce(
 {
     Y_VERIFY(reducer.Get());
 
-    reducer->CheckInputFormat("reducer", spec.InputDesc_);
-    reducer->CheckOutputFormat("reducer", spec.OutputDesc_);
+    reducer->CheckInputFormat("reducer", spec.GetInputDesc());
+    reducer->CheckOutputFormat("reducer", spec.GetOutputDesc());
 
     return DoReduce(
         spec,
@@ -43,8 +43,8 @@ IOperationPtr IOperationClient::JoinReduce(
 {
     Y_VERIFY(reducer.Get());
 
-    reducer->CheckInputFormat("reducer", spec.InputDesc_);
-    reducer->CheckOutputFormat("reducer", spec.OutputDesc_);
+    reducer->CheckInputFormat("reducer", spec.GetInputDesc());
+    reducer->CheckOutputFormat("reducer", spec.GetOutputDesc());
 
     return DoJoinReduce(
         spec,
@@ -61,11 +61,11 @@ IOperationPtr IOperationClient::MapReduce(
     Y_VERIFY(reducer.Get());
 
     if (mapper) {
-        mapper->CheckInputFormat("mapper", spec.InputDesc_);
+        mapper->CheckInputFormat("mapper", spec.GetInputDesc());
     } else {
-        reducer->CheckInputFormat("reducer", spec.InputDesc_);
+        reducer->CheckInputFormat("reducer", spec.GetInputDesc());
     }
-    reducer->CheckOutputFormat("reducer", spec.OutputDesc_);
+    reducer->CheckOutputFormat("reducer", spec.GetOutputDesc());
 
     TMultiFormatDesc dummy, outputMapperDesc, inputReducerDesc;
     if (mapper) {
@@ -95,11 +95,11 @@ IOperationPtr IOperationClient::MapReduce(
     Y_VERIFY(reducer.Get());
 
     if (mapper) {
-        mapper->CheckInputFormat("mapper", spec.InputDesc_);
+        mapper->CheckInputFormat("mapper", spec.GetInputDesc());
     } else {
-        reducer->CheckInputFormat("reducer", spec.InputDesc_);
+        reducer->CheckInputFormat("reducer", spec.GetInputDesc());
     }
-    reducer->CheckOutputFormat("reducer", spec.OutputDesc_);
+    reducer->CheckOutputFormat("reducer", spec.GetOutputDesc());
 
     TMultiFormatDesc outputMapperDesc, inputReducerDesc,
         inputReduceCombinerDesc, outputReduceCombinerDesc;
