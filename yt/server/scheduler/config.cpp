@@ -105,7 +105,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .Default(0.5);
 
     RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(60));
 
     RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
         .Default(TDuration::Seconds(5));
