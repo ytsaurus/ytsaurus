@@ -96,12 +96,12 @@ protected:
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
-        const NLogging::TLogger& logger,
+        NLogging::TLogger logger,
         NLogging::ELogLevel logLevel);
 
     TServiceContextBase(
         TSharedRefArray requestMessage,
-        const NLogging::TLogger& logger,
+        NLogging::TLogger logger,
         NLogging::ELogLevel logLevel);
 
     virtual void DoReply() = 0;
@@ -109,30 +109,12 @@ protected:
     virtual void LogRequest() = 0;
     virtual void LogResponse() = 0;
 
-    template <class... TArgs>
-    static void AppendInfo(TStringBuilder* builder, const char* format, const TArgs&... args)
-    {
-        if (builder->GetLength() > 0) {
-            builder->AppendString(STRINGBUF(", "));
-        }
-        builder->AppendFormat(format, args...);
-    }
-
-    static void AppendInfo(TStringBuilder* builder, const TStringBuf& str)
-    {
-        if (builder->GetLength() > 0) {
-            builder->AppendString(STRINGBUF(", "));
-        }
-        builder->AppendString(str);
-    }
-
 private:
     mutable TSharedRefArray ResponseMessage_; // cached
     mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand
 
 
     void Initialize();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
