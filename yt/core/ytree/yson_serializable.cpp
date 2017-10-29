@@ -38,16 +38,6 @@ IMapNodePtr TYsonSerializableLite::GetUnrecognizedRecursively() const
     return result;
 }
 
-void TYsonSerializableLite::SetUnrecognizedStrategy(EUnrecognizedStrategy strategy)
-{
-    UnrecognizedStrategy = strategy;
-    if (strategy == EUnrecognizedStrategy::KeepRecursive) {
-        for (const auto& pair : Parameters) {
-            pair.second->SetKeepUnrecognizedRecursively();
-        }
-    }
-}
-
 yhash_set<TString> TYsonSerializableLite::GetRegisteredKeys() const
 {
     yhash_set<TString> result;
@@ -94,7 +84,7 @@ void TYsonSerializableLite::Load(
         parameter->Load(child, childPath);
     }
 
-    if (UnrecognizedStrategy != EUnrecognizedStrategy::Drop) {
+    if (KeepUnrecognized_) {
         auto registeredKeys = GetRegisteredKeys();
         Unrecognized = GetEphemeralNodeFactory()->CreateMap();
         for (const auto& pair : mapNode->GetChildren()) {
