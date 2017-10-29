@@ -40,6 +40,7 @@ using namespace NTableClient;
 
 TFormat::TFormat()
     : Type_(EFormatType::Null)
+    , Attributes_(CreateEphemeralAttributes())
 { }
 
 TFormat::TFormat(EFormatType type, const IAttributeDictionary* attributes)
