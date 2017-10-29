@@ -47,6 +47,8 @@
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
 
+#include <yt/core/rpc/local_channel.h>
+
 #include <yt/core/http/server.h>
 
 #include <yt/core/concurrency/fair_share_action_queue.h>
@@ -149,6 +151,8 @@ void TBootstrap::DoRun()
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
     RpcServer_ = CreateBusServer(BusServer_);
+
+    LocalRpcChannel_ = CreateLocalChannel(RpcServer_);
 
     if (!Config_->UseNewHttpServer) {
         HttpServer_.reset(new NXHttp::TServer(
@@ -258,6 +262,11 @@ const TCellSchedulerConfigPtr& TBootstrap::GetConfig() const
 const INativeClientPtr& TBootstrap::GetMasterClient() const
 {
     return Client_;
+}
+
+const NRpc::IChannelPtr TBootstrap::GetLocalRpcChannel() const
+{
+    return LocalRpcChannel_;
 }
 
 TAddressMap TBootstrap::GetLocalAddresses() const
