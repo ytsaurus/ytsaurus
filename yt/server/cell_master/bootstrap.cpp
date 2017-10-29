@@ -219,7 +219,7 @@ const IServerPtr& TBootstrap::GetRpcServer() const
     return RpcServer_;
 }
 
-const IChannelPtr TBootstrap::GetLocalRpcChannel() const
+const IChannelPtr& TBootstrap::GetLocalRpcChannel() const
 {
     return LocalRpcChannel_;
 }

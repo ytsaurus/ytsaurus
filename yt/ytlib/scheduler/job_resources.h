@@ -135,5 +135,14 @@ const TJobResources& MinSpareNodeResources();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+void ToProto(NScheduler::NProto::TJobResources* protoResources, const NScheduler::TJobResources& resources);
+void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::TJobResources& protoResources);
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT

@@ -16,6 +16,10 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
+
+#include <yt/ytlib/scheduler/controller_agent_service.pb.h>
+
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
@@ -32,7 +36,6 @@ using namespace NJobProberClient;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NProfiling;
-using namespace NScheduler::NProto;
 using namespace NShell;
 using namespace NYTree;
 using namespace NYson;
@@ -46,6 +49,8 @@ using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
 
 using NCypressClient::TObjectId;
+
+using NScheduler::NProto::TSchedulerJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 

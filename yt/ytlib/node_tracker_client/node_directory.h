@@ -91,7 +91,7 @@ void FromProto(NNodeTrackerClient::TNodeAddressMap* nodeAddresses, const NNodeTr
 void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const NNodeTrackerClient::TNodeDescriptor& descriptor);
 void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrackerClient::NProto::TNodeDescriptor& protoDescriptor);
 
-} // namespace
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

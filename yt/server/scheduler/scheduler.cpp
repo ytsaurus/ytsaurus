@@ -79,7 +79,6 @@ using namespace NApi;
 using namespace NCellScheduler;
 using namespace NObjectClient;
 using namespace NHydra;
-using namespace NScheduler::NProto;
 using namespace NJobTrackerClient;
 using namespace NChunkClient;
 using namespace NJobProberClient;
@@ -98,6 +97,8 @@ using NControllerAgent::IOperationController;
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerClient::TNodeDirectory;
+
+using NScheduler::NProto::TRspStartOperation;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,10 +146,6 @@ public:
             NProfiling::TProfiler(SchedulerProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
-        , CachedExecNodeDescriptorsByTags_(New<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>>(
-            BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker()))
         , CachedExecNodeMemoryDistributionByTags_(New<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
@@ -371,7 +368,7 @@ public:
         return operation;
     }
 
-    virtual int GetExecNodeCount() const override
+    int GetExecNodeCount() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -391,19 +388,6 @@ public:
             totalNodeCount += nodeShard->GetTotalNodeCount();
         }
         return totalNodeCount;
-    }
-
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (filter.IsEmpty()) {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
-
-            return CachedExecNodeDescriptors_;
-        }
-
-        return CachedExecNodeDescriptorsByTags_->Get(filter);
     }
 
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
@@ -839,6 +823,23 @@ public:
         nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
     }
 
+    void ProcessControllerAgentHeartbeat(
+        const NScheduler::NProto::TReqHeartbeat* request,
+        NScheduler::NProto::TRspHeartbeat* response)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TExecNodeDescriptorListPtr execNodes;
+        {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+            execNodes = CachedExecNodeDescriptors_;
+        }
+
+        for (const auto& execNode : execNodes->Descriptors) {
+            ToProto(response->mutable_exec_nodes()->add_exec_nodes(), execNode);
+        }
+    }
+
     // ISchedulerStrategyHost implementation
     virtual TJobResources GetTotalResourceLimits() override
     {
@@ -1061,7 +1062,6 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
-    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TExecNodeDescriptorListPtr>> CachedExecNodeDescriptorsByTags_;
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
     TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
@@ -1246,7 +1246,6 @@ private:
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
 
-        CachedExecNodeDescriptorsByTags_->Start();
         CachedExecNodeMemoryDistributionByTags_->Start();
 
         IsConnected_.store(true);
@@ -1284,7 +1283,6 @@ private:
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
 
-        CachedExecNodeDescriptorsByTags_->Stop();
         CachedExecNodeMemoryDistributionByTags_->Stop();
 
         LogEventFluently(ELogEventType::MasterDisconnected)
@@ -2824,6 +2822,13 @@ TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const TNullable<TDuratio
 void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)
 {
     Impl_->ProcessHeartbeat(context);
+}
+
+void TScheduler::ProcessControllerAgentHeartbeat(
+    const NScheduler::NProto::TReqHeartbeat* request,
+    NScheduler::NProto::TRspHeartbeat* response)
+{
+    Impl_->ProcessControllerAgentHeartbeat(request, response);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

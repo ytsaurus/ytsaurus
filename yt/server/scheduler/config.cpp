@@ -672,6 +672,12 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));
 
+    RegisterParameter("controller_agent_heartbeat_period", ControllerAgentHeartbeatPeriod)
+        .Default(TDuration::MilliSeconds(10));
+
+    RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
+        .Default(TDuration::Seconds(10));
+
     RegisterInitializer([&] () {
         ChunkLocationThrottler->Limit = 10000;
 
