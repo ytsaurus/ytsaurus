@@ -20,11 +20,11 @@ using NYT::FromProto;
 TServiceContextBase::TServiceContextBase(
     std::unique_ptr<TRequestHeader> header,
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger,
+    NLogging::TLogger logger,
     NLogging::ELogLevel logLevel)
     : RequestHeader_(std::move(header))
     , RequestMessage_(std::move(requestMessage))
-    , Logger(logger)
+    , Logger(std::move(logger))
     , LogLevel_(logLevel)
 {
     Initialize();
@@ -32,11 +32,11 @@ TServiceContextBase::TServiceContextBase(
 
 TServiceContextBase::TServiceContextBase(
     TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger,
+    NLogging::TLogger logger,
     NLogging::ELogLevel logLevel)
     : RequestHeader_(new TRequestHeader())
     , RequestMessage_(std::move(requestMessage))
-    , Logger(logger)
+    , Logger(std::move(logger))
     , LogLevel_(logLevel)
 {
     YCHECK(ParseRequestHeader(RequestMessage_, RequestHeader_.get()));

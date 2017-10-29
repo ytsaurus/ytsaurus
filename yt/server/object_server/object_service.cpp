@@ -242,20 +242,16 @@ private:
             const auto& path = ypathExt.path();
             bool mutating = ypathExt.mutating();
 
-            auto requestInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
+            auto loggingInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
                 RequestId_,
                 mutating,
                 path,
                 UserName_);
-            auto responseInfo = Format("RequestId: %v",
-                RequestId_);
-
             auto subcontext = CreateYPathContext(
                 updatedSubrequestMessage,
                 ObjectServerLogger,
                 NLogging::ELogLevel::Debug,
-                requestInfo,
-                responseInfo);
+                std::move(loggingInfo));
 
             subrequest.RequestMessage = updatedSubrequestMessage;
             subrequest.Context = subcontext;
