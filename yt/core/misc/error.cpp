@@ -345,6 +345,14 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
 
 } // namespace
 
+bool operator == (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
+{
+    return lhs.GetCode() == rhs.GetCode() &&
+        lhs.GetMessage() == rhs.GetMessage() &&
+        lhs.Attributes() == rhs.Attributes() &&
+        lhs.InnerErrors() == rhs.InnerErrors();
+}
+
 TString ToString(const TError& error)
 {
     TStringBuilder builder;
