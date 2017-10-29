@@ -23,14 +23,17 @@ DEFINE_ENUM(EMergeStrategy,
     (Combine)
 );
 
+DEFINE_ENUM(EUnrecognizedStrategy,
+    (Drop)
+    (Keep)
+    (KeepRecursive)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonSerializableLite
     : private TNonCopyable
 {
-public:
-    DEFINE_BYVAL_RW_PROPERTY(bool, KeepUnrecognized);
-
 public:
     typedef std::function<void()> TValidator;
     typedef std::function<void()> TInitializer;
@@ -45,6 +48,7 @@ public:
         virtual bool HasValue() const = 0;
         virtual const std::vector<TString>& GetAliases() const = 0;
         virtual IMapNodePtr GetUnrecognizedRecursively() const = 0;
+        virtual void SetKeepUnrecognizedRecursively() = 0;
     };
 
     typedef TIntrusivePtr<IParameter> IParameterPtr;
@@ -66,6 +70,7 @@ public:
         virtual bool HasValue() const override;
         virtual const std::vector<TString>& GetAliases() const override;
         virtual IMapNodePtr GetUnrecognizedRecursively() const override;
+        virtual void SetKeepUnrecognizedRecursively() override;
 
     public:
         TParameter& Optional();
@@ -87,6 +92,7 @@ public:
         std::vector<TValidator> Validators;
         std::vector<TString> Aliases;
         EMergeStrategy MergeStrategy;
+        bool KeepUnrecognizedRecursively = false;
     };
 
 public:
@@ -109,6 +115,8 @@ public:
     IMapNodePtr GetUnrecognized() const;
     IMapNodePtr GetUnrecognizedRecursively() const;
 
+    void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy);
+
     yhash_set<TString> GetRegisteredKeys() const;
 
 protected:
@@ -129,6 +137,7 @@ private:
     yhash<TString, IParameterPtr> Parameters;
 
     NYTree::IMapNodePtr Unrecognized;
+    EUnrecognizedStrategy UnrecognizedStrategy;
 
     std::vector<TInitializer> Initializers;
     std::vector<TValidator> Validators;

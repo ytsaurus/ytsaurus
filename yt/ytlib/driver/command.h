@@ -62,7 +62,7 @@ protected:
 
     TCommandBase()
     {
-        SetKeepUnrecognized(true);
+        SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::Keep);
     }
 
 public:
