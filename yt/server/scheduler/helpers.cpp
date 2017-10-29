@@ -21,7 +21,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NProto;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NCoreDump::NProto;

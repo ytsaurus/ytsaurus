@@ -52,7 +52,6 @@ using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NSecurityClient;
 using namespace NNodeTrackerClient;
-using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
@@ -61,6 +60,13 @@ using namespace NScheduler;
 
 using NTableClient::TKey;
 using NNodeTrackerClient::TNodeId;
+
+using NScheduler::NProto::TPartitionJobSpecExt;
+using NScheduler::NProto::TReduceJobSpecExt;
+using NScheduler::NProto::TSortJobSpecExt;
+using NScheduler::NProto::TMergeJobSpecExt;
+using NScheduler::NProto::TSchedulerJobSpecExt;
+using NScheduler::NProto::TSchedulerJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 

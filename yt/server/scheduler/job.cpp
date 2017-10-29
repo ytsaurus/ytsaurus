@@ -23,9 +23,10 @@ using namespace NObjectClient;
 using namespace NYPath;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
-using namespace NProto;
 using namespace NProfiling;
 using namespace NPhoenix;
+
+using NScheduler::NProto::TSchedulerJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 

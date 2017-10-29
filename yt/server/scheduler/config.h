@@ -721,6 +721,12 @@ public:
     // by the corresponding execution node.
     TDuration JobRevivalAbortTimeout;
 
+    // Controller agent-to-scheduler heartbeat period.
+    TDuration ControllerAgentHeartbeatPeriod;
+
+    // Controller agent-to-scheduler heartbeat timeout.
+    TDuration ControllerAgentHeartbeatRpcTimeout;
+
     TSchedulerConfig();
 
     virtual void OnLoaded() override;

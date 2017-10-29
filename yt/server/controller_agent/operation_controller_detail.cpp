@@ -104,6 +104,7 @@ using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
+using NScheduler::TExecNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6140,8 +6141,8 @@ void TOperationControllerBase::GetExecNodesInformation()
         return;
     }
 
-    ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
+    ExecNodeCount_ = ControllerAgent->GetExecNodeCount();
+    ExecNodesDescriptors_ = ControllerAgent->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
 }
 

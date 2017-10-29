@@ -24,6 +24,9 @@ namespace NProto {
 class TSchedulerJobSpecExt;
 class TSchedulerJobResultExt;
 class TTableInputSpec;
+class TJobResources;
+class TReqHeartbeat;
+class TRspHeartbeat;
 
 } // namespace NProto
 

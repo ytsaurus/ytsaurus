@@ -76,16 +76,6 @@ struct IOperationHost
      */
     virtual TControllerAgent* GetControllerAgent() = 0;
 
-    //! Returns the total number of online exec nodes.
-    virtual int GetExecNodeCount() const = 0;
-
-    //! Returns the descriptors of online exec nodes that can handle operations
-    //! marked with a given #tag.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const = 0;
-
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.
     /*!
