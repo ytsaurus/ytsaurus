@@ -435,6 +435,10 @@ public:
             return;
         }
 
+        if (operation->Alerts()[alertType] == alert) {
+            return;
+        }
+
         operation->MutableAlerts()[alertType] = alert;
     }
 
@@ -445,7 +449,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert)
+        return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert.Sanitize())
             .AsyncVia(GetControlInvoker())
             .Run();
     }
