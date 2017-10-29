@@ -5344,8 +5344,7 @@ void TOperationControllerBase::BuildSpec(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
 {
-    // TODO(ignat): make it async somehow.
-    // VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(Invoker);
 
     BuildYsonMapFluently(consumer)
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)

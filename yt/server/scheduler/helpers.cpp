@@ -62,7 +62,13 @@ void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsum
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
         .Item("slot_index").Value(operation->GetSlotIndex())
-        .DoIf(static_cast<bool>(controller), BIND(&NControllerAgent::IOperationController::BuildOperationAttributes, controller));
+        .DoIf(static_cast<bool>(controller), BIND([=] (IYsonConsumer* consumer) {
+            auto asyncResult = BIND(&NControllerAgent::IOperationController::BuildOperationAttributes, controller)
+                .AsyncVia(controller->GetInvoker())
+                .Run(consumer);
+            WaitFor(asyncResult)
+                .ThrowOnError();
+        }));
 }
 
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)
