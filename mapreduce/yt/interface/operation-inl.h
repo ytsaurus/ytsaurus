@@ -186,12 +186,40 @@ struct TOperationIOSpecBase::TFormatAdder<T, std::enable_if_t<TIsBaseOf<Message,
     }
 };
 
+template <class T>
+void TOperationIOSpecBase::AddInput(const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<T>::Add(InputDesc_);
+    Inputs_.push_back(path);
+}
+
+template <class T>
+void TOperationIOSpecBase::SetInput(size_t tableIndex, const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, InputDesc_);
+    Assign(Inputs_, tableIndex, path);
+}
+
+
+template <class T>
+void TOperationIOSpecBase::AddOutput(const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<T>::Add(OutputDesc_);
+    Outputs_.push_back(path);
+}
+
+template <class T>
+void TOperationIOSpecBase::SetOutput(size_t tableIndex, const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, OutputDesc_);
+    Assign(Outputs_, tableIndex, path);
+}
+
 template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::AddInput(const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Add(InputDesc_);
-    Inputs_.push_back(path);
+    TOperationIOSpecBase::AddInput<T>(path);
     return *static_cast<TDerived*>(this);
 }
 
@@ -199,8 +227,7 @@ template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::SetInput(size_t tableIndex, const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, InputDesc_);
-    Assign(Inputs_, tableIndex, path);
+    TOperationIOSpecBase::SetInput<T>(tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
 
@@ -209,8 +236,7 @@ template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::AddOutput(const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Add(OutputDesc_);
-    Outputs_.push_back(path);
+    TOperationIOSpecBase::AddOutput<T>(path);
     return *static_cast<TDerived*>(this);
 }
 
@@ -218,8 +244,7 @@ template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, OutputDesc_);
-    Assign(Outputs_, tableIndex, path);
+    TOperationIOSpecBase::SetOutput<T>(tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
 
