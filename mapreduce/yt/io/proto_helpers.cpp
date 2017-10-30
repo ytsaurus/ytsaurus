@@ -143,7 +143,7 @@ TNode MakeProtoFormatConfigNew(const yvector<const Descriptor*>& descriptors)
         .Value("protobuf");
 }
 
-constexpr bool USE_NEW_PROTO_FORMAT_DESCRIPTION = true;
+constexpr bool USE_NEW_PROTO_FORMAT_DESCRIPTION = false;
 
 } // namespace
 
