@@ -117,6 +117,30 @@ TIP6Address& operator |= (TIP6Address& lhs, const TIP6Address& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIP6Network
+{
+public:
+    TIP6Network() = default;
+    TIP6Network(const TIP6Address& network, const TIP6Address& mask);
+
+    static TIP6Network FromString(const TStringBuf& str);
+    static bool FromString(const TStringBuf& str, TIP6Network* network);
+
+    bool Contains(const TIP6Address& address);
+
+    const TIP6Address& GetNetwork() const;
+    const TIP6Address& GetMask() const;
+
+private:
+    TIP6Address Network_;
+    TIP6Address Mask_;
+};
+
+void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStringBuf& spec);
+TString ToString(const TIP6Network& network);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Performs asynchronous host name resolution.
 class TAddressResolver
 {

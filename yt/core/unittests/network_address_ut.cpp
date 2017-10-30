@@ -83,40 +83,126 @@ TEST(TIP6AddressTest, ToString)
 {
     {
         TIP6Address address;
-        ASSERT_EQ("0:0:0:0:0:0:0:0", ToString(address));
+        ASSERT_EQ("::", ToString(address));
     }
 
     {
         TIP6Address address;
         address.GetRawWords()[0] = 3;
-        ASSERT_EQ("0:0:0:0:0:0:0:3", ToString(address));
+        ASSERT_EQ("::3", ToString(address));
     }
 
     {
         TIP6Address address;
         address.GetRawWords()[7] = 0xfff1;
-        ASSERT_EQ("fff1:0:0:0:0:0:0:0", ToString(address));
+        ASSERT_EQ("fff1::", ToString(address));
     }
+}
+
+TEST(TIP6AddressTest, InvalidAddress)
+{
+    for (const auto& addr : std::vector<TString>{
+        ":::",
+        "1::1::1",
+        "0:1:2:3:4:5:6:7:8",
+        "0:1:2:3:4:5:6:7:",
+        ":0:1:2:3:4:5:6:7",
+        ":1:2:3:4:5:6:7",
+        "1:2:3:4:5:6:7:"
+    }) {
+        EXPECT_THROW(TIP6Address::FromString(addr), TErrorException)
+            << addr;
+    }
+}
+
+std::array<ui16, 8> AddressToWords(const TIP6Address& addr) {
+    std::array<ui16, 8> buf;
+    std::copy(addr.GetRawWords(), addr.GetRawWords() + 8, buf.begin());
+    return buf;
 }
 
 TEST(TIP6AddressTest, FromString)
 {
-    {
-        auto address = TIP6Address::FromString("0:0:0:0:0:0:0:0");
-        ui16 parts[16] = {0, 0, 0, 0, 0, 0, 0, 0};
-        EXPECT_EQ(0, ::memcmp(address.GetRawWords(), parts, 8));
+    typedef std::pair<TString, std::array<ui16, 8>> TTestCase;
+    
+    for (const auto& testCase : {
+        TTestCase{"0:0:0:0:0:0:0:0", {0, 0, 0, 0, 0, 0, 0, 0}},
+        TTestCase{"0:0:0:0:0:0:0:3", {3, 0, 0, 0, 0, 0, 0, 0}},
+        TTestCase{"0:0:0:0::0:3", {3, 0, 0, 0, 0, 0, 0, 0}},
+        TTestCase{"fff1:1:3:4:5:6:7:8", {8, 7, 6, 5, 4, 3, 1_KB / 1_KB, 0xfff1}},
+        TTestCase{"::", {0, 0, 0, 0, 0, 0, 0, 0}},
+        TTestCase{"::1", {1, 0, 0, 0, 0, 0, 0, 0}},
+        TTestCase{"::1:2", {2, 1, 0, 0, 0, 0, 0, 0}},
+        TTestCase{"1::", {0, 0, 0, 0, 0, 0, 0, 1}},
+        TTestCase{"0:1::", {0, 0, 0, 0, 0, 0, 1, 0}},
+        TTestCase{"0:1::1:0:0", {0, 0, 1, 0, 0, 0, 1, 0}},
+        TTestCase{"ffab:3:0::1234:6", {0x6, 0x1234, 0, 0, 0, 0, 0x3, 0xffab}}
+    }) {
+        auto address = TIP6Address::FromString(testCase.first);
+        EXPECT_EQ(AddressToWords(address), testCase.second);
+    }
+}
+
+TEST(TIP6AddressTest, CanonicalText)
+{
+    for (const auto& str : std::vector<TString>{
+        "::",
+        "::1",
+        "1::",
+        "2001:db8::1:0:0:1",
+        "::2001:db8:1:0:0:1",
+        "::2001:db8:1:1:0:0",
+        "2001:db8::1:1:0:0",
+        "1:2:3:4:5:6:7:8"
+    }) {
+        auto address = TIP6Address::FromString(str);
+        EXPECT_EQ(str, ToString(address));
+    }
+}
+
+TEST(TIP6AddressTest, NetworkMask)
+{
+    typedef std::pair<TString, std::array<ui16, 8>> TTestCase;
+    for (const auto& testCase : {
+        TTestCase{"::/1", {0, 0, 0, 0, 0, 0, 0, 0x8000}},
+        TTestCase{"::/0", {0, 0, 0, 0, 0, 0, 0, 0}},
+        TTestCase{"::/24", {0, 0, 0, 0, 0, 0, 0xff00, 0xffff}},
+        TTestCase{"::/32", {0, 0, 0, 0, 0, 0, 0xffff, 0xffff}},
+        TTestCase{"::/64", {0, 0, 0, 0, 0xffff, 0xffff, 0xffff, 0xffff}},
+        TTestCase{"::/128", {0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff}},
+    }) {
+        auto network = TIP6Network::FromString(testCase.first);
+        EXPECT_EQ(AddressToWords(network.GetMask()), testCase.second);
     }
 
-    {
-        auto address = TIP6Address::FromString("0:0:0:0:0:0:0:3");
-        ui16 parts[16] = {3, 0, 0, 0, 0, 0, 0, 0};
-        EXPECT_EQ(0, ::memcmp(address.GetRawWords(), parts, 8));
-    }
+    EXPECT_THROW(TIP6Network::FromString("::/129"), TErrorException);
+    EXPECT_THROW(TIP6Network::FromString("::/1291"), TErrorException);
+}
 
-    {
-        auto address = TIP6Address::FromString("fff1:1:3:4:5:6:7:8");
-        ui16 parts[16] = {8, 7, 6, 5, 4, 3, 1, 0xfff1};
-        EXPECT_EQ(0, ::memcmp(address.GetRawWords(), parts, 8));
+TEST(TIP6AddressTest, InvalidInput)
+{
+    for (const auto& testCase : std::vector<TString>{
+        "",
+        ":",
+        "::/",
+        "::/1",
+        ":::",
+        "::1::",
+        "1",
+        "1:1",
+        "11111::"
+        "g::",
+        "1:::1",
+        "fff1:1:3:4:5:6:7:8:9",
+        "fff1:1:3:4:5:6:7:8::",
+        "::fff1:1:3:4:5:6:7:8"
+    }) {
+        EXPECT_THROW(TIP6Address::FromString(testCase), TErrorException)
+            << Format("input = %Qv", testCase);
+
+        auto network = testCase + "/32";
+        EXPECT_THROW(TIP6Network::FromString(network), TErrorException)
+            << Format("input = %Qv", network);        
     }
 }
 

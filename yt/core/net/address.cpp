@@ -388,6 +388,129 @@ bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
+{
+    auto hexToDigit = [] (char ch) -> int {
+        if (ch >= '0' && ch <= '9') {
+            return ch - '0';
+        }
+        if (ch >= 'a' && ch <= 'f') {
+            return ch - 'a' + 10;
+        }
+        if (ch >= 'A' && ch <= 'F') {
+            return ch - 'A' + 10;
+        }
+        return -1;
+    };
+
+    auto tokenizeWord = [&] (ui16* word) -> bool {
+        int partLen = 0;
+        ui16 wordValue = 0;
+
+        if (str->empty()) {
+            return false;
+        }
+
+        while (partLen < 4 && !str->empty()) {
+            int digit = hexToDigit((*str)[0]);
+            if (digit == -1 && partLen == 0) {
+                return false;
+            }
+            if (digit == -1) {
+                break;
+            }
+
+            *str = str->substr(1);
+            wordValue <<= 4;
+            wordValue += digit;
+            ++partLen;
+        }
+
+        *word = wordValue;
+        return true;
+    };
+
+    bool beforeAbbrev = true;
+    int wordIndex = 0;
+    int wordsPushed = 0;
+
+    auto words = address->GetRawWords();
+    std::fill_n(address->GetRawBytes(), TIP6Address::ByteSize, 0);
+
+    auto isEnd = [&] () {
+        return str->empty() || (*str)[0] == '/';
+    };
+
+    auto tokenizeAbbrev = [&] () {
+        if (str->size() >= 2 && (*str)[0] == ':' && (*str)[1] == ':') {
+            *str = str->substr(2);
+            return true;
+        }
+        return false;
+    };
+
+    if (tokenizeAbbrev()) {
+        beforeAbbrev = false;
+        wordIndex++;
+    }
+
+    if (isEnd() && !beforeAbbrev) {
+        return true;
+    }
+    
+    while (true) {
+        if (beforeAbbrev) {
+            ui16 newWord = 0;
+            if (!tokenizeWord(&newWord)) {
+                return false;
+            }
+
+            words[7-wordIndex] = newWord;
+            ++wordIndex;
+        } else {
+            ui16 newWord = 0;
+            if (!tokenizeWord(&newWord)) {
+                return false;
+            }
+
+            std::copy_backward(words, words + wordsPushed, words + wordsPushed + 1);
+            words[0] = newWord;
+            ++wordsPushed;
+        }
+
+        // end of full address
+        if (wordIndex + wordsPushed == 8) {
+            break;
+        }
+
+        // end of abbreviated address
+        if (isEnd() && !beforeAbbrev) {
+            break;
+        }
+
+        // ':' or '::'
+        if (beforeAbbrev && tokenizeAbbrev()) {
+            beforeAbbrev = false;
+            if (wordIndex == 8) {
+                return false;
+            }
+            wordIndex++;
+
+            if (isEnd()) {
+                return true;
+            }
+        } else if (!str->empty() && (*str)[0] == ':') {
+            *str = str->substr(1);
+        }
+    }
+    
+    return true;
+}
+
+} // namespace
+
 const ui8* TIP6Address::GetRawBytes() const
 {
     return Raw_.data();
@@ -446,56 +569,52 @@ TIP6Address TIP6Address::FromString(const TStringBuf& str)
 
 bool TIP6Address::FromString(const TStringBuf& str, TIP6Address* address)
 {
-    auto hexToDigit = [] (char ch) -> int {
-        if (ch >= '0' && ch <= '9') {
-            return ch - '0';
-        }
-        if (ch >= 'a' && ch <= 'f') {
-            return ch - 'a' + 10;
-        }
-        if (ch >= 'A' && ch <= 'F') {
-            return ch - 'A' + 10;
-        }
-        return -1;
-    };
-
-    auto* parts = reinterpret_cast<ui16*>(address->GetRawBytes());
-    const char* current = str.data();
-    for (int partIndex = 7; partIndex >= 0; --partIndex) {
-        int partLen = 0;
-        ui16 partValue = 0;
-        while (current != str.end() && *current != ':') {
-            if (++partLen > 4) {
-                return false;
-            }
-            char ch = *current++;
-            int digit = hexToDigit(ch);
-            if (digit < 0) {
-                return false;
-            }
-            partValue <<= 4;
-            partValue += digit;
-        }
-        if (partLen == 0) {
-            return false;
-        }
-        if (current == str.end() && partIndex > 0) {
-            return false;
-        }
-        ++current;
-        parts[partIndex] = partValue;
+    TStringBuf buf = str;
+    if (!ParseIP6Address(&buf, address) || !buf.empty()) {
+        return false;
     }
-    return current == str.end() + 1;
+    return true;
 }
 
 void FormatValue(TStringBuilder* builder, const TIP6Address& address, const TStringBuf& spec)
 {
     const auto* parts = reinterpret_cast<const ui16*>(address.GetRawBytes());
-    for (int index = 7; index >= 0; --index) {
-        if (index != 7) {
-            builder->AppendChar(':');
+    std::pair<int, int> maxRun = {-1, -1};
+    int start = -1;
+    int end = -1;
+    auto endRun = [&] () {
+        if ((end - start) >= (maxRun.second - maxRun.first) && (end - start) > 1) {
+            maxRun = {start, end};
         }
-        builder->AppendFormat("%x", parts[index]);
+
+        start = -1;
+        end = -1;
+    };
+
+    for (int index = 0; index < 8; ++index) {
+        if (parts[index] == 0) {
+            if (start == -1) {
+                start = index;
+            }
+            end = index + 1;
+        } else {
+            endRun();
+        }
+    }
+    endRun();
+
+    for (int index = 7; index >= 0; --index) {
+        if (maxRun.first <= index && index < maxRun.second) {
+            if (index == maxRun.first) {
+                builder->AppendChar(':');
+                builder->AppendChar(':');
+            }
+        } else {
+            if (index != 7 && index + 1 != maxRun.first) {
+                builder->AppendChar(':');
+            }
+            builder->AppendFormat("%x", parts[index]);
+        }
     }
 }
 
@@ -540,6 +659,86 @@ TIP6Address& operator&=(TIP6Address& lhs, const TIP6Address& rhs)
     *reinterpret_cast<ui64*>(lhs.GetRawBytes()) &= *reinterpret_cast<const ui64*>(rhs.GetRawBytes());
     *reinterpret_cast<ui64*>(lhs.GetRawBytes() + 8) &= *reinterpret_cast<const ui64*>(rhs.GetRawBytes() + 8);
     return lhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIP6Network::TIP6Network(const TIP6Address& network, const TIP6Address& mask)
+    : Network_(network)
+    , Mask_(mask)
+{ }
+
+const TIP6Address& TIP6Network::GetNetwork() const
+{
+    return Network_;
+}
+
+const TIP6Address& TIP6Network::GetMask() const
+{
+    return Mask_;
+}
+
+bool TIP6Network::Contains(const TIP6Address& address)
+{
+    TIP6Address masked = address;
+    masked &= Mask_;
+    return masked == Network_;
+}
+
+TIP6Network TIP6Network::FromString(const TStringBuf& str)
+{
+    TIP6Network network;
+    if (!FromString(str, &network)) {
+        THROW_ERROR_EXCEPTION("Error parsing IP6 network %Qv", str);
+    }
+    return network;
+}
+
+bool ParseMask(const TStringBuf& buf, int* maskSize)
+{
+    if (buf.size() < 2 || buf[0] != '/') {
+        return false;
+    }
+
+    *maskSize = 0;
+    for (int i = 1; i < 4; ++i) {
+        if (i == buf.size()) {
+            return true;
+        }
+
+        if (buf[i] < '0' || '9' < buf[i]) {
+            return false;
+        }
+
+        *maskSize = (*maskSize * 10) + (buf[i] - '0');
+    }
+
+    return buf.size() == 4 && *maskSize <= 128;
+}
+
+bool TIP6Network::FromString(const TStringBuf& str, TIP6Network* network)
+{
+    TStringBuf buf = str;
+    if (!ParseIP6Address(&buf, &network->Network_)) {
+        return false;
+    }
+
+    int maskSize = 0;
+    if (!ParseMask(buf, &maskSize)) {
+        return false;
+    }
+
+    network->Mask_ = TIP6Address();
+    auto bytes = network->Mask_.GetRawBytes();
+    for (int i = 0; i < TIP6Address::ByteSize * 8; ++i) {
+        if (i >= (TIP6Address::ByteSize * 8) - maskSize) {
+            *(bytes + i / 8) |= (1 << (i % 8));
+        } else {
+            *(bytes + i / 8) &= ~(1 << (i % 8));
+        }
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
