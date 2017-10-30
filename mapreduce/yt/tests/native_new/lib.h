@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/common/config.h>
 #include <util/datetime/base.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +32,31 @@ public:
 
 private:
     TDuration OldWaitLockPollInterval_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConfigSaverGuard
+{
+public:
+    TConfigSaverGuard();
+    ~TConfigSaverGuard();
+
+private:
+    TConfig Config_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDebugMetricDiff
+{
+public:
+    TDebugMetricDiff(TString name);
+    ui64 GetTotal() const;
+
+private:
+    TString Name_;
+    ui64 InitialValue_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

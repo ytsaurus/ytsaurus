@@ -1,6 +1,7 @@
 #include "lib.h"
 
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/debug_metrics.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/interface/client.h>
 
@@ -55,6 +56,29 @@ TZeroWaitLockPollIntervalGuard::TZeroWaitLockPollIntervalGuard()
 TZeroWaitLockPollIntervalGuard::~TZeroWaitLockPollIntervalGuard()
 {
     TConfig::Get()->WaitLockPollInterval = OldWaitLockPollInterval_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TConfigSaverGuard::TConfigSaverGuard()
+    : Config_(*TConfig::Get())
+{ }
+
+TConfigSaverGuard::~TConfigSaverGuard()
+{
+    *TConfig::Get() = Config_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDebugMetricDiff::TDebugMetricDiff(TString name)
+    : Name_(std::move(name))
+    , InitialValue_(NDetail::GetDebugMetric(Name_))
+{ }
+
+ui64 TDebugMetricDiff::GetTotal() const
+{
+    return NDetail::GetDebugMetric(Name_) - InitialValue_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1603,6 +1603,9 @@ public:
                 OperationImpl_->FinishWithException(std::current_exception());
                 return PollBreak;
             }
+        } catch (const yexception& e) {
+            OperationImpl_->FinishWithException(std::current_exception());
+            return PollBreak;
         }
         return PollContinue;
     }
