@@ -304,7 +304,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("""
             * from [//tmp/jl] as l
             join [//tmp/jr] as r on l.c + 1 = r.c + 1
-             where (l.a, l.b) in ((2, 1))""")
+             where (l.a, l.b) in ((2, 1))""", allow_join_without_index=True)
         assert expected == actual
 
     def test_join_common_prefix(self):
@@ -440,7 +440,9 @@ class TestQuery(YTEnvSetup):
             {"a": 4, "c": "a", "b": 100, "d": "X", "e": 1234},
             {"a": 4, "c": "a", "b": 400, "d": "Y", "e": 5678}]
 
-        actual = select_rows("* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)")
+        actual = select_rows(
+            "* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)",
+            allow_join_without_index=True)
         assert sorted(expected) == sorted(actual)
 
     def test_types(self):

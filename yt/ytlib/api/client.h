@@ -353,7 +353,7 @@ struct TSelectRowsOptions
     //! Allow queries without any condition on key columns.
     bool AllowFullScan = true;
     //! Allow queries with join condition which implies foreign query with IN operator.
-    bool AllowJoinWithoutIndex = true;
+    bool AllowJoinWithoutIndex = false;
 };
 
 struct TGetNodeOptions
