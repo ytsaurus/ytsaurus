@@ -3747,6 +3747,8 @@ private:
         TTabletCell* hintCell,
         std::vector<TTablet*> tabletsToMount)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         if (hintCell) {
             std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
             for (auto* tablet : tabletsToMount) {
@@ -3772,25 +3774,26 @@ private:
             }
         };
 
+        auto mutationContext = GetCurrentMutationContext();
+
         auto getCellSize = [&] (const TTabletCell* cell) -> i64 {
             i64 result = 0;
             i64 tabletCount;
             switch (mountConfig->InMemoryMode) {
                 case EInMemoryMode::None:
-                    result += cell->TotalStatistics().UncompressedDataSize;
-                    tabletCount = cell->Tablets().size();
+                    result = mutationContext->RandomGenerator().Generate<i64>();
                     break;
                 case EInMemoryMode::Uncompressed:
                 case EInMemoryMode::Compressed: {
                     result += cell->TotalStatistics().MemorySize;
                     tabletCount = cell->TotalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Uncompressed] +
                         cell->TotalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Compressed];
+                    result += tabletCount * Config_->TabletDataSizeFootprint;
                     break;
                 }
                 default:
                     Y_UNREACHABLE();
             }
-            result += tabletCount * Config_->TabletDataSizeFootprint;
             return result;
         };
 
