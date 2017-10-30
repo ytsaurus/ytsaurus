@@ -215,6 +215,7 @@ TOperationControllerBase::TOperationControllerBase(
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
+    , SchedulerIncarnation_(operation->GetSchedulerIncarnation())
     , Spec_(spec)
     , Options(options)
     , CachedNeededResources(ZeroJobResources())
@@ -5204,9 +5205,10 @@ void TOperationControllerBase::ReleaseJobs(int completedJobIndexLimit)
 {
     VERIFY_INVOKERS_AFFINITY(ReleaseJobsFeasibleInvokers_);
 
-    LOG_DEBUG("Releasing jobs (ReleasedJobCount: %v, CompletedJobIndexLimit: %v)",
+    LOG_DEBUG("Releasing jobs (ReleasedJobCount: %v, CompletedJobIndexLimit: %v, SchedulerIncarnation: %v)",
         ReleasedJobCount,
-        completedJobIndexLimit);
+        completedJobIndexLimit,
+        SchedulerIncarnation_);
 
     if (ReleasedJobCount >= completedJobIndexLimit) {
         // Nothing to do here.
@@ -5220,7 +5222,7 @@ void TOperationControllerBase::ReleaseJobs(int completedJobIndexLimit)
     std::vector<TJobId> jobIdsToRelease(RecentlyCompletedJobIds.begin(), RecentlyCompletedJobIds.begin() + jobCount);
     RecentlyCompletedJobIds.erase(RecentlyCompletedJobIds.begin(), RecentlyCompletedJobIds.begin() + jobCount);
 
-    Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease));
+    Host->ReleaseJobs(OperationId, std::move(jobIdsToRelease), SchedulerIncarnation_);
     
     ReleasedJobCount += jobCount;
 }

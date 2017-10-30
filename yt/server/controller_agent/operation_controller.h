@@ -150,7 +150,10 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual void ReleaseJobs(const TOperationId& operationId, std::vector<TJobId> jobIds) = 0;
+    virtual void ReleaseJobs(
+        const TOperationId& operationId,
+        std::vector<TJobId> jobIds,
+        int controllerSchedulerIncarnation) = 0;
 
     virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const NScheduler::TJobMetrics& jobMetrics) = 0;
 };

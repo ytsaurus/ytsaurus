@@ -462,9 +462,20 @@ public:
         return CreateJobHost(jobId, nodeShard);
     }
 
-    void DoReleaseJobs(const TOperationId& operationId, const std::vector<TJobId>& jobIds)
+    void DoReleaseJobs(
+        const TOperationId& operationId,
+        const std::vector<TJobId>& jobIds,
+        int controllerSchedulerIncarnation)
     {
         VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
+
+        if (SchedulerIncarnation_ != controllerSchedulerIncarnation) {
+            LOG_WARNING("Not releasing jobs because of the wrong scheduler incarnation "
+                "(SchedulerIncarnation: %v, ControllerSchedulerIncarnation: %v)",
+                SchedulerIncarnation_,
+                controllerSchedulerIncarnation);
+            return;
+        }
 
         std::vector<std::vector<TJobId>> jobIdsToRemoveByShardId(NodeShards_.size());
         for (const auto& jobId : jobIds) {
@@ -489,7 +500,10 @@ public:
         }
     }
 
-    virtual void ReleaseJobs(const TOperationId& operationId, std::vector<TJobId> jobIds) override
+    virtual void ReleaseJobs(
+        const TOperationId& operationId,
+        std::vector<TJobId> jobIds,
+        int controllerSchedulerIncarnation) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -497,7 +511,8 @@ public:
             BIND(&TImpl::DoReleaseJobs,
                 MakeStrong(this),
                 operationId,
-                std::move(jobIds)));
+                std::move(jobIds),
+                controllerSchedulerIncarnation));
     }
 
     virtual void SendJobMetricsToStrategy(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) override
@@ -613,6 +628,7 @@ public:
             TInstant::Now(),
             GetControlInvoker(EControlQueue::Operation));
         operation->SetState(EOperationState::Initializing);
+        operation->SetSchedulerIncarnation(SchedulerIncarnation_);
 
         WaitFor(Strategy_->ValidateOperationStart(operation))
             .ThrowOnError();
@@ -1017,6 +1033,13 @@ private:
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> IsConnected_ = {false};
 
+    //! Ordinal number of this scheduler incarnation. It is used
+    //! to discard late callbacks that are submitted by still
+    //! running controllers.
+    //! This field is incremented on each OnMasterConnected and
+    //! should be accessed only from scheduler control thread.
+    int SchedulerIncarnation_ = -1;
+
     ISchedulerStrategyPtr Strategy_;
 
     TInstant ConnectionTime_;
@@ -1185,6 +1208,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        ++SchedulerIncarnation_;
+        LOG_INFO("Preparing new incarnation of scheduler (SchedulerIncarnation: %v)",
+            SchedulerIncarnation_);
+
         auto registerFuture = BIND(&TImpl::RegisterRevivingOperations, MakeStrong(this), result.OperationReports)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
@@ -1222,11 +1249,17 @@ private:
             .Run();
         WaitFor(processFuture)
             .ThrowOnError();
+
+        LOG_INFO("Scheduler ready (SchedulerIncarnation: %v)",
+            SchedulerIncarnation_);
     }
 
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Cleaning up scheduler state (SchedulerIncarnation: %v)",
+            SchedulerIncarnation_);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -1731,8 +1764,11 @@ private:
 
         const auto& operationId = operation->GetId();
 
-        LOG_INFO("Reviving operation (OperationId: %v)",
-            operationId);
+        operation->SetSchedulerIncarnation(SchedulerIncarnation_);
+
+        LOG_INFO("Reviving operation (OperationId: %v, SchedulerIncarnation: %v)",
+            operationId,
+            SchedulerIncarnation_);
 
         if (operation->GetMutationId()) {
             TRspStartOperation response;
