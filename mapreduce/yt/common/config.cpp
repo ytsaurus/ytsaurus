@@ -54,23 +54,15 @@ TDuration TConfig::GetDuration(const char* var, TDuration defaultValue)
     return TDuration::Seconds(GetInt(var, defaultValue.Seconds()));
 }
 
-TString TConfig::GetEncoding(const char* var)
+EEncoding TConfig::GetEncoding(const char* var)
 {
-    const TString encoding = GetEnv(var, "identity");
-
-    const char* supportedEncodings[] = {
-        "identity",
-        "gzip",
-        "y-lzo",
-        "y-lzf",
-    };
-
-    for (size_t i = 0; i < Y_ARRAY_SIZE(supportedEncodings); ++i) {
-        if (encoding == supportedEncodings[i])
-            return encoding;
+    const TString encodingName = GetEnv(var, "identity");
+    EEncoding encoding;
+    if (TryFromString(encodingName, encoding)) {
+        return encoding;
+    } else {
+        Y_FAIL("%s: encoding '%s' is not supported", var, ~encodingName);
     }
-
-    Y_FAIL("%s: encoding '%s' is not supported", var, ~encoding);
 }
 
 void TConfig::ValidateToken(const TString& token)
