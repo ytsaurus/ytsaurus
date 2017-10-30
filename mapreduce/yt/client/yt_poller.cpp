@@ -6,6 +6,8 @@
 #include <mapreduce/yt/http/retry_request.h>
 
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/log.h>
+#include <mapreduce/yt/common/debug_metrics.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 namespace NYT {
@@ -61,11 +63,15 @@ void TYtPoller::WatchLoop()
         }
 
         TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
-        ExecuteBatch(
-            Auth_,
-            rawBatchRequest,
-            TExecuteBatchOptions(),
-            retryPolicy);
+        try {
+            ExecuteBatch(
+                Auth_,
+                rawBatchRequest,
+                TExecuteBatchOptions(),
+                retryPolicy);
+        } catch (const yexception& ex) {
+            LOG_ERROR("Exception while executing batch request: %s", ex.what());
+        }
 
         for (auto it = InProgress_.begin(); it != InProgress_.end();) {
             auto& item = *it;
@@ -78,6 +84,8 @@ void TYtPoller::WatchLoop()
                 ++it;
             }
         }
+
+        IncDebugMetric(STRINGBUF("yt_poller_top_loop_repeat_count"));
     }
 }
 

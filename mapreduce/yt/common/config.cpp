@@ -205,8 +205,6 @@ TConfig::TConfig()
 
     DisableClientSubTransactions = GetBool("YT_DISABLE_CLIENT_SUB_TRANSACTIONS"); // common
     CreateTablesUnderTransaction = GetBool("YT_CREATE_TABLES_UNDER_TRANSACTION", true); // common
-
-    UseAbortableResponse = false;
 }
 
 TConfig* TConfig::Get()

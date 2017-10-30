@@ -24,7 +24,7 @@ void TAttemptLimitedRetryPolicy::NotifyNewAttempt()
 
 TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const yexception& /*e*/) const
 {
-    if (Attempt_ > AttemptLimit_) {
+    if (Attempt_ >= AttemptLimit_) {
         return Nothing();
     }
     return TConfig::Get()->RetryInterval;
@@ -32,7 +32,7 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const yexception&
 
 TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const TErrorResponse& e) const
 {
-    if (Attempt_ > AttemptLimit_) {
+    if (Attempt_ >= AttemptLimit_) {
         return Nothing();
     }
     if (!IsRetriable(e)) {

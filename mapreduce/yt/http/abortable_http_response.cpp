@@ -2,14 +2,34 @@
 
 #include <util/system/mutex.h>
 #include <util/generic/singleton.h>
+#include <util/generic/hash_set.h>
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TAbortableHttpResponseRegistry {
 public:
+    void StartOutage(TString urlPattern)
+    {
+        auto g = Guard(Lock_);
+        BrokenUrlPatterns_.insert(std::move(urlPattern));
+    }
+
+    void StopOutage(const TString& urlPattern)
+    {
+        auto g = Guard(Lock_);
+        BrokenUrlPatterns_.erase(urlPattern);
+    }
+
     void Add(TAbortableHttpResponse* response)
     {
         auto g = Guard(Lock_);
+        for (const auto& pattern : BrokenUrlPatterns_) {
+            if (response->GetUrl().find(pattern) != TString::npos) {
+                response->Abort();
+            }
+        }
         ResponseList_.PushBack(response);
     }
 
@@ -38,8 +58,33 @@ public:
 
 private:
     TIntrusiveList<TAbortableHttpResponse> ResponseList_;
+    yhash_multiset<TString> BrokenUrlPatterns_;
     TMutex Lock_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAbortableHttpResponse::TOutage::TOutage(TString urlPattern, TAbortableHttpResponseRegistry& registry)
+    : UrlPattern_(std::move(urlPattern))
+    , Registry_(registry)
+{
+    Registry_.StartOutage(UrlPattern_);
+}
+
+TAbortableHttpResponse::TOutage::~TOutage()
+{
+    Stop();
+}
+
+void TAbortableHttpResponse::TOutage::Stop()
+{
+    if (!Stopped_) {
+        Registry_.StopOutage(UrlPattern_);
+        Stopped_ = true;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TAbortableHttpResponse::TAbortableHttpResponse(
     IInputStream* socketStream,
@@ -83,9 +128,16 @@ int TAbortableHttpResponse::AbortAll(const TString& urlPattern)
     return TAbortableHttpResponseRegistry::Get().AbortAll(urlPattern);
 }
 
+TAbortableHttpResponse::TOutage TAbortableHttpResponse::StartOutage(const TString& urlPattern)
+{
+    return TOutage(urlPattern, TAbortableHttpResponseRegistry::Get());
+}
+
 const TString& TAbortableHttpResponse::GetUrl() const
 {
     return Url_;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

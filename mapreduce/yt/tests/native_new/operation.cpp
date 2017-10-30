@@ -3,8 +3,11 @@
 #include <mapreduce/yt/tests/native_new/all_types.pb.h>
 
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/debug_metrics.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/library/operation_tracker/operation_tracker.h>
+#include <mapreduce/yt/http/abortable_http_response.h>
 
 #include <library/unittest/registar.h>
 
@@ -894,6 +897,41 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
         UNIT_ASSERT_VALUES_EQUAL(yset<IOperation*>({op1.Get(), op2.Get()}), yset<IOperation*>({waited1.Get(), waited2.Get()}));
         UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), OS_COMPLETED);
         UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), OS_FAILED);
+    }
+
+    SIMPLE_UNIT_TEST(ConnectionErrorWhenOperationIsTracked)
+    {
+        TConfigSaverGuard csg;
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->EnableDebugMetrics = true;
+        TConfig::Get()->RetryCount = 1;
+        TConfig::Get()->ReadRetryCount = 1;
+        TConfig::Get()->StartOperationRetryCount = 1;
+        TConfig::Get()->WaitLockPollInterval = TDuration::MilliSeconds(0);
+
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+        auto tx = client->StartTransaction();
+
+        auto op = tx->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output"),
+            new TIdMapper(),
+            TOperationOptions().Wait(false));
+
+        auto outage = TAbortableHttpResponse::StartOutage("");
+        TDebugMetricDiff ytPollerTopLoopCounter("yt_poller_top_loop_repeat_count");
+
+        auto fut = op->Watch();
+        auto res = fut.Wait(TDuration::MilliSeconds(500));
+        UNIT_ASSERT_VALUES_EQUAL(res, true);
+        UNIT_ASSERT_EXCEPTION(fut.GetValue(), yexception);
+        UNIT_ASSERT(ytPollerTopLoopCounter.GetTotal() > 0);
+        outage.Stop();
+
+        tx->Abort(); // We make sure that operation is stopped
     }
 }
 

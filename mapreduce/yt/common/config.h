@@ -86,8 +86,9 @@ struct TConfig
     bool DisableClientSubTransactions;
     bool CreateTablesUnderTransaction;
 
-    // Testing option, should never be used in user programs.
-    bool UseAbortableResponse;
+    // Testing options, should never be used in user programs.
+    bool UseAbortableResponse = false;
+    bool EnableDebugMetrics = false;
 
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
