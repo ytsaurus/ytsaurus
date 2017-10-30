@@ -13,7 +13,7 @@ assert 'BatchRequestSuite::TestGet' in TESTS_LIST
 
 @pytest.fixture
 def yt_config(request):
-    return YtConfig(yt_version="19_1")
+    return YtConfig(yt_version="19_2")
 
 @pytest.mark.parametrize("test_name", TESTS_LIST)
 def test(yt_config, yt_stuff, test_name):

@@ -17,9 +17,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNode MakeProtoFormatConfig(
-    const yvector<const ::google::protobuf::Descriptor*>& descriptors);
-
+TNode MakeProtoFormatConfig(const yvector<const ::google::protobuf::Descriptor*>& descriptors);
 TNode MakeProtoFormatConfig(const ::google::protobuf::Message* prototype);
 
 yvector<const ::google::protobuf::Descriptor*> GetJobInputDescriptors();
