@@ -82,6 +82,10 @@ TFuture<void> TSnapshotBuilder::Run()
         const auto& operationId = pair.first;
         const auto& controller = pair.second;
 
+        if (!controller->IsRunning()) {
+            continue;
+        }
+
         auto job = New<TSnapshotJob>();
         job->OperationId = operationId;
         job->Controller = controller;
@@ -309,8 +313,10 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             struct TSnapshotBuilderBufferTag { };
             auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
 
+            i64 totalSize = 0;
             while (true) {
                 size_t bytesRead = checkpointableInput->Read(buffer.Begin(), buffer.Size());
+                totalSize += bytesRead;
                 if (bytesRead == 0) {
                     break;
                 }
@@ -322,7 +328,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Close())
                 .ThrowOnError();
 
-            LOG_INFO("Snapshot uploaded successfully");
+            LOG_INFO("Snapshot uploaded successfully (Size: %v)", totalSize);
         }
 
         // Commit outer transaction.
