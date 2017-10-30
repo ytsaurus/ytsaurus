@@ -623,6 +623,8 @@ def add_select_rows_parser(add_parser):
         parser.add_argument("--input-row-limit", type=int)
         parser.add_argument("--output-row-limit", type=int)
         parser.add_argument("--verbose-logging", action="store_true", default=False)
+        parser.add_argument("--allow-full-scan", action="store_true", default=False)
+        parser.add_argument("--allow-join-without-index", action="store_true", default=False)
         parser.add_argument("--format", action=ParseFormat)
 
 @copy_docstring_from(yt.lookup_rows)
