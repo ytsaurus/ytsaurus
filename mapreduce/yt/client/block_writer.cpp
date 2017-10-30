@@ -1,5 +1,6 @@
 #include "block_writer.h"
 
+
 #include "retry_heavy_write_request.h"
 
 #include <mapreduce/yt/common/helpers.h>
@@ -8,6 +9,7 @@
 #include <mapreduce/yt/http/requests.h>
 
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/interface/finish_or_die.h>
 
 namespace NYT {
 
@@ -15,24 +17,7 @@ namespace NYT {
 
 TBlockWriter::~TBlockWriter()
 {
-    try {
-        DoFinish();
-    } catch (const std::exception& ex) {
-        if (!std::uncaught_exception()) {
-            Y_FAIL(
-                "Destructor of TBlockWriter caught exception during DoFinish: %s.\n"
-                "Some data is probably has not been written.\n"
-                "In order to handle such exceptions consider explicitly call Finish() method\n",
-                ex.what());
-        }
-    } catch (...) {
-        if (!std::uncaught_exception()) {
-            Y_FAIL(
-                "Destructor of TBlockWriter caught unknown exception during DoFinish.\n"
-                "Some data is probably has not been written.\n"
-                "In order to handle such exceptions consider explicitly call Finish() method\n");
-        }
-    }
+    NDetail::FinishOrDie(this, "TBlockWriter");
 }
 
 void TBlockWriter::CheckWriterState()
