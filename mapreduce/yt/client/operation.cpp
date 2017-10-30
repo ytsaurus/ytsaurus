@@ -1781,7 +1781,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
                 TStringStream out;
                 DumpJobInfoForException(out, failedJobStderrInfo);
                 additionalExceptionText = out.Str();
-            } catch (const NYT::TErrorResponse& e) {
+            } catch (const yexception& e) {
                 additionalExceptionText = "Cannot get job stderrs: ";
                 additionalExceptionText += e.what();
             }
