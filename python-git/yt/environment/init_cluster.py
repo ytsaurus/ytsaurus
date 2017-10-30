@@ -119,11 +119,40 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
             client)
     client.set("//sys/tokens/@inherit_acl", "false")
 
+    if not client.exists("//sys/accounts/tmp_files"):
+        client.create("account", attributes={"name": "tmp_files",
+                                             "acl": [{
+                                                 "action": "allow",
+                                                 "subjects": ["users"],
+                                                 "permissions": ["use"]
+                                             }],
+                                             "resource_limits": get_default_resource_limits(client)})
+    else:
+        logger.warning("Account 'tmp_files' already exists")
+
+    if not client.exists("//sys/accounts/default"):
+        client.create("account", attributes={"name": "default",
+                                             "acl": [{
+                                                 "action": "allow",
+                                                 "subjects": ["users"],
+                                                 "permissions": ["use"]
+                                             }],
+                                             "resource_limits": get_default_resource_limits(client)})
+    else:
+        logger.warning("Account 'default' already exists")
+
+    if not client.exists("//sys/accounts/tmp_jobs"):
+        client.create("account", attributes={"name": "tmp_jobs",
+                                             "resource_limits": get_default_resource_limits(client)})
+    else:
+        logger.warning("Account 'tmp_jobs' already exists")
+
+
     if not client.exists("//home"):
         client.create("map_node", "//home",
                       attributes={
                           "opaque": "true",
-                          "account": "tmp"})
+                          "account": "default"})
 
     client.create("map_node", "//sys/admin", ignore_existing=True)
     client.create("map_node", "//sys/admin/snapshots", ignore_existing=True)
@@ -189,23 +218,6 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
         yamr_table_schema = [{"name": name, "type": "any", "sort_order": "ascending"}
                              for name in ["key", "subkey"]] + [{"name": "value", "type": "any"}]
         client.create("table", "//sys/empty_yamr_table", attributes={"schema": yamr_table_schema})
-
-    if not client.exists("//sys/accounts/tmp_files"):
-        client.create("account", attributes={"name": "tmp_files",
-                                             "acl": [{
-                                                 "action": "allow",
-                                                 "subjects": ["users"],
-                                                 "permissions": ["use"]
-                                             }],
-                                             "resource_limits": get_default_resource_limits(client)})
-    else:
-        logger.warning("Account 'tmp_files' already exists")
-
-    if not client.exists("//sys/accounts/tmp_jobs"):
-        client.create("account", attributes={"name": "tmp_jobs",
-                                             "resource_limits": get_default_resource_limits(client)})
-    else:
-        logger.warning("Account 'tmp_jobs' already exists")
 
     client.create("map_node",
                   "//tmp/yt_wrapper/file_storage",
