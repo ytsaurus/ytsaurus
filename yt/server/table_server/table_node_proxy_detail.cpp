@@ -379,7 +379,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
 
     if (key == "max_tablet_size" && static_cast<bool>(trunkTable->GetMaxTabletSize())) {
         BuildYsonFluently(consumer)
-            .Value(*trunkTable->GetDesiredTabletSize());
+            .Value(*trunkTable->GetMaxTabletSize());
         return true;
     }
 
