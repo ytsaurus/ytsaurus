@@ -961,7 +961,7 @@ private:
                 break;
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Error initializing persistent stores, backing off and retrying");
-                WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
+                TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             }
         }
 
@@ -1220,7 +1220,7 @@ private:
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Leader recovery failed, backing off");
-            WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
+            TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             Restart(epochContext, ex);
         }
     }
@@ -1316,7 +1316,7 @@ private:
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Follower recovery failed, backing off");
-            WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
+            TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             Restart(epochContext, ex);
         }
     }
@@ -1648,7 +1648,7 @@ private:
     void BackoffPostpone()
     {
         LOG_DEBUG("Cannot postpone more actions at the moment; backing off and retrying");
-        WaitFor(TDelayedExecutor::MakeDelayed(PostponeBackoffTime));
+        TDelayedExecutor::WaitForDuration(PostponeBackoffTime);
         SwitchTo(ControlInvoker_);
     }
 

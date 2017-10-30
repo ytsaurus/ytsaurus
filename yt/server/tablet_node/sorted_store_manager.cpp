@@ -652,7 +652,7 @@ void TSortedStoreManager::OnRowBlocked(
     TSortedDynamicRow row,
     int lockIndex)
 {
-    WaitFor(
+    Y_UNUSED(WaitFor(
         BIND(
             &TSortedStoreManager::WaitOnBlockedRow,
             MakeStrong(this),
@@ -660,7 +660,7 @@ void TSortedStoreManager::OnRowBlocked(
             row,
             lockIndex)
         .AsyncVia(invoker)
-        .Run());
+        .Run()));
 }
 
 void TSortedStoreManager::WaitOnBlockedRow(
@@ -679,7 +679,7 @@ void TSortedStoreManager::WaitOnBlockedRow(
         lockIndex,
         transaction->GetId());
 
-    WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
+    Y_UNUSED(WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum)));
 }
 
 bool TSortedStoreManager::IsOverflowRotationNeeded() const

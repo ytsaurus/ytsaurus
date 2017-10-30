@@ -276,7 +276,8 @@ public:
             DoJobIO();
 
             TDelayedExecutor::CancelAndClear(timeLimitCookie);
-            WaitFor(InputPipeBlinker_->Stop());
+            WaitFor(InputPipeBlinker_->Stop())
+                .ThrowOnError();
 
             if (!JobErrorPromise_.IsSet()) {
                 FinalizeJobIO();
@@ -286,9 +287,11 @@ public:
             CleanupUserProcesses();
 
             if (BlockIOWatchdogExecutor_) {
-                WaitFor(BlockIOWatchdogExecutor_->Stop());
+                WaitFor(BlockIOWatchdogExecutor_->Stop())
+                    .ThrowOnError();
             }
-            WaitFor(MemoryWatchdogExecutor_->Stop());
+            WaitFor(MemoryWatchdogExecutor_->Stop())
+                .ThrowOnError();
         } else {
             JobErrorPromise_.TrySet(TError("Job aborted"));
         }
@@ -1107,8 +1110,10 @@ private:
 
         // First, wait for all job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
-        WaitFor(CombineAll(outputFutures));
-        WaitFor(CombineAll(stderrFutures));
+        WaitFor(CombineAll(outputFutures))
+            .ThrowOnError();
+        WaitFor(CombineAll(stderrFutures))
+            .ThrowOnError();
         LOG_INFO("Output actions finished");
 
         // Then, wait for job process to finish.
@@ -1126,7 +1131,8 @@ private:
         }
 
         // Now make sure that input pipes are also completed.
-        WaitFor(CombineAll(inputFutures));
+        WaitFor(CombineAll(inputFutures))
+            .ThrowOnError();
         LOG_INFO("Input actions finished");
     }
 

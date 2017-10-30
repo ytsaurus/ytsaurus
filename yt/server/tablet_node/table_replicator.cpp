@@ -156,7 +156,7 @@ private:
     void FiberMain()
     {
         while (true) {
-            WaitFor(TDelayedExecutor::MakeDelayed(ReplicationTickPeriod));
+            TDelayedExecutor::WaitForDuration(ReplicationTickPeriod);
             FiberIteration();
         }
     }
@@ -544,13 +544,13 @@ private:
     void DoSoftBackoff(const TError& error)
     {
         LOG_INFO(error, "Doing soft backoff");
-        WaitFor(TDelayedExecutor::MakeDelayed(Config_->ReplicatorSoftBackoffTime));
+        TDelayedExecutor::WaitForDuration(Config_->ReplicatorSoftBackoffTime);
     }
 
     void DoHardBackoff(const TError& error)
     {
         LOG_INFO(error, "Doing hard backoff");
-        WaitFor(TDelayedExecutor::MakeDelayed(Config_->ReplicatorHardBackoffTime));
+        TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
     }
 
 
