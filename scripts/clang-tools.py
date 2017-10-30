@@ -18,7 +18,7 @@ sys.path.insert(0, __root__)
 
 def guess_clang_library_path():
     try:
-        return subprocess.check_output(["llvm-config-3.6", "--libdir"]).strip()
+        return subprocess.check_output(["llvm-config-3.7", "--libdir"]).strip()
     except OSError as e:
         if e.errno == 2:
             pass
@@ -29,7 +29,7 @@ def guess_clang_library_path():
 try:
     import clang.cindex
     clang.cindex.conf.set_library_path(guess_clang_library_path())
-    clang.cindex.conf.set_library_file(guess_clang_library_path() + "/libclang-3.6.so.1")
+    clang.cindex.conf.set_library_file(guess_clang_library_path() + "/libclang-3.7.so.1")
     clang.cindex.conf.get_cindex_library()
     from clang.cindex import \
         CompilationDatabase, CursorKind, Diagnostic, Index, TranslationUnit
@@ -86,7 +86,7 @@ def get_compiler_args(compile_command):
     """Extracts proper compiler invocation arguments."""
     def _system_args(cc1):
         # XXX(sandello): Force clang as the compiler to avoid clashing with gcc internals.
-        cc1 = "clang++-3.6"
+        cc1 = "clang++-3.7"
         with open("/dev/null") as handle:
             output = subprocess.check_output([cc1, "-E", "-x", "c++", "-", "-v"],
                                              stdin=handle,
