@@ -195,7 +195,7 @@ private:
 
     void RetrySleep()
     {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(100)));
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
     }
 
     void HandleApiErrors(const TString& command, TInstant time)

@@ -2017,7 +2017,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         auto asyncResult = chunkManager
             ->CreateUpdateChunkPropertiesMutation(request)
             ->CommitAndLog(Logger);
-        WaitFor(asyncResult);
+        Y_UNUSED(WaitFor(asyncResult));
     }
 }
 

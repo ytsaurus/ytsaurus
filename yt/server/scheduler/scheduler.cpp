@@ -2039,7 +2039,7 @@ private:
             {
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
                 // Result is ignored since failure cause scheduler disconnection.
-                WaitFor(asyncResult);
+                Y_UNUSED(WaitFor(asyncResult));
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }
@@ -2218,7 +2218,7 @@ private:
         // state is changed to its intermediate value.
         {
             // Result is ignored since failure cause scheduler disconnection.
-            WaitFor(MasterConnector_->FlushOperationNode(operation));
+            Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
             if (operation->GetState() != intermediateState)
                 return;
         }
@@ -2252,7 +2252,7 @@ private:
         // Second flush: ensure that the state is changed to its final value.
         {
             // Result is ignored since failure cause scheduler disconnection.
-            WaitFor(MasterConnector_->FlushOperationNode(operation));
+            Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
             if (operation->GetState() != finalState)
                 return;
         }
@@ -2290,7 +2290,7 @@ private:
         SetOperationFinalState(operation, EOperationState::Completed, TError());
 
         // Result is ignored since failure cause scheduler disconnection.
-        WaitFor(MasterConnector_->FlushOperationNode(operation));
+        Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
@@ -2318,7 +2318,7 @@ private:
         SetOperationFinalState(operation, EOperationState::Aborted, TError());
 
         // Result is ignored since failure cause scheduler disconnection.
-        WaitFor(MasterConnector_->FlushOperationNode(operation));
+        Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }

@@ -1446,7 +1446,7 @@ private:
         const TAsyncSemaphorePtr& semaphore)
     {
         auto handler = BIND([mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
-            WaitFor(mutation->CommitAndReply(context));
+            Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
         });
 
         auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
@@ -1466,7 +1466,7 @@ private:
             this);
 
         auto handler = BIND([mutation = std::move(mutation)] (TAsyncSemaphoreGuard) {
-            WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger));
+            Y_UNUSED(WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger)));
         });
 
         auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();

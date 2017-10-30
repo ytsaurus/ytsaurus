@@ -1140,7 +1140,7 @@ void TOperationControllerBase::SleepInStage(EDelayInsideOperationCommitStage des
     auto stage = Spec_->TestingOperationOptions->DelayInsideOperationCommitStage;
 
     if (delay && stage && *stage == desiredStage) {
-        WaitFor(TDelayedExecutor::MakeDelayed(*delay));
+        TDelayedExecutor::WaitForDuration(*delay);
     }
 }
 
@@ -2200,7 +2200,7 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
 void TOperationControllerBase::DoAbort()
 {
     // NB: Errors ignored since we cannot do anything with it.
-    WaitFor(MasterConnector->FlushOperationNode(OperationId));
+    Y_UNUSED(WaitFor(MasterConnector->FlushOperationNode(OperationId)));
 
     AreTransactionsActive = false;
 
@@ -2615,7 +2615,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 {
     if (Spec_->TestingOperationOptions->SchedulingDelay) {
         if (Spec_->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
-            WaitFor(TDelayedExecutor::MakeDelayed(*Spec_->TestingOperationOptions->SchedulingDelay));
+            TDelayedExecutor::WaitForDuration(*Spec_->TestingOperationOptions->SchedulingDelay);
         } else {
             Sleep(*Spec_->TestingOperationOptions->SchedulingDelay);
         }

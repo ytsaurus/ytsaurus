@@ -109,7 +109,7 @@ private:
             .Run();
 
         // Await for the future, see YT-1095.
-        WaitFor(std::move(future));
+        Y_UNUSED(WaitFor(std::move(future)));
     }
 };
 

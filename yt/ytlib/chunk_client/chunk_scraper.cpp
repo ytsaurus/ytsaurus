@@ -128,7 +128,8 @@ private:
             }
         }
 
-        WaitFor(Throttler_->Throttle(req->subrequests_size()));
+        auto throttleResult = WaitFor(Throttler_->Throttle(req->subrequests_size()));
+        YCHECK(throttleResult.IsOK());
 
         LOG_DEBUG("Locating chunks (Count: %v)", req->subrequests_size());
 
