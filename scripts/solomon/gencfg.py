@@ -11,8 +11,6 @@ import random
 import re
 import collections
 
-import yt.wrapper as yt
-
 ###################################################################################################################
 # Configuration Goes Here.
 
@@ -203,6 +201,19 @@ CLUSTER_NODE_MASKS = {
 # Code Goes Here.
 
 
+PRESTABLE = False
+SOLOMON_API = "http://solomon.yandex.net/api/v2" if not PRESTABLE else "http://solomon-prestable.yandex.net/api/v2"
+
+
+@click.group()
+def cli():
+    pass
+
+
+def get_solomon_api():
+    return "http://solomon.yandex.net/api/v2" if not PRESTABLE else "http://solomon-prestable.yandex.net/api/v2"
+
+
 def view_object(title, obj, color="blue"):
     message = ""
     message += click.style("## %s" % title, fg=color) + "\n"
@@ -226,30 +237,35 @@ def view_response(rsp):
     message += pprint.pformat(rsp.json())
     click.echo_via_pager(message)
 
+
 class Resource(object):
-    def __init__(self, uri, token, local_data={}, remote_data={}):
+    CLUSTERS_URL = "/projects/yt/clusters"
+
+    def __init__(self, uri, id, token, local_data={}, remote_data={}):
         self.uri = uri
+        self.id = id
         self.token = token
         self._local_data = local_data
         self._remote_data = remote_data
 
     @staticmethod
     def make_api_url(uri):
-        return "http://solomon.yandex.net/api/v2" + uri
-
-    @staticmethod
-    def make_cluster_uri(cluster=None):
-        if cluster:
-            return Resource.make_api_url("/projects/yt/clusters/%s" % cluster)
-        else:
-            return Resource.make_api_url("/projects/yt/clusters")
+        print "make_api_url", get_solomon_api() + uri
+        return get_solomon_api() + uri
 
     @staticmethod
     def make_admin_url(uri):
         return "https://solomon.yandex-team.ru/admin" + uri
 
     @property
-    def api_url(self):
+    def api_url_modify(self):
+        if len(self.id) == 0:
+            return self.make_api_url(self.uri)
+        return self.make_api_url(self.uri) + "/" + self.id
+
+    @property
+    def api_url_create(self):
+        self._local_data["id"] = self.id
         return self.make_api_url(self.uri)
 
     @property
@@ -277,30 +293,49 @@ class Resource(object):
     def headers(self):
         return {"Authorization": "OAuth " + self.token}
 
-    @staticmethod
-    def create(uri, data, token):
-        logging.debug("Creating resource '%s'", uri)
-        rsp = requests.post(uri, headers={"Authorization": "OAuth " + token}, json=data)
+    def update(self, dry_run):
+        if self.remote:
+            self.save(dry_run)
+        else:
+            self.create()
+
+    def try_update(self, dry_run):
+        data = self._local_data
+        loaded = self.try_load()
+        if loaded:
+            self._local_data.update(data)
+            self.save(dry_run)
+        else:
+            self.create(dry_run)
+
+    def create(self, dry_run):
+        logging.debug("Creating resource '%s'%s", self.api_url_create, " (dry run)" if dry_run else "")
+        if dry_run:
+            self.view_diff()
+            return
+        rsp = requests.post(self.api_url_create, headers=self.headers, json=self._local_data)
         if not rsp.ok:
             view_response(rsp)
+        self._remote_data = rsp.json()
+        self._local_data = copy.deepcopy(self._remote_data)
 
-    def delete(self, uri):
-        logging.debug("Deleting resource '%s'", uri)
-        rsp = requests.delete(self.api_url, headers=self.headers)
+    def delete(self):
+        logging.debug("Deleting resource '%s'", self.api_url_modify)
+        rsp = requests.delete(self.api_url_modify, headers=self.headers)
         if not rsp.ok:
             view_response(rsp)
 
     def load(self):
-        logging.debug("Loading resource '%s'", self.uri)
-        rsp = requests.get(self.api_url, headers=self.headers)
+        logging.debug("Loading resource '%s'", self.api_url_modify)
+        rsp = requests.get(self.api_url_modify, headers=self.headers)
         if not rsp.ok:
             rsp.raise_for_status()
         self._remote_data = rsp.json()
         self._local_data = copy.deepcopy(self._remote_data)
 
     def try_load(self):
-        logging.debug("Loading resource '%s'", self.uri)
-        rsp = requests.get(self.api_url, headers=self.headers)
+        logging.debug("Loading resource '%s'", self.api_url_modify)
+        rsp = requests.get(self.api_url_modify, headers=self.headers)
         if not rsp.ok:
             if rsp.status_code == 404:
                 return False
@@ -309,6 +344,31 @@ class Resource(object):
         self._local_data = copy.deepcopy(self._remote_data)
         return True
 
+    def view_diff(self):
+        message = ""
+        message += "#" * 80 + "\n"
+        message += "## Dry run for resource '%s'\n" % self.uri
+        message += "## %s\n" % self.admin_url
+        if "version" in self.remote:
+            message += "## [version=%s]\n" % self.remote["version"]
+        if "deleted" in self.remote:
+            message += "## [deleted=%s]\n" % self.remote["deleted"]
+        message += "#" * 80 + "\n"
+        message += "\n"
+        for key in self._local_data:
+            local = self._local_data.get(key, None)
+            remote = self._remote_data.get(key, None)
+            if local == remote:
+                continue
+            message += "#" * 80 + "\n"
+            message += "## Key '%s'\n" % key
+            message += "# --- (before) ---\n"
+            message += pprint.pformat(remote, indent=2) + "\n\n"
+            message += "# --- (after) ---\n"
+            message += pprint.pformat(local, indent=2) + "\n\n"
+            message += "\n\n"
+        click.echo_via_pager(message)
+
     def save(self, dry_run):
         if not self.is_dirty:
             logging.debug("Skipping saving resource '%s' because it is clean", self.uri)
@@ -316,31 +376,9 @@ class Resource(object):
 
         logging.debug("Saving resource '%s'%s", self.uri, " (dry run)" if dry_run else "")
         if dry_run:
-            message = ""
-            message += "#" * 80 + "\n"
-            message += "## Dry run for resource '%s'\n" % self.uri
-            message += "## %s\n" % self.admin_url
-            if "version" in self.remote:
-                message += "## [version=%s]\n" % self.remote["version"]
-            if "deleted" in self.remote:
-                message += "## [deleted=%s]\n" % self.remote["deleted"]
-            message += "#" * 80 + "\n"
-            message += "\n"
-            for key in self._local_data:
-                local = self._local_data.get(key, None)
-                remote = self._remote_data.get(key, None)
-                if local == remote:
-                    continue
-                message += "#" * 80 + "\n"
-                message += "## Key '%s'\n" % key
-                message += "# --- (before) ---\n"
-                message += pprint.pformat(remote, indent=2) + "\n\n"
-                message += "# --- (after) ---\n"
-                message += pprint.pformat(local, indent=2) + "\n\n"
-                message += "\n\n"
-            click.echo_via_pager(message)
+            self.view_diff()
         else:
-            rsp = requests.put(self.api_url, headers=self.headers, json=self._local_data)
+            rsp = requests.put(self.api_url_modify, headers=self.headers, json=self._local_data)
             if rsp.ok:
                 self._remote_data = rsp.json()
                 self._local_data = copy.deepcopy(self._remote_data)
@@ -385,11 +423,6 @@ def get_conductor_groups(cluster, type):
     return [get_solomon_cluster_type(cluster, group) for group in CONDUCTOR_GROUPS[type]]
 
 
-@click.group()
-def cli():
-    pass
-
-
 @cli.command()
 def bridge_conf():
     conf = {"sources": []}
@@ -403,7 +436,6 @@ def bridge_conf():
 
 
 @cli.command()
-@click.option("--token", required=True)
 @click.option("--yes", is_flag=True)
 def check_solomon_services(token, yes):
     for service in SERVICES:
@@ -427,7 +459,7 @@ def check_solomon_services(token, yes):
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
 @click.option("--yes", is_flag=True)
-def update_solomon_cluster(token, cluster, yes):
+def update_cluster_nodes(token, cluster, yes):
     solomon_cluster = normalize_cluster_id(cluster)
     types = get_cluster_types()
 
@@ -439,56 +471,43 @@ def update_solomon_cluster(token, cluster, yes):
             "labels": ["type=%s" % type]
         } for group in conductor_groups]
 
-        cluster_services = Resource(
-            Resource.make_cluster_uri(solomon_cluster_type),
-            token,
-            local_data={
-                "id": solomon_cluster_type,
-                "name": cluster,
-                "projectId": "yt",
-                "conductorGroups": solomon_conductor_groups,
-            })
-        loaded = cluster_services.try_load()
-        if loaded:
-            cluster_services.local["conductorGroups"] = solomon_conductor_groups
-            cluster_services.save(dry_run=(not yes))
-        else:
-            logging.info("Creating cluster type %s" % type)
-            Resource.create(Resource.make_cluster_uri(), data={
-                "id": solomon_cluster_type,
-                "name": cluster,
-                "projectId": "yt",
-                "conductorGroups": solomon_conductor_groups,
-            }, token=token)
+        cluster_services = Resource(Resource.CLUSTERS_URL, solomon_cluster_type, token, local_data={
+            "name": cluster,
+            "projectId": "yt",
+            "conductorGroups": solomon_conductor_groups,
+        })
+        cluster_services.try_update(dry_run=(not yes))
 
 
 @cli.command()
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
 @click.option("--yes", is_flag=True)
-def link_cluster(token, cluster, yes):
-    cluster = normalize_cluster_id(cluster)
+def update_cluster_services(token, cluster, yes):
+    solomon_cluster = normalize_cluster_id(cluster)
+    types = get_cluster_types()
 
-    good_services = set(map(lambda s: s["solomon_id"], SERVICES))
-
-    resource = Resource("/projects/yt/clusters/%s/services" % cluster, token)
-    resource.load()
-
-    conflicting = False
-    for item in resource.local:
-        if item["id"] in good_services:
-            logging.error("Service '%s' in already linked!", item["id"])
-            conflicting = True
-    if conflicting:
-        return
+    cluster_services = {}
+    for type in types:
+        solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type)
+        services_resource = Resource("/projects/yt/clusters/%s" % solomon_cluster_type, "services", token)
+        services_resource.load()
+        for service in services_resource.remote:
+            cluster_services[service["id"]] = service
 
     tag = "".join(random.choice("0123456789abcdef") for _ in range(8))
-    for service in good_services:
+    for service_description in SERVICES:
+        type = service_description["type"]
+        solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type)
+        service = service_description["solomon_id"]
+        if service in cluster_services:
+            logging.info("Service %s is already configured for cluster %s, skipping", service, cluster)
+            continue
+        shard_name = "_".join([solomon_cluster_type, service.replace("yt_", ""), tag])
         data = {
-            "id": "_".join(["yt", cluster.replace("yt_", ""), service.replace("yt_", ""), tag]),
             "projectId": "yt",
             "serviceId": service,
-            "clusterId": cluster,
+            "clusterId": solomon_cluster_type,
             #"quotas": {
             #    "maxSensorsPerUrl": 80000,
             #    "maxResponseSizeMb": 10,
@@ -496,10 +515,8 @@ def link_cluster(token, cluster, yes):
             #    "maxMemSensors": 100000,
             #},
         }
-        if yes:
-            Resource.create("/projects/yt/shards", data, token)
-        else:
-            view_object("Creating shard", data)
+        shard = Resource("/projects/yt/shards", shard_name, token, local_data=data)
+        shard.try_update(dry_run=(not yes))
 
 
 @cli.command()
@@ -507,28 +524,27 @@ def link_cluster(token, cluster, yes):
 @click.option("--cluster", required=True)
 @click.option("--yes", is_flag=True)
 def unlink_cluster(token, cluster, yes):
-    cluster = normalize_cluster_id(cluster)
+    solomon_cluster = normalize_cluster_id(cluster)
+    cluster_services = get_cluster_services()
 
-    good_services = set(map(lambda s: s["solomon_id"], SERVICES))
-
-    resource = Resource("/projects/yt/clusters/%s/services" % cluster, token)
+    resource = Resource("/projects/yt/clusters/%s" % solomon_cluster, "services", token)
     resource.load()
 
     for item in resource.local:
-        if item["id"] not in good_services:
+        if item["id"] not in cluster_services:
             continue
-        uri = "/projects/yt/shards/%s" % item["shardId"]
+        shard_id = item["shardId"]
         if yes:
-            Resource.delete(uri)
+            Resource("/projects/yt/shards", shard_id, token).delete()
         else:
-            view_object("Deleting shard '%s'" % uri, item)
+            view_object("Deleting shard '%s'" % shard_id, item)
 
 
 @cli.command()
 @click.option("--token", required=True)
 @click.option("--mode", type=click.Choice(["pretty", "table"]), default="pretty")
 def list_shards(token, mode):
-    resource = Resource("/projects/yt/shards?pageSize=65535", token)
+    resource = Resource("/projects/yt/shards?pageSize=all", "", token)
     resource.load()
 
     if mode == "pretty":
@@ -543,6 +559,8 @@ def list_shards(token, mode):
 @click.option("--cluster", required=True)
 @click.option("--yes", is_flag=True)
 def update_tablet_nodes(token, cluster, yes):
+    import yt.wrapper as yt
+
     assert cluster in CLUSTER_NODE_MASKS
     yt.config["proxy"]["url"] = cluster
     masks = CLUSTER_NODE_MASKS[cluster]
