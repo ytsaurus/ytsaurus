@@ -9,20 +9,28 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
+import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
+import ru.yandex.yt.rpcproxy.TReqCopyNode;
+import ru.yandex.yt.rpcproxy.TReqCreateNode;
+import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
+import ru.yandex.yt.rpcproxy.TReqLinkNode;
+import ru.yandex.yt.rpcproxy.TReqListNode;
+import ru.yandex.yt.rpcproxy.TReqLockNode;
 import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
+import ru.yandex.yt.rpcproxy.TReqMoveNode;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
+import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
 import ru.yandex.yt.rpcproxy.TReqSetNode;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
@@ -32,14 +40,23 @@ import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
 import ru.yandex.yt.rpcproxy.TRspCommitTransaction;
+import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
+import ru.yandex.yt.rpcproxy.TRspCopyNode;
+import ru.yandex.yt.rpcproxy.TRspCreateNode;
+import ru.yandex.yt.rpcproxy.TRspExistsNode;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
+import ru.yandex.yt.rpcproxy.TRspLinkNode;
+import ru.yandex.yt.rpcproxy.TRspListNode;
+import ru.yandex.yt.rpcproxy.TRspLockNode;
 import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspMountTable;
+import ru.yandex.yt.rpcproxy.TRspMoveNode;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
+import ru.yandex.yt.rpcproxy.TRspRemoveNode;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
 import ru.yandex.yt.rpcproxy.TRspSetNode;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
@@ -49,6 +66,20 @@ import ru.yandex.yt.rpcproxy.TRspUnmountTable;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
+import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
+import ru.yandex.yt.ytclient.proxy.request.CopyNode;
+import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
+import ru.yandex.yt.ytclient.proxy.request.GetNode;
+import ru.yandex.yt.ytclient.proxy.request.LinkNode;
+import ru.yandex.yt.ytclient.proxy.request.ListNode;
+import ru.yandex.yt.ytclient.proxy.request.LockMode;
+import ru.yandex.yt.ytclient.proxy.request.LockNode;
+import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
+import ru.yandex.yt.ytclient.proxy.request.MoveNode;
+import ru.yandex.yt.ytclient.proxy.request.ObjectType;
+import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
+import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
@@ -121,11 +152,12 @@ public class ApiServiceClient {
             builder.body().setDurability(options.getDurability());
         }
         final boolean ping = builder.body().getPing();
+        final boolean pingAncestors = builder.body().getPingAncestors();
         final boolean sticky = builder.body().getSticky();
         return RpcUtil.apply(builder.invoke(), response -> {
             YtGuid id = YtGuid.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
-            return new ApiServiceTransaction(this, id, startTimestamp, ping, sticky);
+            return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky);
         });
     }
 
@@ -154,76 +186,133 @@ public class ApiServiceClient {
     }
 
     /* nodes */
-    public CompletableFuture<YTreeNode> getNode(String path) {
+    public CompletableFuture<YTreeNode> getNode(GetNode req) {
         RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
-        builder.body().setPath(path);
+        req.writeTo(builder.body());
         return RpcUtil.apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getValue()));
     }
 
-    public CompletableFuture<Void> setNode(String path, byte[] data) {
+    public CompletableFuture<YTreeNode> getNode(String path) {
+        return getNode(new GetNode(path));
+    }
+
+    public CompletableFuture<YTreeNode> listNode(ListNode req) {
+        RpcClientRequestBuilder<TReqListNode.Builder, RpcClientResponse<TRspListNode>> builder = service.listNode();
+        req.writeTo(builder.body());
+        return RpcUtil.apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getValue()));
+    }
+
+    public CompletableFuture<YTreeNode> listNode(String path) {
+        return listNode(new ListNode(path));
+    }
+
+    public CompletableFuture<Void> setNode(SetNode req) {
         RpcClientRequestBuilder<TReqSetNode.Builder, RpcClientResponse<TRspSetNode>> builder = service.setNode();
-        builder.body()
-                .setPath(path)
-                .setValue(ByteString.copyFrom(data));
+        req.writeTo(builder.body());
         return RpcUtil.apply(builder.invoke(), response -> null);
+    }
+
+    public CompletableFuture<Void> setNode(String path, byte[] data) {
+        return setNode(new SetNode(path, data));
     }
 
     public CompletableFuture<Void> setNode(String path, YTreeNode data) {
         return setNode(path, data.toBinary());
     }
 
-    public CompletableFuture<Boolean> existsNode() {
-        CompletableFuture<Boolean> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<Boolean> existsNode(ExistsNode req) {
+        RpcClientRequestBuilder<TReqExistsNode.Builder, RpcClientResponse<TRspExistsNode>> builder = service.existsNode();
+        req.writeTo(builder.body());
+        return RpcUtil.apply(builder.invoke(),
+                response -> response.body().getExists());
     }
 
-    public CompletableFuture<YTreeNode> listNode() {
-        CompletableFuture<YTreeNode> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<Boolean> existsNode(String path) {
+        return existsNode(new ExistsNode(path));
     }
 
-    public CompletableFuture<YtGuid> createNode() {
-        CompletableFuture<YtGuid> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<YtGuid> createNode(CreateNode req) {
+        RpcClientRequestBuilder<TReqCreateNode.Builder, RpcClientResponse<TRspCreateNode>> builder = service.createNode();
+        req.writeTo(builder.body());
+
+        return RpcUtil.apply(builder.invoke(),
+                response ->
+                        YtGuid.fromProto(response.body().getNodeId()));
     }
 
-    public CompletableFuture<Void> removeNode() {
-        CompletableFuture<Void> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<YtGuid> createNode(String path, ObjectType type) {
+        return createNode(new CreateNode(path, type));
     }
 
-    public CompletableFuture<Void> lockNode() {
-        CompletableFuture<Void> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<Void> removeNode(RemoveNode req) {
+        RpcClientRequestBuilder<TReqRemoveNode.Builder, RpcClientResponse<TRspRemoveNode>> builder = service.removeNode();
+        req.writeTo(builder.body());
+        return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
-    public CompletableFuture<YtGuid> copyNode() {
-        CompletableFuture<YtGuid> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<Void> removeNode(String path) {
+        return removeNode(new RemoveNode(path));
     }
 
-    public CompletableFuture<YtGuid> moveNode() {
-        CompletableFuture<YtGuid> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
+        RpcClientRequestBuilder<TReqLockNode.Builder, RpcClientResponse<TRspLockNode>> builder = service.lockNode();
+        req.writeTo(builder.body());
+        return RpcUtil.apply(builder.invoke(), response -> new LockNodeResult(
+                YtGuid.fromProto(response.body().getNodeId()),
+                YtGuid.fromProto(response.body().getLockId())));
     }
 
-    public CompletableFuture<YtGuid> linkNode() {
-        CompletableFuture<YtGuid> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode) {
+        return lockNode(new LockNode(path, mode));
     }
 
-    public CompletableFuture<Void> concatenateNodes() {
-        CompletableFuture<Void> r = new CompletableFuture<>();
-        r.completeExceptionally(new RuntimeException("unimplemented"));
-        return r;
+    public CompletableFuture<YtGuid> copyNode(CopyNode req) {
+        RpcClientRequestBuilder<TReqCopyNode.Builder, RpcClientResponse<TRspCopyNode>> builder = service.copyNode();
+        req.writeTo(builder.body());
+
+        return RpcUtil.apply(builder.invoke(),
+                response ->
+                        YtGuid.fromProto(response.body().getNodeId()));
+    }
+
+    public CompletableFuture<YtGuid> copyNode(String src, String dst) {
+        return copyNode(new CopyNode(src, dst));
+    }
+
+    public CompletableFuture<YtGuid> moveNode(MoveNode req) {
+        RpcClientRequestBuilder<TReqMoveNode.Builder, RpcClientResponse<TRspMoveNode>> builder = service.moveNode();
+        req.writeTo(builder.body());
+
+        return RpcUtil.apply(builder.invoke(),
+                response ->
+                        YtGuid.fromProto(response.body().getNodeId()));
+    }
+
+    public CompletableFuture<YtGuid> moveNode(String from, String to) {
+        return moveNode(new MoveNode(from, to));
+    }
+
+    public CompletableFuture<YtGuid> linkNode(LinkNode req) {
+        RpcClientRequestBuilder<TReqLinkNode.Builder, RpcClientResponse<TRspLinkNode>> builder = service.linkNode();
+        req.writeTo(builder.body());
+
+        return RpcUtil.apply(builder.invoke(),
+                response ->
+                        YtGuid.fromProto(response.body().getNodeId()));
+    }
+
+    public CompletableFuture<YtGuid> linkNode(String src, String dst) {
+        return linkNode(new LinkNode(src, dst));
+    }
+
+    public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
+        RpcClientRequestBuilder<TReqConcatenateNodes.Builder, RpcClientResponse<TRspConcatenateNodes>> builder = service.concatenateNodes();
+        req.writeTo(builder.body());
+        return RpcUtil.apply(builder.invoke(), response -> null);
+    }
+
+    public CompletableFuture<Void> concatenateNodes(String [] from, String to) {
+        return concatenateNodes(new ConcatenateNodes(from, to));
     }
 
     /* */
