@@ -1,6 +1,7 @@
 #include "proto_helpers.h"
 
 #include <mapreduce/yt/interface/io.h>
+#include <mapreduce/yt/interface/protos/extension.pb.h>
 #include <mapreduce/yt/common/fluent.h>
 
 #include <contrib/libs/protobuf/descriptor.h>
@@ -68,9 +69,16 @@ yvector<const Descriptor*> GetJobDescriptors(const TString& fileName)
     return descriptors;
 }
 
-} // namespace
+TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescriptor)
+{
+    auto config = TNode::CreateMap();
+    for (int i = 0; i < enumDescriptor->value_count(); ++i) {
+        config[enumDescriptor->value(i)->name()] = enumDescriptor->value(i)->number();
+    }
+    return config;
+}
 
-TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
+TNode MakeProtoFormatConfigOld(const yvector<const Descriptor*>& descriptors)
 {
     FileDescriptorSet set;
     yhash<const FileDescriptor*, int> saved;
@@ -88,14 +96,66 @@ TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
     set.SerializeToString(&fileDescriptorSetBytes);
 
     return BuildYsonNodeFluently()
-    .BeginAttributes()
+        .BeginAttributes()
         .Item("file_descriptor_set").Value(fileDescriptorSetBytes)
         .Item("file_indices").List(fileIndices)
         .Item("message_indices").List(messageIndices)
         .Item("enums_as_strings").Value(true)
         .Item("nested_messages_mode").Value("protobuf")
-    .EndAttributes()
-    .Value("protobuf");
+        .EndAttributes()
+        .Value("protobuf");
+}
+
+TNode MakeProtoFormatConfigNew(const yvector<const Descriptor*>& descriptors)
+{
+    auto enumerations = TNode::CreateMap();
+    yvector<TNode> tables;
+
+    for (auto* descriptor : descriptors) {
+        auto columns = TNode::CreateList();
+        for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
+            auto* fieldDesc = descriptor->field(fieldIndex);
+            auto columnConfig = TNode()("field_number", fieldDesc->number());
+            TString columnName = fieldDesc->options().GetExtension(column_name);
+            if (columnName.empty()) {
+                const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
+                columnName = keyColumnName.empty() ? fieldDesc->name() : keyColumnName;
+            }
+            columnConfig["name"] = columnName;
+            if (fieldDesc->type() == ::google::protobuf::FieldDescriptor::TYPE_ENUM) {
+                auto* enumeration = fieldDesc->enum_type();
+                enumerations[enumeration->name()] = MakeEnumerationConfig(enumeration);
+                columnConfig["proto_type"] = "enum_string";
+                columnConfig["enumeration_name"] = enumeration->name();
+            } else {
+                columnConfig["proto_type"] = fieldDesc->type_name();
+            }
+            columns.Add(columnConfig);
+        }
+        tables.push_back(TNode()("columns", columns));
+    }
+
+    return BuildYsonNodeFluently()
+        .BeginAttributes()
+        .Item("enumerations").Value(enumerations)
+        .Item("tables").List(tables)
+        .EndAttributes()
+        .Value("protobuf");
+}
+
+constexpr bool USE_NEW_PROTO_FORMAT_DESCRIPTION = true;
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
+{
+    if (USE_NEW_PROTO_FORMAT_DESCRIPTION) {
+        return MakeProtoFormatConfigNew(descriptors);
+    } else {
+        return MakeProtoFormatConfigOld(descriptors);
+    }
 }
 
 yvector<const Descriptor*> GetJobInputDescriptors()

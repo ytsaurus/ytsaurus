@@ -1,5 +1,7 @@
 #include "lib.h"
 
+#include <mapreduce/yt/tests/native_new/all_types.pb.h>
+
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/library/operation_tracker/operation_tracker.h>
@@ -154,6 +156,23 @@ private:
     TDuration SleepDuration_;
 };
 REGISTER_MAPPER(TSleepingMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtobufMapper : public IMapper<TTableReader<TAllTypesMessage>, TTableWriter<TAllTypesMessage>>
+{
+public:
+    virtual void Do(TReader* reader, TWriter* writer) override
+    {
+        TAllTypesMessage row;
+        for (; reader->IsValid(); reader->Next()) {
+            reader->MoveRow(&row);
+            row.SetStringField(row.GetStringField() + " mapped");
+            writer->AddRow(row);
+        }
+    }
+};
+REGISTER_MAPPER(TProtobufMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -312,7 +331,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
 
         auto getJobCount = [=] (const TOperationId& operationId) {
             TYPath operationPath = "//sys/operations/" + GetGuidAsString(operationId) + "/@brief_progress/jobs/completed";
-            return client->Get(operationPath).AsInt64();
+            return client->Get(operationPath).AsMap()["total"].AsInt64();
         };
 
         std::function<TOperationId(ui32,ui64)> runOperationFunctionList[] = {
@@ -491,6 +510,34 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         auto briefProgress = operation->GetBriefProgress();
         UNIT_ASSERT(briefProgress.Defined());
         UNIT_ASSERT(briefProgress->Total > 0);
+    }
+
+    SIMPLE_UNIT_TEST(MapWithProtobuf)
+    {
+        auto client = CreateTestClient();
+        auto inputTable = TRichYPath("//testing/input");
+        auto outputTable = TRichYPath("//testing/output");
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()("StringField", "raz"));
+            writer->AddRow(TNode()("StringField", "dva"));
+            writer->AddRow(TNode()("StringField", "tri"));
+            writer->Finish();
+        }
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TAllTypesMessage>(inputTable)
+                .AddOutput<TAllTypesMessage>(outputTable),
+            new TProtobufMapper);
+
+        auto reader = client->CreateTableReader<TNode>(outputTable);
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["StringField"], "raz mapped");
+        reader->Next();
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["StringField"], "dva mapped");
+        reader->Next();
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["StringField"], "tri mapped");
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
     }
 }
 

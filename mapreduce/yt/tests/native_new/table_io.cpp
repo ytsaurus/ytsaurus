@@ -1,5 +1,6 @@
 #include "lib.h"
 
+#include <mapreduce/yt/tests/native_new/all_types.pb.h>
 #include <mapreduce/yt/tests/native_new/row.pb.h>
 
 #include <mapreduce/yt/common/config.h>
@@ -564,5 +565,66 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
 
         UNIT_ASSERT_VALUES_EQUAL(expected, got);
+    }
+
+    SIMPLE_UNIT_TEST(ReadingWritingProtobufAllTypes)
+    {
+        auto oldUseClientProtobuf = TConfig::Get()->UseClientProtobuf;
+        TConfig::Get()->UseClientProtobuf = false;
+
+        auto client = CreateTestClient();
+        auto path = TRichYPath("//testing/proto_table");
+        TAllTypesMessage message;
+        message.SetDoubleField(42.4242);
+        message.SetFloatField(3.14159);
+        message.SetInt64Field(-4200);
+        message.SetUint64Field(4200);
+        message.SetSint64Field(-4242);
+        message.SetFixed64Field(432101234);
+        message.SetSfixed64Field(41112222);
+        message.SetInt32Field(-3124232);
+        message.SetUint32Field(12321342);
+        message.SetSint32Field(-42442);
+        message.SetFixed32Field(2134242);
+        message.SetSfixed32Field(422142);
+        message.SetBoolField(true);
+        message.SetStringField("42");
+        message.SetBytesField("36 popugayev");
+        message.SetEnumField(EEnum::One);
+        message.MutableMessageField()->SetKey("key");
+        message.MutableMessageField()->SetValue("value");
+
+        {
+            auto writer = client->CreateTableWriter<TAllTypesMessage>(path);
+            writer->AddRow(message);
+            writer->Finish();
+        }
+        {
+            auto reader = client->CreateTableReader<TAllTypesMessage>(path);
+            UNIT_ASSERT(reader->IsValid());
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_DOUBLES_EQUAL(1e-6, message.GetDoubleField(), row.GetDoubleField());
+            UNIT_ASSERT_DOUBLES_EQUAL(1e-6, message.GetFloatField(), row.GetFloatField());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetInt64Field(), row.GetInt64Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetUint64Field(), row.GetUint64Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetSint64Field(), row.GetSint64Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetFixed64Field(), row.GetFixed64Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetSfixed64Field(), row.GetSfixed64Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetInt32Field(), row.GetInt32Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetUint32Field(), row.GetUint32Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetSint32Field(), row.GetSint32Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetFixed32Field(), row.GetFixed32Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetSfixed32Field(), row.GetSfixed32Field());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetBoolField(), row.GetBoolField());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetStringField(), row.GetStringField());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetBytesField(), row.GetBytesField());
+            UNIT_ASSERT_EQUAL(message.GetEnumField(), row.GetEnumField());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetMessageField().GetKey(), row.GetMessageField().GetKey());
+            UNIT_ASSERT_VALUES_EQUAL(message.GetMessageField().GetValue(), row.GetMessageField().GetValue());
+            reader->Next();
+            UNIT_ASSERT(!reader->IsValid());
+        }
+
+        TConfig::Get()->UseClientProtobuf = oldUseClientProtobuf;
     }
 }
