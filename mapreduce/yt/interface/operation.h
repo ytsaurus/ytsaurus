@@ -35,6 +35,18 @@ public:
     template <class T, class = void>
     struct TFormatAdder;
 
+    template <class T>
+    void AddInput(const TRichYPath& path);
+
+    template <class T>
+    void SetInput(size_t tableIndex, const TRichYPath& path);
+
+    template <class T>
+    void AddOutput(const TRichYPath& path);
+
+    template <class T>
+    void SetOutput(size_t tableIndex, const TRichYPath& path);
+
     yvector<TRichYPath> Inputs_;
     yvector<TRichYPath> Outputs_;
 
