@@ -10,6 +10,7 @@ import logging
 import random
 import re
 import collections
+import os
 
 ###################################################################################################################
 # Configuration Goes Here.
@@ -201,7 +202,7 @@ CLUSTER_NODE_MASKS = {
 # Code Goes Here.
 
 
-PRESTABLE = False
+PRESTABLE = "USE_PRESTABLE" in os.environ
 SOLOMON_API = "http://solomon.yandex.net/api/v2" if not PRESTABLE else "http://solomon-prestable.yandex.net/api/v2"
 
 
