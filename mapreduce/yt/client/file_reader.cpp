@@ -65,7 +65,7 @@ void TFileReader::CreateRequest()
     FileReaderOptions_.Offset(CurrentOffset_);
     header.SetParameters(FormIORequestParameters(Path_, FileReaderOptions_));
 
-    header.SetResponseCompression(TConfig::Get()->AcceptEncoding);
+    header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
 
     Request_.Reset(new THttpRequest(proxyName));
 

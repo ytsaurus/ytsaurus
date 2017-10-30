@@ -34,7 +34,7 @@ void RetryHeavyWriteRequest(
             requestId = request.GetRequestId();
 
             header.AddTransactionId(attemptTx.GetId());
-            header.SetRequestCompression(TConfig::Get()->ContentEncoding);
+            header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
 
             request.Connect();
             try {

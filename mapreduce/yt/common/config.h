@@ -1,13 +1,22 @@
 #pragma once
 
 #include <mapreduce/yt/interface/node.h>
+#include <mapreduce/yt/interface/common.h>
 
 #include <util/generic/string.h>
 #include <util/datetime/base.h>
 
 namespace NYT {
 
+enum EEncoding : int {
+    E_IDENTITY  /* "identity" */,
+    E_GZIP      /* "gzip" */,
+    E_Y_LZO     /* "y-lzo" */,
+    E_Y_LZF     /* "y-lzf" */
+};
+
 ////////////////////////////////////////////////////////////////////////////////
+
 struct TConfig
 {
     TString Hosts;
@@ -17,8 +26,8 @@ struct TConfig
     TString ApiVersion;
     TString LogLevel;
 
-    TString ContentEncoding;
-    TString AcceptEncoding;
+    EEncoding ContentEncoding;
+    EEncoding AcceptEncoding;
 
     TString GlobalTxId;
 
@@ -83,7 +92,7 @@ struct TConfig
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
     static TDuration GetDuration(const char* var, TDuration defaultValue);
-    static TString GetEncoding(const char* var);
+    static EEncoding GetEncoding(const char* var);
 
     static void ValidateToken(const TString& token);
     static TString LoadTokenFromFile(const TString& tokenPath);
