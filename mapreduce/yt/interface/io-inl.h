@@ -5,6 +5,8 @@
 #endif
 #undef IO_INL_H_
 
+#include "finish_or_die.h"
+
 #include <util/generic/typetraits.h>
 #include <util/generic/yexception.h>
 #include <util/stream/length.h>
@@ -397,12 +399,8 @@ public:
 
     ~TTableWriterBase() override
     {
-        try {
-            if (Locks_.RefCount() == 1) {
-                Finish();
-            }
-        } catch (...) {
-            // no guarantees
+        if (Locks_.RefCount() == 1) {
+            NDetail::FinishOrDie(this, "TTableWriterBase");
         }
     }
 

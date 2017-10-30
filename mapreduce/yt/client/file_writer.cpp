@@ -1,6 +1,7 @@
 #include "file_writer.h"
 
 #include <mapreduce/yt/io/helpers.h>
+#include <mapreduce/yt/interface/finish_or_die.h>
 
 #include <mapreduce/yt/common/helpers.h>
 
@@ -26,10 +27,7 @@ TFileWriter::TFileWriter(
 
 TFileWriter::~TFileWriter()
 {
-    try {
-        Finish();
-    } catch (...) {
-    }
+    NDetail::FinishOrDie(this, "TFileWriter");
 }
 
 void TFileWriter::DoWrite(const void* buf, size_t len)
