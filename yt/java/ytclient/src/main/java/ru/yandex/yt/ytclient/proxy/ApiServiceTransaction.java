@@ -9,6 +9,7 @@ import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
+import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
@@ -17,6 +18,7 @@ import ru.yandex.yt.ytclient.proxy.request.LockMode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
+import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
@@ -124,6 +126,15 @@ public class ApiServiceTransaction implements AutoCloseable {
     }
 
     /* nodes */
+
+    public CompletableFuture<YtGuid> createNode(CreateNode req) {
+        return client.createNode(req.setTransactionalOptions(transactionalOptions));
+    }
+
+    public CompletableFuture<YtGuid> createNode(String path, ObjectType type) {
+        return createNode(new CreateNode(path, type));
+    }
+
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         return client.existsNode(req.setTransactionalOptions(transactionalOptions));
     }

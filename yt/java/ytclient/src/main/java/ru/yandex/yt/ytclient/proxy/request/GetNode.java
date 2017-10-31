@@ -32,7 +32,9 @@ public class GetNode extends GetLikeReq<GetNode> {
         if (suppressableAccessTrackingOptions != null) {
             builder.setSuppressableAccessTrackingOptions(suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder()));
         }
-        builder.mergeFrom(additionalData);
+        if (additionalData != null) {
+            builder.mergeFrom(additionalData);
+        }
         return builder;
     }
 }
