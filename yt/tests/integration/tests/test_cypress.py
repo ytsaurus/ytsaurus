@@ -1364,7 +1364,28 @@ class TestCypress(YTEnvSetup):
         move("//tmp/t1", "//tmp/t2")
         assert creation_time1 == get("//tmp/t2/@creation_time")
         assert creation_time2 == get("//tmp/t2/x/@creation_time")
-        
+
+    def test_setting_document_node_increases_revision_yt_7829(self):
+        create("document", "//tmp/d1")
+        revision1 = get("//tmp/d1/@revision")
+
+        set("//tmp/d1", {"a": {"b": ["c", "d", "e"]}})
+        revision2 = get("//tmp/d1/@revision")
+        assert revision2 > revision1
+
+        set("//tmp/d1/@value", {"f": {"g": ["h", "i", "j"]}})
+        revision3 = get("//tmp/d1/@revision")
+        assert revision3 > revision2
+
+        set("//tmp/d1/@value/f/g", ["k", "l", "m"])
+        revision4 = get("//tmp/d1/@revision")
+        assert revision4 > revision3
+
+        remove("//tmp/d1/@value/f/g")
+        revision5 = get("//tmp/d1/@revision")
+        assert revision5 > revision4
+
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):

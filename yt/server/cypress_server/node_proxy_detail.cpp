@@ -2068,8 +2068,7 @@ void TDocumentNodeProxy::SetSelf(
     const TCtxSetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-    auto* impl = LockThisImpl();
-    impl->SetValue(ConvertToNode(TYsonString(request->value())));
+    SetImplValue(TYsonString(request->value()));
     context->Reply();
 }
 
@@ -2152,12 +2151,18 @@ bool TDocumentNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* 
 bool TDocumentNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString& value)
 {
     if (key == "value") {
-        auto* impl = LockThisImpl();
-        impl->SetValue(ConvertToNode(value));
+        SetImplValue(value);
         return true;
     }
 
     return TBase::SetBuiltinAttribute(key, value);
+}
+
+void TDocumentNodeProxy::SetImplValue(const TYsonString& value)
+{
+    auto* impl = LockThisImpl();
+    impl->SetValue(ConvertToNode(value));
+    SetModified();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
