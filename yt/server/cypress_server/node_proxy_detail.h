@@ -547,6 +547,7 @@ private:
     virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
 
+    void SetImplValue(const NYson::TYsonString& value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
