@@ -129,6 +129,17 @@ TGilGuard::~TGilGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReleaseAcquireGilGuard::TReleaseAcquireGilGuard()
+    : State_(PyEval_SaveThread())
+{ }
+
+TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
+{
+    PyEval_RestoreThread(State_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPythonClassObject::TPythonClassObject()
 { }
 
