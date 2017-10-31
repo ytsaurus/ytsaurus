@@ -318,9 +318,21 @@ public:
         return const_cast<T*>(this->Data_);
     }
 
+    // STL interop, for gcc.
+    iterator begin() const
+    {
+        return Begin();
+    }
+
     iterator End() const
     {
         return this->Begin() + this->Size();
+    }
+
+    // STL interop, for gcc.
+    iterator end() const
+    {
+        return End();
     }
 
     T& operator[](size_t index)
