@@ -126,7 +126,7 @@ public:
     static TIP6Network FromString(const TStringBuf& str);
     static bool FromString(const TStringBuf& str, TIP6Network* network);
 
-    bool Contains(const TIP6Address& address);
+    bool Contains(const TIP6Address& address) const;
 
     const TIP6Address& GetNetwork() const;
     const TIP6Address& GetMask() const;
@@ -135,9 +135,6 @@ private:
     TIP6Address Network_;
     TIP6Address Mask_;
 };
-
-void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStringBuf& spec);
-TString ToString(const TIP6Network& network);
 
 ////////////////////////////////////////////////////////////////////////////////
 
