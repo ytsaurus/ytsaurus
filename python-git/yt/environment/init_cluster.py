@@ -224,6 +224,10 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                   attributes={"account": "tmp_files"},
                   recursive=True,
                   ignore_existing=True)
+    client.create("map_node",
+                  "//tmp/yt_wrapper/table_storage",
+                  recursive=True,
+                  ignore_existing=True)
 
     if not client.exists("//sys/tablet_cell_bundles/sys"):
         client.create("tablet_cell_bundle", attributes={"name": "sys"})
