@@ -164,9 +164,14 @@ public:
         try {
             TSharedRef item;
 
-            Py_BEGIN_ALLOW_THREADS
-            item = Lexer_.NextItem();
-            Py_END_ALLOW_THREADS
+            auto state = PyEval_SaveThread();
+            try {
+                item = Lexer_.NextItem();
+            } catch (...) {
+                PyEval_RestoreThread(state);
+                throw;
+            }
+            PyEval_RestoreThread(state);
 
             if (!item) {
                 PyErr_SetNone(PyExc_StopIteration);
